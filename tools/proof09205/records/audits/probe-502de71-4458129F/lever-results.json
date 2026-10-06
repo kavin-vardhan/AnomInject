@@ -1,0 +1,22 @@
+[
+  {
+    "config": "Development",
+    "exit": 0,
+    "files": [
+      "StackOBot.exe"
+    ],
+    "log": "E:\\IA_BuildCache\\_r921\\09205\\audits\\probe-502de71-4458129F\\lever-Development.log"
+  },
+  {
+    "config": "Editor",
+    "exit": 0,
+    "files": [
+      "editor/UnrealEditor-AnomalyBench.dll",
+      "editor/UnrealEditor-AnomalyCapture.dll",
+      "editor/UnrealEditor-AnomalyControlServer.dll",
+      "editor/UnrealEditor-AnomalyInjector.dll",
+      "editor/UnrealEditor-AnomalyShaders.dll"
+    ],
+    "log": "E:\\IA_BuildCache\\_r921\\09205\\audits\\probe-502de71-4458129F\\lever-Editor.log"
+  }
+]

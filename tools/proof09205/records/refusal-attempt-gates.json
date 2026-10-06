@@ -1,0 +1,39 @@
+{
+  "status": "PASS",
+  "cases": [
+    {
+      "label": "stacks-release-refusal-final-v2",
+      "reason": "virtual_texture",
+      "attempts": [
+        "Auto.FireSpecific: 'stuck_low_mip' on 'StaticMeshActor_77' -> not applied."
+      ],
+      "actual_refusals": [
+        "stuck_low_mip: matched 1 component(s) for '=StaticMeshActor_77' with 3 candidate texture(s) but HELD NONE [targeted, selection gates BYPASSED] - 3 virtual, 0 not streamable or already at the floor, 0 excluded LOD group, 0 shared with another user component in this world, 0 too small for the ratio at the deepest achievable hold, 0 imperceptible at the explicitly requested depth. Applying nothing, so no fire is recorded and no label is written."
+      ],
+      "startup_banner_alone_mutant_caught": true
+    },
+    {
+      "label": "stacks-accepted-refusal-final-v2",
+      "reason": "stack_layout",
+      "attempts": [
+        "Auto.FireSpecific: 'stuck_low_mip' on 'StaticMeshActor_77' -> not applied."
+      ],
+      "actual_refusals": [
+        "TEXCORRUPT-REFUSED family=blur mode=proxy_blur target='=StaticMeshActor_77' final=virtual_texture:stack_layout step=V1 slots=1 qualified=0 required_bytes=0 distinct_textures=0 scratch_classes=0 cap=134217728(compiled) levers=[noapply=0 wrongcopy=none identity=0 identity_redraw=0 tile_probe=0 force_missing_asset=0 fail_step=0 fail_alloc_ordinal=-1 foreign_replace=0 collateral_detail=0 commit_delay=0 restore_delay=0 rt_sampler_bias=-1 src_mip_comp=-1 no_part_scope=0] ordinal=0 components=1 admitted=0 skipped=1 selected_slots=0 notes=[]"
+      ],
+      "startup_banner_alone_mutant_caught": true
+    },
+    {
+      "label": "stacks-unnamed-refusal-final-v2",
+      "reason": "stack_unnamed",
+      "attempts": [
+        "Auto.FireSpecific: 'stuck_low_mip' on 'StaticMeshActor_77' -> not applied."
+      ],
+      "actual_refusals": [
+        "TEXCORRUPT-REFUSED family=blur mode=proxy_blur target='=StaticMeshActor_77' final=virtual_texture:stack_unnamed step=V1 slots=1 qualified=0 required_bytes=0 distinct_textures=0 scratch_classes=0 cap=134217728(compiled) levers=[noapply=0 wrongcopy=none identity=0 identity_redraw=0 tile_probe=0 force_missing_asset=0 fail_step=0 fail_alloc_ordinal=-1 foreign_replace=0 collateral_detail=0 commit_delay=0 restore_delay=0 rt_sampler_bias=-1 src_mip_comp=-1 no_part_scope=0] ordinal=0 components=1 admitted=0 skipped=1 selected_slots=0 notes=[]"
+      ],
+      "startup_banner_alone_mutant_caught": true
+    }
+  ],
+  "refinement": "Supplementary check requires actual attempted-fire refusal; the earlier generic named-text reader could match a startup banner. Raw logs and earlier results remain unchanged."
+}

@@ -1,0 +1,119 @@
+{
+  "status": "PASS",
+  "time": 1791246931.1304438,
+  "branch": "feat/vt-blur-stacks",
+  "runtime": "502de71ed82f8eed9bdc51070b55361d40133db6",
+  "trees": {
+    "Source": "6caf36838959d6e92d75a7798d39dbf05c8fa0fe",
+    "Shaders": "76c83c697da12637a0841e7f1e4b032778928960",
+    "AnomalyInjector.uplugin": "ce2013dd78ff961f5e121560d81e8024e34c436d"
+  },
+  "protected_refs": [
+    "refs/heads/feat/vt-proxy-blur af79520437e1b470904b0638e99c3a15dd0fcc70",
+    "refs/heads/m51 53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67",
+    "refs/heads/master b5f15a3bf4f4db5a80261c7d3e62e9a723afba8e",
+    "refs/heads/release/2026-10-05 d7eee97731812384d4fd00af9032254923363ada",
+    "refs/tags/m1 62f9b897f979bfb3cf82ad8eef0701122366d98c",
+    "refs/tags/m10 d4c5730c80d4e482d056504bfcfa27bed025b23d",
+    "refs/tags/m11 2030f225325ea7abcc2b10326aeb33ac956a50a6",
+    "refs/tags/m12 d29797a80a7c3e61d034e28f9220ae8b622661a7",
+    "refs/tags/m14 debb01b6694a02416c718587f0c6213757d47580",
+    "refs/tags/m15 bc10272f11cd7985a2229b1b3261a4b500a13142",
+    "refs/tags/m16 84dfa5207c04fea0bdcc9b895ecfbc7b740752a0",
+    "refs/tags/m17 e2c6dd207bd2ed3fdf2db11f686a526b8373fb77",
+    "refs/tags/m18 4559c8cc03d475c3a83d80f5ce50e7c56d6af73e",
+    "refs/tags/m19 c8aa3fa520b8f895e6f09dd1ac0280148406785f",
+    "refs/tags/m2 9283ae0faf8cc014940fa6663c3c22480abe2a74",
+    "refs/tags/m2.5 bcc2349e8b5aa0e48360cf5cdc1d09c75f89de45",
+    "refs/tags/m20 c01a2147553e62bc8fa4a3bf5707baffd2ac053b",
+    "refs/tags/m21 a2c312761df29cbd833815070c4b96f4592d5b0c",
+    "refs/tags/m22 5fef60efb788ca922673038b1844c7b6dace53b4",
+    "refs/tags/m23 071f9b32890c17ffcb867b9e8b9b9748d159145e",
+    "refs/tags/m24 8373b76218bc9f436851c2daddd83edf50aa6987",
+    "refs/tags/m25 ebf1f1615a27b1eae13b63c89e2e8a7892f2db79",
+    "refs/tags/m26 43289615c66eabc83db045b8cfa3135d22f2ad84",
+    "refs/tags/m27 1756f52334b5093fb51cb5ef175230ab7372ea94",
+    "refs/tags/m28 a45b18aa0104cebc4ea4a385d5a9127862ba9d57",
+    "refs/tags/m29 545d16e2324c8d50a1d82ceda40d0ffde1d94d7f",
+    "refs/tags/m3 c54351af1c5ca2cf6d713597d730ac57a4d26137",
+    "refs/tags/m30 53dcf5eef4e425ec7122465a0deb0c5ca7ca0203",
+    "refs/tags/m4 7c34275bc895426ebb30bfa867258056899505b3",
+    "refs/tags/m5 aa2a3a4b4968730e09f275ecb10d5d5628e4acb6",
+    "refs/tags/m6 41ba1048649e5830f2123e6ad89de64cf0b407d9",
+    "refs/tags/m7 f5125ae3a7d04d48383ffcaf89aa6060c60e1898",
+    "refs/tags/m8 acf29b4cdf6c3594de953275ea61196cad682adc",
+    "refs/tags/m9 41247debc7cad3710e5e493e4d11905f5cd10964"
+  ],
+  "host_head": "23098fa7415f148e935acbd4a97e18da04e6c46c",
+  "restored_binaries": 6,
+  "restored_settings": 156,
+  "removed_created_settings": 70,
+  "engine_entries": 44,
+  "extra_engine_entries": 9,
+  "single_fixture_files": 10,
+  "fixtures": [
+    {
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\fixture-part-a.zip",
+      "sha256": "3048293c52dd76899d323fdb5fbad16c8b8803e69d655618bf9ac92ad80e2187",
+      "files": 10
+    },
+    {
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\fixture-part-b-calibrated.zip",
+      "sha256": "d9fcecdde43467ce139ccf2e56b9d25a5542c5109780a67a5289a9cb5499cfb4",
+      "files": 10
+    }
+  ],
+  "cooks": [
+    {
+      "status": "PASS",
+      "root": "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot",
+      "source_commit": "16b5f5867c9c3e4c8a8ba3d3764adbf5a8c51f93",
+      "hashes": {
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Binaries\\Win64\\StackOBot.exe": "381ed90fb296fb2dc55094543c82c7ac6e48778217b3f7d24b620425a5531a72",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\global.ucas": "57349d07bd158eb879bdc8b6f367014f730e9fe70fcedb145e35cff1b81654c8",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\global.utoc": "016de38c52ee8070e7ee0fbc0548b959a80c266ec3b394060e1378f465820fde",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.pak": "cd6bafb3e6e540d777c144af6a696889c4d3963e7217527c044742157c294ff8",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.ucas": "45c4e83d7d727a4508214e4ef40682dcb664385c9de5010a67a1bed5553f07bb",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.utoc": "d6c21d46445065ee28d7d8a68ae1485a14e328a6eaaa460562be9e5b3b1541e9"
+      },
+      "seconds": 28.13734722137451
+    },
+    {
+      "status": "PASS",
+      "root": "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final\\archive\\Windows\\StackOBot",
+      "source_commit": "1fda1cb721e6368eac5bd2a3ed7e2029a729e540",
+      "hashes": {
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final\\archive\\Windows\\StackOBot\\Binaries\\Win64\\StackOBot.exe": "f3a8c68cb019b20ad9df9b698148b59854bab8079a381be74232a1beeebdb03c",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final\\archive\\Windows\\StackOBot\\Content\\Paks\\global.ucas": "57349d07bd158eb879bdc8b6f367014f730e9fe70fcedb145e35cff1b81654c8",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final\\archive\\Windows\\StackOBot\\Content\\Paks\\global.utoc": "016de38c52ee8070e7ee0fbc0548b959a80c266ec3b394060e1378f465820fde",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.pak": "3faf9e10b314be25355f63d244db9d3598e7fd82f2d12f7b955258d25d8c2c38",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.ucas": "b70a15c7133580eded4e4c07888655a69c73e962567e0b9a4f1ca1b53813ddb2",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.utoc": "f503d0906a77bf8e0671651837b2344bdab68a1cd59db86f158168fdc1bd5295"
+      },
+      "seconds": 37.20442843437195
+    },
+    {
+      "status": "PASS",
+      "root": "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final-v2\\archive\\Windows\\StackOBot",
+      "source_commit": "502de71ed82f8eed9bdc51070b55361d40133db6",
+      "hashes": {
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final-v2\\archive\\Windows\\StackOBot\\Binaries\\Win64\\StackOBot.exe": "4458129faf79c8f9cf6b45bc163df047111b3345d96c9079b13ebfad16ea9320",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final-v2\\archive\\Windows\\StackOBot\\Content\\Paks\\global.ucas": "57349d07bd158eb879bdc8b6f367014f730e9fe70fcedb145e35cff1b81654c8",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final-v2\\archive\\Windows\\StackOBot\\Content\\Paks\\global.utoc": "016de38c52ee8070e7ee0fbc0548b959a80c266ec3b394060e1378f465820fde",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final-v2\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.pak": "b498b1b011502892a81f95648ebb927b414ffa2db6e79d1d803d6836c7f88028",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final-v2\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.ucas": "39adb8fb76f43b24e43a18f3aa010349d9c6490666b74fd11850b507042ab7e4",
+        "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-b-final-v2\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.utoc": "dc5c43a800901fa5a6ce052ad07f40c98255d57830da21b0c55dc9e1394bfbb9"
+      },
+      "seconds": 31.246790885925293
+    }
+  ],
+  "accepted_head_runtime_trees": {
+    "Source": "d0813ee94d3fad57c159a797b7a9d1481a383c1c",
+    "Shaders": "4ef9c3214280def36a399755eba3f10098b182a2",
+    "AnomalyInjector.uplugin": "ce2013dd78ff961f5e121560d81e8024e34c436d"
+  },
+  "disk_free_bytes": {
+    "D": 83024056320,
+    "E": 106025803776
+  }
+}

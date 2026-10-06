@@ -1,0 +1,168 @@
+{
+  "verified": 1791246913.969701,
+  "archives": [
+    {
+      "source_commit": "169292981863ae9ca9297e302036e8c384b70625",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-1692929-35F9A2A7",
+      "files": {
+        "StackOBot.exe": "35f9a2a717a4e6b190791692d25413d424c4fb906312dc81bafb3cf125ccbbfa",
+        "editor/UnrealEditor-AnomalyBench.dll": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0",
+        "editor/UnrealEditor-AnomalyCapture.dll": "6aac004f303d1936dd3b3ece405572f5eadb5896d165cb9ddb24fd5ce09506ba",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "649114d43c997b63c78bc0d1006f2c26dbdf80ec0c5070724806196f6eb9349d",
+        "editor/UnrealEditor-AnomalyInjector.dll": "37cea03c72352714147f78813c3ec17f836550d3d4ba94c9acdb229a568fdb56",
+        "editor/UnrealEditor-AnomalyShaders.dll": "1a8b1589b44f4a98131792533e5954e31dd30c1fca91a0af6b9737ddccb568dd"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "16b5f5867c9c3e4c8a8ba3d3764adbf5a8c51f93",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F",
+      "files": {
+        "StackOBot.exe": "381ed90fb296fb2dc55094543c82c7ac6e48778217b3f7d24b620425a5531a72",
+        "editor/UnrealEditor-AnomalyBench.dll": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0",
+        "editor/UnrealEditor-AnomalyCapture.dll": "6aac004f303d1936dd3b3ece405572f5eadb5896d165cb9ddb24fd5ce09506ba",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "649114d43c997b63c78bc0d1006f2c26dbdf80ec0c5070724806196f6eb9349d",
+        "editor/UnrealEditor-AnomalyInjector.dll": "28d3f2bf9e38ebf7951e4c9cd8bc0ff34837c332a6dc86c9227dcfcb5cd054fe",
+        "editor/UnrealEditor-AnomalyShaders.dll": "d97788293a9f169dd609e4d08544a2199ac7d368bd68ebfe75f79cdddf77e9fc"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "16b5f5867c9c3e4c8a8ba3d3764adbf5a8c51f93",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-8BD2BD63",
+      "files": {
+        "StackOBot.exe": "8bd2bd630398d4f5c20144bc5a42da995155548a10bff736e3cc06d1a34be8c8",
+        "editor/UnrealEditor-AnomalyBench.dll": "3f47105c8b1be9ffbd0e9762733f00398b0af39e65dd6cb7656c2934571c35bb",
+        "editor/UnrealEditor-AnomalyCapture.dll": "9e5ab9451b5e1522a163e98216bba3a91cefbba64955a595ce621f79273fbc1b",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "d8cbd85bd723f1e34df39f24c8dcf37b7581058b84c5845694dcda609fb3dd35",
+        "editor/UnrealEditor-AnomalyInjector.dll": "e8344f2f30608fdeee967bddb844ed08b332e717b842340124e49b1ec01442d4",
+        "editor/UnrealEditor-AnomalyShaders.dll": "790294cb2358b3f4e1b3370ab4ed8d1bc458f9a588f986fc11f93b77a517592f"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "1fda1cb721e6368eac5bd2a3ed7e2029a729e540",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-1fda1cb-27DBC2C0",
+      "files": {
+        "StackOBot.exe": "27dbc2c0b42c3a19af3f32c27b2c51f5ef1cacb27029a13097afb7faf518059d",
+        "editor/UnrealEditor-AnomalyBench.dll": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0",
+        "editor/UnrealEditor-AnomalyCapture.dll": "6aac004f303d1936dd3b3ece405572f5eadb5896d165cb9ddb24fd5ce09506ba",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "649114d43c997b63c78bc0d1006f2c26dbdf80ec0c5070724806196f6eb9349d",
+        "editor/UnrealEditor-AnomalyInjector.dll": "8c16558ccd83d4d4a99f4d184fcc04fb7658932911a5468c4148cf5a1fa46b16",
+        "editor/UnrealEditor-AnomalyShaders.dll": "1a8b1589b44f4a98131792533e5954e31dd30c1fca91a0af6b9737ddccb568dd"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "1fda1cb721e6368eac5bd2a3ed7e2029a729e540",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-1fda1cb-F3A8C68C",
+      "files": {
+        "StackOBot.exe": "f3a8c68cb019b20ad9df9b698148b59854bab8079a381be74232a1beeebdb03c",
+        "editor/UnrealEditor-AnomalyBench.dll": "6d50631c822055330a771ec6f42905c47a79f85e168d717090e655ee4694a8a0",
+        "editor/UnrealEditor-AnomalyCapture.dll": "9e25db8af6222da5f891e96e8a451c10829bfefa0058fe32895541495dc74a5b",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "f54abc5e1ac344515139ec6a58c1f5cdba9552437ab67a8e7198e7bebbeead3d",
+        "editor/UnrealEditor-AnomalyInjector.dll": "a69629697d85b838091731f2d4e40b586e359838547fb572e0ed2acc91d5d6a1",
+        "editor/UnrealEditor-AnomalyShaders.dll": "1308cc75643585d6cb94962e84f38b791eb7d4c2a5b4024609e04e5379ee7816"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "502de71ed82f8eed9bdc51070b55361d40133db6",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-502de71-4458129F",
+      "files": {
+        "StackOBot.exe": "4458129faf79c8f9cf6b45bc163df047111b3345d96c9079b13ebfad16ea9320",
+        "editor/UnrealEditor-AnomalyBench.dll": "3f4abcadcfe9b098420f27bbb91a5ca29ac4359953045d3a283068db86684053",
+        "editor/UnrealEditor-AnomalyCapture.dll": "91baabbab396ab5d45e6df615d9ded386dd6e99a179d40bbf8ae2fc3b5087100",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "ab5cd3bf1e1bb3f398ed9ac7ac9fbb87007257e1cb2d964f93828c7025bc8a2f",
+        "editor/UnrealEditor-AnomalyInjector.dll": "8966a655a186881dd1c08e52a25232c92e61b7f00f7b604ce6f5796dc42022a4",
+        "editor/UnrealEditor-AnomalyShaders.dll": "6cc03bf61875ef376d3797c6d74c012e9323a36791c0af57c167f7f67818e439"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "6bfca31aca8e108d6ccc2a2b692aaf5db7fd6496",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-6bfca31-5886C355",
+      "files": {
+        "StackOBot.exe": "5886c3553870ddf92cdb7256c9a39004cd0a95defe528cb407a33ba26cf8aa34",
+        "editor/UnrealEditor-AnomalyBench.dll": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0",
+        "editor/UnrealEditor-AnomalyCapture.dll": "6aac004f303d1936dd3b3ece405572f5eadb5896d165cb9ddb24fd5ce09506ba",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "649114d43c997b63c78bc0d1006f2c26dbdf80ec0c5070724806196f6eb9349d",
+        "editor/UnrealEditor-AnomalyInjector.dll": "e00f5529470c8a50237e51f9b44b4f19721ed5d17988f412887200e10785687a",
+        "editor/UnrealEditor-AnomalyShaders.dll": "1a8b1589b44f4a98131792533e5954e31dd30c1fca91a0af6b9737ddccb568dd"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "7bebf09646b9cb45144847bf282d57626a131b85",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-7bebf09-11B38564",
+      "files": {
+        "StackOBot.exe": "11b38564193725851481e6134d69c9d6ef0c09905cbef77d3faa93791f804d0c",
+        "editor/UnrealEditor-AnomalyBench.dll": "3f47105c8b1be9ffbd0e9762733f00398b0af39e65dd6cb7656c2934571c35bb",
+        "editor/UnrealEditor-AnomalyCapture.dll": "9e5ab9451b5e1522a163e98216bba3a91cefbba64955a595ce621f79273fbc1b",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "d8cbd85bd723f1e34df39f24c8dcf37b7581058b84c5845694dcda609fb3dd35",
+        "editor/UnrealEditor-AnomalyInjector.dll": "bc4eccaf4bc5cf97131c406a1a6ff76d57ae3042697994be19ddc7d508ea4d98",
+        "editor/UnrealEditor-AnomalyShaders.dll": "790294cb2358b3f4e1b3370ab4ed8d1bc458f9a588f986fc11f93b77a517592f"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    },
+    {
+      "source_commit": "fe94c63c0be3659d95f874e6593a768c37289118",
+      "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-fe94c63-51DCD233",
+      "files": {
+        "StackOBot.exe": "51dcd2338f10a76d302247f7dc1f673f13b0ac179df86358008812378307f162",
+        "editor/UnrealEditor-AnomalyBench.dll": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0",
+        "editor/UnrealEditor-AnomalyCapture.dll": "6aac004f303d1936dd3b3ece405572f5eadb5896d165cb9ddb24fd5ce09506ba",
+        "editor/UnrealEditor-AnomalyControlServer.dll": "649114d43c997b63c78bc0d1006f2c26dbdf80ec0c5070724806196f6eb9349d",
+        "editor/UnrealEditor-AnomalyInjector.dll": "3fd86391d28f1f61f2c5e49a3ae8a582f207269e90b7f271dfaf8455bf6de457",
+        "editor/UnrealEditor-AnomalyShaders.dll": "1a8b1589b44f4a98131792533e5954e31dd30c1fca91a0af6b9737ddccb568dd"
+      },
+      "status": "built and re-hashed; no runtime proof status implied",
+      "built_data": "fixture content and cooked data are receipted separately for each leg"
+    }
+  ],
+  "binary_count": 54,
+  "baseline_manifests": [
+    {
+      "path": "E:\\IA_BuildCache\\_binary_baselines\\release-2026-10-05-23098fa-218BA4C7\\manifest.json",
+      "manifest": {
+        "commit": "23098fa7415f148e935acbd4a97e18da04e6c46c",
+        "build": "E:\\IA_BuildCache\\_r917\\builds\\23098fa",
+        "files": {
+          "StackOBot.exe": "218ba4c79bb2bf6d9e14706772c04b3c53027cc05b84d4ab100a3349b650b7d6",
+          "editor\\UnrealEditor-AnomalyBench.dll": "9f967665827cd1358b5f914466c36ecc45e47e5e972c749aa0221283bc92dfce",
+          "editor\\UnrealEditor-AnomalyCapture.dll": "470ebe5f6c5d8fa11d9872392035c62c2bab2480aee462a4d4d58ac59e8a5be3",
+          "editor\\UnrealEditor-AnomalyControlServer.dll": "0c9c329bedf22be975a09042eb242a21cda726fcab63553240a46685b1dd8cf1",
+          "editor\\UnrealEditor-AnomalyInjector.dll": "45a1512f0c7b59e321d8de97dd03e23b9bee175f503f974fb5a200f99b5a1b90",
+          "editor\\UnrealEditor-AnomalyShaders.dll": "43d78d878cd1e8cd41b23db1fb747fc5c6bd6a103cb5089bb4fb984b1afc47db"
+        },
+        "sha8": "218BA4C7",
+        "validation": "E:\\IA_BuildCache\\_r917\\strict-23098fa"
+      }
+    },
+    {
+      "path": "E:\\IA_BuildCache\\_r921\\09203c\\archives\\probe-c80ef9b-1EA292E8\\manifest.json",
+      "manifest": {
+        "source_commit": "c80ef9bbbe6c6faf60dafe1e640dfd0e469ea098",
+        "archive": "E:\\IA_BuildCache\\_r921\\09203c\\archives\\probe-c80ef9b-1EA292E8",
+        "files": {
+          "StackOBot.exe": "1ea292e815e5acf5c6ab214043b7d255c0f35d7e456c23c0d4e0a67fe489e891",
+          "editor/UnrealEditor-AnomalyBench.dll": "89b38938235cb95f4a30b40fd51798729736aed5a02cc4479eabd9fa4fc95f23",
+          "editor/UnrealEditor-AnomalyCapture.dll": "9a746e84cca24c6644a7a8995e92e89f89b53044e526656e9497e27bb6ce5000",
+          "editor/UnrealEditor-AnomalyControlServer.dll": "3145f4c0b1f187159bfa827981c4a0f01cf54d67a36e64d0cb90907c1ffeba68",
+          "editor/UnrealEditor-AnomalyInjector.dll": "c74bbd3cd0b4305cd08d1097943228d6dca175f447885a43c6c9c28ac4c0344a",
+          "editor/UnrealEditor-AnomalyShaders.dll": "6e6e5e0d301abc087a04819833ab1768550cc725f35213241df59b389af52e79"
+        },
+        "status": "built and re-hashed; no runtime proof status implied",
+        "built_data": "fixture content and cooked data are receipted separately for each leg"
+      }
+    }
+  ]
+}

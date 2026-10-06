@@ -1,0 +1,458 @@
+{
+  "expected_file": "E:\\IA_BuildCache\\_r921\\09205\\census-expected-part-b-before.json",
+  "counts_pass": false,
+  "failures": [
+    {
+      "family": 2,
+      "key": "required_components",
+      "expected": 3,
+      "actual": 2
+    },
+    {
+      "family": 2,
+      "key": "required_bindings",
+      "expected": 9,
+      "actual": 6
+    },
+    {
+      "family": 2,
+      "key": "only_vt",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "family": 2,
+      "key": "only_vt_unassessed",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "family": 2,
+      "key": "binding_sets",
+      "expected": {
+        "1": 3,
+        "8": 6
+      },
+      "actual": {
+        "1": 2,
+        "8": 4
+      }
+    },
+    {
+      "family": 2,
+      "key": "component_sets",
+      "expected": {
+        "9": 3
+      },
+      "actual": {
+        "9": 2
+      }
+    },
+    {
+      "family": 2,
+      "key": "layers_bc5",
+      "expected": 3,
+      "actual": 2
+    },
+    {
+      "family": 2,
+      "key": "layers_dxt1",
+      "expected": 6,
+      "actual": 4
+    }
+  ],
+  "expected": [
+    {
+      "family": 0,
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 9,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 3,
+        "8": 6
+      },
+      "component_sets": {
+        "9": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 6,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 1,
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 3,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 3
+      },
+      "component_sets": {
+        "1": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 0,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    },
+    {
+      "family": 2,
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 9,
+      "unread_slots": 0,
+      "only_vt": 0,
+      "only_vt_unassessed": 0,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "binding_sets": {
+        "1": 3,
+        "8": 6
+      },
+      "component_sets": {
+        "9": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 6,
+      "layers_bgra8": 0,
+      "layers_other": 0
+    }
+  ],
+  "printed": [
+    {
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 9,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 6,
+      "layers_bgra8": 0,
+      "layers_other": 0,
+      "binding_sets": {
+        "1": 3,
+        "8": 6
+      },
+      "component_sets": {
+        "9": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      }
+    },
+    {
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 3,
+      "required_bindings": 3,
+      "unread_slots": 0,
+      "only_vt": 2,
+      "only_vt_unassessed": 2,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "layers_bc5": 3,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 0,
+      "layers_bgra8": 0,
+      "layers_other": 0,
+      "binding_sets": {
+        "1": 3
+      },
+      "component_sets": {
+        "1": 3
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      }
+    },
+    {
+      "components": 4,
+      "vt_components": 3,
+      "bindings": 9,
+      "required_components": 2,
+      "required_bindings": 6,
+      "unread_slots": 0,
+      "only_vt": 1,
+      "only_vt_unassessed": 1,
+      "only_stack": 0,
+      "only_stack_unassessed": 0,
+      "streaming": 3,
+      "preallocated": 0,
+      "stacks": {
+        "1": 0,
+        "2": 0,
+        "3": 3,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0
+      },
+      "layers_bc5": 2,
+      "layers_dxt5": 0,
+      "layers_bc7": 0,
+      "layers_dxt1": 4,
+      "layers_bgra8": 0,
+      "layers_other": 0,
+      "binding_sets": {
+        "1": 2,
+        "8": 4
+      },
+      "component_sets": {
+        "9": 2
+      },
+      "incomplete_components": 0,
+      "tiles": {
+        "128": 9
+      },
+      "borders": {
+        "4": 9
+      },
+      "address_x": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      },
+      "address_y": {
+        "0": 0,
+        "1": 9,
+        "2": 0,
+        "3": 0
+      }
+    }
+  ],
+  "state_unchanged": true,
+  "states": [
+    {
+      "slots": "9",
+      "bindings": "16",
+      "materials": "1388555531",
+      "textures": "4131093243",
+      "resources": "0",
+      "producers": "0"
+    },
+    {
+      "slots": "9",
+      "bindings": "16",
+      "materials": "1388555531",
+      "textures": "4131093243",
+      "resources": "0",
+      "producers": "0"
+    }
+  ],
+  "timing": {
+    "first": 3003,
+    "last": 3640,
+    "null_end": 3160,
+    "census_begin": [
+      3165
+    ],
+    "census_end": [
+      3166
+    ]
+  },
+  "null_precedes_census": true,
+  "labelled_events_absent": true,
+  "pixels": {
+    "target": {
+      "null_max": 0.3127510190749499,
+      "limit": 0.3627510190749499,
+      "peak": 0.3127510190749499,
+      "failed_frames": []
+    },
+    "co_user": {
+      "null_max": 0.297632,
+      "limit": 0.347632,
+      "peak": 0.297632,
+      "failed_frames": []
+    },
+    "ordinary": {
+      "null_max": 0.30108266666666667,
+      "limit": 0.35108266666666665,
+      "peak": 0.30108266666666667,
+      "failed_frames": []
+    }
+  },
+  "status": "FAIL"
+}

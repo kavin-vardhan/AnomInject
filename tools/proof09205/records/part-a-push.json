@@ -1,0 +1,13 @@
+{
+  "branch": "feat/vt-blur-stacks",
+  "head": "94779af5f2d441398854161136ac673a2aca77ac",
+  "remote": "94779af5f2d441398854161136ac673a2aca77ac\trefs/heads/feat/vt-blur-stacks",
+  "commits": [
+    "898f9e70195ace61757bcc1c69a52e750d2fc6a5 feat(census): add numeric virtual texture diagnostics",
+    "1d38649cb6a3d01af4359395d955840f9d28da92 test(census): add state fingerprint and counting mutant",
+    "7bebf09646b9cb45144847bf282d57626a131b85 fix(bench): read residency through the public query",
+    "16b5f5867c9c3e4c8a8ba3d3764adbf5a8c51f93 fix(census): keep VT diagnostics passive and numbers only",
+    "94779af5f2d441398854161136ac673a2aca77ac test(census): prove passive VT inventory on both fixtures"
+  ],
+  "source_commit": "16b5f5867c9c3e4c8a8ba3d3764adbf5a8c51f93"
+}

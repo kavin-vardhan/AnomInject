@@ -1,26 +1,30 @@
 # Architecture (living — current as-built)
 
-On `feat/vt-proxy-blur`, 092-03c integrates a bounded private-VT blur route after the
-prefetch Drop 0 identity pass. `UAnomalyPrivateVT` derives from `UTexture`, retains its source
-without sharing ownership of platform data, and creates a genuine `FVirtualTexture2DResource`
-with an additional first-mip offset. It requests the root only from its own producer, verifies that
-coarse mapping across the private region, then requests every needed level and reads the GPU page
-table to confirm exact mappings before the private MID is installed. The renderer owns all page-table
-writes. Preparation is capped at 512 pages, 120 attempts and 10 seconds. The source
-binding remains installed during the bounded preparation (maximum 10 seconds; named refusal).
+On `feat/vt-blur-stacks`, 092-05 extends accepted Proof A to complete named streaming-VT
+stacks. Every required layer receives a genuine private `FVirtualTexture2DResource`, with source
+first-mip bookkeeping and per-layer clamping at one tile. The existing component transaction
+populates unbound MIDs, verifies all private producers, then verifies and retains each exact
+combined allocation from the material render proxy's public uniform-expression cache before
+installing every replacement atomically. Unnamed, preallocated/runtime or incoherent stacks
+receive named refusals; no partially replaced component is committed.
 
-The existing proxy transaction handles ordinary and VT outputs together. This proof supports
-single-layer streaming-VT stacks with exact tile/border/format metadata; unsupported stack layouts
-and unnamed samples are refused before binding. VT uniformity uses the existing 2/255 rule,
-measured by GPU reduction over a prefetched private Drop 0 texture; source residency is untouched.
-Revert restores owned slots before fencing private resource release. VT counters report live
-resources/producers separately from the ordinary render-target ledger. Auto routes genuine VT
-candidates through proxy; frame/event telemetry calls that route `proxy_vt`. Existing FireWindow,
-interruption, masks and annotation machinery are reused without capture changes. UV/normal and
-the forced hold route still refuse VT. Runtime source c80ef9b / executable 1EA292E8 passes original
-and native identity, 21 PIE/staged positive events, isolation/revert/lifetime, can-fails and three fires
-each of hold/proxy/UV/normal regression. This bounded proof has no delivery approval. See the 092-03
-journal and G462-G469, including the superseded stale-page readiness failure.
+GPU integer-buffer readback checks every combined page-table entry at its expected producer-local
+mip bias and page-table layer/channel. Root priming, nonzero physical mapping, exact mapped level,
+producer identity and allocation identity remain required. The renderer owns page-table writes;
+512 entries, 120 attempts and 10 seconds remain the bounds per allocation. Revert releases retained
+combined references before private producers after restoring owned slots. Source residency is untouched.
+
+`IAI.TexCorrupt.Census vt` / `all vt` adds numeric per-family stack, cooked-format, tile, border,
+address and VT-only refusal diagnostics. Its passive mode never requests uniformity measurement;
+missing cached facts retain the existing blocker and explicit unassessed count. Other census and
+firing behavior is unchanged. Complete component format sets exclude unread required layers.
+
+Runtime source `502de71` / executable `4458129F` passes native 480-frame Drop 0 identity, 21 required
+PIE/staged positive events, independent three-layer pixel edges, co-user isolation, revert/lifetime,
+controlled can-fails and three fires each of hold/ordinary proxy/single-layer proxy_vt/UV/normal.
+Blurry stays OFF by default; the 8x Auto rule, 25% ceiling, UV/normal VT refusals and ordinary routes
+are unchanged. This is a bounded branch proof with no delivery approval. See the 092-05 journal,
+client-readme 8.3aa/8.8 and G470-G476; accepted single-layer history remains in the 092-03 journal.
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 

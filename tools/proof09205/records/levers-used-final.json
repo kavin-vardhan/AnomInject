@@ -1,0 +1,379 @@
+{
+  "collected": 1791246912.831839,
+  "files": [
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final-v3\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final-v3\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final-v3\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-part-b-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-part-b-v2\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-part-b-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-miscount\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-miscount\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-miscount-part-b-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-miscount-part-b-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-01\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-01\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-01\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-final\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-part-b-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-part-b-v2\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-part-b-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-01\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-01\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-01\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-02\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-02\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-02\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-final\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b-v2\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-debug-01\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-debug-01\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-miscount\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-miscount\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-miscount-part-b-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-miscount-part-b-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-01\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-01\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-02\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-02\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-02\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-03\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-03\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-03\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-04\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-04\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-04\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-final\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-part-b-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-part-b-v2\\actions.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-part-b-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-single-all\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-single-all\\Binaries\\census.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-single-all-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-single-all-final\\Binaries\\census.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all-02\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all-02\\Binaries\\census.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all-final\\Binaries\\census.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-hold-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-hold-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-hold-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-hold-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-normal-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-normal-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-normal-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-normal-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-proxy-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-proxy-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-proxy-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-proxy-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-single-vt-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-single-vt-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-single-vt-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-single-vt-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-uv-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-uv-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-uv-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-uv-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final-02\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final-02\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final-v2\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-destroy-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-destroy-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-destroy-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-destroy-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-displace-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-displace-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-displace-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-displace-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-bind-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-bind-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final\\Binaries\\upload-restore.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final-v2\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final-v2\\Binaries\\upload-restore.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-01\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-01\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-02\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-02\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-no-bind-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-no-bind-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-no-bind-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-no-bind-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-partial-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-partial-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-partial-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-partial-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-auto-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-auto-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-auto-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-auto-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-targeted-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-targeted-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-targeted-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-targeted-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-01\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-01\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-02\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-02\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-03\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-03\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-04\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-04\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-05\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-05\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control\\Binaries\\upload-restore.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control-v2\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control-v2\\Binaries\\upload-restore.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-release-refusal-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-release-refusal-final\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-release-refusal-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-release-refusal-final-v2\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-auto-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-auto-final\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-auto-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-auto-final-v2\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-targeted-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-targeted-final\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-targeted-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-targeted-final-v2\\Binaries\\stack.exec",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-unnamed-refusal-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-unnamed-refusal-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-unnamed-refusal-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-unnamed-refusal-final-v2\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-world-end-final\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-world-end-final\\launch.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-world-end-final-v2\\plan.json",
+    "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-world-end-final-v2\\launch.json"
+  ],
+  "commands": {
+    "CaptureBench.Marker": [
+      "0"
+    ],
+    "IAI.Anomaly.StuckMipRoute": [
+      "auto",
+      "hold"
+    ],
+    "IAI.Auto.Pool": [
+      "all 0",
+      "stuck_low_mip 1"
+    ],
+    "IAI.Bench.ProxyVTEarlyBind": [
+      "0",
+      "1"
+    ],
+    "IAI.Bench.ProxyVTInventory": [
+      ""
+    ],
+    "IAI.Bench.ProxyVTNoBind": [
+      "0",
+      "1"
+    ],
+    "IAI.Bench.ProxyVTPartial": [
+      "0",
+      "1"
+    ],
+    "IAI.Bench.TexCorruptIdentity": [
+      "0",
+      "1"
+    ],
+    "IAI.Bench.VTCensusMiscount": [
+      "0",
+      "1"
+    ],
+    "IAI.Bench.VTCensusState": [
+      ""
+    ],
+    "IAI.Capture.Config": [
+      "0 121 180 179 1",
+      "0 121 180 96 1",
+      "0 121 48 96 1",
+      "0 121 48 96 10",
+      "0 121 48 96 3",
+      "0 121 48 96 5",
+      "0 192 48 192 3"
+    ],
+    "IAI.Capture.Delivery": [
+      "0"
+    ],
+    "IAI.Capture.FocusGate": [
+      "0"
+    ],
+    "IAI.Capture.Fps": [
+      "30"
+    ],
+    "IAI.Capture.Mask": [
+      "1"
+    ],
+    "IAI.Capture.Pace": [
+      "1"
+    ],
+    "IAI.Capture.RunLog": [
+      "1"
+    ],
+    "IAI.Capture.SVE": [
+      "1"
+    ],
+    "IAI.Capture.Start": [
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final-v3\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-final\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-all-part-b-v2\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-01\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-final\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-single-view-part-b-v2\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-01\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-02\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-final\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b-v2\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-all-part-b\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-debug-01\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-01\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-02\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-03\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-04\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-final\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-stacks-view-part-b-v2\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-single-all-final\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-single-all\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all-02\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all-final\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\census-staged-stacks-all\\out png 777 480 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-hold-final-v2\\out png 777 3000 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-hold-final\\out png 777 3000 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-normal-final-v2\\out png 777 3000 normal_corruption StaticMeshActor_12 invert oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-normal-final\\out png 777 3000 normal_corruption StaticMeshActor_12 invert oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-proxy-final-v2\\out png 777 3000 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-proxy-final\\out png 777 3000 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-single-vt-final-v2\\out png 777 1032 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-single-vt-final\\out png 777 1032 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-uv-final-v2\\out png 777 3000 uv_corruption StaticMeshActor_0 tile oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-uv-final\\out png 777 3000 uv_corruption StaticMeshActor_0 tile oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final-02\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-accepted-refusal-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-destroy-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-destroy-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-displace-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-displace-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-bind-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-early-delay-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-01\\out png 777 480 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-02\\out png 777 480 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\out png 777 480 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final\\out png 777 480 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-no-bind-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-no-bind-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-partial-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-partial-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-auto-final-v2\\out png 777 1032 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-auto-final\\out png 777 1032 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-targeted-final-v2\\out png 777 2880 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-pie-targeted-final\\out png 777 2880 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-01\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-02\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-03\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-04\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-probe-05\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-readiness-delay-control\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-release-refusal-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-release-refusal-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-auto-final-v2\\out png 777 1032 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-auto-final\\out png 777 1032 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-targeted-final-v2\\out png 777 1560 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-staged-targeted-final\\out png 777 1560 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-unnamed-refusal-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-unnamed-refusal-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-world-end-final-v2\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0",
+      "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-world-end-final\\out png 777 504 stuck_low_mip StaticMeshActor_77 -1 oh=0"
+    ],
+    "IAI.Capture.TargetMask": [
+      "1"
+    ],
+    "IAI.Capture.TexCorruptWarmDraw": [
+      "0"
+    ],
+    "IAI.TexCorrupt.Census": [
+      "all vt",
+      "allreasons"
+    ],
+    "Log": [
+      "LogAnomalyCapture Warning"
+    ],
+    "r.AntiAliasingMethod": [
+      "0"
+    ],
+    "r.BloomQuality": [
+      "0"
+    ],
+    "r.DefaultFeature.AutoExposure": [
+      "0"
+    ],
+    "r.DynamicGlobalIlluminationMethod": [
+      "0"
+    ],
+    "r.DynamicRes.OperationMode": [
+      "0"
+    ],
+    "r.Editor.Viewport.OverridePIEScreenPercentage": [
+      "0"
+    ],
+    "r.EyeAdaptationQuality": [
+      "0"
+    ],
+    "r.Lumen.DiffuseIndirect.Allow": [
+      "0"
+    ],
+    "r.ReflectionMethod": [
+      "0"
+    ],
+    "r.ScreenPercentage": [
+      "100"
+    ],
+    "r.SecondaryScreenPercentage.GameViewport": [
+      "100"
+    ],
+    "r.VT.MaxTilesProducedPerFrame": [
+      "",
+      "0",
+      "30"
+    ],
+    "r.VT.SyncProduceLockedTiles": [
+      "",
+      "0",
+      "1"
+    ],
+    "t.MaxFPS": [
+      "60"
+    ]
+  },
+  "restoration": "Console overrides expire at owned process exit; explicit mutant resets are logged. Original host configuration and six binaries are restored by the separate preflight receipt. Temporary ordinary-fixture device profiles are removed by receipt. New fixture texture LOD biases 0/1/2 and fixed light levels are retained as authored fixture content; no global/pool VT bias or source residency forcing is used."
+}

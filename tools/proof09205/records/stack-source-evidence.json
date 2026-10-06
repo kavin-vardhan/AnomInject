@@ -1,0 +1,86 @@
+{
+  "inherited_verified": 45,
+  "records": [
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Public\\MaterialShared.h",
+      "sha256": "c3816d581d875236597b83273afdd436042051b83efacb44de73a90fbfc5f764",
+      "lines": [
+        2483
+      ],
+      "needle": "TArray<IAllocatedVirtualTexture*> AllocatedVTs",
+      "claim": "Public uniform-cache actual material allocations"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Materials\\MaterialShared.cpp",
+      "sha256": "c42ecc43baaf98f728ec480d2840938005935253a276175e4b67391d6d4e09eb",
+      "lines": [
+        3997
+      ],
+      "needle": "OutUniformExpressionCache.bUpToDate = Context.Material.IsRenderingThreadShaderMapComplete();",
+      "claim": "Completeness flag does not mean page readiness"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSystem.cpp",
+      "sha256": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae",
+      "lines": [
+        595
+      ],
+      "needle": "FAllocatedVirtualTexture*& AllocatedVT = AllocatedVTs.FindOrAdd(Desc);",
+      "claim": "Equal public descriptor retrieves and retains identical allocation"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\AllocatedVirtualTexture.cpp",
+      "sha256": "70d785a99695192499ffa23742dd662231576b9a4d02ad1d5978f9be86d0e2dd",
+      "lines": [
+        47
+      ],
+      "needle": "TextureLayers[LayerIndex].UniquePageTableLayerIndex = UniquePhysicalSpaceIndex;",
+      "claim": "Physical group selects page-table channel"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\AllocatedVirtualTexture.cpp",
+      "sha256": "70d785a99695192499ffa23742dd662231576b9a4d02ad1d5978f9be86d0e2dd",
+      "lines": [
+        366
+      ],
+      "needle": "if (Description.bShareDuplicateLayers)",
+      "claim": "With sharing false, each one-layer producer receives its own appended page-table channel"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSpace.cpp",
+      "sha256": "30ba05c730ff07e61ab1ee08ebc9fcd06dfac719b7efe916758d50111e33ae7b",
+      "lines": [
+        114
+      ],
+      "needle": "PageTableIndirection.TextureReferenceRHI = RHICreateTextureReference();",
+      "claim": "Non-null indirection reference exists without an adaptive stack"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RenderCore\\Public\\RendererInterface.h",
+      "sha256": "ba3b82b945f18b591c0e634baef596f694db14d546d5ec3b6d3f3fe290471b04",
+      "lines": [
+        876
+      ],
+      "needle": "virtual IAllocatedVirtualTexture* AllocateVirtualTexture",
+      "claim": "Public allocation retention API"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RHI\\Public\\RHIResources.h",
+      "sha256": "ea3c68e00418b0b775d991c30d8fa0ff561855572d926ca771638aa2c57314b9",
+      "lines": [
+        1998
+      ],
+      "needle": "GetReferencedTexture()",
+      "claim": "Public resolution of mutable RHI texture reference"
+    },
+    {
+      "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RHI\\Public\\RHIGPUReadback.h",
+      "sha256": "272f8a07c2008187d90edf1efa09413296f3d7b7656e8e25ab028c8610f5ae72",
+      "lines": [
+        88
+      ],
+      "needle": "class RHI_API FRHIGPUBufferReadback",
+      "claim": "Public GPU buffer readback"
+    }
+  ]
+}

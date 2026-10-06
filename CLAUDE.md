@@ -11,14 +11,32 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **092-05, 2026-10-06 - PART A PUSHED; PART B FINAL CENSUS CAUGHT A DIAGNOSTIC REGRESSION.**
-> Part A remains complete at 94779af (runtime 16b5f58 / 381ED90F).
-> Part B runtime 1fda1cb / F3A8C68C passed identity, 21 positives, lifetime, can-fails and all five regressions.
-> Final passive census then caught an unnamed-stack required-binding undercount. The new early stack refusal
-> precedes the evaluator required flags; diagnostics must keep its independent family inference and explicit
-> nonspatial exemption. Frozen counts are unchanged. A diagnostic-only fix and full final-build rerun follow.
-> No Part B push yet; protected refs, default OFF, 8x/25%, engine and source residency remain unchanged.
-> Evidence E:/IA_BuildCache/_r921/09205; journal docs/sessions/2026-10-06-092-05-vt-blur-stacks.md.
+> **092-05, 2026-10-06 - PARTS A AND B PASS; BOUNDED FEATURE-BRANCH PROOF, NOT A DELIVERY.**
+> `feat/vt-blur-stacks` starts at accepted Proof A `af79520`; no protected branch or tag moves.
+> Part A was pushed at `94779af`, runtime `16b5f58` / exe `381ED90F`. Office command:
+> **`IAI.TexCorrupt.Census all vt`** (`vt` alone retains view scope). Numeric stack, format, geometry,
+> address and dependency-aware refusal counts; no uniformity work, binding or residency mutation.
+> Four PIE and two staged census legs pass every expected field, unchanged state and all 480 native frames.
+> Both counting mutants, independent state/pixel mutants and 47 reader cases pass their can-fail gates.
+> Part B runtime `502de71` / final exe `4458129F` supports complete named streaming-VT stacks.
+> Every layer gets its own private VT; the exact actual material allocation is retained and verified
+> for every producer bias and page-table layer before the atomic component commit. Bounds remain
+> 512 entries, 120 attempts, 10 seconds. Unnamed/preallocated/runtime/incoherent stacks refuse.
+> Native 1920x1080 Drop 0 identity: all 480 frames pass null maximum + 0.05, including both controls.
+> Positives: PIE targeted 10 / Auto 3, staged targeted 5 / Auto 3; 3508 frames, 1008 labelled.
+> Every layer blurs; all pixel onset/offset edges are zero frames off, E1 t50 has zero unflagged frames,
+> masks are target-only, annotation equals labels, controls and revert pass. All 21 drains are 0/0;
+> ten cycles keep the same 221952-byte peak. Destroy/displace/world-end pass with combined refs zero.
+> Release/accepted-base/unnamed refusals, partial-layer/no-bind/controlled early-bind can-fails pass.
+> Controlled early-bind exposes 14 incorrect onset frames; its normal-build scheduling control passes.
+> Hold, ordinary proxy, single-layer proxy_vt, UV and normal each pass three PIE regression fires.
+> Final single/stacks all-scope passive census checks pass. Blurry remains OFF; 8x/25% and UV/normal VT refusal stay.
+> Normal/strict Editor and game are 0/0; 72 independent headers per strict target, lever audits pass,
+> 209 string candidates resolved, nine archives / 54 binaries rehashed. Direct -nocompile cook passes.
+> Host restored to detached `23098fa`, six original binaries and 156 settings; created INIs removed by receipt.
+> Failed and superseded attempts remain in evidence; no open implementation decision or delivery approval.
+> Exact pushed documentation head is recorded in the relay report. Evidence `E:\IA_BuildCache\_r921\09205`;
+> journal `docs/sessions/2026-10-06-092-05-vt-blur-stacks.md`, harness `tools/proof09205`.
 
 > **092-03c, 2026-10-05/06 - BOUNDED PROOF PASSES; NOT A DELIVERY.**
 > Resumed `feat/vt-proxy-blur` at `465f2e7`, retaining every commit, under the 092-03b ruling.

@@ -1,0 +1,35 @@
+{
+  "mutant": "E:\\IA_BuildCache\\_r921\\09205\\audits\\probe-16b5f58-381ED90F\\string-probe-mutant.bin",
+  "caught": true,
+  "self_pair": "zero differences",
+  "diff": {
+    "ascii": {
+      "added_count": 1,
+      "removed_count": 0,
+      "classes": {
+        "REVIEW": 1
+      },
+      "added": [
+        {
+          "string": "IAI_09203_UNAPPROVED_STRING_CAN_FAIL",
+          "places": [
+            {
+              "offset": 242887169,
+              "section": "headers/overlay"
+            }
+          ],
+          "classification": "REVIEW",
+          "baseline_matches": []
+        }
+      ],
+      "removed": []
+    },
+    "utf16": {
+      "added_count": 0,
+      "removed_count": 0,
+      "classes": {},
+      "added": [],
+      "removed": []
+    }
+  }
+}

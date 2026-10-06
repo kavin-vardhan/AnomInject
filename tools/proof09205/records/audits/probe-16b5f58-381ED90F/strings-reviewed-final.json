@@ -1,0 +1,963 @@
+[
+  {
+    "file": "StackOBot.exe",
+    "encoding": "ascii",
+    "string": "         '(((((((((P_",
+    "places": [
+      {
+        "offset": 211539357,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Printable run intersects a verified DIR64 relocated image pointer",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "111111111111110020202020202020202027282828282828282828505ff449010000004060"
+    ],
+    "relocations": [
+      [
+        {
+          "offset": 211539376,
+          "rva": 211547568,
+          "target_rva": 167010128,
+          "target_offset": 167007568,
+          "bytes": "111111111111110020202020202020202027282828282828282828505ff449010000004060",
+          "shifted_can_fail": true
+        }
+      ]
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "ascii",
+    "string": "93xYhK",
+    "places": [
+      {
+        "offset": 192756366,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Printable run intersects a verified DIR64 relocated image pointer",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000100000007bd839337859684b0100000000000000"
+    ],
+    "relocations": [
+      [
+        {
+          "offset": 192756368,
+          "rva": 192764560,
+          "target_rva": 191388024,
+          "target_offset": 191379832,
+          "bytes": "0000100000007bd839337859684b0100000000000000",
+          "shifted_can_fail": true
+        }
+      ]
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "ascii",
+    "string": ">333?p",
+    "places": [
+      {
+        "offset": 228228019,
+        "section": ".data"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Printable run intersects a verified DIR64 relocated image pointer",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "3ecdcccc3ecdcccc3e3333333f70b941420100000000"
+    ],
+    "relocations": [
+      [
+        {
+          "offset": 228228024,
+          "rva": 228237240,
+          "target_rva": 37861744,
+          "target_offset": 37859184,
+          "bytes": "3ecdcccc3ecdcccc3e3333333f70b941420100000000",
+          "shifted_can_fail": true
+        }
+      ]
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "ascii",
+    "string": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptVTDiagnostics.cpp",
+    "places": [
+      {
+        "offset": 186646176,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Exact declared source literal or existing source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000453a5c49415f4275696c6443616368655c5f7235335f686f73745c537461636b4f426f745c506c7567696e735c416e6f6d616c79496e6a6563746f725c536f757263655c416e6f6d616c79496e6a6563746f725c507269766174655c416e6f6d616c6965735c546578436f72727570745654446961676e6f73746963732e6370700000000000000000"
+    ],
+    "source": [
+      "E:\\IA_BuildCache\\_r921\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptVTDiagnostics.cpp"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "ascii",
+    "string": "JIKQR8",
+    "places": [
+      {
+        "offset": 208239667,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Printable run intersects a verified DIR64 relocated image pointer",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "4c010000000001024a494b51523886694c01000000c0"
+    ],
+    "relocations": [
+      [
+        {
+          "offset": 208239672,
+          "rva": 208247864,
+          "target_rva": 208242232,
+          "target_offset": 208234040,
+          "bytes": "4c010000000001024a494b51523886694c01000000c0",
+          "shifted_can_fail": true
+        }
+      ]
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "ascii",
+    "string": "P@P@RC",
+    "places": [
+      {
+        "offset": 190617406,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Printable run intersects a verified DIR64 relocated image pointer",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "4040bbd6dea7aaaa50405040524301000000e00c5343"
+    ],
+    "relocations": [
+      [
+        {
+          "offset": 190617408,
+          "rva": 190625600,
+          "target_rva": 55722064,
+          "target_offset": 55719504,
+          "bytes": "4040bbd6dea7aaaa50405040524301000000e00c5343",
+          "shifted_can_fail": true
+        }
+      ]
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "ascii",
+    "string": "ltuo`}",
+    "places": [
+      {
+        "offset": 211357524,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Printable run intersects a verified DIR64 relocated image pointer",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000480000006c74756f607de74901000000d07d"
+    ],
+    "relocations": [
+      [
+        {
+          "offset": 211357528,
+          "rva": 211365720,
+          "target_rva": 166165856,
+          "target_offset": 166163296,
+          "bytes": "00000000480000006c74756f607de74901000000d07d",
+          "shifted_can_fail": true
+        }
+      ]
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "%s%d:%lld",
+    "places": [
+      {
+        "offset": 186586328,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "640000000000000025007300250064003a0025006c006c0064000000000000003000"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "Bench-only census mutant: overcount one compiled VT binding.",
+    "places": [
+      {
+        "offset": 186477520,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000420065006e00630068002d006f006e006c0079002000630065006e0073007500730020006d007500740061006e0074003a0020006f0076006500720063006f0075006e00740020006f006e006500200063006f006d00700069006c00650064002000560054002000620069006e00640069006e0067002e000000000000000000"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "Bench-only: hash material bindings and texture resources/residency without changing them.",
+    "places": [
+      {
+        "offset": 186489248,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "a000100000000000420065006e00630068002d006f006e006c0079003a002000680061007300680020006d006100740065007200690061006c002000620069006e00640069006e0067007300200061006e0064002000740065007800740075007200650020007200650073006f00750072006300650073002f007200650073006900640065006e0063007900200077006900740068006f007500740020006300680061006e00670069006e00670020007400680065006d002e000000000000004900"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d binding_sets=%s component_sets=%s incomplete_components=%lld",
+    "places": [
+      {
+        "offset": 186587296,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d00250064002000620069006e00640069006e0067005f0073006500740073003d0025007300200063006f006d0070006f006e0065006e0074005f0073006500740073003d0025007300200069006e0063006f006d0070006c006500740065005f0063006f006d0070006f006e0065006e00740073003d0025006c006c0064000000490041004900"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d components=%lld vt_components=%lld bindings=%lld required_components=%lld required_bindings=%lld unread_slots=%lld",
+    "places": [
+      {
+        "offset": 186586368,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d0025006400200063006f006d0070006f006e0065006e00740073003d0025006c006c0064002000760074005f0063006f006d0070006f006e0065006e00740073003d0025006c006c0064002000620069006e00640069006e00670073003d0025006c006c0064002000720065007100750069007200650064005f0063006f006d0070006f006e0065006e00740073003d0025006c006c0064002000720065007100750069007200650064005f00620069006e00640069006e00670073003d0025006c006c006400200075006e0072006500610064005f0073006c006f00740073003d0025006c006c0064000000000000004900"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d layers_bc5=%lld layers_dxt5=%lld layers_bc7=%lld layers_dxt1=%lld layers_bgra8=%lld layers_other=%lld",
+    "places": [
+      {
+        "offset": 186587024,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "73000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d002500640020006c00610079006500720073005f006200630035003d0025006c006c00640020006c00610079006500720073005f0064007800740035003d0025006c006c00640020006c00610079006500720073005f006200630037003d0025006c006c00640020006c00610079006500720073005f0064007800740031003d0025006c006c00640020006c00610079006500720073005f00620067007200610038003d0025006c006c00640020006c00610079006500720073005f006f0074006800650072003d0025006c006c0064000000000000000000"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d only_vt=%lld only_vt_unassessed=%lld only_stack=%lld only_stack_unassessed=%lld",
+    "places": [
+      {
+        "offset": 186586656,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "64000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d002500640020006f006e006c0079005f00760074003d0025006c006c00640020006f006e006c0079005f00760074005f0075006e00610073007300650073007300650064003d0025006c006c00640020006f006e006c0079005f0073007400610063006b003d0025006c006c00640020006f006e006c0079005f0073007400610063006b005f0075006e00610073007300650073007300650064003d0025006c006c0064000000000000000000"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d streaming=%lld preallocated=%lld stacks=%s",
+    "places": [
+      {
+        "offset": 186586880,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d00250064002000730074007200650061006d0069006e0067003d0025006c006c006400200070007200650061006c006c006f00630061007400650064003d0025006c006c006400200073007400610063006b0073003d00250073000000000000004900"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d tiles=%s borders=%s address_x=%s address_y=%s",
+    "places": [
+      {
+        "offset": 186587472,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "6c006c00640000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d00250064002000740069006c00650073003d0025007300200062006f00720064006500720073003d0025007300200061006400640072006500730073005f0078003d0025007300200061006400640072006500730073005f0079003d00250073000000000000000000"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI.Bench.TexCorruptHostTexBias: REFUSED in a cooked build - a runtime UpdateResource on a cooked texture blanks it and its LODBias is not applied (G449). Nothing was changed. Bake the bias into the asset or use a cooked device profile.",
+    "places": [
+      {
+        "offset": 186386192,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Existing baseline bytes; printable-run boundary changed",
+    "baseline_byte_offset": 186361984,
+    "contexts_hex": [
+      "e076b641010000004900410049002e00420065006e00630068002e0054006500780043006f007200720075007000740048006f007300740054006500780042006900610073003a0020005200450046005500530045004400200069006e0020006100200063006f006f006b006500640020006200750069006c00640020002d00200061002000720075006e00740069006d00650020005500700064006100740065005200650073006f00750072006300650020006f006e0020006100200063006f006f006b006500640020007400650078007400750072006500200062006c0061006e006b007300200069007400200061006e006400200069007400730020004c004f004400420069006100730020006900730020006e006f00740020006100700070006c0069006500640020002800470034003400390029002e0020004e006f007400680069006e006700200077006100730020006300680061006e006700650064002e002000420061006b006500200074006800650020006200690061007300200069006e0074006f00200074006800650020006100730073006500740020006f007200200075007300650020006100200063006f006f006b006500640020006400650076006900630065002000700072006f00660069006c0065002e000000000000000000"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI.Bench.VTCensusMiscount",
+    "places": [
+      {
+        "offset": 186477648,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002e00420065006e00630068002e0056005400430065006e007300750073004d006900730063006f0075006e00740000000000c0c2b641"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "IAI.Bench.VTCensusState",
+    "places": [
+      {
+        "offset": 186489432,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "2e000000000000004900410049002e00420065006e00630068002e0056005400430065006e007300750073005300740061007400650000004d697373696e"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "Texture office census, READ-ONLY, in every build. Runs uv_corruption, normal_corruption and stuck_low_mip in census mode (no allocation, draw or slot change; the mode step is skipped) with the effective cap and all-or-nothing, over the auto-pool's candidate set now (name-sorted), or with 'all' over every renderable actor in the loaded levels, and prints IAI-TEXCORRUPT-CENSUS v1 counts, including blurry eligibility per route: no actor, component, asset, path or map names. TIME-SLICED: about 4 ms of work per frame (the 'all' actor listing too: one cheap snapshot of actor pointers, then each actor's renderable test in slices, then evaluation from the next frame), a progress line every 2 s once the listing is done, and a hard stop at 120 s that prints the counts so far with 'scanned=K of=N stopped=time_limit'; it never blocks a frame for long. The end line reports the frames it spanned, its longest single frame of work (work_ms_max) and the longest frame-to-frame interval while it ran (frame_interval_ms_max). A 'subs' line per type counts the first refusal with its sub-reason (reason/sub; subs that could name content are reduced to the reason). 'allreasons' scans like 'all' but evaluates EVERY check for every candidate instead of stopping at the first failure, and prints per type: every blocking key with the objects failing it and the objects failing ONLY it, every non-blocking note, the top combinations, and b_gain_objects (refused only because not every part qualified, with at least one whole component qualifying). Checks that depend on a failed one are marked unassessed, not guessed. Add 'vt' for numeric VT stack, format, geometry and component-only refusal diagnostics. The 'vt' mode reads cached uniformity only; unmeasured uniformity stays pending and no texture measurement is requested. Usage: IAI.TexCorrupt.Census [all|allreasons] [vt]",
+    "places": [
+      {
+        "offset": 186462528,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Exact declared source literal or existing source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000540065007800740075007200650020006f00660066006900630065002000630065006e007300750073002c00200052004500410044002d004f004e004c0059002c00200069006e0020006500760065007200790020006200750069006c0064002e002000520075006e0073002000750076005f0063006f007200720075007000740069006f006e002c0020006e006f0072006d0061006c005f0063006f007200720075007000740069006f006e00200061006e006400200073007400750063006b005f006c006f0077005f006d0069007000200069006e002000630065006e0073007500730020006d006f0064006500200028006e006f00200061006c006c006f0063006100740069006f006e002c002000640072006100770020006f007200200073006c006f00740020006300680061006e00670065003b00200074006800650020006d006f006400650020007300740065007000200069007300200073006b0069007000700065006400290020007700690074006800200074006800650020006500660066006500630074006900760065002000630061007000200061006e006400200061006c006c002d006f0072002d006e006f007400680069006e0067002c0020006f00760065007200200074006800650020006100750074006f002d0070006f006f006c00270073002000630061006e00640069006400610074006500200073006500740020006e006f007700200028006e0061006d0065002d0073006f00720074006500640029002c0020006f007200200077006900740068002000270061006c006c00270020006f007600650072002000650076006500720079002000720065006e00640065007200610062006c00650020006100630074006f007200200069006e00200074006800650020006c006f00610064006500640020006c006500760065006c0073002c00200061006e00640020007000720069006e007400730020004900410049002d0054004500580043004f00520052005500500054002d00430045004e00530055005300200076003100200063006f0075006e00740073002c00200069006e0063006c007500640069006e006700200062006c007500720072007900200065006c00690067006900620069006c006900740079002000700065007200200072006f007500740065003a0020006e006f0020006100630074006f0072002c00200063006f006d0070006f006e0065006e0074002c002000610073007300650074002c002000700061007400680020006f00720020006d006100700020006e0061006d00650073002e002000540049004d0045002d0053004c0049004300450044003a002000610062006f00750074002000340020006d00730020006f006600200077006f0072006b00200070006500720020006600720061006d006500200028007400680065002000270061006c006c00270020006100630074006f00720020006c0069007300740069006e006700200074006f006f003a0020006f006e006500200063006800650061007000200073006e0061007000730068006f00740020006f00660020006100630074006f007200200070006f0069006e0074006500720073002c0020007400680065006e002000650061006300680020006100630074006f007200270073002000720065006e00640065007200610062006c00650020007400650073007400200069006e00200073006c0069006300650073002c0020007400680065006e0020006500760061006c0075006100740069006f006e002000660072006f006d00200074006800650020006e0065007800740020006600720061006d00650029002c00200061002000700072006f006700720065007300730020006c0069006e006500200065007600650072007900200032002000730020006f006e0063006500200074006800650020006c0069007300740069006e006700200069007300200064006f006e0065002c00200061006e00640020006100200068006100720064002000730074006f0070002000610074002000310032003000200073002000740068006100740020007000720069006e00740073002000740068006500200063006f0075006e0074007300200073006f00200066006100720020007700690074006800200027007300630061006e006e00650064003d004b0020006f0066003d004e002000730074006f0070007000650064003d00740069006d0065005f006c0069006d006900740027003b0020006900740020006e006500760065007200200062006c006f0063006b0073002000610020006600720061006d006500200066006f00720020006c006f006e0067002e002000540068006500200065006e00640020006c0069006e00650020007200650070006f00720074007300200074006800650020006600720061006d006500730020006900740020007300700061006e006e00650064002c00200069007400730020006c006f006e0067006500730074002000730069006e0067006c00650020006600720061006d00650020006f006600200077006f0072006b002000280077006f0072006b005f006d0073005f006d00610078002900200061006e006400200074006800650020006c006f006e00670065007300740020006600720061006d0065002d0074006f002d006600720061006d006500200069006e00740065007200760061006c0020007700680069006c0065002000690074002000720061006e00200028006600720061006d0065005f0069006e00740065007200760061006c005f006d0073005f006d006100780029002e0020004100200027007300750062007300270020006c0069006e006500200070006500720020007400790070006500200063006f0075006e0074007300200074006800650020006600690072007300740020007200650066007500730061006c0020007700690074006800200069007400730020007300750062002d0072006500610073006f006e002000280072006500610073006f006e002f007300750062003b002000730075006200730020007400680061007400200063006f0075006c00640020006e0061006d006500200063006f006e00740065006e007400200061007200650020007200650064007500630065006400200074006f002000740068006500200072006500610073006f006e0029002e002000270061006c006c0072006500610073006f006e007300270020007300630061006e00730020006c0069006b0065002000270061006c006c002700200062007500740020006500760061006c0075006100740065007300200045005600450052005900200063006800650063006b00200066006f0072002000650076006500720079002000630061006e00640069006400610074006500200069006e007300740065006100640020006f0066002000730074006f007000700069006e006700200061007400200074006800650020006600690072007300740020006600610069006c007500720065002c00200061006e00640020007000720069006e00740073002000700065007200200074007900700065003a00200065007600650072007900200062006c006f0063006b0069006e00670020006b006500790020007700690074006800200074006800650020006f0062006a00650063007400730020006600610069006c0069006e006700200069007400200061006e006400200074006800650020006f0062006a00650063007400730020006600610069006c0069006e00670020004f004e004c0059002000690074002c0020006500760065007200790020006e006f006e002d0062006c006f0063006b0069006e00670020006e006f00740065002c002000740068006500200074006f007000200063006f006d00620069006e006100740069006f006e0073002c00200061006e006400200062005f006700610069006e005f006f0062006a00650063007400730020002800720065006600750073006500640020006f006e006c0079002000620065006300610075007300650020006e006f0074002000650076006500720079002000700061007200740020007100750061006c00690066006900650064002c002000770069007400680020006100740020006c00650061007300740020006f006e0065002000770068006f006c006500200063006f006d0070006f006e0065006e00740020007100750061006c0069006600790069006e00670029002e00200043006800650063006b00730020007400680061007400200064006500700065006e00640020006f006e002000610020006600610069006c006500640020006f006e006500200061007200650020006d00610072006b0065006400200075006e00610073007300650073007300650064002c0020006e006f007400200067007500650073007300650064002e00200041006400640020002700760074002700200066006f00720020006e0075006d006500720069006300200056005400200073007400610063006b002c00200066006f0072006d00610074002c002000670065006f006d006500740072007900200061006e006400200063006f006d0070006f006e0065006e0074002d006f006e006c00790020007200650066007500730061006c00200064006900610067006e006f00730074006900630073002e0020005400680065002000270076007400270020006d006f00640065002000720065006100640073002000630061006300680065006400200075006e00690066006f0072006d0069007400790020006f006e006c0079003b00200075006e006d006500610073007500720065006400200075006e00690066006f0072006d006900740079002000730074006100790073002000700065006e00640069006e006700200061006e00640020006e006f002000740065007800740075007200650020006d006500610073007500720065006d0065006e00740020006900730020007200650071007500650073007400650064002e002000550073006100670065003a0020004900410049002e0054006500780043006f00720072007500700074002e00430065006e0073007500730020005b0061006c006c007c0061006c006c0072006500610073006f006e0073005d0020005b00760074005d000000000000004900"
+    ],
+    "source": [
+      "E:\\IA_BuildCache\\_r921\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptTree.cpp"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "Usage: IAI.TexCorrupt.Census [all|allreasons] [vt]",
+    "places": [
+      {
+        "offset": 186461232,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Exact declared source literal or existing source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "90b4b64101000000550073006100670065003a0020004900410049002e0054006500780043006f00720072007500700074002e00430065006e0073007500730020005b0061006c006c007c0061006c006c0072006500610073006f006e0073005d0020005b00760074005d000000000000000000"
+    ],
+    "source": [
+      "E:\\IA_BuildCache\\_r921\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptTree.cpp"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "VT-CENSUS-STATE slots=%d bindings=%d materials=%u textures=%u resources=%d producers=%d",
+    "places": [
+      {
+        "offset": 186488544,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000560054002d00430045004e005300550053002d0053005400410054004500200073006c006f00740073003d00250064002000620069006e00640069006e00670073003d002500640020006d006100740065007200690061006c0073003d00250075002000740065007800740075007200650073003d002500750020007200650073006f00750072006300650073003d00250064002000700072006f006400750063006500720073003d00250064000000b8ba1d4b0100"
+    ]
+  },
+  {
+    "file": "StackOBot.exe",
+    "encoding": "utf16",
+    "string": "m53: the cap on a slot's required map set (A6). Over the cap the slot is REFUSED map_set_over_cap; it is never trimmed. Compiled 8; ini [AnomalyInjector] TexCorruptMaxTexturesDefault. Usage: IAI.Anomaly.TexCorruptMaxTextures <n|default>",
+    "places": [
+      {
+        "offset": 186466416,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Existing baseline bytes; printable-run boundary changed",
+    "baseline_byte_offset": 186439200,
+    "contexts_hex": [
+      "00000000000000006d00350033003a002000740068006500200063006100700020006f006e0020006100200073006c006f0074002700730020007200650071007500690072006500640020006d00610070002000730065007400200028004100360029002e0020004f00760065007200200074006800650020006300610070002000740068006500200073006c006f0074002000690073002000520045004600550053004500440020006d00610070005f007300650074005f006f007600650072005f006300610070003b0020006900740020006900730020006e00650076006500720020007400720069006d006d00650064002e00200043006f006d00700069006c0065006400200038003b00200069006e00690020005b0041006e006f006d0061006c00790049006e006a006500630074006f0072005d00200054006500780043006f00720072007500700074004d006100780054006500780074007500720065007300440065006600610075006c0074002e002000550073006100670065003a0020004900410049002e0041006e006f006d0061006c0079002e0054006500780043006f00720072007500700074004d00610078005400650078007400750072006500730020003c006e007c00640065006600610075006c0074003e000000000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "2FJ2L0JHN6P N!",
+    "places": [
+      {
+        "offset": 1541928,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Decoded Microsoft EH4 exception metadata",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "58505c365e205c8a32464a324c304a484e3650204e210236fa382a3a463c"
+    ],
+    "ranges": [
+      [
+        {
+          "first": 1541823,
+          "last": 1541962,
+          "kind": "EH4 ip-state",
+          "entries": 64,
+          "function_rva": 483232,
+          "handler_rva": 908488
+        }
+      ]
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "?ConcatFC@FString@@CA?AV1@$$QEAV1@PEB_W@Z",
+    "places": [
+      {
+        "offset": 1636904,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "C++ linkage/import/reflection symbol for the new UTexture subclass and VT resource",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "425f57405a00280b3f436f6e63617446434046537472696e67404043413f4156314024245145415631405045425f57405a00270b3f436f6e63"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "?StartsWith@FString@@QEBA_NAEBV1@W4Type@ESearchCase@@@Z",
+    "places": [
+      {
+        "offset": 1637320,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "C++ linkage/import/reflection symbol for the new UTexture subclass and VT resource",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "4040405a0000bf1f3f537461727473576974684046537472696e674040514542415f4e4145425631405734547970654045536561726368436173654040405a00b3213f5472696d"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptVTDiagnostics.cpp",
+    "places": [
+      {
+        "offset": 1461472,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Exact declared source literal or existing source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000453a5c49415f4275696c6443616368655c5f7235335f686f73745c537461636b4f426f745c506c7567696e735c416e6f6d616c79496e6a6563746f725c536f757263655c416e6f6d616c79496e6a6563746f725c507269766174655c416e6f6d616c6965735c546578436f72727570745654446961676e6f73746963732e6370700000000000000000"
+    ],
+    "source": [
+      "E:\\IA_BuildCache\\_r921\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptVTDiagnostics.cpp"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "FVV.F8XVZ",
+    "places": [
+      {
+        "offset": 1544488,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Decoded Microsoft EH4 exception metadata",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "46845270469c52aa4656562e463858565aa9035e5c5c7a60ce"
+    ],
+    "ranges": [
+      [
+        {
+          "first": 1544355,
+          "last": 1544608,
+          "kind": "EH4 ip-state",
+          "entries": 113,
+          "function_rva": 794480,
+          "handler_rva": 908488
+        }
+      ]
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "RSDSw7",
+    "places": [
+      {
+        "offset": 1470548,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Verified CodeView GUID/age bytes",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "10600f001e8d020052534453773783174b7182469fd0"
+    ],
+    "debug_ranges": [
+      [
+        1470548,
+        1470572,
+        "UnrealEditor-AnomalyInjector.pdb"
+      ]
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "Rich3A",
+    "places": [
+      {
+        "offset": 248,
+        "section": "headers/overlay"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "PE Rich header metadata",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "4bc0e88c3241ea8d526963683341ea8d000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "ascii",
+    "string": "h84^,lj",
+    "places": [
+      {
+        "offset": 1544520,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Decoded Microsoft EH4 exception metadata",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "2903645e343066f06838345e2c6c6a882c3d02048a6cf5"
+    ],
+    "ranges": [
+      [
+        {
+          "first": 1544355,
+          "last": 1544608,
+          "kind": "EH4 ip-state",
+          "entries": 113,
+          "function_rva": 794480,
+          "handler_rva": 908488
+        }
+      ]
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "%s%d:%lld",
+    "places": [
+      {
+        "offset": 1400792,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "640000000000000025007300250064003a0025006c006c0064000000000000003000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "Bench-only census mutant: overcount one compiled VT binding.",
+    "places": [
+      {
+        "offset": 1226576,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000420065006e00630068002d006f006e006c0079002000630065006e0073007500730020006d007500740061006e0074003a0020006f0076006500720063006f0075006e00740020006f006e006500200063006f006d00700069006c00650064002000560054002000620069006e00640069006e0067002e000000000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "Bench-only: hash material bindings and texture resources/residency without changing them.",
+    "places": [
+      {
+        "offset": 1184400,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "2e00000000000000420065006e00630068002d006f006e006c0079003a002000680061007300680020006d006100740065007200690061006c002000620069006e00640069006e0067007300200061006e0064002000740065007800740075007200650020007200650073006f00750072006300650073002f007200650073006900640065006e0063007900200077006900740068006f007500740020006300680061006e00670069006e00670020007400680065006d002e000000000000004900"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d binding_sets=%s component_sets=%s incomplete_components=%lld",
+    "places": [
+      {
+        "offset": 1401760,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d00250064002000620069006e00640069006e0067005f0073006500740073003d0025007300200063006f006d0070006f006e0065006e0074005f0073006500740073003d0025007300200069006e0063006f006d0070006c006500740065005f0063006f006d0070006f006e0065006e00740073003d0025006c006c0064000000490041004900"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d components=%lld vt_components=%lld bindings=%lld required_components=%lld required_bindings=%lld unread_slots=%lld",
+    "places": [
+      {
+        "offset": 1400832,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d0025006400200063006f006d0070006f006e0065006e00740073003d0025006c006c0064002000760074005f0063006f006d0070006f006e0065006e00740073003d0025006c006c0064002000620069006e00640069006e00670073003d0025006c006c0064002000720065007100750069007200650064005f0063006f006d0070006f006e0065006e00740073003d0025006c006c0064002000720065007100750069007200650064005f00620069006e00640069006e00670073003d0025006c006c006400200075006e0072006500610064005f0073006c006f00740073003d0025006c006c0064000000000000004900"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d layers_bc5=%lld layers_dxt5=%lld layers_bc7=%lld layers_dxt1=%lld layers_bgra8=%lld layers_other=%lld",
+    "places": [
+      {
+        "offset": 1401488,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "73000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d002500640020006c00610079006500720073005f006200630035003d0025006c006c00640020006c00610079006500720073005f0064007800740035003d0025006c006c00640020006c00610079006500720073005f006200630037003d0025006c006c00640020006c00610079006500720073005f0064007800740031003d0025006c006c00640020006c00610079006500720073005f00620067007200610038003d0025006c006c00640020006c00610079006500720073005f006f0074006800650072003d0025006c006c0064000000000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d only_vt=%lld only_vt_unassessed=%lld only_stack=%lld only_stack_unassessed=%lld",
+    "places": [
+      {
+        "offset": 1401120,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "64000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d002500640020006f006e006c0079005f00760074003d0025006c006c00640020006f006e006c0079005f00760074005f0075006e00610073007300650073007300650064003d0025006c006c00640020006f006e006c0079005f0073007400610063006b003d0025006c006c00640020006f006e006c0079005f0073007400610063006b005f0075006e00610073007300650073007300650064003d0025006c006c0064000000000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d streaming=%lld preallocated=%lld stacks=%s",
+    "places": [
+      {
+        "offset": 1401344,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d00250064002000730074007200650061006d0069006e0067003d0025006c006c006400200070007200650061006c006c006f00630061007400650064003d0025006c006c006400200073007400610063006b0073003d00250073000000000000004900"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI-VT-CENSUS v1 family=%d tiles=%s borders=%s address_x=%s address_y=%s",
+    "places": [
+      {
+        "offset": 1401936,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "6c006c00640000004900410049002d00560054002d00430045004e005300550053002000760031002000660061006d0069006c0079003d00250064002000740069006c00650073003d0025007300200062006f00720064006500720073003d0025007300200061006400640072006500730073005f0078003d0025007300200061006400640072006500730073005f0079003d00250073000000000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI.Bench.VTCensusMiscount",
+    "places": [
+      {
+        "offset": 1226704,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "00000000000000004900410049002e00420065006e00630068002e0056005400430065006e007300750073004d006900730063006f0075006e0074000000000030b80080"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "IAI.Bench.VTCensusState",
+    "places": [
+      {
+        "offset": 1184584,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "2e000000000000004900410049002e00420065006e00630068002e0056005400430065006e00730075007300530074006100740065000000000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "Texture office census, READ-ONLY, in every build. Runs uv_corruption, normal_corruption and stuck_low_mip in census mode (no allocation, draw or slot change; the mode step is skipped) with the effective cap and all-or-nothing, over the auto-pool's candidate set now (name-sorted), or with 'all' over every renderable actor in the loaded levels, and prints IAI-TEXCORRUPT-CENSUS v1 counts, including blurry eligibility per route: no actor, component, asset, path or map names. TIME-SLICED: about 4 ms of work per frame (the 'all' actor listing too: one cheap snapshot of actor pointers, then each actor's renderable test in slices, then evaluation from the next frame), a progress line every 2 s once the listing is done, and a hard stop at 120 s that prints the counts so far with 'scanned=K of=N stopped=time_limit'; it never blocks a frame for long. The end line reports the frames it spanned, its longest single frame of work (work_ms_max) and the longest frame-to-frame interval while it ran (frame_interval_ms_max). A 'subs' line per type counts the first refusal with its sub-reason (reason/sub; subs that could name content are reduced to the reason). 'allreasons' scans like 'all' but evaluates EVERY check for every candidate instead of stopping at the first failure, and prints per type: every blocking key with the objects failing it and the objects failing ONLY it, every non-blocking note, the top combinations, and b_gain_objects (refused only because not every part qualified, with at least one whole component qualifying). Checks that depend on a failed one are marked unassessed, not guessed. Add 'vt' for numeric VT stack, format, geometry and component-only refusal diagnostics. The 'vt' mode reads cached uniformity only; unmeasured uniformity stays pending and no texture measurement is requested. Usage: IAI.TexCorrupt.Census [all|allreasons] [vt]",
+    "places": [
+      {
+        "offset": 1202112,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Exact declared source literal or existing source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000540065007800740075007200650020006f00660066006900630065002000630065006e007300750073002c00200052004500410044002d004f004e004c0059002c00200069006e0020006500760065007200790020006200750069006c0064002e002000520075006e0073002000750076005f0063006f007200720075007000740069006f006e002c0020006e006f0072006d0061006c005f0063006f007200720075007000740069006f006e00200061006e006400200073007400750063006b005f006c006f0077005f006d0069007000200069006e002000630065006e0073007500730020006d006f0064006500200028006e006f00200061006c006c006f0063006100740069006f006e002c002000640072006100770020006f007200200073006c006f00740020006300680061006e00670065003b00200074006800650020006d006f006400650020007300740065007000200069007300200073006b0069007000700065006400290020007700690074006800200074006800650020006500660066006500630074006900760065002000630061007000200061006e006400200061006c006c002d006f0072002d006e006f007400680069006e0067002c0020006f00760065007200200074006800650020006100750074006f002d0070006f006f006c00270073002000630061006e00640069006400610074006500200073006500740020006e006f007700200028006e0061006d0065002d0073006f00720074006500640029002c0020006f007200200077006900740068002000270061006c006c00270020006f007600650072002000650076006500720079002000720065006e00640065007200610062006c00650020006100630074006f007200200069006e00200074006800650020006c006f00610064006500640020006c006500760065006c0073002c00200061006e00640020007000720069006e007400730020004900410049002d0054004500580043004f00520052005500500054002d00430045004e00530055005300200076003100200063006f0075006e00740073002c00200069006e0063006c007500640069006e006700200062006c007500720072007900200065006c00690067006900620069006c006900740079002000700065007200200072006f007500740065003a0020006e006f0020006100630074006f0072002c00200063006f006d0070006f006e0065006e0074002c002000610073007300650074002c002000700061007400680020006f00720020006d006100700020006e0061006d00650073002e002000540049004d0045002d0053004c0049004300450044003a002000610062006f00750074002000340020006d00730020006f006600200077006f0072006b00200070006500720020006600720061006d006500200028007400680065002000270061006c006c00270020006100630074006f00720020006c0069007300740069006e006700200074006f006f003a0020006f006e006500200063006800650061007000200073006e0061007000730068006f00740020006f00660020006100630074006f007200200070006f0069006e0074006500720073002c0020007400680065006e002000650061006300680020006100630074006f007200270073002000720065006e00640065007200610062006c00650020007400650073007400200069006e00200073006c0069006300650073002c0020007400680065006e0020006500760061006c0075006100740069006f006e002000660072006f006d00200074006800650020006e0065007800740020006600720061006d00650029002c00200061002000700072006f006700720065007300730020006c0069006e006500200065007600650072007900200032002000730020006f006e0063006500200074006800650020006c0069007300740069006e006700200069007300200064006f006e0065002c00200061006e00640020006100200068006100720064002000730074006f0070002000610074002000310032003000200073002000740068006100740020007000720069006e00740073002000740068006500200063006f0075006e0074007300200073006f00200066006100720020007700690074006800200027007300630061006e006e00650064003d004b0020006f0066003d004e002000730074006f0070007000650064003d00740069006d0065005f006c0069006d006900740027003b0020006900740020006e006500760065007200200062006c006f0063006b0073002000610020006600720061006d006500200066006f00720020006c006f006e0067002e002000540068006500200065006e00640020006c0069006e00650020007200650070006f00720074007300200074006800650020006600720061006d006500730020006900740020007300700061006e006e00650064002c00200069007400730020006c006f006e0067006500730074002000730069006e0067006c00650020006600720061006d00650020006f006600200077006f0072006b002000280077006f0072006b005f006d0073005f006d00610078002900200061006e006400200074006800650020006c006f006e00670065007300740020006600720061006d0065002d0074006f002d006600720061006d006500200069006e00740065007200760061006c0020007700680069006c0065002000690074002000720061006e00200028006600720061006d0065005f0069006e00740065007200760061006c005f006d0073005f006d006100780029002e0020004100200027007300750062007300270020006c0069006e006500200070006500720020007400790070006500200063006f0075006e0074007300200074006800650020006600690072007300740020007200650066007500730061006c0020007700690074006800200069007400730020007300750062002d0072006500610073006f006e002000280072006500610073006f006e002f007300750062003b002000730075006200730020007400680061007400200063006f0075006c00640020006e0061006d006500200063006f006e00740065006e007400200061007200650020007200650064007500630065006400200074006f002000740068006500200072006500610073006f006e0029002e002000270061006c006c0072006500610073006f006e007300270020007300630061006e00730020006c0069006b0065002000270061006c006c002700200062007500740020006500760061006c0075006100740065007300200045005600450052005900200063006800650063006b00200066006f0072002000650076006500720079002000630061006e00640069006400610074006500200069006e007300740065006100640020006f0066002000730074006f007000700069006e006700200061007400200074006800650020006600690072007300740020006600610069006c007500720065002c00200061006e00640020007000720069006e00740073002000700065007200200074007900700065003a00200065007600650072007900200062006c006f0063006b0069006e00670020006b006500790020007700690074006800200074006800650020006f0062006a00650063007400730020006600610069006c0069006e006700200069007400200061006e006400200074006800650020006f0062006a00650063007400730020006600610069006c0069006e00670020004f004e004c0059002000690074002c0020006500760065007200790020006e006f006e002d0062006c006f0063006b0069006e00670020006e006f00740065002c002000740068006500200074006f007000200063006f006d00620069006e006100740069006f006e0073002c00200061006e006400200062005f006700610069006e005f006f0062006a00650063007400730020002800720065006600750073006500640020006f006e006c0079002000620065006300610075007300650020006e006f0074002000650076006500720079002000700061007200740020007100750061006c00690066006900650064002c002000770069007400680020006100740020006c00650061007300740020006f006e0065002000770068006f006c006500200063006f006d0070006f006e0065006e00740020007100750061006c0069006600790069006e00670029002e00200043006800650063006b00730020007400680061007400200064006500700065006e00640020006f006e002000610020006600610069006c006500640020006f006e006500200061007200650020006d00610072006b0065006400200075006e00610073007300650073007300650064002c0020006e006f007400200067007500650073007300650064002e00200041006400640020002700760074002700200066006f00720020006e0075006d006500720069006300200056005400200073007400610063006b002c00200066006f0072006d00610074002c002000670065006f006d006500740072007900200061006e006400200063006f006d0070006f006e0065006e0074002d006f006e006c00790020007200650066007500730061006c00200064006900610067006e006f00730074006900630073002e0020005400680065002000270076007400270020006d006f00640065002000720065006100640073002000630061006300680065006400200075006e00690066006f0072006d0069007400790020006f006e006c0079003b00200075006e006d006500610073007500720065006400200075006e00690066006f0072006d006900740079002000730074006100790073002000700065006e00640069006e006700200061006e00640020006e006f002000740065007800740075007200650020006d006500610073007500720065006d0065006e00740020006900730020007200650071007500650073007400650064002e002000550073006100670065003a0020004900410049002e0054006500780043006f00720072007500700074002e00430065006e0073007500730020005b0061006c006c007c0061006c006c0072006500610073006f006e0073005d0020005b00760074005d000000000000004900"
+    ],
+    "source": [
+      "E:\\IA_BuildCache\\_r921\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptTree.cpp"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "Usage: IAI.SetExcludedTargets <pattern> [pattern...] | clear   (current: %s)",
+    "places": [
+      {
+        "offset": 1235216,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Existing baseline bytes; printable-run boundary changed",
+    "baseline_byte_offset": 1240768,
+    "contexts_hex": [
+      "0000000000000000550073006100670065003a0020004900410049002e005300650074004500780063006c007500640065006400540061007200670065007400730020003c007000610074007400650072006e003e0020005b007000610074007400650072006e002e002e002e005d0020007c00200063006c006500610072002000200020002800630075007200720065006e0074003a0020002500730029000000000000000000"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "Usage: IAI.TexCorrupt.Census [all|allreasons] [vt]",
+    "places": [
+      {
+        "offset": 1201552,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Exact declared source literal or existing source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "0000000000000000550073006100670065003a0020004900410049002e0054006500780043006f00720072007500700074002e00430065006e0073007500730020005b0061006c006c007c0061006c006c0072006500610073006f006e0073005d0020005b00760074005d000000000000000000"
+    ],
+    "source": [
+      "E:\\IA_BuildCache\\_r921\\AnomalyInjector\\Source\\AnomalyInjector\\Private\\Anomalies\\TexCorruptTree.cpp"
+    ]
+  },
+  {
+    "file": "editor/UnrealEditor-AnomalyInjector.dll",
+    "encoding": "utf16",
+    "string": "VT-CENSUS-STATE slots=%d bindings=%d materials=%u textures=%u resources=%d producers=%d",
+    "places": [
+      {
+        "offset": 1183648,
+        "section": ".rdata"
+      }
+    ],
+    "classification": "REVIEW",
+    "baseline_matches": [],
+    "review": "Declared private VT class, bench command, diagnostic, or source path",
+    "baseline_byte_offset": -1,
+    "contexts_hex": [
+      "6f00700065000000560054002d00430045004e005300550053002d0053005400410054004500200073006c006f00740073003d00250064002000620069006e00640069006e00670073003d002500640020006d006100740065007200690061006c0073003d00250075002000740065007800740075007200650073003d002500750020007200650073006f00750072006300650073003d00250064002000700072006f006400750063006500720073003d00250064000000420045004e00"
+    ]
+  }
+]

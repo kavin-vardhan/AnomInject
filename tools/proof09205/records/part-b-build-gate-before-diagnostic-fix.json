@@ -1,0 +1,77 @@
+{
+  "status": "PASS",
+  "builds": {
+    "strict": [
+      {
+        "target": "StackOBot",
+        "exit": 0,
+        "errors": 0,
+        "warnings": 0,
+        "lever_problems": [],
+        "compile_tus": {
+          "AnomalyBench": 4,
+          "AnomalyCapture": 41,
+          "AnomalyControlServer": 8,
+          "AnomalyInjector": 74,
+          "AnomalyShaders": 11
+        },
+        "header_tus_compiled": 72,
+        "diagnostics": [],
+        "log": "E:\\IA_BuildCache\\_r921\\09205\\builds\\part-b-strict-01\\strict_StackOBot.log"
+      },
+      {
+        "target": "StackOBotEditor",
+        "exit": 0,
+        "errors": 0,
+        "warnings": 0,
+        "lever_problems": [],
+        "compile_tus": {
+          "AnomalyBench": 4,
+          "AnomalyCapture": 41,
+          "AnomalyControlServer": 8,
+          "AnomalyInjector": 74,
+          "AnomalyShaders": 11
+        },
+        "header_tus_compiled": 72,
+        "diagnostics": [],
+        "log": "E:\\IA_BuildCache\\_r921\\09205\\builds\\part-b-strict-01\\strict_StackOBotEditor.log"
+      }
+    ],
+    "normal": [
+      {
+        "target": "StackOBot",
+        "exit": 0,
+        "errors": 0,
+        "warnings": 0,
+        "log": "E:\\IA_BuildCache\\_r921\\09205\\builds\\part-b-strict-01\\normal_StackOBot.log"
+      },
+      {
+        "target": "StackOBotEditor",
+        "exit": 0,
+        "errors": 0,
+        "warnings": 0,
+        "log": "E:\\IA_BuildCache\\_r921\\09205\\builds\\part-b-strict-01\\normal_StackOBotEditor.log"
+      }
+    ],
+    "restore_ok": true,
+    "lever": {}
+  },
+  "archive": {
+    "source_commit": "1fda1cb721e6368eac5bd2a3ed7e2029a729e540",
+    "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-1fda1cb-F3A8C68C",
+    "files": {
+      "StackOBot.exe": "f3a8c68cb019b20ad9df9b698148b59854bab8079a381be74232a1beeebdb03c",
+      "editor/UnrealEditor-AnomalyBench.dll": "6d50631c822055330a771ec6f42905c47a79f85e168d717090e655ee4694a8a0",
+      "editor/UnrealEditor-AnomalyCapture.dll": "9e25db8af6222da5f891e96e8a451c10829bfefa0058fe32895541495dc74a5b",
+      "editor/UnrealEditor-AnomalyControlServer.dll": "f54abc5e1ac344515139ec6a58c1f5cdba9552437ab67a8e7198e7bebbeead3d",
+      "editor/UnrealEditor-AnomalyInjector.dll": "a69629697d85b838091731f2d4e40b586e359838547fb572e0ed2acc91d5d6a1",
+      "editor/UnrealEditor-AnomalyShaders.dll": "1308cc75643585d6cb94962e84f38b791eb7d4c2a5b4024609e04e5379ee7816"
+    },
+    "status": "built and re-hashed; no runtime proof status implied",
+    "built_data": "fixture content and cooked data are receipted separately for each leg"
+  },
+  "audit": {
+    "path": "E:\\IA_BuildCache\\_r921\\09205\\audits\\probe-1fda1cb-F3A8C68C",
+    "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-1fda1cb-F3A8C68C"
+  }
+}

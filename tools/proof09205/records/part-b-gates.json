@@ -1,0 +1,6012 @@
+{
+  "status": "PASS",
+  "source_commit": "502de71ed82f8eed9bdc51070b55361d40133db6",
+  "archive": {
+    "source_commit": "502de71ed82f8eed9bdc51070b55361d40133db6",
+    "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-502de71-4458129F",
+    "files": {
+      "StackOBot.exe": "4458129faf79c8f9cf6b45bc163df047111b3345d96c9079b13ebfad16ea9320",
+      "editor/UnrealEditor-AnomalyBench.dll": "3f4abcadcfe9b098420f27bbb91a5ca29ac4359953045d3a283068db86684053",
+      "editor/UnrealEditor-AnomalyCapture.dll": "91baabbab396ab5d45e6df615d9ded386dd6e99a179d40bbf8ae2fc3b5087100",
+      "editor/UnrealEditor-AnomalyControlServer.dll": "ab5cd3bf1e1bb3f398ed9ac7ac9fbb87007257e1cb2d964f93828c7025bc8a2f",
+      "editor/UnrealEditor-AnomalyInjector.dll": "8966a655a186881dd1c08e52a25232c92e61b7f00f7b604ce6f5796dc42022a4",
+      "editor/UnrealEditor-AnomalyShaders.dll": "6cc03bf61875ef376d3797c6d74c012e9323a36791c0af57c167f7f67818e439"
+    },
+    "status": "built and re-hashed; no runtime proof status implied",
+    "built_data": "fixture content and cooked data are receipted separately for each leg"
+  },
+  "identity": {
+    "status": "PASS",
+    "session": "E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\out\\session_20261006-053218",
+    "frame_count": 480,
+    "dimensions": [
+      1920,
+      1080
+    ],
+    "reference": 100,
+    "null_frames": [
+      0,
+      119
+    ],
+    "every_measured_frame": [
+      120,
+      479
+    ],
+    "results": {
+      "target": {
+        "null": 0.31248021011442306,
+        "limit": 0.36248021011442305,
+        "maximum": 0.32804130961546796,
+        "failures": []
+      },
+      "co_user": {
+        "null": 0.29749333333333333,
+        "limit": 0.3474933333333333,
+        "maximum": 0.29749333333333333,
+        "failures": []
+      },
+      "ordinary": {
+        "null": 0.30234666666666665,
+        "limit": 0.35234666666666664,
+        "maximum": 0.30234666666666665,
+        "failures": []
+      }
+    },
+    "launch": {
+      "kind": "identity",
+      "fires_requested": 1,
+      "gate": {
+        "time": 1791244901.0671651,
+        "command_exit": 0,
+        "background_gpu": [],
+        "processes": [],
+        "memory_gib": 13.395851135253906,
+        "person_idle_s": 7.281,
+        "disk_free_bytes": {
+          "D": 83024797696,
+          "E": 113889849344
+        },
+        "gpu": [
+          {
+            "percent": 0.0,
+            "used_mib": 2151.0,
+            "free_mib": 5868.0,
+            "sample": 0
+          },
+          {
+            "percent": 0.0,
+            "used_mib": 2151.0,
+            "free_mib": 5868.0,
+            "sample": 1
+          },
+          {
+            "percent": 0.0,
+            "used_mib": 2235.0,
+            "free_mib": 5784.0,
+            "sample": 2
+          }
+        ],
+        "gpu_instrument": "NVIDIA total GPU utilization, three samples; no process exemption",
+        "gpu_blocking": [],
+        "person_idle_policy": "logged note; no foreign editor is permitted regardless of keyboard idleness",
+        "process_gpu_samples": 1183,
+        "process_gpu_blocking": [],
+        "clear": true
+      },
+      "args": [
+        "D:/UESource/UnrealEngine/Engine/Binaries/Win64/UnrealEditor.exe",
+        "E:\\IA_BuildCache\\_r53_host\\StackOBot\\StackOBot.uproject",
+        "/Game/CaptureBenchTexCorrupt/ProxyVT09205/CB_ProxyBlurStacks",
+        "-ExecCmds=\"py E:/IA_BuildCache/_r921/09205/pie_window_driver.py\"",
+        "-IAIPiePlan=E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\plan.json",
+        "-IAIBench",
+        "-ResX=1920",
+        "-ResY=1080",
+        "-windowed",
+        "-nosplash",
+        "-NoLiveCoding",
+        "-unattended",
+        "-abslog=E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\game.log"
+      ],
+      "command_line": "D:/UESource/UnrealEngine/Engine/Binaries/Win64/UnrealEditor.exe E:\\IA_BuildCache\\_r53_host\\StackOBot\\StackOBot.uproject /Game/CaptureBenchTexCorrupt/ProxyVT09205/CB_ProxyBlurStacks -ExecCmds=\"py E:/IA_BuildCache/_r921/09205/pie_window_driver.py\" -IAIPiePlan=E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\plan.json -IAIBench -ResX=1920 -ResY=1080 -windowed -nosplash -NoLiveCoding -unattended -abslog=E:\\IA_BuildCache\\_r921\\09205\\runs\\stacks-identity-final-v2\\game.log",
+      "archive": {
+        "source_commit": "502de71ed82f8eed9bdc51070b55361d40133db6",
+        "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-502de71-4458129F",
+        "files": {
+          "StackOBot.exe": "4458129faf79c8f9cf6b45bc163df047111b3345d96c9079b13ebfad16ea9320",
+          "editor/UnrealEditor-AnomalyBench.dll": "3f4abcadcfe9b098420f27bbb91a5ca29ac4359953045d3a283068db86684053",
+          "editor/UnrealEditor-AnomalyCapture.dll": "91baabbab396ab5d45e6df615d9ded386dd6e99a179d40bbf8ae2fc3b5087100",
+          "editor/UnrealEditor-AnomalyControlServer.dll": "ab5cd3bf1e1bb3f398ed9ac7ac9fbb87007257e1cb2d964f93828c7025bc8a2f",
+          "editor/UnrealEditor-AnomalyInjector.dll": "8966a655a186881dd1c08e52a25232c92e61b7f00f7b604ce6f5796dc42022a4",
+          "editor/UnrealEditor-AnomalyShaders.dll": "6cc03bf61875ef376d3797c6d74c012e9323a36791c0af57c167f7f67818e439"
+        },
+        "status": "built and re-hashed; no runtime proof status implied",
+        "built_data": "fixture content and cooked data are receipted separately for each leg"
+      },
+      "fixture": "stacks",
+      "profile": "AA off, exposure off, no GI/reflections, bloom off, native 1920x1080",
+      "started": 1791244905.3755538,
+      "pid": 44648,
+      "runtime_guard": {
+        "exit": 0,
+        "checks": [
+          {
+            "time": 1791244906.3057973,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1183
+          },
+          {
+            "time": 1791244912.2296557,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244918.2037833,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244924.15911,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244930.1357908,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244936.1399474,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244942.1636202,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244948.2387888,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244954.222656,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          },
+          {
+            "time": 1791244960.1149304,
+            "foreign": [],
+            "foreign_gpu": [],
+            "gpu_samples": 1200
+          }
+        ]
+      },
+      "exit": 0,
+      "finished": 1791244962.0511756
+    },
+    "bound_frames": [
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144,
+      145,
+      146,
+      147,
+      148,
+      149,
+      150,
+      151,
+      152,
+      153,
+      154,
+      155,
+      156,
+      157,
+      158,
+      159,
+      160,
+      161,
+      162,
+      163,
+      164,
+      165,
+      166,
+      167,
+      168,
+      169,
+      170,
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178,
+      179,
+      180,
+      181,
+      182,
+      183,
+      184,
+      185,
+      186,
+      187,
+      188,
+      189,
+      190,
+      191,
+      192,
+      193,
+      194,
+      195,
+      196,
+      197,
+      198,
+      199,
+      200,
+      201,
+      202,
+      203,
+      204,
+      205,
+      206,
+      207,
+      208,
+      209,
+      210,
+      211,
+      212,
+      213,
+      214,
+      215,
+      216,
+      217,
+      218,
+      219,
+      220,
+      221,
+      222,
+      223,
+      224,
+      225,
+      226,
+      227,
+      228,
+      229,
+      230,
+      231,
+      232,
+      233,
+      234,
+      235,
+      236,
+      237,
+      238,
+      239,
+      240,
+      241,
+      242,
+      243,
+      244,
+      245,
+      246,
+      247,
+      248,
+      249,
+      250,
+      251,
+      252,
+      253,
+      254,
+      255,
+      256,
+      257,
+      258,
+      259,
+      260,
+      261,
+      262,
+      263,
+      264,
+      265,
+      266,
+      267,
+      268,
+      269,
+      270,
+      271,
+      272,
+      273,
+      274,
+      275,
+      276,
+      277,
+      278,
+      279,
+      280,
+      281,
+      282,
+      283,
+      284,
+      285,
+      286,
+      287,
+      288,
+      289,
+      290,
+      291,
+      292,
+      293,
+      294,
+      295,
+      296,
+      297,
+      298,
+      299
+    ],
+    "log_verified": true
+  },
+  "positive": [
+    {
+      "label": "stacks-pie-targeted-final-v2",
+      "events": 10,
+      "frames": 1561,
+      "labelled": 480,
+      "e1": {
+        "events": 10,
+        "judgeable": 10,
+        "not_measurable": 0,
+        "camera_moved": 0,
+        "status": {
+          "OK": 10
+        },
+        "strict": {
+          "verdicts": {
+            "PASS": 10
+          },
+          "two_sided_084_04a": {
+            "PASS": 10
+          },
+          "start": "{+0:10}",
+          "end": "{+0:10}",
+          "strict_0_0_events": 10,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t10": {
+          "verdicts": {
+            "PASS": 10
+          },
+          "two_sided_084_04a": {
+            "PASS": 10
+          },
+          "start": "{+0:10}",
+          "end": "{+0:10}",
+          "strict_0_0_events": 10,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t50": {
+          "verdicts": {
+            "PASS": 10
+          },
+          "two_sided_084_04a": {
+            "PASS": 10
+          },
+          "start": "{+0:10}",
+          "end": "{+0:10}",
+          "strict_0_0_events": 10,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "leg_verdict": "PASS",
+        "leg_fail_reasons": [],
+        "pie_end_settle_frames": 10,
+        "legacy_whole_leg_threshold": {
+          "events": 0,
+          "measurable": 0,
+          "thr": []
+        },
+        "window_ii": {
+          "checked": 0,
+          "failed": 0,
+          "mask_miss_reasons": {}
+        },
+        "bases": [
+          [
+            "own-detrend",
+            null
+          ]
+        ]
+      },
+      "layers": {
+        "status": "PASS",
+        "issues": [],
+        "null": {
+          "roughness": 0.33435474781628627,
+          "normal": 0.3331189986282579,
+          "color": 0.2700806138306138
+        },
+        "events": [
+          {
+            "id": "stuck_low_mip@1361|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.35031717414529917,
+                "gradient_ratio": 0.02042110761742911,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "color": {
+                "median_mad": 34.55758911227662,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.36240820561941256,
+                "gradient_ratio": 0.005262301993051773,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1505|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1649|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1793|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 576,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 552,
+                "pixel_last": 599,
+                "label_first": 552,
+                "label_last": 599
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 576,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 552,
+                "pixel_last": 599,
+                "label_first": 552,
+                "label_last": 599
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 576,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 552,
+                "pixel_last": 599,
+                "label_first": 552,
+                "label_last": 599
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1937|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 720,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 696,
+                "pixel_last": 743,
+                "label_first": 696,
+                "label_last": 743
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 720,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 696,
+                "pixel_last": 743,
+                "label_first": 696,
+                "label_last": 743
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 720,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 696,
+                "pixel_last": 743,
+                "label_first": 696,
+                "label_last": 743
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@2081|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 864,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 840,
+                "pixel_last": 887,
+                "label_first": 840,
+                "label_last": 887
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 864,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 840,
+                "pixel_last": 887,
+                "label_first": 840,
+                "label_last": 887
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 864,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 840,
+                "pixel_last": 887,
+                "label_first": 840,
+                "label_last": 887
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@2225|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1008,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 984,
+                "pixel_last": 1031,
+                "label_first": 984,
+                "label_last": 1031
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1008,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 984,
+                "pixel_last": 1031,
+                "label_first": 984,
+                "label_last": 1031
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1008,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 984,
+                "pixel_last": 1031,
+                "label_first": 984,
+                "label_last": 1031
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@2369|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1152,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1128,
+                "pixel_last": 1175,
+                "label_first": 1128,
+                "label_last": 1175
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1152,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1128,
+                "pixel_last": 1175,
+                "label_first": 1128,
+                "label_last": 1175
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1152,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1128,
+                "pixel_last": 1175,
+                "label_first": 1128,
+                "label_last": 1175
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@2513|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1296,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1272,
+                "pixel_last": 1319,
+                "label_first": 1272,
+                "label_last": 1319
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1296,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1272,
+                "pixel_last": 1319,
+                "label_first": 1272,
+                "label_last": 1319
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1296,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1272,
+                "pixel_last": 1319,
+                "label_first": 1272,
+                "label_last": 1319
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@2657|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1440,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1416,
+                "pixel_last": 1463,
+                "label_first": 1416,
+                "label_last": 1463
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1440,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1416,
+                "pixel_last": 1463,
+                "label_first": 1416,
+                "label_last": 1463
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 1440,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 1416,
+                "pixel_last": 1463,
+                "label_first": 1416,
+                "label_last": 1463
+              }
+            }
+          }
+        ],
+        "gate": "E:\\IA_BuildCache\\_r921\\09205\\part-b-pixel-gates-before.json"
+      },
+      "cycles": {
+        "status": "PASS",
+        "events": 10,
+        "drains": [
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "combined_reference_drains": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "combined": [
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 6.428,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 4.361,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.141,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.796,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.264,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 4.583,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.281,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 3.758,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 4.735,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 4.842,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          }
+        ],
+        "applies": [
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          }
+        ],
+        "growth_mutant_caught": true
+      },
+      "controls": {
+        "co_user": [],
+        "ordinary": []
+      },
+      "revert": [],
+      "missing_masks": []
+    },
+    {
+      "label": "stacks-pie-auto-final-v2",
+      "events": 3,
+      "frames": 553,
+      "labelled": 144,
+      "e1": {
+        "events": 3,
+        "judgeable": 3,
+        "not_measurable": 0,
+        "camera_moved": 0,
+        "status": {
+          "OK": 3
+        },
+        "strict": {
+          "verdicts": {
+            "PASS": 3
+          },
+          "two_sided_084_04a": {
+            "PASS": 3
+          },
+          "start": "{+0:3}",
+          "end": "{+0:3}",
+          "strict_0_0_events": 3,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t10": {
+          "verdicts": {
+            "PASS": 3
+          },
+          "two_sided_084_04a": {
+            "PASS": 3
+          },
+          "start": "{+0:3}",
+          "end": "{+0:3}",
+          "strict_0_0_events": 3,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t50": {
+          "verdicts": {
+            "PASS": 3
+          },
+          "two_sided_084_04a": {
+            "PASS": 3
+          },
+          "start": "{+0:3}",
+          "end": "{+0:3}",
+          "strict_0_0_events": 3,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "leg_verdict": "PASS",
+        "leg_fail_reasons": [],
+        "pie_end_settle_frames": 3,
+        "legacy_whole_leg_threshold": {
+          "events": 0,
+          "measurable": 0,
+          "thr": []
+        },
+        "window_ii": {
+          "checked": 0,
+          "failed": 0,
+          "mask_miss_reasons": {}
+        },
+        "bases": [
+          [
+            "own-detrend",
+            null
+          ]
+        ]
+      },
+      "layers": {
+        "status": "PASS",
+        "issues": [],
+        "null": {
+          "roughness": 0.33435474781628627,
+          "normal": 0.3331189986282579,
+          "color": 0.2700806138306138
+        },
+        "events": [
+          {
+            "id": "stuck_low_mip@1361|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.35031717414529917,
+                "gradient_ratio": 0.02042110761742911,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "color": {
+                "median_mad": 34.55758911227662,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.36240820561941256,
+                "gradient_ratio": 0.005262301993051773,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1505|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1649|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.3906822344322345,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.91945928300095,
+                "blurred_gradient": 0.34035790598290594,
+                "gradient_ratio": 0.03815902906037961,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.38755107072414763,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "normal": {
+                "median_mad": 19.82400153002005,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.15466079059829,
+                "blurred_gradient": 0.3503138354700855,
+                "gradient_ratio": 0.02042091299538123,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.3848798406668777,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "color": {
+                "median_mad": 34.55758759469697,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86875859612928,
+                "blurred_gradient": 0.3624097406424993,
+                "gradient_ratio": 0.005262324282158155,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.3812967414529914,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              }
+            }
+          }
+        ],
+        "gate": "E:\\IA_BuildCache\\_r921\\09205\\part-b-pixel-gates-before.json"
+      },
+      "cycles": {
+        "status": "PASS",
+        "events": 3,
+        "drains": [
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "combined_reference_drains": [
+          "0",
+          "0",
+          "0"
+        ],
+        "combined": [
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.368,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.172,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 4.746,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          }
+        ],
+        "applies": [
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          }
+        ],
+        "growth_mutant_caught": true
+      },
+      "controls": {
+        "co_user": [],
+        "ordinary": []
+      },
+      "revert": [],
+      "missing_masks": []
+    },
+    {
+      "label": "stacks-staged-targeted-final-v2",
+      "events": 5,
+      "frames": 841,
+      "labelled": 240,
+      "e1": {
+        "events": 5,
+        "judgeable": 5,
+        "not_measurable": 0,
+        "camera_moved": 0,
+        "status": {
+          "OK": 5
+        },
+        "strict": {
+          "verdicts": {
+            "PASS": 5
+          },
+          "two_sided_084_04a": {
+            "PASS": 5
+          },
+          "start": "{+0:5}",
+          "end": "{+0:5}",
+          "strict_0_0_events": 5,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t10": {
+          "verdicts": {
+            "PASS": 5
+          },
+          "two_sided_084_04a": {
+            "PASS": 5
+          },
+          "start": "{+0:5}",
+          "end": "{+0:5}",
+          "strict_0_0_events": 5,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t50": {
+          "verdicts": {
+            "PASS": 5
+          },
+          "two_sided_084_04a": {
+            "PASS": 5
+          },
+          "start": "{+0:5}",
+          "end": "{+0:5}",
+          "strict_0_0_events": 5,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "leg_verdict": "PASS",
+        "leg_fail_reasons": [],
+        "pie_end_settle_frames": 0,
+        "legacy_whole_leg_threshold": {
+          "events": 0,
+          "measurable": 0,
+          "thr": []
+        },
+        "window_ii": {
+          "checked": 0,
+          "failed": 0,
+          "mask_miss_reasons": {}
+        },
+        "bases": [
+          [
+            "own-detrend",
+            null
+          ]
+        ]
+      },
+      "layers": {
+        "status": "PASS",
+        "issues": [],
+        "null": {
+          "roughness": 0.33485371466140695,
+          "normal": 0.33395325524955155,
+          "color": 0.26963141025641024
+        },
+        "events": [
+          {
+            "id": "stuck_low_mip@1023|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1167|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1311|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1455|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 576,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 552,
+                "pixel_last": 599,
+                "label_first": 552,
+                "label_last": 599
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 576,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 552,
+                "pixel_last": 599,
+                "label_first": 552,
+                "label_last": 599
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 576,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 552,
+                "pixel_last": 599,
+                "label_first": 552,
+                "label_last": 599
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1599|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 720,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 696,
+                "pixel_last": 743,
+                "label_first": 696,
+                "label_last": 743
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 720,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 696,
+                "pixel_last": 743,
+                "label_first": 696,
+                "label_last": 743
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 720,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 696,
+                "pixel_last": 743,
+                "label_first": 696,
+                "label_last": 743
+              }
+            }
+          }
+        ],
+        "gate": "E:\\IA_BuildCache\\_r921\\09205\\part-b-pixel-gates-before.json"
+      },
+      "cycles": {
+        "status": "PASS",
+        "events": 5,
+        "drains": [
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "combined_reference_drains": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        "combined": [
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.337,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 4.754,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.092,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 3.902,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.637,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          }
+        ],
+        "applies": [
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          }
+        ],
+        "growth_mutant_caught": true
+      },
+      "controls": {
+        "co_user": [],
+        "ordinary": []
+      },
+      "revert": [],
+      "missing_masks": []
+    },
+    {
+      "label": "stacks-staged-auto-final-v2",
+      "events": 3,
+      "frames": 553,
+      "labelled": 144,
+      "e1": {
+        "events": 3,
+        "judgeable": 3,
+        "not_measurable": 0,
+        "camera_moved": 0,
+        "status": {
+          "OK": 3
+        },
+        "strict": {
+          "verdicts": {
+            "PASS": 3
+          },
+          "two_sided_084_04a": {
+            "PASS": 3
+          },
+          "start": "{+0:3}",
+          "end": "{+0:3}",
+          "strict_0_0_events": 3,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t10": {
+          "verdicts": {
+            "PASS": 3
+          },
+          "two_sided_084_04a": {
+            "PASS": 3
+          },
+          "start": "{+0:3}",
+          "end": "{+0:3}",
+          "strict_0_0_events": 3,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t50": {
+          "verdicts": {
+            "PASS": 3
+          },
+          "two_sided_084_04a": {
+            "PASS": 3
+          },
+          "start": "{+0:3}",
+          "end": "{+0:3}",
+          "strict_0_0_events": 3,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "leg_verdict": "PASS",
+        "leg_fail_reasons": [],
+        "pie_end_settle_frames": 0,
+        "legacy_whole_leg_threshold": {
+          "events": 0,
+          "measurable": 0,
+          "thr": []
+        },
+        "window_ii": {
+          "checked": 0,
+          "failed": 0,
+          "mask_miss_reasons": {}
+        },
+        "bases": [
+          [
+            "own-detrend",
+            null
+          ]
+        ]
+      },
+      "layers": {
+        "status": "PASS",
+        "issues": [],
+        "null": {
+          "roughness": 0.33485371466140695,
+          "normal": 0.33395325524955155,
+          "color": 0.26963141025641024
+        },
+        "events": [
+          {
+            "id": "stuck_low_mip@1023|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1167|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 288,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 264,
+                "pixel_last": 311,
+                "label_first": 264,
+                "label_last": 311
+              }
+            }
+          },
+          {
+            "id": "stuck_low_mip@1311|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 432,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 408,
+                "pixel_last": 455,
+                "label_first": 408,
+                "label_last": 455
+              }
+            }
+          }
+        ],
+        "gate": "E:\\IA_BuildCache\\_r921\\09205\\part-b-pixel-gates-before.json"
+      },
+      "cycles": {
+        "status": "PASS",
+        "events": 3,
+        "drains": [
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ],
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "combined_reference_drains": [
+          "0",
+          "0",
+          "0"
+        ],
+        "combined": [
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.799,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 4.963,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          },
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 3.574,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          }
+        ],
+        "applies": [
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          },
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          }
+        ],
+        "growth_mutant_caught": true
+      },
+      "controls": {
+        "co_user": [],
+        "ordinary": []
+      },
+      "revert": [],
+      "missing_masks": []
+    },
+    {
+      "label": "stacks-readiness-delay-control-v2",
+      "events": 1,
+      "frames": 265,
+      "labelled": 48,
+      "e1": {
+        "events": 1,
+        "judgeable": 1,
+        "not_measurable": 0,
+        "camera_moved": 0,
+        "status": {
+          "OK": 1
+        },
+        "strict": {
+          "verdicts": {
+            "PASS": 1
+          },
+          "two_sided_084_04a": {
+            "PASS": 1
+          },
+          "start": "{+0:1}",
+          "end": "{+0:1}",
+          "strict_0_0_events": 1,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t10": {
+          "verdicts": {
+            "PASS": 1
+          },
+          "two_sided_084_04a": {
+            "PASS": 1
+          },
+          "start": "{+0:1}",
+          "end": "{+0:1}",
+          "strict_0_0_events": 1,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "t50": {
+          "verdicts": {
+            "PASS": 1
+          },
+          "two_sided_084_04a": {
+            "PASS": 1
+          },
+          "start": "{+0:1}",
+          "end": "{+0:1}",
+          "strict_0_0_events": 1,
+          "fail_reasons": {},
+          "unexcused_frames": 0
+        },
+        "leg_verdict": "PASS",
+        "leg_fail_reasons": [],
+        "pie_end_settle_frames": 0,
+        "legacy_whole_leg_threshold": {
+          "events": 0,
+          "measurable": 0,
+          "thr": []
+        },
+        "window_ii": {
+          "checked": 0,
+          "failed": 0,
+          "mask_miss_reasons": {}
+        },
+        "bases": [
+          [
+            "own-detrend",
+            null
+          ]
+        ]
+      },
+      "layers": {
+        "status": "PASS",
+        "issues": [],
+        "null": {
+          "roughness": 0.33485371466140695,
+          "normal": 0.33395325524955155,
+          "color": 0.26963141025641024
+        },
+        "events": [
+          {
+            "id": "stuck_low_mip@1023|StaticMeshActor_77",
+            "bands": {
+              "roughness": {
+                "median_mad": 5.394516941391942,
+                "positive_limit": 4.0,
+                "baseline_gradient": 8.925596509971509,
+                "blurred_gradient": 0.3403460351377018,
+                "gradient_ratio": 0.03813146099058742,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.385493566262797,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "normal": {
+                "median_mad": 19.82502703914741,
+                "positive_limit": 4.0,
+                "baseline_gradient": 17.151392227564102,
+                "blurred_gradient": 0.3502854567307693,
+                "gradient_ratio": 0.020423150032556743,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.38590864725123986,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              },
+              "color": {
+                "median_mad": 34.56027978098291,
+                "positive_limit": 4.0,
+                "baseline_gradient": 68.86840554081934,
+                "blurred_gradient": 0.36241741575793296,
+                "gradient_ratio": 0.005262462705676011,
+                "visible": true,
+                "blurred": true,
+                "template_reference": 144,
+                "template_limit": 0.3817004176379176,
+                "missing_blur_frames": [],
+                "extra_blur_frames": [],
+                "pixel_first": 120,
+                "pixel_last": 167,
+                "label_first": 120,
+                "label_last": 167
+              }
+            }
+          }
+        ],
+        "gate": "E:\\IA_BuildCache\\_r921\\09205\\part-b-pixel-gates-before.json"
+      },
+      "cycles": {
+        "status": "PASS",
+        "events": 1,
+        "drains": [
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "combined_reference_drains": [
+          "0"
+        ],
+        "combined": [
+          {
+            "stack": 0,
+            "layers": 3,
+            "ready": 1,
+            "pages": 3,
+            "attempts": 2,
+            "wait_ms": 5.41,
+            "mapping": "0:0:0:0,1:0:0:1,2:0:0:2"
+          }
+        ],
+        "applies": [
+          {
+            "required": 221952,
+            "reserved": 221952,
+            "live": 221952,
+            "pending": 0,
+            "peak": 221952,
+            "cap": 134217728
+          }
+        ],
+        "growth_mutant_caught": false
+      },
+      "controls": {
+        "co_user": [],
+        "ordinary": []
+      },
+      "revert": [],
+      "missing_masks": []
+    }
+  ],
+  "lifetimes": [
+    {
+      "label": "stacks-destroy-final-v2",
+      "result": {
+        "status": "PASS",
+        "kind": "destroy",
+        "issues": [],
+        "frames": 265,
+        "null": {
+          "target": 0.3108728547764035,
+          "co_user": 0.29667733333333335,
+          "ordinary": 0.29987733333333333
+        },
+        "controls": {
+          "co_user": [],
+          "ordinary": []
+        },
+        "disagreements": [],
+        "last_anomalous_frame": 149,
+        "residue": [],
+        "missing_masks": [],
+        "outside_masks": [],
+        "drains": [
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "interrupted_frames": [
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167
+        ],
+        "annotation_errors": [],
+        "rule_code": 0,
+        "mutant_caught": true,
+        "mutant_frame": 151,
+        "reader_sha256": "f09a5bdc8bc7b88bca5c0c842bc63973bb947dfe123c8418f5929668b8573cf7"
+      },
+      "combined_reference_drains": [
+        "0"
+      ]
+    },
+    {
+      "label": "stacks-displace-final-v2",
+      "result": {
+        "status": "PASS",
+        "kind": "displace",
+        "issues": [],
+        "frames": 265,
+        "null": {
+          "target": 0.3108728547764035,
+          "co_user": 0.29667733333333335,
+          "ordinary": 0.29987733333333333
+        },
+        "controls": {
+          "co_user": [],
+          "ordinary": []
+        },
+        "disagreements": [],
+        "last_anomalous_frame": 149,
+        "residue": [],
+        "missing_masks": [],
+        "outside_masks": [],
+        "drains": [
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "interrupted_frames": [
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167
+        ],
+        "annotation_errors": [],
+        "rule_code": 0,
+        "mutant_caught": true,
+        "mutant_frame": 151,
+        "reader_sha256": "f09a5bdc8bc7b88bca5c0c842bc63973bb947dfe123c8418f5929668b8573cf7"
+      },
+      "combined_reference_drains": [
+        "0"
+      ]
+    },
+    {
+      "label": "stacks-world-end-final-v2",
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "frames": 151,
+        "labelled": 31,
+        "null": {
+          "target": 0.31248354314778337,
+          "co_user": 0.297504,
+          "ordinary": 0.302352
+        },
+        "threshold": 4.0,
+        "disagreements": [],
+        "missing_masks": [],
+        "control_bad": {
+          "co_user": [],
+          "ordinary": []
+        },
+        "drains": [
+          [
+            "0",
+            "0"
+          ]
+        ],
+        "actions": {
+          "done": true,
+          "actions": [
+            {
+              "action": "world_end",
+              "written_frames": 145,
+              "time": 1791245976.0786898
+            }
+          ]
+        },
+        "annotation_errors": [],
+        "rule_code": 0,
+        "drain_mutant_caught": true,
+        "reader_sha256": "067fc64011e76ceab8e51027e801eafe5b805e2164bc5d2e996f11cca8ad79bb"
+      },
+      "combined_reference_drains": [
+        "0"
+      ]
+    }
+  ],
+  "mutants": [
+    {
+      "label": "stacks-partial-final-v2",
+      "result": {
+        "status": "PASS",
+        "caught": true,
+        "kind": "partial",
+        "steps": [
+          {
+            "script": "launch_stack.py",
+            "args": [
+              "stacks-partial-final-v2",
+              "partial",
+              "1"
+            ],
+            "exit": 0,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-partial-final-v2-launch_stack.py.log"
+          },
+          {
+            "script": "check_stack_positive.py",
+            "args": [
+              "stacks-partial-final-v2",
+              "1"
+            ],
+            "exit": 1,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-partial-final-v2-check_stack_positive.py.log"
+          },
+          {
+            "script": "check_stack_layers.py",
+            "args": [
+              "stacks-partial-final-v2"
+            ],
+            "exit": 1,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-partial-final-v2-check_stack_layers.py.log"
+          }
+        ],
+        "positive_issues": [
+          "E1 t50 failed"
+        ],
+        "layer_issues": [
+          "color incorrect pixel edges or bound appearance",
+          "color not measurably blurred",
+          "roughness incorrect pixel edges or bound appearance",
+          "roughness not measurably blurred"
+        ]
+      }
+    },
+    {
+      "label": "stacks-no-bind-final-v2",
+      "result": {
+        "status": "PASS",
+        "caught": true,
+        "kind": "no_bind",
+        "steps": [
+          {
+            "script": "launch_stack.py",
+            "args": [
+              "stacks-no-bind-final-v2",
+              "no_bind",
+              "1"
+            ],
+            "exit": 0,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-no-bind-final-v2-launch_stack.py.log"
+          },
+          {
+            "script": "check_stack_positive.py",
+            "args": [
+              "stacks-no-bind-final-v2",
+              "1"
+            ],
+            "exit": 1,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-no-bind-final-v2-check_stack_positive.py.log"
+          },
+          {
+            "script": "check_stack_layers.py",
+            "args": [
+              "stacks-no-bind-final-v2"
+            ],
+            "exit": 1,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-no-bind-final-v2-check_stack_layers.py.log"
+          }
+        ],
+        "positive_issues": [
+          "E1 t50 failed",
+          "event without measured target change"
+        ],
+        "layer_issues": [
+          "color incorrect pixel edges or bound appearance",
+          "color not measurably blurred",
+          "normal incorrect pixel edges or bound appearance",
+          "normal not measurably blurred",
+          "roughness incorrect pixel edges or bound appearance",
+          "roughness not measurably blurred"
+        ]
+      }
+    },
+    {
+      "label": "stacks-early-delay-final-v2",
+      "result": {
+        "status": "PASS",
+        "caught": true,
+        "kind": "early_delay",
+        "steps": [
+          {
+            "script": "launch_staged_stack.py",
+            "args": [
+              "stacks-early-delay-final-v2",
+              "early_delay",
+              "1"
+            ],
+            "exit": 0,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-early-delay-final-v2-launch_staged_stack.py.log"
+          },
+          {
+            "script": "check_stack_positive.py",
+            "args": [
+              "stacks-early-delay-final-v2",
+              "1"
+            ],
+            "exit": 0,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-early-delay-final-v2-check_stack_positive.py.log"
+          },
+          {
+            "script": "check_stack_layers.py",
+            "args": [
+              "stacks-early-delay-final-v2"
+            ],
+            "exit": 1,
+            "log": "E:\\IA_BuildCache\\_r921\\09205\\driver-stacks-early-delay-final-v2-check_stack_layers.py.log"
+          }
+        ],
+        "positive_issues": [],
+        "layer_issues": [
+          "color incorrect pixel edges or bound appearance",
+          "normal incorrect pixel edges or bound appearance",
+          "roughness incorrect pixel edges or bound appearance"
+        ],
+        "delay": {
+          "started": 1791245718.8744736,
+          "restore_after_written_frames": 128,
+          "original": {
+            "r.VT.SyncProduceLockedTiles": 1,
+            "r.VT.MaxTilesProducedPerFrame": 30
+          },
+          "restored": true,
+          "restore_written_frames": 129,
+          "restore_time": 1791245739.9412372,
+          "commands": [
+            "r.VT.SyncProduceLockedTiles 1",
+            "r.VT.MaxTilesProducedPerFrame 30"
+          ],
+          "timeout": false
+        }
+      }
+    }
+  ],
+  "refusals": [
+    {
+      "label": "stacks-release-refusal-final-v2",
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "reason": "virtual_texture",
+        "frames": 265,
+        "events": 0,
+        "labelled": [],
+        "null": {
+          "target": 0.3115686254903725,
+          "co_user": 0.2968,
+          "ordinary": 0.30094933333333335
+        },
+        "failures": {
+          "target": [],
+          "co_user": [],
+          "ordinary": []
+        },
+        "named_refusal": [
+          "[2026.10.06-00.19.59:128][  0]LogAnomaly: Display: IAI-STARTUP world='Untitled' type=Game editor=0 nanite_policy=refused(compiled) nanite_probe=registered virtual_textures=1 nanite_project=1 - Nanite targets are refused unless IAI.Targets.AllowNanite is 1, and with no probe registered every target is refused (fail closed); virtual-textured textures are refused by stuck_low_mip and the texture-corruption anomalies.",
+          "[2026.10.06-00.19.59:143][  0]LogAnomaly: Display: IAI-STARTUP world='CB_ProxyBlurStacks' type=Game editor=0 nanite_policy=refused(compiled) nanite_probe=registered virtual_textures=1 nanite_project=1 - Nanite targets are refused unless IAI.Targets.AllowNanite is 1, and with no probe registered every target is refused (fail closed); virtual-textured textures are refused by stuck_low_mip and the texture-corruption anomalies."
+        ],
+        "annotation_errors": [],
+        "label_rule_code": 0,
+        "checker_sha256": "f05b781de638f1bf320054fe7f00b4437576e091b1025faea1ee2257c1aed63f"
+      },
+      "exe_sha256": "218ba4c79bb2bf6d9e14706772c04b3c53027cc05b84d4ab100a3349b650b7d6"
+    },
+    {
+      "label": "stacks-accepted-refusal-final-v2",
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "reason": "stack_layout",
+        "frames": 265,
+        "events": 0,
+        "labelled": [],
+        "null": {
+          "target": 0.31223856519579907,
+          "co_user": 0.296112,
+          "ordinary": 0.3012533333333333
+        },
+        "failures": {
+          "target": [],
+          "co_user": [],
+          "ordinary": []
+        },
+        "named_refusal": [
+          "[2026.10.06-00.21.06:502][ 21]LogAnomaly: TEXCORRUPT-REFUSED family=blur mode=proxy_blur target='=StaticMeshActor_77' final=virtual_texture:stack_layout step=V1 slots=1 qualified=0 required_bytes=0 distinct_textures=0 scratch_classes=0 cap=134217728(compiled) levers=[noapply=0 wrongcopy=none identity=0 identity_redraw=0 tile_probe=0 force_missing_asset=0 fail_step=0 fail_alloc_ordinal=-1 foreign_replace=0 collateral_detail=0 commit_delay=0 restore_delay=0 rt_sampler_bias=-1 src_mip_comp=-1 no_part_scope=0] ordinal=0 components=1 admitted=0 skipped=1 selected_slots=0 notes=[]",
+          "[2026.10.06-00.21.06:503][ 21]LogAnomaly: TEXCORRUPT-REFUSED   slot StaticMeshActor_77.StaticMeshComponent0[0] disposition=virtual_texture:stack_layout raw=M_Stack(len 1) asset=WorldGridMaterial resolved=M_Stack effective=M_Stack nanite_routed=0 partial=0 bindings=3 selected=0",
+          "[2026.10.06-00.21.06:503][ 21]LogAnomaly: TEXCORRUPT-REFUSED     binding type=virtual idx=0 param='Normal' assoc=global layer=-1 texture='/Game/CaptureBenchTexCorrupt/ProxyVT09205/T_StackNormal.T_StackNormal' class=normal fmt=PF_BC5 srgb=0 normal_map=1 group=1 M=10 top=512x512 levels=[512x512 256x256 128x128 64x64 32x32 16x16 8x8 4x4 2x2 1x1] resident=-1 max=-1 nonoptional=-1 asset_lod_bias=-1 cinematic=0 cached_lod_bias=0 streams=0 required=1 disposition=virtual_texture:stack_layout first_mip=0 cooked=512x512/M10 mappable=1 notes=[]",
+          "[2026.10.06-00.21.06:503][ 21]LogAnomaly: TEXCORRUPT-REFUSED     binding type=virtual idx=1 param='Color' assoc=global layer=-1 texture='/Game/CaptureBenchTexCorrupt/ProxyVT09205/T_StackColor.T_StackColor' class=colour fmt=PF_DXT1 srgb=1 normal_map=0 group=0 M=11 top=1024x1024 levels=[1024x1024 512x512 256x256 128x128 64x64 32x32 16x16 8x8 4x4 2x2 1x1] resident=-1 max=-1 nonoptional=-1 asset_lod_bias=-1 cinematic=0 cached_lod_bias=0 streams=0 required=1 disposition=virtual_texture:stack_layout first_mip=0 cooked=1024x1024/M11 mappable=1 notes=[]",
+          "[2026.10.06-00.21.06:503][ 21]LogAnomaly: TEXCORRUPT-REFUSED     binding type=virtual idx=2 param='Roughness' assoc=global layer=-1 texture='/Game/CaptureBenchTexCorrupt/ProxyVT09205/T_StackRoughness.T_StackRoughness' class=data fmt=PF_DXT1 srgb=0 normal_map=0 group=0 M=9 top=256x256 levels=[256x256 128x128 64x64 32x32 16x16 8x8 4x4 2x2 1x1] resident=-1 max=-1 nonoptional=-1 asset_lod_bias=-1 cinematic=0 cached_lod_bias=0 streams=0 required=1 disposition=virtual_texture:stack_layout first_mip=0 cooked=256x256/M9 mappable=1 notes=[]",
+          "[2026.10.06-00.21.06:504][ 21]LogAnomaly: Warning: stuck_low_mip: REFUSED virtual_texture:stack_layout (step V1) for '=StaticMeshActor_77' ordinal=0. The decision tree has no side effect: nothing was reserved, allocated or touched, and the event records no fire."
+        ],
+        "annotation_errors": [],
+        "label_rule_code": 0,
+        "checker_sha256": "f05b781de638f1bf320054fe7f00b4437576e091b1025faea1ee2257c1aed63f"
+      },
+      "exe_sha256": "1ea292e815e5acf5c6ab214043b7d255c0f35d7e456c23c0d4e0a67fe489e891"
+    },
+    {
+      "label": "stacks-unnamed-refusal-final-v2",
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "reason": "stack_unnamed",
+        "frames": 265,
+        "events": 0,
+        "labelled": [],
+        "null": {
+          "target": 0.3119327593849887,
+          "co_user": 0.29663466666666666,
+          "ordinary": 0.302352
+        },
+        "failures": {
+          "target": [],
+          "co_user": [],
+          "ordinary": []
+        },
+        "named_refusal": [
+          "[2026.10.06-00.21.59:304][942]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=stuck_low_mip key=virtual_texture/stack_unnamed objects=2 only=2",
+          "[2026.10.06-00.21.59:304][942]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=stuck_low_mip combo=virtual_texture/stack_unnamed objects=2",
+          "[2026.10.06-00.22.04:221][237]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=stuck_low_mip key=virtual_texture/stack_unnamed objects=2 only=2",
+          "[2026.10.06-00.22.04:221][237]LogAnomaly: Display: IAI-TEXCORRUPT-CENSUS v1 allreasons id=stuck_low_mip combo=virtual_texture/stack_unnamed objects=2",
+          "[2026.10.06-00.22.13:487][665]LogAnomaly: TEXCORRUPT-REFUSED family=blur mode=proxy_blur target='=StaticMeshActor_77' final=virtual_texture:stack_unnamed step=V1 slots=1 qualified=0 required_bytes=0 distinct_textures=0 scratch_classes=0 cap=134217728(compiled) levers=[noapply=0 wrongcopy=none identity=0 identity_redraw=0 tile_probe=0 force_missing_asset=0 fail_step=0 fail_alloc_ordinal=-1 foreign_replace=0 collateral_detail=0 commit_delay=0 restore_delay=0 rt_sampler_bias=-1 src_mip_comp=-1 no_part_scope=0] ordinal=0 components=1 admitted=0 skipped=1 selected_slots=0 notes=[]",
+          "[2026.10.06-00.22.13:487][665]LogAnomaly: TEXCORRUPT-REFUSED   slot StaticMeshActor_77.StaticMeshComponent0[0] disposition=virtual_texture:stack_unnamed raw=M_Unnamed(len 1) asset=WorldGridMaterial resolved=M_Unnamed effective=M_Unnamed nanite_routed=0 partial=0 bindings=3 selected=0",
+          "[2026.10.06-00.22.13:487][665]LogAnomaly: Warning: stuck_low_mip: REFUSED virtual_texture:stack_unnamed (step V1) for '=StaticMeshActor_77' ordinal=0. The decision tree has no side effect: nothing was reserved, allocated or touched, and the event records no fire."
+        ],
+        "annotation_errors": [],
+        "label_rule_code": 0,
+        "checker_sha256": "f05b781de638f1bf320054fe7f00b4437576e091b1025faea1ee2257c1aed63f"
+      },
+      "exe_sha256": null
+    }
+  ],
+  "refusal_attempts": {
+    "status": "PASS",
+    "cases": [
+      {
+        "label": "stacks-release-refusal-final-v2",
+        "reason": "virtual_texture",
+        "attempts": [
+          "Auto.FireSpecific: 'stuck_low_mip' on 'StaticMeshActor_77' -> not applied."
+        ],
+        "actual_refusals": [
+          "stuck_low_mip: matched 1 component(s) for '=StaticMeshActor_77' with 3 candidate texture(s) but HELD NONE [targeted, selection gates BYPASSED] - 3 virtual, 0 not streamable or already at the floor, 0 excluded LOD group, 0 shared with another user component in this world, 0 too small for the ratio at the deepest achievable hold, 0 imperceptible at the explicitly requested depth. Applying nothing, so no fire is recorded and no label is written."
+        ],
+        "startup_banner_alone_mutant_caught": true
+      },
+      {
+        "label": "stacks-accepted-refusal-final-v2",
+        "reason": "stack_layout",
+        "attempts": [
+          "Auto.FireSpecific: 'stuck_low_mip' on 'StaticMeshActor_77' -> not applied."
+        ],
+        "actual_refusals": [
+          "TEXCORRUPT-REFUSED family=blur mode=proxy_blur target='=StaticMeshActor_77' final=virtual_texture:stack_layout step=V1 slots=1 qualified=0 required_bytes=0 distinct_textures=0 scratch_classes=0 cap=134217728(compiled) levers=[noapply=0 wrongcopy=none identity=0 identity_redraw=0 tile_probe=0 force_missing_asset=0 fail_step=0 fail_alloc_ordinal=-1 foreign_replace=0 collateral_detail=0 commit_delay=0 restore_delay=0 rt_sampler_bias=-1 src_mip_comp=-1 no_part_scope=0] ordinal=0 components=1 admitted=0 skipped=1 selected_slots=0 notes=[]"
+        ],
+        "startup_banner_alone_mutant_caught": true
+      },
+      {
+        "label": "stacks-unnamed-refusal-final-v2",
+        "reason": "stack_unnamed",
+        "attempts": [
+          "Auto.FireSpecific: 'stuck_low_mip' on 'StaticMeshActor_77' -> not applied."
+        ],
+        "actual_refusals": [
+          "TEXCORRUPT-REFUSED family=blur mode=proxy_blur target='=StaticMeshActor_77' final=virtual_texture:stack_unnamed step=V1 slots=1 qualified=0 required_bytes=0 distinct_textures=0 scratch_classes=0 cap=134217728(compiled) levers=[noapply=0 wrongcopy=none identity=0 identity_redraw=0 tile_probe=0 force_missing_asset=0 fail_step=0 fail_alloc_ordinal=-1 foreign_replace=0 collateral_detail=0 commit_delay=0 restore_delay=0 rt_sampler_bias=-1 src_mip_comp=-1 no_part_scope=0] ordinal=0 components=1 admitted=0 skipped=1 selected_slots=0 notes=[]"
+        ],
+        "startup_banner_alone_mutant_caught": true
+      }
+    ],
+    "refinement": "Supplementary check requires actual attempted-fire refusal; the earlier generic named-text reader could match a startup banner. Raw logs and earlier results remain unchanged."
+  },
+  "regressions": [
+    {
+      "label": "regression-hold-final-v2",
+      "events": 3,
+      "unflagged": 0,
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "kind": "hold",
+        "session": "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-hold-final-v2\\out\\session_20261006-055349",
+        "fires": 3,
+        "e1_summary": {
+          "events": 3,
+          "judgeable": 3,
+          "not_measurable": 0,
+          "camera_moved": 0,
+          "status": {
+            "OK": 3
+          },
+          "strict": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "t10": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "t50": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "leg_verdict": "PASS",
+          "leg_fail_reasons": [],
+          "pie_end_settle_frames": 0,
+          "legacy_whole_leg_threshold": {
+            "events": 0,
+            "measurable": 0,
+            "thr": []
+          },
+          "window_ii": {
+            "checked": 3,
+            "failed": 0,
+            "mask_miss_reasons": {}
+          },
+          "bases": [
+            [
+              "own-detrend",
+              null
+            ]
+          ]
+        },
+        "unflagged": 0,
+        "judgeable": 3,
+        "missing_masks": [],
+        "annotation_errors": [],
+        "annotation_detail": {
+          "legacy": false,
+          "transition_frame_count": 0,
+          "transition_events": 0
+        },
+        "label_rule_code": 0
+      }
+    },
+    {
+      "label": "regression-proxy-final-v2",
+      "events": 3,
+      "unflagged": 0,
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "kind": "proxy",
+        "session": "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-proxy-final-v2\\out\\session_20261006-055612",
+        "fires": 3,
+        "e1_summary": {
+          "events": 3,
+          "judgeable": 3,
+          "not_measurable": 0,
+          "camera_moved": 0,
+          "status": {
+            "OK": 3
+          },
+          "strict": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "t10": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "t50": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "leg_verdict": "PASS",
+          "leg_fail_reasons": [],
+          "pie_end_settle_frames": 3,
+          "legacy_whole_leg_threshold": {
+            "events": 0,
+            "measurable": 0,
+            "thr": []
+          },
+          "window_ii": {
+            "checked": 0,
+            "failed": 0,
+            "mask_miss_reasons": {}
+          },
+          "bases": [
+            [
+              "own-detrend",
+              null
+            ]
+          ]
+        },
+        "unflagged": 0,
+        "judgeable": 3,
+        "missing_masks": [],
+        "annotation_errors": [],
+        "annotation_detail": {
+          "legacy": false,
+          "transition_frame_count": 3,
+          "transition_events": 3
+        },
+        "label_rule_code": 0
+      }
+    },
+    {
+      "label": "regression-uv-final-v2",
+      "events": 3,
+      "unflagged": 0,
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "kind": "uv",
+        "session": "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-uv-final-v2\\out\\session_20261006-055829",
+        "fires": 3,
+        "e1_summary": {
+          "events": 3,
+          "ok": 3,
+          "status": {
+            "OK": 3
+          },
+          "by_type": {
+            "uv_corruption": 3
+          },
+          "strict": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "fail_reasons": {},
+            "strict_0_0_events": 3
+          },
+          "t10": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "fail_reasons": {},
+            "strict_0_0_events": 3
+          },
+          "t50": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "fail_reasons": {},
+            "strict_0_0_events": 3
+          },
+          "mask_missing_frames": 0,
+          "mask_extra_frames": 0,
+          "pie_end_settle_frames": 3,
+          "pie_end_settle_events": 3,
+          "leg_fail_reasons": [],
+          "leg_verdict": "PASS"
+        },
+        "unflagged": 0,
+        "judgeable": 3,
+        "missing_masks": [],
+        "annotation_errors": [],
+        "annotation_detail": {
+          "legacy": false,
+          "transition_frame_count": 3,
+          "transition_events": 3
+        },
+        "label_rule_code": 0
+      }
+    },
+    {
+      "label": "regression-normal-final-v2",
+      "events": 3,
+      "unflagged": 0,
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "kind": "normal",
+        "session": "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-normal-final-v2\\out\\session_20261006-060030",
+        "fires": 3,
+        "e1_summary": {
+          "events": 3,
+          "ok": 3,
+          "status": {
+            "OK": 3
+          },
+          "by_type": {
+            "normal_corruption": 3
+          },
+          "strict": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "fail_reasons": {},
+            "strict_0_0_events": 3
+          },
+          "t10": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "fail_reasons": {},
+            "strict_0_0_events": 3
+          },
+          "t50": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "fail_reasons": {},
+            "strict_0_0_events": 3
+          },
+          "mask_missing_frames": 0,
+          "mask_extra_frames": 0,
+          "pie_end_settle_frames": 3,
+          "pie_end_settle_events": 3,
+          "leg_fail_reasons": [],
+          "leg_verdict": "PASS"
+        },
+        "unflagged": 0,
+        "judgeable": 3,
+        "missing_masks": [],
+        "annotation_errors": [],
+        "annotation_detail": {
+          "legacy": false,
+          "transition_frame_count": 3,
+          "transition_events": 3
+        },
+        "label_rule_code": 0
+      }
+    },
+    {
+      "label": "regression-single-vt-final-v2",
+      "events": 3,
+      "unflagged": 0,
+      "result": {
+        "status": "PASS",
+        "issues": [],
+        "session": "E:\\IA_BuildCache\\_r921\\09205\\runs\\regression-single-vt-final-v2\\out\\session_20261006-060153",
+        "frame_count": 553,
+        "size_counts": {
+          "(1920, 1080)": 553
+        },
+        "boxes": {
+          "target": [
+            67,
+            383,
+            1341,
+            697
+          ],
+          "co_user": [
+            1455,
+            195,
+            1705,
+            445
+          ],
+          "ordinary": [
+            1455,
+            635,
+            1705,
+            885
+          ]
+        },
+        "reference": 100,
+        "null": {
+          "target": 1.2225158069107114,
+          "co_user": 0.33265066666666665,
+          "ordinary": 0.335776
+        },
+        "events": [
+          {
+            "event_id": "stuck_low_mip@1053|StaticMeshActor_77",
+            "frames": [
+              120,
+              121,
+              122,
+              123,
+              124,
+              125,
+              126,
+              127,
+              128,
+              129,
+              130,
+              131,
+              132,
+              133,
+              134,
+              135,
+              136,
+              137,
+              138,
+              139,
+              140,
+              141,
+              142,
+              143,
+              144,
+              145,
+              146,
+              147,
+              148,
+              149,
+              150,
+              151,
+              152,
+              153,
+              154,
+              155,
+              156,
+              157,
+              158,
+              159,
+              160,
+              161,
+              162,
+              163,
+              164,
+              165,
+              166,
+              167
+            ],
+            "median_mad": 72.35659373989674,
+            "limit": 4.8900632276428455,
+            "visible": true,
+            "route": "proxy_vt"
+          },
+          {
+            "event_id": "stuck_low_mip@1197|StaticMeshActor_77",
+            "frames": [
+              264,
+              265,
+              266,
+              267,
+              268,
+              269,
+              270,
+              271,
+              272,
+              273,
+              274,
+              275,
+              276,
+              277,
+              278,
+              279,
+              280,
+              281,
+              282,
+              283,
+              284,
+              285,
+              286,
+              287,
+              288,
+              289,
+              290,
+              291,
+              292,
+              293,
+              294,
+              295,
+              296,
+              297,
+              298,
+              299,
+              300,
+              301,
+              302,
+              303,
+              304,
+              305,
+              306,
+              307,
+              308,
+              309,
+              310,
+              311
+            ],
+            "median_mad": 72.35657415832576,
+            "limit": 4.8900632276428455,
+            "visible": true,
+            "route": "proxy_vt"
+          },
+          {
+            "event_id": "stuck_low_mip@1341|StaticMeshActor_77",
+            "frames": [
+              408,
+              409,
+              410,
+              411,
+              412,
+              413,
+              414,
+              415,
+              416,
+              417,
+              418,
+              419,
+              420,
+              421,
+              422,
+              423,
+              424,
+              425,
+              426,
+              427,
+              428,
+              429,
+              430,
+              431,
+              432,
+              433,
+              434,
+              435,
+              436,
+              437,
+              438,
+              439,
+              440,
+              441,
+              442,
+              443,
+              444,
+              445,
+              446,
+              447,
+              448,
+              449,
+              450,
+              451,
+              452,
+              453,
+              454,
+              455
+            ],
+            "median_mad": 72.3565541601256,
+            "limit": 4.8900632276428455,
+            "visible": true,
+            "route": "proxy_vt"
+          }
+        ],
+        "control_failures": {
+          "co_user": [],
+          "ordinary": []
+        },
+        "restore_failures": [],
+        "missing_masks": [],
+        "mask_outside": [],
+        "mask_counts": [],
+        "bbox_bad": [],
+        "annotation_errors": [],
+        "annotation_detail": {
+          "legacy": false,
+          "transition_frame_count": 3,
+          "transition_events": 3
+        },
+        "label_rule_code": 0,
+        "end_settle": [
+          168,
+          312,
+          456
+        ],
+        "e1_summary": {
+          "events": 3,
+          "judgeable": 3,
+          "not_measurable": 0,
+          "camera_moved": 0,
+          "status": {
+            "OK": 3
+          },
+          "strict": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "t10": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "t50": {
+            "verdicts": {
+              "PASS": 3
+            },
+            "two_sided_084_04a": {
+              "PASS": 3
+            },
+            "start": "{+0:3}",
+            "end": "{+0:3}",
+            "strict_0_0_events": 3,
+            "fail_reasons": {},
+            "unexcused_frames": 0
+          },
+          "leg_verdict": "PASS",
+          "leg_fail_reasons": [],
+          "pie_end_settle_frames": 3,
+          "legacy_whole_leg_threshold": {
+            "events": 0,
+            "measurable": 0,
+            "thr": []
+          },
+          "window_ii": {
+            "checked": 0,
+            "failed": 0,
+            "mask_miss_reasons": {}
+          },
+          "bases": [
+            [
+              "own-detrend",
+              null
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "census": [
+    {
+      "label": "census-stacks-all-part-b-v2",
+      "result": {
+        "expected_file": "E:\\IA_BuildCache\\_r921\\09205\\census-expected-part-b-before.json",
+        "counts_pass": true,
+        "failures": [],
+        "expected": [
+          {
+            "family": 0,
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 1,
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 3
+            },
+            "component_sets": {
+              "1": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 2,
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          }
+        ],
+        "printed": [
+          {
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 3
+            },
+            "component_sets": {
+              "1": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            }
+          }
+        ],
+        "state_unchanged": true,
+        "states": [
+          {
+            "slots": "9",
+            "bindings": "16",
+            "materials": "2321586666",
+            "textures": "406491284",
+            "resources": "0",
+            "producers": "0"
+          },
+          {
+            "slots": "9",
+            "bindings": "16",
+            "materials": "2321586666",
+            "textures": "406491284",
+            "resources": "0",
+            "producers": "0"
+          }
+        ],
+        "timing": {
+          "first": 1531,
+          "last": 2168,
+          "null_end": 1688,
+          "census_begin": [
+            1693
+          ],
+          "census_end": [
+            1694
+          ]
+        },
+        "null_precedes_census": true,
+        "labelled_events_absent": true,
+        "pixels": {
+          "target": {
+            "null_max": 0.31266602672426147,
+            "limit": 0.36266602672426146,
+            "peak": 0.31266602672426147,
+            "failed_frames": []
+          },
+          "co_user": {
+            "null_max": 0.29828266666666664,
+            "limit": 0.34828266666666663,
+            "peak": 0.29828266666666664,
+            "failed_frames": []
+          },
+          "ordinary": {
+            "null_max": 0.30108266666666667,
+            "limit": 0.35108266666666665,
+            "peak": 0.30108266666666667,
+            "failed_frames": []
+          }
+        },
+        "status": "PASS"
+      }
+    },
+    {
+      "label": "census-single-all-part-b-v2",
+      "result": {
+        "expected_file": "E:\\IA_BuildCache\\_r921\\09205\\census-expected-part-b-before.json",
+        "counts_pass": true,
+        "failures": [],
+        "expected": [
+          {
+            "family": 0,
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 3,
+            "only_vt_unassessed": 3,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 1,
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 0,
+            "required_bindings": 0,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {},
+            "component_sets": {},
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 2,
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          }
+        ],
+        "printed": [
+          {
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 3,
+            "only_vt_unassessed": 3,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 0,
+            "required_bindings": 0,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "0": 0
+            },
+            "component_sets": {
+              "0": 0
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            }
+          }
+        ],
+        "state_unchanged": true,
+        "states": [
+          {
+            "slots": "9",
+            "bindings": "10",
+            "materials": "2179802999",
+            "textures": "1014096304",
+            "resources": "0",
+            "producers": "0"
+          },
+          {
+            "slots": "9",
+            "bindings": "10",
+            "materials": "2179802999",
+            "textures": "1014096304",
+            "resources": "0",
+            "producers": "0"
+          }
+        ],
+        "timing": {
+          "first": 1521,
+          "last": 2158,
+          "null_end": 1678,
+          "census_begin": [
+            1684
+          ],
+          "census_end": [
+            1685
+          ]
+        },
+        "null_precedes_census": true,
+        "labelled_events_absent": true,
+        "pixels": {
+          "target": {
+            "null_max": 1.328122968932796,
+            "limit": 1.378122968932796,
+            "peak": 1.328122968932796,
+            "failed_frames": []
+          },
+          "co_user": {
+            "null_max": 0.23930666666666667,
+            "limit": 0.28930666666666666,
+            "peak": 0.23930666666666667,
+            "failed_frames": []
+          },
+          "ordinary": {
+            "null_max": 0.179504,
+            "limit": 0.22950399999999999,
+            "peak": 0.179504,
+            "failed_frames": []
+          }
+        },
+        "status": "PASS"
+      }
+    },
+    {
+      "label": "census-stacks-view-part-b-v2",
+      "result": {
+        "expected_file": "E:\\IA_BuildCache\\_r921\\09205\\census-expected-part-b-before.json",
+        "counts_pass": true,
+        "failures": [],
+        "expected": [
+          {
+            "family": 0,
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 3,
+            "required_components": 1,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 1,
+            "only_vt_unassessed": 1,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 1,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 1,
+              "8": 2
+            },
+            "component_sets": {
+              "9": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 3
+            },
+            "borders": {
+              "4": 3
+            },
+            "address_x": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 1,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 2,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 1,
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 3,
+            "required_components": 1,
+            "required_bindings": 1,
+            "unread_slots": 0,
+            "only_vt": 1,
+            "only_vt_unassessed": 1,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 1,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 1
+            },
+            "component_sets": {
+              "1": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 3
+            },
+            "borders": {
+              "4": 3
+            },
+            "address_x": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 1,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 2,
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 3,
+            "required_components": 1,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 1,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 1,
+              "8": 2
+            },
+            "component_sets": {
+              "9": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 3
+            },
+            "borders": {
+              "4": 3
+            },
+            "address_x": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 1,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 2,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          }
+        ],
+        "printed": [
+          {
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 3,
+            "required_components": 1,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 1,
+            "only_vt_unassessed": 1,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 1,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 1,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 2,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 1,
+              "8": 2
+            },
+            "component_sets": {
+              "9": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 3
+            },
+            "borders": {
+              "4": 3
+            },
+            "address_x": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 3,
+            "required_components": 1,
+            "required_bindings": 1,
+            "unread_slots": 0,
+            "only_vt": 1,
+            "only_vt_unassessed": 1,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 1,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 1,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 1
+            },
+            "component_sets": {
+              "1": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 3
+            },
+            "borders": {
+              "4": 3
+            },
+            "address_x": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 3,
+            "required_components": 1,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 1,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 1,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 2,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 1,
+              "8": 2
+            },
+            "component_sets": {
+              "9": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 3
+            },
+            "borders": {
+              "4": 3
+            },
+            "address_x": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 3,
+              "2": 0,
+              "3": 0
+            }
+          }
+        ],
+        "state_unchanged": true,
+        "states": [
+          {
+            "slots": "9",
+            "bindings": "16",
+            "materials": "1616887130",
+            "textures": "815294857",
+            "resources": "0",
+            "producers": "0"
+          },
+          {
+            "slots": "9",
+            "bindings": "16",
+            "materials": "1616887130",
+            "textures": "815294857",
+            "resources": "0",
+            "producers": "0"
+          }
+        ],
+        "timing": {
+          "first": 1531,
+          "last": 2168,
+          "null_end": 1688,
+          "census_begin": [
+            1693
+          ],
+          "census_end": [
+            1694
+          ]
+        },
+        "null_precedes_census": true,
+        "labelled_events_absent": true,
+        "pixels": {
+          "target": {
+            "null_max": 0.3127510190749499,
+            "limit": 0.3627510190749499,
+            "peak": 0.3127510190749499,
+            "failed_frames": []
+          },
+          "co_user": {
+            "null_max": 0.297632,
+            "limit": 0.347632,
+            "peak": 0.297632,
+            "failed_frames": []
+          },
+          "ordinary": {
+            "null_max": 0.30108266666666667,
+            "limit": 0.35108266666666665,
+            "peak": 0.30108266666666667,
+            "failed_frames": []
+          }
+        },
+        "status": "PASS"
+      }
+    },
+    {
+      "label": "census-single-view-part-b-v2",
+      "result": {
+        "expected_file": "E:\\IA_BuildCache\\_r921\\09205\\census-expected-part-b-before.json",
+        "counts_pass": true,
+        "failures": [],
+        "expected": [
+          {
+            "family": 0,
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 1,
+            "required_components": 1,
+            "required_bindings": 1,
+            "unread_slots": 0,
+            "only_vt": 1,
+            "only_vt_unassessed": 1,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 1,
+              "2": 0,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "8": 1
+            },
+            "component_sets": {
+              "8": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 1
+            },
+            "borders": {
+              "4": 1
+            },
+            "address_x": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 1,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 1,
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 1,
+            "required_components": 0,
+            "required_bindings": 0,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 1,
+              "2": 0,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {},
+            "component_sets": {},
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 1
+            },
+            "borders": {
+              "4": 1
+            },
+            "address_x": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 2,
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 1,
+            "required_components": 1,
+            "required_bindings": 1,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 1,
+              "2": 0,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "8": 1
+            },
+            "component_sets": {
+              "8": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 1
+            },
+            "borders": {
+              "4": 1
+            },
+            "address_x": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 1,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          }
+        ],
+        "printed": [
+          {
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 1,
+            "required_components": 1,
+            "required_bindings": 1,
+            "unread_slots": 0,
+            "only_vt": 1,
+            "only_vt_unassessed": 1,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 1,
+              "2": 0,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 1,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "8": 1
+            },
+            "component_sets": {
+              "8": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 1
+            },
+            "borders": {
+              "4": 1
+            },
+            "address_x": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 1,
+            "required_components": 0,
+            "required_bindings": 0,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 1,
+              "2": 0,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "0": 0
+            },
+            "component_sets": {
+              "0": 0
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 1
+            },
+            "borders": {
+              "4": 1
+            },
+            "address_x": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 1,
+            "vt_components": 1,
+            "bindings": 1,
+            "required_components": 1,
+            "required_bindings": 1,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 1,
+            "preallocated": 0,
+            "stacks": {
+              "1": 1,
+              "2": 0,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 1,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "8": 1
+            },
+            "component_sets": {
+              "8": 1
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 1
+            },
+            "borders": {
+              "4": 1
+            },
+            "address_x": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 1,
+              "2": 0,
+              "3": 0
+            }
+          }
+        ],
+        "state_unchanged": true,
+        "states": [
+          {
+            "slots": "9",
+            "bindings": "10",
+            "materials": "2202077383",
+            "textures": "1256831781",
+            "resources": "0",
+            "producers": "0"
+          },
+          {
+            "slots": "9",
+            "bindings": "10",
+            "materials": "2202077383",
+            "textures": "1256831781",
+            "resources": "0",
+            "producers": "0"
+          }
+        ],
+        "timing": {
+          "first": 1395,
+          "last": 2032,
+          "null_end": 1552,
+          "census_begin": [
+            1558
+          ],
+          "census_end": [
+            1559
+          ]
+        },
+        "null_precedes_census": true,
+        "labelled_events_absent": true,
+        "pixels": {
+          "target": {
+            "null_max": 1.326701430204615,
+            "limit": 1.376701430204615,
+            "peak": 1.326701430204615,
+            "failed_frames": []
+          },
+          "co_user": {
+            "null_max": 0.23849066666666666,
+            "limit": 0.2884906666666667,
+            "peak": 0.23849066666666666,
+            "failed_frames": []
+          },
+          "ordinary": {
+            "null_max": 0.17934933333333333,
+            "limit": 0.22934933333333335,
+            "peak": 0.17934933333333333,
+            "failed_frames": []
+          }
+        },
+        "status": "PASS"
+      }
+    }
+  ],
+  "miscounts": [
+    {
+      "label": "census-stacks-miscount-part-b-v2",
+      "result": {
+        "expected_file": "E:\\IA_BuildCache\\_r921\\09205\\census-expected-part-b-before.json",
+        "counts_pass": false,
+        "failures": [
+          {
+            "family": 0,
+            "key": "bindings",
+            "expected": 9,
+            "actual": 10
+          },
+          {
+            "family": 1,
+            "key": "bindings",
+            "expected": 9,
+            "actual": 10
+          },
+          {
+            "family": 2,
+            "key": "bindings",
+            "expected": 9,
+            "actual": 10
+          }
+        ],
+        "expected": [
+          {
+            "family": 0,
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 1,
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 3
+            },
+            "component_sets": {
+              "1": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 2,
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 9,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          }
+        ],
+        "printed": [
+          {
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 10,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 10,
+            "required_components": 3,
+            "required_bindings": 3,
+            "unread_slots": 0,
+            "only_vt": 2,
+            "only_vt_unassessed": 2,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 3
+            },
+            "component_sets": {
+              "1": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 4,
+            "vt_components": 3,
+            "bindings": 10,
+            "required_components": 3,
+            "required_bindings": 9,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 3,
+            "preallocated": 0,
+            "stacks": {
+              "1": 0,
+              "2": 0,
+              "3": 3,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 3,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "1": 3,
+              "8": 6
+            },
+            "component_sets": {
+              "9": 3
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 9
+            },
+            "borders": {
+              "4": 9
+            },
+            "address_x": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 9,
+              "2": 0,
+              "3": 0
+            }
+          }
+        ],
+        "mutant_caught": true,
+        "status": "PASS"
+      }
+    },
+    {
+      "label": "census-single-miscount-part-b-v2",
+      "result": {
+        "expected_file": "E:\\IA_BuildCache\\_r921\\09205\\census-expected-part-b-before.json",
+        "counts_pass": false,
+        "failures": [
+          {
+            "family": 0,
+            "key": "bindings",
+            "expected": 6,
+            "actual": 7
+          },
+          {
+            "family": 1,
+            "key": "bindings",
+            "expected": 6,
+            "actual": 7
+          },
+          {
+            "family": 2,
+            "key": "bindings",
+            "expected": 6,
+            "actual": 7
+          }
+        ],
+        "expected": [
+          {
+            "family": 0,
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 3,
+            "only_vt_unassessed": 3,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 1,
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 0,
+            "required_bindings": 0,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {},
+            "component_sets": {},
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          },
+          {
+            "family": 2,
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 6,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0
+          }
+        ],
+        "printed": [
+          {
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 7,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 3,
+            "only_vt_unassessed": 3,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 7,
+            "required_components": 0,
+            "required_bindings": 0,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 0,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "0": 0
+            },
+            "component_sets": {
+              "0": 0
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            }
+          },
+          {
+            "components": 6,
+            "vt_components": 5,
+            "bindings": 7,
+            "required_components": 5,
+            "required_bindings": 6,
+            "unread_slots": 0,
+            "only_vt": 0,
+            "only_vt_unassessed": 0,
+            "only_stack": 0,
+            "only_stack_unassessed": 0,
+            "streaming": 5,
+            "preallocated": 0,
+            "stacks": {
+              "1": 4,
+              "2": 1,
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 0
+            },
+            "layers_bc5": 0,
+            "layers_dxt5": 0,
+            "layers_bc7": 0,
+            "layers_dxt1": 6,
+            "layers_bgra8": 0,
+            "layers_other": 0,
+            "binding_sets": {
+              "8": 6
+            },
+            "component_sets": {
+              "8": 5
+            },
+            "incomplete_components": 0,
+            "tiles": {
+              "128": 6
+            },
+            "borders": {
+              "4": 6
+            },
+            "address_x": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            },
+            "address_y": {
+              "0": 0,
+              "1": 6,
+              "2": 0,
+              "3": 0
+            }
+          }
+        ],
+        "mutant_caught": true,
+        "status": "PASS"
+      }
+    }
+  ]
+}

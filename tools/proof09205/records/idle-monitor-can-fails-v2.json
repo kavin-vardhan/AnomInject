@@ -1,0 +1,313 @@
+[
+  {
+    "mode": "clear",
+    "expected_clear": true,
+    "observed": {
+      "time": 1791235114.7105927,
+      "command_exit": 0,
+      "processes": [],
+      "background_gpu": [],
+      "memory_gib": 10,
+      "person_idle_s": 277.687,
+      "disk_free_bytes": {
+        "D": 107374182400,
+        "E": 107374182400
+      },
+      "gpu": [
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 0
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 1
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 2
+        }
+      ],
+      "gpu_instrument": "NVIDIA total GPU utilization, three samples; no process exemption",
+      "gpu_blocking": [],
+      "person_idle_policy": "logged note; no foreign editor is permitted regardless of keyboard idleness",
+      "process_gpu_samples": 100,
+      "process_gpu_blocking": [],
+      "clear": true
+    },
+    "pass_": true
+  },
+  {
+    "mode": "foreign_editor",
+    "expected_clear": false,
+    "observed": {
+      "time": 1791235114.710758,
+      "clear": false,
+      "processes": [
+        {
+          "ProcessId": 999999,
+          "Name": "UnrealEditor.exe",
+          "ExecutablePath": "foreign"
+        }
+      ],
+      "observation": "early rejection on a blocking process"
+    },
+    "pass_": true
+  },
+  {
+    "mode": "gpu_busy",
+    "expected_clear": false,
+    "observed": {
+      "time": 1791235114.71078,
+      "command_exit": 0,
+      "processes": [],
+      "background_gpu": [],
+      "memory_gib": 10,
+      "person_idle_s": 277.687,
+      "disk_free_bytes": {
+        "D": 107374182400,
+        "E": 107374182400
+      },
+      "gpu": [
+        {
+          "percent": 11.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 0
+        },
+        {
+          "percent": 11.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 1
+        },
+        {
+          "percent": 11.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 2
+        }
+      ],
+      "gpu_instrument": "NVIDIA total GPU utilization, three samples; no process exemption",
+      "gpu_blocking": [
+        {
+          "percent": 11.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 0
+        },
+        {
+          "percent": 11.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 1
+        },
+        {
+          "percent": 11.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 2
+        }
+      ],
+      "person_idle_policy": "logged note; no foreign editor is permitted regardless of keyboard idleness",
+      "process_gpu_samples": 100,
+      "process_gpu_blocking": [],
+      "clear": false
+    },
+    "pass_": true
+  },
+  {
+    "mode": "process_gpu_busy",
+    "expected_clear": false,
+    "observed": {
+      "time": 1791235114.710827,
+      "command_exit": 0,
+      "processes": [],
+      "background_gpu": [],
+      "memory_gib": 10,
+      "person_idle_s": 277.687,
+      "disk_free_bytes": {
+        "D": 107374182400,
+        "E": 107374182400
+      },
+      "gpu": [
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 0
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 1
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 2
+        }
+      ],
+      "gpu_instrument": "NVIDIA total GPU utilization, three samples; no process exemption",
+      "gpu_blocking": [],
+      "person_idle_policy": "logged note; no foreign editor is permitted regardless of keyboard idleness",
+      "process_gpu_samples": 100,
+      "process_gpu_blocking": [
+        {
+          "pid": 999999,
+          "name": "chrome",
+          "percent": 11
+        }
+      ],
+      "clear": false
+    },
+    "pass_": true
+  },
+  {
+    "mode": "gpu_no_observations",
+    "expected_clear": false,
+    "observed": {
+      "time": 1791235114.7108662,
+      "command_exit": 0,
+      "processes": [],
+      "background_gpu": [],
+      "memory_gib": 10,
+      "person_idle_s": 277.687,
+      "disk_free_bytes": {
+        "D": 107374182400,
+        "E": 107374182400
+      },
+      "gpu": [
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 0
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 1
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 2
+        }
+      ],
+      "gpu_instrument": "NVIDIA total GPU utilization, three samples; no process exemption",
+      "gpu_blocking": [],
+      "person_idle_policy": "logged note; no foreign editor is permitted regardless of keyboard idleness",
+      "process_gpu_samples": 0,
+      "process_gpu_blocking": [],
+      "clear": false
+    },
+    "pass_": true
+  },
+  {
+    "mode": "memory_low",
+    "expected_clear": false,
+    "observed": {
+      "time": 1791235114.7108982,
+      "command_exit": 0,
+      "processes": [],
+      "background_gpu": [],
+      "memory_gib": 5,
+      "person_idle_s": 277.687,
+      "disk_free_bytes": {
+        "D": 107374182400,
+        "E": 107374182400
+      },
+      "gpu": [
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 0
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 1
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 2
+        }
+      ],
+      "gpu_instrument": "NVIDIA total GPU utilization, three samples; no process exemption",
+      "gpu_blocking": [],
+      "person_idle_policy": "logged note; no foreign editor is permitted regardless of keyboard idleness",
+      "process_gpu_samples": 100,
+      "process_gpu_blocking": [],
+      "clear": false
+    },
+    "pass_": true
+  },
+  {
+    "mode": "disk_low",
+    "expected_clear": false,
+    "observed": {
+      "time": 1791235114.7109296,
+      "command_exit": 0,
+      "processes": [],
+      "background_gpu": [],
+      "memory_gib": 10,
+      "person_idle_s": 277.687,
+      "disk_free_bytes": {
+        "D": 52613349376,
+        "E": 52613349376
+      },
+      "gpu": [
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 0
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 1
+        },
+        {
+          "percent": 0.0,
+          "used_mib": 1000.0,
+          "free_mib": 7000.0,
+          "sample": 2
+        }
+      ],
+      "gpu_instrument": "NVIDIA total GPU utilization, three samples; no process exemption",
+      "gpu_blocking": [],
+      "person_idle_policy": "logged note; no foreign editor is permitted regardless of keyboard idleness",
+      "process_gpu_samples": 100,
+      "process_gpu_blocking": [],
+      "clear": false
+    },
+    "pass_": true
+  },
+  {
+    "mode": "query_timeout",
+    "expected_clear": false,
+    "observed": {
+      "time": 1791235114.7109592,
+      "clear": false,
+      "error": "Command '['C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe', '-NoProfile', '-Command', \"@(Get-Process | Where-Object { $_.ProcessName -match '^(UnrealEditor|UE4Editor|StackOBot|LyraGame|cl|link)(-|$)' } | ForEach-Object { @{ProcessId=$_.Id; Name=($_.ProcessName+'.exe'); ExecutablePath=$_.Path} }) | ConvertTo-Json -Depth 4 -Compress\"]' timed out after 15 seconds",
+      "observation": "fast process query"
+    },
+    "pass_": true
+  }
+]

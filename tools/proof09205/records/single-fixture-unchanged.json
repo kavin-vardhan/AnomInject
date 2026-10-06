@@ -1,0 +1,52 @@
+[
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\CB_ProxyBlurVT.umap",
+    "prior": "cb64648575dc57ee7abc5b10daedc7aae37b67f8d219636b8bc0765254e9e505",
+    "current": "cb64648575dc57ee7abc5b10daedc7aae37b67f8d219636b8bc0765254e9e505"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\M_MixedProof.uasset",
+    "prior": "5fb6eaf79cb1f348249bca41670d955ac3d85551f58c1f970317fe9597cb85f4",
+    "current": "5fb6eaf79cb1f348249bca41670d955ac3d85551f58c1f970317fe9597cb85f4"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\M_OrdinaryProof.uasset",
+    "prior": "706b965f4c8fd435a5e3292fd9d5dcf81beca5e753d8370ba76f183098e671cc",
+    "current": "706b965f4c8fd435a5e3292fd9d5dcf81beca5e753d8370ba76f183098e671cc"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\M_UniformVT.uasset",
+    "prior": "622f2823bcb87d5567b1931a0dd140d2815cdedd32b62adf827bbb44ff8ba8a5",
+    "current": "622f2823bcb87d5567b1931a0dd140d2815cdedd32b62adf827bbb44ff8ba8a5"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\M_VTConstantLayer.uasset",
+    "prior": "19355d2eb770ac4938ce5be0501bb39f6cd3f3f64df1e44c8a3e228616a12f8f",
+    "current": "19355d2eb770ac4938ce5be0501bb39f6cd3f3f64df1e44c8a3e228616a12f8f"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\M_VTNamedStack.uasset",
+    "prior": "1da400752d3f76a8bb25c90f7ca3e2932e19eaeafc212452e74de1eda759c2db",
+    "current": "1da400752d3f76a8bb25c90f7ca3e2932e19eaeafc212452e74de1eda759c2db"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\M_VTProof.uasset",
+    "prior": "ed077abff841b2e01844d5ecfd8b50b26af69831577db8f1f4ee801efe9a27c6",
+    "current": "ed077abff841b2e01844d5ecfd8b50b26af69831577db8f1f4ee801efe9a27c6"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\T_OrdinaryProof.uasset",
+    "prior": "3f164d5a5e0ca97a67e24d09411baafb6fe585ffd3c8baedb37e1ff2d4ac2c1e",
+    "current": "3f164d5a5e0ca97a67e24d09411baafb6fe585ffd3c8baedb37e1ff2d4ac2c1e"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\T_UniformVT.uasset",
+    "prior": "d817b04f09e78984a917e281c7d24c57c181b81b459d4b9284c8299d37ba522c",
+    "current": "d817b04f09e78984a917e281c7d24c57c181b81b459d4b9284c8299d37ba522c"
+  },
+  {
+    "path": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT0921C\\T_VTProof.uasset",
+    "prior": "5448286fc66b28450fd0f20f05cd199db214aed8ccddc09874b2c419f38ced55",
+    "current": "5448286fc66b28450fd0f20f05cd199db214aed8ccddc09874b2c419f38ced55"
+  }
+]

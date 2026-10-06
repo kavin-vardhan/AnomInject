@@ -1,0 +1,7 @@
+# Part B fixture calibration, before valid positive or identity legs
+
+The corrected 1024 source fixture's baseline is too bright for independent roughness contrast: stacks-probe-02, which refused before firing, shows roughness vertical gradient only 1.73 versus normal 36.45 and color 46.04. Lower the fixture's fixed point light from 2000 to 60 and directional light from 1 to 0.03. Bloom is disabled for this bench profile, with AA/exposure/GI/reflections already off. No identity or positive threshold changes.
+
+Also exercise the required per-layer bookkeeping explicitly. The fixture-owned color, normal and roughness textures receive authored per-texture LOD biases 0,1,2 respectively, including their ordinary controls. These are asset settings on this job's fixture only, not global/pool bias or forced residency. Prediction: runtime source first mips 0,1,2 and effective sizes 1024,512,256; Drop 0 combined producer biases 0,1,2; Auto floor private sizes all128 with additional drops3,2,1. The combined allocation still needs255 entries for identity and3 for positive. Confirm actual runtime values. Preserve both prior fixture archives and all failed attempts.
+
+Before formal proof, freeze independent band ROIs and high-frequency loss metrics after this calibration. The original identity criterion (every frame within own null maximum+0.05 MAD) and zero-frame label/picture criterion are unchanged.

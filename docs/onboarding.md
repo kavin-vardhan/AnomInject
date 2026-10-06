@@ -1,10 +1,11 @@
 # Onboarding
 
-The `feat/vt-proxy-blur` proof branch adds private coarse VT replacement for supported named
-streaming-VT bindings. Its bounded identity, PIE/staged, lifetime and regression proof passes on
-c80ef9b / 1EA292E8; it is not an office delivery and blurry stays OFF by default. Read client-readme
-8.3aa and the [092-03 journal](sessions/2026-10-05-092-03-vt-proxy-blur.md) for stack limits, private
-prefetch and the unchanged 8x Auto rule. UV/normal still refuse VT.
+The `feat/vt-blur-stacks` proof branch adds passive numeric VT inventory and complete named
+streaming-VT stack replacement. Both parts pass their bounded proofs; runtime `502de71` /
+`4458129F` has native identity, per-layer PIE/staged pixels, lifetime and route regression evidence.
+This is not an office delivery. Blurry stays OFF by default, the 8x Auto rule and 25% ceiling remain,
+and UV/normal still refuse VT. Run `IAI.TexCorrupt.Census all vt` for inventory. Read client-readme
+8.3aa/8.8 and the [092-05 journal](sessions/2026-10-06-092-05-vt-blur-stacks.md) before continuing.
 
 ## What this is
 `AnomalyInjector` is a UE5 plugin that injects **labeled visual anomalies** (graphics

@@ -1,0 +1,46 @@
+{
+  "status": "PASS",
+  "completeness": [
+    {
+      "case": "complete",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "case": "truncated",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "case": "duplicate",
+      "accepted": false,
+      "expected": false
+    }
+  ],
+  "pixel_mutant_caught": true,
+  "frame": 120,
+  "result": {
+    "target": {
+      "null": 0.3119327593849887,
+      "limit": 0.3619327593849887,
+      "maximum": 47.00616444519993,
+      "failures": [
+        120
+      ]
+    },
+    "co_user": {
+      "null": 0.29663466666666666,
+      "limit": 0.34663466666666665,
+      "maximum": 0.29663466666666666,
+      "failures": []
+    },
+    "ordinary": {
+      "null": 0.302352,
+      "limit": 0.352352,
+      "maximum": 0.302352,
+      "failures": []
+    }
+  },
+  "reader_sha256": "746f2daedc8e6e0d12fc100b9453d2b3a6633ac9721aa490e32d40f678347b05",
+  "original_image_sha256": "79ec1cae5ff85babadfb9b3173d200b7bc5eb55329e99b7691e32ff0bdd59c7e"
+}

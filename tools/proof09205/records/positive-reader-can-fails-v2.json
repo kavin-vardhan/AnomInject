@@ -1,0 +1,68 @@
+[
+  {
+    "mode": "annotation",
+    "mutation_frame": 121,
+    "expected_issue": "label rule mismatch",
+    "caught": true,
+    "exit": 1,
+    "issues": [
+      "label rule mismatch"
+    ],
+    "original_image_unchanged_sha256": "decced054fcb53e605e6e44aeddbe0ecb9bd04d9f440fa9a760ee68ffb929ae0",
+    "method": "metadata copy",
+    "checker_sha256": "ab36f152d51eb29b288deabb706c264bbf3f7dc2e3b372500dbcea298e9129ff"
+  },
+  {
+    "mode": "transition_annotation",
+    "mutation_frame": 121,
+    "expected_issue": "annotation mismatch",
+    "caught": true,
+    "exit": 1,
+    "issues": [
+      "annotation mismatch",
+      "label rule mismatch"
+    ],
+    "original_image_unchanged_sha256": "decced054fcb53e605e6e44aeddbe0ecb9bd04d9f440fa9a760ee68ffb929ae0",
+    "method": "metadata copy",
+    "checker_sha256": "ab36f152d51eb29b288deabb706c264bbf3f7dc2e3b372500dbcea298e9129ff"
+  },
+  {
+    "mode": "zero_mask",
+    "mutation_frame": 121,
+    "expected_issue": "mask or bbox mismatch",
+    "caught": true,
+    "exit": 1,
+    "issues": [
+      "mask or bbox mismatch"
+    ],
+    "original_image_unchanged_sha256": "decced054fcb53e605e6e44aeddbe0ecb9bd04d9f440fa9a760ee68ffb929ae0",
+    "method": "in-memory Image.open substitution; image and mask files untouched",
+    "checker_sha256": "ab36f152d51eb29b288deabb706c264bbf3f7dc2e3b372500dbcea298e9129ff"
+  },
+  {
+    "mode": "co_user",
+    "mutation_frame": 121,
+    "expected_issue": "control pixels changed",
+    "caught": true,
+    "exit": 1,
+    "issues": [
+      "control pixels changed"
+    ],
+    "original_image_unchanged_sha256": "decced054fcb53e605e6e44aeddbe0ecb9bd04d9f440fa9a760ee68ffb929ae0",
+    "method": "in-memory Image.open substitution; image and mask files untouched",
+    "checker_sha256": "ab36f152d51eb29b288deabb706c264bbf3f7dc2e3b372500dbcea298e9129ff"
+  },
+  {
+    "mode": "revert",
+    "mutation_frame": 170,
+    "expected_issue": "target revert residue",
+    "caught": true,
+    "exit": 1,
+    "issues": [
+      "target revert residue"
+    ],
+    "original_image_unchanged_sha256": "7867f74ce302cf7df58f0f4c542c25db74a30c03a99c4584c46860077fe1e210",
+    "method": "in-memory Image.open substitution; image and mask files untouched",
+    "checker_sha256": "ab36f152d51eb29b288deabb706c264bbf3f7dc2e3b372500dbcea298e9129ff"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "exit": 1,
+  "caught": true,
+  "planted": "new VT probe made live in Shipping in a disposable copy with its module admitted to Shipping",
+  "failures": [
+    "G-LEVER-AUDIT FAIL R1 Source/AnomalyInjector/Private/Anomalies/ProxyVTBench.cpp:40 'IAI.Bench.VTCensusState' is LIVE in a Shipping compile of module AnomalyInjector",
+    "G-LEVER-AUDIT FAIL R1 Source/AnomalyInjector/Private/Anomalies/ProxyVTBench.cpp:85 'IAI.Bench.ProxyVTInventory' is LIVE in a Shipping compile of module AnomalyInjector",
+    "G-LEVER-AUDIT FAIL R1 Source/AnomalyInjector/Private/Anomalies/ProxyVTBench.cpp:163 'IAI.Bench.ProxyVTNoBind' is LIVE in a Shipping compile of module AnomalyInjector",
+    "G-LEVER-AUDIT FAIL R1 Source/AnomalyInjector/Private/Anomalies/ProxyVTBench.cpp:169 'IAI.Bench.ProxyVTNoBind=%d' is LIVE in a Shipping compile of module AnomalyInjector",
+    "G-LEVER-AUDIT FAIL R1 Source/AnomalyInjector/Private/Anomalies/ProxyVTBench.cpp:229 'IAI.Bench.ProxyVT' is LIVE in a Shipping compile of module AnomalyInjector",
+    "G-LEVER-AUDIT VERDICT FAIL rules=R1"
+  ]
+}

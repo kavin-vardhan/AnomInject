@@ -1,0 +1,33 @@
+{
+  "verified": [
+    {
+      "path": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F\\StackOBot.exe",
+      "sha256": "381ed90fb296fb2dc55094543c82c7ac6e48778217b3f7d24b620425a5531a72"
+    },
+    {
+      "path": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F\\editor\\UnrealEditor-AnomalyBench.dll",
+      "sha256": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0"
+    },
+    {
+      "path": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F\\editor\\UnrealEditor-AnomalyCapture.dll",
+      "sha256": "6aac004f303d1936dd3b3ece405572f5eadb5896d165cb9ddb24fd5ce09506ba"
+    },
+    {
+      "path": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F\\editor\\UnrealEditor-AnomalyControlServer.dll",
+      "sha256": "649114d43c997b63c78bc0d1006f2c26dbdf80ec0c5070724806196f6eb9349d"
+    },
+    {
+      "path": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F\\editor\\UnrealEditor-AnomalyInjector.dll",
+      "sha256": "28d3f2bf9e38ebf7951e4c9cd8bc0ff34837c332a6dc86c9227dcfcb5cd054fe"
+    },
+    {
+      "path": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F\\editor\\UnrealEditor-AnomalyShaders.dll",
+      "sha256": "d97788293a9f169dd609e4d08544a2199ac7d368bd68ebfe75f79cdddf77e9fc"
+    }
+  ],
+  "mutant": "E:\\IA_BuildCache\\_r921\\09205\\archive-hash-mutant.dll",
+  "mutant_sha256": "185d7f71a1e656242828bcb13f75a2b4549958eb26182dda7891bd6acfa1ff49",
+  "expected": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0",
+  "caught": true,
+  "never_launched": true
+}

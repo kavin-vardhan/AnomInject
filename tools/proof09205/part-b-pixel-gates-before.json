@@ -1,0 +1,20 @@
+{
+  "frozen_before": "first successful multi-layer bind; stacks-probe-01/02/03 all have zero events",
+  "native_size": [1920, 1080],
+  "reference_frame": 100,
+  "null_frames_inclusive": [0, 119],
+  "bands_xyxy": {
+    "roughness": [80, 388, 1328, 479],
+    "normal": [80, 498, 1328, 579],
+    "color": [80, 600, 1328, 688]
+  },
+  "controls_xyxy": {
+    "co_user": [1455, 195, 1705, 445],
+    "ordinary": [1455, 635, 1705, 885]
+  },
+  "identity": "Every native frame in target and both controls <= own null maximum MAD + 0.05, including bind/restore edges.",
+  "positive_each_band": "Each event median MAD from baseline >= max(4.0, 4*max(null_band_max, 0.5)); median vertical adjacent-pixel absolute difference <= 0.75 * baseline vertical adjacent-pixel absolute difference.",
+  "correct_blur_edges": "Use each event's middle image as the blurred reference. In every band, accept the intended blurred state only if its MAD from that reference <= max(null_band_max, stable_blur_window_max)+0.05, and baseline MAD exceeds the positive limit. Stable blur window is the middle five frames. Search surrounding frames using pixels; start/end must exactly equal labelled start/end. This additionally rejects initial fallback/black frames that differ from both intended states.",
+  "controls_and_restore": "All unlabelled target frames after the null and all control frames stay within own null maximum+0.05; retain existing explicitly reported PIE end-settle exclusions only for teardown.",
+  "inherited": "E1 t50 zero unflagged; annotation==labels; no labelled frame without independently measured target-only mask; can-fail partial-layer, early-bind and no-bind; no threshold retuning after a valid positive."
+}

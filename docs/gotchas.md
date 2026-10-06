@@ -10362,3 +10362,14 @@ path passed under the same delay, without increasing a production bound or touch
 ### G475 - Unassessed binding flags are not false facts (092-05)
 
 The complete-stack unnamed refusal precedes the family-required assignment. A passive census must keep its independently inferred family requirement, applying the explicit nonspatial exemption only. Copying default bRequired=false from that early-returned binding drops three layers and incorrectly counts the unnamed component as VT-only. The frozen final census caught eight fields; no expected count was changed. Selection and firing remain untouched.
+
+
+### G476 - A refusal banner is not evidence of an attempted-fire refusal (092-05)
+
+The older release prints VT policy at startup. A generic reason-string search can match that
+banner even if capture never attempts the target. Require the actual target-specific refused
+attempt and zero events. The 092-05 supplementary reader passes release, accepted-base and unnamed
+raw logs; removing the actual refusal while keeping the banner fails all three. Capture warmup
+also runs private uniformity work before the first frame on the accepted baseline. Its legacy
+D3D12 copy failure is not a refusal result: preserve the failed leg, disable only the existing
+process-local warm-draw option, and reach the unchanged selector in a separately recorded leg.

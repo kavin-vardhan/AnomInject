@@ -1,0 +1,14 @@
+{
+  "source_commit": "16b5f5867c9c3e4c8a8ba3d3764adbf5a8c51f93",
+  "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\probe-16b5f58-381ED90F",
+  "files": {
+    "StackOBot.exe": "381ed90fb296fb2dc55094543c82c7ac6e48778217b3f7d24b620425a5531a72",
+    "editor/UnrealEditor-AnomalyBench.dll": "c7924005510d7256f77ef3172327c750afee180781e3011400feeb5f212531e0",
+    "editor/UnrealEditor-AnomalyCapture.dll": "6aac004f303d1936dd3b3ece405572f5eadb5896d165cb9ddb24fd5ce09506ba",
+    "editor/UnrealEditor-AnomalyControlServer.dll": "649114d43c997b63c78bc0d1006f2c26dbdf80ec0c5070724806196f6eb9349d",
+    "editor/UnrealEditor-AnomalyInjector.dll": "28d3f2bf9e38ebf7951e4c9cd8bc0ff34837c332a6dc86c9227dcfcb5cd054fe",
+    "editor/UnrealEditor-AnomalyShaders.dll": "d97788293a9f169dd609e4d08544a2199ac7d368bd68ebfe75f79cdddf77e9fc"
+  },
+  "status": "built and re-hashed; no runtime proof status implied",
+  "built_data": "fixture content and cooked data are receipted separately for each leg"
+}

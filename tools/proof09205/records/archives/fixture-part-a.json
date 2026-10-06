@@ -1,0 +1,18 @@
+{
+  "source": "E:\\IA_BuildCache\\_r53_host\\StackOBot\\Content\\CaptureBenchTexCorrupt\\ProxyVT09205",
+  "archive": "E:\\IA_BuildCache\\_r921\\09205\\archives\\fixture-part-a.zip",
+  "sha256": "3048293c52dd76899d323fdb5fbad16c8b8803e69d655618bf9ac92ad80e2187",
+  "files": {
+    "CB_ProxyBlurStacks.umap": "1f49121946d7d4bbc08265540ea26edff65b12cbb40f6c0fcf356efc334ccbdc",
+    "M_Ordinary.uasset": "fa5eee8a545c6ba79ad17dd57e3420b231b37d9117b8f14d8f9153b3b8661f93",
+    "M_Stack.uasset": "d33e14f6b8e6c76164637281fc0ef135864c15c301befc3bf8c00db81614a665",
+    "M_Unnamed.uasset": "210387ecda2b142f3064c52b4709fc4fbe3725cb828a802e0380ad6d97858299",
+    "T_OrdinaryColor.uasset": "91923e9540617ec1270cfe1ad50d0bdf6d477c291d7d61ed04c0b6b33d39d28b",
+    "T_OrdinaryNormal.uasset": "cd9628faad17c8b2a24366f41b9c6db4240913f12f0b97797454745bb0566a3e",
+    "T_OrdinaryRoughness.uasset": "97d2f8be97d3db63694ff459859fd02be018b2dd70be19cc0237d255f081a4bf",
+    "T_StackColor.uasset": "327bb36dde2e5496332c2934c88037047f18dd6cd95826449c2f191d8a53c51c",
+    "T_StackNormal.uasset": "642f6f26602335e3b8fa1299f7af4330d4729e3345c25492d05038f20e136eeb",
+    "T_StackRoughness.uasset": "ff43bdcdf9c43942daf1a94d5d7eda2ff2d8b1071f9dac63eac7e7b31251a8fe"
+  },
+  "rehashed": true
+}

@@ -1,0 +1,222 @@
+[
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Public\\TextureResource.h",
+    "prior": "2878f4cbfa1b69a970bfd5ebc6ab31e0158e5b5a39502ada033c96a45f411c4b",
+    "current": "2878f4cbfa1b69a970bfd5ebc6ab31e0158e5b5a39502ada033c96a45f411c4b"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Texture2D.cpp",
+    "prior": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64",
+    "current": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Texture2D.cpp",
+    "prior": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64",
+    "current": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Texture2D.cpp",
+    "prior": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64",
+    "current": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Texture2D.cpp",
+    "prior": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64",
+    "current": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\VT\\UploadingVirtualTexture.cpp",
+    "prior": "4c7017c629215c7dd0fdcbc92d90c0b6f4949ba570a4ca62c46858bad62f5cac",
+    "current": "4c7017c629215c7dd0fdcbc92d90c0b6f4949ba570a4ca62c46858bad62f5cac"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\VT\\UploadingVirtualTexture.cpp",
+    "prior": "4c7017c629215c7dd0fdcbc92d90c0b6f4949ba570a4ca62c46858bad62f5cac",
+    "current": "4c7017c629215c7dd0fdcbc92d90c0b6f4949ba570a4ca62c46858bad62f5cac"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\TextureLODSettings.cpp",
+    "prior": "0d6fb9031a7a49f622e853b86ae322edddd8ce816a5894894b25df8f57a32615",
+    "current": "0d6fb9031a7a49f622e853b86ae322edddd8ce816a5894894b25df8f57a32615"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Materials\\MaterialShared.cpp",
+    "prior": "c42ecc43baaf98f728ec480d2840938005935253a276175e4b67391d6d4e09eb",
+    "current": "c42ecc43baaf98f728ec480d2840938005935253a276175e4b67391d6d4e09eb"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Materials\\MaterialShared.cpp",
+    "prior": "c42ecc43baaf98f728ec480d2840938005935253a276175e4b67391d6d4e09eb",
+    "current": "c42ecc43baaf98f728ec480d2840938005935253a276175e4b67391d6d4e09eb"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureProducer.cpp",
+    "prior": "8ce1678c32f9943f5c89a4efebea205effa721bf11eb637d23f95f7d85812bfb",
+    "current": "8ce1678c32f9943f5c89a4efebea205effa721bf11eb637d23f95f7d85812bfb"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Texture.cpp",
+    "prior": "92b42c503f28368ecd6a80a98790e532f906e7c994b0a01e15495a36abd3a076",
+    "current": "92b42c503f28368ecd6a80a98790e532f906e7c994b0a01e15495a36abd3a076"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSpace.cpp",
+    "prior": "30ba05c730ff07e61ab1ee08ebc9fcd06dfac719b7efe916758d50111e33ae7b",
+    "current": "30ba05c730ff07e61ab1ee08ebc9fcd06dfac719b7efe916758d50111e33ae7b"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSpace.cpp",
+    "prior": "30ba05c730ff07e61ab1ee08ebc9fcd06dfac719b7efe916758d50111e33ae7b",
+    "current": "30ba05c730ff07e61ab1ee08ebc9fcd06dfac719b7efe916758d50111e33ae7b"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RenderCore\\Public\\VirtualTexturing.h",
+    "prior": "ae75b404f8d9f5401277bcd86f3706747f5394cf62ed439b70239115c214406f",
+    "current": "ae75b404f8d9f5401277bcd86f3706747f5394cf62ed439b70239115c214406f"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RenderCore\\Public\\VirtualTexturing.h",
+    "prior": "ae75b404f8d9f5401277bcd86f3706747f5394cf62ed439b70239115c214406f",
+    "current": "ae75b404f8d9f5401277bcd86f3706747f5394cf62ed439b70239115c214406f"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RHI\\Public\\RHI.h",
+    "prior": "d3dc115f17150d5fab3359c6460458a7cd06fea23c4896eaf029b4b6fa45fcee",
+    "current": "d3dc115f17150d5fab3359c6460458a7cd06fea23c4896eaf029b4b6fa45fcee"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSystem.cpp",
+    "prior": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae",
+    "current": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSystem.cpp",
+    "prior": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae",
+    "current": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\AllocatedVirtualTexture.cpp",
+    "prior": "70d785a99695192499ffa23742dd662231576b9a4d02ad1d5978f9be86d0e2dd",
+    "current": "70d785a99695192499ffa23742dd662231576b9a4d02ad1d5978f9be86d0e2dd"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RenderCore\\Public\\RendererInterface.h",
+    "prior": "ba3b82b945f18b591c0e634baef596f694db14d546d5ec3b6d3f3fe290471b04",
+    "current": "ba3b82b945f18b591c0e634baef596f694db14d546d5ec3b6d3f3fe290471b04"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RenderCore\\Public\\RendererInterface.h",
+    "prior": "ba3b82b945f18b591c0e634baef596f694db14d546d5ec3b6d3f3fe290471b04",
+    "current": "ba3b82b945f18b591c0e634baef596f694db14d546d5ec3b6d3f3fe290471b04"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\SceneRendering.cpp",
+    "prior": "8a06728be00d97684b984759b42c81d92a8c225ef9dbb0ee1aca44bf93271c32",
+    "current": "8a06728be00d97684b984759b42c81d92a8c225ef9dbb0ee1aca44bf93271c32"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSystem.cpp",
+    "prior": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae",
+    "current": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSystem.cpp",
+    "prior": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae",
+    "current": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSystem.cpp",
+    "prior": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae",
+    "current": "0860325f1bd999d625235c77becef8f2ed2e72da9f46d8173b4ff67b5dcb5bae"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Texture2D.cpp",
+    "prior": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64",
+    "current": "9de656bd0a69ffbc9b1d69732534f4e44906896e134b959cf779c6aa02162d64"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RHI\\Public\\RHIGPUReadback.h",
+    "prior": "272f8a07c2008187d90edf1efa09413296f3d7b7656e8e25ab028c8610f5ae72",
+    "current": "272f8a07c2008187d90edf1efa09413296f3d7b7656e8e25ab028c8610f5ae72"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\RHI\\Private\\RHIGPUReadback.cpp",
+    "prior": "fc589f434d8e093316c60f2e1ab0d1b85d7d8cebd05d45fe0d5cc298a75f967b",
+    "current": "fc589f434d8e093316c60f2e1ab0d1b85d7d8cebd05d45fe0d5cc298a75f967b"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Shaders\\Private\\VirtualTextureCommon.ush",
+    "prior": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6",
+    "current": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Shaders\\Private\\VirtualTextureCommon.ush",
+    "prior": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6",
+    "current": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Renderer\\Private\\VT\\VirtualTextureSpace.cpp",
+    "prior": "30ba05c730ff07e61ab1ee08ebc9fcd06dfac719b7efe916758d50111e33ae7b",
+    "current": "30ba05c730ff07e61ab1ee08ebc9fcd06dfac719b7efe916758d50111e33ae7b"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Public\\MaterialShared.h",
+    "prior": "c3816d581d875236597b83273afdd436042051b83efacb44de73a90fbfc5f764",
+    "current": "c3816d581d875236597b83273afdd436042051b83efacb44de73a90fbfc5f764"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Public\\MaterialShared.h",
+    "prior": "c3816d581d875236597b83273afdd436042051b83efacb44de73a90fbfc5f764",
+    "current": "c3816d581d875236597b83273afdd436042051b83efacb44de73a90fbfc5f764"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Shaders\\Private\\VirtualTextureCommon.ush",
+    "prior": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6",
+    "current": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Shaders\\Private\\VirtualTextureCommon.ush",
+    "prior": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6",
+    "current": "7131b807fcb9101dcfe13e5cd6a2e09bcc8b11a52fb72b0bc987add507b5ddd6"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Editor\\UnrealEd\\Public\\EditorViewportClient.h",
+    "prior": "6df63890941fa94b66f5394511e1bd7e2ef4babae69b7ba8ab3e92901d3033f4",
+    "current": "6df63890941fa94b66f5394511e1bd7e2ef4babae69b7ba8ab3e92901d3033f4"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorViewportClient.cpp",
+    "prior": "c496ed307ddb64ee907d75eda0f024cf45434e458428e1228f15d4167b4af7bc",
+    "current": "c496ed307ddb64ee907d75eda0f024cf45434e458428e1228f15d4167b4af7bc"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Editor\\UnrealEd\\Private\\EditorEngine.cpp",
+    "prior": "58b5a10582a76091e8a5da42c9bbc12629d4601c36f478476a65b5e9aa26fa4c",
+    "current": "58b5a10582a76091e8a5da42c9bbc12629d4601c36f478476a65b5e9aa26fa4c"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Editor\\UnrealEd\\Public\\Editor.h",
+    "prior": "b95fd93486757f6671d4999568ae8253c48416e6785df3c6fe72a955ee1daa68",
+    "current": "b95fd93486757f6671d4999568ae8253c48416e6785df3c6fe72a955ee1daa68"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\Slate\\SceneViewport.cpp",
+    "prior": "9f799455d2b9bf492dfe399fdcc1b354dd136b82ba29bd2761187bdc92957708",
+    "current": "9f799455d2b9bf492dfe399fdcc1b354dd136b82ba29bd2761187bdc92957708"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\GameEngine.cpp",
+    "prior": "7a4f2a4da92a384095d2a0eb6d4d0007912654afdd3734f04ce1c529d9cf6988",
+    "current": "7a4f2a4da92a384095d2a0eb6d4d0007912654afdd3734f04ce1c529d9cf6988"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\UnrealEngine.cpp",
+    "prior": "78f07233a64426dd1401ff87ab1e085d0543a7a0904c86647b31be6628c2c81b",
+    "current": "78f07233a64426dd1401ff87ab1e085d0543a7a0904c86647b31be6628c2c81b"
+  },
+  {
+    "path": "D:\\UESource\\UnrealEngine\\Engine\\Source\\Runtime\\Engine\\Private\\UnrealEngine.cpp",
+    "prior": "78f07233a64426dd1401ff87ab1e085d0543a7a0904c86647b31be6628c2c81b",
+    "current": "78f07233a64426dd1401ff87ab1e085d0543a7a0904c86647b31be6628c2c81b"
+  }
+]

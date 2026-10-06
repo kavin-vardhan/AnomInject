@@ -704,12 +704,13 @@ WINDOW skipped, which begins one frame later.
 
 ### 8.3aa Proxy blur: route selection and labels
 
-**092-03 proof branch only, bounded runtime proof passed:** `proxy_vt` creates a private coarse
+**Accepted 092-03 proof, extended by the 092-05 branch proof:** `proxy_vt` creates a private coarse
 streaming virtual texture for a named VT parameter. `auto` and explicit `proxy` use it for VT-bound
 targets. It preserves the host's compiled VT sampler and prepares the private pages before binding;
 the source texture and other users stay untouched. Mixed ordinary/VT targets use one transaction.
-Unsupported stack layouts and unnamed VT samples are refused; this bounded proof supports
-single-layer streaming-VT stacks. The event and frame route values are `proxy_vt`, with Drop,
+The accepted 092-03 proof covers single-layer streaming-VT stacks. The 092-05 feature branch
+also handles complete named multi-layer streaming stacks as described below. The event and
+frame route values remain `proxy_vt`, with Drop,
 effective virtual width/height and tile size recorded per texture. Labels use the same installed
 FireWindow rule as ordinary proxy. UV/normal corruption and forced hold still refuse VT. Blurry
 stays off by default, and this feature branch has no delivery approval. Private preparation primes
@@ -717,10 +718,10 @@ and verifies the root before requesting/verifying the full range; it is bounded 
 120 attempts and 10 seconds. The original binding remains installed if preparation cannot complete.
 
 The coarsest VT top is one tile (128px on this fixture). The unchanged 8x Auto rule therefore needs
-about 1024px on screen and may limit yield on the first office host. This is an owner decision item;
-the proof does not change the rule. The final build passes original/native identity, 21 PIE/staged
-positive events, co-user isolation, revert/lifetime, can-fails and hold/proxy/UV/normal regressions.
-See the 092-03 journal for the evidence and the retained unsuccessful attempts.
+about 1024px on screen and may limit yield on the first office host. Office yield remains outside
+this proof; the rule is unchanged. The accepted single-layer build passes original/native identity,
+21 PIE/staged positive events, co-user isolation, revert/lifetime, can-fails and hold/proxy/UV/normal
+regressions. See the 092-03 journal for that evidence and the 092-05 journal for the stack extension.
 
 `IAI.Anomaly.StuckMipRoute auto|hold|proxy` selects the route for future events. `auto` is the default: an event uses private copies when an eligible candidate is shared in the loaded world or has a supported named streaming-VT binding; otherwise it uses hold. `hold` always uses the original purity-checked streaming route; `proxy` always uses private copies. The route is fixed for the event. `IAI.Anomaly.StuckMipRoute default` clears the console override. To configure it in `DefaultGame.ini`:
 
@@ -747,7 +748,22 @@ Proxy labels use **FireWindow** membership: a frame is labelled while an install
 
 `IAI.TexCorrupt.Census allreasons` includes `id=stuck_low_mip` and a `routes` line with `hold_eligible`, `proxy_eligible`, `auto_hold` and `auto_proxy`; this proof branch adds `proxy_vt_eligible` and `auto_proxy_vt`. Ordinary and VT-containing proxy candidates are separate groups. Hold eligibility can overlap their union. The three counts `auto_hold`, `auto_proxy` and `auto_proxy_vt` partition eligibility under auto. `tools/anomaly_refusal_counts.py` reads those counts, and `--route-check` checks their accounting. Census reports potential eligibility across its scope; on-screen size and current renderer state can still affect a fire.
 
-The `feat/vt-blur-stacks` branch adds the passive VT census described in §8.8. Multi-layer `proxy_vt` implementation and proof are still pending; the current runtime continues to refuse unsupported multi-layer stacks. This branch is not a delivery.
+The `feat/vt-blur-stacks` branch adds the passive VT census described in §8.8 and extends
+`proxy_vt` to complete named streaming stacks. Every required layer gets a private VT with
+its own source-first-mip bookkeeping; blur clamps each layer at one tile. The actual combined
+allocation of the prepared material must pass every layer's producer, mip-bias and page-table
+mapping checks before any component binding is committed. The original binding remains installed
+if a layer or allocation cannot be represented or prepared coherently. The same 512-entry,
+120-attempt and ten-second bounds apply; a combined entry is counted per layer.
+
+Unnamed samples, preallocated/runtime stacks and incompatible geometry receive named refusals;
+the component is never partly replaced. Streaming stacks contain at most eight layers, and this
+branch's measured fixture uses three: colour, normal and roughness, each independently visible.
+The final 092-05 build has passed 480-frame native Drop 0 identity, ten targeted and three Auto
+PIE fires, and five targeted and three Auto staged fires, with every layer blurred and zero-frame
+pixel edges. Lifetime, can-fail and route-regression results are recorded in the 092-05 journal.
+The 8x Auto rule, 25% coverage ceiling, hold/ordinary routes and UV/normal VT refusals remain
+unchanged. This is a bounded branch proof, with no delivery approval.
 
 Blurry remains **available but OFF by default**. This feature branch does not change delivery approval or enable it in the default pool.
 
@@ -1572,6 +1588,8 @@ everything the command prints. `stats_unchanged=1` on the last line is the comma
 `0` means something changed and should be reported to us.
 
 **VT diagnostics on the proof branch (092-05).** Run `IAI.TexCorrupt.Census vt` for the current view, or **`IAI.TexCorrupt.Census all vt`** for all drawable actors in the loaded levels. `allreasons vt` also works. Copy only the printed counts; no asset, material, actor or level names are needed. Each `IAI-VT-CENSUS v1` line uses family code **0=UV, 1=normal, 2=blurry proxy**. The normal census output still precedes these added lines. In `vt` mode no uniformity measurement is started: cached measurements are read, and missing measurements retain the existing `texture_uniform` blocker. The reported eligibility is the current cache state, not promised yield after preparation.
+
+For example, the three-layer fixture prints `IAI-VT-CENSUS v1 family=2 streaming=3 preallocated=0 stacks=1:0,2:0,3:3,4:0,5:0,6:0,7:0,8:0` at `all` scope: three streaming stack occurrences, each with three layers. On the completed stack-support branch its named blurry components no longer count as `only_stack`; UV and normal still refuse VT. The counts describe loaded component/material-slot occurrences, so shared materials used by separate components are counted separately.
 
 View scope retains the existing visibility, radius and projected-size filters (the compiled projected-size minimum is 6%). A small visible control can therefore be absent from view counts. Use `all vt` for the loaded-level inventory; neither form changes the filters or the 25% capture ceiling.
 

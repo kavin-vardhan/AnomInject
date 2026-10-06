@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "root": "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot",
+  "source_commit": "16b5f5867c9c3e4c8a8ba3d3764adbf5a8c51f93",
+  "hashes": {
+    "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Binaries\\Win64\\StackOBot.exe": "381ed90fb296fb2dc55094543c82c7ac6e48778217b3f7d24b620425a5531a72",
+    "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\global.ucas": "57349d07bd158eb879bdc8b6f367014f730e9fe70fcedb145e35cff1b81654c8",
+    "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\global.utoc": "016de38c52ee8070e7ee0fbc0548b959a80c266ec3b394060e1378f465820fde",
+    "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.pak": "cd6bafb3e6e540d777c144af6a696889c4d3963e7217527c044742157c294ff8",
+    "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.ucas": "45c4e83d7d727a4508214e4ef40682dcb664385c9de5010a67a1bed5553f07bb",
+    "E:\\IA_BuildCache\\_r921\\09205\\cooks\\part-a-final\\archive\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.utoc": "d6c21d46445065ee28d7d8a68ae1485a14e328a6eaaa460562be9e5b3b1541e9"
+  },
+  "seconds": 28.13734722137451
+}
