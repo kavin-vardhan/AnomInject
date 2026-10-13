@@ -3,8 +3,10 @@
 **093-03, 2026-10-13: local follow-up integration, not a delivery.** On
 `fix/followup-capture`, merge `72f3eb3` combines the release's 0/0/0 temporal defaults
 with the 091-05 F1/F2/F3/F6 follow-ups. Explicit transition overrides are unchanged.
-There is no 091-06 F1 WIP, natural mechanism or new label key. Qualification stopped
-at an invalid F6 can-fail isolation; remaining PIE and all staged proofs are pending.
+There is no 091-06 F1 WIP, natural mechanism or new label key. Qualification resumed in
+093-04 without source changes. The corrected self-consistent wrong-event F6 control passes
+on the existing PIE capture. The cook commandlet passed, but AutomationTool RunIoStore packaging
+failed with NullReferenceException; remaining PIE and all staged proofs are pending.
 See `sessions/2026-10-13-093-03-followup-capture-base.md` for measured scope.
 
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)

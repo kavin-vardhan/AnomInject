@@ -3,6 +3,11 @@
 Status: **NEEDS-DECISION**, stopped on a failed F6 can-fail expectation. No delivery,
 natural mechanism, F1 WIP or new label key. No head was pushed.
 
+**093-04 correction, 2026-10-13:** ruling 093-03 C3/C5 corrects the diagnosis and reader
+wording below. The old event-ID-only control remains valid for row self-consistency;
+the corrected membership control passes on the existing PIE capture. Continuation is
+recorded in `2026-10-13-093-04-followup-capture-qualification.md`.
+
 ## Integration
 
 Created `E:/IA_BuildCache/_r933/AnomalyInjector` from the existing `_r53_src` worktree,
@@ -56,8 +61,9 @@ event. These are UV-only results, not a qualification of the full matrix.
 Shipped-release control `F1_P_uv_release_control` uses archived `218BA4C7` source
 `23098fa` and its five editor DLLs, rehashed 6/6, replacing deleted 091-05 archives.
 It writes 1,152 pictures with the marker absent in all of them, including all 192
-labelled frames. The F1 ownership can-fail is reproduced. Its missing masks and
-pixel failures are expected consequences, not candidate passes. This already-running
+labelled frames. The F1 ownership can-fail is reproduced by the marker and mask checks.
+The existing `verify_capture.py --label-pixel-gate` exits 0 and reports four UNASSESSABLE
+events on this wrong-view control; it does not reject it. This already-running
 control completed normally before the stop's shutdown check; no later leg launched.
 
 ## Stop: invalid F6 can-fail isolation
@@ -68,13 +74,17 @@ The intact capture passes the new hook. The corrupted copy fails the new CLI
 (exit 1) and hook, but also fails the old release hook with
 `labels event_id mismatch at 191`. Prediction required the old hook to pass.
 
-The selected row was unflagged, but the capture retained four `pie_end_settle`
-transitions, one for each event. This does not isolate the transition-free defect.
+The mutant changed only event_id. Both checker versions test event_id against
+`id@start_frame|target_name` on every row before filtering transitions, so both
+correctly detect the self-consistency error. The original explanation blaming
+the capture's `pie_end_settle` transitions was wrong (ruling 093-03 C3).
 `controls/F6_F1_P_uv_aaoff/result.json` and `F6-gate-stop.json` preserve the failed
 comparison. Proof stopped without altering the input or acceptance rules or running
 a replacement control. This is a harness/evidence limitation, not an established
-production regression. A decision to continue is needed for a valid transition-free
-F6 control and the unrun matrix.
+production regression. The authorized 093-04 continuation changes start_frame,
+target_name and event_id together on the same unflagged row. The old checker misses
+that self-consistent wrong event; the new checker rejects its missing annotation.
+No transition-free capture is needed; the remaining matrix still requires proof.
 
 Unrun: proxy ownership, F2 scope/tag-retirement engine proof, F3 alpha pair, deliberate
 clean/active dropped-mask samples, hold/proxy/normal regression, temporal diagnostics,

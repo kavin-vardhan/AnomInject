@@ -11,23 +11,30 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **093-03 J1, 2026-10-13 — NEEDS-DECISION; LOCAL FOLLOW-UP BASE, NOT A DELIVERY.**
+> **093-04 J1, 2026-10-13 — NEEDS-DECISION AFTER COOK/PACKAGING FAILURE; NOT A DELIVERY.**
 > Branch `fix/followup-capture` merges release `d7eee97` and follow-up `5d6352b` at `72f3eb3`.
 > Temporal defaults remain **0/0/0**; the explicit 3/40/1 override test passes. The 091-06 F1 WIP,
 > natural mechanisms and new label keys are absent. Normal/strict Editor and Game builds pass 0/0.
 > PIE UV ownership passes 1,152 pictures / four visible fires / 192 measured labelled masks;
 > all eight onset/recovery edges are zero frames off. Shipped-release control `218BA4C7` loses the
-> game marker in all 1,152 pictures, reproducing the ownership failure.
-> Proof stopped at the F6 can-fail: both new and old checkers reject the wrong ID because the
-> copied capture still contains four `pie_end_settle` transitions. This is an invalid isolation
-> of the transition-free bug, not evidence of a production regression. No retest or later leg ran.
-> Remaining PIE gates and all staged gates are unproved. No head was pushed. Host source, binaries
-> and configuration were restored by receipt; staging was untouched. Archive `E41ABF93` is preserved
+> game marker in all 1,152 pictures, reproducing the ownership failure. The existing label-pixel
+> reader exits 0 with four UNASSESSABLE events on that control; marker and mask checks reject it.
+> The 093-03 F6 stop was caused by an event-ID-only mutant violating per-row self-consistency in
+> both checkers, not by PIE-settle transitions. Ruling 093-03 C3 authorizes the corrected control:
+> change start_frame, target_name and event_id together on an unflagged row. On the existing PIE
+> capture the old hook now misses it and the new CLI/hook reject the missing annotation event.
+> No transition-free capture is needed. The original mutant remains a second control caught by both.
+> The continuation cook commandlet passed, but AutomationTool failed in RunIoStore with
+> NullReferenceException (exit 1); no complete container was produced. No new engine proof leg ran.
+> Remaining PIE gates and all staged gates are pending. No head is pushed. Candidate `E41ABF93`
+> stays unchanged; no source edit was made. The host is restored at `23098fa`, all 201 original
+> files match, all 2,756 content files are unchanged, and live staging was untouched. Archive E41ABF93 is preserved
 > as incomplete J1 evidence, with the F1 guard present and WIP absent, not as a qualified J2 base.
 > Journal: `docs/sessions/2026-10-13-093-03-followup-capture-base.md`; evidence: `E:/IA_BuildCache/_r933`.
 > Release and follow-up status blocks below are dated historical evidence, not a J1 qualification.
 > The 091-05 archives were deleted on 2026-10-10. Nothing is merged into master, a release branch
-> or a delivery branch; the owner controls delivery and continuation after this stop.
+> or a delivery branch; the owner controls delivery. See gotcha G477 and
+> `docs/sessions/2026-10-13-093-04-followup-capture-qualification.md`.
 
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal

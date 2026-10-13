@@ -10262,13 +10262,15 @@ unused packed-map channel and a normal texture feeding zero-strength normals rem
 the measured visible-change gate is a follow-up. Size/ratio refusals are selection heuristics, and a source
 RHI tripwire is not an atomic copy snapshot. Neither F4 nor F5 changes code in this delivery.
 
-## G465 — 093-03: an unflagged row does not establish a transition-free F6 control
+## G477 — 093-04: distinguish row self-consistency from annotation membership
 
-The F6 old-checker can-fail needs a transition-free event/capture. J1 selected an unflagged
-label row at session index 191, changed its event ID in a copy, and expected only the new
-checker to reject it. Both checkers rejected it: all four events still had `pie_end_settle`
-transitions. Temporal defaults 0/0/0 do not disable independent non-temporal transition
-reasons. The copied input therefore did not isolate the old transition-free identity bug.
-J1 stopped under its frozen gate rule; the failed expectation and original capture remain
-under `E:/IA_BuildCache/_r933/controls/F6_F1_P_uv_aaoff`, with no amended control or retest.
-Do not infer a production F6 regression or claim its required can-fail from this result.
+Both versions of the F6 checker validate `event_id == id@start_frame|target_name` on every
+row before the transition filter. The 093-03 mutant changed only event_id, so both versions
+correctly rejected it. The earlier explanation blaming retained `pie_end_settle` transitions
+was wrong. Keep that mutant as a self-consistency control, not an old-checker can-fail.
+For the F6 membership control, change start_frame, target_name and event_id consistently on
+an unflagged row while leaving annotation unchanged. On the existing PIE capture, the old
+hook misses the event and the new CLI/hook reject it as `labels event missing from annotation`.
+No transition-free capture is needed. The original capture and failed comparison remain
+unchanged; corrected evidence is under `E:/IA_BuildCache/_r933/continuation09304/controls`.
+Number G477 was selected after checking all 70 refs, including heading levels beyond `##`.
