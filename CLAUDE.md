@@ -11,30 +11,34 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **093-04 J1, 2026-10-13 — NEEDS-DECISION AFTER COOK/PACKAGING FAILURE; NOT A DELIVERY.**
+> **093-05 J1, 2026-10-14 — HOME PIE/STAGED QUALIFICATION GREEN; NOT A DELIVERY.**
 > Branch `fix/followup-capture` merges release `d7eee97` and follow-up `5d6352b` at `72f3eb3`.
 > Temporal defaults remain **0/0/0**; the explicit 3/40/1 override test passes. The 091-06 F1 WIP,
 > natural mechanisms and new label keys are absent. Normal/strict Editor and Game builds pass 0/0.
-> PIE UV ownership passes 1,152 pictures / four visible fires / 192 measured labelled masks;
-> all eight onset/recovery edges are zero frames off. Shipped-release control `218BA4C7` loses the
-> game marker in all 1,152 pictures, reproducing the ownership failure. The existing label-pixel
-> reader exits 0 with four UNASSESSABLE events on that control; marker and mask checks reject it.
-> The 093-03 F6 stop was caused by an event-ID-only mutant violating per-row self-consistency in
-> both checkers, not by PIE-settle transitions. Ruling 093-03 C3 authorizes the corrected control:
-> change start_frame, target_name and event_id together on an unflagged row. On the existing PIE
-> capture the old hook now misses it and the new CLI/hook reject the missing annotation event.
-> No transition-free capture is needed. The original mutant remains a second control caught by both.
-> The continuation cook commandlet passed, but AutomationTool failed in RunIoStore with
-> NullReferenceException (exit 1); no complete container was produced. No new engine proof leg ran.
-> Remaining PIE gates and all staged gates are pending. No head is pushed. Candidate `E41ABF93`
-> stays unchanged; no source edit was made. The host is restored at `23098fa`, all 201 original
-> files match, all 2,756 content files are unchanged, and live staging was untouched. Archive E41ABF93 is preserved
-> as incomplete J1 evidence, with the F1 guard present and WIP absent, not as a qualified J2 base.
-> Journal: `docs/sessions/2026-10-13-093-03-followup-capture-base.md`; evidence: `E:/IA_BuildCache/_r933`.
-> Release and follow-up status blocks below are dated historical evidence, not a J1 qualification.
-> The 091-05 archives were deleted on 2026-10-10. Nothing is merged into master, a release branch
-> or a delivery branch; the owner controls delivery. See gotcha G477 and
-> `docs/sessions/2026-10-13-093-04-followup-capture-qualification.md`.
+> The frozen candidate EXE is **E41ABF93**. No Source, Shaders, tools or prediction change was made.
+> F1 UV/shared-proxy ownership, F2 C1/C2 scope and tag retirement, the F3 alpha pair, F6, deliberate
+> clean/active drops, hold/proxy/UV/normal/co-user regression and measured-mask gates pass in both modes.
+> Native AA-off onset/recovery edges are zero frames off. At least three visible fires are required;
+> PIE proxy has four/192 measured labelled masks, staged proxy three/144. TSR tails remain separately
+> measured release limitations: hold/proxy t50 recovery is 8-9 frames in PIE and 7-8 staged at 0/0/0.
+> Shipped release `218BA4C7` reproduces wrong-view PIE pictures and invisible opaque-alpha admission.
+> The unchanged label-pixel reader exits 0/UNASSESSABLE on wrong-view controls; independent marker
+> and measured-mask checks reject them. Shifted-label controls likewise require the strict zero-edge
+> predicate; a reader exit 0/offset note is not acceptance. All required can-fails were exercised.
+> Corrected F6 passes in PIE and staged: change start_frame/target_name/event_id consistently on an
+> unflagged row; the old hook misses it, the new CLI/hook reject the missing annotation event. The
+> event-ID-only mutant is rejected by both self-consistency checks. No transition-free capture is needed.
+> The 093-04 cook failure was my output-path error. CookOutputDir ending in Windows packages successfully;
+> separate container hashes are archived with the unchanged EXE and five DLLs under
+> `_binary_baselines/followup-capture-J1-09305-E41ABF93-5A39646C` (11/11 re-hashed).
+> Harness failures and both-attempt limits are disclosed. In staged proxy ownership the barcode overlaps
+> a co-user; a separate Marker=0 capture passes the unchanged full-ROI collateral gate (G478).
+> Host restored to detached `23098fa`: 201 original files match; all 1,327 live-stage files restored;
+> all 2,756 content files unchanged. Evidence: `E:/IA_BuildCache/_r933/continuation09305`.
+> Journal: `docs/sessions/2026-10-14-093-05-followup-capture-qualification.md`; corrected F6: G477.
+> This is the J2 guard-present/WIP-absent base. Office/readiness/15k-actor qualification is unclaimed.
+> Only `fix/followup-capture` may be pushed. Nothing is merged into master, a release or delivery branch;
+> the owner controls delivery. Natural work starts on its own branch after J2. Historical blocks follow.
 
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal

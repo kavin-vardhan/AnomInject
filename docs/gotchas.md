@@ -10274,3 +10274,21 @@ hook misses the event and the new CLI/hook reject it as `labels event missing fr
 No transition-free capture is needed. The original capture and failed comparison remain
 unchanged; corrected evidence is under `E:/IA_BuildCache/_r933/continuation09304/controls`.
 Number G477 was selected after checking all 70 refs, including heading levels beyond `##`.
+
+## G478 — 093-05: an ownership barcode can contaminate a collateral measurement
+
+At the staged 1280x720 view, the game-only barcode overlaps a proxy co-user's full geometry
+footprint. The combined ownership/collateral run therefore fails that peer's RGB envelope.
+All 1,398 pixels above 12 levels in each worst frame occupy the barcode rectangle; the
+original pictures and failed reading remain evidence. Keep that capture's ownership proof
+and run the normal Marker=0 collateral recipe separately. Do not trim the ROI, exclude
+pixels or widen its envelope. The separate capture passes all 20 original peer footprints,
+three visible fires, 144 measured labelled masks, zero native-AA-off edges and both image
+can-fails. See `E:/IA_BuildCache/_r933/continuation09305` and the 093-05 journal.
+
+Evaluator scope also matters: the frozen zero-pixels-above-12 condition applies to C2 in
+the null-slot fixture. Other co-users use the measured clean mean envelope +0.05. Applying
+the C2-only condition to all peers added an unauthorized gate; retain that failed reading,
+correct the checker to the actual prediction, and re-run its 20-level can-fail. This is not
+permission to change a prediction after observing a product failure. Ruling 093-04 D2
+allows at most two fixes per harness problem and requires disclosing each attempt.
