@@ -431,6 +431,7 @@ struct FAnomalyCaptureAsyncState
 	int32 CarriedTransitionTracksIn = 0;
 	int32 CarriedHideTracksIn = 0;
 	int32 SyncFramesWritten = 0;
+	int32 CaptureUnpairedDropped = 0;
 	struct FFrozenAnchor
 	{
 		FString CamPath;
@@ -452,6 +453,7 @@ struct FAnomalyCaptureAsyncState
 		bLabelUpscaler = false;
 		FireWindowTracks.Reset();
 		SyncFramesWritten = 0;
+		CaptureUnpairedDropped = 0;
 		FrozenAnchors.Reset();
 		LabelTransitionEntries = 0;
 		LabelTransitionFrames = 0;
@@ -1791,6 +1793,12 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		}
 		else if (!Async->MaskExtension->TakeMaskResult(Pair.Key, Result, true))
 		{
+			continue;
+		}
+
+		if (Pair.Value == INDEX_NONE)
+		{
+			Ready.Add(Pair.Key);
 			continue;
 		}
 
@@ -4568,12 +4576,16 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 	{
 		return;
 	}
+	UWorld* World = GetWorld();
+	UGameViewportClient* GameViewport = World ? World->GetGameViewport() : nullptr;
+	const FRenderTarget* OwnerTarget = GameViewport ? GameViewport->Viewport : nullptr;
 	if (bSveCapture)
 	{
 		if (!Async->SveCapturer.IsValid())
 		{
 			Async->SveCapturer = MakeShared<FAnomalySveCapturer, ESPMode::ThreadSafe>();
 		}
+		Async->SveCapturer->SetOwner(World ? World->Scene : nullptr, OwnerTarget);
 		if (!Async->SveExtension.IsValid())
 		{
 			Async->SveExtension = FSceneViewExtensions::NewExtension<FAnomalySceneViewExtension>(Async->SveCapturer);
@@ -4588,6 +4600,10 @@ void UAnomalyCaptureSubsystem::EnsureCapturer()
 	{
 		Async->MaskExtension = FSceneViewExtensions::NewExtension<FAnomalyMaskSceneViewExtension>();
 		Async->MaskExtension->SetReduceMode(GMaskReduceMode);
+	}
+	if (Async->MaskExtension.IsValid())
+	{
+		Async->MaskExtension->SetOwner(World ? World->Scene : nullptr, OwnerTarget);
 	}
 	if (!Async->Writer.IsValid())
 	{
@@ -4613,6 +4629,48 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 	if (bUseSve)
 	{
 		Async->SveCapturer->EnqueueDrain();
+		TArray<uint64> Unpaired;
+		Async->SveCapturer->TakeUnpaired(Unpaired);
+		for (uint64 Id : Unpaired)
+		{
+			AnomalyLabel::FCaptureSnapshot* Snap = Async->PendingSnapshots.Find(Id);
+			if (!Snap) { continue; }
+			Snap->bCaptureUnpaired = true;
+			AnomalyLabel::MarkCaptureUnpaired(*Snap);
+			++Async->CaptureUnpairedDropped;
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(sve): capture_unpaired request=%llu si=%d - owner render skipped; snapshot dropped without labels or picture."),
+				Id, Snap->SessionIndex);
+			if (const FTargetMaskOutcome* Outcome = TargetMaskOutcome.Find(Snap->SessionIndex))
+			{
+				switch ((AnomalyLabel::EAnomalyMaskState)Outcome->State)
+				{
+				case AnomalyLabel::EAnomalyMaskState::Present: --TargetMaskMeasured; break;
+				case AnomalyLabel::EAnomalyMaskState::Empty: --TargetMaskHiddenBlank; break;
+				case AnomalyLabel::EAnomalyMaskState::Unmeasured: --TargetMaskUnavailable; break;
+				}
+			}
+			TargetMaskOutcome.Remove(Snap->SessionIndex);
+			for (auto It = TargetMaskPendingSessionIndex.CreateIterator(); It; ++It)
+			{
+				if (It.Value() != Snap->SessionIndex) { continue; }
+				const uint64 MaskId = It.Key();
+				Async->MaskGatedTags.Remove(MaskId);
+				FAnomalyMaskResult Discarded;
+				if (Async->DeferredMasks.Remove(MaskId) > 0
+					|| Async->MaskExtension->TakeMaskResult(MaskId, Discarded, true))
+				{
+					TargetMaskPendingTags.Remove(MaskId);
+					TargetMaskPendingTagEvent.Remove(MaskId);
+					It.RemoveCurrent();
+				}
+				else
+				{
+					It.Value() = INDEX_NONE;
+				}
+			}
+			Async->PendingSnapshots.Remove(Id);
+		}
 	}
 	else
 	{
@@ -5019,7 +5077,7 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 	{
 		if (bUseSve)
 		{
-			Async->SveCapturer->EnqueueDrain();
+			Async->SveCapturer->EnqueueDrain(true);
 		}
 		else
 		{
@@ -9196,13 +9254,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			}
 			for (const TPair<uint64, int32>& Pair : TargetMaskPendingSessionIndex)
 			{
+				if (Pair.Value == INDEX_NONE) { continue; }
+				++TargetMaskUnavailable;
 				UE_LOG(LogAnomalyCapture, Warning,
 					TEXT("Capture(m43): UNAVAILABLE session_index %d (id=%llu) - its mask readback never ")
 					TEXT("arrived. Its labels row says mask_file:null - NOT MEASURED, which is a different ")
 					TEXT("fact from a blank mask."),
 					Pair.Value, Pair.Key);
 			}
-			TargetMaskUnavailable += TargetMaskPendingSessionIndex.Num();
 			TargetMaskPendingSessionIndex.Reset();
 			TargetMaskPendingTags.Reset();
 			TargetMaskPendingTagEvent.Reset();
@@ -9256,7 +9315,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				UE_LOG(LogAnomalyCapture, Log,
 					TEXT("Capture(mask): ARM HOLD SUMMARY holds=%d familiesWithoutBound=%d - a hold is a mask arm left pending ")
 					TEXT("because the family rendering at the time began before the arm was made; it is served by its own frame's ")
-					TEXT("render instead. familiesWithoutBound counts renders that carried no arm bound and served every pending arm."),
+					TEXT("render instead. familiesWithoutBound counts renders rejected because they carried no arm bound."),
 					Async->MaskExtension->NumArmsHeldForOwnFamily(), Async->MaskExtension->NumFamiliesWithoutBound());
 			}
 		}
@@ -9618,6 +9677,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.CarriedHideTracks = Async->CarriedHideTracksIn;
 			LabelSyncReport.UnlabelledActiveEntries = Async->UnlabelledActiveEntries;
 			LabelSyncReport.SyncFramesWritten = Async->SyncFramesWritten;
+			LabelSyncReport.CaptureUnpairedDropped = Async->CaptureUnpairedDropped;
+			LabelSyncReport.ViewRejectedColour = Async->SveCapturer.IsValid() ? Async->SveCapturer->NumRejectedFamilies() : 0;
+			LabelSyncReport.ViewRejectedMask = Async->MaskExtension.IsValid() ? Async->MaskExtension->NumRejectedFamilies() : 0;
+			LabelSyncReport.MaskArmsExpired = Async->MaskExtension.IsValid() ? Async->MaskExtension->NumExpiredArms() : 0;
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture: OWNERSHIP view_rejected_colour=%d view_rejected_mask=%d mask_arms_expired=%d capture_unpaired_dropped=%d"),
+				LabelSyncReport.ViewRejectedColour, LabelSyncReport.ViewRejectedMask, LabelSyncReport.MaskArmsExpired,
+				LabelSyncReport.CaptureUnpairedDropped);
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(labelsync): TRANSITION REASONS temporal_aa=%d hide_return=%d partial=%d camera_clipping_unconfirmed=%d ")
 				TEXT("unresolved=%d effect_interrupted=%d nanite_unmaskable=%d capture_unpaired=%d pie_end_settle=%d ")

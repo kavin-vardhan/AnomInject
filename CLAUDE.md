@@ -11,6 +11,15 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **093-03 J1, 2026-10-13 — FOLLOW-UP INTEGRATION IN PROGRESS; NOT A DELIVERY.**
+> Branch `fix/followup-capture` starts at release `d7eee97` and merges `5d6352b`.
+> The release's temporal defaults remain **0/0/0**. The 091-05 follow-up fixes are included;
+> the 091-06 F1 work-in-progress and all natural-cause work are absent. Home re-proof is pending.
+> Release and follow-up status blocks below are dated historical evidence, not a J1 qualification.
+> The 091-05 archives under `_r915` were deleted on 2026-10-10. J1 uses shipped release `218BA4C7`
+> as its pre-F1 control and will archive its own guard-bearing candidate for J2.
+> Nothing is merged into master, a release branch or a delivery branch; the owner controls delivery.
+
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal
 > transition defaults On/Off/Hide = **0/0/0**, by the owner's choice. Explicit nonnegative CVar
@@ -18,6 +27,24 @@ and is the single source of truth for the project.
 > capture, anomalies, non-temporal transition reasons and schema; no 091-05 or 091-06 changes.
 > Journal: `docs/sessions/2026-10-04-091-07-release-transitions-off.md`.
 > 091-08: client-readme limitations and FXAA tip; code unchanged from `23098fa`. Journal: `docs/sessions/2026-10-04-091-08-release-readme-limits.md`.
+
+> **091-05, completed 2026-10-04 — REVIEW FIXES AND REQUIRED PROOF PASS; IMPLEMENTER GREEN.**
+> F1 binds colour/masks to the capture scene, viewport and sampled frame; skipped owner renders are counted
+> and dropped without pictures or labels. F6 checks every labels-side event ID, including transition-free events.
+> F2 always scopes UV/normal to installed components and releases excluded census tags. F3 ignores unused alpha.
+> Proved Source: fix `97c20f2` / EXE `FEA79D94`, m53 `839f429` / `57B70BF8`, proxy `dc42e35` / `3ADC2EA4`.
+> Documentation heads preserve those exact production trees. Editor/Game and strict includes are all 0/0;
+> lever audits pass, string review has no unresolved additions, and archives are re-hashed.
+> New-window PIE plus two realtime editor-world viewports passes for UV/shared proxy. C7FB5212 reproduces wrong-view
+> labelled pictures; null-material C2 masks and opaque alpha-only invisible events also fail the old build.
+> Final scope/alpha proofs, seven regression configurations, clean/active skipped-render controls and the TSR
+> office kit pass. E1 t50/t10 has zero unflagged disagreements; every labelled frame has a measured PNG mask.
+> Default 3/40/1 is unchanged. C2/co-user RGB is unchanged within a measured clean-frame noise envelope;
+> failed exact-byte comparisons and every harness/accounting correction remain in the evidence.
+> F4/F5 are documentation only. Packed unused channels, zero-strength normals and heavy-churn copy snapshots
+> remain the ruling's stated follow-ups; no measured visible-change gate was added. No new owner decision.
+> Journal: `docs/sessions/2026-10-04-091-05-review-fixes.md`; exact pushed heads and receipts: the 091-05 `report.md`.
+> Evidence: `E:/IA_BuildCache/_r915`. Independent reviewer ruling remains separate from this implementer result.
 
 > **091-03, completed 2026-10-04 — REQUIRED FINAL PROOF PASSES; RELEASE READY (GREEN).**
 > Schema 2.1 exports each event's exact transition indices/reasons and the session union. Drop these frames

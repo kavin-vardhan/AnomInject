@@ -758,8 +758,11 @@ namespace AnomalyTexCorrupt
 				if (SlotFail(RankA6, Why::MapSetOverCap, FString::Printf(TEXT("%d_of_%d"), RequiredCount, GetMaxTextures()), false)) { return; }
 			}
 			{
+				const bool bUsesAlpha = S.Resolved->GetBlendMode() == BLEND_Masked
+					|| IsTranslucentBlendMode(S.Resolved->GetBlendMode())
+					|| (Root && (Root->IsPropertyConnected(MP_Opacity) || Root->IsPropertyConnected(MP_OpacityMask)));
 				const TexCorruptPure::Uniform::ERule Rule = TexCorruptPure::Uniform::RuleFor(ToPureFamily(In.Family), ToPureModeForUniform(In.Mode),
-					In.Mode == EMode::Identity || In.Mode == EMode::IdentityRedraw || In.Mode == EMode::TileProbe);
+					In.Mode == EMode::Identity || In.Mode == EMode::IdentityRedraw || In.Mode == EMode::TileProbe, bUsesAlpha);
 				if (Rule != TexCorruptPure::Uniform::ERule::None)
 				{
 					TArray<TexCorruptPure::Uniform::EVerdict> Verdicts;

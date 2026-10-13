@@ -215,6 +215,33 @@ void FAnomaly_TexCorrupt::ClearPartScope()
 	ScopedOwners.Reset();
 }
 
+void FAnomaly_TexCorrupt::UpdatePartScope()
+{
+	TMap<AActor*, TArray<const UPrimitiveComponent*>> ByOwner;
+	for (const TWeakObjectPtr<AActor>& Owner : Owners)
+	{
+		if (Owner.IsValid()) { ByOwner.FindOrAdd(Owner.Get()); }
+	}
+	for (const FOwnedSlot& OS : Slots)
+	{
+		UMeshComponent* C = OS.Comp.Get();
+		if (C && OS.bCommitted && OS.HostMid && C->GetMaterial(OS.SlotIndex) == OS.HostMid)
+		{
+			ByOwner.FindOrAdd(C->GetOwner()).AddUnique(C);
+		}
+	}
+	ComponentsCorrupted = 0;
+	for (const TPair<AActor*, TArray<const UPrimitiveComponent*>>& P : ByOwner)
+	{
+		ComponentsCorrupted += P.Value.Num();
+		if (P.Key && !Levers().bNoPartScope)
+		{
+			AnomalyViewport::SetEventComponentScope(P.Key, P.Value);
+			ScopedOwners.AddUnique(P.Key);
+		}
+	}
+}
+
 FAnomaly_TexCorrupt::FScratchSet* FAnomaly_TexCorrupt::FindScratch(const FScratchKey& Key)
 {
 	for (FScratchSet& S : Scratch)
@@ -1181,31 +1208,9 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 	{
 		CommitSlots();
 	}
+	else { UpdatePartScope(); }
 
 	{
-		TMap<AActor*, TArray<const UPrimitiveComponent*>> ByOwner;
-		for (const FOwnedSlot& OS : Slots)
-		{
-			if (UMeshComponent* C = OS.Comp.Get())
-			{
-				ByOwner.FindOrAdd(C->GetOwner()).AddUnique(C);
-			}
-		}
-		for (const TPair<AActor*, TArray<const UPrimitiveComponent*>>& P : ByOwner)
-		{
-			ComponentsCorrupted += P.Value.Num();
-		}
-		if ((ComponentsSkipped > 0 || bProxyBlur) && !Levers().bNoPartScope)
-		{
-			for (const TPair<AActor*, TArray<const UPrimitiveComponent*>>& P : ByOwner)
-			{
-				if (P.Key)
-				{
-					AnomalyViewport::SetEventComponentScope(P.Key, P.Value);
-					ScopedOwners.Add(P.Key);
-				}
-			}
-		}
 		FRunStats& Stats = FStatsAccess::Mutable();
 		for (const FOutput& O : Outputs)
 		{
@@ -1256,6 +1261,7 @@ int32 FAnomaly_TexCorrupt::CommitSlots()
 			++Committed;
 		}
 	}
+	UpdatePartScope();
 	return Committed;
 }
 

@@ -466,6 +466,12 @@ namespace AnomalyLabelSync
 		return (Value >= AppliedMaskBase && Value < AppliedMaskBase + 64) ? (1ull << (Value - AppliedMaskBase)) : 0ull;
 	}
 
+	inline ERetireAction DecideScopeExit(bool bInScope, bool bTracked, int Value, bool bCustomDepth, unsigned long long AppliedMask)
+	{
+		if (bInScope || (AppliedMask & AppliedBit(Value)) == 0) { return ERetireAction::Leave; }
+		return DecideRetire(bTracked, Value, bCustomDepth, Value);
+	}
+
 	struct FRetireHolder
 	{
 		bool bValid = true;

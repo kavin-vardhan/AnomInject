@@ -67,6 +67,26 @@ class TransitionTests(unittest.TestCase):
         self.rows[-1]['anomalies'][0]['event_id'] = 'doctored'
         self.assertTrue(self.check())
 
+    def test_transition_free_identity(self):
+        rows = [dict(session_index=1, anomalies=[dict(id='uv_corruption', start_frame=195,
+            target_name='StaticMeshActor_0', event_id='uv_corruption@195|StaticMeshActor_0', labelled=True)])]
+        annotation = dict(label_schema=2, label_schema_minor=1, transition_frame_count=0, anomalies=[
+            dict(event_id='uv_corruption@195|StaticMeshActor_0', transition_frames=[], transition_reasons={})])
+        self.assertEqual([], self.check(annotation, rows))
+        for kind in ('wrong', 'missing', 'duplicate'):
+            changed = copy.deepcopy(annotation)
+            if kind == 'wrong': changed['anomalies'][0]['event_id'] = 'uv_corruption@999999|WrongTarget'
+            if kind == 'missing': changed['anomalies'].clear()
+            if kind == 'duplicate': changed['anomalies'].append(copy.deepcopy(changed['anomalies'][0]))
+            with self.subTest(kind=kind): self.assertTrue(self.check(changed, rows))
+
+    def test_transition_free_unlabelled_identity(self):
+        self.rows.append(dict(session_index=11, anomalies=[dict(id='uv_corruption', start_frame=30,
+            target_name='Target', event_id='uv_corruption@30|Target', labelled=False)]))
+        self.assertTrue(self.check())
+        self.annotation['anomalies'].append(dict(event_id='uv_corruption@30|Target', transition_frames=[], transition_reasons={}))
+        self.assertEqual([], self.check())
+
 
 if __name__ == '__main__':
     unittest.main()
