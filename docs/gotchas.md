@@ -10261,3 +10261,14 @@ in PIE and staged. The old build labels three opaque events with only one-level 
 unused packed-map channel and a normal texture feeding zero-strength normals remain visibility limits;
 the measured visible-change gate is a follow-up. Size/ratio refusals are selection heuristics, and a source
 RHI tripwire is not an atomic copy snapshot. Neither F4 nor F5 changes code in this delivery.
+
+## G465 — 093-03: an unflagged row does not establish a transition-free F6 control
+
+The F6 old-checker can-fail needs a transition-free event/capture. J1 selected an unflagged
+label row at session index 191, changed its event ID in a copy, and expected only the new
+checker to reject it. Both checkers rejected it: all four events still had `pie_end_settle`
+transitions. Temporal defaults 0/0/0 do not disable independent non-temporal transition
+reasons. The copied input therefore did not isolate the old transition-free identity bug.
+J1 stopped under its frozen gate rule; the failed expectation and original capture remain
+under `E:/IA_BuildCache/_r933/controls/F6_F1_P_uv_aaoff`, with no amended control or retest.
+Do not infer a production F6 regression or claim its required can-fail from this result.

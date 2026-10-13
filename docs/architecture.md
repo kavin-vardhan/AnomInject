@@ -1,5 +1,12 @@
 # Architecture (living — current as-built)
 
+**093-03, 2026-10-13: local follow-up integration, not a delivery.** On
+`fix/followup-capture`, merge `72f3eb3` combines the release's 0/0/0 temporal defaults
+with the 091-05 F1/F2/F3/F6 follow-ups. Explicit transition overrides are unchanged.
+There is no 091-06 F1 WIP, natural mechanism or new label key. Qualification stopped
+at an invalid F6 can-fail isolation; remaining PIE and all staged proofs are pending.
+See `sessions/2026-10-13-093-03-followup-capture-base.md` for measured scope.
+
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 
 The catalogue is **12 shipping entries** in every configuration (m53 added `uv_corruption` and
@@ -1185,8 +1192,11 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   `IAI.Label.TransitionOffFrames` frames after a labelled frame carry `transition: 1` (the latter as transition-only entries that
   set no `anomaly_present`), and hide types flag the first `IAI.Label.TransitionHideFrames` frames after the object returns.
   Pure logic: `AnomalyInjector/Public/AnomalyLabelSync.h`. **084-07:** every flagged entry names its reason in
-  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); defaults 3/40/1 under
-  temporal AA or unknown evidence (091-03 E1 t10 maximum 36 plus four frames; cap 64; prior off defaults 16 and 8), 0 when confirmed off. `partial`
+  `transition_reason` (`temporal_aa`, `hide_return`, `partial`, `camera_clipping_unconfirmed`); current release/J1
+  temporal On/Off/Hide defaults are **0/0/0** (091-07 owner ruling), including temporal AA or unknown evidence.
+  Explicit nonnegative CVar overrides retain their behavior and cap 64. Historical defaults were 3/40/1
+  (091-03 E1 t10 maximum 36 plus four frames; prior off defaults 16 and 8). Independent non-temporal reasons
+  such as `pie_end_settle` remain possible at 0/0/0. `partial`
   is set, with or without temporal AA, on any m52 member frame whose render record shows the held set between baseline and the
   held level (`FAnomalyRenderTruthTexture::HeldResidentMips` carried into the watch; `AnomalyStuckMipWindow::ClassifyLevel` /
   `IsPartialHeldSet` / `FPartialEdgeTrack`). Entries carry `labelled` and `visible_positive` needs a labelled entry with a
