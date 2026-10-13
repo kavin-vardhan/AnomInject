@@ -47,6 +47,13 @@ threw System.NullReferenceException in `Project.RunIoStore`,
 `CopyBuildToStagingDirectory.Automation.cs:3518`, and exited 1. That expression assembles
 CookedDirectory/PackageStoreManifest/Commands; the exact null operand is not recorded.
 Do not infer a product source defect from this packaging exception. No retry was made.
+Read-only inspection after restoration identifies an output-path mismatch in my harness:
+the cook commandlet wrote `cooked/StackOBot/Metadata/packagestore.manifest`, while UAT's
+staging code appends `Windows` when CookOutputDir does not already end in that platform
+name (lines 979-986). The expected `cooked/Windows/StackOBot/Metadata/packagestore.manifest`
+does not exist. The manifest loader is skipped when that cook directory is absent
+(lines 1219-1224), leaving the later manifest access without a loaded manifest.
+This is evidence for a harness packaging-path failure, not a required product source change.
 The isolated cooked output contains packagestore.manifest and scriptobjects.bin, but
 the packaging output contains only a 7,466,614-byte partial `.pak`, no `.utoc` or `.ucas`;
 the archive output directory is empty. It is not a usable or qualified container.
@@ -66,7 +73,7 @@ archive or delivery was created. Source, Shaders and tools still equal tested `7
 
 ## Remaining work / decision needed
 
-Resolve the UAT packaging failure in an authorized continuation, then cook the required
+Correct the cook/staging output-path mismatch in an authorized continuation, then cook the required
 existing fixtures into a complete bench container, preserve the E41ABF93
 EXE, record separate container hashes, and stage/restore by receipt. Complete shared-proxy
 ownership, F2, F3, deliberate dropped-mask samples, hold/proxy/normal/co-user regression,
