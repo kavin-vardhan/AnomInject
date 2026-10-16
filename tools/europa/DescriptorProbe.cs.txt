@@ -1,0 +1,44 @@
+public static class EuropaDescriptorProbe
+{
+    public static void Record(ReadOnlyTargetRules Target)
+    {
+        string Output = System.Environment.GetEnvironmentVariable("EUROPA_DESCRIPTOR_PROBE");
+        if (System.String.IsNullOrEmpty(Output)) return;
+        string Root = System.IO.Path.GetFullPath("D:/IA_Europa/");
+        if (!System.IO.Path.GetFullPath(Output).StartsWith(Root, System.StringComparison.OrdinalIgnoreCase))
+            throw new BuildException("Europa descriptor receipt must be under physical-D scratch.");
+        string DescriptorPath = System.IO.Path.Combine(Target.ProjectFile.Directory.FullName, "Plugins", "AnomalyInjector", "AnomalyInjector.uplugin");
+        object File = System.Activator.CreateInstance(Target.ProjectFile.GetType(), new object[] { DescriptorPath });
+        PluginDescriptor Descriptor = (PluginDescriptor)typeof(PluginDescriptor).GetMethod("FromFile").Invoke(null, new object[] { File });
+        var Text = new System.Text.StringBuilder();
+        Text.Append("{\"kind\":\"actual-UBT-descriptor-predicates\",\"rows\":[");
+        bool FirstRow = true;
+        foreach (TargetType Kind in System.Enum.GetValues(typeof(TargetType)))
+        {
+            foreach (UnrealTargetConfiguration Configuration in System.Enum.GetValues(typeof(UnrealTargetConfiguration)))
+            {
+                if (Configuration == UnrealTargetConfiguration.Unknown) continue;
+                bool DeveloperTools = Kind == TargetType.Editor || Kind == TargetType.Program ||
+                    (Configuration != UnrealTargetConfiguration.Test && Configuration != UnrealTargetConfiguration.Shipping);
+                bool Cooked = Kind == TargetType.Game || Kind == TargetType.Client || Kind == TargetType.Server;
+                if (!FirstRow) Text.Append(',');
+                FirstRow = false;
+                Text.Append("{\"target_type\":\"").Append(Kind).Append("\",\"configuration\":\"").Append(Configuration).Append("\",\"ia_modules\":[");
+                bool FirstModule = true;
+                foreach (ModuleDescriptor Module in Descriptor.Modules)
+                {
+                    if (!Module.IsCompiledInConfiguration(Target.Platform, Configuration, "EuropaDescriptorProbe", Kind, DeveloperTools, Cooked)) continue;
+                    if (!FirstModule) Text.Append(',');
+                    FirstModule = false;
+                    Text.Append('"').Append(Module.Name).Append('"');
+                }
+                Text.Append("]}");
+            }
+        }
+        Text.Append("]}");
+        System.IO.File.WriteAllText(Output, Text.ToString());
+        System.Console.WriteLine("Europa descriptor probe: engine={0}.{1} compiler={2} version={3} SDK={4}; actual UBT parser/predicates, Game/Editor/Client/Server/Program",
+            Target.Version.MajorVersion, Target.Version.MinorVersion,
+            Target.WindowsPlatform.Compiler, Target.WindowsPlatform.CompilerVersion, Target.WindowsPlatform.WindowsSdkVersion);
+    }
+}

@@ -1,0 +1,15 @@
+# Europa Phase A scoped tooling
+
+This branch starts from d7eee97. Only 4.25 and 5.1 are supported. A1/A2 perform no UHT/C++ build, cook or editor/game launch. Runtime qualification is pending A3-A12.
+
+Physical-D hosts: `D:/IA_Europa/StylizedParisStreet`, `D:/IA_Europa/Baseline51/StackOBot`, `D:/IA_Europa/ReGate51/StackOBot`. Each has its own DDC graph/cache. Both 5.1 hosts use CaptureBench archive e64d6f9; all other explicitly listed plugins are disabled except PythonScriptPlugin and AnomalyInjector. WebSocketNetworking is required by the plugin descriptor. Required engine plugin binaries were present before enabling them; no engine rebuild is authorized.
+
+`tools/europa/write_ledger.py` wraps each declared operation. It stores path/size/mtime SQLite snapshots, scoped access errors, file changes, resolved-volume free space, tooling sizes and command receipts under `D:/IA_Europa/Receipts/09403/ledger`. C: exceptions are conservatively charged where a UBT/log change may be attributable; job growth limits are 250,000,000 B on C: and 50,000,000 B on E:. Tooling and clearly foreign paths are separate. Protected engine/Paris changes fail. The owned ledger databases themselves are D: evidence overhead, outside the measured host-file delta. OS/tooling denied entries are listed, not fabricated as zero files.
+
+`process_wrapper.py` uses pre-existing UBT executables directly, an explicit engine root per host, absolute output/log paths and process-local TEMP/TMP, DOTNET_CLI_HOME and uebp_* paths. JsonExport never passes -ExecCodeGenActions. Editor, game and UAT recipes include -UserDir, -ShaderWorkingDir, -DDC, -abslog and the crash-client log; they are preparation-only in A1/A2. Runtime admission and actual redirect verification remain required in the later authorized job.
+
+`descriptor_matrix.py` checks the actual JsonExport module sets and the native UBT descriptor predicates emitted by the host-only observer in `DescriptorProbe.cs.txt`. The three copied host Build.cs files call that observer only when the process-local EUROPA_DESCRIPTOR_PROBE names an owned D receipt. Their dependency lists and all Target.cs pins remain unchanged. Client/Server/Program predicate coverage is not a claim of compiling absent host targets. `tooling_self_tests.py` exercises forbidden output paths/classifications without causing a prohibited write; `ubt_admission.py` checks the pre-existing 5.1 cache/rules timestamps before UBT.
+
+`idle_gate.py --self-test --output <D-path>` tests the EA6 thresholds and refuses unknown inputs. Its real collector is not used in A1/A2. `check_reflected_headers.py --root Source --self-test --output <D-path>` enforces EA11 and exercises the forbidden-#if mutant.
+
+EB1 replaced 094-02's tracing hold. ETW, USN and elevation must not be attempted. No registry, global XML or user/machine environment is modified. The full P9 baseline remains immutable; per-job checks allow only this branch's new objects/ref and its three worktree registrations in the common repository. No push is authorized.

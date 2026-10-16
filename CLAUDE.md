@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-03, 2026-10-16 — EUROPA A1/A2 IN PROGRESS on feat/europa-port, from d7eee97.**
+> Scoped D: hosts and CaptureBench copies; EB1 targeted write proof. Predictions are committed before UBT.
+> No C++ build or runtime qualification yet; A3 and later jobs remain pending. No J1/J2 changes or push.
+> See `docs/predictions/094-europa-phase-a.md` and `docs/europa/phase-a-routing.md`.
+
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal
 > transition defaults On/Off/Hide = **0/0/0**, by the owner's choice. Explicit nonnegative CVar
