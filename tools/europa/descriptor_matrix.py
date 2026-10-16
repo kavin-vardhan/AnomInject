@@ -29,6 +29,7 @@ def collect(label):
     folder=JOB/'matrices'/label
     rows=[]
     for p in folder.glob('*.json'):
+        if not any(p.stem.endswith('-'+c) for c in ('Debug','DebugGame','Development','Test','Shipping')):continue
         x=json.loads(p.read_text(encoding='utf-8-sig'))
         if not isinstance(x,dict) or 'Modules' not in x:continue
         mods=x['Modules']

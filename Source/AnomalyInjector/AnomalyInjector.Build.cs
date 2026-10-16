@@ -52,10 +52,10 @@ public static class AnomalyEngineRules
         Rules.PublicDefinitions.Add(bBench ? "ANOMALY_PROFILE_BENCH=1" : "ANOMALY_PROFILE_BENCH=0");
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            System.Console.WriteLine("Anomaly profile: engine={0}.{1} compiler={2} version={3} SDK={4} cppStandard={5}",
+            System.Console.WriteLine("Anomaly profile: engine={0}.{1} compiler={2} version={3} SDK={4} cppStandard={5} toolchain={6}",
                 Target.Version.MajorVersion, Target.Version.MinorVersion,
                 Target.WindowsPlatform.Compiler, Target.WindowsPlatform.CompilerVersion,
-                Target.WindowsPlatform.WindowsSdkVersion, Rules.CppStandard);
+                Target.WindowsPlatform.WindowsSdkVersion, Rules.CppStandard, Target.WindowsPlatform.ToolChainDir);
         }
     }
 }
