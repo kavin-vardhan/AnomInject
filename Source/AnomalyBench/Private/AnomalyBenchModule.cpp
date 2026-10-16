@@ -1,3 +1,4 @@
+#if ANOMALY_BENCH
 #include "Modules/ModuleManager.h"
 #include "Camera/CameraTypes.h"
 #include "CollisionQueryParams.h"
@@ -490,3 +491,18 @@ public:
 	}
 };
 IMPLEMENT_MODULE(FAnomalyBenchModule, AnomalyBench)
+
+#else
+#include "CoreMinimal.h"
+#include "Modules/ModuleManager.h"
+DEFINE_LOG_CATEGORY_STATIC(LogAnomalyBenchStub, Log, All);
+class FAnomalyBenchModule : public IModuleInterface
+{
+public:
+    virtual void StartupModule() override
+    {
+        UE_LOG(LogAnomalyBenchStub, Log, TEXT("AnomalyBench compiled out (ANOMALY_BENCH=0)."));
+    }
+};
+IMPLEMENT_MODULE(FAnomalyBenchModule, AnomalyBench)
+#endif

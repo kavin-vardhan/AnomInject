@@ -304,11 +304,17 @@ public class AnomalyCapture : ModuleRules
 	public AnomalyCapture(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		AnomalyEngineRules.Configure(this, Target);
 
-		bool bProbeFound = ProbeForDecoupledTickFork();
+		bool bProbeFound = AnomalyEngineRules.Is51(Target) && ProbeForDecoupledTickFork();
 
 		string OverrideMechanism;
-		int Forced = ReadForcedTickPin(out OverrideMechanism);
+		int Forced = -1;
+		OverrideMechanism = null;
+		if (AnomalyEngineRules.Is51(Target))
+		{
+			Forced = ReadForcedTickPin(out OverrideMechanism);
+		}
 
 		bool bTickPin = bProbeFound;
 		if (Forced >= 0)
@@ -327,17 +333,17 @@ public class AnomalyCapture : ModuleRules
 		{
 			"Core",
 			"CoreUObject",
-			"Engine"
+			"Engine",
+			"AnomalyInjector"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"AnomalyInjector",
 			"ImageWrapper",
 			"Json"
 		});
 
-		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		if (AnomalyEngineRules.Is51(Target) && Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PublicDefinitions.Add("ANOMALY_CAPTURE=1");
 
@@ -352,14 +358,16 @@ public class AnomalyCapture : ModuleRules
 				"AnomalyShaders"
 			});
 
+#if UE_5_1_OR_LATER && !UE_5_2_OR_LATER
 			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
+#endif
 		}
 		else
 		{
 			PublicDefinitions.Add("ANOMALY_CAPTURE=0");
 		}
 
-		if (Target.bBuildEditor)
+		if (AnomalyEngineRules.Is51(Target) && Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.Add("UnrealEd");
 		}

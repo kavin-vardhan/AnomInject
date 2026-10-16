@@ -1,4 +1,5 @@
 #include "AnomalyControlServerSubsystem.h"
+#include "Compat/AnomalyControlTransportState.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
 #endif
@@ -93,6 +94,16 @@ static FAutoConsoleCommandWithWorldAndArgs GServerStatusCmd(
 	}));
 
 
+UAnomalyControlServerSubsystem::UAnomalyControlServerSubsystem()
+    : Transport(MakeUnique<FAnomalyControlTransportState>())
+{
+}
+
+UAnomalyControlServerSubsystem::UAnomalyControlServerSubsystem(FVTableHelper& Helper)
+    : Super(Helper), Transport(MakeUnique<FAnomalyControlTransportState>())
+{
+}
+
 UAnomalyControlServerSubsystem::~UAnomalyControlServerSubsystem() = default;
 
 bool UAnomalyControlServerSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
@@ -126,7 +137,7 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 #if ANOMALY_CONTROL_SERVER
 	if (bListening)
 	{
-		UE_LOG(LogAnomalyServer, Warning, TEXT("Control: already listening on port %d."), Port);
+		UE_LOG(LogAnomalyServer, Warning, TEXT("Control: already listening on port %d."), Transport->Port);
 		return true;
 	}
 
@@ -137,42 +148,42 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 		return false;
 	}
 
-	Server = Module->CreateServer();
-	if (!Server.IsValid())
+	Transport->Server = Module->CreateServer();
+	if (!Transport->Server.IsValid())
 	{
 		UE_LOG(LogAnomalyServer, Error, TEXT("Control: CreateServer() failed."));
 		return false;
 	}
 
-	Port = (InPort > 0) ? InPort : DefaultControlPort;
+	Transport->Port = (InPort > 0) ? InPort : DefaultControlPort;
 
 	FString ConfigToken;
 	const bool bHasConfigToken = GConfig
 		&& GConfig->GetString(TEXT("AnomalyControlServer"), TEXT("Token"), ConfigToken, GGameIni)
 		&& !ConfigToken.IsEmpty();
-	Token = bHasConfigToken ? ConfigToken : FGuid::NewGuid().ToString(EGuidFormats::Digits);
+	Transport->Token = bHasConfigToken ? ConfigToken : FGuid::NewGuid().ToString(EGuidFormats::Digits);
 
 	FWebSocketClientConnectedCallBack ConnectedCb =
 		FWebSocketClientConnectedCallBack::CreateUObject(this, &UAnomalyControlServerSubsystem::OnClientConnected);
 
-	if (!Server->Init((uint32)Port, ConnectedCb))
+	if (!Transport->Server->Init((uint32)Transport->Port, ConnectedCb))
 	{
-		UE_LOG(LogAnomalyServer, Error, TEXT("Control: server Init failed on port %d."), Port);
-		Server.Reset();
+		UE_LOG(LogAnomalyServer, Error, TEXT("Control: server Init failed on port %d."), Transport->Port);
+		Transport->Server.Reset();
 		return false;
 	}
 
 	bListening = true;
-	LastSnapshotTime = 0.0;
-	LastFrameTime = 0.0;
-	FrameCounter = 0;
-	ViewEpoch = 0;
-	LastViewportX = 0;
-	LastViewportY = 0;
-	bWantOneFrame = false;
+	Transport->LastSnapshotTime = 0.0;
+	Transport->LastFrameTime = 0.0;
+	Transport->FrameCounter = 0;
+	Transport->ViewEpoch = 0;
+	Transport->LastViewportX = 0;
+	Transport->LastViewportY = 0;
+	Transport->bWantOneFrame = false;
 
-	UE_LOG(LogAnomalyServer, Log, TEXT("=== Anomaly Control Server LISTENING on ws://127.0.0.1:%d ==="), Port);
-	UE_LOG(LogAnomalyServer, Log, TEXT("=== Control server token: %s (%s) ==="), *Token,
+	UE_LOG(LogAnomalyServer, Log, TEXT("=== Anomaly Control Server LISTENING on ws://127.0.0.1:%d ==="), Transport->Port);
+	UE_LOG(LogAnomalyServer, Log, TEXT("=== Control server token: %s (%s) ==="), *Transport->Token,
 		bHasConfigToken ? TEXT("from DefaultGame.ini [AnomalyControlServer] Token") : TEXT("random per-session"));
 	return true;
 #else
@@ -184,8 +195,8 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 void UAnomalyControlServerSubsystem::StopListening()
 {
 #if ANOMALY_CONTROL_SERVER
-	Conns.Reset();
-	Server.Reset();
+	Transport->Conns.Reset();
+	Transport->Server.Reset();
 	if (bListening)
 	{
 		UE_LOG(LogAnomalyServer, Log, TEXT("Control: server stopped."));
@@ -203,7 +214,7 @@ void UAnomalyControlServerSubsystem::LogStatus() const
 		return;
 	}
 	int32 Authed = 0;
-	for (const FControlConn& C : Conns)
+	for (const FControlConn& C : Transport->Conns)
 	{
 		if (C.bAuthed)
 		{
@@ -211,9 +222,9 @@ void UAnomalyControlServerSubsystem::LogStatus() const
 		}
 	}
 	UE_LOG(LogAnomalyServer, Log, TEXT("Control: listening ws://127.0.0.1:%d | token=%s | %d connection(s), %d authed | snapHz~%.1f frameHz~%.1f"),
-		Port, *Token, Conns.Num(), Authed,
-		SnapshotIntervalSec > 0 ? 1.0 / SnapshotIntervalSec : 0.0,
-		FrameIntervalSec > 0 ? 1.0 / FrameIntervalSec : 0.0);
+		Transport->Port, *Transport->Token, Transport->Conns.Num(), Authed,
+		Transport->SnapshotIntervalSec > 0 ? 1.0 / Transport->SnapshotIntervalSec : 0.0,
+		Transport->FrameIntervalSec > 0 ? 1.0 / Transport->FrameIntervalSec : 0.0);
 #else
 	UE_LOG(LogAnomalyServer, Log, TEXT("Control: compiled out (ANOMALY_CONTROL_SERVER=0)."));
 #endif
@@ -223,12 +234,12 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 #if ANOMALY_CONTROL_SERVER
-	if (!bListening || !Server.IsValid())
+	if (!bListening || !Transport->Server.IsValid())
 	{
 		return;
 	}
 
-	Server->Tick();
+	Transport->Server->Tick();
 
 	if (UWorld* PumpWorld = GetWorld())
 	{
@@ -239,7 +250,7 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 	}
 
 	const double Now = FPlatformTime::Seconds();
-	for (FControlConn& C : Conns)
+	for (FControlConn& C : Transport->Conns)
 	{
 		if (!C.bAuthed && !C.bRejected && (Now - C.ConnectTime) > AuthTimeoutSeconds)
 		{
@@ -248,16 +259,16 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		}
 	}
 
-	if (Now - LastSnapshotTime >= SnapshotIntervalSec)
+	if (Now - Transport->LastSnapshotTime >= Transport->SnapshotIntervalSec)
 	{
-		LastSnapshotTime = Now;
+		Transport->LastSnapshotTime = Now;
 		PushSnapshots();
 	}
-	if (bWantOneFrame || (Now - LastFrameTime >= FrameIntervalSec))
+	if (Transport->bWantOneFrame || (Now - Transport->LastFrameTime >= Transport->FrameIntervalSec))
 	{
-		LastFrameTime = Now;
-		PushFrames(bWantOneFrame);
-		bWantOneFrame = false;
+		Transport->LastFrameTime = Now;
+		PushFrames(Transport->bWantOneFrame);
+		Transport->bWantOneFrame = false;
 	}
 #endif
 }
@@ -266,7 +277,7 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 
 FControlConn* UAnomalyControlServerSubsystem::FindConn(INetworkingWebSocket* Socket)
 {
-	return Conns.FindByPredicate([Socket](const FControlConn& C) { return C.Socket == Socket; });
+	return Transport->Conns.FindByPredicate([Socket](const FControlConn& C) { return C.Socket == Socket; });
 }
 
 bool UAnomalyControlServerSubsystem::IsLoopbackAddr(const FString& Addr)
@@ -302,7 +313,7 @@ void UAnomalyControlServerSubsystem::OnClientConnected(INetworkingWebSocket* Soc
 		UE_LOG(LogAnomalyServer, Log, TEXT("Control: client connected from '%s' (awaiting hello)."), *Remote);
 	}
 
-	Conns.Add(Conn);
+	Transport->Conns.Add(Conn);
 
 	Socket->SetReceiveCallBack(FWebSocketPacketReceivedCallBack::CreateLambda(
 		[this, Socket](void* Data, int32 Size) { OnReceive(Socket, Data, Size); }));
@@ -314,10 +325,10 @@ void UAnomalyControlServerSubsystem::OnClientConnected(INetworkingWebSocket* Soc
 
 void UAnomalyControlServerSubsystem::OnSocketClosed(INetworkingWebSocket* Socket)
 {
-	const int32 Removed = Conns.RemoveAll([Socket](const FControlConn& C) { return C.Socket == Socket; });
+	const int32 Removed = Transport->Conns.RemoveAll([Socket](const FControlConn& C) { return C.Socket == Socket; });
 	if (Removed > 0)
 	{
-		UE_LOG(LogAnomalyServer, Log, TEXT("Control: connection closed; %d remain."), Conns.Num());
+		UE_LOG(LogAnomalyServer, Log, TEXT("Control: connection closed; %d remain."), Transport->Conns.Num());
 	}
 }
 
@@ -356,7 +367,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 	{
 		FString Tok;
 		Msg->TryGetStringField(TEXT("token"), Tok);
-		if (Tok == Token)
+		if (Tok == Transport->Token)
 		{
 			Conn.bAuthed = true;
 			const TSharedRef<FJsonObject> Welcome = MakeShared<FJsonObject>();
@@ -460,11 +471,11 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		double Hz = 0.0;
 		if (Msg->TryGetNumberField(TEXT("snapshotHz"), Hz) && Hz > 0.0)
 		{
-			SnapshotIntervalSec = 1.0 / FMath::Clamp(Hz, 1.0, 20.0);
+			Transport->SnapshotIntervalSec = 1.0 / FMath::Clamp(Hz, 1.0, 20.0);
 		}
 		if (Msg->TryGetNumberField(TEXT("frameHz"), Hz) && Hz > 0.0)
 		{
-			FrameIntervalSec = 1.0 / FMath::Clamp(Hz, 0.5, 10.0);
+			Transport->FrameIntervalSec = 1.0 / FMath::Clamp(Hz, 0.5, 10.0);
 		}
 		SendAck(Conn.Socket, TEXT("subscribe"));
 		return;
@@ -565,7 +576,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 
 	if (Type == TEXT("request_frame"))
 	{
-		bWantOneFrame = true;
+		Transport->bWantOneFrame = true;
 		return;
 	}
 
@@ -823,7 +834,7 @@ void UAnomalyControlServerSubsystem::SendAck(INetworkingWebSocket* Socket, const
 void UAnomalyControlServerSubsystem::PushSnapshots()
 {
 	bool bAny = false;
-	for (const FControlConn& C : Conns)
+	for (const FControlConn& C : Transport->Conns)
 	{
 		if (C.bAuthed && C.bSubSnapshot)
 		{
@@ -846,15 +857,15 @@ void UAnomalyControlServerSubsystem::PushSnapshots()
 		VX = (int32)Size.X;
 		VY = (int32)Size.Y;
 	}
-	if (VX != LastViewportX || VY != LastViewportY)
+	if (VX != Transport->LastViewportX || VY != Transport->LastViewportY)
 	{
-		++ViewEpoch;
-		LastViewportX = VX;
-		LastViewportY = VY;
+		++Transport->ViewEpoch;
+		Transport->LastViewportX = VX;
+		Transport->LastViewportY = VY;
 	}
 
-	const FString Json = ControlSnapshot::BuildSnapshotJson(World, ViewEpoch);
-	for (const FControlConn& C : Conns)
+	const FString Json = ControlSnapshot::BuildSnapshotJson(World, Transport->ViewEpoch);
+	for (const FControlConn& C : Transport->Conns)
 	{
 		if (C.bAuthed && C.bSubSnapshot && C.Socket)
 		{
@@ -880,7 +891,7 @@ void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 	}
 
 	bool bAny = false;
-	for (const FControlConn& C : Conns)
+	for (const FControlConn& C : Transport->Conns)
 	{
 		if (C.bAuthed && (C.bSubFrames || bForce))
 		{
@@ -898,10 +909,10 @@ void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 	uint32 FrameEpoch = 0;
 	if (Cap->PreviewPoll(Jpeg, W, H, FrameEpoch))
 	{
-		TArray<uint8> Frame = ControlProtocol::BuildFrameHeader(++FrameCounter, FrameEpoch, (uint16)FMath::Clamp(W, 0, 65535), (uint16)FMath::Clamp(H, 0, 65535));
+		TArray<uint8> Frame = ControlProtocol::BuildFrameHeader(++Transport->FrameCounter, FrameEpoch, (uint16)FMath::Clamp(W, 0, 65535), (uint16)FMath::Clamp(H, 0, 65535));
 		Frame.Append(Jpeg);
 
-		for (const FControlConn& C : Conns)
+		for (const FControlConn& C : Transport->Conns)
 		{
 			if (C.bAuthed && (C.bSubFrames || bForce) && C.Socket)
 			{
@@ -910,7 +921,7 @@ void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 		}
 	}
 
-	Cap->PreviewArm(ViewEpoch);
+	Cap->PreviewArm(Transport->ViewEpoch);
 }
 
 #endif

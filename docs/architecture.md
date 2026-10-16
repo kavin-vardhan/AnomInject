@@ -23,7 +23,8 @@ masked) … preset=<p>`. Code that runs a lever by name uses `AnomalyBenchGate::
 is also inside `#if !UE_BUILD_SHIPPING`, `ANOMALY_CAPTURE` or the Shipping-denied `AnomalyBench`
 module. `tools/lever_audit.py` (G-LEVER-AUDIT) checks all of it from source and against a built binary.
 **Since 090-07 every plugin module is denied to Shipping in `AnomalyInjector.uplugin`
-(`"TargetConfigurationDenyList": [ "Shipping" ]`), so a Shipping target builds none of the plugin; the
+(`"BlacklistTargetConfigurations": [ "Shipping" ]`), so a Shipping target builds none of the plugin; the
+UE 5.1 reads these legacy descriptor keys through its silent deprecated-key fallback.
 `ANOMALY_CAPTURE=0` / `UE_BUILD_SHIPPING` branches in the source are kept but unreachable (G428, G431).** `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
 targets are excluded. Explicit bench commands lock controller look/move input before settle and
 place the camera once afterward, with separate runner verification. Commands require the fixture

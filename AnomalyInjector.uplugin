@@ -19,32 +19,32 @@
 		{
 			"Name": "AnomalyBench",
 			"Type": "Runtime",
-			"TargetAllowList": [ "Editor", "Game" ],
-			"TargetConfigurationDenyList": [ "Shipping" ],
+			"WhitelistTargets": [ "Editor", "Game" ],
+			"BlacklistTargetConfigurations": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "AnomalyShaders",
 			"Type": "Runtime",
-			"TargetConfigurationDenyList": [ "Shipping" ],
+			"BlacklistTargetConfigurations": [ "Shipping" ],
 			"LoadingPhase": "PostConfigInit"
 		},
 		{
 			"Name": "AnomalyInjector",
 			"Type": "Runtime",
-			"TargetConfigurationDenyList": [ "Shipping" ],
+			"BlacklistTargetConfigurations": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "AnomalyCapture",
 			"Type": "Runtime",
-			"TargetConfigurationDenyList": [ "Shipping" ],
+			"BlacklistTargetConfigurations": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "AnomalyControlServer",
 			"Type": "Runtime",
-			"TargetConfigurationDenyList": [ "Shipping" ],
+			"BlacklistTargetConfigurations": [ "Shipping" ],
 			"LoadingPhase": "Default"
 		}
 	],

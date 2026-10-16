@@ -1,30 +1,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#if __has_include("Stats/LightweightStats.h")
-#include "Stats/LightweightStats.h"
-#endif
-#include "Stats/Stats.h"
-#if __has_include("Stats/StatsSystemTypes.h")
-#include "Stats/StatsSystemTypes.h"
-#endif
+#include "Compat/AnomalyStatsIncludes.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "IWebSocketServer.h"
 #include "AnomalyControlServerSubsystem.generated.h"
 
-class IWebSocketServer;
 class INetworkingWebSocket;
 class FJsonObject;
 
-struct FControlConn
-{
-	INetworkingWebSocket* Socket = nullptr;
-	bool bAuthed = false;
-	bool bRejected = false;
-	double ConnectTime = 0.0;
-	bool bSubSnapshot = false;
-	bool bSubFrames = false;
-};
+struct FControlConn;
+struct FAnomalyControlTransportState;
 
 UCLASS()
 class ANOMALYCONTROLSERVER_API UAnomalyControlServerSubsystem : public UTickableWorldSubsystem
@@ -32,6 +17,8 @@ class ANOMALYCONTROLSERVER_API UAnomalyControlServerSubsystem : public UTickable
 	GENERATED_BODY()
 
 public:
+	UAnomalyControlServerSubsystem();
+	UAnomalyControlServerSubsystem(FVTableHelper& Helper);
 	virtual ~UAnomalyControlServerSubsystem();
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -49,7 +36,6 @@ protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
 private:
-#if ANOMALY_CONTROL_SERVER
 	void OnClientConnected(INetworkingWebSocket* Socket);
 	void OnReceive(INetworkingWebSocket* Socket, void* Data, int32 Size);
 	void OnSocketClosed(INetworkingWebSocket* Socket);
@@ -65,25 +51,9 @@ private:
 	FControlConn* FindConn(INetworkingWebSocket* Socket);
 	static bool IsLoopbackAddr(const FString& Addr);
 
-	TUniquePtr<IWebSocketServer> Server;
-	TArray<FControlConn> Conns;
-
-	FString Token;
-	int32 Port = 8077;
-
-	double SnapshotIntervalSec = 0.2;
-	double FrameIntervalSec = 0.5;
-	double LastSnapshotTime = 0.0;
-	double LastFrameTime = 0.0;
-	bool bWantOneFrame = false;
-
-	uint32 FrameCounter = 0;
-	uint32 ViewEpoch = 0;
-	int32 LastViewportX = 0;
-	int32 LastViewportY = 0;
+	TUniquePtr<FAnomalyControlTransportState> Transport;
 
 	static constexpr double AuthTimeoutSeconds = 5.0;
-#endif
 
 	bool bListening = false;
 };

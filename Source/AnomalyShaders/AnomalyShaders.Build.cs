@@ -5,13 +5,14 @@ public class AnomalyShaders : ModuleRules
 	public AnomalyShaders(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		AnomalyEngineRules.Configure(this, Target);
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core"
 		});
 
-		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		if (AnomalyEngineRules.Is51(Target) && Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PublicDefinitions.Add("ANOMALY_SHADERS=1");
 
