@@ -1,0 +1,7 @@
+		foreach (ModuleDescriptor Module in ProjectDescriptor.FromFile(ProjectFile).Modules)
+		{
+			if (Module.Name == "EuropaPhaseAProbe" && Module.IsCompiledInConfiguration(Platform, Configuration, Name, Type, bBuildDeveloperTools, bBuildRequiresCookedData))
+			{
+				ExtraModuleNames.Add(Module.Name);
+			}
+		}

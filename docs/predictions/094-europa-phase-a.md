@@ -159,3 +159,8 @@ A3 compiles only the two authorized Editor Development targets, incrementally, w
 Toolchain predictions: 5.1 selects 14.38.33130 (cl 19.38.33144); 4.25 selects 14.16.27051 from directory 14.16.27023, SDK 10.0.17763.0, C++17. No 5.1 compile is admitted if selection changes. ED1 replaces disk thresholds; ED4 admits only successful zero-engine-action build metadata under the 5.1 Intermediate/Build allowlist up to 100 MB. ED5 records root folders and compact snapshot deltas; no new C:/E: test folders.
 
 New reach: host probe skeleton and restored host plugin dependencies (C; descriptor proof now, runtime fixtures A5 onward); build-only once-per-target profile logging (C); scoped ledger/wrapper/strict tooling (C). Production C1-C5 remains N on 5.1 subject to A4-A12 gates, with the final file/reach manifest frozen before runtime legs.
+
+
+### 2026-10-22 A3 host probe root-module correction, before second descriptor attempt
+
+The first A3 baseline export omitted EuropaPhaseAProbe in every configuration: a project module declaration does not root it in a C++ target. Each of the six owned host Target.cs files now adds the probe through the native ProjectDescriptor ModuleDescriptor.IsCompiledInConfiguration predicate, with the target's actual platform, configuration, name, type, developer-tools and cooked-data values. No hard-coded Shipping condition substitutes for the descriptor. The Shipping-blacklist mutant must therefore admit the probe through this same predicate. The module remains empty, and both 5.1 host sources and target rules remain identical. Expected pair counts and release/port equality are unchanged; non-Shipping module totals gain the single probe. The failed first export is retained as harness-attempt evidence.
