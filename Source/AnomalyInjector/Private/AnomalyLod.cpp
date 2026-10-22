@@ -1,4 +1,5 @@
 #include "AnomalyLod.h"
+#include "Compat/AnomalyEngineCompat.h"
 
 #include "AnomalyTargeting.h"
 #include "AnomalyViewport.h"
@@ -92,7 +93,7 @@ AnomalyLod::FCurrentLod AnomalyLod::GetCurrentLod(UWorld* World, const UMeshComp
 		}
 
 		const UStaticMesh* Mesh = Static->GetStaticMesh();
-		const FStaticMeshRenderData* RenderData = Mesh ? Mesh->GetRenderData() : nullptr;
+		const FStaticMeshRenderData* RenderData = AnomalyCompat::StaticRenderData(Mesh);
 		if (!RenderData)
 		{
 			return Out;

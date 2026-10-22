@@ -2,6 +2,8 @@
 #include "Misc/CoreDelegates.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyBenchGate.h"
+#include "AnomalyViewport.h"
+#include "Compat/AnomalyCapabilities.h"
 
 DEFINE_LOG_CATEGORY(LogAnomaly);
 
@@ -11,6 +13,10 @@ public:
 	virtual void StartupModule() override
 	{
 		UE_LOG(LogAnomaly, Log, TEXT("AnomalyInjector module started."));
+#if ANOMALY_ENGINE_425
+		AnomalyViewport::SetNaniteComponentProbe([](const UPrimitiveComponent*) { return false; });
+		UE_LOG(LogAnomaly, Display, TEXT("Europa Phase A: stock-no-Nanite component probe; blinking, lighting_mismatch, lod_corruption; missing_object bench-only; texture/capture/control backends unavailable."));
+#endif
 		PostEngineInitHandle = FCoreDelegates::OnPostEngineInit.AddLambda([]()
 		{
 			AnomalyBenchGate::SweepUngatedLevers(TEXT("post_engine_init"));
@@ -19,6 +25,9 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+#if ANOMALY_ENGINE_425
+		AnomalyViewport::SetNaniteComponentProbe(nullptr);
+#endif
 		FCoreDelegates::OnPostEngineInit.Remove(PostEngineInitHandle);
 		PostEngineInitHandle.Reset();
 		UE_LOG(LogAnomaly, Log, TEXT("AnomalyInjector module shut down."));

@@ -46,4 +46,10 @@ private:
 	bool bLoggedFormat = false;
 };
 
+#else
+
+class FAnomalyPreviewTee
+{
+};
+
 #endif

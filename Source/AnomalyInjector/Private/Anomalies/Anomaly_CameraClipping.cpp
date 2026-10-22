@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_CameraClipping.h"
 #include "Camera/CameraTypes.h"
 
@@ -240,3 +242,5 @@ void FAnomaly_CameraClipping::Revert()
 	bActive = false;
 	bCacheValid = false;
 }
+
+#endif

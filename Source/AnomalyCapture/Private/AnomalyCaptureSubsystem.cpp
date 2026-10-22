@@ -1,4 +1,5 @@
 #include "AnomalyCaptureSubsystem.h"
+#if ANOMALY_CAPTURE
 #include "RHIDefinitions.h"
 #if __has_include("RHIFeatureLevel.h")
 #include "RHIFeatureLevel.h"
@@ -29,6 +30,22 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalyBenchGate.h"
 #include "AnomalyInstallState.h"
+#include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
+#include "HAL/IConsoleManager.h"
+#include "Misc/Paths.h"
+#include "Misc/DateTime.h"
+#include "Misc/ConfigCacheIni.h"
+#include "CoreGlobals.h"
+
+#endif
+#include "Compat/AnomalyStatsIncludes.h"
+#include "Subsystems/SubsystemCollection.h"
+#include "AnomalyCaptureLog.h"
+#include "AnomalyBenchGate.h"
+#include "AnomalyPreviewTee.h"
+#include "AnomalyRunLog.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
@@ -225,7 +242,9 @@ struct FSessionEventAccum
 };
 #endif
 
+#if ANOMALY_CAPTURE
 static void CountEntryReasons(const AnomalyLabel::FCaptureSnapshot& Snap, int32* ReasonEntries, int32& UnlabelledActive);
+#endif
 
 struct FAnomalyCaptureAsyncState
 {
@@ -705,10 +724,6 @@ UAnomalyCaptureSubsystem::UAnomalyCaptureSubsystem(FVTableHelper& Helper) : Supe
 
 UAnomalyCaptureSubsystem::~UAnomalyCaptureSubsystem() = default;
 
-bool UAnomalyCaptureSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
-{
-	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
-}
 
 TStatId UAnomalyCaptureSubsystem::GetStatId() const
 {

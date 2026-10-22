@@ -1,3 +1,4 @@
+#if ANOMALY_CONTROL_SERVER
 #include "ControlProtocol.h"
 
 namespace ControlProtocol
@@ -30,3 +31,5 @@ namespace ControlProtocol
 		return Header;
 	}
 }
+
+#endif

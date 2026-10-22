@@ -1,4 +1,5 @@
 #include "AnomalySelectorSubsystem.h"
+#include "Compat/AnomalyCapabilities.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
 #endif
@@ -41,6 +42,10 @@ namespace
 void UAnomalySelectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	if (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex]))
+	{
+		CycleAnomalyChoice();
+	}
 
 	KeyNext   = EKeys::Tab;
 	KeyPrev   = FKey();
@@ -58,10 +63,6 @@ void UAnomalySelectorSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-bool UAnomalySelectorSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
-{
-	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
-}
 
 TStatId UAnomalySelectorSubsystem::GetStatId() const
 {
@@ -165,7 +166,11 @@ void UAnomalySelectorSubsystem::SelectPrevious()
 
 void UAnomalySelectorSubsystem::CycleAnomalyChoice()
 {
-	AnomalyChoiceIndex = (AnomalyChoiceIndex + 1) % GNumAnomalyChoices;
+	for (int32 Step = 0; Step < GNumAnomalyChoices; ++Step)
+	{
+		AnomalyChoiceIndex = (AnomalyChoiceIndex + 1) % GNumAnomalyChoices;
+		if (AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex])) { break; }
+	}
 	UE_LOG(LogAnomaly, Log, TEXT("Selector.Cycle: anomaly -> '%s'."), *GetAnomalyChoice().ToString());
 }
 
@@ -256,7 +261,8 @@ TArray<FString> UAnomalySelectorSubsystem::GetVisibleActorNames() const
 
 FName UAnomalySelectorSubsystem::GetAnomalyChoice() const
 {
-	return GAnomalyChoices[AnomalyChoiceIndex];
+	const FName Id = GAnomalyChoices[AnomalyChoiceIndex];
+	return AnomalyCompat::SupportsAnomaly(Id) ? Id : NAME_None;
 }
 
 void UAnomalySelectorSubsystem::LogStatus() const
@@ -428,6 +434,7 @@ void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController*  )
 	Y += LineH;
 	for (int32 i = 0; i < GNumAnomalyChoices; ++i)
 	{
+		if (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[i])) { continue; }
 		const bool bSel = (i == AnomalyChoiceIndex);
 		Canvas->SetDrawColor(bSel ? FColor::Green : FColor(180, 180, 180));
 		Canvas->DrawText(Font, FString::Printf(TEXT("  %s %s"), bSel ? TEXT(">") : TEXT(" "), *GAnomalyChoices[i].ToString()), X, Y);

@@ -11,6 +11,13 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-04, 2026-10-22 — A3 shared closure committed for working Editor Development compiles.**
+> EC1 plugin sets, both toolchains, 8/5 descriptor pairs and all three Shipping mutants pass.
+> EA11 passes seven reflected headers and its mutant. No runtime or final-build gate is claimed.
+> Closure/reach: docs/europa/phase-a-a3-closure.md and phase-a-reach.json.
+> Working compile and protection results are recorded in D:/IA_Europa/Receipts/09404 and the run report.
+> A4a/A4b own final builds and strict execution; the host probe remains an empty skeleton. No push.
+
 > **094-03, 2026-10-16 — EUROPA A1/A2 RULES AND DESCRIPTOR LEVEL 1 PASS on feat/europa-port, from d7eee97.**
 > Three scoped D: hosts, CaptureBench e64d6f9, and frozen predictions before UBT. Both UBT rule sets compile.
 > 5.1: eight baseline/candidate matrices equal; 4.25: five expected matrices pass. Both Shipping mutants fail and restore.

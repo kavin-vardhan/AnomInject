@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Compat/AnomalyStatsIncludes.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "Compat/AnomalyTickableWorldSubsystem.h"
 #include "InputCoreTypes.h"
 #include "AnomalySelectorSubsystem.generated.h"
 
@@ -10,7 +10,7 @@ class UCanvas;
 class APlayerController;
 
 UCLASS()
-class ANOMALYINJECTOR_API UAnomalySelectorSubsystem : public UTickableWorldSubsystem
+class ANOMALYINJECTOR_API UAnomalySelectorSubsystem : public UAnomalyTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -50,7 +50,7 @@ public:
 	bool SetKeyBinding(FName Action, FKey Key);
 
 protected:
-	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+
 
 private:
 	void PollInput();

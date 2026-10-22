@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyCensus.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIShaderPlatform.h")
@@ -982,5 +983,7 @@ void FAnomalyCensus::CloseCycle()
 		(NotMeasuredTotal > NotMeasuredListed)
 			? *FString::Printf(TEXT(" (+%d more)"), NotMeasuredTotal - NotMeasuredListed) : TEXT(""));
 }
+
+#endif
 
 #endif

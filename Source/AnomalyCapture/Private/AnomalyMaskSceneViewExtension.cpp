@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyMaskSceneViewExtension.h"
 #include "RHI.h"
 #include "RHICommandList.h"
@@ -774,5 +775,7 @@ bool FAnomalyMaskSceneViewExtension::TakeMaskResult(uint64 RequestId, FAnomalyMa
 	}
 	return false;
 }
+
+#endif
 
 #endif

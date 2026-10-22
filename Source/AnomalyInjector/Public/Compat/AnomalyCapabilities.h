@@ -5,6 +5,9 @@
 
 namespace AnomalyCompat
 {
+	ANOMALYINJECTOR_API bool SupportsAnomaly(FName Id);
+	ANOMALYINJECTOR_API const TCHAR* UnsupportedAnomalyReason();
+
     struct FBackendCapabilities
     {
         bool Capture;

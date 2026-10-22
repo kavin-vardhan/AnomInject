@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/TexCorruptCore.h"
 #include "Engine/Texture.h"
 #include "Engine/TextureDefines.h"
@@ -396,3 +398,5 @@ namespace AnomalyTexCorrupt
 		}
 	}
 }
+
+#endif

@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_CorruptedTexture.h"
 
 #include "AnomalyInstallState.h"
@@ -342,3 +344,5 @@ unsigned char FAnomaly_CorruptedTexture::GetVisualConditionState() const
 	}
 	return (unsigned char)AnomalyInstall::Classify(Captured.Num(), Ours);
 }
+
+#endif

@@ -1,4 +1,5 @@
 #include "AnomalyInjectorSubsystem.h"
+#include "Compat/AnomalyCapabilities.h"
 #include "Engine/EngineBaseTypes.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
@@ -33,16 +34,32 @@
 
 #include "Anomalies/Anomaly_MissingObject.h"
 #include "Anomalies/Anomaly_Blinking.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_TimeDilation.h"
+#endif
 #include "Anomalies/Anomaly_LightingMismatch.h"
 #include "Anomalies/Anomaly_LodCorruption.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_LodPopping.h"
+#endif
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_CameraClipping.h"
+#endif
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_MissingTexture.h"
+#endif
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_CorruptedTexture.h"
+#endif
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_StuckLowMip.h"
+#endif
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_ChangeCase.h"
+#endif
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_TexCorrupt.h"
+#endif
 #include "AnomalyTexCorrupt.h"
 #include "Engine/Texture2D.h"
 
@@ -62,25 +79,30 @@ UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
 
 UAnomalyInjectorSubsystem::UAnomalyInjectorSubsystem()
 {
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder(
-		TEXT("/AnomalyInjector/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"));
-	MissingTextureChecker = CheckerFinder.Object;
+#if ANOMALY_ENGINE_51
+	if (AnomalyCompat::PhaseABackends().TextureAdapters)
+	{
+		static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder(
+			TEXT("/AnomalyInjector/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"));
+		MissingTextureChecker = CheckerFinder.Object;
 
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PinkFinder(
-		TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
-	CorruptedTexturePink = PinkFinder.Object;
+		static ConstructorHelpers::FObjectFinder<UMaterialInterface> PinkFinder(
+			TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
+		CorruptedTexturePink = PinkFinder.Object;
 
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptUvFinder(
-		TEXT("/AnomalyInjector/Materials/M_CorruptTex_UV.M_CorruptTex_UV"));
-	TexCorruptUv = TexCorruptUvFinder.Object;
+		static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptUvFinder(
+			TEXT("/AnomalyInjector/Materials/M_CorruptTex_UV.M_CorruptTex_UV"));
+		TexCorruptUv = TexCorruptUvFinder.Object;
 
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptNormalFinder(
-		TEXT("/AnomalyInjector/Materials/M_CorruptTex_Normal.M_CorruptTex_Normal"));
-	TexCorruptNormal = TexCorruptNormalFinder.Object;
+		static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptNormalFinder(
+			TEXT("/AnomalyInjector/Materials/M_CorruptTex_Normal.M_CorruptTex_Normal"));
+		TexCorruptNormal = TexCorruptNormalFinder.Object;
 
-	static ConstructorHelpers::FObjectFinder<UTexture2D> TexCorruptNoiseFinder(
-		TEXT("/AnomalyInjector/Textures/T_CorruptTex_NoiseN.T_CorruptTex_NoiseN"));
-	TexCorruptNoise = TexCorruptNoiseFinder.Object;
+		static ConstructorHelpers::FObjectFinder<UTexture2D> TexCorruptNoiseFinder(
+			TEXT("/AnomalyInjector/Textures/T_CorruptTex_NoiseN.T_CorruptTex_NoiseN"));
+		TexCorruptNoise = TexCorruptNoiseFinder.Object;
+	}
+#endif
 }
 
 UMaterialInterface* UAnomalyInjectorSubsystem::GetMissingTextureMaterial() const
@@ -247,25 +269,48 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	auto Register = [this](TUniquePtr<IAnomaly> Anomaly)
 	{
 		const FName Id = Anomaly->GetId();
-		Anomalies.Add(Id, MoveTemp(Anomaly));
+		if (AnomalyCompat::SupportsAnomaly(Id))
+		{
+			Anomalies.Add(Id, MoveTemp(Anomaly));
+		}
 	};
 	Register(MakeUnique<FAnomaly_MissingObject>());
 	Register(MakeUnique<FAnomaly_Blinking>());
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_TimeDilation>());
+#endif
 	Register(MakeUnique<FAnomaly_LightingMismatch>());
 	Register(MakeUnique<FAnomaly_LodCorruption>());
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_LodPopping>());
+#endif
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_CameraClipping>());
+#endif
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_MissingTexture>());
+#endif
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
+#endif
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_StuckLowMip>());
+#endif
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<AnomalyTexCorrupt::FAnomaly_TexCorrupt>(FName(TEXT("uv_corruption")), AnomalyTexCorrupt::EFamily::UV));
+#endif
+#if ANOMALY_ENGINE_51
 	Register(MakeUnique<AnomalyTexCorrupt::FAnomaly_TexCorrupt>(FName(TEXT("normal_corruption")), AnomalyTexCorrupt::EFamily::Normal));
+#endif
 #if !UE_BUILD_SHIPPING
 	if (AnomalyBenchGate::IsEnabled())
 	{
+#if ANOMALY_ENGINE_51
 		Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
+#endif
+#if ANOMALY_ENGINE_51
 		Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
+#endif
 	}
 #endif
 	AnomalyBenchGate::SweepUngatedLevers(TEXT("subsystem_init"));
@@ -469,10 +514,6 @@ void UAnomalyInjectorSubsystem::OnWatchedTargetEndPlay(AActor* Actor, EEndPlayRe
 	}
 }
 
-bool UAnomalyInjectorSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
-{
-	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
-}
 
 TStatId UAnomalyInjectorSubsystem::GetStatId() const
 {
@@ -804,6 +845,11 @@ void UAnomalyInjectorSubsystem::ListAnomalies() const
 
 bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FString>& Args)
 {
+	if (!AnomalyCompat::SupportsAnomaly(Id))
+	{
+		UE_LOG(LogAnomaly, Warning, TEXT("ApplyAnomaly %s: %s"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());
+		return false;
+	}
 	TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
 	if (!Found || !Found->IsValid())
 	{
@@ -949,22 +995,32 @@ bool UAnomalyInjectorSubsystem::IsIdFireLive(const FName& Id) const
 
 bool UAnomalyInjectorSubsystem::IsStuckMipRestoring() const
 {
+#if ANOMALY_ENGINE_51
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(ANSI_TO_TCHAR(AnomalyExclusion::M52Id)));
 	if (!Found || !Found->IsValid())
 	{
 		return false;
 	}
 	return static_cast<const FAnomaly_StuckLowMip*>(Found->Get())->IsRestoringAny();
+
+#else
+	return false;
+#endif
 }
 
 bool UAnomalyInjectorSubsystem::IsStuckMipRestoringPastTimeout() const
 {
+#if ANOMALY_ENGINE_51
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(ANSI_TO_TCHAR(AnomalyExclusion::M52Id)));
 	if (!Found || !Found->IsValid())
 	{
 		return false;
 	}
 	return static_cast<const FAnomaly_StuckLowMip*>(Found->Get())->IsRestoringPastTimeout(AnomalyDefaults::GetStuckMipRestoreTimeout());
+
+#else
+	return false;
+#endif
 }
 
 FString UAnomalyInjectorSubsystem::PartnerEventKey(const FName& Id) const
@@ -1168,12 +1224,19 @@ FString UAnomalyInjectorSubsystem::GetAnomalyLastRefusalReason(const FName& Id) 
 bool UAnomalyInjectorSubsystem::GetCameraClippingFrameEvaluation(FAnomalyNearClipSlabResult& OutSlab,
 	bool& bOutSphereProxy) const
 {
+#if ANOMALY_ENGINE_51
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(TEXT("camera_clipping")));
 	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
 	{
 		return false;
 	}
 	return static_cast<const FAnomaly_CameraClipping*>(Found->Get())->GetFrameEvaluation(OutSlab, bOutSphereProxy);
+
+#else
+	OutSlab = FAnomalyNearClipSlabResult();
+	bOutSphereProxy = false;
+	return false;
+#endif
 }
 
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const

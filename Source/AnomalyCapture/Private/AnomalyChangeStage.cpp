@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyChangeStage.h"
 #include "Dom/JsonValue.h"
 #include "SceneInterface.h"
@@ -699,4 +700,6 @@ TSharedPtr<FJsonObject> FAnomalyChangeStage::Summary() const
 	for (const auto& C : Counters) { J->SetNumberField(FString(TEXT("change_")) + C.Key, (double)C.Value); }
 	return J;
 }
+#endif
+
 #endif

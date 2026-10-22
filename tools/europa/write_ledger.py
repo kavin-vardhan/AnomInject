@@ -197,7 +197,7 @@ def classification(scope, path, kind, change=None, build_ok=False):
         return 'tooling', 'EB1 orchestration overhead; physical volume retained'
     if scope == 'engine51':
         name = Path(p).name
-        allowed = name in ('sourcefilecache.bin', 'actionhistory.bin', 'dependencycache.bin', 'makefile.ubt', 'timestamp') or name.endswith(('.uhtmanifest', '.uhtpath'))
+        allowed = name in ('sourcefilecache.bin', 'actionhistory.bin', 'dependencycache.bin', 'makefile.ubt', 'makefile.bin', 'timestamp') or name.endswith(('.uhtmanifest', '.uhtpath', '.deps'))
         if kind == 'build' and build_ok and '/engine/intermediate/build/' in p and allowed:
             return 'engine51_metadata', 'ED4 successful NoEngineChanges build with zero engine actions'
         return 'STOP', '5.1 engine write outside admitted ED4 metadata'
@@ -241,6 +241,8 @@ def classification(scope, path, kind, change=None, build_ok=False):
             return 'port_C_exception', 'EA4 crash monitor temp'
         return 'STOP', 'UBT/UHT/cl/link/mspdbsrv/vctip TEMP must resolve to D'
     if scope in ('windows', 'wer_system', 'wer_user'):
+        if kind == 'build':
+            return 'port_C_exception', 'EA4 Windows/WER: conservatively charge build window including compiler children'
         return 'foreign', 'Windows-managed files; compiler TEMP/TMP explicitly D'
     if scope == 'epic':
         return 'foreign', 'foreign launcher and EOS services'
@@ -339,6 +341,13 @@ def run_child(argv, cwd=None, acceptable=(0,)):
         text=True, encoding='utf-8', errors='replace', bufsize=1)
     receipt['pid'] = proc.pid
     dump(path, receipt)
+    observer = None
+    child_result = {}
+    stop_observer = threading.Event()
+    if env.get('EUROPA_BUILD_CHILDREN') == '1':
+        from compile_children import observe
+        observer = threading.Thread(target=observe, args=(proc.pid, stop_observer, child_result))
+        observer.start()
     def consume():
         with (folder / f'child-{lognum:03}.log').open('w', encoding='utf-8') as output:
             for line in proc.stdout:
@@ -361,8 +370,14 @@ def run_child(argv, cwd=None, acceptable=(0,)):
         raise
     finally:
         thread.join()
+        if observer:
+            stop_observer.set()
+            observer.join()
+            receipt['compile_children'] = child_result
         receipt.update({'ended_utc': now(), 'exit_code': code, 'duration_seconds': time.monotonic() - start})
         dump(path, receipt)
+    if observer and child_result.get('result') != 'PASS':
+        raise RuntimeError('Compile child observer failed: ' + json.dumps(child_result))
     if code not in acceptable:
         raise RuntimeError('Child exit ' + str(code) + ': ' + receipt['windows_command_line'])
     return code

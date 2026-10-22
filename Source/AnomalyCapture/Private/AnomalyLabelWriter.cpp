@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyLabelWriter.h"
 #include "Containers/Set.h"
 #include "HAL/CriticalSection.h"
@@ -1661,5 +1662,7 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureShotCmd(
 				UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture.Shot: failed (run inside a Game/PIE world with a live viewport)."));
 			}
 		}));
+
+#endif
 
 #endif

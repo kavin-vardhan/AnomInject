@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_LodPopping.h"
 
 #include "AnomalyLod.h"
@@ -277,3 +279,5 @@ void FAnomaly_LodPopping::Revert()
 	bPoppedPhase = false;
 	bActive = false;
 }
+
+#endif

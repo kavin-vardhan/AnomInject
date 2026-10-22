@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyRunLog.h"
 
 #include "Containers/StringConv.h"
@@ -125,3 +126,23 @@ void FAnomalyRunLog::Flush()
 		Writer->Flush();
 	}
 }
+
+#endif
+
+#if !ANOMALY_CAPTURE
+#include "AnomalyRunLog.h"
+#include "Serialization/Archive.h"
+
+FAnomalyRunLog::FAnomalyRunLog() = default;
+FAnomalyRunLog::~FAnomalyRunLog() = default;
+bool FAnomalyRunLog::Open(const FString&, const FString&) { return false; }
+void FAnomalyRunLog::Close(const FString&) {}
+bool FAnomalyRunLog::IsOpen() const { return false; }
+FString FAnomalyRunLog::GetFilePath() const { return FString(); }
+int32 FAnomalyRunLog::GetLinesWritten() const { return 0; }
+void FAnomalyRunLog::Serialize(const TCHAR*, ELogVerbosity::Type, const FName&, const double) {}
+void FAnomalyRunLog::Serialize(const TCHAR*, ELogVerbosity::Type, const FName&) {}
+void FAnomalyRunLog::Flush() {}
+bool FAnomalyRunLog::AcceptsCategory(const FName&) { return false; }
+void FAnomalyRunLog::WriteLineLocked(const FString&) {}
+#endif

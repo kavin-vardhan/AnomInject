@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Compat/AnomalyStatsIncludes.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "Compat/AnomalyTickableWorldSubsystem.h"
 #include "InputCoreTypes.h"
 #include "Math/RandomStream.h"
 #include "AnomalyCensusProvider.h"
@@ -42,7 +42,7 @@ struct FAnomalyYieldTally
 };
 
 UCLASS()
-class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UTickableWorldSubsystem
+class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UAnomalyTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -115,7 +115,7 @@ public:
 	bool SetKeyBinding(FName Action, FKey Key);
 
 protected:
-	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+
 
 private:
 	void PollInput();

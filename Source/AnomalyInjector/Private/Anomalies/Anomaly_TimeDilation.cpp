@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_TimeDilation.h"
 
 #include "AnomalyInjectorLog.h"
@@ -55,3 +57,5 @@ void FAnomaly_TimeDilation::Revert()
 	PreviousDilation = 1.0f;
 	bActive = false;
 }
+
+#endif

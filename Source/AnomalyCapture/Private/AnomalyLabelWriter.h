@@ -1,4 +1,5 @@
 #pragma once
+#if ANOMALY_CAPTURE
 
 #include "CoreMinimal.h"
 #include "Containers/Map.h"
@@ -525,3 +526,5 @@ namespace AnomalyLabel
 
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& Annotation);
 }
+
+#endif

@@ -1,4 +1,6 @@
 #pragma once
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 
 #include "CoreMinimal.h"
 #if __has_include("Materials/MaterialParameters.h")
@@ -452,3 +454,5 @@ namespace AnomalyTexCorrupt
 
 	FString CensusKey(const FString& Reason, const FString& Sub);
 }
+
+#endif

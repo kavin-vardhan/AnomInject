@@ -1,4 +1,6 @@
 #pragma once
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
@@ -133,3 +135,5 @@ private:
 	bool bUseAllMips = false;
 	bool bActive = false;
 };
+
+#endif

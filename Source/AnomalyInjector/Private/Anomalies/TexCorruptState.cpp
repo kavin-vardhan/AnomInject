@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/TexCorruptCore.h"
 #include "Anomalies/TexCorruptPure.h"
 
@@ -911,3 +913,5 @@ namespace AnomalyTexCorrupt
 		return Reason;
 	}
 }
+
+#endif

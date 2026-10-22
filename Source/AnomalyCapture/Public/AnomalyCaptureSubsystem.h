@@ -4,7 +4,7 @@
 #include "Compat/AnomalyStatsIncludes.h"
 #include "Compat/AnomalySharedPointerIncludes.h"
 #include "Templates/SharedPointerInternals.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "Compat/AnomalyTickableWorldSubsystem.h"
 #include "HAL/FileManager.h"
 #include "Engine/EngineBaseTypes.h"
 #include "AnomalyViewport.h"
@@ -64,7 +64,7 @@ struct FCameraClipRunAccum
 };
 
 UCLASS()
-class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UTickableWorldSubsystem
+class ANOMALYCAPTURE_API UAnomalyCaptureSubsystem : public UAnomalyTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -211,7 +211,7 @@ public:
 	const FLastRunPacing& GetLastRunPacing() const { return LastRunPacing; }
 
 protected:
-	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+
 
 private:
 	enum class ECapturePhase : uint8

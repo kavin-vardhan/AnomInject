@@ -1,3 +1,4 @@
+#if ANOMALY_CONTROL_SERVER
 #include "ControlSnapshot.h"
 #include "ControlProtocol.h"
 
@@ -277,3 +278,5 @@ namespace ControlSnapshot
 		return Serialize(Root);
 	}
 }
+
+#endif

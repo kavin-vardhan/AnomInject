@@ -16,11 +16,11 @@ public:
 	AAnomalyBenchTwoPartActor();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AnomalyBench")
-	TObjectPtr<USceneComponent> Root;
+	USceneComponent* Root = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AnomalyBench")
-	TObjectPtr<UStaticMeshComponent> PartEligible;
+	UStaticMeshComponent* PartEligible = nullptr;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AnomalyBench")
-	TObjectPtr<UStaticMeshComponent> PartIneligible;
+	UStaticMeshComponent* PartIneligible = nullptr;
 };

@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_StuckLowMip.h"
 #include "Anomalies/Anomaly_TexCorrupt.h"
 #include "RHIDefinitions.h"
@@ -2167,4 +2169,6 @@ static FAutoConsoleCommandWithWorldAndArgs GBenchStuckMipUnlinkLockCmd(
 				TEXT("the streamer defeating the bias."),
 				GStuckMipUnlinkLock ? TEXT("ON") : TEXT("off"));
 		}));
+#endif
+
 #endif

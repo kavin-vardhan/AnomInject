@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalySceneViewExtension.h"
 #include "RHI.h"
 #include "RHIResources.h"
@@ -266,5 +267,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }
+
+#endif
 
 #endif

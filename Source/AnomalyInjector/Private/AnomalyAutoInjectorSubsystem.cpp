@@ -1,4 +1,5 @@
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "Compat/AnomalyCapabilities.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
 #endif
@@ -124,7 +125,7 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 
 	for (const FName& Id : GAutoPoolDefaultEnabled)
 	{
-		EnabledIds.Add(Id);
+		if (AnomalyCompat::SupportsAnomaly(Id)) { EnabledIds.Add(Id); }
 	}
 
 	UE_LOG(LogAnomaly, Log,
@@ -153,10 +154,6 @@ void UAnomalyAutoInjectorSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-bool UAnomalyAutoInjectorSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
-{
-	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
-}
 
 TStatId UAnomalyAutoInjectorSubsystem::GetStatId() const
 {
@@ -300,7 +297,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	TArray<FAnomalyPartnerExclusion> ExcludedWhy;
 	for (const FName& Id : GAutoPool)
 	{
-		if (!EnabledIds.Contains(Id) || IsIdLive(Id))
+		if (!AnomalyCompat::SupportsAnomaly(Id) || !EnabledIds.Contains(Id) || IsIdLive(Id))
 		{
 			continue;
 		}
@@ -700,6 +697,11 @@ void UAnomalyAutoInjectorSubsystem::ClearCensusProvider()
 
 bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& ActorName, const TArray<FString>& ExtraArgs)
 {
+	if (!AnomalyCompat::SupportsAnomaly(Id))
+	{
+		UE_LOG(LogAnomaly, Warning, TEXT("Auto admission %s: %s"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());
+		return false;
+	}
 	UWorld* World = GetWorld();
 	UAnomalyInjectorSubsystem* Injector = ResolveInjector(World);
 	if (!World || !Injector)
@@ -843,6 +845,11 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 
 bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 {
+	if (!AnomalyCompat::SupportsAnomaly(Id))
+	{
+		UE_LOG(LogAnomaly, Warning, TEXT("Auto admission %s: %s"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());
+		return false;
+	}
 	bool bInPool = false;
 	for (const FName& PoolId : GAutoPool)
 	{
@@ -874,7 +881,7 @@ void UAnomalyAutoInjectorSubsystem::SetAllAnomaliesEnabled(bool bInEnabled)
 	{
 		for (const FName& Id : GAutoPool)
 		{
-			EnabledIds.Add(Id);
+			if (AnomalyCompat::SupportsAnomaly(Id)) { EnabledIds.Add(Id); }
 		}
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Pool all -> %s."), bInEnabled ? TEXT("ON") : TEXT("OFF"));

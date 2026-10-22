@@ -9,11 +9,12 @@ import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE_ROOT = os.path.join(PLUGIN_ROOT, "Source")
 GEN_DIR_NAME = "StrictIncludeCheckGenerated"
-STRICT_SENTINEL = "IncludeOrderVersion = EngineIncludeOrderVersion.Latest;"
+STRICT_SENTINEL = 'PrivateDefinitions.Add("ANOMALY_STRICT_INCLUDE=1");'
 STRICT_LINES = [
     "bUseUnity = false;",
     "PCHUsage = PCHUsageMode.NoPCHs;",
@@ -31,6 +32,8 @@ def sha256(path):
 
 def git(*args):
     r = subprocess.run(["git", "-C", PLUGIN_ROOT] + list(args), capture_output=True, text=True)
+    if r.returncode:
+        raise RuntimeError(r.stderr)
     return r.stdout.strip()
 
 
@@ -150,20 +153,6 @@ def discover_targets(host_dir):
     return found
 
 
-def engine_root_for(uproject):
-    data = json.load(open(uproject, encoding="utf-8-sig"))
-    assoc = data.get("EngineAssociation", "")
-    if os.path.isdir(assoc):
-        return assoc
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Epic Games\Unreal Engine\Builds") as k:
-            val, _ = winreg.QueryValueEx(k, assoc)
-            return val
-    except OSError:
-        return None
-
-
 def parse_diagnostics(output):
     diags = {}
     for line in output.splitlines():
@@ -187,50 +176,93 @@ def module_sources(mod):
     return sorted(out)
 
 
-def verify_strict_took_effect(host_dir, target, kind, modules):
-    if kind == "Editor":
-        base = os.path.join(PLUGIN_ROOT, "Intermediate", "Build", "Win64", "UnrealEditor", "Development")
-    else:
-        base = os.path.join(host_dir, "Intermediate", "Build", "Win64", target, "Development")
+def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, engine_name):
+    data = json.loads(Path(actions_path).read_text(encoding="utf-8-sig"))
+    actions = [x for x in data["Actions"] if x["Type"] == "Compile"]
     problems = []
     per_mod = {}
     gen_seen = 0
     for mod in modules:
-        mdir = os.path.join(base, mod["name"])
+        compiled = set()
+        generated = set()
+        for action in actions:
+            paths = [Path(p) for p in action.get("PrerequisiteItems", [])]
+            outputs = [Path(p) for p in action.get("ProducedItems", [])]
+            if not any(mod["name"] in p.parts for p in outputs):
+                continue
+            responses = [p for p in paths if p.suffix.lower() in (".response", ".rsp")]
+            if not responses:
+                problems.append("no response for actual compile action: " + str(outputs))
+                continue
+            bodies = [p.read_text(encoding="utf-8-sig", errors="replace") for p in responses]
+            if any(re.search(r"/(?:Yu|Yc)\b", body) for body in bodies):
+                problems.append("PCH in actual compile action: " + str(responses))
+                continue
+            cpp = [p for p in paths if p.suffix.lower() == ".cpp"]
+            if any(p.name.startswith("Module.") and not p.name.endswith(".gen.cpp") for p in cpp):
+                problems.append("unity compile in strict action: " + str(cpp))
+            compiled.update(p.name for p in cpp)
+            for p in cpp:
+                if p.name.endswith(".gen.cpp"):
+                    generated.add(p.resolve())
+                    text = p.read_text(encoding="utf-8-sig", errors="replace")
+                    for include in re.findall(r'#include\s+"([^"]+\.gen\.cpp)"', text):
+                        nested = Path(include)
+                        generated.add((nested if nested.is_absolute() else p.parent / nested).resolve())
         count = 0
         for fn in module_sources(mod):
-            rsp = os.path.join(mdir, fn + ".obj.response")
-            if not os.path.isfile(rsp):
-                problems.append("no per-file compile response (unity still on?): " + rsp)
-                continue
-            body = open(rsp, encoding="utf-8", errors="replace").read()
-            if "/Yu" in body or "/Yc" in body:
-                problems.append("PCH still in use: " + rsp)
+            if fn not in compiled:
+                problems.append("source absent from actual no-PCH compile actions: " + mod["name"] + "/" + fn)
                 continue
             count += 1
             if fn.startswith("SIC_"):
                 gen_seen += 1
+        target_dir = engine_name if kind == "Editor" else target
+        required_generated = set()
+        for root in (Path(PLUGIN_ROOT) / "Intermediate/Build/Win64", Path(host_dir) / "Intermediate/Build/Win64"):
+            for p in root.rglob("*.gen.cpp"):
+                if target_dir in p.parts and "Inc" in p.parts and mod["name"] in p.parts:
+                    required_generated.add(p.resolve())
+        for missing in sorted(required_generated - generated):
+            problems.append("generated TU absent from actual no-PCH actions: " + str(missing))
+        if any(".generated.h" in Path(p).read_text(encoding="utf-8-sig") for p in Path(mod["dir"]).rglob("*.h")) and not required_generated:
+            problems.append("reflected module has zero generated-TU denominator: " + mod["name"])
         per_mod[mod["name"]] = count
+    if not actions or not gen_seen:
+        problems.append("zero compile/header denominator")
     return per_mod, gen_seen, problems
 
 
 def run_build(engine_root, target, uproject, log_path):
-    bat = os.path.join(engine_root, "Engine", "Build", "BatchFiles", "Build.bat")
-    cmd = [bat, target, "Win64", "Development", "-project=" + uproject, "-waitmutex"]
+    sys.path.insert(0, str(Path(__file__).parent / "europa"))
+    import write_ledger as ledger
+    engine = Path(engine_root)
+    is425 = json.loads((engine / "Engine/Build/Build.version").read_text())["MajorVersion"] == 4
+    ubt = engine / ("Engine/Binaries/DotNET/UnrealBuildTool.exe" if is425 else "Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe")
+    folder = Path(log_path).with_suffix("")
+    folder.mkdir(exist_ok=False)
+    os.environ["UE-CmdLineArgs"] = "-UserDir=" + (folder / "UHT").as_posix() + "/ -ShaderWorkingDir=" + (folder / "ShaderWorking").as_posix() + "/"
+    if not is425:
+        os.environ["DOTNET_ROOT"] = str(engine / "Engine/Binaries/ThirdParty/DotNet/6.0.302/windows")
+        os.environ["DOTNET_MULTILEVEL_LOOKUP"] = "0"
+    cmd = [str(ubt), target, "Win64", "Development", "-Project=" + uproject,
+           "-Log=" + str(folder / "UBT.log"), "-NoEngineChanges", "-NoBuildUHT", "-NoHotReload", "-NoHotReloadFromIDE", "-NoXGE", "-MaxParallelActions=1"]
     t0 = time.time()
-    chunks = []
-    with open(log_path, "w", encoding="utf-8") as f:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        for raw in p.stdout:
-            line = raw.decode("utf-8", errors="replace")
-            chunks.append(line)
-            f.write(line)
-            f.flush()
-        p.wait()
-    out = "".join(chunks)
+    action_path = folder / "actions.json"
+    plan_exit = ledger.run_child(cmd + ["-WriteOutdatedActions=" + str(action_path)], cwd=Path(uproject).parent, acceptable=tuple(range(256)))
+    code = plan_exit
+    if plan_exit == 0:
+        actions_data = json.loads(action_path.read_text(encoding="utf-8-sig"))
+        for action in actions_data["Actions"]:
+            mutations = action.get("ProducedItems", []) + action.get("DeleteItems", [])
+            if any(not Path(p).resolve().is_relative_to(Path(uproject).parent.resolve()) for p in mutations):
+                raise RuntimeError("Strict action outside owned host")
+        code = ledger.run_child(cmd, cwd=Path(uproject).parent, acceptable=tuple(range(256)))
+    out = (folder / "UBT.log").read_text(encoding="utf-8-sig", errors="replace")
+    Path(log_path).write_text(out, encoding="utf-8")
     actions = re.findall(r"Building (\d+) action", out)
-    return {"target": target, "exit": p.returncode, "seconds": round(time.time() - t0, 1), "log": log_path,
-            "actions": int(actions[-1]) if actions else None, "output": out}
+    return {"target": target, "exit": code, "seconds": round(time.time() - t0, 1), "log": log_path,
+            "actions": int(actions[-1]) if actions else None, "output": out, "actions_path": str(action_path)}
 
 
 def summarize(label, res, diags):
@@ -245,38 +277,57 @@ def summarize(label, res, diags):
 
 
 def main():
+    global PLUGIN_ROOT, SOURCE_ROOT, STRICT_LINES
     ap = argparse.ArgumentParser()
     ap.add_argument("--uproject", required=True)
-    ap.add_argument("--engine-root")
+    ap.add_argument("--engine-root", required=True)
+    ap.add_argument("--plugin-root", required=True)
     ap.add_argument("--targets", nargs="*")
     ap.add_argument("--log-dir")
-    ap.add_argument("--no-header-check", action="store_true")
-    ap.add_argument("--no-normal-rebuild", action="store_true")
     a = ap.parse_args()
 
     uproject = os.path.abspath(a.uproject)
     host_dir = os.path.dirname(uproject)
-    engine_root = a.engine_root or engine_root_for(uproject)
+    engine_root = os.path.abspath(a.engine_root)
+    owned = Path("D:/IA_Europa")
+    allowed_hosts = [owned / "StylizedParisStreet", owned / "Baseline51/StackOBot", owned / "ReGate51/StackOBot"]
+    host = Path(host_dir)
+    plugin = Path(a.plugin_root).absolute()
+    if host not in allowed_hosts or host.resolve(strict=True) != host or plugin != host / "Plugins/AnomalyInjector" or plugin.resolve(strict=True) != plugin:
+        raise RuntimeError("Strict runs are restricted to the three physical-D port checkouts")
+    PLUGIN_ROOT, SOURCE_ROOT = str(plugin), str(plugin / "Source")
     if not engine_root or not os.path.isdir(engine_root):
         print("REFUSED: engine root not found for " + uproject)
         return 2
+    version = json.loads((Path(engine_root) / "Engine/Build/Build.version").read_text())
+    pair = (version["MajorVersion"], version["MinorVersion"])
+    required_engine = Path("E:/EpicGames/UE_4.25") if host == allowed_hosts[0] else Path("D:/UESource/UnrealEngine")
+    if Path(engine_root).resolve(strict=True) != required_engine or pair != ((4, 25) if host == allowed_hosts[0] else (5, 1)):
+        raise RuntimeError("Explicit engine/host version mismatch")
+    engine_name = "UE4Editor" if pair == (4, 25) else "UnrealEditor"
+    if pair == (5, 1):
+        STRICT_LINES = STRICT_LINES + ["IncludeOrderVersion = EngineIncludeOrderVersion.Latest;"]
     found = discover_targets(host_dir)
     kinds = {name: kind for kind, name in found.items()}
     targets = a.targets or [found[k] for k in ("Game", "Editor") if k in found]
     for t in targets:
         if t not in kinds:
-            kinds[t] = "Editor" if t.endswith("Editor") else "Game"
+            raise RuntimeError("Target is not declared in this owned host: " + t)
     if not targets:
         print("REFUSED: no Game/Editor target found under " + host_dir)
         return 2
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     log_dir = a.log_dir or os.path.join(host_dir, "Saved", "StrictIncludeBuild", stamp)
+    if not Path(log_dir).resolve().is_relative_to(owned.resolve(strict=True)):
+        raise RuntimeError("Strict evidence must stay on physical D under IA_Europa")
+    if not os.environ.get("EUROPA_OPERATION_DIR"):
+        raise RuntimeError("Strict build requires an active scoped write-ledger operation")
     os.makedirs(log_dir, exist_ok=True)
 
     modules = find_modules()
     for mod in modules:
         text = open(mod["build_cs"], encoding="utf-8-sig").read()
-        if STRICT_SENTINEL in text:
+        if STRICT_SENTINEL in text or "EngineIncludeOrderVersion.Latest" in text:
             print("REFUSED: %s already carries the strict block (a previous run did not restore it). Restore it with git first." % mod["build_cs"])
             return 2
         if os.path.exists(os.path.join(mod["dir"], "Private", GEN_DIR_NAME)):
@@ -287,6 +338,8 @@ def main():
     print("host=%s engine=%s targets=%s log_dir=%s" % (uproject, engine_root, targets, log_dir))
     print("strict settings per plugin module: " + " ".join(STRICT_LINES))
     status_before = git("status", "--porcelain")
+    if status_before:
+        raise RuntimeError("Commit first; strict verification requires a clean checkout")
     backup_dir = os.path.join(log_dir, "buildcs_backup")
     os.makedirs(backup_dir, exist_ok=True)
     originals = {}
@@ -301,11 +354,10 @@ def main():
             shutil.copy2(mod["build_cs"], os.path.join(backup_dir, os.path.basename(mod["build_cs"])))
         for mod in modules:
             originals[mod["build_cs"]] = patch_build_cs(mod)
-            if not a.no_header_check:
-                gd, tus = generate_header_tus(mod)
-                if gd:
-                    gen_dirs.append(gd)
-                    all_tus.extend(tus)
+            gd, tus = generate_header_tus(mod)
+            if gd:
+                gen_dirs.append(gd)
+                all_tus.extend(tus)
         print("header self-containment TUs generated: %d" % len(all_tus))
         with open(os.path.join(log_dir, "header_tus.json"), "w") as f:
             json.dump(all_tus, f, indent=1)
@@ -313,7 +365,10 @@ def main():
             res = run_build(engine_root, t, uproject, os.path.join(log_dir, "strict_%s.log" % t))
             diags = parse_diagnostics(res["output"])
             errs, warns = summarize("STRICT", res, diags)
-            per_mod, gen_seen, problems = verify_strict_took_effect(host_dir, t, kinds[t], modules)
+            if Path(res["actions_path"]).is_file():
+                per_mod, gen_seen, problems = verify_strict_took_effect(host_dir, t, kinds[t], modules, res["actions_path"], engine_name)
+            else:
+                per_mod, gen_seen, problems = {}, 0, ["No action list; strict compile not proven"]
             print("    lever check: per-file no-PCH compile responses per module %s, header TUs %d of %d, problems %d" % (
                 per_mod, gen_seen, len(all_tus), len(problems)))
             for p in problems:
@@ -330,7 +385,14 @@ def main():
             with open(path, "wb") as f:
                 f.write(raw)
         for gd in gen_dirs:
-            shutil.rmtree(gd, ignore_errors=True)
+            resolved = Path(gd).resolve(strict=True)
+            if not resolved.is_relative_to(plugin.resolve(strict=True)) or resolved.name != GEN_DIR_NAME:
+                raise RuntimeError("Generated cleanup path escaped owned plugin")
+            receipt = {str(Path(row["tu"]).resolve()) for row in all_tus if Path(row["tu"]).parent == Path(gd)}
+            actual = {str(path.resolve()) for path in resolved.rglob("*") if path.is_file()}
+            if actual != receipt:
+                raise RuntimeError("Unreceipted file in generated cleanup directory")
+            shutil.rmtree(resolved)
         ok = all(sha256(p) == h for p, h in hashes.items()) and not any(os.path.exists(g) for g in gen_dirs)
         status_after = git("status", "--porcelain")
         ok = ok and status_after == status_before
@@ -340,7 +402,7 @@ def main():
             "identical" if all(sha256(p) == h for p, h in hashes.items()) else "DIFFER",
             not any(os.path.exists(g) for g in gen_dirs), status_after == status_before))
     normal_bad = 0
-    if not a.no_normal_rebuild:
+    if results["restore_ok"]:
         for t in targets:
             res = run_build(engine_root, t, uproject, os.path.join(log_dir, "normal_%s.log" % t))
             diags = parse_diagnostics(res["output"])

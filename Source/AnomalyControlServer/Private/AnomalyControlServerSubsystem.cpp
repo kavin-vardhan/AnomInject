@@ -106,10 +106,6 @@ UAnomalyControlServerSubsystem::UAnomalyControlServerSubsystem(FVTableHelper& He
 
 UAnomalyControlServerSubsystem::~UAnomalyControlServerSubsystem() = default;
 
-bool UAnomalyControlServerSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
-{
-	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
-}
 
 TStatId UAnomalyControlServerSubsystem::GetStatId() const
 {

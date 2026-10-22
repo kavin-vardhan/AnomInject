@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyChangeStage.h"
 #include "Dom/JsonValue.h"
 #if ANOMALY_CAPTURE
@@ -283,4 +284,6 @@ void FAnomalyChangeStage::MeasureLocked(FPending& Item, EAnomalyChangeReason Rea
 		if (W.Label.Window == 3) { ReleaseColourLocked(Phase.Reference); Phase.ReferenceReceipt.Reset(); }
 	}
 }
+#endif
+
 #endif

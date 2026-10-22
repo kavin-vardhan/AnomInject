@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyPreviewCapture.h"
 
 #include "Engine/World.h"
@@ -122,3 +123,29 @@ namespace AnomalyPreview
 		return EncodePixels(Format, Pixels, OutWidth, OutHeight, OutBytes, JpegQuality);
 	}
 }
+
+#endif
+
+#if !ANOMALY_CAPTURE
+#include "AnomalyPreviewCapture.h"
+
+bool AnomalyPreview::CaptureGameViewportRaw(UWorld*, TArray<FColor>& OutPixels, int32& OutWidth, int32& OutHeight)
+{
+	OutPixels.Reset(); OutWidth = 0; OutHeight = 0; return false;
+}
+
+bool AnomalyPreview::EncodePixels(EImageFormat, const TArray<FColor>&, int32, int32, TArray<uint8>& OutBytes, int32)
+{
+	OutBytes.Reset(); return false;
+}
+
+bool AnomalyPreview::CaptureGameViewportEncoded(UWorld*, EImageFormat, TArray<uint8>& OutBytes, int32& OutWidth, int32& OutHeight, int32)
+{
+	OutBytes.Reset(); OutWidth = 0; OutHeight = 0; return false;
+}
+
+bool AnomalyPreview::EncodeGray8Png(const TArray<uint8>&, int32, int32, TArray<uint8>& OutBytes)
+{
+	OutBytes.Reset(); return false;
+}
+#endif

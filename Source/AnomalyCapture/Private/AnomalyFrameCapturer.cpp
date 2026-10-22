@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyFrameCapturer.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/ThreadSafeCounter.h"
@@ -437,5 +438,7 @@ bool FAnomalyFrameCapturer::PopCompleted(FAnomalyCapturedFrame& Out)
 	Completed.RemoveAt(0);
 	return true;
 }
+
+#endif
 
 #endif

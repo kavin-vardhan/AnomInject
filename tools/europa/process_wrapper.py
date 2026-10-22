@@ -10,6 +10,9 @@ HOSTS={'425':(ROOT/'StylizedParisStreet/StylizedParisStreet.uproject',Path('E:/E
  '51port':(ROOT/'ReGate51/StackOBot/StackOBot.uproject',Path('D:/UESource/UnrealEngine'),'Europa51PortDDC')}
 
 def command(host,mode,target,configuration,output):
+    if mode == 'build' and (host, target, configuration) not in (
+        ('425', 'StylizedParisStreetEditor', 'Development'), ('51port', 'StackOBotEditor', 'Development')):
+        raise RuntimeError('A3 build mode admits only owned 4.25 and ReGate51 Editor Development targets')
     project,engine,graph=HOSTS[host]
     if not output.resolve().is_relative_to(ROOT.resolve()):raise RuntimeError('Output must resolve under physical-D Europa root')
     output.mkdir(parents=True,exist_ok=True)
@@ -53,6 +56,15 @@ def main():
     if a.batch_json:
         data=json.loads(a.batch_json.read_text());run_json_batch(a.host,data['pairs'],data['label']);return
     target=a.target or (HOSTS[a.host][0].stem+'Editor')
+    if a.execute and a.mode == 'build':
+        if (a.host, target, a.configuration) not in (('425', 'StylizedParisStreetEditor', 'Development'), ('51port', 'StackOBotEditor', 'Development')):
+            raise RuntimeError('A3 build target/configuration is not admitted')
+        if a.output.resolve() != (JOB/'builds'/a.output.name).resolve():
+            raise RuntimeError('A3 build output must be a labelled folder in this job builds receipt directory')
+        from working_build import main as build_main
+        sys.argv = [sys.argv[0], '--host', a.host, '--label', a.output.name]
+        build_main()
+        return
     argv=command(a.host,a.mode,target,a.configuration,a.output)
     dump(a.output/'command.json',{'argv':argv,'mode':a.mode,'host':a.host,'execute':a.execute})
     if a.execute:

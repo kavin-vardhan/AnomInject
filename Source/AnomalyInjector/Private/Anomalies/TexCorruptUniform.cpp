@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/TexCorruptCore.h"
 #include "RHI.h"
 #if __has_include("RHIFeatureLevel.h")
@@ -556,3 +558,5 @@ namespace AnomalyTexCorrupt
 		return Uniform::DescribeCounters();
 	}
 }
+
+#endif

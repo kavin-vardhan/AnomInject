@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalySveCapturer.h"
 #include "Engine/Texture.h"
 #include "PixelFormat.h"
@@ -566,5 +567,7 @@ bool FAnomalySveCapturer::PopCompleted(FAnomalyCapturedFrame& Out)
 	Completed.RemoveAt(0);
 	return true;
 }
+
+#endif
 
 #endif

@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_ChangeCase.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyLod.h"
@@ -62,3 +64,5 @@ void FAnomaly_ChangeCase::Revert()
 	if (bSwap && MaterialSwap.IsActive()) { MaterialSwap.Revert(); }
 	bActive = false; bApplied = false; ActiveWorld.Reset(); SavedArgs.Reset();
 }
+
+#endif

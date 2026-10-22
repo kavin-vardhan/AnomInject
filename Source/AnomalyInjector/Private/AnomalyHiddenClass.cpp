@@ -1,4 +1,5 @@
 #include "AnomalyHiddenClass.h"
+#include "Compat/AnomalyEngineCompat.h"
 #include "Components/ActorComponent.h"
 
 #include "AnomalyInjectorLog.h"
@@ -103,7 +104,7 @@ namespace AnomalyHiddenClass
 			S.bRenderInMainPass = Prim->bRenderInMainPass ? 1 : 0;
 			S.bRenderInDepthPass = Prim->bRenderInDepthPass ? 1 : 0;
 			S.bCastShadow = Prim->CastShadow ? 1 : 0;
-			S.bCastContactShadow = Prim->bCastContactShadow ? 1 : 0;
+			S.bCastContactShadow = AnomalyCompat::CastsContactShadow(Prim) ? 1 : 0;
 			S.bAffectDynamicIndirectLighting = Prim->bAffectDynamicIndirectLighting ? 1 : 0;
 			S.bAffectDistanceFieldLighting = Prim->bAffectDistanceFieldLighting ? 1 : 0;
 			S.bVisibleInRayTracing = Prim->bVisibleInRayTracing ? 1 : 0;
@@ -118,7 +119,7 @@ namespace AnomalyHiddenClass
 			if (!GOmitShadowSilencing)
 			{
 				Prim->SetCastShadow(false);
-				Prim->bCastContactShadow = false;
+				AnomalyCompat::SetCastsContactShadow(Prim, false);
 			}
 			Prim->bAffectDynamicIndirectLighting = false;
 			Prim->bAffectDistanceFieldLighting = false;
@@ -163,7 +164,7 @@ namespace AnomalyHiddenClass
 			Prim->bRenderInMainPass = S.bRenderInMainPass != 0;
 			Prim->bRenderInDepthPass = S.bRenderInDepthPass != 0;
 			Prim->SetCastShadow(S.bCastShadow != 0);
-			Prim->bCastContactShadow = S.bCastContactShadow != 0;
+			AnomalyCompat::SetCastsContactShadow(Prim, S.bCastContactShadow != 0);
 			Prim->bAffectDynamicIndirectLighting = S.bAffectDynamicIndirectLighting != 0;
 			Prim->bAffectDistanceFieldLighting = S.bAffectDistanceFieldLighting != 0;
 			Prim->bVisibleInRayTracing = S.bVisibleInRayTracing != 0;

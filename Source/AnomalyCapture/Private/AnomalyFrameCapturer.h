@@ -1,4 +1,5 @@
 #pragma once
+#if ANOMALY_CAPTURE
 
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
@@ -141,5 +142,7 @@ private:
 
 	FDelegateHandle BackBufferHandle;
 };
+
+#endif
 
 #endif

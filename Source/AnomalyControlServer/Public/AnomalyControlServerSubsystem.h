@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Compat/AnomalyStatsIncludes.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "Compat/AnomalyTickableWorldSubsystem.h"
 #include "AnomalyControlServerSubsystem.generated.h"
 
 class INetworkingWebSocket;
@@ -12,7 +12,7 @@ struct FControlConn;
 struct FAnomalyControlTransportState;
 
 UCLASS()
-class ANOMALYCONTROLSERVER_API UAnomalyControlServerSubsystem : public UTickableWorldSubsystem
+class ANOMALYCONTROLSERVER_API UAnomalyControlServerSubsystem : public UAnomalyTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -33,7 +33,7 @@ public:
 	bool IsListening() const { return bListening; }
 
 protected:
-	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+
 
 private:
 	void OnClientConnected(INetworkingWebSocket* Socket);

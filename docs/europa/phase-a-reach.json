@@ -1,0 +1,1427 @@
+{
+  "base": "d7eee97731812384d4fd00af9032254923363ada",
+  "comparison": "git diff --name-only d7eee97..HEAD after commit; added files included before commit",
+  "classes": {
+    "N": "changed but meant to be neutral on 5.1, subject to reach gates",
+    "C": "changed tooling, host or diagnostic surface",
+    "B": "byte-identical retained file"
+  },
+  "changed": [
+    {
+      "path": "AnomalyInjector.uplugin",
+      "effect_51": "N",
+      "reason": "A2 legacy descriptor aliases preserve module membership; real matrix and mutant rerun in A3",
+      "reached_behavior": "Module inclusion, startup and package exclusion",
+      "gates": [
+        "R1",
+        "R2",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "Source/AnomalyBench/AnomalyBench.Build.cs",
+      "effect_51": "N",
+      "reason": "A2 exact-version rules, portable shared C# and dependency/availability policy; Injector adds once-per-target profile diagnostic in A3 (C diagnostic effect)",
+      "reached_behavior": "Compiler, standard, dependency closure, module selection and startup",
+      "gates": [
+        "R1",
+        "R2",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyBench/Private/AnomalyBenchModule.cpp",
+      "effect_51": "N",
+      "reason": "A2 disabled 4.25 bench implementation and module diagnostic; enabled body retained",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "gates": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyBench/Private/AnomalyBenchTwoPartActor.cpp",
+      "effect_51": "N",
+      "reason": "A2 disabled component construction on 4.25; 5.1 constructor retained",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "gates": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyBench/Private/AnomalyBenchTwoPartActor.h",
+      "effect_51": "N",
+      "reason": "Retain reflected names/specifiers/GC traversal; eight null raw scalars and one empty raw-pointer array",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/AnomalyCapture.Build.cs",
+      "effect_51": "N",
+      "reason": "A2 exact-version rules, portable shared C# and dependency/availability policy; Injector adds once-per-target profile diagnostic in A3 (C diagnostic effect)",
+      "reached_behavior": "Compiler, standard, dependency closure, module selection and startup",
+      "gates": [
+        "R1",
+        "R2",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp",
+      "effect_51": "N",
+      "reason": "Common inert shell includes; complete Async/PreviewTee/RunLog types at every construction/destruction path",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyCensus.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyChangeMeasurement.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyChangeStage.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyFrameCapturer.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyFrameCapturer.h",
+      "effect_51": "N",
+      "reason": "Disabled strict-header TU must not parse renderer or PixelFormat includes",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyLabelWriter.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyLabelWriter.h",
+      "effect_51": "N",
+      "reason": "Disabled strict-header TU must not parse renderer or PixelFormat includes",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyMaskSceneViewExtension.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyMeasurability.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyPreviewCapture.cpp",
+      "effect_51": "N",
+      "reason": "Disabled preview exports clear outputs and return unavailable; 5.1 encoding untouched",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyPreviewTee.h",
+      "effect_51": "N",
+      "reason": "Complete disabled type for default, FVTableHelper and destructor TUniquePtr paths",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyRunLog.cpp",
+      "effect_51": "N",
+      "reason": "Complete inert run-log ownership and all virtual methods; no registration or writes at 0",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalySceneViewExtension.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalySveCapturer.cpp",
+      "effect_51": "N",
+      "reason": "Move all capture implementation/includes behind availability; enabled 5.1 body retained",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Public/AnomalyCaptureSubsystem.h",
+      "effect_51": "N",
+      "reason": "Reparent to literal shim; move world eligibility to shared Super-first policy",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyCapture/Public/Compat/AnomalyCaptureBackend.h",
+      "effect_51": "N",
+      "reason": "Phase C native interface/factory declarations only; no 5.1 rewiring",
+      "reached_behavior": "Enabled capture, labels/masks, frame association, readiness and object lifetime",
+      "gates": [
+        "R1",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ]
+    },
+    {
+      "path": "Source/AnomalyControlServer/AnomalyControlServer.Build.cs",
+      "effect_51": "N",
+      "reason": "A2 exact-version rules, portable shared C# and dependency/availability policy; Injector adds once-per-target profile diagnostic in A3 (C diagnostic effect)",
+      "reached_behavior": "Compiler, standard, dependency closure, module selection and startup",
+      "gates": [
+        "R1",
+        "R2",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyControlServer/Private/AnomalyControlServerSubsystem.cpp",
+      "effect_51": "N",
+      "reason": "Remove derived world-type override; preserve existing lifecycle call placement",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyControlServer/Private/Compat/AnomalyControlTransportState.h",
+      "effect_51": "N",
+      "reason": "A2 opaque non-reflected transport ownership; complete disabled type",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "gates": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyControlServer/Private/ControlProtocol.cpp",
+      "effect_51": "N",
+      "reason": "No protocol/snapshot work or unavailable dependencies on the disabled transport path",
+      "reached_behavior": "Transport/snapshot protocol and teardown",
+      "gates": [
+        "R1",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyControlServer/Private/ControlSnapshot.cpp",
+      "effect_51": "N",
+      "reason": "No protocol/snapshot work or unavailable dependencies on the disabled transport path",
+      "reached_behavior": "Transport/snapshot protocol and teardown",
+      "gates": [
+        "R1",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyControlServer/Public/AnomalyControlServerSubsystem.h",
+      "effect_51": "N",
+      "reason": "Reparent to literal shim; move world eligibility to shared Super-first policy",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/AnomalyInjector.Build.cs",
+      "effect_51": "N",
+      "reason": "A2 exact-version rules, portable shared C# and dependency/availability policy; Injector adds once-per-target profile diagnostic in A3 (C diagnostic effect)",
+      "reached_behavior": "Compiler, standard, dependency closure, module selection and startup",
+      "gates": [
+        "R1",
+        "R2",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CameraClipping.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CameraClipping.h",
+      "effect_51": "N",
+      "reason": "Self-contained disabled native header in strict 4.25 TUs",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_ChangeCase.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CorruptedTexture.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_LodPopping.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingTexture.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_StuckLowMip.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_StuckLowMip.h",
+      "effect_51": "N",
+      "reason": "Self-contained disabled native header in strict 4.25 TUs",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_TexCorrupt.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_TexCorrupt.h",
+      "effect_51": "N",
+      "reason": "Self-contained disabled native header in strict 4.25 TUs",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_TimeDilation.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/TexCorruptBench.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/TexCorruptCore.h",
+      "effect_51": "N",
+      "reason": "Self-contained disabled native header in strict 4.25 TUs",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/TexCorruptDraw.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/TexCorruptState.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/TexCorruptTree.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/TexCorruptUniform.cpp",
+      "effect_51": "N",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "effect_51": "N",
+      "reason": "Filter unsupported admission before random draw; preserve all nine 5.1 keys, arrays and draw order",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/AnomalyHiddenClass.cpp",
+      "effect_51": "N",
+      "reason": "Contact-shadow API boundary; other hide and restore flags retained",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/AnomalyInjectorModule.cpp",
+      "effect_51": "N",
+      "reason": "Stock 4.25 explicit false Nanite probe; no AllowNanite override; 5.1 probe ownership unchanged",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "effect_51": "N",
+      "reason": "Retain 5.1 implementation; unavailable 4.25 facade fails closed",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/AnomalyLod.cpp",
+      "effect_51": "N",
+      "reason": "Preserve LOD conventions and 5.1 getter",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "effect_51": "N",
+      "reason": "Selector uses common admission; no working choice for unsupported IDs; unchanged 5.1 ordering",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "effect_51": "N",
+      "reason": "Portable asset identity, defining HitResult include and exact cached POV/near-clip semantics",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp",
+      "effect_51": "N",
+      "reason": "Explicit 4.25 supported set; 5.1 catalogue admission unchanged; unknown IDs fail closed",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "effect_51": "N",
+      "reason": "Exact 5.1 API operations; declared stock 4.25 API substitutions",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Compat/AnomalyTickableWorldSubsystem.cpp",
+      "effect_51": "N",
+      "reason": "Single FTickable registration; 4.25 IsTickable lifetime gate; default-off audit only",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "effect_51": "N",
+      "reason": "Complete 4.25 portable texture facade; never applied/eligible/ready/measured",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/AnomalyAutoInjectorSubsystem.h",
+      "effect_51": "N",
+      "reason": "Reparent to literal shim; move world eligibility to shared Super-first policy",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/AnomalyInjectorSubsystem.h",
+      "effect_51": "N",
+      "reason": "Retain reflected names/specifiers/GC traversal; eight null raw scalars and one empty raw-pointer array",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/AnomalySelectorSubsystem.h",
+      "effect_51": "N",
+      "reason": "Reparent to literal shim; move world eligibility to shared Super-first policy",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/Compat/AnomalyCapabilities.h",
+      "effect_51": "N",
+      "reason": "Single capability admission policy for registry, auto pool and selector",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/Compat/AnomalyEngineCompat.h",
+      "effect_51": "N",
+      "reason": "Portable identities and accessors; no reflected engine-specific types",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/Compat/AnomalyEngineVersion.h",
+      "effect_51": "N",
+      "reason": "A2 exact engine predicates and unsupported-version diagnostic",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "gates": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/Compat/AnomalySharedPointerIncludes.h",
+      "effect_51": "N",
+      "reason": "A2 portable defining shared-pointer includes outside reflected UHT parse",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "gates": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/Compat/AnomalyStatsIncludes.h",
+      "effect_51": "N",
+      "reason": "A2 defining stats includes outside reflected UHT parse",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "gates": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/Compat/AnomalyTextureAdapter.h",
+      "effect_51": "N",
+      "reason": "Phase E native adapter/factory declarations only; existing 5.1 facade unchanged",
+      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/Compat/AnomalyTickableWorldSubsystem.h",
+      "effect_51": "N",
+      "reason": "Literal shared reflected ancestry and engine-equivalent 5.1 lifetime/tick contract",
+      "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
+      "gates": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyShaders/AnomalyShaders.Build.cs",
+      "effect_51": "N",
+      "reason": "A2 exact-version rules, portable shared C# and dependency/availability policy; Injector adds once-per-target profile diagnostic in A3 (C diagnostic effect)",
+      "reached_behavior": "Compiler, standard, dependency closure, module selection and startup",
+      "gates": [
+        "R1",
+        "R2",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "Source/AnomalyShaders/Private/AnomalyShadersModule.cpp",
+      "effect_51": "N",
+      "reason": "A2 disabled 4.25 shader registration and diagnostic; 5.1 mapping retained",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "gates": [
+        "R1",
+        "R2",
+        "R3",
+        "R5",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/PRE-DELIVERY-CHECKLIST.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/architecture.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/europa/phase-a-a3-closure.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/europa/phase-a-reach.json",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/europa/phase-a-routing.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/predictions/094-europa-phase-a.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/sessions/2026-10-16-094-03-europa-a1-a2.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/sessions/2026-10-22-094-04-europa-a3.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/DescriptorProbe.cs.txt",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/check_reflected_headers.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/compile_children.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/descriptor_matrix.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/host_probe/EuropaPhaseAProbe.Build.cs.txt",
+      "effect_51": "C",
+      "reason": "Empty host probe and native TargetRules descriptor admission templates; actual host copies are separately manifested",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/host_probe/EuropaPhaseAProbeModule.cpp.txt",
+      "effect_51": "C",
+      "reason": "Empty host probe and native TargetRules descriptor admission templates; actual host copies are separately manifested",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/host_probe/TargetRules.fragment.txt",
+      "effect_51": "C",
+      "reason": "Empty host probe and native TargetRules descriptor admission templates; actual host copies are separately manifested",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/idle_gate.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/ledger_budget_self_tests.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/ledger_delta_self_tests.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/process_wrapper.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/tooling_self_tests.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/ubt_admission.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/working_build.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/write_ledger.py",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/strict_include_build.py",
+      "effect_51": "C",
+      "reason": "Explicit roots, UE4Editor, version-safe strict settings, actual TU action coverage and receipted restoration; not executed until A4",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    }
+  ],
+  "retained": [
+    {
+      "path": "Content/Materials/M_CorruptTex_Normal.uasset",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Content/Materials/M_CorruptTex_UV.uasset",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Content/Materials/M_CorruptedTexture_Pink.uasset",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Content/Materials/M_MissingTexture_Checker.uasset",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Content/Textures/T_CorruptTex_NoiseN.uasset",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Shaders/Private/AnomalyMaskReduce.usf",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Shaders/Private/AnomalyTexStats.usf",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Shaders/Private/AnomalyVisibleMask.usf",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyAsyncWriter.cpp",
+      "effect_51": "B",
+      "reason": "Existing ANOMALY_CAPTURE boundary already excludes all work; outer includes portable"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyCaptureLetterbox.cpp",
+      "effect_51": "B",
+      "reason": "Existing ANOMALY_CAPTURE boundary already excludes all work; outer includes portable"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyCaptureModule.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyChangeFamilyData.cpp",
+      "effect_51": "B",
+      "reason": "Existing ANOMALY_CAPTURE boundary already excludes all work; outer includes portable"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyMaskMeasure.cpp",
+      "effect_51": "B",
+      "reason": "Existing ANOMALY_CAPTURE boundary already excludes all work; outer includes portable"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyPreviewTee.cpp",
+      "effect_51": "B",
+      "reason": "Existing ANOMALY_CAPTURE boundary already excludes all work; outer includes portable"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalyStencilTag.cpp",
+      "effect_51": "B",
+      "reason": "Existing ANOMALY_CAPTURE boundary already excludes all work; outer includes portable"
+    },
+    {
+      "path": "Source/AnomalyCapture/Private/AnomalySveKeyRing.cpp",
+      "effect_51": "B",
+      "reason": "Existing ANOMALY_CAPTURE boundary already excludes all work; outer includes portable"
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_Blinking.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_LightingMismatch.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_LodCorruption.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingObject.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyInjector/Public/AnomalyDefaults.h",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyShaders/Private/AnomalyMaskReduceShader.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyShaders/Private/AnomalyTexStatsShader.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyShaders/Private/AnomalyVisibleMaskShader.cpp",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyShaders/Public/AnomalyMaskReduceShader.h",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyShaders/Public/AnomalyTexStatsShader.h",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "Source/AnomalyShaders/Public/AnomalyVisibleMaskShader.h",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "tools/check_package_descriptor.py",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    },
+    {
+      "path": "tools/verify_capture.py",
+      "effect_51": "B",
+      "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
+    }
+  ],
+  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package-checker alias work A11; standalone TickAudit files superseded by EA7 shim-local audit; A3 strict tool is adapted but not run"
+}

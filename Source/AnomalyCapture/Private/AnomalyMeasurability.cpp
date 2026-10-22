@@ -1,3 +1,4 @@
+#if ANOMALY_CAPTURE
 #include "AnomalyMeasurability.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIShaderPlatform.h")
@@ -86,5 +87,7 @@ namespace AnomalyMeasurability
 		return false;
 	}
 }
+
+#endif
 
 #endif

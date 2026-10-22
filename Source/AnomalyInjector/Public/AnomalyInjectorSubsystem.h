@@ -4,7 +4,7 @@
 #include "Compat/AnomalyStatsIncludes.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/EngineBaseTypes.h"
-#include "Subsystems/WorldSubsystem.h"
+#include "Compat/AnomalyTickableWorldSubsystem.h"
 #include "IAnomaly.h"
 #include "AnomalyCatalogTypes.h"
 #include "AnomalyExclusion.h"
@@ -39,7 +39,7 @@ struct FAnomalyExclusionStats
 };
 
 UCLASS()
-class ANOMALYINJECTOR_API UAnomalyInjectorSubsystem : public UTickableWorldSubsystem
+class ANOMALYINJECTOR_API UAnomalyInjectorSubsystem : public UAnomalyTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -170,7 +170,7 @@ public:
 	TArray<FActiveAnomalyInfo> GetActiveAnomalies() const;
 
 protected:
-	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+
 
 private:
 	void DispatchAnomalyTicks(float DeltaTime);
@@ -229,20 +229,20 @@ private:
 	FDelegateHandle SynthPreActorTickHandle;
 
 	UPROPERTY()
-	TObjectPtr<UMaterialInterface> MissingTextureChecker;
+	UMaterialInterface* MissingTextureChecker = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UMaterialInterface> CorruptedTexturePink;
+	UMaterialInterface* CorruptedTexturePink = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UMaterialInterface> TexCorruptUv;
+	UMaterialInterface* TexCorruptUv = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UMaterialInterface> TexCorruptNormal;
+	UMaterialInterface* TexCorruptNormal = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<class UTexture2D> TexCorruptNoise;
+	class UTexture2D* TexCorruptNoise = nullptr;
 
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UObject>> TexCorruptStrongRefs;
+	TArray<UObject*> TexCorruptStrongRefs;
 };

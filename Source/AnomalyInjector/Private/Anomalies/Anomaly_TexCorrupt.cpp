@@ -1,3 +1,5 @@
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_TexCorrupt.h"
 #include "Engine/Texture.h"
 #include "Materials/MaterialInterface.h"
@@ -1806,3 +1808,5 @@ void FAnomaly_TexCorrupt::OnWorldTeardown()
 	bTerminalRollback = false;
 }
 }
+
+#endif

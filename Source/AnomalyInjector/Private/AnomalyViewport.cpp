@@ -8,7 +8,8 @@
 #include "AnomalyTargetPolicy.h"
 
 #include "Engine/StaticMesh.h"
-#include "Engine/SkinnedAsset.h"
+#include "Compat/AnomalyEngineCompat.h"
+#include "Compat/AnomalyEngineVersion.h"
 
 #include "ConvexVolume.h"
 #include "SceneManagement.h"
@@ -32,7 +33,9 @@
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/EngineTypes.h"
+#if ANOMALY_ENGINE_51
 #include "Engine/HitResult.h"
+#endif
 #include "CollisionQueryParams.h"
 #include "HAL/IConsoleManager.h"
 #include "Engine/EngineBaseTypes.h"
@@ -90,7 +93,7 @@ namespace
 		}
 		else if (const USkinnedMeshComponent* SKC = Cast<USkinnedMeshComponent>(Component))
 		{
-			if (const USkinnedAsset* Asset = SKC->GetSkinnedAsset())
+			if (const UObject* Asset = AnomalyCompat::SkinnedAssetIdentity(SKC))
 			{
 				return Asset->GetName();
 			}
@@ -653,7 +656,7 @@ namespace
 			const auto* WeldInfo = Body ? Body->GetCurrentWeldInfo() : nullptr;
 			F.bWelded = P->IsWelded() || (Body && Body->WeldParent != nullptr) || (WeldInfo && WeldInfo->Num() > 0);
 			const UBodySetup* Setup = P->GetBodySetup();
-			F.bHasComplex = Setup && Setup->CollisionTraceFlag != CTF_UseSimpleAsComplex && Setup->ChaosTriMeshes.Num() > 0;
+			F.bHasComplex = AnomalyCompat::HasComplexCollision(Setup);
 		}
 		const AnomalyNearClipSlab::EConfirmBody Kind = AnomalyNearClipSlab::ClassifyConfirmBody(F);
 		if (AnomalyNearClipSlab::IsConfirmableBody(Kind))
@@ -1045,7 +1048,7 @@ namespace AnomalyViewport
 		FMinimalViewInfo Pov;
 		if (PC->PlayerCameraManager && PC->PlayerCameraManager->GetCameraCacheTime() > 0.0f)
 		{
-			Pov = PC->PlayerCameraManager->GetCameraCacheView();
+			Pov = AnomalyCompat::CameraCachePOV(PC->PlayerCameraManager);
 		}
 		else
 		{
@@ -1060,7 +1063,7 @@ namespace AnomalyViewport
 			Pov.AspectRatio = Fallback.AspectRatio;
 		}
 		Out.bEvaluated = true;
-		Out.EffectiveNear = Pov.GetFinalPerspectiveNearClipPlane();
+		Out.EffectiveNear = AnomalyCompat::EffectiveNearClip(Pov);
 
 		auto Finish = [&Out, StartCycles]()
 		{
@@ -1073,7 +1076,7 @@ namespace AnomalyViewport
 			Finish();
 			return true;
 		}
-		if (Pov.PerspectiveNearClipPlane > 0.0f)
+		if (AnomalyCompat::HasNearClipOverride(Pov))
 		{
 			Out.bNearOverridden = true;
 			Finish();

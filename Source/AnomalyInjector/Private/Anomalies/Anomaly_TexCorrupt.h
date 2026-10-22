@@ -1,4 +1,6 @@
 #pragma once
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_51
 
 #include "CoreMinimal.h"
 #if __has_include("Materials/MaterialParameters.h")
@@ -209,3 +211,5 @@ private:
 	bool bTerminalRollback = false;
 };
 }
+
+#endif
