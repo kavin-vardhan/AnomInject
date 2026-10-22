@@ -42,10 +42,12 @@ namespace
 void UAnomalySelectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+#if ANOMALY_ENGINE_425
 	if (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex]))
 	{
 		CycleAnomalyChoice();
 	}
+#endif
 
 	KeyNext   = EKeys::Tab;
 	KeyPrev   = FKey();
@@ -166,11 +168,15 @@ void UAnomalySelectorSubsystem::SelectPrevious()
 
 void UAnomalySelectorSubsystem::CycleAnomalyChoice()
 {
+#if ANOMALY_ENGINE_425
 	for (int32 Step = 0; Step < GNumAnomalyChoices; ++Step)
 	{
 		AnomalyChoiceIndex = (AnomalyChoiceIndex + 1) % GNumAnomalyChoices;
 		if (AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex])) { break; }
 	}
+#else
+	AnomalyChoiceIndex = (AnomalyChoiceIndex + 1) % GNumAnomalyChoices;
+#endif
 	UE_LOG(LogAnomaly, Log, TEXT("Selector.Cycle: anomaly -> '%s'."), *GetAnomalyChoice().ToString());
 }
 
@@ -261,8 +267,12 @@ TArray<FString> UAnomalySelectorSubsystem::GetVisibleActorNames() const
 
 FName UAnomalySelectorSubsystem::GetAnomalyChoice() const
 {
+#if ANOMALY_ENGINE_425
 	const FName Id = GAnomalyChoices[AnomalyChoiceIndex];
 	return AnomalyCompat::SupportsAnomaly(Id) ? Id : NAME_None;
+#else
+	return GAnomalyChoices[AnomalyChoiceIndex];
+#endif
 }
 
 void UAnomalySelectorSubsystem::LogStatus() const
@@ -434,7 +444,9 @@ void UAnomalySelectorSubsystem::DrawHUD(UCanvas* Canvas, APlayerController*  )
 	Y += LineH;
 	for (int32 i = 0; i < GNumAnomalyChoices; ++i)
 	{
+#if ANOMALY_ENGINE_425
 		if (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[i])) { continue; }
+#endif
 		const bool bSel = (i == AnomalyChoiceIndex);
 		Canvas->SetDrawColor(bSel ? FColor::Green : FColor(180, 180, 180));
 		Canvas->DrawText(Font, FString::Printf(TEXT("  %s %s"), bSel ? TEXT(">") : TEXT(" "), *GAnomalyChoices[i].ToString()), X, Y);

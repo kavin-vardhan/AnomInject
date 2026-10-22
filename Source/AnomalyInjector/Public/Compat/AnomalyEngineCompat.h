@@ -1,14 +1,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Compat/AnomalyEngineVersion.h"
+#include "Templates/Function.h"
 
 class USkinnedMeshComponent;
 class UStaticMesh;
 class UPrimitiveComponent;
 class UBodySetup;
 class APlayerCameraManager;
-struct FStaticMeshRenderData;
+class FStaticMeshRenderData;
 struct FMinimalViewInfo;
+struct FConvexVolume;
 
 namespace AnomalyCompat
 {
@@ -20,4 +23,26 @@ namespace AnomalyCompat
 	ANOMALYINJECTOR_API bool CastsContactShadow(const UPrimitiveComponent* Component);
 	ANOMALYINJECTOR_API void SetCastsContactShadow(UPrimitiveComponent* Component, bool bEnabled);
 	ANOMALYINJECTOR_API bool HasComplexCollision(const UBodySetup* Setup);
+	ANOMALYINJECTOR_API float StaticLodScreenSize(const FStaticMeshRenderData* Data, int32 LodIndex);
+	ANOMALYINJECTOR_API int32 PredictedLod(const USkinnedMeshComponent* Component);
+	ANOMALYINJECTOR_API void ViewFrustumWithoutFarPlane(FConvexVolume& Out, const FMatrix& ViewProjection);
+	ANOMALYINJECTOR_API FVector AxisVector(int32 Axis);
+	ANOMALYINJECTOR_API bool IsSceneCaptureOnly(const UPrimitiveComponent* Component);
+	FORCEINLINE double NearClipSmallNumber()
+	{
+#if ANOMALY_ENGINE_425
+		return KINDA_SMALL_NUMBER;
+#else
+		return UE_KINDA_SMALL_NUMBER;
+#endif
+	}
+	template <typename Signature>
+	void ResetFunction(TFunction<Signature>& Function)
+	{
+#if ANOMALY_ENGINE_425
+		Function = TFunction<Signature>();
+#else
+		Function.Reset();
+#endif
+	}
 }

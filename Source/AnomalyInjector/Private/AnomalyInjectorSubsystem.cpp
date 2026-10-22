@@ -1,5 +1,6 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "Compat/AnomalyCapabilities.h"
+#include "Compat/AnomalyEngineCompat.h"
 #include "Engine/EngineBaseTypes.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
@@ -80,28 +81,25 @@ UAnomalyInjectorSubsystem::~UAnomalyInjectorSubsystem() = default;
 UAnomalyInjectorSubsystem::UAnomalyInjectorSubsystem()
 {
 #if ANOMALY_ENGINE_51
-	if (AnomalyCompat::PhaseABackends().TextureAdapters)
-	{
-		static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder(
-			TEXT("/AnomalyInjector/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"));
-		MissingTextureChecker = CheckerFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder(
+		TEXT("/AnomalyInjector/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"));
+	MissingTextureChecker = CheckerFinder.Object;
 
-		static ConstructorHelpers::FObjectFinder<UMaterialInterface> PinkFinder(
-			TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
-		CorruptedTexturePink = PinkFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PinkFinder(
+		TEXT("/AnomalyInjector/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
+	CorruptedTexturePink = PinkFinder.Object;
 
-		static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptUvFinder(
-			TEXT("/AnomalyInjector/Materials/M_CorruptTex_UV.M_CorruptTex_UV"));
-		TexCorruptUv = TexCorruptUvFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptUvFinder(
+		TEXT("/AnomalyInjector/Materials/M_CorruptTex_UV.M_CorruptTex_UV"));
+	TexCorruptUv = TexCorruptUvFinder.Object;
 
-		static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptNormalFinder(
-			TEXT("/AnomalyInjector/Materials/M_CorruptTex_Normal.M_CorruptTex_Normal"));
-		TexCorruptNormal = TexCorruptNormalFinder.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> TexCorruptNormalFinder(
+		TEXT("/AnomalyInjector/Materials/M_CorruptTex_Normal.M_CorruptTex_Normal"));
+	TexCorruptNormal = TexCorruptNormalFinder.Object;
 
-		static ConstructorHelpers::FObjectFinder<UTexture2D> TexCorruptNoiseFinder(
-			TEXT("/AnomalyInjector/Textures/T_CorruptTex_NoiseN.T_CorruptTex_NoiseN"));
-		TexCorruptNoise = TexCorruptNoiseFinder.Object;
-	}
+	static ConstructorHelpers::FObjectFinder<UTexture2D> TexCorruptNoiseFinder(
+		TEXT("/AnomalyInjector/Textures/T_CorruptTex_NoiseN.T_CorruptTex_NoiseN"));
+	TexCorruptNoise = TexCorruptNoiseFinder.Object;
 #endif
 }
 
@@ -269,10 +267,10 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	auto Register = [this](TUniquePtr<IAnomaly> Anomaly)
 	{
 		const FName Id = Anomaly->GetId();
-		if (AnomalyCompat::SupportsAnomaly(Id))
-		{
-			Anomalies.Add(Id, MoveTemp(Anomaly));
-		}
+#if ANOMALY_ENGINE_425
+		if (!AnomalyCompat::SupportsAnomaly(Id)) { return; }
+#endif
+		Anomalies.Add(Id, MoveTemp(Anomaly));
 	};
 	Register(MakeUnique<FAnomaly_MissingObject>());
 	Register(MakeUnique<FAnomaly_Blinking>());
@@ -363,7 +361,7 @@ void UAnomalyInjectorSubsystem::Deinitialize()
 	AnomalyTexCorrupt::RestoreBenchAssetSlotMid(TEXT("world teardown"));
 	AnomalyTexCorrupt::EndWarmDraw();
 	TexCorruptStrongRefs.Reset();
-	TrailProvider.Reset();
+	AnomalyCompat::ResetFunction(TrailProvider);
 
 	Super::Deinitialize();
 }
@@ -845,11 +843,13 @@ void UAnomalyInjectorSubsystem::ListAnomalies() const
 
 bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FString>& Args)
 {
+#if ANOMALY_ENGINE_425
 	if (!AnomalyCompat::SupportsAnomaly(Id))
 	{
 		UE_LOG(LogAnomaly, Warning, TEXT("ApplyAnomaly %s: %s"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());
 		return false;
 	}
+#endif
 	TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
 	if (!Found || !Found->IsValid())
 	{
@@ -1153,7 +1153,7 @@ void UAnomalyInjectorSubsystem::SetTrailProvider(FAnomalyTrailProviderFn InProvi
 void UAnomalyInjectorSubsystem::ClearTrailProvider()
 {
 	const bool bHad = (bool)TrailProvider;
-	TrailProvider.Reset();
+	AnomalyCompat::ResetFunction(TrailProvider);
 	if (bHad)
 	{
 		UE_LOG(LogAnomaly, Log,

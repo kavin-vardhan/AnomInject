@@ -224,7 +224,7 @@ namespace
 	FConvexVolume BuildFrustum(const FAnomalyViewInfo& View)
 	{
 		FConvexVolume Frustum;
-		GetViewFrustumBounds(Frustum, BuildViewProjectionMatrix(View),  true,  false);
+		AnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, BuildViewProjectionMatrix(View));
 		return Frustum;
 	}
 
@@ -605,9 +605,9 @@ namespace
 		B.Center = ToSlabV3(Transform.TransformPosition(LocalCenter));
 		const FQuat Rotation = Transform.GetRotation();
 		const FVector Scale = Transform.GetScale3D().GetAbs();
-		B.Axis[0] = ToSlabV3(Rotation.RotateVector(FVector::XAxisVector));
-		B.Axis[1] = ToSlabV3(Rotation.RotateVector(FVector::YAxisVector));
-		B.Axis[2] = ToSlabV3(Rotation.RotateVector(FVector::ZAxisVector));
+		B.Axis[0] = ToSlabV3(Rotation.RotateVector(AnomalyCompat::AxisVector(0)));
+		B.Axis[1] = ToSlabV3(Rotation.RotateVector(AnomalyCompat::AxisVector(1)));
+		B.Axis[2] = ToSlabV3(Rotation.RotateVector(AnomalyCompat::AxisVector(2)));
 		B.Half[0] = FMath::Abs(LocalHalf.X) * Scale.X;
 		B.Half[1] = FMath::Abs(LocalHalf.Y) * Scale.Y;
 		B.Half[2] = FMath::Abs(LocalHalf.Z) * Scale.Z;
@@ -1163,7 +1163,7 @@ namespace AnomalyViewport
 			Flags.bVisible = P->IsVisible();
 			Flags.bOwnerHidden = Owner && Owner->IsHidden();
 			Flags.bRenderInMainPass = P->bRenderInMainPass != 0;
-			Flags.bSceneCaptureOnly = P->bVisibleInSceneCaptureOnly != 0;
+			Flags.bSceneCaptureOnly = AnomalyCompat::IsSceneCaptureOnly(P);
 			Flags.bIsFxSystem = P->IsA<UFXSystemComponent>();
 			Flags.bOnlyOwnerSee = P->bOnlyOwnerSee != 0;
 			Flags.bOwnerNoSee = P->bOwnerNoSee != 0;
@@ -1235,7 +1235,7 @@ namespace AnomalyViewport
 					const FMatrix InstanceWorld = Ism->PerInstanceSMData[Index].Transform * ComponentMatrix;
 					const FBox3 Box = MakeMatrixBox(ToSlabV3(MeshBounds.Origin), ToSlabV3(MeshBounds.BoxExtent * Ism->BoundsScale),
 						AffineFromMatrix(InstanceWorld));
-					if (Box.Half[0] + Box.Half[1] + Box.Half[2] <= UE_KINDA_SMALL_NUMBER)
+					if (Box.Half[0] + Box.Half[1] + Box.Half[2] <= AnomalyCompat::NearClipSmallNumber())
 					{
 						continue;
 					}
@@ -1577,7 +1577,7 @@ namespace AnomalyViewport
 
 		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
 		FConvexVolume Frustum;
-		GetViewFrustumBounds(Frustum, ViewProj,  true,  false);
+		AnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, ViewProj);
 
 		const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
 		const float PollRadius = GPollRadius;
@@ -1654,7 +1654,7 @@ namespace AnomalyViewport
 
 		const FMatrix ViewProj = BuildViewProjectionMatrix(View);
 		FConvexVolume Frustum;
-		GetViewFrustumBounds(Frustum, ViewProj,  true,  false);
+		AnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, ViewProj);
 
 		const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
 		const float PollRadius = GPollRadius;
@@ -1903,7 +1903,7 @@ static FAutoConsoleCommandWithWorldAndArgs GDumpCoverageCmd(
 
 			const FMatrix ViewProj = BuildViewProjectionMatrix(View);
 			FConvexVolume Frustum;
-			GetViewFrustumBounds(Frustum, ViewProj,  true,  false);
+			AnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, ViewProj);
 			const FVector PollOrigin = ResolvePollOrigin(World, View.Origin);
 			const float PollRadius = GPollRadius;
 			const float Threshold = GMinScreenCoveragePct;

@@ -169,9 +169,6 @@ public:
 
 	TArray<FActiveAnomalyInfo> GetActiveAnomalies() const;
 
-protected:
-
-
 private:
 	void DispatchAnomalyTicks(float DeltaTime);
 

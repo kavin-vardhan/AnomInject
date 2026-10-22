@@ -1,5 +1,6 @@
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "Compat/AnomalyCapabilities.h"
+#include "Compat/AnomalyEngineCompat.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
 #endif
@@ -125,7 +126,11 @@ void UAnomalyAutoInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 
 	for (const FName& Id : GAutoPoolDefaultEnabled)
 	{
-		if (AnomalyCompat::SupportsAnomaly(Id)) { EnabledIds.Add(Id); }
+
+#if ANOMALY_ENGINE_425
+		if (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }
+#endif
+		EnabledIds.Add(Id);
 	}
 
 	UE_LOG(LogAnomaly, Log,
@@ -297,7 +302,10 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	TArray<FAnomalyPartnerExclusion> ExcludedWhy;
 	for (const FName& Id : GAutoPool)
 	{
-		if (!AnomalyCompat::SupportsAnomaly(Id) || !EnabledIds.Contains(Id) || IsIdLive(Id))
+#if ANOMALY_ENGINE_425
+		if (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }
+#endif
+		if (!EnabledIds.Contains(Id) || IsIdLive(Id))
 		{
 			continue;
 		}
@@ -682,9 +690,9 @@ void UAnomalyAutoInjectorSubsystem::SetCensusProvider(FAnomalyCensusQueryFn InQu
 void UAnomalyAutoInjectorSubsystem::ClearCensusProvider()
 {
 	const bool bHad = (bool)CensusQuery;
-	CensusQuery.Reset();
-	CensusReady.Reset();
-	CensusFireReport.Reset();
+	AnomalyCompat::ResetFunction(CensusQuery);
+	AnomalyCompat::ResetFunction(CensusReady);
+	AnomalyCompat::ResetFunction(CensusFireReport);
 	CensusWaitTicksUsed = 0;
 	bCensusFirstFireResolved = false;
 	if (bHad)
@@ -697,11 +705,13 @@ void UAnomalyAutoInjectorSubsystem::ClearCensusProvider()
 
 bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& ActorName, const TArray<FString>& ExtraArgs)
 {
+#if ANOMALY_ENGINE_425
 	if (!AnomalyCompat::SupportsAnomaly(Id))
 	{
 		UE_LOG(LogAnomaly, Warning, TEXT("Auto admission %s: %s"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());
 		return false;
 	}
+#endif
 	UWorld* World = GetWorld();
 	UAnomalyInjectorSubsystem* Injector = ResolveInjector(World);
 	if (!World || !Injector)
@@ -845,11 +855,13 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 
 bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 {
+#if ANOMALY_ENGINE_425
 	if (!AnomalyCompat::SupportsAnomaly(Id))
 	{
 		UE_LOG(LogAnomaly, Warning, TEXT("Auto admission %s: %s"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());
 		return false;
 	}
+#endif
 	bool bInPool = false;
 	for (const FName& PoolId : GAutoPool)
 	{
@@ -881,7 +893,11 @@ void UAnomalyAutoInjectorSubsystem::SetAllAnomaliesEnabled(bool bInEnabled)
 	{
 		for (const FName& Id : GAutoPool)
 		{
-			if (AnomalyCompat::SupportsAnomaly(Id)) { EnabledIds.Add(Id); }
+
+#if ANOMALY_ENGINE_425
+		if (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }
+#endif
+		EnabledIds.Add(Id);
 		}
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("IAI.Auto.Pool all -> %s."), bInEnabled ? TEXT("ON") : TEXT("OFF"));

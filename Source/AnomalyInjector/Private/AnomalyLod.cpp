@@ -114,7 +114,7 @@ AnomalyLod::FCurrentLod AnomalyLod::GetCurrentLod(UWorld* World, const UMeshComp
 		const int32 NumLods = FMath::Max(Mesh->GetNumLODs(), 1);
 		for (int32 LodIndex = NumLods - 1; LodIndex >= 0; --LodIndex)
 		{
-			if (RenderData->ScreenSize[LodIndex].GetValue() > ScreenSize)
+			if (AnomalyCompat::StaticLodScreenSize(RenderData, LodIndex) > ScreenSize)
 			{
 				Out.Level = LodIndex;
 				break;
@@ -132,7 +132,7 @@ AnomalyLod::FCurrentLod AnomalyLod::GetCurrentLod(UWorld* World, const UMeshComp
 			Out.bKnown = true;
 			return Out;
 		}
-		Out.Level = Skinned->GetPredictedLODLevel();
+		Out.Level = AnomalyCompat::PredictedLod(Skinned);
 		Out.Source = TEXT("component-predicted-lod");
 		Out.bKnown = true;
 		return Out;

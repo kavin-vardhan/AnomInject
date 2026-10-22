@@ -1445,6 +1445,7 @@ void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TA
 	TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> FrozenMask,
 	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt)
 {
+#if ANOMALY_CAPTURE
 	if (!Async.IsValid() || !Async->Writer.IsValid() || SessionIndex < 0 || W <= 0 || H <= 0)
 	{
 		return;
@@ -1459,11 +1460,13 @@ void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TA
 	Job.Width = W;
 	Job.Height = H;
 	Async->Writer->Enqueue(MoveTemp(Job));
+#endif
 }
 
 void UAnomalyCaptureSubsystem::FoldExposureExclusion(const TArray<uint8>& Gray, int32 W, int32 H,
 	const TMap<uint8, FString>* TagEvent)
 {
+#if ANOMALY_CAPTURE
 	if (W <= 0 || H <= 0 || !TagEvent)
 	{
 		return;
@@ -1545,10 +1548,12 @@ void UAnomalyCaptureSubsystem::FoldExposureExclusion(const TArray<uint8>& Gray, 
 		TEXT("the same size of step as the one it was meant to remove."),
 		Added, ExposureExclusionPx, N,
 		N > 0 ? (100.0 * (double)ExposureExclusionPx / (double)N) : 0.0, *Names);
+#endif
 }
 
 void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
 {
+#if ANOMALY_CAPTURE
 	if (TargetMaskSelfTagged.Num() == 0 || TargetMaskSelfTaggedTick == GFrameCounter)
 	{
 		return;
@@ -1562,10 +1567,12 @@ void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
 		}
 	}
 	TargetMaskSelfTagged.Reset();
+#endif
 }
 
 void UAnomalyCaptureSubsystem::EnsureMaskRecordsForCapturedFrame()
 {
+#if ANOMALY_CAPTURE
 	if (!Async.IsValid() || !bMaskMeasure)
 	{
 		return;
@@ -1611,10 +1618,12 @@ void UAnomalyCaptureSubsystem::EnsureMaskRecordsForCapturedFrame()
 				*Trail.Key, *F.Target, (int32)Rec->Tag, Trail.Window.bInherited ? 1 : 0);
 		}
 	}
+#endif
 }
 
 void UAnomalyCaptureSubsystem::UpdateMaskRecordLabelledWindow()
 {
+#if ANOMALY_CAPTURE
 	if (!Async.IsValid() || !bMaskMeasure)
 	{
 		return;
@@ -1629,10 +1638,12 @@ void UAnomalyCaptureSubsystem::UpdateMaskRecordLabelledWindow()
 	{
 		Async->MaskMeasure.SetRecordLabelledThisTick(F.Id, F.Target, F.StartFrame, IsFireLabelledThisFrame(F));
 	}
+#endif
 }
 
 bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 {
+#if ANOMALY_CAPTURE
 	if (!Async.IsValid() || !Async->MaskExtension.IsValid())
 	{
 		return false;
@@ -1783,10 +1794,14 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 		Async->MaskGatedTags.Add(RequestId, MoveTemp(GatedTags));
 	}
 	return true;
+#else
+	return false;
+#endif
 }
 
 void UAnomalyCaptureSubsystem::ServiceTargetMask()
 {
+#if ANOMALY_CAPTURE
 	if (!bTargetMaskEffective || !Async.IsValid() || !Async->MaskExtension.IsValid()
 		|| TargetMaskPendingSessionIndex.Num() == 0)
 	{
@@ -1964,6 +1979,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 		TargetMaskPendingTagEvent.Remove(Id);
 		Async->MaskGatedTags.Remove(Id);
 	}
+#endif
 }
 
 void UAnomalyCaptureSubsystem::RunStencilHygieneCheck(bool bFinal)
@@ -2302,6 +2318,7 @@ void UAnomalyCaptureSubsystem::SetBenchVetoArmUngated(bool bInUngated)
 
 void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
 {
+#if ANOMALY_CAPTURE
 	if (!bBenchMaskPairingProbe || MaskPairingProbe.IsValid())
 	{
 		return;
@@ -2354,10 +2371,12 @@ void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
 		TEXT("other actor can appear under the probe's value. An earlier build used 250 and the census ")
 		TEXT("silently took it - that produced a false 'the mask is wrong' reading."),
 		GMaskPairingProbeTag, *GMaskPairingProbePosA.ToString(), *GMaskPairingProbePosB.ToString());
+#endif
 }
 
 void UAnomalyCaptureSubsystem::StepMaskPairingProbe(int32 SessionIndex)
 {
+#if ANOMALY_CAPTURE
 	if (!bBenchMaskPairingProbe)
 	{
 		return;
@@ -2373,15 +2392,18 @@ void UAnomalyCaptureSubsystem::StepMaskPairingProbe(int32 SessionIndex)
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(bench): MASK-PAIRING PROBE STEP session_index=%d pos=%s y=%.1f gameFrame=%llu"),
 		SessionIndex, (MaskPairingProbePos == 0) ? TEXT("A") : TEXT("B"), Where.Y, (uint64)GFrameCounter);
+#endif
 }
 
 void UAnomalyCaptureSubsystem::DestroyMaskPairingProbe()
 {
+#if ANOMALY_CAPTURE
 	if (AActor* Probe = MaskPairingProbe.Get())
 	{
 		Probe->Destroy();
 	}
 	MaskPairingProbe = nullptr;
+#endif
 }
 
 #if !UE_BUILD_SHIPPING
@@ -2477,6 +2499,7 @@ void UAnomalyCaptureSubsystem::SetBenchCensusMaskDump(int32 InFrames)
 
 void UAnomalyCaptureSubsystem::SetBenchTagPoolLimit(int32 InValues)
 {
+#if ANOMALY_CAPTURE
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
@@ -2503,6 +2526,7 @@ void UAnomalyCaptureSubsystem::SetBenchTagPoolLimit(int32 InValues)
 		TEXT("ship a capture taken with this set."),
 		BenchTagPoolLimit, AnomalyStencilTag::ReservedStencilBase,
 		AnomalyStencilTag::ReservedStencilBase + FMath::Max(BenchTagPoolLimit, 1) - 1);
+#endif
 }
 
 void UAnomalyCaptureSubsystem::SetBenchForceTagCollision(int32 InSessionIndex)
@@ -2629,6 +2653,7 @@ void UAnomalyCaptureSubsystem::StepBenchForceTagCollision(int32 SessionIndex)
 
 void UAnomalyCaptureSubsystem::StepBenchObservabilityLevers(int32 SessionIndex)
 {
+#if ANOMALY_CAPTURE
 	if (BenchTeleportOffscreenAt >= 0 && !bBenchTeleportFired && SessionIndex == BenchTeleportOffscreenAt)
 	{
 		bBenchTeleportFired = true;
@@ -2762,10 +2787,12 @@ void UAnomalyCaptureSubsystem::StepBenchObservabilityLevers(int32 SessionIndex)
 				SessionIndex);
 		}
 	}
+#endif
 }
 
 void UAnomalyCaptureSubsystem::RestoreBenchTeleports()
 {
+#if ANOMALY_CAPTURE
 	for (const TPair<TWeakObjectPtr<AActor>, FVector>& Pair : BenchTeleportRestore)
 	{
 		if (AActor* Actor = Pair.Key.Get())
@@ -2780,11 +2807,13 @@ void UAnomalyCaptureSubsystem::RestoreBenchTeleports()
 	bBenchTeleportFired = false;
 	bBenchRetakeFired = false;
 	bBenchRawRevertFired = false;
+#endif
 }
 
 void UAnomalyCaptureSubsystem::EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
 	const TArray<FString>& TagRows)
 {
+#if ANOMALY_CAPTURE
 	if (!Async.IsValid() || !Async->Writer.IsValid() || W <= 0 || H <= 0)
 	{
 		return;
@@ -2810,6 +2839,7 @@ void UAnomalyCaptureSubsystem::EnqueueCensusMaskDump(uint64 ArmTick, const TArra
 	Row += TEXT("]}\n");
 	FFileHelper::SaveStringToFile(Row, *FPaths::Combine(RunDir, TEXT("census_mask/census_mask_map.jsonl")),
 		FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+#endif
 }
 
 #if !UE_BUILD_SHIPPING
@@ -3012,6 +3042,7 @@ void UAnomalyCaptureSubsystem::GatherAnomalyPrewarmMaterials(TArray<UMaterialInt
 
 bool UAnomalyCaptureSubsystem::IsTexCorruptWarmWanted() const
 {
+#if ANOMALY_CAPTURE
 	if (bTargetedMode && (AnomalyTexCorrupt::IsTexCorruptId(TargetAnomalyId)
 		|| (TargetAnomalyId == FName(TEXT("stuck_low_mip")) && AnomalyStuckMip::GetRoute() != AnomalyProxyBlur::ERoute::Hold)))
 	{
@@ -3021,6 +3052,9 @@ bool UAnomalyCaptureSubsystem::IsTexCorruptWarmWanted() const
 	const UAnomalyAutoInjectorSubsystem* Auto = World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
 	return Auto && (Auto->IsAnomalyEnabled(FName(TEXT("uv_corruption"))) || Auto->IsAnomalyEnabled(FName(TEXT("normal_corruption")))
 		|| (Auto->IsAnomalyEnabled(FName(TEXT("stuck_low_mip"))) && AnomalyStuckMip::GetRoute() != AnomalyProxyBlur::ERoute::Hold));
+#else
+	return false;
+#endif
 }
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeTexCorruptWarmDrawSource() const
@@ -3193,6 +3227,7 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusTranslucentWritersSource() 
 
 int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* World, TArray<FString>* OutNames) const
 {
+#if ANOMALY_CAPTURE
 	int32 Volumes = 0;
 	int32 CameraBlends = 0;
 	int32 BlendableEntries = 0;
@@ -3325,6 +3360,10 @@ int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* Wo
 	}
 
 	return Readers;
+#else
+	if (OutNames) { OutNames->Reset(); }
+	return 0;
+#endif
 }
 
 const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusFloorSource() const
@@ -4390,18 +4429,26 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 
 bool UAnomalyCaptureSubsystem::HasGameWindow(UWorld* World) const
 {
+#if ANOMALY_CAPTURE
 	UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
 	return GV && GV->Viewport;
+#else
+	return false;
+#endif
 }
 
 bool UAnomalyCaptureSubsystem::IsGameWindowFocused(UWorld* World) const
 {
+#if ANOMALY_CAPTURE
 	UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
 	if (GV && GV->Viewport)
 	{
 		return GV->Viewport->IsForegroundWindow();
 	}
 	return true;
+#else
+	return false;
+#endif
 }
 
 void UAnomalyCaptureSubsystem::StopRun()
@@ -11542,4 +11589,17 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusHostTagCmd(
 				*Args[0], Value, Touched);
 		}));
 
+#endif
+
+#if !ANOMALY_CAPTURE
+void UAnomalyCaptureSubsystem::PreviewPump() {}
+void UAnomalyCaptureSubsystem::PreviewArm(uint32 InViewEpoch) {}
+bool UAnomalyCaptureSubsystem::PreviewPoll(TArray<uint8>& OutJpeg, int32& OutW, int32& OutH, uint32& OutEpoch)
+{
+	OutJpeg.Reset();
+	OutW = 0;
+	OutH = 0;
+	OutEpoch = 0;
+	return false;
+}
 #endif

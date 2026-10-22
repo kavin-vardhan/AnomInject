@@ -32,9 +32,6 @@ public:
 	void LogStatus() const;
 	bool IsListening() const { return bListening; }
 
-protected:
-
-
 private:
 	void OnClientConnected(INetworkingWebSocket* Socket);
 	void OnReceive(INetworkingWebSocket* Socket, void* Data, int32 Size);

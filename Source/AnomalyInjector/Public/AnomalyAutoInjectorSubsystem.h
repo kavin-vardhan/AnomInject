@@ -114,9 +114,6 @@ public:
 
 	bool SetKeyBinding(FName Action, FKey Key);
 
-protected:
-
-
 private:
 	void PollInput();
 	void DrawHUD(UCanvas* Canvas, APlayerController* PC);

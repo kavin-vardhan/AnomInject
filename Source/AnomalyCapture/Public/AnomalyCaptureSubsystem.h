@@ -210,9 +210,6 @@ public:
 	};
 	const FLastRunPacing& GetLastRunPacing() const { return LastRunPacing; }
 
-protected:
-
-
 private:
 	enum class ECapturePhase : uint8
 	{

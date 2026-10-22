@@ -9,6 +9,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "StaticMeshResources.h"
+#include "ConvexVolume.h"
 #include "PhysicsEngine/BodySetup.h"
 #if ANOMALY_ENGINE_51
 #include "Engine/SkinnedAsset.h"
@@ -81,5 +82,57 @@ bool AnomalyCompat::HasComplexCollision(const UBodySetup* Setup)
 	return Setup && Setup->CollisionTraceFlag != CTF_UseSimpleAsComplex && Setup->TriMeshes.Num() > 0;
 #else
 	return Setup && Setup->CollisionTraceFlag != CTF_UseSimpleAsComplex && Setup->ChaosTriMeshes.Num() > 0;
+#endif
+}
+
+float AnomalyCompat::StaticLodScreenSize(const FStaticMeshRenderData* Data, int32 LodIndex)
+{
+#if ANOMALY_ENGINE_425
+	return Data->ScreenSize[LodIndex].Default;
+#else
+	return Data->ScreenSize[LodIndex].GetValue();
+#endif
+}
+
+int32 AnomalyCompat::PredictedLod(const USkinnedMeshComponent* Component)
+{
+#if ANOMALY_ENGINE_425
+	return Component->PredictedLODLevel;
+#else
+	return Component->GetPredictedLODLevel();
+#endif
+}
+
+void AnomalyCompat::ViewFrustumWithoutFarPlane(FConvexVolume& Out, const FMatrix& ViewProjection)
+{
+#if ANOMALY_ENGINE_425
+	Out.Planes.Empty(6);
+	FPlane Plane;
+	if (ViewProjection.GetFrustumNearPlane(Plane)) { Out.Planes.Add(Plane); }
+	if (ViewProjection.GetFrustumLeftPlane(Plane)) { Out.Planes.Add(Plane); }
+	if (ViewProjection.GetFrustumRightPlane(Plane)) { Out.Planes.Add(Plane); }
+	if (ViewProjection.GetFrustumTopPlane(Plane)) { Out.Planes.Add(Plane); }
+	if (ViewProjection.GetFrustumBottomPlane(Plane)) { Out.Planes.Add(Plane); }
+	Out.Init();
+#else
+	GetViewFrustumBounds(Out, ViewProjection, true, false);
+#endif
+}
+
+FVector AnomalyCompat::AxisVector(int32 Axis)
+{
+#if ANOMALY_ENGINE_425
+	return Axis == 0 ? FVector(1.0f, 0.0f, 0.0f) : (Axis == 1 ? FVector(0.0f, 1.0f, 0.0f) : FVector(0.0f, 0.0f, 1.0f));
+#else
+	return Axis == 0 ? FVector::XAxisVector : (Axis == 1 ? FVector::YAxisVector : FVector::ZAxisVector);
+#endif
+}
+
+bool AnomalyCompat::IsSceneCaptureOnly(const UPrimitiveComponent* Component)
+{
+#if ANOMALY_ENGINE_425
+	return false;
+#else
+	return Component->bVisibleInSceneCaptureOnly != 0;
 #endif
 }
