@@ -289,9 +289,9 @@ editor does.
       *Capture and the control server are compiled out of Shipping entirely.*
       **The plugin is excluded from Shipping builds by design; capture with Development or Test.** 🆕 (090-07)
       Every module in `AnomalyInjector.uplugin` carries `"BlacklistTargetConfigurations": [ "Shipping" ]`, so a
-UE 5.1 reads these legacy descriptor keys through its silent deprecated-key fallback.
       Shipping build compiles without the plugin rather than failing in it (G428). Check: UBT's module list for
       the Shipping target (`-Mode=JsonExport`, no compile) names no `Anomaly*` module.
+      UE 5.1 reads these legacy descriptor keys through its silent deprecated-key fallback.
 - [ ] 🚨 **`IAI.Capture.MaskProbe` is OFF in anything that ships — check what the BUILD does, not what
       you intended.** *The probe is a GATE ARTEFACT (m26, F-6 item 5): under the flag it deliberately
       bypasses `LOCK-1` for one arm per run to prove the mask's detectors are live. It defaults OFF and

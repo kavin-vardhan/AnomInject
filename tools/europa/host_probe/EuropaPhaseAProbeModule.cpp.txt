@@ -1,0 +1,7 @@
+#include "Modules/ModuleManager.h"
+
+class FEuropaPhaseAProbeModule : public IModuleInterface
+{
+};
+
+IMPLEMENT_MODULE(FEuropaPhaseAProbeModule, EuropaPhaseAProbe)

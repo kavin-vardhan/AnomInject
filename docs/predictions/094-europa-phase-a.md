@@ -147,3 +147,15 @@ Parser/writer evidence: 4.25 `Runtime/Projects/Private/ModuleDescriptor.cpp:180,
 Before each leg, its immutable receipt records source and prediction commits, fixture/configuration hashes, engine/toolchain versions, actual executable/DLL hashes, effective CVars, AA mode, seed, expected event/world/action floors, can-fail role, and idle/foreground sampling. Join every actual changed file to the reach map before the first runtime leg; any unassigned path blocks admission. Bind final results to final binaries (G201/K7). Mutant/source restoration followed by a rebuild invalidates earlier reached binary gates until repeated. Retain failed and invalidated legs without rewriting their predictions.
 
 The 4.25 screenshot thresholds and the A/R tables above are frozen. An unsuitable fixture is replaced and re-predicted before a new leg; thresholds never loosen after a result. Results and owner acceptance references are initially absent, not implied passes.
+
+## 2026-10-22 A3 addendum (EC1, ED1-ED7; frozen before A3 UBT)
+
+The two 5.1 host copies restore the original effective engine-plugin set, including ControlRig, FullBodyIK, EnhancedInput, Metasound and GameplayInsights. Only RoomGenerator and UnrealMCPython are disabled and uncopied. AnomalyInjector remains enabled (explicit in copies, default-enabled in the original). The exact module totals from A2 are superseded; 5.1 release/candidate full exported module membership must still be identical across the same 8 valid pairs. The installed 4.25 domain remains 5 pairs.
+
+Every host adds the empty EuropaPhaseAProbe module, with identical 5.1 sources and no Compat dependency. Expect it in every valid non-Shipping export and absent in Shipping. Removing its legacy Shipping blacklist must add it to a real Shipping export on each engine; restoration must remove it again. The plugin AnomalyShaders blacklist mutant on 5.1 must still add exactly AnomalyShaders. No probe behaviour or shim-audit access exists yet.
+
+A3 compiles only the two authorized Editor Development targets, incrementally, with NoEngineChanges and zero engine compile/link actions. They are working results; gates A1 (Build/toolchain), A2 (Strict) and R1 remain A4 final-source obligations. The original tick/world denominators, AA-off identity arbiter, paired TAA/TSR characterization, transition 0/0/0, and all A/R predicates remain unchanged.
+
+Toolchain predictions: 5.1 selects 14.38.33130 (cl 19.38.33144); 4.25 selects 14.16.27051 from directory 14.16.27023, SDK 10.0.17763.0, C++17. No 5.1 compile is admitted if selection changes. ED1 replaces disk thresholds; ED4 admits only successful zero-engine-action build metadata under the 5.1 Intermediate/Build allowlist up to 100 MB. ED5 records root folders and compact snapshot deltas; no new C:/E: test folders.
+
+New reach: host probe skeleton and restored host plugin dependencies (C; descriptor proof now, runtime fixtures A5 onward); build-only once-per-target profile logging (C); scoped ledger/wrapper/strict tooling (C). Production C1-C5 remains N on 5.1 subject to A4-A12 gates, with the final file/reach manifest frozen before runtime legs.
