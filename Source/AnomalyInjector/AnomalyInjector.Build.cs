@@ -51,7 +51,7 @@ public static class AnomalyEngineRules
 		bool bBench = Is51(Target) && Target.Configuration != UnrealTargetConfiguration.Shipping
 			&& (Target.Type == TargetType.Game || Target.Type == TargetType.Editor);
 		Rules.PublicDefinitions.Add(bBench ? "ANOMALY_PROFILE_BENCH=1" : "ANOMALY_PROFILE_BENCH=0");
-		string ReportKey = Target.ProjectFile + "|" + Target.Name + "|" + Target.Platform + "|" + Target.Configuration;
+		string ReportKey = System.String.Format("{0}|{1}|{2}|{3}", Target.ProjectFile, Target.Name, Target.Platform, Target.Configuration);
 		if (Target.Platform == UnrealTargetPlatform.Win64 && ReportedTargets.Add(ReportKey))
 		{
 			System.Console.WriteLine("Anomaly profile: engine={0}.{1} compiler={2} version={3} SDK={4} cppStandard={5} toolchain={6}",
