@@ -47,6 +47,7 @@ public static class AnomalyEngineRules
 		if (Is425(Target))
 		{
 			Rules.CppStandard = CppStandardVersion.Cpp17;
+			Rules.PCHUsage = ModuleRules.PCHUsageMode.NoPCHs;
 		}
 		bool bBench = Is51(Target) && Target.Configuration != UnrealTargetConfiguration.Shipping
 			&& (Target.Type == TargetType.Game || Target.Type == TargetType.Editor);
