@@ -47,12 +47,14 @@
       "path": "Source/AnomalyBench/Private/AnomalyBenchModule.cpp",
       "effect_51": "N",
       "reason": "A2 disabled 4.25 bench implementation and module diagnostic; enabled body retained",
-      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization; enabled-route timing and lifetime regression",
       "gates": [
         "R1",
         "R2",
         "R3",
+        "R4",
         "R5",
+        "R6",
         "R7",
         "R8",
         "R9"
@@ -62,12 +64,14 @@
       "path": "Source/AnomalyBench/Private/AnomalyBenchTwoPartActor.cpp",
       "effect_51": "N",
       "reason": "A2 disabled component construction on 4.25; 5.1 constructor retained",
-      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization; enabled-route timing and lifetime regression",
       "gates": [
         "R1",
         "R2",
         "R3",
+        "R4",
         "R5",
+        "R6",
         "R7",
         "R8",
         "R9"
@@ -76,7 +80,7 @@
     {
       "path": "Source/AnomalyBench/Private/AnomalyBenchTwoPartActor.h",
       "effect_51": "N",
-      "reason": "Retain reflected names/specifiers/GC traversal; eight null raw scalars and one empty raw-pointer array",
+      "reason": "Three null raw reflected component pointers; names, specifiers and GC traversal retained",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -102,7 +106,7 @@
     {
       "path": "Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp",
       "effect_51": "N",
-      "reason": "Common inert shell includes; complete Async/PreviewTee/RunLog types at every construction/destruction path",
+      "reason": "Literal shim parent and portable shell includes; complete owned disabled types, but remaining capture helper guards fail the first 4.25 compile",
       "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
       "gates": [
         "R1",
@@ -373,12 +377,14 @@
       "path": "Source/AnomalyControlServer/Private/Compat/AnomalyControlTransportState.h",
       "effect_51": "N",
       "reason": "A2 opaque non-reflected transport ownership; complete disabled type",
-      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization; enabled-route timing and lifetime regression",
       "gates": [
         "R1",
         "R2",
         "R3",
+        "R4",
         "R5",
+        "R6",
         "R7",
         "R8",
         "R9"
@@ -438,12 +444,12 @@
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CameraClipping.cpp",
       "effect_51": "N",
       "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
-      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
-        "R3",
         "R4",
         "R5",
+        "R6",
         "R7",
         "R9"
       ]
@@ -452,12 +458,12 @@
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CameraClipping.h",
       "effect_51": "N",
       "reason": "Self-contained disabled native header in strict 4.25 TUs",
-      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
-        "R3",
         "R4",
         "R5",
+        "R6",
         "R7",
         "R9"
       ]
@@ -466,12 +472,12 @@
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_ChangeCase.cpp",
       "effect_51": "N",
       "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
-      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
-        "R3",
         "R4",
         "R5",
+        "R6",
         "R7",
         "R9"
       ]
@@ -480,12 +486,12 @@
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CorruptedTexture.cpp",
       "effect_51": "N",
       "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
-      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
-        "R3",
         "R4",
         "R5",
+        "R6",
         "R7",
         "R9"
       ]
@@ -494,12 +500,12 @@
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_LodPopping.cpp",
       "effect_51": "N",
       "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
-      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
-        "R3",
         "R4",
         "R5",
+        "R6",
         "R7",
         "R9"
       ]
@@ -508,12 +514,12 @@
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingTexture.cpp",
       "effect_51": "N",
       "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
-      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
-        "R3",
         "R4",
         "R5",
+        "R6",
         "R7",
         "R9"
       ]
@@ -578,12 +584,12 @@
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_TimeDilation.cpp",
       "effect_51": "N",
       "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
-      "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
+      "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
-        "R3",
         "R4",
         "R5",
+        "R6",
         "R7",
         "R9"
       ]
@@ -853,7 +859,7 @@
     {
       "path": "Source/AnomalyInjector/Public/AnomalyInjectorSubsystem.h",
       "effect_51": "N",
-      "reason": "Retain reflected names/specifiers/GC traversal; eight null raw scalars and one empty raw-pointer array",
+      "reason": "Literal shim parent; five null raw reflected asset pointers and one empty raw-pointer array, with names/specifiers retained",
       "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
       "gates": [
         "R1",
@@ -914,12 +920,14 @@
       "path": "Source/AnomalyInjector/Public/Compat/AnomalyEngineVersion.h",
       "effect_51": "N",
       "reason": "A2 exact engine predicates and unsupported-version diagnostic",
-      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization; enabled-route timing and lifetime regression",
       "gates": [
         "R1",
         "R2",
         "R3",
+        "R4",
         "R5",
+        "R6",
         "R7",
         "R8",
         "R9"
@@ -929,12 +937,14 @@
       "path": "Source/AnomalyInjector/Public/Compat/AnomalySharedPointerIncludes.h",
       "effect_51": "N",
       "reason": "A2 portable defining shared-pointer includes outside reflected UHT parse",
-      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization; enabled-route timing and lifetime regression",
       "gates": [
         "R1",
         "R2",
         "R3",
+        "R4",
         "R5",
+        "R6",
         "R7",
         "R8",
         "R9"
@@ -944,12 +954,14 @@
       "path": "Source/AnomalyInjector/Public/Compat/AnomalyStatsIncludes.h",
       "effect_51": "N",
       "reason": "A2 defining stats includes outside reflected UHT parse",
-      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization; enabled-route timing and lifetime regression",
       "gates": [
         "R1",
         "R2",
         "R3",
+        "R4",
         "R5",
+        "R6",
         "R7",
         "R8",
         "R9"
@@ -1001,12 +1013,14 @@
       "path": "Source/AnomalyShaders/Private/AnomalyShadersModule.cpp",
       "effect_51": "N",
       "reason": "A2 disabled 4.25 shader registration and diagnostic; 5.1 mapping retained",
-      "reached_behavior": "Shared compile/include/ownership and feature initialization",
+      "reached_behavior": "Shared compile/include/ownership and feature initialization; enabled-route timing and lifetime regression",
       "gates": [
         "R1",
         "R2",
         "R3",
+        "R4",
         "R5",
+        "R6",
         "R7",
         "R8",
         "R9"
