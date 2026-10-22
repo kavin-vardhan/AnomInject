@@ -13,3 +13,7 @@ Physical-D hosts: `D:/IA_Europa/StylizedParisStreet`, `D:/IA_Europa/Baseline51/S
 `idle_gate.py --self-test --output <D-path>` tests the EA6 thresholds and refuses unknown inputs. Its real collector is not used in A1/A2. `check_reflected_headers.py --root Source --self-test --output <D-path>` enforces EA11 and exercises the forbidden-#if mutant.
 
 EB1 replaced 094-02's tracing hold. ETW, USN and elevation must not be attempted. No registry, global XML or user/machine environment is modified. The full P9 baseline remains immutable; per-job checks allow only this branch's new objects/ref and its three worktree registrations in the common repository. No push is authorized.
+
+## 2026-10-22 EE1 and EE6 build routing
+
+The failed UHT UserDir attempt through UE-CmdLineArgs is removed for all build-mode children. EE1 admits only the ten named UnrealHeaderTool/Saved/Config/Windows ini files, Config/CrashReportClient/UE4CC-Windows-* folder replacement, and Saved/Logs. Each operation records path, size, mtime and full file hash, plus directory deltas. These outputs remain within the cumulative 250 MB C: budget; any other UHT path is a STOP. No engine, global or per-user setting is modified. The environment receipt selects actual child keys case-insensitively, and the diagnostic reader extracts Source/<Module> instead of the outer plugin folder. The original budget suite now exercises current delta storage and cumulative charge. P9 remains v1 because the requested cleanup was refused before deletion.

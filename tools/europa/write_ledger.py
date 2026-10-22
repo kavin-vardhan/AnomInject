@@ -14,7 +14,7 @@ import threading
 import time
 
 ROOT = Path('D:/IA_Europa')
-JOB = ROOT / 'Receipts/09404'
+JOB = ROOT / 'Receipts/09405'
 LEDGER = JOB / 'ledger'
 USER = Path('C:/Users/kavin')
 LOCAL = USER / 'AppData/Local'
@@ -43,7 +43,7 @@ def specs():
         ('paris_original', 'E:/Unreal Projects/StylizedParisStreet', 'tree', True),
         ('unreal_engine', str(LOCAL / 'UnrealEngine'), 'tree', False),
         ('ubt', str(LOCAL / 'UnrealBuildTool'), 'tree', False),
-        ('uht', str(LOCAL / 'UnrealHeaderTool'), 'tree', False),
+        ('uht', str(LOCAL / 'UnrealHeaderTool'), 'tree', True),
         ('crashclient', str(LOCAL / 'CrashReportClient'), 'tree', False),
         ('epic', 'C:/ProgramData/Epic', 'tree', False),
         ('c_root', 'C:/', 'top', False), ('d_root', 'D:/', 'top', False), ('e_root', 'E:/', 'top', False),
@@ -78,7 +78,7 @@ def create_database(path):
 
 def inventory(database):
     con = create_database(database)
-    errors, links, totals = [], [], {}
+    errors, links, totals, uht_hashes = [], [], {}, []
     for name, raw, mode, strict in specs():
         root = Path(raw)
         if not root.exists():
@@ -116,15 +116,19 @@ def inventory(database):
                                         folders += 1
                                     continue
                             if isdir:
-                                if mode == 'top':
+                                if mode == 'top' or name == 'uht':
                                     batch.append((name, str(p), 0, s.st_mtime_ns, 'directory'))
                                     folders += 1
-                                else:
+                                if mode != 'top':
                                     stack.append(p)
                             elif entry.is_file():
                                 batch.append((name, str(p), s.st_size, s.st_mtime_ns, 'file'))
                                 count += 1
                                 size += s.st_size
+                                if name == 'uht':
+                                    with p.open('rb') as source:
+                                        value = hashlib.file_digest(source, 'sha256').hexdigest()
+                                    uht_hashes.append({'path': str(p), 'size': s.st_size, 'mtime_ns': s.st_mtime_ns, 'sha256': value})
                             if len(batch) >= 4000:
                                 con.executemany('INSERT INTO files VALUES(?,?,?,?,?)', batch)
                                 batch = []
@@ -143,7 +147,7 @@ def inventory(database):
         floors()
     hashvalue = digest(con)
     con.close()
-    return {'time_utc': now(), 'snapshot_sha256': hashvalue, 'totals': totals, 'access_errors': errors, 'links': links, 'disks': floors()}
+    return {'time_utc': now(), 'snapshot_sha256': hashvalue, 'totals': totals, 'access_errors': errors, 'links': links, 'uht_file_sha256': uht_hashes, 'disks': floors()}
 
 def delta(before, after):
     con = sqlite3.connect(before)
@@ -224,7 +228,21 @@ def classification(scope, path, kind, change=None, build_ok=False):
         if kind == 'read_only':
             return 'foreign', 'no UE child in the recorded operation'
         return 'STOP', 'unclassified UnrealEngine path'
-    if scope in ('ubt', 'uht'):
+    if scope == 'uht':
+        relative = p.split('/unrealheadertool/', 1)[-1]
+        windows = {'compat.ini', 'deviceprofiles.ini', 'engine.ini', 'game.ini', 'gameusersettings.ini',
+            'hardware.ini', 'input.ini', 'lightmass.ini', 'runtimeoptions.ini', 'scalability.ini'}
+        allowed = relative.startswith('saved/config/windows/') and relative.removeprefix('saved/config/windows/') in windows
+        allowed = allowed or relative == 'saved/logs' or relative.startswith('saved/logs/')
+        parts = relative.split('/')
+        allowed = allowed or (len(parts) >= 4 and parts[:3] == ['saved', 'config', 'crashreportclient'] and parts[3].startswith('ue4cc-windows-'))
+        parents = {'saved', 'saved/config', 'saved/config/windows', 'saved/config/crashreportclient'}
+        if relative in parents and change and change['before_kind'] == change['after_kind'] == 'directory':
+            allowed = True
+        if allowed:
+            return ('foreign', 'No UHT child in read-only window') if kind == 'read_only' else ('port_C_exception', 'EE1 exact UHT settings/log output; before/after hashes retained')
+        return 'STOP', 'UHT path outside EE1 exact settings/log classes'
+    if scope == 'ubt':
         if kind == 'read_only':
             return 'foreign', 'no UBT or UHT child in this window'
         if Path(p).suffix in ('.log', '.txt', '.json') and Path(p).name.startswith(('log', 'unreal')):
@@ -311,21 +329,21 @@ def finish(folder, kind):
     return result
 
 def child_env(folder):
-    env = os.environ.copy()
+    env = {key.upper(): value for key, value in os.environ.items()}
     if any(key in env for key in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')):
         raise RuntimeError('W4 dates present')
-    temp = ROOT / 'Temp/09404' / folder.name
+    temp = ROOT / 'Temp/09405' / folder.name
     temp.mkdir(parents=True, exist_ok=True)
     routing = {'TEMP': str(temp), 'TMP': str(temp), 'uebp_EngineSavedFolder': str(temp / 'UAT/Saved'),
         'uebp_LogFolder': str(temp / 'UAT/Working'), 'uebp_FinalLogFolder': str(temp / 'UAT/Final'),
         'DOTNET_CLI_HOME': str(temp / 'DotNet'), 'DOTNET_CLI_TELEMETRY_OPTOUT': '1', 'DOTNET_SKIP_FIRST_TIME_EXPERIENCE': '1',
         'DOTNET_NOLOGO': '1', 'NUGET_PACKAGES': str(temp / 'NuGet'), 'GIT_OPTIONAL_LOCKS': '0',
         'PYTHONDONTWRITEBYTECODE': '1', 'EUROPA_OPERATION_DIR': str(folder)}
-    env.update(routing)
-    for key in ('DOTNET_ROOT', 'DOTNET_MULTILEVEL_LOOKUP', 'EUROPA_DESCRIPTOR_PROBE', 'UE-CmdLineArgs'):
-        if key in env:
-            routing[key] = env[key]
-    return env, routing
+    env.update({key.upper(): value for key, value in routing.items()})
+    selected = {key.casefold() for key in routing}
+    selected.update(key.casefold() for key in ('DOTNET_ROOT', 'DOTNET_MULTILEVEL_LOOKUP', 'EUROPA_DESCRIPTOR_PROBE', 'UE-CmdLineArgs', 'EUROPA_BUILD_CHILDREN'))
+    receipt = {key: value for key, value in env.items() if key.casefold() in selected}
+    return env, receipt
 
 def run_child(argv, cwd=None, acceptable=(0,)):
     folder = Path(os.environ['EUROPA_OPERATION_DIR'])

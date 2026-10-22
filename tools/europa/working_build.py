@@ -24,7 +24,7 @@ def build_command(host, target, configuration, output):
 
 def classify_actions(path, project, engine):
     data = json.loads(path.read_text(encoding='utf-8-sig'))
-    counts = {'project': 0, 'plugin': 0, 'engine': 0}
+    counts = {'project': 0, 'plugin': 0, 'engine': 0, 'engine_plugin': 0}
     rows = []
     standards = []
     for action in data['Actions']:
@@ -41,6 +41,8 @@ def classify_actions(path, project, engine):
         else:
             category = 'project'
         counts[category] += 1
+        if category == 'engine' and any(p.resolve().is_relative_to((engine / 'Engine/Plugins').resolve()) for p in mutations):
+            counts['engine_plugin'] += 1
         rows.append({'category': category, 'type': action['Type'], 'command': action['CommandPath'],
             'arguments': action['CommandArguments'], 'outputs': list(map(str, outputs))})
         for item in action.get('PrerequisiteItems', []):
@@ -59,15 +61,34 @@ def diagnostics(text):
     for line in text.splitlines():
         if not re.search(r'\b(?:fatal error|error|warning)(?:\s+[A-Z]+\d+)?\s*:', line, re.I):
             continue
-        module = next((name for name in ('AnomalyInjector', 'AnomalyCapture', 'AnomalyControlServer', 'AnomalyShaders', 'AnomalyBench', 'EuropaPhaseAProbe', 'CaptureBench', 'StylizedParisStreet', 'StackOBot') if name.lower() in line.lower()), 'engine-or-unresolved')
-        location = re.search(r'(?P<file>[^\r\n:]+\.(?:cpp|h|cs))\((?P<line>\d+)(?:,\d+)?\)', line)
+        normalized = line.replace('\\', '/')
+        module_match = re.search(r'/Source/([^/]+)/', normalized, re.I)
+        module = module_match.group(1) if module_match else 'engine-or-unresolved'
+        location = re.search(r'(?P<file>(?:[A-Z]:/)?[^\r\n:]*?\.(?:cpp|h|cs|xml))\((?P<line>\d+)(?:,\d+)?\)', normalized, re.I)
         if location and module == 'engine-or-unresolved':
             matches = list((PORT / 'Source').rglob(Path(location['file']).name))
             if len(matches) == 1:
                 module = matches[0].relative_to(PORT / 'Source').parts[0]
+        if module == 'engine-or-unresolved':
+            generated = re.search(r'/Development/([^/]+)/Module\.', normalized, re.I)
+            if generated:
+                module = generated.group(1)
+        if 'BuildConfiguration.xml' in line:
+            module = 'UBT/user XML'
+        warning = bool(re.search(r'\bwarning\b', line, re.I))
         rows.append({'module': module, 'diagnostic': line, 'file': location['file'].strip() if location else None,
-            'line': int(location['line']) if location else None, 'new_port_warning': None if 'warning' in line.lower() else False})
+            'line': int(location['line']) if location else None, 'new_port_warning': warning and module != 'UBT/user XML'})
     return rows
+
+def prepare_build_environment(environ, host, engine):
+    for key in list(environ):
+        if key.casefold() == 'ue-cmdlineargs':
+            del environ[key]
+    if host == '51port':
+        environ['DOTNET_ROOT'] = str(engine / 'Engine/Binaries/ThirdParty/DotNet/6.0.302/windows')
+        environ['DOTNET_MULTILEVEL_LOOKUP'] = '0'
+    environ['EUROPA_BUILD_CHILDREN'] = '1'
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -93,10 +114,7 @@ def main():
         os.environ['DOTNET_MULTILEVEL_LOOKUP'] = '0'
     else:
         assert json.loads((ledger.JOB / 'precompile/425-write-routing.json').read_text())['result'] == 'ADMITTED'
-    user = ledger.ROOT / 'Runtime' / host / args.label / 'UHT'
-    shader = ledger.ROOT / 'Caches' / host / 'ShaderWorking'
-    os.environ['UE-CmdLineArgs'] = '-UserDir=' + user.as_posix() + '/ -ShaderWorkingDir=' + shader.as_posix() + '/ -DDC=' + graph + ' -AbsCrashReportClientLog=' + (output / 'CrashClient.log').as_posix()
-    os.environ['EUROPA_BUILD_CHILDREN'] = '1'
+    prepare_build_environment(os.environ, host, engine)
     argv = build_command(host, ALLOWED[host], 'Development', output)
     ledger.dump(output / 'invocation.json', {'commit': sha, 'host': host, 'target': ALLOWED[host],
         'configuration': 'Development', 'argv': argv, 'working_result_only': True, 'NoEngineChanges': True,
@@ -111,6 +129,7 @@ def main():
         admission = classify_actions(plan, project, engine)
         ledger.dump(output / 'action-admission.json', admission)
         result['action_counts'] = admission['counts']
+        result['engine_plugin_actions'] = admission['counts']['engine_plugin']
         result['cpp_standard_responses'] = admission['cpp_standard_responses']
         result['phase'] = 'compile'
         result['exit_code'] = ledger.run_child(argv, cwd=project.parent, acceptable=tuple(range(256)))
