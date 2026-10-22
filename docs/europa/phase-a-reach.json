@@ -1,6 +1,7 @@
 {
   "base": "d7eee97731812384d4fd00af9032254923363ada",
   "comparison": "git diff --name-only d7eee97..HEAD after commit; added files included before commit",
+  "status": "A3 INCOMPLETE: first 4.25 working compile failed; UHT non-exempt C configuration writes triggered STOP. Intended effect classes are not runtime or build qualification.",
   "classes": {
     "N": "changed but meant to be neutral on 5.1, subject to reach gates",
     "C": "changed tooling, host or diagnostic surface",
@@ -423,8 +424,8 @@
     },
     {
       "path": "Source/AnomalyInjector/AnomalyInjector.Build.cs",
-      "effect_51": "N",
-      "reason": "A2 exact-version rules, portable shared C# and dependency/availability policy; Injector adds once-per-target profile diagnostic in A3 (C diagnostic effect)",
+      "effect_51": "C",
+      "reason": "A2 exact-version rules remain intended neutral; ED6 deliberately changes profile logging from per module to once per target, preserving its content",
       "reached_behavior": "Compiler, standard, dependency closure, module selection and startup",
       "gates": [
         "R1",
@@ -1024,6 +1025,17 @@
     },
     {
       "path": "docs/architecture.md",
+      "effect_51": "C",
+      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/europa/09404-working-result.md",
       "effect_51": "C",
       "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",

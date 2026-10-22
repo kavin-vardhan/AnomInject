@@ -11,7 +11,10 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **094-04, 2026-10-22 — A3 shared closure committed for working Editor Development compiles.**
+> **094-04, 2026-10-22 — A3 INCOMPLETE: write STOP after the first 4.25 working compile.**
+> UHT rewrote non-exempt C: UnrealHeaderTool/Saved/Config files. No second build or compiler fix was attempted.
+> UHT passed, but C++ failed at 9fdc8f0 (PCH standard mismatch, incomplete capture guards and portable API gaps).
+> Neither engine tree changed. Resume requires Chat's routing decision; results: docs/europa/09404-working-result.md.
 > EC1 plugin sets, both toolchains, 8/5 descriptor pairs and all three Shipping mutants pass.
 > EA11 passes seven reflected headers and its mutant. No runtime or final-build gate is claimed.
 > Closure/reach: docs/europa/phase-a-a3-closure.md and phase-a-reach.json.
