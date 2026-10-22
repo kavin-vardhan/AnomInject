@@ -17,3 +17,7 @@ EB1 replaced 094-02's tracing hold. ETW, USN and elevation must not be attempted
 ## 2026-10-22 EE1 and EE6 build routing
 
 The failed UHT UserDir attempt through UE-CmdLineArgs is removed for all build-mode children. EE1 admits only the ten named UnrealHeaderTool/Saved/Config/Windows ini files, Config/CrashReportClient/UE4CC-Windows-* folder replacement, and Saved/Logs. Each operation records path, size, mtime and full file hash, plus directory deltas. These outputs remain within the cumulative 250 MB C: budget; any other UHT path is a STOP. No engine, global or per-user setting is modified. The environment receipt selects actual child keys case-insensitively, and the diagnostic reader extracts Source/<Module> instead of the outer plugin folder. The original budget suite now exercises current delta storage and cumulative charge. P9 remains v1 because the requested cleanup was refused before deletion.
+
+## 2026-10-22 094-05 ledger comparison recovery
+
+The third operation hit SQLite disk I/O failure in its final UNION/JOIN comparison during memory pressure. The first attempt is preserved. The one D2 retry uses an ordered streaming merge with a 1 MiB cache per input, tested against the previous query on changed, removed, new and unchanged entries. Full inventories, snapshot hashes, budget checks and root-folder detection remain required; no inventory or scope is omitted. The original before snapshot and failed after database are retained.

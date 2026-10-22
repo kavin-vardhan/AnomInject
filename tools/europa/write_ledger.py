@@ -150,14 +150,31 @@ def inventory(database):
     return {'time_utc': now(), 'snapshot_sha256': hashvalue, 'totals': totals, 'access_errors': errors, 'links': links, 'uht_file_sha256': uht_hashes, 'disks': floors()}
 
 def delta(before, after):
-    con = sqlite3.connect(before)
-    con.execute('ATTACH DATABASE ? AS aft', (str(after),))
-    rows = con.execute('''SELECT a.scope,a.path,b.size,a.size,b.mtime,a.mtime,b.kind,a.kind FROM aft.files a LEFT JOIN main.files b
-        ON a.scope=b.scope AND a.path=b.path WHERE b.path IS NULL OR a.size!=b.size OR a.mtime!=b.mtime OR a.kind!=b.kind
-        UNION ALL SELECT b.scope,b.path,b.size,NULL,b.mtime,NULL,b.kind,NULL FROM main.files b LEFT JOIN aft.files a
-        ON a.scope=b.scope AND a.path=b.path WHERE a.path IS NULL ORDER BY 1,2''').fetchall()
-    con.close()
-    return [dict(zip(('scope', 'path', 'before_size', 'after_size', 'before_mtime_ns', 'after_mtime_ns', 'before_kind', 'after_kind'), row)) for row in rows]
+    connections = [sqlite3.connect(path) for path in (before, after)]
+    try:
+        for con in connections:
+            con.execute('PRAGMA cache_size=-1024')
+            con.execute('PRAGMA mmap_size=0')
+        cursors = [con.execute('SELECT scope,path,size,mtime,kind FROM files ORDER BY scope,path') for con in connections]
+        old, new = [cursor.fetchone() for cursor in cursors]
+        changes = []
+        while old is not None or new is not None:
+            if new is None or (old is not None and old[:2] < new[:2]):
+                row = (*old[:2], old[2], None, old[3], None, old[4], None)
+                old = cursors[0].fetchone()
+            elif old is None or new[:2] < old[:2]:
+                row = (*new[:2], None, new[2], None, new[3], None, new[4])
+                new = cursors[1].fetchone()
+            else:
+                row = (*new[:2], old[2], new[2], old[3], new[3], old[4], new[4]) if old != new else None
+                old, new = [cursor.fetchone() for cursor in cursors]
+            if row is not None:
+                changes.append(dict(zip(('scope', 'path', 'before_size', 'after_size', 'before_mtime_ns', 'after_mtime_ns', 'before_kind', 'after_kind'), row)))
+        return changes
+    finally:
+        for con in connections:
+            con.close()
+
 
 def remove_scratch(path):
     resolved = path.resolve(strict=True)
