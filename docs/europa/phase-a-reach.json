@@ -1,7 +1,7 @@
 {
   "base": "d7eee97731812384d4fd00af9032254923363ada",
   "comparison": "git diff --name-only d7eee97..HEAD after commit; added files included before commit",
-  "status": "A3 working C++ closure; final normal/strict/runtime gates remain A4 onward.",
+  "status": "A4a 4.25 clean/strict and build-level Shipping qualification pass; A4b and runtime gates remain pending.",
   "classes": {
     "N": "changed but meant to be neutral on 5.1, subject to reach gates",
     "C": "changed tooling, host or diagnostic surface",
@@ -829,7 +829,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
       "effect_51": "N",
-      "reason": "Complete 4.25 portable texture facade; never applied/eligible/ready/measured",
+      "reason": "Complete 4.25 portable texture facade; never applied/eligible/ready/measured; A4a adds the weak-pointer defining include only inside the 4.25 implementation guard; 5.1 enabled tokens unchanged.",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -1071,6 +1071,19 @@
       ]
     },
     {
+      "path": "docs/europa/09408-a4a-result.md",
+      "effect_51": "C",
+      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
+      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "gates": [
+        "A1",
+        "A2",
+        "A4",
+        "R1",
+        "R2"
+      ]
+    },
+    {
       "path": "docs/europa/phase-a-a3-closure.md",
       "effect_51": "C",
       "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
@@ -1159,12 +1172,51 @@
       ]
     },
     {
+      "path": "docs/sessions/2026-10-24-094-08-europa-a4a.md",
+      "effect_51": "C",
+      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
+      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "gates": [
+        "A1",
+        "A2",
+        "A4",
+        "R1",
+        "R2"
+      ]
+    },
+    {
       "path": "tools/europa/DescriptorProbe.cs.txt",
       "effect_51": "C",
       "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/a4_build.py",
+      "effect_51": "C",
+      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
+      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "gates": [
+        "A1",
+        "A2",
+        "A4",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/a4_evidence.py",
+      "effect_51": "C",
+      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
+      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "gates": [
+        "A1",
+        "A2",
+        "A4",
         "R1",
         "R2"
       ]
@@ -1346,6 +1398,19 @@
       ]
     },
     {
+      "path": "tools/europa/uht_reader_self_tests.py",
+      "effect_51": "C",
+      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
+      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "gates": [
+        "A1",
+        "A2",
+        "A4",
+        "R1",
+        "R2"
+      ]
+    },
+    {
       "path": "tools/europa/working_build.py",
       "effect_51": "C",
       "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
@@ -1370,7 +1435,7 @@
     {
       "path": "tools/strict_include_build.py",
       "effect_51": "C",
-      "reason": "Explicit owned host/engine roots, UE4Editor paths and no 4.25 IncludeOrderVersion; EE1 environment override removed and both UBT calls use EF1; synthetic command wiring only, actual strict lever deferred to A4",
+      "reason": "A4a real 4.25 Editor/Game strict coverage, native UHT output-directory reader, resource-action discrimination, missing-include/PCH/unity controls, exact restoration and normal rebuilds. 5.1 native-layout reader tested synthetically; actual 5.1 strict pass remains A4b.",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1526,7 +1591,7 @@
       "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
     }
   ],
-  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package-checker alias work A11; standalone TickAudit files superseded by EA7 shim-local audit; A3 strict tool is adapted but not run",
-  "current_job": "094-07",
-  "receipts": "D:\\IA_Europa\\Receipts\\09407"
+  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package checker and staged gates later; shim-local audit retained under EA7. Real 4.25 strict pass complete; real 5.1 strict pass remains A4b.",
+  "current_job": "094-08 A4a; qualified source 489c828; documentation-only result commit follows.",
+  "receipts": "D:\\IA_Europa\\Receipts\\09408"
 }
