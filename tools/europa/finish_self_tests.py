@@ -104,6 +104,43 @@ def main():
             check(name + '_outdated_action_refused', 'Engine action STOP' in str(error))
         else:
             raise AssertionError('Engine action mutant admitted')
+    fixture = root / 'retained/Host'
+    fixture_response = fixture / 'Intermediate/Build/Win64/UnrealEditor/Development/Synthetic/a.cpp.obj.response'
+    fixture_response.parent.mkdir(parents=True)
+    fixture_response.write_text('/std:c++17\n')
+    excluded = fixture_response.parent.parent.parent.with_name('Shipping') / 'Synthetic/a.cpp.obj.response'
+    excluded.parent.mkdir(parents=True)
+    excluded.write_text('/std:c++20\n')
+    retained = build.retained_response_flags(fixture / 'Host.uproject', 'HostEditor')
+    check('incremental_retained_response_scope', len(retained) == 1 and retained[0]['standards'] == ['/std:c++17'])
+    check('incremental_retained_response_not_execution_claim', 'not evidence of execution' in retained[0]['evidence'])
+    import importlib.util
+    import os
+    from unittest.mock import patch
+    strict_path = Path(__file__).resolve().parents[1] / 'strict_include_build.py'
+    spec = importlib.util.spec_from_file_location('strict_synthetic', strict_path)
+    strict = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(strict)
+    calls = []
+    def fake_child(argv, **kwargs):
+        calls.append((argv, kwargs))
+        assert kwargs['memory_guard'] is True
+        assert not any(key.casefold() == 'ue-cmdlineargs' for key in os.environ)
+        log_path = Path(next(a[5:] for a in argv if a.startswith('-Log=')))
+        log_path.write_text('SYNTHETIC: no UBT or strict build executed\n')
+        exports = [a.split('=', 1)[1] for a in argv if a.startswith('-WriteOutdatedActions=')]
+        if exports:
+            Path(exports[0]).write_text(json.dumps({'Actions': []}))
+        return 0
+    for name, engine, project, target in [
+        ('425', Path('E:/EpicGames/UE_4.25'), Path('D:/IA_Europa/StylizedParisStreet/StylizedParisStreet.uproject'), 'StylizedParisStreetEditor'),
+        ('51', Path('D:/UESource/UnrealEngine'), Path('D:/IA_Europa/ReGate51/StackOBot/StackOBot.uproject'), 'StackOBotEditor')]:
+        calls.clear()
+        with patch.dict(os.environ, {'UE-CmdLineArgs': 'obsolete-synthetic-override'}), patch.object(ledger, 'run_child', fake_child):
+            result = strict.run_build(str(engine), target, str(project), str(root / ('strict-synthetic-' + name + '.log')))
+        check('strict_' + name + '_both_invocations_memory_guarded', len(calls) == 2 and result['exit'] == 0)
+        check('strict_' + name + '_one_worker_no_engine_changes', all('-MaxParallelActions=1' in row[0] and '-NoEngineChanges' in row[0] for row in calls))
+    check('strict_synthetic_only', not any('SIC_' in str(p) for p in root.rglob('*')))
     ledger.dump(root / 'results.json', {'result': 'PASS', 'cases': cases, 'count': len(cases),
         'actual_memory_starvation': False, 'actual_process_termination': False, 'synthetic_C_E_paths_created': 0})
     print(json.dumps({'EF1_EG1_EG2': 'PASS', 'count': len(cases)}))

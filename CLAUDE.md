@@ -11,15 +11,14 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **094-04, 2026-10-22 — A3 INCOMPLETE: write STOP after the first 4.25 working compile.**
-> UHT rewrote non-exempt C: UnrealHeaderTool/Saved/Config files. No second build or compiler fix was attempted.
-> UHT passed, but C++ failed at 9fdc8f0 (PCH standard mismatch, incomplete capture guards and portable API gaps).
-> Neither engine tree changed. Resume requires Chat's routing decision; results: docs/europa/09404-working-result.md.
-> EC1 plugin sets, both toolchains, 8/5 descriptor pairs and all three Shipping mutants pass.
-> EA11 passes seven reflected headers and its mutant. No runtime or final-build gate is claimed.
-> Closure/reach: docs/europa/phase-a-a3-closure.md and phase-a-reach.json.
-> Working compile and protection results are recorded in D:/IA_Europa/Receipts/09404 and the run report.
-> A4a/A4b own final builds and strict execution; the host probe remains an empty skeleton. No push.
+> **094-07, 2026-10-24 — A3 shared closure builds on 4.25 and 5.1.**
+> Both Editor Development working builds have zero errors and zero engine/engine-plugin actions.
+> EF1 gates working builds; EG1 records the narrowly allowed engine bookkeeping; EG2 hashes binary products and response flags.
+> P9 v2 excludes only the owner's declared delete roots. Retained physical junction targets remain protected.
+> Current working results: docs/europa/09407-working-result.md; final protection/confirmation results are in the run report.
+> Closure/reach: docs/europa/phase-a-a3-closure.md and phase-a-reach.json. Capture/texture/control backend seams are declared.
+> A4a/A4b still own final normal/strict and Game/Shipping builds. No runtime qualification or delivery approval.
+> Probe behaviour remains A5 work. No push. Receipts: D:/IA_Europa/Receipts/09407.
 
 > **094-03, 2026-10-16 — EUROPA A1/A2 RULES AND DESCRIPTOR LEVEL 1 PASS on feat/europa-port, from d7eee97.**
 > Three scoped D: hosts, CaptureBench e64d6f9, and frozen predictions before UBT. Both UBT rule sets compile.

@@ -1,7 +1,7 @@
 {
   "base": "d7eee97731812384d4fd00af9032254923363ada",
   "comparison": "git diff --name-only d7eee97..HEAD after commit; added files included before commit",
-  "status": "A3 INCOMPLETE: first 4.25 working compile failed; UHT non-exempt C configuration writes triggered STOP. Intended effect classes are not runtime or build qualification.",
+  "status": "A3 working C++ closure; final normal/strict/runtime gates remain A4 onward.",
   "classes": {
     "N": "changed but meant to be neutral on 5.1, subject to reach gates",
     "C": "changed tooling, host or diagnostic surface",
@@ -106,7 +106,7 @@
     {
       "path": "Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp",
       "effect_51": "N",
-      "reason": "Literal shim parent and portable shell includes; complete owned disabled types, but remaining capture helper guards fail the first 4.25 compile",
+      "reason": "Shim lifecycle and portable shell; complete disabled ownership and preview symbols; renderer-dependent helper bodies guarded; enabled Capture token stream preserved",
       "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
       "gates": [
         "R1",
@@ -431,7 +431,7 @@
     {
       "path": "Source/AnomalyInjector/AnomalyInjector.Build.cs",
       "effect_51": "C",
-      "reason": "A2 exact-version rules remain intended neutral; ED6 deliberately changes profile logging from per module to once per target, preserving its content",
+      "reason": "Exact shared rules; 4.25-only C++17/NoPCHs; unchanged 5.1 rule objects apart from accepted A2 surface; ED6 once-per-target diagnostic",
       "reached_behavior": "Compiler, standard, dependency closure, module selection and startup",
       "gates": [
         "R1",
@@ -443,7 +443,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CameraClipping.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
@@ -471,7 +471,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_ChangeCase.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
@@ -485,7 +485,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CorruptedTexture.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
@@ -499,7 +499,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_LodPopping.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
@@ -513,7 +513,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingTexture.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
@@ -527,7 +527,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_StuckLowMip.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -555,7 +555,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_TexCorrupt.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -583,7 +583,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Anomalies/Anomaly_TimeDilation.cpp",
       "effect_51": "N",
-      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens",
+      "reason": "Exclude unavailable implementation and includes on 4.25; keep enabled 5.1 tokens; EG6 own header first, portable or guarded on 4.25, outer implementation guard retained",
       "reached_behavior": "Time, camera, LOD popping, material swaps and bench twins; cadence, pixel labels and restoration",
       "gates": [
         "R1",
@@ -681,7 +681,7 @@
     {
       "path": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
       "effect_51": "N",
-      "reason": "Filter unsupported admission before random draw; preserve all nine 5.1 keys, arrays and draw order",
+      "reason": "4.25 allowlist before draw; 5.1 pool, ordering, unknown-ID response and admission tokens equal release; native reset adapter",
       "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
       "gates": [
         "R1",
@@ -725,7 +725,7 @@
     {
       "path": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
       "effect_51": "N",
-      "reason": "Retain 5.1 implementation; unavailable 4.25 facade fails closed",
+      "reason": "Shim lifecycle; 4.25 registry/asset boundary; 5.1 constructor, Register and Apply tokens equal release; native reset adapter",
       "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
       "gates": [
         "R1",
@@ -741,7 +741,7 @@
     {
       "path": "Source/AnomalyInjector/Private/AnomalyLod.cpp",
       "effect_51": "N",
-      "reason": "Preserve LOD conventions and 5.1 getter",
+      "reason": "Route static render data, screen thresholds and predicted skeletal LOD through native version adapters; same conventions",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -755,7 +755,7 @@
     {
       "path": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
       "effect_51": "N",
-      "reason": "Selector uses common admission; no working choice for unsupported IDs; unchanged 5.1 ordering",
+      "reason": "4.25 skips unsupported choices; 5.1 selection and HUD tokens equal release",
       "reached_behavior": "Reflected ancestry, lifetime, tick cadence, GC and dependent injector/capture/control behavior",
       "gates": [
         "R1",
@@ -771,7 +771,7 @@
     {
       "path": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
       "effect_51": "N",
-      "reason": "Portable asset identity, defining HitResult include and exact cached POV/near-clip semantics",
+      "reason": "Portable camera/data/contact/collision/frustum/axis/constant/visibility access; unchanged 5.1 operations",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -785,7 +785,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp",
       "effect_51": "N",
-      "reason": "Explicit 4.25 supported set; 5.1 catalogue admission unchanged; unknown IDs fail closed",
+      "reason": "Explicit allowlist and bench-only missing_object on 4.25; unconditional pass-through on 5.1",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -799,7 +799,7 @@
     {
       "path": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
       "effect_51": "N",
-      "reason": "Exact 5.1 API operations; declared stock 4.25 API substitutions",
+      "reason": "Native skinned/static data, camera/near clip/contact/collision/LOD/frustum/axis/optional flag adapters; original 5.1 expressions; stock 4.25 substitutions",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -905,7 +905,7 @@
     {
       "path": "Source/AnomalyInjector/Public/Compat/AnomalyEngineCompat.h",
       "effect_51": "N",
-      "reason": "Portable identities and accessors; no reflected engine-specific types",
+      "reason": "Portable native adapters and correct class forward declaration; TFunction reset and constants preserve 5.1 operations",
       "reached_behavior": "Injector admission, targets, materials, LOD/camera/hide state and enabled anomaly routes",
       "gates": [
         "R1",
@@ -1060,6 +1060,17 @@
       ]
     },
     {
+      "path": "docs/europa/09407-working-result.md",
+      "effect_51": "C",
+      "reason": "Scoped tooling, falsification checks or explicit evidence documentation",
+      "reached_behavior": "Build/write admission and evidence correctness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
       "path": "docs/europa/phase-a-a3-closure.md",
       "effect_51": "C",
       "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
@@ -1126,10 +1137,43 @@
       ]
     },
     {
+      "path": "docs/sessions/2026-10-22-094-05-europa-a3-resume.md",
+      "effect_51": "C",
+      "reason": "Scoped tooling, falsification checks or explicit evidence documentation",
+      "reached_behavior": "Build/write admission and evidence correctness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "docs/sessions/2026-10-24-094-07-europa-a3-finish.md",
+      "effect_51": "C",
+      "reason": "Scoped tooling, falsification checks or explicit evidence documentation",
+      "reached_behavior": "Build/write admission and evidence correctness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
       "path": "tools/europa/DescriptorProbe.cs.txt",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/build_memory.py",
+      "effect_51": "C",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
+      "reached_behavior": "Build/write admission and evidence correctness",
       "gates": [
         "R0",
         "R1",
@@ -1139,7 +1183,7 @@
     {
       "path": "tools/europa/check_reflected_headers.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1150,7 +1194,7 @@
     {
       "path": "tools/europa/compile_children.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1161,8 +1205,19 @@
     {
       "path": "tools/europa/descriptor_matrix.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/finish_self_tests.py",
+      "effect_51": "C",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
+      "reached_behavior": "Build/write admission and evidence correctness",
       "gates": [
         "R0",
         "R1",
@@ -1172,7 +1227,7 @@
     {
       "path": "tools/europa/host_probe/EuropaPhaseAProbe.Build.cs.txt",
       "effect_51": "C",
-      "reason": "Empty host probe and native TargetRules descriptor admission templates; actual host copies are separately manifested",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1183,7 +1238,7 @@
     {
       "path": "tools/europa/host_probe/EuropaPhaseAProbeModule.cpp.txt",
       "effect_51": "C",
-      "reason": "Empty host probe and native TargetRules descriptor admission templates; actual host copies are separately manifested",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1194,7 +1249,7 @@
     {
       "path": "tools/europa/host_probe/TargetRules.fragment.txt",
       "effect_51": "C",
-      "reason": "Empty host probe and native TargetRules descriptor admission templates; actual host copies are separately manifested",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1205,7 +1260,7 @@
     {
       "path": "tools/europa/idle_gate.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1216,7 +1271,7 @@
     {
       "path": "tools/europa/ledger_budget_self_tests.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1227,7 +1282,7 @@
     {
       "path": "tools/europa/ledger_delta_self_tests.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1238,8 +1293,30 @@
     {
       "path": "tools/europa/process_wrapper.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/recovery_cleanup.py",
+      "effect_51": "C",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
+      "reached_behavior": "Build/write admission and evidence correctness",
+      "gates": [
+        "R0",
+        "R1",
+        "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/resume_self_tests.py",
+      "effect_51": "C",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
+      "reached_behavior": "Build/write admission and evidence correctness",
       "gates": [
         "R0",
         "R1",
@@ -1249,7 +1326,7 @@
     {
       "path": "tools/europa/tooling_self_tests.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1260,7 +1337,7 @@
     {
       "path": "tools/europa/ubt_admission.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1271,7 +1348,7 @@
     {
       "path": "tools/europa/working_build.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1282,7 +1359,7 @@
     {
       "path": "tools/europa/write_ledger.py",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
+      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1293,7 +1370,7 @@
     {
       "path": "tools/strict_include_build.py",
       "effect_51": "C",
-      "reason": "Explicit roots, UE4Editor, version-safe strict settings, actual TU action coverage and receipted restoration; not executed until A4",
+      "reason": "Explicit owned host/engine roots, UE4Editor paths and no 4.25 IncludeOrderVersion; EE1 environment override removed and both UBT calls use EF1; synthetic command wiring only, actual strict lever deferred to A4",
       "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
       "gates": [
         "R0",
@@ -1449,5 +1526,7 @@
       "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
     }
   ],
-  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package-checker alias work A11; standalone TickAudit files superseded by EA7 shim-local audit; A3 strict tool is adapted but not run"
+  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package-checker alias work A11; standalone TickAudit files superseded by EA7 shim-local audit; A3 strict tool is adapted but not run",
+  "current_job": "094-07",
+  "receipts": "D:\\IA_Europa\\Receipts\\09407"
 }

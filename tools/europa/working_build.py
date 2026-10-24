@@ -109,6 +109,25 @@ def current_binaries(project):
     return hash_binaries({'binary_outputs': sorted(paths)})
 
 
+def retained_response_flags(project, target):
+    host = project.parent
+    roots = [host / 'Intermediate/Build/Win64', *list((host / 'Plugins').glob('*/Intermediate/Build/Win64'))]
+    rows = []
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob('*')):
+            relative = path.relative_to(root)
+            if not path.is_file() or path.suffix not in ('.response', '.rsp') or 'Development' not in relative.parts:
+                continue
+            if not any(name in relative.parts for name in (target, 'UE4Editor', 'UnrealEditor')):
+                continue
+            flags, _ = response_flags(path)
+            if flags['standards']:
+                rows.append(dict(flags, evidence='existing response; not evidence of execution in this incremental invocation'))
+    return rows
+
+
 def diagnostics(text):
     rows = []
     for line in text.splitlines():
@@ -240,6 +259,7 @@ def main():
         result['binary_hashes'] = result['attempts'][-1]['binary_hashes'] if result['attempts'] else []
         if not args.query_only:
             result['host_binary_inventory'] = current_binaries(project)
+            result['retained_compile_responses'] = retained_response_flags(project, target)
         ledger.dump(output / 'result.json', result)
         ledger.dump(operation / 'build-admission-result.json', result)
     if result['exit_code'] != 0:

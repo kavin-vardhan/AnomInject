@@ -241,15 +241,13 @@ def run_build(engine_root, target, uproject, log_path):
     ubt = engine / ("Engine/Binaries/DotNET/UnrealBuildTool.exe" if is425 else "Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe")
     folder = Path(log_path).with_suffix("")
     folder.mkdir(exist_ok=False)
-    os.environ["UE-CmdLineArgs"] = "-UserDir=" + (folder / "UHT").as_posix() + "/ -ShaderWorkingDir=" + (folder / "ShaderWorking").as_posix() + "/"
-    if not is425:
-        os.environ["DOTNET_ROOT"] = str(engine / "Engine/Binaries/ThirdParty/DotNet/6.0.302/windows")
-        os.environ["DOTNET_MULTILEVEL_LOOKUP"] = "0"
+    from working_build import prepare_build_environment
+    prepare_build_environment(os.environ, "425" if is425 else "51port", engine)
     cmd = [str(ubt), target, "Win64", "Development", "-Project=" + uproject,
            "-Log=" + str(folder / "UBT.log"), "-NoEngineChanges", "-NoBuildUHT", "-NoHotReload", "-NoHotReloadFromIDE", "-NoXGE", "-MaxParallelActions=1"]
     t0 = time.time()
     action_path = folder / "actions.json"
-    plan_exit = ledger.run_child(cmd + ["-WriteOutdatedActions=" + str(action_path)], cwd=Path(uproject).parent, acceptable=tuple(range(256)))
+    plan_exit = ledger.run_child(cmd + ["-WriteOutdatedActions=" + str(action_path)], cwd=Path(uproject).parent, acceptable=tuple(range(256)), memory_guard=True)
     code = plan_exit
     if plan_exit == 0:
         actions_data = json.loads(action_path.read_text(encoding="utf-8-sig"))
@@ -257,7 +255,7 @@ def run_build(engine_root, target, uproject, log_path):
             mutations = action.get("ProducedItems", []) + action.get("DeleteItems", [])
             if any(not Path(p).resolve().is_relative_to(Path(uproject).parent.resolve()) for p in mutations):
                 raise RuntimeError("Strict action outside owned host")
-        code = ledger.run_child(cmd, cwd=Path(uproject).parent, acceptable=tuple(range(256)))
+        code = ledger.run_child(cmd, cwd=Path(uproject).parent, acceptable=tuple(range(256)), memory_guard=True)
     out = (folder / "UBT.log").read_text(encoding="utf-8-sig", errors="replace")
     Path(log_path).write_text(out, encoding="utf-8")
     actions = re.findall(r"Building (\d+) action", out)
