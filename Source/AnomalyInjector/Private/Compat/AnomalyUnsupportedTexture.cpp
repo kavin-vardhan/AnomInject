@@ -2,6 +2,7 @@
 #if ANOMALY_ENGINE_425
 #include "AnomalyTexCorrupt.h"
 #include "AnomalyStuckMipStats.h"
+#include "UObject/WeakObjectPtr.h"
 
 namespace AnomalyTexCorrupt
 {
