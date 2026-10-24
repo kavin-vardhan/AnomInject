@@ -6,7 +6,8 @@ from pathlib import Path
 import re
 
 EXPECTED = {'425': ('14.16.27051', '10.0.17763.0', (4, 25)),
-            '51port': ('14.38.33144', '10.0.22621.0', (5, 1))}
+            '51port': ('14.38.33144', '10.0.22621.0', (5, 1)),
+            '51base': ('14.38.33144', '10.0.22621.0', (5, 1))}
 IA_MODULES = ('AnomalyInjector', 'AnomalyCapture', 'AnomalyControlServer', 'AnomalyShaders', 'AnomalyBench', 'EuropaPhaseAProbe')
 
 
@@ -68,6 +69,10 @@ def toolchain_responses(data, host, archive):
                        compiler=key, compiler_product_version=versions[key], SDKs=sdks,
                        archived_response=str(saved), action_index=index)
             expected_compiler, expected_sdk, _ = EXPECTED[host]
+            directory = '14.16.27023' if host == '425' else '14.38.33130'
+            if directory not in compiler.parts:
+                raise RuntimeError('Unexpected compiler directory: ' + key)
+            row['compiler_directory'] = directory
             if not versions[key].startswith(expected_compiler + '.') and versions[key] != expected_compiler:
                 raise RuntimeError('Unexpected compiler product version: ' + json.dumps(row))
             if sdks != [expected_sdk]:

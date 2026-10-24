@@ -19,10 +19,14 @@ def main():
         cases.append({'case': name, 'result': 'PASS'})
     def reading(physical, commit):
         return {'free_physical': physical, 'free_commit': commit}
-    good = reading(6 * memory.GIB, 12 * memory.GIB)
+    limits = memory.policy()
+    physical_start = limits['start_physical_GiB'] * memory.GIB
+    commit_start = limits['start_commit_GiB'] * memory.GIB
+    commit_stop = limits['stop_commit_GiB'] * memory.GIB
+    good = reading(physical_start, commit_start)
     for name, value, expected in [('equal_start', good, True),
-        ('one_byte_physical_below', reading(6 * memory.GIB - 1, 12 * memory.GIB), False),
-        ('one_byte_commit_below', reading(6 * memory.GIB, 12 * memory.GIB - 1), False)]:
+        ('one_byte_physical_below', reading(physical_start - 1, commit_start), False),
+        ('one_byte_commit_below', reading(physical_start, commit_start - 1), False)]:
         check(name, memory.admission(value) == expected)
     clock = [0]
     def sleep(seconds):
@@ -37,7 +41,12 @@ def main():
         check('wait_limit_returns_no_memory_window', clock[0] == 40)
     else:
         raise AssertionError('wait limit did not refuse')
-    for name, value in [('physical', reading(memory.GIB - 1, 4 * memory.GIB)), ('commit', reading(memory.GIB, 4 * memory.GIB - 1))]:
+    stop_inputs = [('commit', reading(physical_start, commit_stop - 1))]
+    if limits['stop_physical_GiB'] is not None:
+        stop_inputs.append(('physical', reading(limits['stop_physical_GiB'] * memory.GIB - 1, commit_stop)))
+    else:
+        check('EI2_low_physical_alone_never_stops', not memory.pressure(reading(0, commit_stop)))
+    for name, value in stop_inputs:
         called = []
         def stop():
             called.append('synthetic-owned-UBT-only')
@@ -50,7 +59,7 @@ def main():
             check(name + '_second_low_stops', len(called) == 1)
         else:
             raise AssertionError('Second low failed to stop')
-    check('in_run_equal_thresholds_allowed', not memory.pressure(reading(memory.GIB, 4 * memory.GIB)))
+    check('in_run_equal_thresholds_allowed', not memory.pressure(reading(physical_start, commit_stop)))
     check('in_run_recovery_resets_streak', memory.monitor_sample(good, 1, lambda: None, root / 'reset.jsonl') == 0)
     prefix = 'D:/UESource/UnrealEngine/Engine/'
     paths = [('Intermediate/Build/Win64/ActionHistory.bin', True),
@@ -126,17 +135,20 @@ def main():
     def fake_execute(host, target, configuration, folder, **kwargs):
         calls.append((host, target, configuration, folder, kwargs))
         argv, _ = a4_build.command(host, target, configuration, folder)
-        assert '-MaxParallelActions=1' in argv and '-NoEngineChanges' in argv
+        assert '-MaxParallelActions=' + str(ledger.SCOPE['max_parallel_actions']) in argv and '-NoEngineChanges' in argv
         return {'exit_code': 0, 'duration_seconds': 0, 'logs': [], 'actions_path': 'SYNTHETIC-NOT-EXECUTED',
-                'action_counts': {'project': 1, 'plugin': 0, 'engine': 0, 'engine_plugin': 0}}
+                'action_counts': {'project': 1, 'plugin': 0, 'engine_source_in_host': 0, 'engine': 0, 'engine_plugin': 0}}
     for name, engine, project, target in [
         ('425', Path('E:/EpicGames/UE_4.25'), Path('D:/IA_Europa/StylizedParisStreet/StylizedParisStreet.uproject'), 'StylizedParisStreetEditor'),
         ('51', Path('D:/UESource/UnrealEngine'), Path('D:/IA_Europa/ReGate51/StackOBot/StackOBot.uproject'), 'StackOBotEditor')]:
+        host_key = '425' if name == '425' else '51port'
+        if [host_key, target, 'Development'] not in ledger.SCOPE['build_pairs']:
+            continue
         calls.clear()
         with patch.object(a4_build, 'execute', fake_execute):
             result = strict.run_build(str(engine), target, str(project), str(root / ('strict-synthetic-' + name + '.log')), None)
         check('strict_' + name + '_delegates_to_supervised_wrapper', len(calls) == 1 and result['exit'] == 0)
-        check('strict_' + name + '_one_worker_no_engine_changes', calls[0][4]['dirty_manifest'] is None)
+        check('strict_' + name + '_ruled_workers_no_engine_changes', calls[0][4]['dirty_manifest'] is None)
     isolated = [sys.executable, '-I', '-B', '-c',
         'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); '
         'import strict_include_build; from europa.a4_evidence import self_tests; '

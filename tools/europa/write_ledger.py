@@ -13,8 +13,11 @@ import sys
 import threading
 import time
 
+from job_scope import load
+
+SCOPE = load()
 ROOT = Path('D:/IA_Europa')
-JOB = ROOT / 'Receipts/09408'
+JOB = Path(SCOPE['job_root'])
 LEDGER = JOB / 'ledger'
 USER = Path('C:/Users/kavin')
 LOCAL = USER / 'AppData/Local'
@@ -368,13 +371,14 @@ def child_env(folder):
     env = {key.upper(): value for key, value in os.environ.items()}
     if any(key in env for key in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')):
         raise RuntimeError('W4 dates present')
-    temp = ROOT / 'Temp/09408' / folder.name
+    temp = Path(SCOPE['temp_root']) / folder.name
     temp.mkdir(parents=True, exist_ok=True)
     routing = {'TEMP': str(temp), 'TMP': str(temp), 'uebp_EngineSavedFolder': str(temp / 'UAT/Saved'),
         'uebp_LogFolder': str(temp / 'UAT/Working'), 'uebp_FinalLogFolder': str(temp / 'UAT/Final'),
         'DOTNET_CLI_HOME': str(temp / 'DotNet'), 'DOTNET_CLI_TELEMETRY_OPTOUT': '1', 'DOTNET_SKIP_FIRST_TIME_EXPERIENCE': '1',
         'DOTNET_NOLOGO': '1', 'NUGET_PACKAGES': str(temp / 'NuGet'), 'GIT_OPTIONAL_LOCKS': '0',
-        'PYTHONDONTWRITEBYTECODE': '1', 'EUROPA_OPERATION_DIR': str(folder)}
+        'PYTHONDONTWRITEBYTECODE': '1', 'EUROPA_OPERATION_DIR': str(folder),
+        'EUROPA_JOB_CONFIG': SCOPE['config_path']}
     env.update({key.upper(): value for key, value in routing.items()})
     selected = {key.casefold() for key in routing}
     selected.update(key.casefold() for key in ('DOTNET_ROOT', 'DOTNET_MULTILEVEL_LOOKUP', 'EUROPA_DESCRIPTOR_PROBE', 'UE-CmdLineArgs', 'EUROPA_BUILD_CHILDREN'))
@@ -387,6 +391,7 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False):
     env, routing = child_env(folder)
     receipt = {'argv': list(map(str, argv)), 'windows_command_line': subprocess.list2cmdline(list(map(str, argv))),
         'cwd': str(cwd or Path.cwd()), 'started_utc': now(), 'environment': routing,
+        'job_config_sha256': SCOPE['config_sha256'],
         'W4': {x: None for x in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')}}
     path = folder / f'child-{lognum:03}.json'
     dump(path, receipt)

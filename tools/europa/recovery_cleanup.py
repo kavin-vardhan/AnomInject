@@ -5,7 +5,10 @@ import re
 
 def cleanup(plan, project, receipt, dry_run=False):
     host = project.parent.resolve(strict=True)
-    if host != Path('D:/IA_Europa/ReGate51/StackOBot').resolve(strict=True) and host != Path('D:/IA_Europa/StylizedParisStreet').resolve(strict=True):
+    from job_scope import load
+    from process_wrapper import HOSTS
+    allowed = {HOSTS[row[0]][0].parent.resolve(strict=True) for row in load()['build_pairs']}
+    if host not in allowed:
         raise RuntimeError('EF2 cleanup outside an owned build host')
     data = json.loads(plan.read_text(encoding='utf-8-sig'))
     targets = set()

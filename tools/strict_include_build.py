@@ -211,7 +211,8 @@ def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, eng
         compiled = set()
         generated = set()
         for action in actions:
-            paths = [Path(p) for p in action.get("PrerequisiteItems", [])]
+            from europa.working_build import response_paths, compile_sources
+            paths = list(set([Path(p) for p in action.get("PrerequisiteItems", [])] + response_paths(action) + compile_sources(action, response_archive)))
             outputs = [Path(p) for p in action.get("ProducedItems", [])]
             if not any(p.parent.name == mod["name"] for p in outputs):
                 continue
@@ -272,7 +273,7 @@ def run_build(engine_root, target, uproject, log_path, mutation_manifest, single
     output = "\n".join(Path(p).read_text(encoding="utf-8", errors="replace") for p in result["logs"])
     Path(log_path).write_text(output, encoding="utf-8")
     return {"target": target, "exit": result["exit_code"], "seconds": result["duration_seconds"],
-            "log": log_path, "actions": sum(result["action_counts"][k] for k in ("project", "plugin", "engine")),
+            "log": log_path, "actions": sum(result["action_counts"][k] for k in ("project", "plugin", "engine_source_in_host", "engine")),
             "output": output, "actions_path": result["actions_path"], "receipt": str(folder / "result.json")}
 
 
@@ -304,6 +305,8 @@ def main():
     allowed_hosts = [owned / "StylizedParisStreet", owned / "Baseline51/StackOBot", owned / "ReGate51/StackOBot"]
     host = Path(host_dir)
     plugin = Path(a.plugin_root).absolute()
+    if host == allowed_hosts[1]:
+        raise RuntimeError("Strict injection is forbidden in the release control")
     if host not in allowed_hosts or host.resolve(strict=True) != host or plugin != host / "Plugins/AnomalyInjector" or plugin.resolve(strict=True) != plugin:
         raise RuntimeError("Strict runs are restricted to the three physical-D port checkouts")
     PLUGIN_ROOT, SOURCE_ROOT = str(plugin), str(plugin / "Source")

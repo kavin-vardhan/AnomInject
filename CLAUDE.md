@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-09, 2026-10-24 - A4b 5.1 qualification in progress under EI1-EI6.**
+> The release control stays d7eee97; candidate production starts at 489c828. Five permitted builds, strict and an exit query are pending.
+> Job-scoped tooling uses the EI2 commit-memory gate and four-action cap; EI3 distinguishes engine source compiled into host outputs.
+> Evidence: D:/IA_Europa/Receipts/09409. No runtime, cook, UAT, push or tags.
+
 > **094-08, 2026-10-24 - A4a qualification complete under EH1-EH6.**
 > Clean 4.25 Editor Development, Game Development and Shipping pass on 489c828; strict Editor/Game and restoration rebuilds pass.
 > The same source passes the EH5 ReGate51 Editor working compile. Source fix: 4.25-only weak-pointer defining include (5.1 effect N).

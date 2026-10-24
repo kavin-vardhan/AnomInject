@@ -12,15 +12,11 @@ from working_build import classify_actions, hash_binaries, current_binaries, pre
 from a4_evidence import require_rules_version, toolchain_responses, diagnostics, validate_build, shipping_names
 
 PORT = ledger.ROOT / 'StylizedParisStreet/Plugins/AnomalyInjector'
-PAIRS = {('425', 'StylizedParisStreetEditor', 'Development'),
-         ('425', 'StylizedParisStreet', 'Development'),
-         ('425', 'StylizedParisStreet', 'Shipping'),
-         ('51port', 'StackOBotEditor', 'Development')}
+from job_scope import require_pair
 
 
-def command(host, target, configuration, output):
-    if (host, target, configuration) not in PAIRS:
-        raise RuntimeError('EH1/EH5 target not authorized')
+def command(host, target, configuration, output, query=False):
+    scope = require_pair(host, target, configuration, query)
     project, engine, _ = HOSTS[host]
     if project.resolve(strict=True) != project or not output.resolve().is_relative_to(ledger.JOB.resolve()):
         raise RuntimeError('Unscoped build host or receipt directory')
@@ -29,12 +25,13 @@ def command(host, target, configuration, output):
     ubt = engine / ('Engine/Binaries/DotNET/UnrealBuildTool.exe' if host == '425' else 'Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe')
     return [str(ubt), target, 'Win64', configuration, '-Project=' + str(project),
             '-Log=' + str(output / 'UBT.log'), '-NoEngineChanges', '-NoBuildUHT', '-NoHotReload',
-            '-NoHotReloadFromIDE', '-NoXGE', '-MaxParallelActions=1', '-Verbose'], version
+            '-NoHotReloadFromIDE', '-NoXGE', '-MaxParallelActions=' + str(scope['max_parallel_actions']), '-Verbose'], version
 
 
 def output_inventory(host):
-    roots = [host / 'Binaries', host / 'Intermediate/Build',
-             host / 'Plugins/AnomalyInjector/Binaries', host / 'Plugins/AnomalyInjector/Intermediate']
+    roots = [host / 'Binaries', host / 'Intermediate/Build']
+    for plugin in ('AnomalyInjector', 'CaptureBench'):
+        roots.extend([host / 'Plugins' / plugin / 'Binaries', host / 'Plugins' / plugin / 'Intermediate'])
     rows = {}
     for root in roots:
         if root.exists():
@@ -47,16 +44,20 @@ def output_inventory(host):
     return rows
 
 
-def clean_paris(receipt):
-    host = ledger.ROOT / 'StylizedParisStreet'
-    roots = [host / 'Binaries', host / 'Intermediate/Build',
-             host / 'Plugins/AnomalyInjector/Binaries', host / 'Plugins/AnomalyInjector/Intermediate']
+def clean_host(host_name, receipt):
+    from job_scope import load
+    if host_name not in {row[0] for row in load()['build_pairs']} or host_name == '51base':
+        raise RuntimeError('Clean qualification is scoped to the permitted candidate host')
+    host = HOSTS[host_name][0].parent
+    roots = [host / 'Binaries', host / 'Intermediate/Build']
+    for plugin in ('AnomalyInjector', 'CaptureBench'):
+        roots.extend([host / 'Plugins' / plugin / 'Binaries', host / 'Plugins' / plugin / 'Intermediate'])
     files, directories = [], []
     for root in roots:
         if not root.exists():
             continue
         if root.resolve(strict=True) != root or not root.resolve().is_relative_to(host.resolve(strict=True)):
-            raise RuntimeError('EH2 cleanup path is not inside physical owned Paris host')
+            raise RuntimeError('EH2 cleanup path is not inside physical owned candidate host')
         directories.append(root)
         for path in sorted(root.rglob('*')):
             if path.stat(follow_symlinks=False).st_file_attributes & 1024 or path.resolve(strict=True) != path:
@@ -68,7 +69,7 @@ def clean_paris(receipt):
                     digest = hashlib.file_digest(stream, 'sha256').hexdigest()
                 stat = path.stat()
                 files.append({'path': str(path), 'size': stat.st_size, 'mtime_ns': stat.st_mtime_ns, 'sha256': digest})
-    data = {'authority': 'EH2; includes host probe outputs', 'host': str(host), 'roots': list(map(str, roots)),
+    data = {'authority': 'EH2/EI1; includes owned host probe and CaptureBench outputs', 'host': str(host), 'roots': list(map(str, roots)),
             'files': files, 'directories': list(map(str, directories)), 'bytes': sum(row['size'] for row in files)}
     if receipt.exists():
         raise RuntimeError('Refusing to overwrite cleanup receipt')
@@ -86,21 +87,25 @@ def clean_paris(receipt):
     return data
 
 
-def execute(host, target, configuration, output, *, dirty_manifest=None, single_file=None, expected_failure=None, require_compile=True):
+def execute(host, target, configuration, output, *, dirty_manifest=None, single_file=None, expected_failure=None, require_compile=True, query_only=False):
     from build_memory import MemoryStopped
     from recovery_cleanup import cleanup
     project, engine, _ = HOSTS[host]
     if output.exists():
         raise RuntimeError('Build receipt already exists')
-    argv, version = command(host, target, configuration, output)
+    argv, version = command(host, target, configuration, output, query=query_only)
+    if query_only:
+        require_compile = False
     output.mkdir(parents=True)
     operation = Path(os.environ['EUROPA_OPERATION_DIR'])
     if operation.parent.resolve() != ledger.LEDGER.resolve():
         raise RuntimeError('Build needs this job ledger operation')
-    sha = ledger.capture_child(['git', '-C', str(PORT), 'rev-parse', 'HEAD']).strip()
+    tooling_sha = ledger.capture_child(['git', '-C', str(PORT), 'rev-parse', 'HEAD']).strip()
     tree = project.parent / 'Plugins/AnomalyInjector'
-    if ledger.capture_child(['git', '-C', str(tree), 'rev-parse', 'HEAD']).strip() != sha:
-        raise RuntimeError('Candidate checkouts must bind to the same SHA')
+    sha = ledger.capture_child(['git', '-C', str(tree), 'rev-parse', 'HEAD']).strip()
+    expected_sha = 'd7eee97731812384d4fd00af9032254923363ada' if host == '51base' else tooling_sha
+    if sha != expected_sha:
+        raise RuntimeError('Build checkout does not match its release/candidate commit')
     status = ledger.capture_child(['git', '-C', str(tree), 'status', '--porcelain=v1', '--untracked-files=all'])
     if status.strip() and dirty_manifest is None:
         raise RuntimeError('Commit before build')
@@ -119,15 +124,15 @@ def execute(host, target, configuration, output, *, dirty_manifest=None, single_
     prepare_build_environment(os.environ, host, engine)
     before = output_inventory(project.parent)
     ledger.dump(output / 'outputs-before.json', before)
-    result = {'commit': sha, 'host': host, 'target': target, 'configuration': configuration,
+    result = {'commit': sha, 'tooling_commit': tooling_sha, 'query_only': query_only, 'host': host, 'target': target, 'configuration': configuration,
               'rules_version': [version['MajorVersion'], version['MinorVersion']], 'argv': argv,
               'operation': str(operation), 'started_utc': ledger.now(), 'exit_code': None,
-              'NoEngineChanges': True, 'dirty_manifest': str(dirty_manifest) if dirty_manifest else None,
+              'NoEngineChanges': True, 'job_config_sha256': ledger.SCOPE['config_sha256'], 'dirty_manifest': str(dirty_manifest) if dirty_manifest else None,
               'expected_failure': expected_failure, 'require_actual_compile': require_compile, 'attempts': []}
     ledger.dump(output / 'invocation.json', result)
     start = time.monotonic()
     invocations = []
-    admission = {'counts': {'project': 0, 'plugin': 0, 'engine': 0, 'engine_plugin': 0}, 'binary_outputs': []}
+    admission = {'counts': {'project': 0, 'plugin': 0, 'engine': 0, 'engine_plugin': 0, 'engine_source_in_host': 0}, 'binary_outputs': []}
     attempt = 0
     try:
         while True:
@@ -147,12 +152,20 @@ def execute(host, target, configuration, output, *, dirty_manifest=None, single_
                 result['action_counts'] = admission['counts']
                 result['actual_compile_responses'] = toolchain_responses(data, host, output / f'responses-{attempt}')
                 ledger.dump(output / f'admission-{attempt}.json', admission)
+                if host != '425' and configuration != 'Shipping' and not query_only:
+                    from a4b_evidence import snapshot_definitions
+                    result['generated_definitions'] = snapshot_definitions(project, target, configuration, host, data, output / f'definitions-{attempt}')
                 if require_compile and not result['actual_compile_responses']:
                     raise RuntimeError('Zero actual C++ compile command before execution')
                 if configuration == 'Shipping':
                     names = shipping_names(admission['actions'])
                     if names:
                         raise RuntimeError('Shipping action includes forbidden module: ' + repr(names))
+                result['actions_path'] = str(plan)
+                if query_only:
+                    result['exit_code'] = 0
+                    record['outcome'] = 'action_plan_only_no_compile'
+                    break
                 invocations.append(argv)
                 result['exit_code'] = ledger.run_child(argv, cwd=project.parent, acceptable=tuple(range(256)), memory_guard=True)
                 record['outcome'] = 'compile_complete'
@@ -162,8 +175,8 @@ def execute(host, target, configuration, output, *, dirty_manifest=None, single_
                 record['outcome'] = 'EF1_stopped_not_D2'
                 if plan.exists():
                     cleanup(plan, project, output / f'EF1-cleanup-{attempt}.json')
-                elif host == '425':
-                    clean_paris(output / f'EF1-before-plan-cleanup-{attempt}.json')
+                elif host != '51base':
+                    clean_host(host, output / f'EF1-before-plan-cleanup-{attempt}.json')
                 else:
                     raise RuntimeError('EH5 plan stopped before cleanup denominator; resume by receipt')
             finally:
@@ -227,13 +240,14 @@ def execute(host, target, configuration, output, *, dirty_manifest=None, single_
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host', choices=('425', '51port'), required=True)
+    parser.add_argument('--host', choices=('425', '51port', '51base'), required=True)
     parser.add_argument('--target', required=True)
     parser.add_argument('--configuration', choices=('Development', 'Shipping'), required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--allow-up-to-date', action='store_true')
+    parser.add_argument('--query-only', action='store_true')
     args = parser.parse_args()
-    execute(args.host, args.target, args.configuration, args.output, require_compile=not args.allow_up_to_date)
+    execute(args.host, args.target, args.configuration, args.output, require_compile=not args.allow_up_to_date, query_only=args.query_only)
 
 
 if __name__ == '__main__':

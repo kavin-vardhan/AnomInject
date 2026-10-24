@@ -109,6 +109,27 @@ def main():
         _, _, problems = strict.verify_strict_took_effect(str(host), target, kind, modules, str(action_file), engine)
         assert any('no response for actual compile action' in p for p in problems)
         cases.append({'case': name + '_Cpp_disguised_as_resource', 'result': 'REJECTED'})
+        if name == '51editor':
+            response_only = copy.deepcopy(actions)
+            for action in response_only:
+                paths = action.pop('PrerequisiteItems')
+                action['WorkingDirectory'] = str(fixture)
+                if 'CommandPath' not in action:
+                    action['CommandPath'] = 'SYNTHETIC-cl.exe'
+                    response = Path(paths[1])
+                    response.write_text('"' + paths[0] + '"\n/std:c++17\n')
+                    action['CommandArguments'] = '@"' + str(response) + '"'
+                else:
+                    action['CommandArguments'] = '"' + paths[0] + '"'
+            action_file.write_text(json.dumps({'Actions': response_only}))
+            counts, headers, problems = strict.verify_strict_took_effect(str(host), target, kind, modules, str(action_file), engine)
+            assert counts == {'Sample': 2} and headers == 1 and not problems, problems
+            cases.append({'case': '51_native_no_PrerequisiteItems', 'result': 'PASS'})
+            response_only[0]['CommandArguments'] = ''
+            action_file.write_text(json.dumps({'Actions': response_only}))
+            _, _, problems = strict.verify_strict_took_effect(str(host), target, kind, modules, str(action_file), engine)
+            assert any('no response for actual compile action' in p for p in problems)
+            cases.append({'case': '51_missing_response_argument', 'result': 'REJECTED'})
         action_file.write_text(json.dumps({'Actions': actions}))
     (root / 'result.json').write_text(json.dumps({'result': 'PASS', 'cases': cases,
         'synthetic_only': True, 'actual_compiles': 0}, indent=2))

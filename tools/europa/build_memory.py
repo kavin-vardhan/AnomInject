@@ -25,11 +25,18 @@ def sample():
     return {'free_physical': value.free_physical, 'free_commit': value.free_commit, 'load': value.load,
         'total_physical': value.total_physical, 'total_commit': value.total_commit}
 
-def admission(reading):
-    return reading['free_physical'] >= 6 * GIB and reading['free_commit'] >= 12 * GIB
+def policy():
+    from job_scope import load
+    return load()['memory']
 
-def pressure(reading):
-    return reading['free_physical'] < GIB or reading['free_commit'] < 4 * GIB
+def admission(reading, limits=None):
+    limits = limits or policy()
+    return reading['free_physical'] >= limits['start_physical_GiB'] * GIB and reading['free_commit'] >= limits['start_commit_GiB'] * GIB
+
+def pressure(reading, limits=None):
+    limits = limits or policy()
+    physical = limits['stop_physical_GiB']
+    return (physical is not None and reading['free_physical'] < physical * GIB) or reading['free_commit'] < limits['stop_commit_GiB'] * GIB
 
 def event(path, value):
     value = dict(value, time_utc=dt.datetime.now(dt.timezone.utc).isoformat())
@@ -45,7 +52,7 @@ def wait_for_window(log, sampler=sample, sleeper=time.sleep, clock=time.monotoni
         reading = sampler()
         consecutive = consecutive + 1 if admission(reading) else 0
         event(log, {'event': 'admitted' if consecutive >= 3 else 'waiting', 'reading': reading,
-            'consecutive': consecutive, 'wait_seconds': clock() - start})
+            'consecutive': consecutive, 'wait_seconds': clock() - start, 'policy': policy()})
         if consecutive >= 3:
             return reading
         if clock() - start >= limit:
