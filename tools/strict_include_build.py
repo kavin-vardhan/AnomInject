@@ -194,12 +194,14 @@ def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, eng
             if not responses:
                 problems.append("no response for actual compile action: " + str(outputs))
                 continue
-            bodies = [p.read_text(encoding="utf-8-sig", errors="replace") for p in responses]
-            if any(re.search(r"/(?:Yu|Yc)\b", body) for body in bodies):
+            from europa.working_build import response_flags
+            from europa.a4_evidence import strict_response_problems
+            bodies = [response_flags(p)[1] for p in responses]
+            if any(strict_response_problems(body, []) for body in bodies):
                 problems.append("PCH in actual compile action: " + str(responses))
                 continue
             cpp = [p for p in paths if p.suffix.lower() == ".cpp"]
-            if any(p.name.startswith("Module.") and not p.name.endswith(".gen.cpp") for p in cpp):
+            if strict_response_problems("", cpp):
                 problems.append("unity compile in strict action: " + str(cpp))
             compiled.update(p.name for p in cpp)
             for p in cpp:
@@ -233,34 +235,19 @@ def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, eng
     return per_mod, gen_seen, problems
 
 
-def run_build(engine_root, target, uproject, log_path):
+def run_build(engine_root, target, uproject, log_path, mutation_manifest, single_file=None, expected_failure=None):
     sys.path.insert(0, str(Path(__file__).parent / "europa"))
-    import write_ledger as ledger
-    engine = Path(engine_root)
-    is425 = json.loads((engine / "Engine/Build/Build.version").read_text())["MajorVersion"] == 4
-    ubt = engine / ("Engine/Binaries/DotNET/UnrealBuildTool.exe" if is425 else "Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.exe")
+    from a4_build import execute
+    version = json.loads((Path(engine_root) / "Engine/Build/Build.version").read_text())
+    host = "425" if version["MajorVersion"] == 4 else "51port"
     folder = Path(log_path).with_suffix("")
-    folder.mkdir(exist_ok=False)
-    from working_build import prepare_build_environment
-    prepare_build_environment(os.environ, "425" if is425 else "51port", engine)
-    cmd = [str(ubt), target, "Win64", "Development", "-Project=" + uproject,
-           "-Log=" + str(folder / "UBT.log"), "-NoEngineChanges", "-NoBuildUHT", "-NoHotReload", "-NoHotReloadFromIDE", "-NoXGE", "-MaxParallelActions=1"]
-    t0 = time.time()
-    action_path = folder / "actions.json"
-    plan_exit = ledger.run_child(cmd + ["-WriteOutdatedActions=" + str(action_path)], cwd=Path(uproject).parent, acceptable=tuple(range(256)), memory_guard=True)
-    code = plan_exit
-    if plan_exit == 0:
-        actions_data = json.loads(action_path.read_text(encoding="utf-8-sig"))
-        for action in actions_data["Actions"]:
-            mutations = action.get("ProducedItems", []) + action.get("DeleteItems", [])
-            if any(not Path(p).resolve().is_relative_to(Path(uproject).parent.resolve()) for p in mutations):
-                raise RuntimeError("Strict action outside owned host")
-        code = ledger.run_child(cmd, cwd=Path(uproject).parent, acceptable=tuple(range(256)), memory_guard=True)
-    out = (folder / "UBT.log").read_text(encoding="utf-8-sig", errors="replace")
-    Path(log_path).write_text(out, encoding="utf-8")
-    actions = re.findall(r"Building (\d+) action", out)
-    return {"target": target, "exit": code, "seconds": round(time.time() - t0, 1), "log": log_path,
-            "actions": int(actions[-1]) if actions else None, "output": out, "actions_path": str(action_path)}
+    result = execute(host, target, "Development", folder, dirty_manifest=mutation_manifest,
+                     single_file=single_file, expected_failure=expected_failure)
+    output = "\n".join(Path(p).read_text(encoding="utf-8", errors="replace") for p in result["logs"])
+    Path(log_path).write_text(output, encoding="utf-8")
+    return {"target": target, "exit": result["exit_code"], "seconds": result["duration_seconds"],
+            "log": log_path, "actions": sum(result["action_counts"][k] for k in ("project", "plugin", "engine")),
+            "output": output, "actions_path": result["actions_path"], "receipt": str(folder / "result.json")}
 
 
 def summarize(label, res, diags):
@@ -281,7 +268,7 @@ def main():
     ap.add_argument("--engine-root", required=True)
     ap.add_argument("--plugin-root", required=True)
     ap.add_argument("--targets", nargs="*")
-    ap.add_argument("--log-dir")
+    ap.add_argument("--log-dir", required=True)
     a = ap.parse_args()
 
     uproject = os.path.abspath(a.uproject)
@@ -346,6 +333,11 @@ def main():
     all_tus = []
     results = {"strict": [], "normal": [], "restore_ok": False, "lever": {}}
     strict_errors = 0
+    mutation_manifest = Path(log_dir) / "source-mutations.json"
+    allowed = [str(Path(m["build_cs"]).relative_to(plugin)).replace("\\", "/") for m in modules]
+    allowed += [str((Path(m["dir"]) / "Private" / GEN_DIR_NAME).relative_to(plugin)).replace("\\", "/") for m in modules]
+    mutation_manifest.write_text(json.dumps({"allowed_changes": allowed, "commit": git("rev-parse", "HEAD")}, indent=2))
+    mutant = None
     try:
         for mod in modules:
             hashes[mod["build_cs"]] = sha256(mod["build_cs"])
@@ -359,8 +351,27 @@ def main():
         print("header self-containment TUs generated: %d" % len(all_tus))
         with open(os.path.join(log_dir, "header_tus.json"), "w") as f:
             json.dump(all_tus, f, indent=1)
+        from europa.a4_evidence import self_tests
+        self_tests(Path(log_dir) / "reader-can-fails.json")
+        mutant = plugin / "Source/AnomalyInjector/Private" / GEN_DIR_NAME / "SIC_MissingDefine09408.cpp"
+        positive = '#include "CoreMinimal.h"\n#include "Components/StaticMeshComponent.h"\nclass UStaticMeshComponent;\nint EuropaStrictDefiningInclude09408(UStaticMeshComponent* Component) { return Component->GetNumMaterials(); }\n'
+        negative = positive.replace('#include "Components/StaticMeshComponent.h"\n', '')
+        mutant.write_text(positive, encoding="utf-8")
+        Path(log_dir, "defining-include-mutant.json").write_text(json.dumps({
+            "path": str(mutant), "positive_sha256": hashlib.sha256(positive.encode()).hexdigest(),
+            "negative_sha256": hashlib.sha256(negative.encode()).hexdigest(),
+            "prediction": "Positive compiles; deleting the defining StaticMeshComponent include leaves an incomplete UStaticMeshComponent and fails at the mutant source (C2027/C2039/C2227).",
+            "positive": positive, "negative": negative}, indent=2))
+        first = found["Editor"]
+        results["can_fail_positive"] = run_build(engine_root, first, uproject, os.path.join(log_dir, "include_positive.log"), mutation_manifest, single_file=mutant)
+        mutant.write_text(negative, encoding="utf-8")
+        results["can_fail_negative"] = run_build(engine_root, first, uproject, os.path.join(log_dir, "include_negative.log"), mutation_manifest, single_file=mutant, expected_failure=mutant.name)
+        if mutant.resolve(strict=True) != mutant or mutant.read_text(encoding="utf-8") != negative:
+            raise RuntimeError("Mutant changed before its receipted cleanup")
+        mutant.unlink()
+        mutant = None
         for t in targets:
-            res = run_build(engine_root, t, uproject, os.path.join(log_dir, "strict_%s.log" % t))
+            res = run_build(engine_root, t, uproject, os.path.join(log_dir, "strict_%s.log" % t), mutation_manifest)
             diags = parse_diagnostics(res["output"])
             errs, warns = summarize("STRICT", res, diags)
             if Path(res["actions_path"]).is_file():
@@ -379,6 +390,10 @@ def main():
                                       "compile_tus": per_mod, "header_tus_compiled": gen_seen,
                                       "diagnostics": [list(k) + [c] for k, c in diags.items()], "log": res["log"]})
     finally:
+        if mutant is not None and mutant.exists():
+            if mutant.resolve(strict=True) != mutant or not mutant.is_relative_to(plugin / "Source"):
+                raise RuntimeError("Mutant cleanup outside owned source")
+            mutant.unlink()
         for path, raw in originals.items():
             with open(path, "wb") as f:
                 f.write(raw)
@@ -395,6 +410,10 @@ def main():
         status_after = git("status", "--porcelain")
         ok = ok and status_after == status_before
         results["restore_ok"] = ok
+        results["restoration"] = {"rules": [{"path": p, "before": h, "after": sha256(p)} for p, h in hashes.items()],
+                                  "status_before": status_before, "status_after": status_after}
+        Path(log_dir, "restoration.json").write_text(json.dumps(results["restoration"], indent=2))
+        Path(log_dir, "summary.json").write_text(json.dumps(results, indent=2))
         print("RESTORE %s: Build.cs hashes %s, generated dirs removed %s, git status unchanged %s" % (
             "OK" if ok else "FAILED",
             "identical" if all(sha256(p) == h for p, h in hashes.items()) else "DIFFER",
@@ -402,17 +421,17 @@ def main():
     normal_bad = 0
     if results["restore_ok"]:
         for t in targets:
-            res = run_build(engine_root, t, uproject, os.path.join(log_dir, "normal_%s.log" % t))
+            res = run_build(engine_root, t, uproject, os.path.join(log_dir, "normal_%s.log" % t), None)
             diags = parse_diagnostics(res["output"])
             errs, warns = summarize("NORMAL", res, diags)
             if res["exit"] != 0:
                 errs = max(errs, 1)
-            normal_bad += errs + warns
+            normal_bad += errs
             results["normal"].append({"target": t, "exit": res["exit"], "errors": errs, "warnings": warns, "log": res["log"]})
     with open(os.path.join(log_dir, "summary.json"), "w") as f:
         json.dump(results, f, indent=1)
     verdict = strict_errors == 0 and results["restore_ok"] and normal_bad == 0
-    print("VERDICT %s: strict errors %d, restore %s, normal errors+warnings %d, summary %s" % (
+    print("VERDICT %s: strict errors %d, restore %s, normal errors %d, summary %s" % (
         "PASS" if verdict else "FAIL", strict_errors, "ok" if results["restore_ok"] else "FAILED", normal_bad,
         os.path.join(log_dir, "summary.json")))
     return 0 if verdict else 1

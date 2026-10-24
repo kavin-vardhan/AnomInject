@@ -52,10 +52,18 @@ def run_json_batch(host,pairs,label):
     run_child(argv,cwd=project.parent)
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--host',choices=HOSTS,required=True);p.add_argument('--mode',choices=['json','build','editor','game','uat'],default='json');p.add_argument('--target');p.add_argument('--configuration',default='Development');p.add_argument('--output',type=Path,required=True);p.add_argument('--execute',action='store_true');p.add_argument('--batch-json',type=Path);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--host',choices=HOSTS,required=True);p.add_argument('--mode',choices=['json','build','qualify','editor','game','uat'],default='json');p.add_argument('--target');p.add_argument('--configuration',default='Development');p.add_argument('--output',type=Path,required=True);p.add_argument('--execute',action='store_true');p.add_argument('--batch-json',type=Path);a=p.parse_args()
     if a.batch_json:
         data=json.loads(a.batch_json.read_text());run_json_batch(a.host,data['pairs'],data['label']);return
     target=a.target or (HOSTS[a.host][0].stem+'Editor')
+    if a.mode == 'qualify':
+        from a4_build import command as qualified_command, execute
+        if a.execute:
+            execute(a.host, target, a.configuration, a.output)
+        else:
+            argv, version = qualified_command(a.host, target, a.configuration, a.output)
+            print(json.dumps({'mode': 'prepared only', 'argv': argv, 'engine_version': version}))
+        return
     if a.execute and a.mode == 'build':
         if (a.host, target, a.configuration) not in (('425', 'StylizedParisStreetEditor', 'Development'), ('51port', 'StackOBotEditor', 'Development')):
             raise RuntimeError('A3 build target/configuration is not admitted')

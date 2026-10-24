@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-08, 2026-10-24 — A4a in progress under EH1–EH6.**
+> Clean Paris Editor/Game/Shipping builds, then both strict targets and restoration rebuilds.
+> Evidence: D:/IA_Europa/Receipts/09408. Results remain pending; no runtime qualification or delivery claim.
+> A3 accepted at 204724a; current tooling changes are class C. No push or tags.
+
 > **094-07, 2026-10-24 — A3 shared closure builds on 4.25 and 5.1.**
 > Both Editor Development working builds have zero errors and zero engine/engine-plugin actions.
 > EF1 gates working builds; EG1 records the narrowly allowed engine bookkeeping; EG2 hashes binary products and response flags.
