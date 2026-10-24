@@ -1,6 +1,6 @@
+#include "Anomalies/Anomaly_LodPopping.h"
 #include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_ENGINE_51
-#include "Anomalies/Anomaly_LodPopping.h"
 
 #include "AnomalyLod.h"
 #include "AnomalyViewport.h"

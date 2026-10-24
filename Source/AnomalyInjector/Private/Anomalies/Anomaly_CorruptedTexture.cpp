@@ -1,6 +1,6 @@
+#include "Anomalies/Anomaly_CorruptedTexture.h"
 #include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_ENGINE_51
-#include "Anomalies/Anomaly_CorruptedTexture.h"
 
 #include "AnomalyInstallState.h"
 #include "AnomalyLod.h"

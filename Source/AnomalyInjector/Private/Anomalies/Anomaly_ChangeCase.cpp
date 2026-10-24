@@ -1,6 +1,6 @@
+#include "Anomalies/Anomaly_ChangeCase.h"
 #include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_ENGINE_51
-#include "Anomalies/Anomaly_ChangeCase.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyLod.h"
 #include "AnomalyViewport.h"

@@ -1,6 +1,6 @@
+#include "Anomalies/Anomaly_CameraClipping.h"
 #include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_ENGINE_51
-#include "Anomalies/Anomaly_CameraClipping.h"
 #include "Camera/CameraTypes.h"
 
 #include "AnomalyArgs.h"

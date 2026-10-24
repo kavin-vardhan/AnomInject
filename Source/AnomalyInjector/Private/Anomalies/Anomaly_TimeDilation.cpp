@@ -1,6 +1,6 @@
+#include "Anomalies/Anomaly_TimeDilation.h"
 #include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_ENGINE_51
-#include "Anomalies/Anomaly_TimeDilation.h"
 
 #include "AnomalyInjectorLog.h"
 #include "Engine/World.h"

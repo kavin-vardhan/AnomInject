@@ -1,6 +1,6 @@
+#include "Anomalies/Anomaly_StuckLowMip.h"
 #include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_ENGINE_51
-#include "Anomalies/Anomaly_StuckLowMip.h"
 #include "Anomalies/Anomaly_TexCorrupt.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIFeatureLevel.h")
