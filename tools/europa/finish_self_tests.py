@@ -137,6 +137,12 @@ def main():
             result = strict.run_build(str(engine), target, str(project), str(root / ('strict-synthetic-' + name + '.log')), None)
         check('strict_' + name + '_delegates_to_supervised_wrapper', len(calls) == 1 and result['exit'] == 0)
         check('strict_' + name + '_one_worker_no_engine_changes', calls[0][4]['dirty_manifest'] is None)
+    isolated = [sys.executable, '-I', '-B', '-c',
+        'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); '
+        'import strict_include_build; from europa.a4_evidence import self_tests; '
+        'self_tests(Path(sys.argv[2]))', str(strict_path.parent), str(root / 'strict-isolated-reader.json')]
+    ledger.run_child(isolated)
+    check('strict_isolated_entry_imports', json.loads((root / 'strict-isolated-reader.json').read_text())['result'] == 'PASS')
     check('strict_synthetic_only', not any('SIC_' in str(p) for p in root.rglob('*')))
     ledger.dump(root / 'results.json', {'result': 'PASS', 'cases': cases, 'count': len(cases),
         'actual_memory_starvation': False, 'actual_process_termination': False, 'synthetic_C_E_paths_created': 0})

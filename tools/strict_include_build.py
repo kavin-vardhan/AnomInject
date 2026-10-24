@@ -11,6 +11,8 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent / "europa"))
+
 PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE_ROOT = os.path.join(PLUGIN_ROOT, "Source")
 GEN_DIR_NAME = "StrictIncludeCheckGenerated"
