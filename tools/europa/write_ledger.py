@@ -14,7 +14,7 @@ import threading
 import time
 
 ROOT = Path('D:/IA_Europa')
-JOB = ROOT / 'Receipts/09405'
+JOB = ROOT / 'Receipts/09407'
 LEDGER = JOB / 'ledger'
 USER = Path('C:/Users/kavin')
 LOCAL = USER / 'AppData/Local'
@@ -217,11 +217,18 @@ def classification(scope, path, kind, change=None, build_ok=False):
     if scope.startswith('tool_'):
         return 'tooling', 'EB1 orchestration overhead; physical volume retained'
     if scope == 'engine51':
+        import re
         name = Path(p).name
-        allowed = name in ('sourcefilecache.bin', 'actionhistory.bin', 'dependencycache.bin', 'makefile.ubt', 'makefile.bin', 'timestamp') or name.endswith(('.uhtmanifest', '.uhtpath', '.deps'))
-        if kind == 'build' and build_ok and '/engine/intermediate/build/' in p and allowed:
-            return 'engine51_metadata', 'ED4 successful NoEngineChanges build with zero engine actions'
-        return 'STOP', '5.1 engine write outside admitted ED4 metadata'
+        engine = 'd:/uesource/unrealengine/engine/'
+        relative = p.removeprefix(engine)
+        intermediate = relative.startswith('intermediate/build/') or (
+            relative.startswith('plugins/') and '/intermediate/build/' in relative)
+        allowed = name in ('sourcefilecache.bin', 'actionhistory.bin', 'dependencycache.bin',
+            'makefile.ubt', 'makefile.bin', 'timestamp', 'livecodinginfo.json') or name.endswith(('.uhtmanifest', '.uhtpath', '.deps'))
+        marker = re.fullmatch(r'intermediate/ubtruns/[0-9]+_[0-9a-f]+', relative) is not None
+        if p.startswith(engine) and (intermediate and allowed or marker):
+            return 'engine51_metadata', 'EG1 stock build bookkeeping; success, failure and interruption covered'
+        return 'STOP', '5.1 engine write outside EG1 bookkeeping classes'
     if scope == 'engine425':
         if '/engine/intermediate/build/buildrules/' in p:
             return 'port_E_exception', 'EA4 installed BuildRules'
@@ -322,6 +329,18 @@ def finish(folder, kind):
     if proof.exists():
         b = json.loads(proof.read_text())
         build_ok = b.get('exit_code') == 0 and b.get('engine_actions') == 0 and b.get('NoEngineChanges') is True
+    for change in changes:
+        if classification(change['scope'], change['path'], kind, change, build_ok)[0] == 'engine51_metadata':
+            p = Path(change['path'])
+            if change['after_kind'] == 'file':
+                before_hash = p.stat()
+                with p.open('rb') as stream:
+                    change['after_sha256'] = hashlib.file_digest(stream, 'sha256').hexdigest()
+                after_hash = p.stat()
+                if (after_hash.st_size, after_hash.st_mtime_ns) != (change['after_size'], change['after_mtime_ns']) or (before_hash.st_size, before_hash.st_mtime_ns) != (after_hash.st_size, after_hash.st_mtime_ns):
+                    raise RuntimeError('EG1 metadata changed during receipt hash: ' + str(p))
+            else:
+                change['after_sha256'] = None
     result = assess(changes, kind, prior_charge(), build_ok)
     before = json.loads((folder / 'before.json').read_text())
     with gzip.open(folder / 'classified-changes.jsonl.gz', 'wt', encoding='utf-8') as output:
@@ -349,7 +368,7 @@ def child_env(folder):
     env = {key.upper(): value for key, value in os.environ.items()}
     if any(key in env for key in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')):
         raise RuntimeError('W4 dates present')
-    temp = ROOT / 'Temp/09405' / folder.name
+    temp = ROOT / 'Temp/09407' / folder.name
     temp.mkdir(parents=True, exist_ok=True)
     routing = {'TEMP': str(temp), 'TMP': str(temp), 'uebp_EngineSavedFolder': str(temp / 'UAT/Saved'),
         'uebp_LogFolder': str(temp / 'UAT/Working'), 'uebp_FinalLogFolder': str(temp / 'UAT/Final'),
@@ -362,7 +381,7 @@ def child_env(folder):
     receipt = {key: value for key, value in env.items() if key.casefold() in selected}
     return env, receipt
 
-def run_child(argv, cwd=None, acceptable=(0,)):
+def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False):
     folder = Path(os.environ['EUROPA_OPERATION_DIR'])
     lognum = len(list(folder.glob('child-*.json'))) + 1
     env, routing = child_env(folder)
@@ -371,15 +390,26 @@ def run_child(argv, cwd=None, acceptable=(0,)):
         'W4': {x: None for x in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')}}
     path = folder / f'child-{lognum:03}.json'
     dump(path, receipt)
+    memory_log = folder / f'child-{lognum:03}-memory.jsonl'
+    tree = None
+    if memory_guard:
+        if Path(argv[0]).name.casefold() != 'unrealbuildtool.exe':
+            raise RuntimeError('EF1 guard requires a directly owned UBT executable')
+        from build_memory import OwnedTree, wait_for_window, monitor_sample, sample
+        receipt['memory_admission'] = wait_for_window(memory_log)
+        receipt['memory_log'] = str(memory_log)
+        dump(path, receipt)
     start = time.monotonic()
     proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding='utf-8', errors='replace', bufsize=1)
     receipt['pid'] = proc.pid
     dump(path, receipt)
+    if memory_guard:
+        tree = OwnedTree(proc.pid)
     observer = None
     child_result = {}
     stop_observer = threading.Event()
-    if env.get('EUROPA_BUILD_CHILDREN') == '1':
+    if env.get('EUROPA_BUILD_CHILDREN') == '1' and not memory_guard:
         from compile_children import observe
         observer = threading.Thread(target=observe, args=(proc.pid, stop_observer, child_result))
         observer.start()
@@ -392,19 +422,32 @@ def run_child(argv, cwd=None, acceptable=(0,)):
     thread = threading.Thread(target=consume)
     thread.start()
     code = None
+    last_memory, last_floor, low_count = time.monotonic(), time.monotonic(), 0
     try:
-        while True:
-            try:
-                code = proc.wait(timeout=20)
-                break
-            except subprocess.TimeoutExpired:
+        while proc.poll() is None:
+            if tree:
+                tree.poll()
+                if time.monotonic() - last_memory >= 5:
+                    low_count = monitor_sample(sample(), low_count, tree.stop, memory_log)
+                    last_memory = time.monotonic()
+            if time.monotonic() - last_floor >= 20:
                 floors()
-    except BaseException:
-        proc.terminate()
-        proc.wait()
+                last_floor = time.monotonic()
+            time.sleep(0.2 if tree else 1)
+        code = proc.returncode
+    except BaseException as error:
+        receipt['interruption'] = {'type': type(error).__name__, 'message': str(error)}
+        if tree:
+            receipt['stopped_owned_processes'] = tree.stop()
+        elif proc.poll() is None:
+            proc.terminate()
+        code = proc.wait()
         raise
     finally:
         thread.join()
+        if tree:
+            receipt['compile_children'] = tree.receipt()
+            tree.close()
         if observer:
             stop_observer.set()
             observer.join()

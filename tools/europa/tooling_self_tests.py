@@ -1,9 +1,17 @@
+import argparse
 import json
 from pathlib import Path
 import write_ledger as ledger
 import process_wrapper as wrapper
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+    output_root = args.output.resolve()
+    if not output_root.is_relative_to(ledger.ROOT.resolve(strict=True)):
+        raise RuntimeError('Self-test output must be in owned D scratch')
+    output_root.mkdir(parents=True, exist_ok=False)
     cases=[]
     def check(name,condition):
         cases.append({'case':name,'pass':bool(condition)})
@@ -30,7 +38,15 @@ def main():
     for host in wrapper.HOSTS:
         recipes[host]={}
         for mode in ('json','build','editor','game','uat'):
-            output=ledger.JOB/'routing/prepared'/host/mode
+            output=output_root/'prepared'/host/mode
+            if host == '51base' and mode == 'build':
+                try:
+                    wrapper.command(host,mode,'StackOBotEditor','Development',output)
+                except RuntimeError:
+                    check('Baseline51-build-rejected', True)
+                else:
+                    check('Baseline51-build-rejected', False)
+                continue
             args=wrapper.command(host,mode,wrapper.HOSTS[host][0].stem+'Editor' if mode!='game' else wrapper.HOSTS[host][0].stem,'Development',output)
             recipes[host][mode]=args
             if mode in ('json','build'):check(host+mode+'-D-log',any(x.startswith('-Log=D:') for x in args))
@@ -41,8 +57,8 @@ def main():
         wrapper.command('425','json','StylizedParisStreet','Development',Path('E:/rejected-europa-output'))
     except RuntimeError:check('non-D-output-rejected-before-mkdir',True)
     else:check('non-D-output-rejected-before-mkdir',False)
-    ledger.dump(ledger.JOB/'routing/prepared-commands.json',{'execute':False,'recipes':recipes})
-    ledger.dump(ledger.JOB/'routing/tooling-self-tests.json',{'result':'PASS','cases':cases,'mutations':'None outside owned D receipt directories; runtime recipes were not executed.'})
+    ledger.dump(output_root/'prepared-commands.json',{'execute':False,'recipes':recipes})
+    ledger.dump(output_root/'tooling-self-tests.json',{'result':'PASS','cases':cases,'mutations':'None outside owned D receipt directories; runtime recipes were not executed.'})
     print(json.dumps({'tooling_self_tests':'PASS','cases':len(cases),'runtime_launched':False}))
 
 if __name__=='__main__':main()
