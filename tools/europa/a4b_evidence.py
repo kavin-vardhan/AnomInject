@@ -32,7 +32,8 @@ def snapshot_definitions(project, target, configuration, host, actions, output):
     from working_build import response_paths, response_flags
     plugin = project.parent / 'Plugins/AnomalyInjector'
     natives = ('UnrealEditor',) if target.endswith('Editor') else (target, 'UnrealGame')
-    roots = [plugin / 'Intermediate/Build/Win64' / native / configuration for native in natives]
+    roots = [base / 'Intermediate/Build/Win64' / native / configuration
+             for base in (project.parent, plugin) for native in natives]
     output.mkdir(parents=True, exist_ok=False)
     rows, aggregate, referenced = [], {}, set()
     for action in actions['Actions']:

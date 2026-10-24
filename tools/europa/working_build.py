@@ -81,11 +81,29 @@ def engine_source_inputs(action, project, engines):
     return sorted(result)
 
 
+def module_origins(project, engine):
+    manifest = engine / 'Engine/Intermediate/Build/BuildRules' / ('UE5RulesManifest.json' if engine.name == 'UnrealEngine' else 'UE4RulesManifest.json')
+    rules = json.loads(manifest.read_text(encoding='utf-8-sig'))['SourceFiles'] if manifest.is_file() else [
+        str(p) for root in (engine / 'Engine/Source', engine / 'Engine/Plugins') for p in root.rglob('*.Build.cs')]
+    result = {}
+    for raw in rules:
+        path = Path(raw)
+        if path.name.endswith('.Build.cs'):
+            result[path.name[:-9].casefold()] = {'origin': 'engine_source_in_host', 'rule': str(path)}
+    for kind, roots in [('project', [project.parent / 'Source']),
+                        ('plugin', list((project.parent / 'Plugins').glob('*/Source')))]:
+        for root in roots:
+            for path in root.rglob('*.Build.cs'):
+                result[path.name[:-9].casefold()] = {'origin': kind, 'rule': str(path)}
+    return result
+
+
 def classify_actions(path, project, engine):
     data = json.loads(path.read_text(encoding='utf-8-sig'))
     counts = {'project': 0, 'plugin': 0, 'engine_source_in_host': 0, 'engine': 0, 'engine_plugin': 0}
     engine_roots = [Path('D:/UESource/UnrealEngine'), Path('E:/EpicGames/UE_4.25')]
     rows, responses, binary_paths = [], {}, set()
+    origins = module_origins(project, engine)
     for action in data['Actions']:
         outputs = [Path(p) for p in action.get('ProducedItems', [])]
         mutations = outputs + [Path(p) for p in action.get('DeleteItems', [])]
@@ -100,8 +118,15 @@ def classify_actions(path, project, engine):
         else:
             category = 'project'
         engine_inputs = engine_source_inputs(action, project, engine_roots)
-        if category == 'project' and action['Type'] == 'Compile' and engine_inputs:
-            category = 'engine_source_in_host'
+        rule_origins = [origins[p.parent.name.casefold()] for p in outputs if p.parent.name.casefold() in origins]
+        if category != 'engine' and action['Type'] == 'Compile':
+            known = {row['origin'] for row in rule_origins}
+            if len(known) > 1:
+                raise RuntimeError('Conflicting module provenance for compile action')
+            if known:
+                category = next(iter(known))
+            elif engine_inputs:
+                category = 'engine_source_in_host'
         counts[category] += 1
         if category == 'engine' and any(p.resolve().is_relative_to((root / 'Engine/Plugins').resolve()) for p in mutations for root in engine_roots):
             counts['engine_plugin'] += 1
@@ -122,7 +147,7 @@ def classify_actions(path, project, engine):
                         binary_paths.add(str(output))
         binary_paths.update(str(p) for p in outputs if p.suffix.lower() in ('.dll', '.exe', '.pdb'))
         rows.append({'category': category, 'type': action['Type'], 'command': action['CommandPath'],
-            'arguments': action['CommandArguments'], 'engine_source_inputs': engine_inputs, 'outputs': list(map(str, outputs)), 'responses': refs})
+            'arguments': action['CommandArguments'], 'engine_source_inputs': engine_inputs, 'module_rules': rule_origins, 'outputs': list(map(str, outputs)), 'responses': refs})
     if counts['engine'] or counts['engine_plugin']:
         raise RuntimeError('Engine action STOP: ' + json.dumps(counts))
     return {'counts': counts, 'actions': rows, 'cpp_standard_responses': list(responses.values()), 'binary_outputs': sorted(binary_paths)}

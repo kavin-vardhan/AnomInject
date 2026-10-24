@@ -101,6 +101,32 @@ def main():
             patch.object(a4_build, 'execute', lambda *args: calls.append(args)):
             process_wrapper.main()
     check('all_build_entry_points_delegate_to_job_policy', len(calls) == 2 and all(c[0] == '51base' for c in calls))
+    for kind, rule_root, module in [
+        ('plugin', fixture / 'Plugins/Owned/Source/OwnedModule', 'OwnedModule'),
+        ('project', fixture / 'Source/ProjectModule', 'ProjectModule')]:
+        rule_root.mkdir(parents=True)
+        (rule_root / (module + '.Build.cs')).write_text('SYNTHETIC NOT EXECUTED')
+        module_action = copy.deepcopy(action)
+        module_action['ProducedItems'] = [str(fixture / 'Intermediate/Build' / module / 'Generated.cpp.obj')]
+        response.write_text(str(fixture / 'Intermediate/Build/Generated.cpp') + '\n/std:c++17\n')
+        check('monolithic_' + kind + '_in_host', classify(module_action)['counts'][kind] == 1)
+    module_action['ProducedItems'] = [str(fixture / 'Intermediate/Build/Core/Generated.cpp.obj')]
+    check('engine_generated_compile_in_host', classify(module_action)['counts']['engine_source_in_host'] == 1)
+    definition_root = fixture / 'Intermediate/Build/Win64/Synthetic/Development'
+    definition_actions = []
+    for module in ('AnomalyInjector', 'AnomalyCapture', 'AnomalyControlServer', 'AnomalyShaders', 'AnomalyBench'):
+        folder = definition_root / module
+        folder.mkdir(parents=True)
+        header = folder / ('Definitions.' + module + '.h')
+        header.write_text(''.join('#define ' + name + ' ' + values[0] + '\n' for name, values in values.items()))
+        rsp = folder / 'sample.response'
+        rsp.write_text('/FI"' + str(header) + '"\n/std:c++17\n')
+        definition_actions.append({'Type': 'Compile', 'CommandPath': 'synthetic-not-executed',
+            'CommandArguments': '@"' + str(rsp) + '"', 'WorkingDirectory': str(fixture)})
+    definition_result = evidence.snapshot_definitions(project, 'Synthetic', 'Development', '51port',
+        {'Actions': definition_actions}, root / 'monolithic-definitions')
+    check('host_generated_definitions_not_plugin_folder_assumption', definition_result['result'] == 'PASS'
+          and all(row['referenced_by_current_compile_response'] for row in definition_result['rows']))
     a4_evidence.self_tests(root / 'a1-parser.json')
     check('A1_parser_can_fails', json.loads((root / 'a1-parser.json').read_text())['result'] == 'PASS')
     ledger.dump(root / 'results.json', {'result': 'PASS', 'cases': cases, 'synthetic_only': True,
