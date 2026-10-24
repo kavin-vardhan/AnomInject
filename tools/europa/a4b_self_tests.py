@@ -92,6 +92,15 @@ def main():
         mutant[name] = ['1'] if name == 'ANOMINJECT_FW_TICKPIN' else ['0']
         refuses('wrong_generated_' + name, lambda v=mutant: evidence.validate_definitions(v, True, ['0']))
     check('definition_conflict_preserved', evidence.definitions('#define ANOMALY_CAPTURE 1\n#define ANOMALY_CAPTURE 0\n')['ANOMALY_CAPTURE'] == ['0', '1'])
+    from unittest.mock import patch
+    import process_wrapper
+    calls = []
+    for mode in ('build', 'qualify'):
+        with patch.object(sys, 'argv', ['process_wrapper.py', '--host', '51base', '--mode', mode,
+            '--target', 'StackOBot', '--configuration', 'Development', '--output', str(ledger.JOB / 'synthetic'), '--execute']), \
+            patch.object(a4_build, 'execute', lambda *args: calls.append(args)):
+            process_wrapper.main()
+    check('all_build_entry_points_delegate_to_job_policy', len(calls) == 2 and all(c[0] == '51base' for c in calls))
     a4_evidence.self_tests(root / 'a1-parser.json')
     check('A1_parser_can_fails', json.loads((root / 'a1-parser.json').read_text())['result'] == 'PASS')
     ledger.dump(root / 'results.json', {'result': 'PASS', 'cases': cases, 'synthetic_only': True,

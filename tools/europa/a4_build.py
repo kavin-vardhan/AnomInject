@@ -1,4 +1,5 @@
 import argparse
+import datetime as dt
 import hashlib
 import json
 import os
@@ -89,6 +90,11 @@ def clean_host(host_name, receipt):
 
 def execute(host, target, configuration, output, *, dirty_manifest=None, single_file=None, expected_failure=None, require_compile=True, query_only=False):
     from build_memory import MemoryStopped
+    from job_scope import load
+    scope = load()
+    started = dt.datetime.fromisoformat(scope['started_utc'].replace('Z', '+00:00'))
+    if (dt.datetime.now(dt.timezone.utc) - started).total_seconds() >= scope['wall_limit_hours'] * 3600:
+        raise RuntimeError('A4b continues: wall time limit at a clean build boundary')
     from recovery_cleanup import cleanup
     project, engine, _ = HOSTS[host]
     if output.exists():

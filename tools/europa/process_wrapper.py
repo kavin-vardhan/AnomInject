@@ -56,22 +56,13 @@ def main():
     if a.batch_json:
         data=json.loads(a.batch_json.read_text());run_json_batch(a.host,data['pairs'],data['label']);return
     target=a.target or (HOSTS[a.host][0].stem+'Editor')
-    if a.mode == 'qualify':
+    if a.mode in ('qualify', 'build'):
         from a4_build import command as qualified_command, execute
         if a.execute:
             execute(a.host, target, a.configuration, a.output)
         else:
             argv, version = qualified_command(a.host, target, a.configuration, a.output)
             print(json.dumps({'mode': 'prepared only', 'argv': argv, 'engine_version': version}))
-        return
-    if a.execute and a.mode == 'build':
-        if (a.host, target, a.configuration) not in (('425', 'StylizedParisStreetEditor', 'Development'), ('51port', 'StackOBotEditor', 'Development')):
-            raise RuntimeError('A3 build target/configuration is not admitted')
-        if a.output.resolve() != (JOB/'builds'/a.output.name).resolve():
-            raise RuntimeError('A3 build output must be a labelled folder in this job builds receipt directory')
-        from working_build import main as build_main
-        sys.argv = [sys.argv[0], '--host', a.host, '--label', a.output.name]
-        build_main()
         return
     argv=command(a.host,a.mode,target,a.configuration,a.output)
     dump(a.output/'command.json',{'argv':argv,'mode':a.mode,'host':a.host,'execute':a.execute})
