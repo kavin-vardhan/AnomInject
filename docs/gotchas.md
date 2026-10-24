@@ -10203,3 +10203,12 @@ the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero mis
 deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
 existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
 the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
+
+
+### G462 - 5.1 monolithic evidence uses host intermediates and native module identities
+
+094-09: the first Game Development action query succeeded, but the reader refused it before compiling because it searched only plugin Intermediate for generated definitions. Monolithic definitions also live under the host's Intermediate/Build/Win64/<target>/Development/<module>. Bind the selected definition files to actual compile responses and preserve unreferenced files separately. Native UHT ShortName aliases can differ from source-module names; use UHT/rules metadata to retain provenance. Classify engine source compiled into owned host outputs separately from actions writing into an engine tree. The latter remain forbidden. Corrected reader controls and the retained failed query are in Receipts/09409.
+
+### G463 - Exact strict-rule restoration can leave only normal relinks scheduled
+
+094-09: strict Editor and Game each compiled 64 ordinary sources, 77 header TUs and 11 generated sources with no PCH/unity. Rule hashes and tracked status restored exactly. However, the earlier normal unity objects still existed under their different filenames, so the first restored Editor plan scheduled eleven relink/metadata actions and no C++ compile. The unchanged zero-C++ guard correctly refused it. One recovery hashed and removed twelve normal IA object files (six per target) selected from the qualified native plans, inside ReGate51 only, then rebuilt normal Editor (17 actions) and Game (8 actions), both clean. Preserve passed strict evidence and the refused plan; bind the recovery with receipts. Do not weaken the zero-coverage guard or delete engine/other-host outputs. Current normal responses use PCH again and their referenced definitions have no strict marker; old unreferenced intermediate definitions are not compiled evidence. See docs/europa/09409-a4b-result.md and Receipts/09409/strict/restoration-retry.

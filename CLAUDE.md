@@ -11,10 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **094-09, 2026-10-24 - A4b 5.1 qualification in progress under EI1-EI6.**
-> The release control stays d7eee97; candidate production starts at 489c828. Five permitted builds, strict and an exit query are pending.
-> Job-scoped tooling uses the EI2 commit-memory gate and four-action cap; EI3 distinguishes engine source compiled into host outputs.
-> Evidence: D:/IA_Europa/Receipts/09409. No runtime, cook, UAT, push or tags.
+> **094-09, 2026-10-25 - A4b 5.1 build and strict qualification complete under EI1-EI6.**
+> Release d7eee97 and candidate 1c4cce7 pass Editor/Game Development; candidate Shipping excludes IA/probe code.
+> Generated definitions and tick pin pass; no new or worse warnings; strict Editor/Game and normal restoration builds pass.
+> Production remains identical to 489c828. Results: docs/europa/09409-a4b-result.md; evidence: D:/IA_Europa/Receipts/09409.
+> A5 probe behavior and all runtime/staged gates remain pending. A6-A8 retain A4a's exact manifest. No push or tags.
 
 > **094-08, 2026-10-24 - A4a qualification complete under EH1-EH6.**
 > Clean 4.25 Editor Development, Game Development and Shipping pass on 489c828; strict Editor/Game and restoration rebuilds pass.

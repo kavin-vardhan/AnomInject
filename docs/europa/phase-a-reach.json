@@ -1,7 +1,7 @@
 {
   "base": "d7eee97731812384d4fd00af9032254923363ada",
   "comparison": "git diff --name-only d7eee97..HEAD after commit; added files included before commit",
-  "status": "A4a 4.25 clean/strict and build-level Shipping qualification pass; A4b and runtime gates remain pending.",
+  "status": "A4a/A4b normal/strict build qualification complete; runtime/staged/owner gates remain pending.",
   "classes": {
     "N": "changed but meant to be neutral on 5.1, subject to reach gates",
     "C": "changed tooling, host or diagnostic surface",
@@ -23,12 +23,14 @@
     {
       "path": "CLAUDE.md",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
-      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
@@ -1084,6 +1086,19 @@
       ]
     },
     {
+      "path": "docs/europa/09409-a4b-result.md",
+      "effect_51": "C",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "gates": [
+        "R1",
+        "R2",
+        "A1",
+        "A2",
+        "A4"
+      ]
+    },
+    {
       "path": "docs/europa/phase-a-a3-closure.md",
       "effect_51": "C",
       "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
@@ -1117,14 +1132,29 @@
       ]
     },
     {
+      "path": "docs/gotchas.md",
+      "effect_51": "C",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "gates": [
+        "R1",
+        "R2",
+        "A1",
+        "A2",
+        "A4"
+      ]
+    },
+    {
       "path": "docs/predictions/094-europa-phase-a.md",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
-      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
@@ -1185,6 +1215,19 @@
       ]
     },
     {
+      "path": "docs/sessions/2026-10-24-094-09-europa-a4b.md",
+      "effect_51": "C",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "gates": [
+        "R1",
+        "R2",
+        "A1",
+        "A2",
+        "A4"
+      ]
+    },
+    {
       "path": "tools/europa/DescriptorProbe.cs.txt",
       "effect_51": "C",
       "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
@@ -1198,38 +1241,66 @@
     {
       "path": "tools/europa/a4_build.py",
       "effect_51": "C",
-      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
-      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
+        "R1",
+        "R2",
         "A1",
         "A2",
-        "A4",
-        "R1",
-        "R2"
+        "A4"
       ]
     },
     {
       "path": "tools/europa/a4_evidence.py",
       "effect_51": "C",
-      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
-      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
+        "R1",
+        "R2",
         "A1",
         "A2",
-        "A4",
+        "A4"
+      ]
+    },
+    {
+      "path": "tools/europa/a4b_evidence.py",
+      "effect_51": "C",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "gates": [
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
+      ]
+    },
+    {
+      "path": "tools/europa/a4b_self_tests.py",
+      "effect_51": "C",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "gates": [
+        "R1",
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
       "path": "tools/europa/build_memory.py",
       "effect_51": "C",
-      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
-      "reached_behavior": "Build/write admission and evidence correctness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
@@ -1268,12 +1339,14 @@
     {
       "path": "tools/europa/finish_self_tests.py",
       "effect_51": "C",
-      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
-      "reached_behavior": "Build/write admission and evidence correctness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
@@ -1321,6 +1394,19 @@
       ]
     },
     {
+      "path": "tools/europa/job_scope.py",
+      "effect_51": "C",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "gates": [
+        "R1",
+        "R2",
+        "A1",
+        "A2",
+        "A4"
+      ]
+    },
+    {
       "path": "tools/europa/ledger_budget_self_tests.py",
       "effect_51": "C",
       "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
@@ -1345,23 +1431,27 @@
     {
       "path": "tools/europa/process_wrapper.py",
       "effect_51": "C",
-      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
-      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
       "path": "tools/europa/recovery_cleanup.py",
       "effect_51": "C",
-      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
-      "reached_behavior": "Build/write admission and evidence correctness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
@@ -1373,6 +1463,19 @@
         "R0",
         "R1",
         "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/run_job.py",
+      "effect_51": "C",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "gates": [
+        "R1",
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
@@ -1400,47 +1503,53 @@
     {
       "path": "tools/europa/uht_reader_self_tests.py",
       "effect_51": "C",
-      "reason": "A4a build/evidence, strict coverage, restoration or qualification documentation; no runtime change.",
-      "reached_behavior": "Build admission, compiler/SDK and Shipping proof, coverage and evidence integrity",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
+        "R1",
+        "R2",
         "A1",
         "A2",
-        "A4",
-        "R1",
-        "R2"
+        "A4"
       ]
     },
     {
       "path": "tools/europa/working_build.py",
       "effect_51": "C",
-      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
-      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
       "path": "tools/europa/write_ledger.py",
       "effect_51": "C",
-      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
-      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     },
     {
       "path": "tools/strict_include_build.py",
       "effect_51": "C",
-      "reason": "A4a real 4.25 Editor/Game strict coverage, native UHT output-directory reader, resource-action discrimination, missing-include/PCH/unity controls, exact restoration and normal rebuilds. 5.1 native-layout reader tested synthetically; actual 5.1 strict pass remains A4b.",
-      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
+      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
       "gates": [
-        "R0",
         "R1",
-        "R2"
+        "R2",
+        "A1",
+        "A2",
+        "A4"
       ]
     }
   ],
@@ -1591,7 +1700,7 @@
       "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
     }
   ],
-  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package checker and staged gates later; shim-local audit retained under EA7. Real 4.25 strict pass complete; real 5.1 strict pass remains A4b.",
-  "current_job": "094-08 A4a; qualified source 489c828; documentation-only result commit follows.",
-  "receipts": "D:\\IA_Europa\\Receipts\\09408"
+  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package checker and staged gates later. Real 4.25 and 5.1 strict passes complete.",
+  "current_job": "094-09 A4b; qualified candidate 1c4cce7023081c64f5c747688ea7ef8f69143f7b; documentation-only result commit follows.",
+  "receipts": "D:\\IA_Europa\\Receipts\\09409"
 }
