@@ -178,7 +178,30 @@ def module_sources(mod):
     return sorted(out)
 
 
-def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, engine_name):
+def generated_sources(host_dir, target, module):
+    manifest = Path(host_dir) / "Intermediate/Build/Win64" / target / "Development" / (target + ".uhtmanifest")
+    entries = [row for row in json.loads(manifest.read_text(encoding="utf-8-sig"))["Modules"] if row["Name"] == module]
+    if not entries:
+        return set()
+    if len(entries) != 1:
+        raise RuntimeError("Duplicate module in UHT manifest: " + module)
+    entry = entries[0]
+    if Path(entry["BaseDirectory"]).resolve(strict=True) != (Path(PLUGIN_ROOT) / "Source" / module).resolve(strict=True):
+        raise RuntimeError("UHT module source root mismatch: " + module)
+    directory = Path(entry["OutputDirectory"]).resolve(strict=True)
+    if not any(directory.is_relative_to(root.resolve(strict=True)) for root in
+               (Path(PLUGIN_ROOT) / "Intermediate", Path(host_dir) / "Intermediate")):
+        raise RuntimeError("UHT output outside owned host/plugin: " + str(directory))
+    files = {p.resolve() for p in directory.rglob("*.gen.cpp")}
+    expected = {module + ".init.gen.cpp"}
+    for field in ("ClassesHeaders", "PublicHeaders", "PrivateHeaders"):
+        expected.update(Path(p).stem + ".gen.cpp" for p in entry.get(field, []))
+    if {p.name for p in files} != expected:
+        raise RuntimeError("UHT generated files disagree with manifest header denominator: " + module)
+    return files
+
+
+def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, engine_name, source_tus=None, response_archive=None):
     data = json.loads(Path(actions_path).read_text(encoding="utf-8-sig"))
     actions = [x for x in data["Actions"] if x["Type"] == "Compile"]
     problems = []
@@ -190,7 +213,12 @@ def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, eng
         for action in actions:
             paths = [Path(p) for p in action.get("PrerequisiteItems", [])]
             outputs = [Path(p) for p in action.get("ProducedItems", [])]
-            if not any(mod["name"] in p.parts for p in outputs):
+            if not any(p.parent.name == mod["name"] for p in outputs):
+                continue
+            if (Path(action.get("CommandPath", "")).name.casefold() == "rc.exe"
+                    and outputs and all(p.suffix.casefold() == ".res" for p in outputs)
+                    and any(p.suffix.casefold() in (".rc", ".rc2") for p in paths)
+                    and not any(p.suffix.casefold() == ".cpp" for p in paths)):
                 continue
             responses = [p for p in paths if p.suffix.lower() in (".response", ".rsp")]
             if not responses:
@@ -198,7 +226,7 @@ def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, eng
                 continue
             from europa.working_build import response_flags
             from europa.a4_evidence import strict_response_problems
-            bodies = [response_flags(p)[1] for p in responses]
+            bodies = [response_flags(Path((response_archive or {}).get(str(p), p)))[1] for p in responses]
             if any(strict_response_problems(body, []) for body in bodies):
                 problems.append("PCH in actual compile action: " + str(responses))
                 continue
@@ -214,19 +242,15 @@ def verify_strict_took_effect(host_dir, target, kind, modules, actions_path, eng
                         nested = Path(include)
                         generated.add((nested if nested.is_absolute() else p.parent / nested).resolve())
         count = 0
-        for fn in module_sources(mod):
+        required_sources = module_sources(mod) if source_tus is None else [Path(p).name for p in source_tus if Path(p).is_relative_to(Path(mod["dir"]))]
+        for fn in required_sources:
             if fn not in compiled:
                 problems.append("source absent from actual no-PCH compile actions: " + mod["name"] + "/" + fn)
                 continue
             count += 1
             if fn.startswith("SIC_"):
                 gen_seen += 1
-        target_dir = engine_name if kind == "Editor" else target
-        required_generated = set()
-        for root in (Path(PLUGIN_ROOT) / "Intermediate/Build/Win64", Path(host_dir) / "Intermediate/Build/Win64"):
-            for p in root.rglob("*.gen.cpp"):
-                if target_dir in p.parts and "Inc" in p.parts and mod["name"] in p.parts:
-                    required_generated.add(p.resolve())
+        required_generated = generated_sources(host_dir, target, mod["name"])
         for missing in sorted(required_generated - generated):
             problems.append("generated TU absent from actual no-PCH actions: " + str(missing))
         if any(".generated.h" in Path(p).read_text(encoding="utf-8-sig") for p in Path(mod["dir"]).rglob("*.h")) and not required_generated:
