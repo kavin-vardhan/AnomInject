@@ -95,6 +95,15 @@ def module_origins(project, engine):
         for root in roots:
             for path in root.rglob('*.Build.cs'):
                 result[path.name[:-9].casefold()] = {'origin': kind, 'rule': str(path)}
+    for manifest in (project.parent / 'Intermediate/Build').rglob('*.uhtmanifest'):
+        for module in json.loads(manifest.read_text(encoding='utf-8-sig')).get('Modules', []):
+            original = result.get(module['Name'].casefold())
+            if original is None:
+                continue
+            output = Path(module['OutputDirectory'])
+            short = output.parent.name if output.name == 'UHT' else output.name
+            result[short.casefold()] = dict(original, uht_manifest=str(manifest),
+                module_name=module['Name'], module_base_directory=module['BaseDirectory'])
     return result
 
 

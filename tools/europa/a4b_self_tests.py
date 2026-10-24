@@ -112,6 +112,13 @@ def main():
         check('monolithic_' + kind + '_in_host', classify(module_action)['counts'][kind] == 1)
     module_action['ProducedItems'] = [str(fixture / 'Intermediate/Build/Core/Generated.cpp.obj')]
     check('engine_generated_compile_in_host', classify(module_action)['counts']['engine_source_in_host'] == 1)
+    manifest = fixture / 'Intermediate/Build/Win64/Synthetic/Development/Synthetic.uhtmanifest'
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(json.dumps({'Modules': [{'Name': 'Core',
+        'BaseDirectory': str(engine / 'Engine/Source/Runtime/Core'),
+        'OutputDirectory': str(fixture / 'Intermediate/Build/Win64/Synthetic/Inc/ShortCore/UHT')}]}))
+    module_action['ProducedItems'] = [str(fixture / 'Intermediate/Build/ShortCore/Generated.cpp.obj')]
+    check('native_UHT_short_name_provenance', classify(module_action)['counts']['engine_source_in_host'] == 1)
     definition_root = fixture / 'Intermediate/Build/Win64/Synthetic/Development'
     definition_actions = []
     for module in ('AnomalyInjector', 'AnomalyCapture', 'AnomalyControlServer', 'AnomalyShaders', 'AnomalyBench'):
