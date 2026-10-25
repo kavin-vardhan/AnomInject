@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-14, 2026-10-25 - A5 incomplete: D2 action-log evidence reader STOP.**
+> EN1 tests and the actual 4.25 native environment pass. The probe Editor rebuild at 35eec14 returns 0 with no C++ diagnostics and restores its DLL/PDB/lib.
+> The action reader failed twice on bare filename progress; no third attempt was made. Five Development rebuilds, complete receipts, EI4 query, A5 manifest binding and the owner kit remain pending.
+> Production plugin Source/Content are unchanged; see docs/europa/09414-a5-partial-result.md. No runtime launch, push or tags.
+
 > **094-13, 2026-10-25 — A5 incomplete: stock UBT PATH augmentation fails EL1.**
 > Denylist tests and the full module comparison pass. The first 4.25 action-plan query stopped before any compile action; no exception was applied.
 > 109 prior artifacts remain equal; stock UBT query cleanup removed the 4.25 probe PDB. Six rebuilds, native environment qualification, manifest re-binding and the owner kit remain pending; see docs/europa/09413-a5-partial-result.md.
