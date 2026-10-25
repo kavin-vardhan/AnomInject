@@ -30,7 +30,7 @@ def invalidate_makefile(path, receipt, host):
     stat = path.stat()
     row = dict(path=str(path), size=stat.st_size, mtime_ns=stat.st_mtime_ns, sha256=hashlib.sha256(data).hexdigest())
     ledger.dump(receipt, dict(authority='EN5 scoped cached environment refresh', files=[row],
-        source='UE4 BuildMode.cs:513-516; UE5 BuildMode.cs:769-773', deleted=False))
+        source='UE4 BuildMode.cs:530-534; UE5 BuildMode.cs:788-792', deleted=False))
     if path.stat().st_mtime_ns != stat.st_mtime_ns:
         raise RuntimeError('Makefile changed before receipt deletion')
     path.unlink()
@@ -91,7 +91,7 @@ def execute(host, target, configuration, output, query_only=False, allow_up_to_d
             data=json.loads(plan.read_text(encoding='utf-8-sig'))
             result['executed_action_lines']=[]
         else:
-            data=executed(graph,text)
+            data=executed(graph,text,complete=result['exit_code']==0)
             ledger.dump(plan,data)
             result['executed_action_lines']=data['executed_lines']
         expected=parent['environment_contract']['effective_sha256_by_name']

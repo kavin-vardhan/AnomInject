@@ -42,7 +42,7 @@ bool FEuropaPhaseAWorldProbe::ResolveOutput(const FString& Name, FString& Out) c
 
 void FEuropaPhaseAWorldProbe::Command(const TArray<FString>& Args, UWorld* World)
 {
-	if (!bEnabled || !QueuedCommand.IsEmpty() || Args.IsEmpty()) { return; }
+	if (!bEnabled || QueuedCommand.Num() != 0 || Args.Num() == 0) { return; }
 	QueuedCommand = Args;
 	QueuedWorld = World;
 }
@@ -70,7 +70,7 @@ void FEuropaPhaseAWorldProbe::EndFrame()
 		}
 		return;
 	}
-	if (!QueuedCommand.IsEmpty())
+	if (QueuedCommand.Num() != 0)
 	{
 		TArray<FString> Args = MoveTemp(QueuedCommand);
 		Execute(Args, QueuedWorld.Get());
@@ -139,7 +139,7 @@ void FEuropaPhaseAWorldProbe::LoadScript(UWorld* World, const FString& Path)
 
 bool FEuropaPhaseAWorldProbe::Execute(const TArray<FString>& Args, UWorld* World)
 {
-	if (Args.IsEmpty()) { return false; }
+	if (Args.Num() == 0) { return false; }
 	const FString Op = Args[0].ToLower();
 	auto Data = MakeShared<FJsonObject>();
 	Data->SetStringField(TEXT("command"), Op);
@@ -205,7 +205,7 @@ bool FEuropaPhaseAWorldProbe::Execute(const TArray<FString>& Args, UWorld* World
 		}
 		else if (Op == TEXT("prepare"))
 		{
-			for (const auto& Pair : TArray<TPair<FString, int32>>{{TEXT("r.ScreenPercentage"), 100}, {TEXT("r.DynamicRes.OperationMode"), 0}, {TEXT("r.PostProcessAAQuality"), 0}, {TEXT("r.AntiAliasingMethod"), 0}, {TEXT("r.MotionBlurQuality"), 0}})
+			for (const auto& Pair : TArray<TPair<FString, int32>>{TPair<FString, int32>(TEXT("r.ScreenPercentage"), 100), TPair<FString, int32>(TEXT("r.DynamicRes.OperationMode"), 0), TPair<FString, int32>(TEXT("r.PostProcessAAQuality"), 0), TPair<FString, int32>(TEXT("r.AntiAliasingMethod"), 0), TPair<FString, int32>(TEXT("r.MotionBlurQuality"), 0)})
 			{
 				IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(*Pair.Key);
 				if (Variable) { Variable->Set(Pair.Value, ECVF_SetByConsole); Data->SetNumberField(Pair.Key, Variable->GetInt()); }

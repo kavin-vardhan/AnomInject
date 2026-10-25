@@ -146,17 +146,17 @@ def read(path, host):
                 action_count=len(actions), source='Read-only stock TargetMakefile/Action serialization')
 
 
-def executed(graph, text):
+def executed(graph, text, complete=True):
     lines = re.findall(r'^\s*\[(\d+)/(\d+)\]\s+(.+)$', text, re.M)
     lines = [(int(i), int(n), description.strip()) for i,n,description in lines if not description.startswith('Command:')]
     selected, used, rows = [], set(), []
     for index, total, description in lines:
-        short = re.sub(r'^\[x64\]\s*', '', description)
+        short = re.sub(r'\[x64\]\s*', '', description)
         found = []
         for offset, action in enumerate(graph['Actions']):
             command = action.get('CommandDescription') or Path(action['CommandPath']).stem
             expected = (command + ' ' + action['StatusDescription']).strip()
-            if offset not in used and (short == expected or short.endswith(' ' + expected)):
+            if offset not in used and (short == expected or short.endswith(' ' + expected) or (not action.get('bShouldOutputStatusDescription', True) and short == action['StatusDescription'])):
                 found.append(offset)
         if len(found) != 1:
             raise RuntimeError('Executed action has no unique native graph match: ' + description)
@@ -164,6 +164,6 @@ def executed(graph, text):
         selected.append(graph['Actions'][offset])
         used.add(offset)
         rows.append(dict(index=index, total=total, description=description, native_action_index=offset))
-    if lines and (len({n for _,n,_ in lines}) != 1 or sorted(i for i,_,_ in lines) != list(range(1, lines[0][1]+1))):
+    if lines and (len({n for _,n,_ in lines}) != 1 or sorted(i for i,_,_ in lines) != list(range(1, (lines[0][1] if complete else len(lines))+1))):
         raise RuntimeError('Incomplete executed action denominator')
     return dict(Actions=selected, Environment={}, executed_lines=rows, native_action_count=graph['action_count'])
