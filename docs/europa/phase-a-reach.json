@@ -2250,26 +2250,6 @@
         "A2",
         "A4"
       ]
-    },
-    {
-      "path": "warning: in the working copy of 'docs/gotchas.md', LF will be replaced by CRLF the next time Git touches it",
-      "effect_51": "C",
-      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
-      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
-      "gates": [
-        "A3",
-        "A5",
-        "A6",
-        "A7",
-        "A8",
-        "R3",
-        "R4",
-        "R5",
-        "R6",
-        "R7",
-        "R8",
-        "R9"
-      ]
     }
   ],
   "retained": [
@@ -2419,7 +2399,7 @@
       "reason": "Existing algorithm, guard, asset or reader needs no A3 edit; runtime/packaged qualification remains pending"
     }
   ],
-  "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package checker and staged gates later. Real 4.25 and 5.1 strict passes complete.",
+  "deferred_plan_files": "A5 probe, reader and fixture readiness complete. Runtime, authoring, package and owner gates remain A6 onward. Real 4.25 and 5.1 strict passes complete.",
   "current_job": "094-15 A5 finish",
   "receipts": "D:\\IA_Europa\\Receipts\\09415"
 }
