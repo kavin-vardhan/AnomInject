@@ -156,7 +156,10 @@ def execute(host, target, configuration, output, *, dirty_manifest=None, single_
                 data = json.loads(plan.read_text(encoding='utf-8-sig'))
                 from environment import effective_receipt
                 makefile = project.parent / 'Intermediate/Build/Win64' / target / configuration / 'Makefile.bin'
-                result['effective_environment'] = effective_receipt(plan, makefile, output / f'effective-environment-{attempt}.json')
+                parent_receipts = [json.loads(p.read_text()) for p in sorted(operation.glob('child-*.json'))]
+                parent = [r for r in parent_receipts if r.get('argv') == plan_argv][-1]
+                expected_environment = parent['environment_contract']['effective_sha256_by_name']
+                result['effective_environment'] = effective_receipt(plan, makefile, output / f'effective-environment-{attempt}.json', expected_environment)
                 admission = classify_actions(plan, project, engine)
                 result['action_counts'] = admission['counts']
                 result['actual_compile_responses'] = toolchain_responses(data, host, output / f'responses-{attempt}')

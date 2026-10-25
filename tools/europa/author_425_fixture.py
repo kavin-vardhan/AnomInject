@@ -1,4 +1,3 @@
-"""A6 recipe only: run in the owned 4.25 editor after its launch ruling."""
 import json
 import os
 import unreal

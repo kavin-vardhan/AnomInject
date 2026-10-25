@@ -1,4 +1,3 @@
-"""EA6: fail-closed port idle gate. Source/build work does not call this gate."""
 import argparse
 import ctypes
 from ctypes import wintypes
@@ -104,8 +103,8 @@ $gpu=(Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction Stop).Cou
 if (-not $gpu) { throw 'No GPU counter samples' };
 $procs=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId; parent_pid=$_.ParentProcessId; image=$_.Name; created=[string]$_.CreationDate; blocked_runtime=([bool]($_.Name -match 'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)' -or $_.CommandLine -match '(?i)-run=cook|AutomationTool.dll|RunUAT.bat'))} });
 @{free_memory_bytes=([long]$os.FreePhysicalMemory*1024);gpu_percent=[math]::Min(100,($gpu|Measure-Object CookedValue -Sum).Sum);processes=$procs}|ConvertTo-Json -Depth 5 -Compress'''
-    from environment import allowlisted
-    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', command], capture_output=True, text=True, check=True, timeout=20, env=allowlisted(os.environ))
+    from environment import filtered
+    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', command], capture_output=True, text=True, check=True, timeout=20, env=filtered(os.environ))
     sample = json.loads(result.stdout)
     sample['idle_seconds'] = idle
     sample['volumes'] = {d: {'resolved_drive': Path(d + ':/').resolve(strict=True).drive[0].upper(), 'free_bytes': shutil.disk_usage(d + ':/').free} for d in FLOORS}

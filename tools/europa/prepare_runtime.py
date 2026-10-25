@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from environment import allowlisted, masked
+from environment import filtered, masked
 from runtime_attribution import validate_redirects
 
 ROOT=Path('D:/IA_Europa')
@@ -67,7 +67,7 @@ def main():
         for folder in (project.parent/'Binaries',project.parent/'Plugins/AnomalyInjector/Binaries',project.parent/'Plugins/CaptureBench/Binaries'):
             if folder.exists(): files+=sorted(x for x in folder.rglob('*') if x.is_file())
         hashes=[dict(path=str(x),size=x.stat().st_size,sha256=hashlib.sha256(x.read_bytes()).hexdigest()) for x in files]
-        env=allowlisted(os.environ)
+        env=filtered(os.environ)
         env.update(TEMP=str(ROOT/'Temp'/Path(scope['job_root']).name/'runtime'),TMP=str(ROOT/'Temp'/Path(scope['job_root']).name/'runtime'),
                    GIT_OPTIONAL_LOCKS='0',PYTHONDONTWRITEBYTECODE='1')
         result=dict(result='PREPARED_ONLY',argv=argv,environment=masked(env),

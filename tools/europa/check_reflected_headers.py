@@ -1,4 +1,3 @@
-"""EA11: UHT's supported directives are the only conditional directives here."""
 import argparse
 import json
 from pathlib import Path

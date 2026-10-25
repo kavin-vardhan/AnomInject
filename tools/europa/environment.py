@@ -1,4 +1,3 @@
-"""EK1/EK2: an allowlisted child environment and the native UBT string-list layout."""
 import hashlib
 import json
 from pathlib import Path
@@ -7,11 +6,6 @@ import struct
 
 SECRET = re.compile(r'TOKEN|SECRET|PASSWORD|PASSWD|KEY|AUTH|COOKIE|CREDENTIAL', re.I)
 IDENTIFIER_PREFIXES = ('CLAUDE_', 'CODEX_', 'ANTHROPIC_', 'OPENAI_')
-SYSTEM = set('SYSTEMROOT WINDIR SYSTEMDRIVE COMSPEC PATH PATHEXT OS PROCESSOR_ARCHITECTURE PROCESSOR_ARCHITEW6432 PROCESSOR_IDENTIFIER PROCESSOR_LEVEL PROCESSOR_REVISION NUMBER_OF_PROCESSORS PROGRAMDATA PROGRAMFILES PROGRAMFILES(X86) PROGRAMW6432 COMMONPROGRAMFILES COMMONPROGRAMFILES(X86) COMMONPROGRAMW6432 ALLUSERSPROFILE USERPROFILE LOCALAPPDATA APPDATA HOMEDRIVE HOMEPATH USERNAME USERDOMAIN TEMP TMP INCLUDE LIB LIBPATH'.split())
-JOB = set('EUROPA_JOB_CONFIG EUROPA_OPERATION_DIR EUROPA_DESCRIPTOR_PROBE EUROPA_BUILD_CHILDREN EUROPA_OWNED_ROOTS PYTHONDONTWRITEBYTECODE GIT_OPTIONAL_LOCKS'.split())
-UE = set('VULKAN_SDK VK_SDK_PATH LINUX_MULTIARCH_ROOT UE-CMDLINEARGS UE-SHAREDDATACACHEPATH UE-LOCALDATACACHEPATH UE_DISABLECRASHREPORTER DOTNET_ROOT DOTNET_MULTILEVEL_LOOKUP DOTNET_CLI_HOME DOTNET_CLI_TELEMETRY_OPTOUT DOTNET_SKIP_FIRST_TIME_EXPERIENCE DOTNET_NOLOGO NUGET_PACKAGES UEBP_ENGINESAVEDFOLDER UEBP_LOGFOLDER UEBP_FINALLOGFOLDER'.split())
-VS_PREFIXES = ('VS', 'VC', 'WINDOWSSDK', 'WINDOWSLIB', 'UNIVERSALCRT', 'UCRT', 'FRAMEWORK', '__VSCMD')
-
 def secret_name(name):
     return bool(SECRET.search(name))
 
@@ -19,14 +13,40 @@ def forbidden_child_name(name):
     return secret_name(name) or name.upper().startswith(IDENTIFIER_PREFIXES) or name.upper() == 'CLAUDECODE'
 
 def allowed_name(name):
-    key = name.upper()
-    return not forbidden_child_name(key) and (key in SYSTEM | JOB | UE or key.startswith(VS_PREFIXES))
+    return not forbidden_child_name(name)
 
-def allowlisted(environ):
+def filtered(environ):
     upper = {k.upper(): v for k, v in environ.items()}
     if any(k in upper for k in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')):
         raise RuntimeError('W4 date variable present')
-    return {k: v for k, v in upper.items() if allowed_name(k)}
+    return {k: v for k, v in upper.items() if not forbidden_child_name(k)}
+
+def fingerprints(environ):
+    if any(forbidden_child_name(k) for k in environ):
+        raise RuntimeError('Refusing fingerprints of blocked environment names')
+    return {k.upper(): hashlib.sha256(v.encode('utf-8')).hexdigest() for k, v in sorted(environ.items())}
+
+def boundary(base, actual, routing=None):
+    expected = filtered(base)
+    expected.update({k.upper(): v for k, v in (routing or {}).items()})
+    actual = {k.upper(): v for k, v in actual.items()}
+    blocked = sorted(k for k in actual if forbidden_child_name(k))
+    missing = sorted(set(expected) - set(actual))
+    changed = sorted(k for k in expected.keys() & actual.keys() if expected[k] != actual[k])
+    if blocked or missing or changed:
+        raise RuntimeError('EL1 boundary STOP: ' + json.dumps(dict(blocked=blocked, missing=missing, changed=changed)))
+    return dict(result='PASS', nonblocked_base_preserved=True, blocked_names=[], routing_overrides=sorted(routing or {}),
+                effective_sha256_by_name=fingerprints(actual))
+
+def compare_native(expected_hashes, actual):
+    actual = {k.upper(): v for k, v in actual.items()}
+    blocked = sorted(k for k in actual if forbidden_child_name(k))
+    hashes = {k: hashlib.sha256(v.encode('utf-8')).hexdigest() for k, v in actual.items() if not forbidden_child_name(k)}
+    missing = sorted(set(expected_hashes) - set(hashes))
+    changed = sorted(k for k in expected_hashes.keys() & hashes.keys() if expected_hashes[k] != hashes[k])
+    return dict(result='STOP' if blocked or missing or changed else 'PASS', blocked_names=blocked,
+                missing_base_names=missing, changed_base_names=changed, added_names=sorted(set(hashes) - set(expected_hashes)))
+
 
 def masked(environ):
     return {k: '<masked>' if v else '<empty>' for k, v in sorted(environ.items())}
@@ -98,20 +118,21 @@ def report_makefile(path, require_clean=False):
         raise RuntimeError('EK2 regenerated makefile contains forbidden names: ' + ','.join(forbidden))
     return row
 
-def effective_receipt(plan, makefile, output):
+def effective_receipt(plan, makefile, output, expected_hashes):
     actual = decode(Path(makefile).read_bytes())['environment']
     delta = json.loads(Path(plan).read_text(encoding='utf-8-sig')).get('Environment', {})
     merged = dict(actual)
     merged.update({k.upper(): v for k, v in delta.items()})
     forbidden = sorted(k for k in merged if forbidden_child_name(k))
-    result = {'result': 'STOP' if forbidden else 'PASS', 'makefile': str(makefile),
+    checks = {'makefile': compare_native(expected_hashes, actual), 'compile_environment': compare_native(expected_hashes, merged)}
+    result = {'result': 'STOP' if forbidden or any(c['result'] != 'PASS' for c in checks.values()) else 'PASS', 'base_comparison': checks, 'makefile': str(makefile),
               'makefile_sha256': hashlib.sha256(Path(makefile).read_bytes()).hexdigest(),
               'source': 'Native UBT serialized environment plus exported effective delta',
               'effective_environment': masked(merged), 'exported_delta': masked(delta),
               'forbidden_child_names': forbidden}
     Path(output).write_text(json.dumps(result, indent=2)+'\n')
-    if forbidden:
-        raise RuntimeError('Effective child environment contains forbidden names: ' + ','.join(forbidden))
+    if result['result'] != 'PASS':
+        raise RuntimeError('EL1 native environment STOP: ' + json.dumps(checks))
     for name in ('TEMP', 'TMP'):
         if not Path(merged[name]).resolve().is_relative_to(Path('D:/IA_Europa/Temp').resolve()):
             raise RuntimeError('Effective TEMP/TMP escaped owned D scratch')
@@ -148,8 +169,23 @@ def self_test():
         check(part + '_secret_and_excluded', secret_name('FAKE_' + part) and not allowed_name('FAKE_' + part))
     fake = dict(values, CLAUDE_CODE_SESSION_ID='synthetic', CODEX_THREAD_ID='synthetic',
                 CLAUDE_CODE_MESSAGING_TOKEN='synthetic', RANDOM='synthetic')
-    clean = allowlisted(fake)
+    clean = filtered(fake)
     check('child_identifiers_and_secret_dropped', not any(forbidden_child_name(k) for k in clean))
-    check('unknown_name_dropped', 'RANDOM' not in clean)
+    check('unknown_nonblocked_name_preserved', clean.get('RANDOM') == fake['RANDOM'])
     check('values_masked', set(masked(clean).values()) == {'<masked>'})
+    sdk = dict(values, VULKAN_SDK='sdk-v', VK_SDK_PATH='sdk-vk', LINUX_MULTIARCH_ROOT='sdk-l',
+               CLAUDECODE='synthetic-id', IA_CANARY_TOKEN='synthetic-canary', FUTURE_SDK='future')
+    clean = filtered(sdk)
+    check('SDK_and_unknown_variables_preserved', all(clean[k] == sdk[k] for k in ('VULKAN_SDK', 'VK_SDK_PATH', 'LINUX_MULTIARCH_ROOT', 'FUTURE_SDK')))
+    check('EM2_and_canary_excluded', 'CLAUDECODE' not in clean and 'IA_CANARY_TOKEN' not in clean)
+    check('boundary_positive', boundary(sdk, clean)['result'] == 'PASS')
+    for name, mutant in [('missing', {k: v for k, v in clean.items() if k != 'VULKAN_SDK'}),
+                         ('changed', dict(clean, PATH='changed')), ('blocked', dict(clean, IA_CANARY_TOKEN='synthetic-canary'))]:
+        try:
+            boundary(sdk, mutant)
+        except RuntimeError:
+            check(name + '_boundary_refused', True)
+        else:
+            check(name + '_boundary_refused', False)
+        check(name + '_native_refused', compare_native(fingerprints(clean), mutant)['result'] == 'STOP')
     return {'result': 'PASS', 'cases': cases}

@@ -11,6 +11,10 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-13, 2026-10-25 — A5 finish under EL1/EM2; native qualification pending.**
+> P9 v2 entry passes after EM1. Denylist and strict environment comparisons prepared; three duplicate probe skeletons removed by receipt.
+> Probe sources remain unqualified until six rebuilds pass. No production Source or Content change; no runtime launch, push or tags.
+
 > **094-11, 2026-10-25 - A5 partial under EK1-EK3; D2 SDK propagation stop before rebuilds.**
 > Native UBT environment reader/cleanup passes; children receive a scoped allowlist. P9 v2 entry passes.
 > Host-only probe behavior and paired fixture recipes are prepared. Synthetic readers and observe-only idle collection pass.

@@ -1,4 +1,3 @@
-"""Prepared runtime attribution; A5 executes only observations and synthetic tests."""
 from pathlib import Path
 
 def process_class(image, executable, owned):

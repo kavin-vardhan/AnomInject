@@ -373,8 +373,8 @@ def finish(folder, kind):
     return result
 
 def child_env(folder):
-    from environment import allowlisted, masked
-    env = allowlisted(os.environ)
+    from environment import filtered, masked
+    env = filtered(os.environ)
     if any(key in env for key in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')):
         raise RuntimeError('W4 dates present')
     temp = Path(SCOPE['temp_root']) / folder.name
@@ -388,6 +388,8 @@ def child_env(folder):
     env.update({key.upper(): value for key, value in routing.items()})
     selected = {key.casefold() for key in routing}
     selected.update(key.casefold() for key in ('DOTNET_ROOT', 'DOTNET_MULTILEVEL_LOOKUP', 'EUROPA_DESCRIPTOR_PROBE', 'UE-CmdLineArgs', 'EUROPA_BUILD_CHILDREN'))
+    from environment import boundary
+    boundary(os.environ, env, routing)
     receipt = masked(env)
     return env, receipt
 
@@ -399,6 +401,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False):
         'cwd': str(cwd or Path.cwd()), 'started_utc': now(), 'environment': routing,
         'job_config_sha256': SCOPE['config_sha256'],
         'W4': {x: None for x in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')}}
+    from environment import fingerprints
+    receipt['environment_contract'] = {'result': 'PASS', 'policy': 'EL1/EM2', 'nonblocked_base_preserved': True, 'effective_sha256_by_name': fingerprints(env)}
     path = folder / f'child-{lognum:03}.json'
     dump(path, receipt)
     memory_log = folder / f'child-{lognum:03}-memory.jsonl'

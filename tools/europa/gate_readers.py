@@ -1,4 +1,3 @@
-"""Phase A evidence readers. Synthetic qualification is never a runtime verdict."""
 import argparse
 from collections import Counter, defaultdict
 import hashlib
