@@ -368,7 +368,8 @@ def finish(folder, kind):
     return result
 
 def child_env(folder):
-    env = {key.upper(): value for key, value in os.environ.items()}
+    from environment import allowlisted, masked
+    env = allowlisted(os.environ)
     if any(key in env for key in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')):
         raise RuntimeError('W4 dates present')
     temp = Path(SCOPE['temp_root']) / folder.name
@@ -382,7 +383,7 @@ def child_env(folder):
     env.update({key.upper(): value for key, value in routing.items()})
     selected = {key.casefold() for key in routing}
     selected.update(key.casefold() for key in ('DOTNET_ROOT', 'DOTNET_MULTILEVEL_LOOKUP', 'EUROPA_DESCRIPTOR_PROBE', 'UE-CmdLineArgs', 'EUROPA_BUILD_CHILDREN'))
-    receipt = {key: value for key, value in env.items() if key.casefold() in selected}
+    receipt = masked(env)
     return env, receipt
 
 def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False):
@@ -423,7 +424,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False):
             for line in proc.stdout:
                 output.write(line)
                 output.flush()
-                print(line.rstrip(), flush=True)
+                if 'TICKPIN probe' not in line:
+                    print(line.rstrip(), flush=True)
     thread = threading.Thread(target=consume)
     thread.start()
     code = None
