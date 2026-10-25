@@ -29,13 +29,25 @@ def descendants(processes, roots):
     return owned
 
 
-def reasons(sample, owned_pids=()):
+def validate_profile(profile, human_idle=None):
+    if profile not in ('measured', 'owner-preview'):
+        raise RuntimeError('Unknown idle-gate profile')
+    expected = profile == 'measured'
+    if human_idle is not None and human_idle is not expected:
+        raise RuntimeError('Measured legs require human idle; only the owner preview omits it')
+    return expected
+
+
+def reasons(sample, owned_pids=(), profile='measured'):
+    human_idle = validate_profile(profile)
     failures = []
     for name, predicate in [
         ('input_idle', lambda: sample['idle_seconds'] >= 300),
         ('physical_memory', lambda: sample['free_memory_bytes'] >= 6 * GIB),
         ('gpu', lambda: 0 <= sample['gpu_percent'] <= 15),
     ]:
+        if name == 'input_idle' and not human_idle:
+            continue
         try:
             if not predicate():
                 failures.append(name)
@@ -50,7 +62,7 @@ def reasons(sample, owned_pids=()):
             if process.get('pid') in owned:
                 continue
             text = process.get('image', '')
-            if process.get('is_game') or process.get('blocked_runtime') or FOREIGN.search(text):
+            if process.get('is_game') or process.get('blocked_runtime') or FOREIGN.search(text) or (profile == 'owner-preview' and re.search(r'unreal|ue4', text, re.I)):
                 failures.append('foreign_process:' + str(process.get('pid')))
     for drive, minimum in FLOORS.items():
         try:
@@ -62,16 +74,18 @@ def reasons(sample, owned_pids=()):
     return failures
 
 class Window:
-    def __init__(self, started):
+    def __init__(self, started, profile='measured', human_idle=None):
+        validate_profile(profile, human_idle)
+        self.profile = profile
         self.started = started
         self.consecutive = 0
         self.previous_poll = None
         self.cleared = False
 
     def poll(self, now, sample, owned_pids=()):
-        if now - self.started >= 4 * 3600:
+        if now - self.started >= (2700 if self.profile == 'owner-preview' else 4 * 3600):
             return {'status': 'NEEDS-DECISION', 'reason': 'no idle window', 'd2_attempt': False}
-        failures = reasons(sample, owned_pids)
+        failures = reasons(sample, owned_pids, self.profile)
         spaced = self.previous_poll is None or now - self.previous_poll >= 24
         if failures:
             self.consecutive = 0
@@ -82,7 +96,7 @@ class Window:
         return {'status': 'CLEAR' if self.cleared else 'WAIT', 'reasons': failures, 'consecutive': self.consecutive}
 
     def mid_leg(self, sample, owned_pids=()):
-        failures = reasons(sample, owned_pids)
+        failures = reasons(sample, owned_pids, self.profile)
         valid = self.cleared and not failures
         if failures:
             self.cleared = False

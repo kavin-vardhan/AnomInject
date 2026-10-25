@@ -1,149 +1,176 @@
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 from pathlib import Path
 import sys
-import time
 
 from environment import boundary, filtered, masked
+from owner_attempts import Guard, RUNTIME_SCOPE, create_json, validate
+from owner_wait import SyntheticClock, wait_idle
 from prepare_runtime import prepare, owned
 from runtime_attribution import validate_redirects
 
-ROOT=Path('D:/IA_Europa')
-TOOLS=Path(__file__).resolve().parent
+ROOT = Path('D:/IA_Europa')
+TOOLS = Path(__file__).resolve().parent
 
 
 def digest(path):
     with path.open('rb') as stream:
-        return hashlib.file_digest(stream,'sha256').hexdigest()
-
-
-def admit(config, scope, dry_run):
-    if config.get('host')!='425' or config.get('kind')!='editor-preview-owner-leg':
-        raise RuntimeError('Owner kit is scoped to the 4.25 preview leg')
-    if not dry_run and (not config.get('authorized_by_chat') or not scope.get('runtime_authorized')):
-        raise RuntimeError('A6 authorization/configuration is not armed; no launch')
-    for name in ('job_config','manifest'):
-        owned(Path(config[name]))
-    if digest(Path(config['manifest']))!=config['manifest_sha256']:
-        raise RuntimeError('Owner binary manifest changed')
-    return True
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
 def verify_files(rows):
-    checked=[]
+    checked = []
     for row in rows:
-        path=owned(Path(row['path']))
-        if not path.is_file() or path.stat().st_size!=row['size'] or digest(path)!=row['sha256']:
+        path = owned(Path(row['path']))
+        if not path.is_file() or path.stat().st_size != row['size'] or digest(path) != row['sha256']:
             raise RuntimeError('Bound owner-leg file changed: '+str(path))
-        checked.append(dict(path=str(path),sha256=row['sha256']))
+        checked.append(dict(path=str(path), sha256=row['sha256']))
     return checked
 
 
 def check_ddc(project):
-    path=project.parent/'Config/DefaultEngine.ini'
-    text=path.read_text(encoding='utf-8-sig')
-    for graph in ('Europa425DDC','InstalledDerivedDataBackendGraph','DerivedDataBackendGraph'):
-        section=text.split('['+graph+']',1)[1].split('\n[',1)[0]
+    path = project.parent / 'Config/DefaultEngine.ini'
+    text = path.read_text(encoding='utf-8-sig')
+    for graph in ('Europa425DDC', 'InstalledDerivedDataBackendGraph', 'DerivedDataBackendGraph'):
+        section = text.split('['+graph+']', 1)[1].split('\n[', 1)[0]
         if 'D:/IA_Europa/Caches/425/Boot.ddc' not in section or 'D:/IA_Europa/Caches/425/Local' not in section or 'Shared' in section or 'EnvPathOverride' in section:
-            raise RuntimeError('Owner DDC graph failed routing check')
-    return dict(path=str(path),sha256=digest(path),graphs=3)
+            raise RuntimeError('Owner DDC graph failed routing check.')
+    return dict(path=str(path), sha256=digest(path), graphs=3)
 
 
-def wait_idle(output):
-    from idle_gate import collect,Window
-    window=Window(time.monotonic())
-    with output.open('x',encoding='utf-8') as stream:
-        while True:
-            sample=collect()
-            result=window.poll(time.monotonic(),sample,[os.getpid()])
-            stream.write(json.dumps(dict(sample=sample,result=result))+'\n')
-            stream.flush()
-            print(json.dumps(result),flush=True)
-            if result['status']=='CLEAR':return
-            if result['status']=='NEEDS-DECISION':raise RuntimeError('no idle window')
-            time.sleep(25)
+def run(config_path, dry_run=False, owner_started=False, dry_run_samples=None):
+    config_path = owned(config_path)
+    config = json.loads(config_path.read_text())
+    print('Europa owner preview: checking authorization.', flush=True)
+    validate(config, dry_run)
+    if not dry_run and not owner_started:
+        raise RuntimeError('Start this owner session using the double-click file.')
+    if dry_run_samples is not None and not dry_run:
+        raise RuntimeError('Synthetic gate readings are permitted only for a throwaway dry run.')
+    if digest(Path(config['manifest'])) != config['manifest_sha256']:
+        raise RuntimeError('Owner binary manifest changed.')
+    verify_files(config.get('tooling_files', []))
+    with Guard(config) as guard:
+        slot, scope_path = guard.claim()
+        root = Path(slot['job_root'])
+        result = dict(result='CHECKING', slot=slot['number'], launches=0, dry_run=dry_run,
+            authorization_citation=config['authorization_citation'], runtime_scope=RUNTIME_SCOPE)
+        admission_operation = None
+        try:
+            base = dict(os.environ)
+            clean = filtered(base)
+            clean['EUROPA_JOB_CONFIG'] = str(scope_path)
+            contract = boundary(base, clean, {'EUROPA_JOB_CONFIG': str(scope_path)})
+            os.environ.clear()
+            os.environ.update(clean)
+            from job_scope import load
+            scope = load()
+            if scope['runtime_scope'] != RUNTIME_SCOPE or scope['runtime_authorized'] is not True:
+                raise RuntimeError('Attempt scope changed.')
+            import write_ledger as ledger
+            if ledger.SCOPE['config_path'] != str(scope_path):
+                raise RuntimeError('Every attempt requires a fresh wrapper process.')
+            ledger.floors(start=True)
+            output = owned(root / ('owner-leg-dry-run' if dry_run else 'owner-leg'))
+            output.mkdir(exist_ok=False)
+            print('Attempt '+str(slot['number'])+' of 3: checking protected files, binaries and routing. This can take several minutes.', flush=True)
+            manifest = json.loads(Path(config['manifest']).read_text())
+            binaries = verify_files(manifest['files'])
+            sources = verify_files(config['host_source_and_routing_files'])
+            from prepare_runtime import HOSTS
+            project, engine, graph, _ = HOSTS['425']
+            ddc = check_ddc(project)
+            argv = prepare('425', output, probe=True, audit=True, authoring=False)
+            redirects = validate_redirects(argv, graph)
+            with (output / 'preflight-console.log').open('x', encoding='utf-8') as log, contextlib.redirect_stdout(log):
+                preflight = ledger.begin('owner-leg-preflight', 'read_only')
+                try:
+                    ledger.run_child([sys.executable, '-B', str(TOOLS/'owner_p9.py'), 'entry-owner'])
+                finally:
+                    ledger.finish(preflight, 'read_only')
+            proof = root / 'P9/entry-owner/summary.json'
+            if json.loads(proof.read_text())['result'] != 'PASS':
+                raise RuntimeError('P9 owner preflight failed.')
+            result.update(argv=argv, environment=masked(clean), boundary=contract, redirects=redirects, ddc=ddc,
+                p9_proof=str(proof), manifest=config['manifest'], manifest_sha256=config['manifest_sha256'],
+                binaries=binaries, sources=sources, engine_exe_sha256=digest(Path(argv[0])))
+            ledger.dump(output/'prepared.json', result)
+            with (output/'runtime-ledger-console.log').open('x', encoding='utf-8') as log, contextlib.redirect_stdout(log):
+                admission_operation = ledger.begin('owner-leg-launch-admission', 'read_only' if dry_run else 'runtime')
+            print('Protected files, binaries and routing passed. Checking for a quiet start; you may use the mouse and keyboard.', flush=True)
+            arguments = {}
+            if dry_run_samples is not None:
+                samples = json.loads(owned(dry_run_samples).read_text())
+                if not isinstance(samples, list) or not samples:
+                    raise RuntimeError('Dry run requires a nonempty synthetic sample list.')
+                clock = SyntheticClock()
+                iterator = iter(samples)
+                last = samples[-1]
+                arguments = dict(collector=lambda: next(iterator, last), clock=clock.now, sleep=clock.sleep)
+                result['gate_readings'] = 'SYNTHETIC; real P9, hashes and routing'
+            else:
+                result['gate_readings'] = 'LIVE'
+            result['idle_gate'] = wait_idle(output/'idle.jsonl', **arguments)
+            if result['idle_gate']['status'] != 'CLEAR':
+                result['result'] = 'REFUSED_TIMEOUT'
+                return result
+            verify_files(manifest['files'])
+            verify_files(config['host_source_and_routing_files'])
+            verify_files(config.get('tooling_files', []))
+            ledger.floors()
+            if dry_run:
+                result['result'] = 'ARMED_DRY_RUN_PASS'
+                print('Dry run complete: the armed path passed. No editor was started; real attempts were not used.', flush=True)
+                return result
+            print('Starting the one authorized editor session. Do not open Play. Answer No to any rebuild prompt. Close with File > Exit and save nothing.', flush=True)
+            guard.reserve_launch(slot)
+            def launched(pid):
+                result['launches'] = 1
+                result['editor_pid'] = pid
+                guard.mark_launched(slot, pid)
+            try:
+                os.environ['EUROPA_BUILD_CHILDREN'] = '1'
+                with (output/'runtime-ledger-console.log').open('a', encoding='utf-8') as log, contextlib.redirect_stdout(log):
+                    result['exit_code'] = ledger.run_child(argv, cwd=project.parent, acceptable=tuple(range(256)), on_started=launched)
+                result['result'] = 'EDITOR_CLOSED'
+            finally:
+                if result['launches'] == 0:
+                    guard.cancel_unstarted(slot)
+            print('Editor closed. Tell chat what happened. This kit will not start another editor session.', flush=True)
+            return result
+        except BaseException as error:
+            result.update(result='STOP', error_type=type(error).__name__, error=str(error))
+            raise
+        finally:
+            try:
+                if admission_operation is not None:
+                    with (output/'runtime-ledger-console.log').open('a', encoding='utf-8') as log, contextlib.redirect_stdout(log):
+                        ledger.finish(admission_operation, 'runtime' if result['launches'] else 'read_only')
+            except BaseException as error:
+                result.update(result='STOP', ledger_error_type=type(error).__name__, ledger_error=str(error))
+                raise
+            finally:
+                create_json(root/'attempt-result.json', result)
 
 
-def run(config_path,dry_run=False):
-    owned(config_path)
-    config=json.loads(config_path.read_text())
-    base=dict(os.environ)
-    clean=filtered(base)
-    clean['EUROPA_JOB_CONFIG']=str(Path(config['job_config']))
-    contract=boundary(base,clean,{'EUROPA_JOB_CONFIG':clean['EUROPA_JOB_CONFIG']})
-    os.environ.clear()
-    os.environ.update(clean)
-    from job_scope import load
-    scope=load()
-    admit(config,scope,dry_run)
-    import write_ledger as ledger
-    ledger.floors(start=True)
-    output=owned(Path(scope['job_root'])/('owner-leg-dry-run' if dry_run else 'owner-leg'))
-    output.mkdir(parents=True,exist_ok=False)
-    manifest=json.loads(Path(config['manifest']).read_text())
-    binaries=verify_files(manifest['files'])
-    sources=verify_files(config['host_source_and_routing_files'])
-    from prepare_runtime import HOSTS
-    project,engine,graph,_=HOSTS['425']
-    ddc=check_ddc(project)
-    argv=prepare('425',output,probe=True,audit=True,authoring=False)
-    redirects=validate_redirects(argv,graph)
-    preflight=ledger.begin('owner-leg-preflight','read_only')
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=Path, default=ROOT/'Launch/Europa425-OwnerLeg.json')
+    parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--owner-started', action='store_true')
+    parser.add_argument('--dry-run-samples', type=Path)
+    args = parser.parse_args()
     try:
-        ledger.run_child([sys.executable,'-B',str(TOOLS/'owner_p9.py'),'entry-owner'])
-    finally:
-        ledger.finish(preflight,'read_only')
-    proof=Path(scope['job_root'])/'P9/entry-owner/summary.json'
-    if json.loads(proof.read_text())['result']!='PASS':raise RuntimeError('P9 owner preflight failed')
-    result=dict(result='PREPARED_ONLY' if dry_run else 'ADMITTED',launches=0,dry_run=dry_run,
-        argv=argv,environment=masked(clean),boundary=contract,redirects=redirects,ddc=ddc,
-        p9_proof=str(proof),manifest=str(config['manifest']),manifest_sha256=config['manifest_sha256'],
-        binaries=binaries,sources=sources,engine_exe_sha256=digest(Path(argv[0])),
-        owner_preview='Owner input is part of the sentinel leg; it is not a measured idle PIE leg.')
-    ledger.dump(output/'prepared.json',result)
-    if dry_run:
-        print(json.dumps(dict(result='PREPARED_ONLY',launches=0,receipt=str(output/'prepared.json'))))
-        return result
-    print('Waiting for a quiet start. Leave this window open.',flush=True)
-    wait_idle(output/'idle.jsonl')
-    verify_files(manifest['files'])
-    verify_files(config['host_source_and_routing_files'])
-    folder=ledger.begin('owner-leg-editor','runtime')
-    try:
-        os.environ['EUROPA_BUILD_CHILDREN']='1'
-        result['exit_code']=ledger.run_child(argv,cwd=project.parent,acceptable=tuple(range(256)))
-        result['launches']=1
-    finally:
-        ledger.dump(output/'runtime-result.json',result)
-        ledger.finish(folder,'runtime')
-    return result
+        result = run(args.config, args.dry_run, args.owner_started, args.dry_run_samples)
+        return 0 if result['result'] in ('ARMED_DRY_RUN_PASS', 'EDITOR_CLOSED') else 2
+    except (RuntimeError, OSError, ValueError, AssertionError) as error:
+        print('Stopped: '+str(error), flush=True)
+        print('Keep this console open and send the message to chat. Do not accept rebuild, convert, update or resave prompts.', flush=True)
+        return 2
 
 
-def self_tests(config):
-    import copy
-    scope=json.loads(Path(config['job_config']).read_text())
-    assert admit(config,scope,True)
-    cases=[dict(case='dry_run_allowed_without_runtime_authority',result='PASS')]
-    for name,mutant,other in [('runtime_not_armed',copy.deepcopy(config),scope),
-        ('wrong_host',dict(config,host='51port'),scope),('wrong_manifest_hash',dict(config,manifest_sha256='0'*64),scope)]:
-        try:admit(mutant,other,name!='runtime_not_armed')
-        except RuntimeError:cases.append(dict(case=name,result='REJECTED'))
-        else:raise AssertionError(name)
-    from prepare_runtime import selftest
-    return dict(result='PASS',cases=cases,routing=selftest(),launches=0)
-
-
-if __name__=='__main__':
-    parser=argparse.ArgumentParser()
-    parser.add_argument('--config',type=Path,default=ROOT/'Launch/Europa425-OwnerLeg.json')
-    parser.add_argument('--dry-run',action='store_true')
-    parser.add_argument('--self-test-output',type=Path)
-    args=parser.parse_args()
-    if args.self_test_output:
-        owned(args.self_test_output)
-        args.self_test_output.parent.mkdir(parents=True,exist_ok=True)
-        args.self_test_output.write_text(json.dumps(self_tests(json.loads(args.config.read_text())),indent=2)+'\n')
-    else:
-        run(args.config,args.dry_run)
+if __name__ == '__main__':
+    sys.exit(main())

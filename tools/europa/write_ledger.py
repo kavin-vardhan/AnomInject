@@ -393,7 +393,7 @@ def child_env(folder):
     receipt = masked(env)
     return env, receipt
 
-def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False):
+def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=None):
     folder = Path(os.environ['EUROPA_OPERATION_DIR'])
     lognum = len(list(folder.glob('child-*.json'))) + 1
     env, routing = child_env(folder)
@@ -440,6 +440,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False):
     code = None
     last_memory, last_floor, low_count = time.monotonic(), time.monotonic(), 0
     try:
+        if on_started is not None:
+            on_started(proc.pid)
         while proc.poll() is None:
             if tree:
                 tree.poll()
