@@ -118,13 +118,18 @@ def report_makefile(path, require_clean=False):
         raise RuntimeError('EK2 regenerated makefile contains forbidden names: ' + ','.join(forbidden))
     return row
 
-def effective_receipt(plan, makefile, output, expected_hashes):
+def effective_receipt(plan, makefile, output, expected_hashes, native_policy=None):
     actual = decode(Path(makefile).read_bytes())['environment']
     delta = json.loads(Path(plan).read_text(encoding='utf-8-sig')).get('Environment', {})
     merged = dict(actual)
     merged.update({k.upper(): v for k, v in delta.items()})
     forbidden = sorted(k for k in merged if forbidden_child_name(k))
-    checks = {'makefile': compare_native(expected_hashes, actual), 'compile_environment': compare_native(expected_hashes, merged)}
+    if native_policy is None:
+        comparator = lambda values: compare_native(expected_hashes, values)
+    else:
+        from toolchain_environment import compare
+        comparator = lambda values: compare(expected_hashes, values, native_policy)
+    checks = {'makefile': comparator(actual), 'compile_environment': comparator(merged)}
     result = {'result': 'STOP' if forbidden or any(c['result'] != 'PASS' for c in checks.values()) else 'PASS', 'base_comparison': checks, 'makefile': str(makefile),
               'makefile_sha256': hashlib.sha256(Path(makefile).read_bytes()).hexdigest(),
               'source': 'Native UBT serialized environment plus exported effective delta',
