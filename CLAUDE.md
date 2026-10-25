@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-15, 2026-10-26 - A5 probe builds and readiness complete; exit proofs in the run report.**
+> Identical probe sources compile in all six Editor/Game Development legs, including Baseline51 at d7eee97. Candidate/probe source 550e9b7; production remains byte-identical to A4.
+> EO1/EO6, native EN1 environments, EI4 zero-action query and 27/39/44 artifact bindings pass. Owner kit is dry-run only and unarmed.
+> See docs/europa/09415-a5-result.md. A6 owns the first runtime/owner/content-admission leg; no runtime qualification, push or tags.
+
 > **094-14, 2026-10-25 - A5 incomplete: D2 action-log evidence reader STOP.**
 > EN1 tests and the actual 4.25 native environment pass. The probe Editor rebuild at 35eec14 returns 0 with no C++ diagnostics and restores its DLL/PDB/lib.
 > The action reader failed twice on bare filename progress; no third attempt was made. Five Development rebuilds, complete receipts, EI4 query, A5 manifest binding and the owner kit remain pending.

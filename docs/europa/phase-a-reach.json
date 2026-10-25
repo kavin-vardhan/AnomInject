@@ -1,7 +1,7 @@
 {
   "base": "d7eee97731812384d4fd00af9032254923363ada",
   "comparison": "git diff --name-only d7eee97..HEAD after commit; added files included before commit",
-  "status": "A4a/A4b normal/strict build qualification complete; runtime/staged/owner gates remain pending.",
+  "status": "A5 build and owner-kit readiness complete; final closeout proofs in the run report. Runtime/authoring/owner gates remain A6 onward.",
   "classes": {
     "N": "changed but meant to be neutral on 5.1, subject to reach gates",
     "C": "changed tooling, host or diagnostic surface",
@@ -23,14 +23,21 @@
     {
       "path": "CLAUDE.md",
       "effect_51": "C",
-      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
-      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
       "gates": [
-        "R1",
-        "R2",
-        "A1",
-        "A2",
-        "A4"
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1099,6 +1106,226 @@
       ]
     },
     {
+      "path": "docs/europa/09411-a5-partial-result.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09411-a5-readiness.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09411-a6-owner-card-draft.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09411-content-admission.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09411-fixture-recipes.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09413-a5-partial-result.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09414-a5-partial-result.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09415-a5-reader.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09415-a5-result.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09415-owner-kit.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/europa/09415-probe-compatibility.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
       "path": "docs/europa/phase-a-a3-closure.md",
       "effect_51": "C",
       "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
@@ -1112,12 +1339,21 @@
     {
       "path": "docs/europa/phase-a-reach.json",
       "effect_51": "C",
-      "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
-      "reached_behavior": "Host/evidence selection, source restore, build admission and claim completeness",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
       "gates": [
-        "R0",
-        "R1",
-        "R2"
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1134,27 +1370,41 @@
     {
       "path": "docs/gotchas.md",
       "effect_51": "C",
-      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
-      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
       "gates": [
-        "R1",
-        "R2",
-        "A1",
-        "A2",
-        "A4"
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
       "path": "docs/predictions/094-europa-phase-a.md",
       "effect_51": "C",
-      "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
-      "reached_behavior": "Build admission, R1 warnings/defines/tick pin, monolithic action provenance, Shipping and strict evidence integrity",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
       "gates": [
-        "R1",
-        "R2",
-        "A1",
-        "A2",
-        "A4"
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1228,6 +1478,86 @@
       ]
     },
     {
+      "path": "docs/sessions/2026-10-25-094-11-europa-a5.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/sessions/2026-10-25-094-13-europa-a5.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/sessions/2026-10-25-094-14-europa-a5.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "docs/sessions/2026-10-26-09415-europa-a5.md",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
       "path": "tools/europa/DescriptorProbe.cs.txt",
       "effect_51": "C",
       "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
@@ -1236,6 +1566,26 @@
         "R0",
         "R1",
         "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/Europa425-Editor-OwnerLeg.bat",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1291,6 +1641,86 @@
       ]
     },
     {
+      "path": "tools/europa/a5_build.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/action_reader_tests.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/author_425_fixture.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/author_51_stress_fixture.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
       "path": "tools/europa/build_memory.py",
       "effect_51": "C",
       "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
@@ -1337,6 +1767,26 @@
       ]
     },
     {
+      "path": "tools/europa/environment.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
       "path": "tools/europa/finish_self_tests.py",
       "effect_51": "C",
       "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
@@ -1347,6 +1797,26 @@
         "A1",
         "A2",
         "A4"
+      ]
+    },
+    {
+      "path": "tools/europa/gate_readers.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1361,6 +1831,26 @@
       ]
     },
     {
+      "path": "tools/europa/host_probe/EuropaPhaseAProbeDriver.cpp.txt",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
       "path": "tools/europa/host_probe/EuropaPhaseAProbeModule.cpp.txt",
       "effect_51": "C",
       "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
@@ -1369,6 +1859,46 @@
         "R0",
         "R1",
         "R2"
+      ]
+    },
+    {
+      "path": "tools/europa/host_probe/EuropaPhaseAWorldProbe.cpp.txt",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/host_probe/EuropaPhaseAWorldProbe.h.txt",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1429,6 +1959,106 @@
       ]
     },
     {
+      "path": "tools/europa/makefile_actions.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/owner_leg.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/owner_p9.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/prepare_runtime.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/probe_scripts.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
       "path": "tools/europa/process_wrapper.py",
       "effect_51": "C",
       "reason": "A4b scoped build/memory/action/definition evidence, native strict coverage or qualification documentation; no runtime source change.",
@@ -1439,6 +2069,26 @@
         "A1",
         "A2",
         "A4"
+      ]
+    },
+    {
+      "path": "tools/europa/reader_self_tests.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1457,12 +2107,21 @@
     {
       "path": "tools/europa/resume_self_tests.py",
       "effect_51": "C",
-      "reason": "Scoped proof tooling; current EG1 bookkeeping, EF1 memory supervision, EG2 product/flag receipts, EG3 mandatory output and deterministic can-fails where applicable",
-      "reached_behavior": "Build/write admission and evidence correctness",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
       "gates": [
-        "R0",
-        "R1",
-        "R2"
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1476,6 +2135,46 @@
         "A1",
         "A2",
         "A4"
+      ]
+    },
+    {
+      "path": "tools/europa/runtime_attribution.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
+      ]
+    },
+    {
+      "path": "tools/europa/toolchain_environment.py",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     },
     {
@@ -1550,6 +2249,26 @@
         "A1",
         "A2",
         "A4"
+      ]
+    },
+    {
+      "path": "warning: in the working copy of 'docs/gotchas.md', LF will be replaced by CRLF the next time Git touches it",
+      "effect_51": "C",
+      "reason": "A5 host observation, scoped tooling, evidence or documentation; production implementation unchanged.",
+      "reached_behavior": "Probe observation and readiness evidence; no production rewiring",
+      "gates": [
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8",
+        "R9"
       ]
     }
   ],
@@ -1701,6 +2420,6 @@
     }
   ],
   "deferred_plan_files": "Host probe behavior/readers/fixtures A5; package checker and staged gates later. Real 4.25 and 5.1 strict passes complete.",
-  "current_job": "094-09 A4b; qualified candidate 1c4cce7023081c64f5c747688ea7ef8f69143f7b; documentation-only result commit follows.",
-  "receipts": "D:\\IA_Europa\\Receipts\\09409"
+  "current_job": "094-15 A5 finish",
+  "receipts": "D:\\IA_Europa\\Receipts\\09415"
 }
