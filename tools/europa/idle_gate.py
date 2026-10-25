@@ -12,8 +12,23 @@ import subprocess
 import time
 
 GIB = 1024**3
-FLOORS = {'C': 10 * GIB, 'D': 50 * GIB, 'E': 50 * GIB}
+FLOORS = {'C': 10 * GIB, 'D': 50 * GIB, 'E': 15 * GIB}
 FOREIGN = re.compile(r'unrealeditor|ue4editor|unrealgame|ue4game|shadercompileworker|automationtool|runuat|(?:^|[ /\\=])cook(?:[ .]|$)|stackobot|lyragame|stylizedparisstreet|[a-z0-9_]+-win64-(?:shipping|test|development)', re.I)
+
+def descendants(processes, roots):
+    owned = set(roots)
+    if not isinstance(processes, list):
+        return owned
+    changed = True
+    while changed:
+        changed = False
+        for process in processes:
+            pid = process.get('pid')
+            if process.get('parent_pid') in owned and pid not in owned:
+                owned.add(pid)
+                changed = True
+    return owned
+
 
 def reasons(sample, owned_pids=()):
     failures = []
@@ -27,7 +42,7 @@ def reasons(sample, owned_pids=()):
                 failures.append(name)
         except (KeyError, TypeError, ValueError):
             failures.append(name + ':unknown')
-    owned = set(owned_pids)
+    owned = descendants(sample.get('processes'), owned_pids)
     processes = sample.get('processes')
     if not isinstance(processes, list):
         failures.append('processes:unknown')
@@ -35,8 +50,8 @@ def reasons(sample, owned_pids=()):
         for process in processes:
             if process.get('pid') in owned:
                 continue
-            text = process.get('image', '') + ' ' + process.get('command_line', '')
-            if process.get('is_game') or FOREIGN.search(text):
+            text = process.get('image', '')
+            if process.get('is_game') or process.get('blocked_runtime') or FOREIGN.search(text):
                 failures.append('foreign_process:' + str(process.get('pid')))
     for drive, minimum in FLOORS.items():
         try:
@@ -87,9 +102,10 @@ def collect():
 $os=Get-CimInstance Win32_OperatingSystem;
 $gpu=(Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction Stop).CounterSamples;
 if (-not $gpu) { throw 'No GPU counter samples' };
-$procs=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId; image=$_.Name; command_line=[string]$_.CommandLine} });
+$procs=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId; parent_pid=$_.ParentProcessId; image=$_.Name; created=[string]$_.CreationDate; blocked_runtime=([bool]($_.Name -match 'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)' -or $_.CommandLine -match '(?i)-run=cook|AutomationTool.dll|RunUAT.bat'))} });
 @{free_memory_bytes=([long]$os.FreePhysicalMemory*1024);gpu_percent=[math]::Min(100,($gpu|Measure-Object CookedValue -Sum).Sum);processes=$procs}|ConvertTo-Json -Depth 5 -Compress'''
-    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', command], capture_output=True, text=True, check=True, timeout=20)
+    from environment import allowlisted
+    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', command], capture_output=True, text=True, check=True, timeout=20, env=allowlisted(os.environ))
     sample = json.loads(result.stdout)
     sample['idle_seconds'] = idle
     sample['volumes'] = {d: {'resolved_drive': Path(d + ':/').resolve(strict=True).drive[0].upper(), 'free_bytes': shutil.disk_usage(d + ':/').free} for d in FLOORS}
@@ -137,6 +153,15 @@ def self_test():
     check('rapid_poll_cannot_clear', window.poll(2,good)['status']=='WAIT')
     result = window.poll(14400,good)
     check('timeout_needs_decision', result['status']=='NEEDS-DECISION' and result['reason']=='no idle window' and not result['d2_attempt'])
+    bad = copy.deepcopy(good)
+    bad['processes'] = [{'pid': 10, 'parent_pid': 1, 'image': 'python.exe'},
+                        {'pid': 11, 'parent_pid': 10, 'image': 'UE4Editor.exe'},
+                        {'pid': 12, 'parent_pid': 11, 'image': 'ShaderCompileWorker.exe'}]
+    check('own_descendants_exempt', not reasons(bad, [10]))
+    bad['processes'].append({'pid': 20, 'parent_pid': 1, 'image': 'UE4Editor.exe'})
+    check('foreign_sibling_not_exempt', bool(reasons(bad, [10])))
+    bad['processes'] = [{'pid': 20, 'parent_pid': 1, 'image': 'dotnet.exe', 'blocked_runtime': True}]
+    check('uat_command_classification_without_command_storage', bool(reasons(bad)))
     return {'result': 'PASS', 'cases': results, 'runtime_probe_executed': False}
 
 def main():
@@ -144,19 +169,26 @@ def main():
     parser.add_argument('--self-test', action='store_true')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--owned-pid', type=int, action='append', default=[])
+    parser.add_argument('--observe-seconds', type=int, default=0)
     args = parser.parse_args()
     if args.self_test:
         args.output.write_text(json.dumps(self_test(), indent=2)+'\n', encoding='utf-8')
         print(args.output.read_text())
         return 0
-    window = Window(time.monotonic())
+    if args.observe_seconds and args.observe_seconds < 900:
+        parser.error('Observe-only qualification requires at least 900 seconds')
+    roots = args.owned_pid + [os.getpid()]
+    started = time.monotonic()
+    window = Window(started)
     with args.output.open('x', encoding='utf-8') as log:
         while True:
             sample = collect()
-            result = window.poll(time.monotonic(), sample, args.owned_pid)
+            result = window.poll(time.monotonic(), sample, roots)
             log.write(json.dumps({'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'sample': sample, 'result': result})+'\n'); log.flush()
             print(json.dumps(result), flush=True)
-            if result['status']=='CLEAR': return 0
+            if args.observe_seconds:
+                if time.monotonic() - started >= args.observe_seconds: return 0
+            elif result['status']=='CLEAR': return 0
             if result['status']=='NEEDS-DECISION': return 20
             time.sleep(25)
 

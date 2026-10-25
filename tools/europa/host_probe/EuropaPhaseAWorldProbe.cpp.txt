@@ -1,0 +1,250 @@
+#include "EuropaPhaseAWorldProbe.h"
+#if !UE_BUILD_SHIPPING
+#include "AnomalyInjectorSubsystem.h"
+#include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalySelectorSubsystem.h"
+#include "AnomalyCaptureSubsystem.h"
+#include "AnomalyControlServerSubsystem.h"
+#include "CoreGlobals.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Engine/Engine.h"
+#include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
+#include "HAL/PlatformTime.h"
+#include "Misc/CommandLine.h"
+#include "Misc/CoreDelegates.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Parse.h"
+#include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+#include "UnrealClient.h"
+#include "UObject/UObjectGlobals.h"
+
+FString FEuropaPhaseAWorldProbe::Identity(const UObject* Object)
+{
+	return Object ? FString::Printf(TEXT("%p:%u"), Object, Object->GetUniqueID()) : TEXT("null");
+}
+
+void FEuropaPhaseAWorldProbe::Emit(const TCHAR* Kind, UWorld* World, const TSharedPtr<FJsonObject>& Data)
+{
+	if (!bEnabled || bWriting || !IsInGameThread()) { return; }
+	bWriting = true;
+	Data->SetStringField(TEXT("kind"), Kind);
+	Data->SetNumberField(TEXT("sequence"), static_cast<double>(++Sequence));
+	Data->SetNumberField(TEXT("process_frame"), static_cast<double>(GFrameCounter));
+	Data->SetNumberField(TEXT("monotonic_seconds"), FPlatformTime::Seconds());
+	Data->SetStringField(TEXT("world"), Identity(World));
+	Data->SetStringField(TEXT("world_pointer"), FString::Printf(TEXT("%p"), World));
+	Data->SetStringField(TEXT("world_name"), GetNameSafe(World));
+	Data->SetNumberField(TEXT("world_type"), World ? static_cast<int32>(World->WorldType) : -1);
+	Data->SetNumberField(TEXT("epoch"), World && Worlds.Contains(World) ? static_cast<double>(Worlds[World].Epoch) : 0.0);
+	FString Line;
+	TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Line);
+	FJsonSerializer::Serialize(Data.ToSharedRef(), Writer);
+	Line += TEXT("\n");
+	if (!FFileHelper::SaveStringToFile(Line, *ReceiptPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append))
+	{
+		bEnabled = false;
+	}
+	bWriting = false;
+}
+
+void FEuropaPhaseAWorldProbe::Start()
+{
+	if (!FParse::Param(FCommandLine::Get(), TEXT("IAIBench")) || !FParse::Param(FCommandLine::Get(), TEXT("EuropaPhaseA"))) { return; }
+	if (!FParse::Value(FCommandLine::Get(), TEXT("EuropaProbeOut="), OutputRoot)) { return; }
+	OutputRoot = FPaths::ConvertRelativePathToFull(OutputRoot);
+	FPaths::NormalizeDirectoryName(OutputRoot);
+	FPaths::CollapseRelativeDirectories(OutputRoot);
+	if (!FPaths::IsUnderDirectory(OutputRoot, TEXT("D:/IA_Europa"))) { return; }
+	ReceiptPath = OutputRoot / TEXT("probe.jsonl");
+	if (IFileManager::Get().FileExists(*ReceiptPath)) { return; }
+	IFileManager::Get().MakeDirectory(*OutputRoot, true);
+	bEnabled = true;
+	bNoApply = FParse::Param(FCommandLine::Get(), TEXT("EuropaNoApply"));
+	bSkipRestore = FParse::Param(FCommandLine::Get(), TEXT("EuropaSkipRestore"));
+	GLog->AddOutputDevice(this);
+	CreatedHandle = FWorldDelegates::OnPostWorldCreation.AddRaw(this, &FEuropaPhaseAWorldProbe::Created);
+	PreInitHandle = FWorldDelegates::OnPreWorldInitialization.AddRaw(this, &FEuropaPhaseAWorldProbe::PreInitialize);
+	InitHandle = FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FEuropaPhaseAWorldProbe::Initialized);
+	CleanupHandle = FWorldDelegates::OnWorldCleanup.AddRaw(this, &FEuropaPhaseAWorldProbe::Cleanup);
+	CleanedHandle = FWorldDelegates::OnPostWorldCleanup.AddRaw(this, &FEuropaPhaseAWorldProbe::Cleaned);
+	TickStartHandle = FWorldDelegates::OnWorldTickStart.AddRaw(this, &FEuropaPhaseAWorldProbe::TickStart);
+	TickEndHandle = FWorldDelegates::OnWorldPostActorTick.AddRaw(this, &FEuropaPhaseAWorldProbe::TickEnd);
+	EndFrameHandle = FCoreDelegates::OnEndFrame.AddRaw(this, &FEuropaPhaseAWorldProbe::EndFrame);
+	ScreenshotHandle = FScreenshotRequest::OnScreenshotRequestProcessed().AddRaw(this, &FEuropaPhaseAWorldProbe::ScreenshotDone);
+	Console = IConsoleManager::Get().RegisterConsoleCommand(TEXT("Europa.Probe"), TEXT("Host-only Phase A probe; requires -IAIBench -EuropaPhaseA."), FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FEuropaPhaseAWorldProbe::Command), ECVF_Default);
+	IConsoleVariable* Audit = IConsoleManager::Get().FindConsoleVariable(TEXT("IAI.Bench.TickAudit"));
+	const bool bAuditRequested = FParse::Param(FCommandLine::Get(), TEXT("EuropaTickAudit"));
+	if (Audit && bAuditRequested) { PreviousAudit = Audit->GetInt(); bChangedAudit = true; Audit->Set(1, ECVF_SetByConsole); }
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetBoolField(TEXT("audit_available"), Audit != nullptr);
+	Data->SetBoolField(TEXT("audit_requested"), bAuditRequested);
+	Data->SetBoolField(TEXT("no_apply_control"), bNoApply);
+	Data->SetBoolField(TEXT("skip_restore_control"), bSkipRestore);
+	Data->SetNumberField(TEXT("capture_define"), ANOMALY_CAPTURE);
+	Data->SetNumberField(TEXT("control_define"), ANOMALY_CONTROL_SERVER);
+	Data->SetNumberField(TEXT("shader_define"), ANOMALY_SHADERS);
+	for (const TCHAR* Name : {TEXT("AnomalyInjector"), TEXT("AnomalyCapture"), TEXT("AnomalyControlServer"), TEXT("AnomalyShaders"), TEXT("AnomalyBench")})
+	{
+		Data->SetBoolField(Name, FModuleManager::Get().IsModuleLoaded(Name));
+	}
+	Emit(TEXT("probe_start"), nullptr, Data);
+}
+
+void FEuropaPhaseAWorldProbe::Stop()
+{
+	if (bChangedAudit) { if (IConsoleVariable* Audit = IConsoleManager::Get().FindConsoleVariable(TEXT("IAI.Bench.TickAudit"))) { Audit->Set(PreviousAudit, ECVF_SetByConsole); } bChangedAudit = false; }
+	if (GLog) { GLog->RemoveOutputDevice(this); }
+	FWorldDelegates::OnPostWorldCreation.Remove(CreatedHandle);
+	FWorldDelegates::OnPreWorldInitialization.Remove(PreInitHandle);
+	FWorldDelegates::OnPostWorldInitialization.Remove(InitHandle);
+	FWorldDelegates::OnWorldCleanup.Remove(CleanupHandle);
+	FWorldDelegates::OnPostWorldCleanup.Remove(CleanedHandle);
+	FWorldDelegates::OnWorldTickStart.Remove(TickStartHandle);
+	FWorldDelegates::OnWorldPostActorTick.Remove(TickEndHandle);
+	FCoreDelegates::OnEndFrame.Remove(EndFrameHandle);
+	FScreenshotRequest::OnScreenshotRequestProcessed().Remove(ScreenshotHandle);
+	if (Console) { IConsoleManager::Get().UnregisterConsoleObject(Console); Console = nullptr; }
+	ReleaseGC();
+	for (UObject* Object : Dormant) { if (Object) { Object->RemoveFromRoot(); } }
+	Dormant.Reset();
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetBoolField(TEXT("outstanding_screenshot"), !PendingPicture.IsEmpty());
+	Data->SetNumberField(TEXT("observed_worlds"), Worlds.Num());
+	Emit(TEXT("probe_stop"), nullptr, Data);
+	bEnabled = false;
+}
+
+void FEuropaPhaseAWorldProbe::Serialize(const TCHAR* Text, ELogVerbosity::Type Verbosity, const FName& Category)
+{
+	if (!bEnabled || !IsInGameThread() || !FCString::Strstr(Text, TEXT("EUROPA-TICK op="))) { return; }
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetStringField(TEXT("audit_line"), Text);
+	Emit(TEXT("subsystem_audit"), nullptr, Data);
+}
+
+void FEuropaPhaseAWorldProbe::Created(UWorld* World)
+{
+	Worlds.FindOrAdd(World);
+	Emit(TEXT("world_created"), World, MakeShared<FJsonObject>());
+}
+
+void FEuropaPhaseAWorldProbe::PreInitialize(UWorld* World, const UWorld::InitializationValues Values)
+{
+	Worlds.FindOrAdd(World);
+	Emit(TEXT("world_pre_initialize"), World, MakeShared<FJsonObject>());
+}
+
+void FEuropaPhaseAWorldProbe::Initialized(UWorld* World, const UWorld::InitializationValues Values)
+{
+	Worlds.FindOrAdd(World);
+	Emit(TEXT("world_initialized"), World, MakeShared<FJsonObject>());
+	Snapshot(World, TEXT("initialized"));
+}
+
+void FEuropaPhaseAWorldProbe::Cleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)
+{
+	Snapshot(World, TEXT("cleanup_before"));
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetBoolField(TEXT("session_ended"), bSessionEnded);
+	Emit(TEXT("world_cleanup"), World, Data);
+}
+
+void FEuropaPhaseAWorldProbe::Cleaned(UWorld* World, bool bSessionEnded, bool bCleanupResources)
+{
+	Emit(TEXT("world_cleaned"), World, MakeShared<FJsonObject>());
+}
+
+void FEuropaPhaseAWorldProbe::TickStart(UWorld* World, ELevelTick Type, float DeltaSeconds)
+{
+	FWorldState& State = Worlds.FindOrAdd(World);
+	if (State.bInUpdate) { TickEnd(World, State.Type, 0.0f); }
+	++State.Epoch;
+	State.Type = Type;
+	const bool bEligible = (World->WorldType == EWorldType::Game || World->WorldType == EWorldType::PIE) && Type != LEVELTICK_TimeOnly && !World->IsPaused();
+	if (bEligible) { ++State.Eligible; }
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetNumberField(TEXT("tick_type"), static_cast<int32>(Type));
+	Data->SetBoolField(TEXT("paused"), World->IsPaused());
+	Data->SetBoolField(TEXT("eligible"), bEligible);
+	Data->SetBoolField(TEXT("previous_update_unclosed"), State.bInUpdate);
+	Data->SetNumberField(TEXT("delta_seconds"), DeltaSeconds);
+	Data->SetNumberField(TEXT("eligible_total"), static_cast<double>(State.Eligible));
+	State.bInUpdate = true;
+	Emit(TEXT("world_update_begin"), World, Data);
+}
+
+void FEuropaPhaseAWorldProbe::TickEnd(UWorld* World, ELevelTick Type, float DeltaSeconds)
+{
+	if (!Worlds.FindOrAdd(World).bInUpdate) { return; }
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetNumberField(TEXT("tick_type"), static_cast<int32>(Type));
+	Data->SetBoolField(TEXT("paused"), World->IsPaused());
+	Emit(TEXT("world_update_end"), World, Data);
+	Worlds.FindOrAdd(World).bInUpdate = false;
+}
+
+namespace
+{
+	template<class T> void ObserveSubsystem(UWorld* World, TArray<TSharedPtr<FJsonValue>>& Rows)
+	{
+		auto Row = MakeShared<FJsonObject>();
+		const TArray<T*>& Objects = World->GetSubsystemArray<T>();
+		Row->SetStringField(TEXT("class"), T::StaticClass()->GetName());
+		Row->SetNumberField(TEXT("registered_count"), Objects.Num());
+		TArray<TSharedPtr<FJsonValue>> Instances;
+		for (const T* Object : Objects)
+		{
+			auto Instance = MakeShared<FJsonObject>();
+			Instance->SetStringField(TEXT("identity"), FEuropaPhaseAWorldProbe::Identity(Object));
+			Instance->SetStringField(TEXT("pointer"), FString::Printf(TEXT("%p"), Object));
+			Instance->SetBoolField(TEXT("initialized"), Object->IsInitialized());
+			Instance->SetBoolField(TEXT("allowed"), Object->IsAllowedToTick());
+			Instance->SetBoolField(TEXT("tickable"), Object->IsTickable());
+			Instance->SetBoolField(TEXT("template"), Object->IsTemplate());
+			Instances.Add(MakeShared<FJsonValueObject>(Instance));
+		}
+		Row->SetArrayField(TEXT("instances"), Instances);
+		const T* CDO = GetDefault<T>();
+		Row->SetBoolField(TEXT("cdo_should_create"), CDO->ShouldCreateSubsystem(World));
+		Row->SetBoolField(TEXT("cdo_allowed"), CDO->IsAllowedToTick());
+		Row->SetNumberField(TEXT("cdo_tick_type"), static_cast<int32>(CDO->GetTickableTickType()));
+		Rows.Add(MakeShared<FJsonValueObject>(Row));
+	}
+}
+
+void FEuropaPhaseAWorldProbe::Snapshot(UWorld* World, const FString& Label)
+{
+	if (!World) { return; }
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetStringField(TEXT("label"), Label);
+	TArray<TSharedPtr<FJsonValue>> Rows;
+	ObserveSubsystem<UAnomalyInjectorSubsystem>(World, Rows);
+	ObserveSubsystem<UAnomalyAutoInjectorSubsystem>(World, Rows);
+	ObserveSubsystem<UAnomalySelectorSubsystem>(World, Rows);
+	ObserveSubsystem<UAnomalyCaptureSubsystem>(World, Rows);
+	ObserveSubsystem<UAnomalyControlServerSubsystem>(World, Rows);
+	Data->SetArrayField(TEXT("subsystems"), Rows);
+	if (UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>())
+	{
+		TArray<TSharedPtr<FJsonValue>> Catalogue;
+		for (const FAnomalyCatalogEntry& Entry : Injector->GetAnomalyCatalog()) { Catalogue.Add(MakeShared<FJsonValueString>(Entry.Id.ToString())); }
+		Data->SetArrayField(TEXT("catalogue"), Catalogue);
+		Data->SetNumberField(TEXT("active_count"), Injector->GetActiveAnomalyCount());
+	}
+	if (UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
+	{
+		TArray<TSharedPtr<FJsonValue>> Pool;
+		for (const FString& Id : Auto->GetEnabledIds()) { Pool.Add(MakeShared<FJsonValueString>(Id)); }
+		Data->SetArrayField(TEXT("enabled_pool"), Pool);
+		Data->SetNumberField(TEXT("seed"), Auto->GetSeed());
+	}
+	Emit(TEXT("world_snapshot"), World, Data);
+	SnapshotState(World, Label);
+}
+
+#endif

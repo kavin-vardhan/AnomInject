@@ -1,7 +1,18 @@
+#include "EuropaPhaseAWorldProbe.h"
 #include "Modules/ModuleManager.h"
 
+#if !UE_BUILD_SHIPPING
 class FEuropaPhaseAProbeModule : public IModuleInterface
 {
+public:
+	virtual void StartupModule() override { Probe.Start(); }
+	virtual void ShutdownModule() override { Probe.Stop(); }
+private:
+	FEuropaPhaseAWorldProbe Probe;
 };
+
+#else
+class FEuropaPhaseAProbeModule : public IModuleInterface {};
+#endif
 
 IMPLEMENT_MODULE(FEuropaPhaseAProbeModule, EuropaPhaseAProbe)

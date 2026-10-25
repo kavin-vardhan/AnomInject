@@ -1,0 +1,92 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#if !UE_BUILD_SHIPPING
+#include "Engine/World.h"
+#include "Misc/OutputDevice.h"
+
+class FJsonObject;
+class FJsonValue;
+class IConsoleObject;
+class FObjectPropertyBase;
+class UAnomalyInjectorSubsystem;
+
+class FEuropaPhaseAWorldProbe : public FOutputDevice
+{
+public:
+	void Start();
+	void Stop();
+	virtual void Serialize(const TCHAR* Text, ELogVerbosity::Type Verbosity, const FName& Category) override;
+	void Command(const TArray<FString>& Args, UWorld* World);
+	void Emit(const TCHAR* Kind, UWorld* World, const TSharedPtr<FJsonObject>& Data);
+	void Snapshot(UWorld* World, const FString& Label);
+	void SnapshotState(UWorld* World, const FString& Label);
+	static FString Identity(const UObject* Object);
+
+private:
+	struct FWorldState
+	{
+		uint64 Epoch = 0;
+		uint64 Eligible = 0;
+		bool bInUpdate = false;
+		ELevelTick Type = LEVELTICK_TimeOnly;
+	};
+	struct FGCField
+	{
+		FObjectPropertyBase* Property = nullptr;
+		UObject* Original = nullptr;
+		bool bWasRooted = false;
+		TWeakObjectPtr<UObject> TestObject;
+	};
+	void Created(UWorld* World);
+	void PreInitialize(UWorld* World, const UWorld::InitializationValues Values);
+	void Initialized(UWorld* World, const UWorld::InitializationValues Values);
+	void Cleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
+	void Cleaned(UWorld* World, bool bSessionEnded, bool bCleanupResources);
+	void TickStart(UWorld* World, ELevelTick Type, float DeltaSeconds);
+	void TickEnd(UWorld* World, ELevelTick Type, float DeltaSeconds);
+	void EndFrame();
+	void ScreenshotDone();
+	void RequestPicture(UWorld* World, const FString& Name);
+	void GCProbe(UWorld* World);
+	void ReleaseGC();
+	void LifetimeProbe(UWorld* World);
+	void LoadScript(UWorld* World, const FString& Path);
+	bool Execute(const TArray<FString>& Args, UWorld* World);
+	bool ResolveOutput(const FString& Name, FString& Out) const;
+
+	bool bEnabled = false;
+	bool bChangedAudit = false;
+	int32 PreviousAudit = 0;
+	bool bWriting = false;
+	bool bNoApply = false;
+	bool bSkipRestore = false;
+	FString OutputRoot;
+	FString ReceiptPath;
+	uint64 Sequence = 0;
+	uint64 DriverFrame = 0;
+	uint64 NextDriverFrame = 0;
+	TMap<TWeakObjectPtr<UWorld>, FWorldState> Worlds;
+	TWeakObjectPtr<UWorld> DriverWorld;
+	TArray<TSharedPtr<FJsonValue>> Script;
+	int32 ScriptIndex = 0;
+	bool bScriptCompleteEmitted = false;
+	TArray<FString> QueuedCommand;
+	TWeakObjectPtr<UWorld> QueuedWorld;
+	FString PendingPicture;
+	FString PictureWorldId;
+	uint64 PictureRequest = 0;
+	uint64 PictureEpoch = 0;
+	uint64 PictureStartFrame = 0;
+	TWeakObjectPtr<UWorld> PictureWorld;
+	TArray<UObject*> Dormant;
+	uint64 DormantReleaseFrame = 0;
+	TWeakObjectPtr<UAnomalyInjectorSubsystem> GCInjector;
+	TArray<FGCField> GCFields;
+	TWeakObjectPtr<UObject> GCArrayObject;
+	IConsoleObject* Console = nullptr;
+	FDelegateHandle CreatedHandle, PreInitHandle, InitHandle, CleanupHandle, CleanedHandle;
+	FDelegateHandle TickStartHandle, TickEndHandle, EndFrameHandle, ScreenshotHandle;
+};
+
+#endif

@@ -216,7 +216,8 @@ def snapshot(folder, label):
 def classification(scope, path, kind, change=None, build_ok=False):
     p = path.lower().replace('\\', '/')
     if scope == 'port':
-        return 'port_D', 'owned scratch and hosts'
+        role = 'DDC' if '/ddc/' in p else 'shader_working' if '/shaderworking/' in p else 'crash_report' if '/crash' in p else 'host_output'
+        return 'port_D', ('runtime ' + role) if kind == 'runtime' else 'owned scratch and hosts'
     if scope.startswith('tool_'):
         return 'tooling', 'EB1 orchestration overhead; physical volume retained'
     if scope == 'engine51':
@@ -248,6 +249,8 @@ def classification(scope, path, kind, change=None, build_ok=False):
         return 'STOP', 'unclassified root file mutation'
     if scope == 'unreal_engine':
         suffix = p.split('/unrealengine/', 1)[-1]
+        if kind == 'runtime' and suffix.startswith(('common/', 'zen/', 'editor/', '5.1/')):
+            return 'STOP', 'Runtime cache/settings must route to D; no port exception for this shared path'
         if suffix.startswith(('5.7/', 'common/', 'zen/', 'editor/')):
             return 'foreign', 'owner engine/shared editor activity; no editor or renderer port child'
         if suffix.startswith('4.25/') or (suffix.startswith('xmlconfigcache-') and suffix.endswith('.bin')):
@@ -278,6 +281,8 @@ def classification(scope, path, kind, change=None, build_ok=False):
     if scope == 'crashclient':
         return ('foreign', 'no port runtime child') if kind == 'read_only' else ('port_C_exception', 'EA4 crash monitor')
     if scope.startswith('gpu_'):
+        if kind == 'runtime':
+            return 'port_C_exception', 'EA4 GPU driver caches; conservatively charge runtime window'
         return 'foreign', 'no renderer/editor/game/shader worker launched; compiler children do not render'
     if scope.startswith('ue_temp_'):
         if kind == 'read_only':
@@ -286,7 +291,7 @@ def classification(scope, path, kind, change=None, build_ok=False):
             return 'port_C_exception', 'EA4 crash monitor temp'
         return 'STOP', 'UBT/UHT/cl/link/mspdbsrv/vctip TEMP must resolve to D'
     if scope in ('windows', 'wer_system', 'wer_user'):
-        if kind == 'build':
+        if kind in ('build', 'runtime'):
             return 'port_C_exception', 'EA4 Windows/WER: conservatively charge build window including compiler children'
         return 'foreign', 'Windows-managed files; compiler TEMP/TMP explicitly D'
     if scope == 'epic':
@@ -488,10 +493,12 @@ def begin(operation, kind):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--kind', choices=['read_only', 'setup', 'ubt', 'build'], default='setup')
+    parser.add_argument('--kind', choices=['read_only', 'setup', 'ubt', 'build', 'runtime'], default='setup')
     parser.add_argument('operation')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    if args.kind == 'runtime' and not SCOPE.get('runtime_authorized', False):
+        raise RuntimeError('Runtime execution is not authorized in this job scope')
     argv = args.command
     if argv and argv[0] == '--':
         argv = argv[1:]

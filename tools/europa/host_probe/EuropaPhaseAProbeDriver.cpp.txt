@@ -1,0 +1,450 @@
+#include "EuropaPhaseAWorldProbe.h"
+#if !UE_BUILD_SHIPPING
+#include "AnomalyInjectorSubsystem.h"
+#include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalySelectorSubsystem.h"
+#include "AnomalyCaptureSubsystem.h"
+#include "AnomalyControlServerSubsystem.h"
+#include "Camera/CameraActor.h"
+#include "Components/LightComponent.h"
+#include "Components/MeshComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "Components/SkinnedMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "CoreGlobals.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/Texture2D.h"
+#include "Engine/StaticMesh.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInterface.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "UnrealClient.h"
+#include "UObject/GarbageCollection.h"
+#include "UObject/UnrealType.h"
+
+bool FEuropaPhaseAWorldProbe::ResolveOutput(const FString& Name, FString& Out) const
+{
+	if (Name.IsEmpty() || Name.Contains(TEXT("..")) || Name.Contains(TEXT("/")) || Name.Contains(TEXT("\\")) || Name.Contains(TEXT(":"))) { return false; }
+	Out = OutputRoot / Name;
+	return FPaths::IsUnderDirectory(Out, OutputRoot) && !IFileManager::Get().FileExists(*Out);
+}
+
+void FEuropaPhaseAWorldProbe::Command(const TArray<FString>& Args, UWorld* World)
+{
+	if (!bEnabled || !QueuedCommand.IsEmpty() || Args.IsEmpty()) { return; }
+	QueuedCommand = Args;
+	QueuedWorld = World;
+}
+
+void FEuropaPhaseAWorldProbe::EndFrame()
+{
+	if (!bEnabled) { return; }
+	for (auto& Pair : Worlds) { if (Pair.Key.IsValid() && Pair.Value.bInUpdate) { TickEnd(Pair.Key.Get(), Pair.Value.Type, 0.0f); } }
+	++DriverFrame;
+	if (DormantReleaseFrame && DriverFrame >= DormantReleaseFrame)
+	{
+		for (UObject* Object : Dormant) { if (Object) { Object->RemoveFromRoot(); } }
+		Dormant.Reset();
+		DormantReleaseFrame = 0;
+		Emit(TEXT("dormant_release"), DriverWorld.Get(), MakeShared<FJsonObject>());
+	}
+	if (!PendingPicture.IsEmpty())
+	{
+		if (GFrameCounter > PictureStartFrame + 300)
+		{
+			auto Data = MakeShared<FJsonObject>();
+			Data->SetStringField(TEXT("reason"), TEXT("screenshot_timeout"));
+			Emit(TEXT("driver_failure"), PictureWorld.Get(), Data);
+			Script.Reset();
+		}
+		return;
+	}
+	if (!QueuedCommand.IsEmpty())
+	{
+		TArray<FString> Args = MoveTemp(QueuedCommand);
+		Execute(Args, QueuedWorld.Get());
+		return;
+	}
+	if (ScriptIndex < Script.Num() && DriverFrame >= NextDriverFrame)
+	{
+		const TSharedPtr<FJsonObject> Step = Script[ScriptIndex++]->AsObject();
+		TArray<FString> Args;
+		Args.Add(Step->GetStringField(TEXT("command")));
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (Step->TryGetArrayField(TEXT("args"), Values)) { for (const auto& Value : *Values) { Args.Add(Value->AsString()); } }
+		bool bExpected = true;
+		Step->TryGetBoolField(TEXT("expect_success"), bExpected);
+		if (Execute(Args, DriverWorld.Get()) != bExpected)
+		{
+			auto Data = MakeShared<FJsonObject>();
+			Data->SetStringField(TEXT("reason"), TEXT("command_expectation_mismatch"));
+			Emit(TEXT("driver_failure"), DriverWorld.Get(), Data);
+			Script.Reset();
+		}
+		double Wait = 1;
+		Step->TryGetNumberField(TEXT("wait_frames"), Wait);
+		NextDriverFrame = DriverFrame + static_cast<uint64>(FMath::Clamp(Wait, 1.0, 10000.0));
+	}
+	if (Script.Num() && ScriptIndex >= Script.Num() && !bScriptCompleteEmitted && DriverFrame >= NextDriverFrame)
+	{
+		bScriptCompleteEmitted = true;
+		auto Data = MakeShared<FJsonObject>();
+		Data->SetNumberField(TEXT("steps"), Script.Num());
+		Emit(TEXT("script_complete"), DriverWorld.Get(), Data);
+	}
+}
+
+void FEuropaPhaseAWorldProbe::LoadScript(UWorld* World, const FString& Path)
+{
+	FString Full = FPaths::ConvertRelativePathToFull(Path);
+	FPaths::NormalizeFilename(Full);
+	FPaths::CollapseRelativeDirectories(Full);
+	FString Text;
+	if (!FPaths::IsUnderDirectory(Full, TEXT("D:/IA_Europa")) || !FFileHelper::LoadFileToString(Text, *Full)) { return; }
+	TArray<TSharedPtr<FJsonValue>> Parsed;
+	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Parsed) || Parsed.Num() == 0 || Parsed.Num() > 10000) { return; }
+	for (const auto& Value : Parsed)
+	{
+		if (Value->Type != EJson::Object || !Value->AsObject()->HasTypedField<EJson::String>(TEXT("command"))) { return; }
+		const auto Step = Value->AsObject();
+		if (Step->HasField(TEXT("args")))
+		{
+			if (!Step->HasTypedField<EJson::Array>(TEXT("args"))) { return; }
+			for (const auto& Arg : Step->GetArrayField(TEXT("args"))) { if (Arg->Type != EJson::String) { return; } }
+		}
+		if (Step->HasField(TEXT("wait_frames")) && !Step->HasTypedField<EJson::Number>(TEXT("wait_frames"))) { return; }
+		if (Step->HasField(TEXT("expect_success")) && !Step->HasTypedField<EJson::Boolean>(TEXT("expect_success"))) { return; }
+	}
+	Script = MoveTemp(Parsed);
+	ScriptIndex = 0;
+	bScriptCompleteEmitted = false;
+	DriverWorld = World;
+	NextDriverFrame = DriverFrame + 1;
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetStringField(TEXT("path"), Full);
+	Data->SetNumberField(TEXT("steps"), Script.Num());
+	Emit(TEXT("script_loaded"), World, Data);
+}
+
+bool FEuropaPhaseAWorldProbe::Execute(const TArray<FString>& Args, UWorld* World)
+{
+	if (Args.IsEmpty()) { return false; }
+	const FString Op = Args[0].ToLower();
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetStringField(TEXT("command"), Op);
+	TArray<TSharedPtr<FJsonValue>> Arguments;
+	for (const FString& Arg : Args) { Arguments.Add(MakeShared<FJsonValueString>(Arg)); }
+	Data->SetArrayField(TEXT("arguments"), Arguments);
+	bool bSuccess = false;
+	if (Op == TEXT("preview"))
+	{
+		UWorld* Preview = UWorld::CreateWorld(EWorldType::EditorPreview, false, FName(TEXT("EuropaPositivePreview")));
+		if (Preview) { Snapshot(Preview, TEXT("positive_preview")); Preview->DestroyWorld(false); bSuccess = true; }
+	}
+	else if (World)
+	{
+		DriverWorld = World;
+		UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>();
+		if (Op == TEXT("snapshot")) { Snapshot(World, Args.Num() > 1 ? Args[1] : TEXT("manual")); bSuccess = true; }
+		else if (Op == TEXT("script") && Args.Num() == 2) { LoadScript(World, Args[1]); bSuccess = Script.Num() > 0; }
+		else if (Op == TEXT("screenshot") && Args.Num() == 2) { RequestPicture(World, Args[1]); bSuccess = !PendingPicture.IsEmpty(); }
+		else if (Op == TEXT("apply") && Args.Num() >= 2 && Injector)
+		{
+			TArray<FString> ApplyArgs;
+			for (int32 Index = 2; Index < Args.Num(); ++Index) { ApplyArgs.Add(Args[Index]); }
+			bSuccess = !bNoApply && Injector->ApplyAnomaly(FName(*Args[1]), ApplyArgs);
+			Data->SetBoolField(TEXT("no_apply_control"), bNoApply);
+		}
+		else if (Op == TEXT("revert") && Args.Num() == 2 && Injector) { bSuccess = !bSkipRestore && Injector->RevertAnomaly(FName(*Args[1])); }
+		else if (Op == TEXT("revertall") && Injector) { if (!bSkipRestore) { Data->SetNumberField(TEXT("reverted"), Injector->RevertAllActive()); bSuccess = true; } }
+		else if (Op == TEXT("pause") && Args.Num() == 2) { bSuccess = UGameplayStatics::SetGamePaused(World, Args[1] == TEXT("1")); }
+		else if (Op == TEXT("gc") && Injector) { GCProbe(World); bSuccess = true; }
+		else if (Op == TEXT("lifetime")) { LifetimeProbe(World); bSuccess = true; }
+		else if (Op == TEXT("auto-seed") && Args.Num() == 2)
+		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
+			{
+				Auto->SetRunning(false);
+				Auto->SetAllAnomaliesEnabled(false);
+				Auto->SetAnomalyEnabled(FName(TEXT("blinking")), true);
+				Auto->SetSeed(FCString::Atoi(*Args[1]));
+				bSuccess = true;
+			}
+		}
+		else if (Op == TEXT("auto-clear"))
+		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>()) { Data->SetNumberField(TEXT("reverted"), Auto->RevertAllLiveFires()); bSuccess = true; }
+		}
+		else if (Op == TEXT("auto-fire"))
+		{
+			if (UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>())
+			{
+				bSuccess = Auto->TryFireOnce();
+				TArray<TSharedPtr<FJsonValue>> Fires;
+				for (const FString& Fire : Auto->GetLiveFireSummaries()) { Fires.Add(MakeShared<FJsonValueString>(Fire)); }
+				Data->SetArrayField(TEXT("live_fires"), Fires);
+			}
+		}
+		else if (Op == TEXT("travel") && Args.Num() == 2 && (Args[1] == TEXT("/Game/EuropaPhaseA/EA_Core") || Args[1] == TEXT("/Game/EuropaPhaseA/EA_Travel")))
+		{
+			Snapshot(World, TEXT("pre_travel"));
+			UGameplayStatics::OpenLevel(World, FName(*Args[1]));
+			Script.Reset();
+			bSuccess = true;
+		}
+		else if (Op == TEXT("prepare"))
+		{
+			for (const auto& Pair : TArray<TPair<FString, int32>>{{TEXT("r.ScreenPercentage"), 100}, {TEXT("r.DynamicRes.OperationMode"), 0}, {TEXT("r.PostProcessAAQuality"), 0}, {TEXT("r.AntiAliasingMethod"), 0}, {TEXT("r.MotionBlurQuality"), 0}})
+			{
+				IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(*Pair.Key);
+				if (Variable) { Variable->Set(Pair.Value, ECVF_SetByConsole); Data->SetNumberField(Pair.Key, Variable->GetInt()); }
+			}
+			APlayerController* PC = World->GetFirstPlayerController();
+			for (TActorIterator<ACameraActor> It(World); It; ++It) { if (PC && It->ActorHasTag(TEXT("EA_Camera"))) { PC->SetViewTarget(*It); bSuccess = true; break; } }
+		}
+		Data->SetNumberField(TEXT("active_count"), Injector ? Injector->GetActiveAnomalyCount() : -1);
+	}
+	Data->SetBoolField(TEXT("success"), bSuccess);
+	Data->SetBoolField(TEXT("skip_restore_control"), bSkipRestore);
+	Emit(TEXT("command_result"), World, Data);
+	return bSuccess;
+}
+
+void FEuropaPhaseAWorldProbe::RequestPicture(UWorld* World, const FString& Name)
+{
+	FString Path;
+	if (!PendingPicture.IsEmpty() || FScreenshotRequest::IsScreenshotRequested() || !Name.EndsWith(TEXT(".png")) || !ResolveOutput(Name, Path)) { return; }
+	if (!GEngine || !GEngine->GameViewport || GEngine->GameViewport->GetWorld() != World) { return; }
+	PendingPicture = Path;
+	PictureWorld = World;
+	PictureWorldId = Identity(World);
+	PictureEpoch = Worlds.FindOrAdd(World).Epoch;
+	PictureStartFrame = GFrameCounter;
+	++PictureRequest;
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetStringField(TEXT("path"), Path);
+	Data->SetNumberField(TEXT("request"), static_cast<double>(PictureRequest));
+	Data->SetBoolField(TEXT("show_ui"), false);
+	Data->SetBoolField(TEXT("high_resolution"), false);
+	Emit(TEXT("screenshot_request"), World, Data);
+	FScreenshotRequest::RequestScreenshot(Path, false, false);
+}
+
+void FEuropaPhaseAWorldProbe::ScreenshotDone()
+{
+	if (PendingPicture.IsEmpty()) { return; }
+	TArray<uint8> Bytes;
+	const bool bRead = FFileHelper::LoadFileToArray(Bytes, *PendingPicture);
+	const uint8 Signature[] = {137, 80, 78, 71, 13, 10, 26, 10};
+	const bool bPng = bRead && Bytes.Num() >= 24 && FMemory::Memcmp(Bytes.GetData(), Signature, 8) == 0;
+	uint32 Width = 0, Height = 0;
+	if (bPng) { for (int32 I = 0; I < 4; ++I) { Width = (Width << 8) | Bytes[16 + I]; Height = (Height << 8) | Bytes[20 + I]; } }
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetStringField(TEXT("path"), PendingPicture);
+	Data->SetStringField(TEXT("request_world"), PictureWorldId);
+	Data->SetNumberField(TEXT("request"), static_cast<double>(PictureRequest));
+	Data->SetNumberField(TEXT("request_epoch"), static_cast<double>(PictureEpoch));
+	Data->SetNumberField(TEXT("request_frame"), static_cast<double>(PictureStartFrame));
+	Data->SetNumberField(TEXT("width"), Width);
+	Data->SetNumberField(TEXT("height"), Height);
+	Data->SetNumberField(TEXT("bytes"), Bytes.Num());
+	Data->SetBoolField(TEXT("written"), bPng && Width == 1280 && Height == 720);
+	Data->SetBoolField(TEXT("viewport_matches"), GEngine && GEngine->GameViewport && Identity(GEngine->GameViewport->GetWorld()) == PictureWorldId);
+	Emit(TEXT("screenshot_complete"), PictureWorld.Get(), Data);
+	PendingPicture.Reset();
+	PictureWorld.Reset();
+}
+
+void FEuropaPhaseAWorldProbe::SnapshotState(UWorld* World, const FString& Label)
+{
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetStringField(TEXT("label"), Label);
+	TArray<TSharedPtr<FJsonValue>> Actors;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		bool bFixture = false;
+		for (const FName& Tag : It->Tags) { bFixture |= Tag.ToString().StartsWith(TEXT("EA_")); }
+		if (!bFixture) { continue; }
+		auto Actor = MakeShared<FJsonObject>();
+		Actor->SetStringField(TEXT("identity"), Identity(*It));
+		Actor->SetStringField(TEXT("name"), It->GetName());
+		Actor->SetBoolField(TEXT("hidden"), It->IsHidden());
+		TArray<TSharedPtr<FJsonValue>> Components;
+		TArray<UActorComponent*> Owned;
+		It->GetComponents(Owned);
+		for (UActorComponent* Component : Owned)
+		{
+			auto Row = MakeShared<FJsonObject>();
+			Row->SetStringField(TEXT("identity"), Identity(Component));
+			Row->SetStringField(TEXT("name"), Component->GetName());
+			if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Component))
+			{
+				Row->SetBoolField(TEXT("visible"), Primitive->IsVisible());
+				Row->SetBoolField(TEXT("hidden_game"), Primitive->bHiddenInGame);
+				Row->SetBoolField(TEXT("main_pass"), Primitive->bRenderInMainPass);
+				Row->SetBoolField(TEXT("depth_pass"), Primitive->bRenderInDepthPass);
+				Row->SetBoolField(TEXT("cast_shadow"), Primitive->CastShadow);
+				Row->SetBoolField(TEXT("cast_hidden_shadow"), Primitive->bCastHiddenShadow);
+				Row->SetBoolField(TEXT("dynamic_shadow"), Primitive->bCastDynamicShadow);
+				Row->SetBoolField(TEXT("static_shadow"), Primitive->bCastStaticShadow);
+				Row->SetBoolField(TEXT("distance_field"), Primitive->bAffectDistanceFieldLighting);
+				Row->SetBoolField(TEXT("dynamic_indirect"), Primitive->bAffectDynamicIndirectLighting);
+				Row->SetBoolField(TEXT("custom_depth"), Primitive->bRenderCustomDepth);
+				Row->SetBoolField(TEXT("receives_decals"), Primitive->bReceivesDecals);
+				Row->SetBoolField(TEXT("ray_tracing"), Primitive->bVisibleInRayTracing);
+				Row->SetNumberField(TEXT("stencil"), Primitive->CustomDepthStencilValue);
+#if ENGINE_MAJOR_VERSION >= 5
+				Row->SetBoolField(TEXT("contact_shadow"), Primitive->bCastContactShadow);
+#endif
+			}
+			if (UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component)) { Row->SetNumberField(TEXT("forced_lod"), Static->ForcedLodModel); Row->SetStringField(TEXT("mesh"), Identity(Static->GetStaticMesh())); }
+			if (USkinnedMeshComponent* Skinned = Cast<USkinnedMeshComponent>(Component)) { Row->SetNumberField(TEXT("forced_lod"), Skinned->GetForcedLOD()); }
+			if (UMeshComponent* Mesh = Cast<UMeshComponent>(Component))
+			{
+				TArray<TSharedPtr<FJsonValue>> Materials;
+				for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index) { Materials.Add(MakeShared<FJsonValueString>(Identity(Mesh->GetMaterial(Index)))); }
+				Row->SetArrayField(TEXT("materials"), Materials);
+			}
+			if (ULightComponent* Light = Cast<ULightComponent>(Component))
+			{
+				Row->SetNumberField(TEXT("intensity"), Light->Intensity);
+				Row->SetStringField(TEXT("color"), Light->LightColor.ToString());
+				Row->SetBoolField(TEXT("visible"), Light->IsVisible());
+				Row->SetBoolField(TEXT("shadow"), Light->CastShadows);
+			}
+			Components.Add(MakeShared<FJsonValueObject>(Row));
+		}
+		Actor->SetArrayField(TEXT("components"), Components);
+		Actors.Add(MakeShared<FJsonValueObject>(Actor));
+	}
+	Data->SetArrayField(TEXT("actors"), Actors);
+	Emit(TEXT("component_state"), World, Data);
+}
+
+void FEuropaPhaseAWorldProbe::ReleaseGC()
+{
+	UAnomalyInjectorSubsystem* Injector = GCInjector.Get();
+	for (FGCField& Field : GCFields)
+	{
+		if (Injector && Field.Property) { Field.Property->SetObjectPropertyValue_InContainer(Injector, Field.Original); }
+		if (Field.Original && !Field.bWasRooted) { Field.Original->RemoveFromRoot(); }
+	}
+	if (Injector && GCArrayObject.IsValid()) { Injector->TexCorruptLetGo(GCArrayObject.Get()); }
+	GCInjector.Reset();
+}
+
+void FEuropaPhaseAWorldProbe::GCProbe(UWorld* World)
+{
+	UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>();
+	if (!Injector || Injector->GetActiveAnomalyCount() || GCInjector.IsValid()) { return; }
+	GCFields.Reset();
+	GCInjector = Injector;
+	for (const TCHAR* Name : {TEXT("MissingTextureChecker"), TEXT("CorruptedTexturePink"), TEXT("TexCorruptUv"), TEXT("TexCorruptNormal"), TEXT("TexCorruptNoise")})
+	{
+		FObjectPropertyBase* Property = FindFProperty<FObjectPropertyBase>(Injector->GetClass(), Name);
+		if (!Property) { ReleaseGC(); return; }
+		FGCField Field;
+		Field.Property = Property;
+		Field.Original = Property->GetObjectPropertyValue_InContainer(Injector);
+		Field.bWasRooted = Field.Original && Field.Original->IsRooted();
+		if (Field.Original && !Field.bWasRooted) { Field.Original->AddToRoot(); }
+		UObject* Test = FCString::Strcmp(Name, TEXT("TexCorruptNoise")) == 0 ? static_cast<UObject*>(NewObject<UTexture2D>(GetTransientPackage())) : static_cast<UObject*>(NewObject<UMaterial>(GetTransientPackage()));
+		Field.TestObject = Test;
+		Property->SetObjectPropertyValue_InContainer(Injector, Test);
+		GCFields.Add(Field);
+	}
+	UObject* Held = NewObject<UObject>(GetTransientPackage());
+	GCArrayObject = Held;
+	Injector->TexCorruptHold(Held);
+	CollectGarbage(RF_NoFlags);
+	auto Before = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> Alive;
+	for (const FGCField& Field : GCFields) { Alive.Add(MakeShared<FJsonValueBoolean>(Field.TestObject.IsValid())); }
+	Before->SetArrayField(TEXT("field_alive"), Alive);
+	Before->SetBoolField(TEXT("array_alive"), GCArrayObject.IsValid());
+	Before->SetNumberField(TEXT("gc_cycles"), 1);
+	Emit(TEXT("gc_retained"), World, Before);
+	ReleaseGC();
+	CollectGarbage(RF_NoFlags);
+	auto After = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> Released;
+	for (const FGCField& Field : GCFields) { Released.Add(MakeShared<FJsonValueBoolean>(!Field.TestObject.IsValid())); }
+	After->SetArrayField(TEXT("field_expired"), Released);
+	After->SetBoolField(TEXT("array_expired"), !GCArrayObject.IsValid());
+	After->SetNumberField(TEXT("gc_cycles"), 2);
+	Emit(TEXT("gc_released"), World, After);
+	GCFields.Reset();
+	GCArrayObject.Reset();
+	UClass* BenchClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyBench.AnomalyBenchTwoPartActor"));
+	AActor* BenchActor = BenchClass ? World->SpawnActor<AActor>(BenchClass) : nullptr;
+	auto Components = MakeShared<FJsonObject>();
+	Components->SetBoolField(TEXT("constructed"), BenchActor != nullptr);
+	TArray<TWeakObjectPtr<UActorComponent>> Observers;
+	bool bFieldsPresent = BenchActor != nullptr;
+	if (BenchActor)
+	{
+		for (const TCHAR* Name : {TEXT("Root"), TEXT("PartEligible"), TEXT("PartIneligible")})
+		{
+			FObjectPropertyBase* Property = FindFProperty<FObjectPropertyBase>(BenchClass, Name);
+			bFieldsPresent &= Property != nullptr;
+			UActorComponent* Component = Property ? Cast<UActorComponent>(Property->GetObjectPropertyValue_InContainer(BenchActor)) : nullptr;
+			Observers.Add(Component);
+		}
+	}
+	CollectGarbage(RF_NoFlags);
+	TArray<TSharedPtr<FJsonValue>> Valid;
+	for (const auto& Observer : Observers) { Valid.Add(MakeShared<FJsonValueBoolean>(Observer.IsValid() && Observer->GetOwner() == BenchActor)); }
+	Components->SetBoolField(TEXT("fields_present"), bFieldsPresent);
+	Components->SetArrayField(TEXT("owned_components_alive"), Valid);
+	Components->SetNumberField(TEXT("engine_major"), ENGINE_MAJOR_VERSION);
+	Components->SetNumberField(TEXT("gc_cycles"), 1);
+	Emit(TEXT("gc_bench_components"), World, Components);
+	if (BenchActor) { BenchActor->Destroy(); }
+}
+
+namespace
+{
+	template<class T> void MakeDormant(UWorld* World, TArray<UObject*>& Objects, TArray<TSharedPtr<FJsonValue>>& Rows)
+	{
+		T* Object = NewObject<T>(World);
+		Object->AddToRoot();
+		Objects.Add(Object);
+		auto Row = MakeShared<FJsonObject>();
+		Row->SetStringField(TEXT("class"), T::StaticClass()->GetName());
+		Row->SetStringField(TEXT("identity"), FEuropaPhaseAWorldProbe::Identity(Object));
+		Row->SetStringField(TEXT("pointer"), FString::Printf(TEXT("%p"), Object));
+		Row->SetBoolField(TEXT("initialized"), Object->IsInitialized());
+		Row->SetBoolField(TEXT("allowed"), Object->IsAllowedToTick());
+		Row->SetBoolField(TEXT("tickable"), Object->IsTickable());
+		Rows.Add(MakeShared<FJsonValueObject>(Row));
+	}
+}
+
+void FEuropaPhaseAWorldProbe::LifetimeProbe(UWorld* World)
+{
+	if (Dormant.Num()) { return; }
+	TArray<TSharedPtr<FJsonValue>> Rows;
+	MakeDormant<UAnomalyInjectorSubsystem>(World, Dormant, Rows);
+	MakeDormant<UAnomalyAutoInjectorSubsystem>(World, Dormant, Rows);
+	MakeDormant<UAnomalySelectorSubsystem>(World, Dormant, Rows);
+	MakeDormant<UAnomalyCaptureSubsystem>(World, Dormant, Rows);
+	MakeDormant<UAnomalyControlServerSubsystem>(World, Dormant, Rows);
+	DormantReleaseFrame = DriverFrame + 3;
+	auto Data = MakeShared<FJsonObject>();
+	Data->SetArrayField(TEXT("objects"), Rows);
+	Data->SetNumberField(TEXT("hold_frames"), 3);
+	Emit(TEXT("dormant_created"), World, Data);
+}
+
+#endif

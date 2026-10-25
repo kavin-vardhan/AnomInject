@@ -6,5 +6,16 @@ public class EuropaPhaseAProbe : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		PublicDependencyModuleNames.Add("Core");
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] {
+				"CoreUObject", "Engine", "Json", "AnomalyInjector", "AnomalyCapture", "AnomalyControlServer", "AnomalyShaders"
+			});
+		}
+		if (Target.Version.MajorVersion == 4 && Target.Version.MinorVersion == 25)
+		{
+			CppStandard = CppStandardVersion.Cpp17;
+			PCHUsage = PCHUsageMode.NoPCHs;
+		}
 	}
 }
