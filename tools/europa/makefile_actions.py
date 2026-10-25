@@ -146,24 +146,62 @@ def read(path, host):
                 action_count=len(actions), source='Read-only stock TargetMakefile/Action serialization')
 
 
+def status_lines(text, complete=True):
+    rows = []
+    for line in text.splitlines():
+        match = re.match(r'^\s*\[(\d+)/(\d+)\](.*)$', line)
+        if not match:
+            continue
+        index, total = int(match[1]), int(match[2])
+        description = match[3].strip()
+        description = re.sub(r'^\[[^\]]+ (?:Win64|Linux|Mac) (?:Development|Shipping|DebugGame)\]\s*', '', description)
+        description = re.sub(r'^\(Wall: [0-9.]+s(?: CPU: [0-9.]+s)?\)\s*', '', description)
+        if description.startswith('Command:'):
+            continue
+        if not description or description.endswith(' cancelled'):
+            raise RuntimeError('Unexecuted or empty action status')
+        rows.append(dict(index=index, total=total, description=description))
+    if rows:
+        expected = rows[0]['total'] if complete else len(rows)
+        if len({r['total'] for r in rows}) != 1 or sorted(r['index'] for r in rows) != list(range(1, expected + 1)):
+            raise RuntimeError('Incomplete executed action denominator')
+    return rows
+
+
+def require_host_outputs(action):
+    roots = [Path('D:/UESource/UnrealEngine'), Path('E:/EpicGames/UE_4.25')]
+    paths = action.get('ProducedItems', []) + action.get('DeleteItems', [])
+    if action.get('DependencyListFile'):
+        paths.append(action['DependencyListFile'])
+    for raw in paths:
+        path = Path(raw)
+        if not path.is_absolute():
+            path = Path(action['WorkingDirectory']) / path
+        if any(path.resolve().is_relative_to(root.resolve()) for root in roots):
+            raise RuntimeError('Engine output in executed action')
+
+
 def executed(graph, text, complete=True):
-    lines = re.findall(r'^\s*\[(\d+)/(\d+)\]\s+(.+)$', text, re.M)
-    lines = [(int(i), int(n), description.strip()) for i,n,description in lines if not description.startswith('Command:')]
-    selected, used, rows = [], set(), []
-    for index, total, description in lines:
-        short = re.sub(r'\[x64\]\s*', '', description)
+    rows = status_lines(text, complete)
+    selected, used = [], set()
+    for row in rows:
+        short = re.sub(r'\[x64\]\s*', '', row['description'])
         found = []
         for offset, action in enumerate(graph['Actions']):
-            command = action.get('CommandDescription') or Path(action['CommandPath']).stem
-            expected = (command + ' ' + action['StatusDescription']).strip()
-            if offset not in used and (short == expected or short.endswith(' ' + expected) or (not action.get('bShouldOutputStatusDescription', True) and short == action['StatusDescription'])):
+            command = action.get('CommandDescription')
+            if command is None:
+                command = Path(action['CommandPath']).stem
+            status = action['StatusDescription']
+            if short in (status, (command + ' ' + status).strip()):
                 found.append(offset)
         if len(found) != 1:
-            raise RuntimeError('Executed action has no unique native graph match: ' + description)
+            raise RuntimeError('Executed action has no unique native graph match: ' + row['description'])
         offset = found[0]
-        selected.append(graph['Actions'][offset])
+        if offset in used:
+            raise RuntimeError('Native graph action executed more than once')
+        action = graph['Actions'][offset]
+        require_host_outputs(action)
+        selected.append(action)
         used.add(offset)
-        rows.append(dict(index=index, total=total, description=description, native_action_index=offset))
-    if lines and (len({n for _,n,_ in lines}) != 1 or sorted(i for i,_,_ in lines) != list(range(1, (lines[0][1] if complete else len(lines))+1))):
-        raise RuntimeError('Incomplete executed action denominator')
+        row['native_action_index'] = offset
     return dict(Actions=selected, Environment={}, executed_lines=rows, native_action_count=graph['action_count'])

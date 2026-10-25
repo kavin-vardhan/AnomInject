@@ -29,7 +29,7 @@ def invalidate_makefile(path, receipt, host):
         raise RuntimeError('Blocked name in existing native environment')
     stat = path.stat()
     row = dict(path=str(path), size=stat.st_size, mtime_ns=stat.st_mtime_ns, sha256=hashlib.sha256(data).hexdigest())
-    ledger.dump(receipt, dict(authority='EN5 scoped cached environment refresh', files=[row],
+    ledger.dump(receipt, dict(authority='EO3 target-owned cached environment refresh', files=[row],
         source='UE4 BuildMode.cs:530-534; UE5 BuildMode.cs:788-792', deleted=False))
     if path.stat().st_mtime_ns != stat.st_mtime_ns:
         raise RuntimeError('Makefile changed before receipt deletion')

@@ -6,6 +6,11 @@ import subprocess
 import sys
 import write_ledger as ledger
 import working_build as build
+from environment import masked, fingerprints
+
+def require_masked(values):
+    if any(v not in ('<masked>', '<empty>') for v in values.values()):
+        raise RuntimeError('Raw environment value in receipt')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -14,7 +19,7 @@ def main():
     root = args.output.resolve()
     if not root.is_relative_to(ledger.ROOT.resolve(strict=True)):
         raise RuntimeError('Self-test evidence must remain in owned D scratch')
-    root.mkdir(exist_ok=False)
+    root.mkdir(parents=True, exist_ok=False)
     results = []
     original = dict(os.environ)
     try:
@@ -22,11 +27,21 @@ def main():
         os.environ['dotnet_root'] = 'synthetic-dotnet-marker'
         env, recorded = ledger.child_env(root)
         assert len({key.casefold() for key in env}) == len(env)
-        assert recorded['UE-CMDLINEARGS'] == 'synthetic-receipt-marker'
-        code = 'import json,os,sys; keys=json.loads(sys.argv[1]); print(json.dumps({k:v for k,v in os.environ.items() if k.casefold() in keys}))'
+        assert recorded['UE-CMDLINEARGS'] == '<masked>'
+        require_masked(recorded)
+        assert recorded == masked(env)
+        try:
+            require_masked(dict(recorded, **{'UE-CMDLINEARGS': 'synthetic-receipt-marker'}))
+        except RuntimeError:
+            results.append({'case': 'raw_receipt_value', 'result': 'REJECTED'})
+        else:
+            raise AssertionError('Raw receipt mutant passed')
+        code = 'import hashlib,json,os,sys; keys=json.loads(sys.argv[1]); values={k:v for k,v in os.environ.items() if k.casefold() in keys}; print(json.dumps({"masked":{k:"<masked>" if v else "<empty>" for k,v in values.items()},"hashes":{k.upper():hashlib.sha256(v.encode()).hexdigest() for k,v in values.items()}}))'
         argv = [sys.executable, '-c', code, json.dumps([key.casefold() for key in recorded])]
         actual = json.loads(subprocess.check_output(argv, env=env, cwd=root, text=True))
-        assert {k.casefold(): v for k, v in actual.items()} == {k.casefold(): v for k, v in recorded.items()}
+        assert {k.casefold(): v for k, v in actual['masked'].items()} == {k.casefold(): v for k, v in recorded.items()}
+        assert actual['hashes'] == fingerprints(env)
+        require_masked(actual['masked'])
         ledger.dump(root / 'environment-child.json', {'argv': argv, 'recorded': recorded, 'child_observed': actual, 'equal': True})
         results.append({'case': 'case_insensitive_environment_receipt_matches_real_child', 'result': 'PASS'})
     finally:
