@@ -1,0 +1,9 @@
+# 094-15 probe compatibility and cancelled actions
+
+The first Baseline51 Editor build against d7eee97 fails in two probe translation units with C1083 at AnomalyControlServerSubsystem.h:12. That release public header includes IWebSocketServer.h, while WebSocketNetworking is a private module dependency. Production headers and Build.cs stay unchanged.
+
+EO4 fix attempt 1 for Baseline51 keeps one probe source in all three hosts. On 5.1 only, the control-subsystem observation resolves its already-loaded /Script class and uses public UTickableWorldSubsystem methods. The registered instances are filtered from the world's public UWorldSubsystem array by IsA(the exact control class); the CDO and dormant instance use the same class. This retains the class, count, identity, initialized, allowed, tickable, template and CDO fields without importing the release's private networking dependency. A missing class fails via check. No asset is loaded. 4.25 retains the typed control path. MakeDormant's default class remains T::StaticClass for all existing calls.
+
+Sources: UE5 World.h:4031-4033 and SubsystemCollection.h:116-123 provide the registered-subsystem array; WorldSubsystem.h provides the public tick/lifetime methods. The probe uses no Compat include or shim-audit access. Both 4.25 targets will rebuild after the 5.1 sequence because the shared probe source changed (EH5).
+
+EO1 attempt 2 records the 5.1 executor's cancelled actions separately and excludes them from executed counts. Source: UE5 ParallelExecutor.cs:348-352. Offline proof repeats both 4.25 known answers, 794 successful 5.1 status lines and all three can-fails, then joins the actual failed 5.1 graph: three executed compiles and three cancelled dependents. No action-plan query or native invocation is used for this validation. EO2 is not used if this second proof passes.

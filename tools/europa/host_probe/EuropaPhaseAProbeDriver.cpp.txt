@@ -1,10 +1,15 @@
 #include "EuropaPhaseAWorldProbe.h"
 #if !UE_BUILD_SHIPPING
+#include "Runtime/Launch/Resources/Version.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyCaptureSubsystem.h"
+#if ENGINE_MAJOR_VERSION < 5
 #include "AnomalyControlServerSubsystem.h"
+#endif
+#include "Subsystems/WorldSubsystem.h"
+#include "UObject/UObjectGlobals.h"
 #include "Camera/CameraActor.h"
 #include "Components/LightComponent.h"
 #include "Components/MeshComponent.h"
@@ -415,13 +420,13 @@ void FEuropaPhaseAWorldProbe::GCProbe(UWorld* World)
 
 namespace
 {
-	template<class T> void MakeDormant(UWorld* World, TArray<UObject*>& Objects, TArray<TSharedPtr<FJsonValue>>& Rows)
+	template<class T> void MakeDormant(UWorld* World, TArray<UObject*>& Objects, TArray<TSharedPtr<FJsonValue>>& Rows, UClass* Class = T::StaticClass())
 	{
-		T* Object = NewObject<T>(World);
+		T* Object = NewObject<T>(World, Class);
 		Object->AddToRoot();
 		Objects.Add(Object);
 		auto Row = MakeShared<FJsonObject>();
-		Row->SetStringField(TEXT("class"), T::StaticClass()->GetName());
+		Row->SetStringField(TEXT("class"), Class->GetName());
 		Row->SetStringField(TEXT("identity"), FEuropaPhaseAWorldProbe::Identity(Object));
 		Row->SetStringField(TEXT("pointer"), FString::Printf(TEXT("%p"), Object));
 		Row->SetBoolField(TEXT("initialized"), Object->IsInitialized());
@@ -439,7 +444,13 @@ void FEuropaPhaseAWorldProbe::LifetimeProbe(UWorld* World)
 	MakeDormant<UAnomalyAutoInjectorSubsystem>(World, Dormant, Rows);
 	MakeDormant<UAnomalySelectorSubsystem>(World, Dormant, Rows);
 	MakeDormant<UAnomalyCaptureSubsystem>(World, Dormant, Rows);
+#if ENGINE_MAJOR_VERSION >= 5
+	UClass* ControlClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyControlServer.AnomalyControlServerSubsystem"));
+	check(ControlClass);
+	MakeDormant<UTickableWorldSubsystem>(World, Dormant, Rows, ControlClass);
+#else
 	MakeDormant<UAnomalyControlServerSubsystem>(World, Dormant, Rows);
+#endif
 	DormantReleaseFrame = DriverFrame + 3;
 	auto Data = MakeShared<FJsonObject>();
 	Data->SetArrayField(TEXT("objects"), Rows);

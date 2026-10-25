@@ -46,6 +46,12 @@ def main(output):
         assert len(rows) == expected
         assert len(rows) == len(re.findall(r'^\s*\[\d+/\d+\]', text, re.M))
         coverage.append(dict(path=str(log), sha256=digest(log), status_lines=len(rows), rows=rows))
+    log = ROOT / 'Receipts/09415/ledger/04-51base-editor/child-007.log'
+    graphpath = ROOT / 'Receipts/09415/builds/51base-editor/native-graph.json'
+    native51 = executed(json.loads(graphpath.read_text()), log.read_text(encoding='utf-8', errors='replace'), complete=False)
+    assert len(native51['Actions']) == 3 and len(native51['cancelled_lines']) == 3
+    assert all(a['Type'] == 'Compile' for a in native51['Actions'])
+    coverage.append(dict(path=str(log), sha256=digest(log), status_lines=6, executed=3, cancelled=3, native_join='PASS'))
     action = copy.deepcopy(graph['Actions'][result['executed_lines'][0]['native_action_index']])
     good = dict(Actions=[action], action_count=1)
     line = '[1/1] ' + action['StatusDescription']
@@ -61,7 +67,7 @@ def main(output):
         else:
             raise AssertionError('Ineffective can-fail: ' + name)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(dict(result='PASS', attempt=1, known_answers=cases[:2], can_fails=cases[2:], format51_coverage=coverage, input_hashes=inputs,
+    output.write_text(json.dumps(dict(result='PASS', attempt=2, known_answers=cases[:2], can_fails=cases[2:], format51_coverage=coverage, input_hashes=inputs,
         citations=['UE_4.25/Engine/Source/Programs/UnrealBuildTool/Executors/ParallelExecutor.cs:207-213,262-276',
                    'UnrealEngine/Engine/Source/Programs/UnrealBuildTool/Executors/ParallelExecutor.cs:327-340,348-380,399-400']), indent=2) + '\n')
     print(json.dumps(dict(result='PASS', known_answers=[3,5], failing_compiles=2, format51_lines=sum(c['status_lines'] for c in coverage), can_fails=3)))

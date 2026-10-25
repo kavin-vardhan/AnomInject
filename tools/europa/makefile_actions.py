@@ -158,9 +158,10 @@ def status_lines(text, complete=True):
         description = re.sub(r'^\(Wall: [0-9.]+s(?: CPU: [0-9.]+s)?\)\s*', '', description)
         if description.startswith('Command:'):
             continue
-        if not description or description.endswith(' cancelled'):
-            raise RuntimeError('Unexecuted or empty action status')
-        rows.append(dict(index=index, total=total, description=description))
+        if not description:
+            raise RuntimeError('Empty action status')
+        cancelled = description.endswith(' cancelled')
+        rows.append(dict(index=index, total=total, description=description.removesuffix(' cancelled'), cancelled=cancelled))
     if rows:
         expected = rows[0]['total'] if complete else len(rows)
         if len({r['total'] for r in rows}) != 1 or sorted(r['index'] for r in rows) != list(range(1, expected + 1)):
@@ -183,7 +184,7 @@ def require_host_outputs(action):
 
 def executed(graph, text, complete=True):
     rows = status_lines(text, complete)
-    selected, used = [], set()
+    selected, used, cancelled = [], set(), []
     for row in rows:
         short = re.sub(r'\[x64\]\s*', '', row['description'])
         found = []
@@ -200,8 +201,13 @@ def executed(graph, text, complete=True):
         if offset in used:
             raise RuntimeError('Native graph action executed more than once')
         action = graph['Actions'][offset]
+        if row['cancelled']:
+            used.add(offset)
+            row['native_action_index'] = offset
+            cancelled.append(row)
+            continue
         require_host_outputs(action)
         selected.append(action)
         used.add(offset)
         row['native_action_index'] = offset
-    return dict(Actions=selected, Environment={}, executed_lines=rows, native_action_count=graph['action_count'])
+    return dict(Actions=selected, Environment={}, executed_lines=[r for r in rows if not r['cancelled']], cancelled_lines=cancelled, native_action_count=graph['action_count'])

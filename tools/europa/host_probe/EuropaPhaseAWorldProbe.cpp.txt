@@ -1,10 +1,15 @@
 #include "EuropaPhaseAWorldProbe.h"
 #if !UE_BUILD_SHIPPING
+#include "Runtime/Launch/Resources/Version.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
 #include "AnomalyCaptureSubsystem.h"
+#if ENGINE_MAJOR_VERSION < 5
 #include "AnomalyControlServerSubsystem.h"
+#endif
+#include "Subsystems/WorldSubsystem.h"
+#include "UObject/UObjectGlobals.h"
 #include "CoreGlobals.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -228,7 +233,35 @@ void FEuropaPhaseAWorldProbe::Snapshot(UWorld* World, const FString& Label)
 	ObserveSubsystem<UAnomalyAutoInjectorSubsystem>(World, Rows);
 	ObserveSubsystem<UAnomalySelectorSubsystem>(World, Rows);
 	ObserveSubsystem<UAnomalyCaptureSubsystem>(World, Rows);
+#if ENGINE_MAJOR_VERSION >= 5
+	UClass* ControlClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyControlServer.AnomalyControlServerSubsystem"));
+	check(ControlClass);
+	const UTickableWorldSubsystem* ControlCDO = CastChecked<UTickableWorldSubsystem>(ControlClass->GetDefaultObject());
+	auto ControlRow = MakeShared<FJsonObject>();
+	ControlRow->SetStringField(TEXT("class"), ControlClass->GetName());
+	TArray<TSharedPtr<FJsonValue>> ControlInstances;
+	for (const UWorldSubsystem* Subsystem : World->GetSubsystemArray<UWorldSubsystem>())
+	{
+		if (!Subsystem->IsA(ControlClass)) { continue; }
+		const UTickableWorldSubsystem* Object = CastChecked<UTickableWorldSubsystem>(Subsystem);
+		auto Instance = MakeShared<FJsonObject>();
+		Instance->SetStringField(TEXT("identity"), Identity(Object));
+		Instance->SetStringField(TEXT("pointer"), FString::Printf(TEXT("%p"), Object));
+		Instance->SetBoolField(TEXT("initialized"), Object->IsInitialized());
+		Instance->SetBoolField(TEXT("allowed"), Object->IsAllowedToTick());
+		Instance->SetBoolField(TEXT("tickable"), Object->IsTickable());
+		Instance->SetBoolField(TEXT("template"), Object->IsTemplate());
+		ControlInstances.Add(MakeShared<FJsonValueObject>(Instance));
+	}
+	ControlRow->SetNumberField(TEXT("registered_count"), ControlInstances.Num());
+	ControlRow->SetArrayField(TEXT("instances"), ControlInstances);
+	ControlRow->SetBoolField(TEXT("cdo_should_create"), ControlCDO->ShouldCreateSubsystem(World));
+	ControlRow->SetBoolField(TEXT("cdo_allowed"), ControlCDO->IsAllowedToTick());
+	ControlRow->SetNumberField(TEXT("cdo_tick_type"), static_cast<int32>(ControlCDO->GetTickableTickType()));
+	Rows.Add(MakeShared<FJsonValueObject>(ControlRow));
+#else
 	ObserveSubsystem<UAnomalyControlServerSubsystem>(World, Rows);
+#endif
 	Data->SetArrayField(TEXT("subsystems"), Rows);
 	if (UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>())
 	{
