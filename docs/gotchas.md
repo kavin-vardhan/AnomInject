@@ -10221,3 +10221,8 @@ the older reader's all-flags-under-AA-off rejection is retained, not counted as 
 EO3 receipts precede removal of only the owned target Makefile.bin because 4.25 BuildMode.cs:530-534 and 5.1 BuildMode.cs:788-792 replay the saved environment. Native EN1 verification permits selected toolchain additions but retains the entire unchanged base suffix. Refresh before queries too; query-time stale-output deletion is stock behavior, so rebuild before querying and bind afterward.
 
 Release's public control header reaches IWebSocketServer.h from a private module dependency. A host probe that must compile against release cannot repair that dependency in production. The single shared probe instead observes the already-loaded exact subsystem class through public native base APIs on 5.1, with the engine-version branch confined to the probe. The same source then builds in all three hosts. See docs/europa/09415-probe-compatibility.md.
+
+
+### G465 - Retry state is separate from authorization and launch state
+
+094-16: reserve a fresh attempt root atomically at invocation, not when arming the configuration. A failed preflight consumes only that attempt. Serialize double-clicks using a process-held lock, then persist a separate launch record so an exited editor cannot be started again under the same one-session authorization. A launch reservation with no completion receipt is ambiguous and must refuse. Test real Windows locking and the harmless-child Popen callback without launching Unreal. Keep the owner-only human-idle exemption in an explicit profile; default measured gates retain input idle. Detailed proof: docs/europa/09416-owner-kit.md.

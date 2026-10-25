@@ -1872,3 +1872,5 @@ gates (blinking, felt slowdown). See gotcha G8 for the bridge setup.
   this project's verification uses — `execute_python`, Output-Log reads, actor/component state reads —
   is intact. M2.5's full re-gate (Simulate session in an `EWorldType::PIE` world) was driven over the
   severed bridge. Full diagnosis + the restore-on-5.6 recipe are in G8.
+
+Europa owner-kit state (094-16): the EP1/EP2 three-attempt wrapper is armed for one owner-started preview session. Refusals before launch leave the next slot usable; any launch locks later attempts. Only this owner profile omits human idle. Measured legs retain the full gate. See [09416-owner-kit.md](europa/09416-owner-kit.md) for exact scope and receipts.

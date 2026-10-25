@@ -858,3 +858,5 @@ writes the package's `.uheader` (the zen header) and `.uexp` (its export data).
   that `UnrealEditor-AnomalyInjector.dll` exists under `Binaries\Win64` after the build.
 - **Commands print "subsystem not present"** — you ran them outside a Game/PIE world. The
   subsystem only exists in Game + PIE (by design); run the commands inside PIE.
+
+Europa owner-kit state (094-16): the EP1/EP2 three-attempt wrapper is armed for one owner-started preview session. Refusals before launch leave the next slot usable; any launch locks later attempts. Only this owner profile omits human idle. Measured legs retain the full gate. See [09416-owner-kit.md](europa/09416-owner-kit.md) for exact scope and receipts.

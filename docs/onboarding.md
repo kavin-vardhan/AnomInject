@@ -92,3 +92,5 @@ See [setup-runbook.md](setup-runbook.md) for the authoritative steps. Short vers
 2. Build `StackOBotEditor / Development / Win64` against the source engine.
 3. Open `StackOBot.uproject`, confirm the plugin is enabled, load `MainWorld`, press Play.
 4. Smoke-test with the `IAI.*` commands above (start with `IAI.ListAnomalies`).
+
+Europa owner-kit state (094-16): the EP1/EP2 three-attempt wrapper is armed for one owner-started preview session. Refusals before launch leave the next slot usable; any launch locks later attempts. Only this owner profile omits human idle. Measured legs retain the full gate. See [09416-owner-kit.md](europa/09416-owner-kit.md) for exact scope and receipts.

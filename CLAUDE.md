@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-16, 2026-10-26 - owner preview kit armed under EP1/EP2; no runtime launch.**
+> Three ordered real attempt slots remain unused. Armed throwaway dry-run, 62 EP2 checks and 48 measured-gate checks pass; the measured idle rule stays intact.
+> Bound 27/39/44 artifacts and A5 production/probe source are unchanged. Chat supplies the owner card; 094-17 follows the owner's report under EP3.
+> See docs/europa/09416-owner-kit.md and the run report for final proofs. No build, push or tags.
+
 > **094-15, 2026-10-26 - A5 probe builds and readiness complete; exit proofs in the run report.**
 > Identical probe sources compile in all six Editor/Game Development legs, including Baseline51 at d7eee97. Candidate/probe source 550e9b7; production remains byte-identical to A4.
 > EO1/EO6, native EN1 environments, EI4 zero-action query and 27/39/44 artifact bindings pass. Owner kit is dry-run only and unarmed.
