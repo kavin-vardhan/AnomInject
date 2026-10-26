@@ -48,14 +48,14 @@ def validate(config, dry_run=False):
         raise RuntimeError('Exactly three ordered attempt slots are required.')
     roots, temps = [], []
     for slot in slots:
-        root, temp = owned(Path(slot['job_root'])), owned(Path(slot['temp_root']))
+        root, temp = owned(Path(slot['job_root'])).resolve(), owned(Path(slot['temp_root'])).resolve()
         if not root.is_relative_to(Path('D:/IA_Europa/Receipts')) or not temp.is_relative_to(Path('D:/IA_Europa/Temp')):
             raise RuntimeError('Attempt routing is outside owned receipts and TEMP.')
         roots.append(root)
         temps.append(temp)
     if len(set(roots)) != 3 or len(set(temps)) != 3 or any(a.is_relative_to(b) for a in roots for b in roots if a != b):
         raise RuntimeError('Attempt paths overlap.')
-    state = owned(Path(config['state_root']))
+    state = owned(Path(config['state_root'])).resolve()
     if not state.is_relative_to(Path('D:/IA_Europa/Receipts')) or any(state.is_relative_to(r) or r.is_relative_to(state) for r in roots):
         raise RuntimeError('Launch state must be separate from the attempt slots.')
     real = []

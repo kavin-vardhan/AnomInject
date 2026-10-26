@@ -142,6 +142,14 @@ def tests(output):
     refuses('old_arming_generation_refused',lambda:validate(dict(config,arming_job='09416'),True))
     refuses('amendment_missing_refused',lambda:validate(dict(config,authorization_amendment=None),True))
     check('throwaway_dry_config_valid', validate(config,True)['runtime_scope']==RUNTIME_SCOPE)
+    for field in ('state_root','job_root','temp_root'):
+        config = fixture(scratch/('resolved-'+field))
+        path = Path('D:/IA_Europa')/('Temp' if field=='temp_root' else 'Receipts')/ARMING_JOB/'alias/..'/('owner-state' if field=='state_root' else 'owner-attempts/01')
+        if field=='state_root':
+            config[field]=str(path)
+        else:
+            config['attempt_slots'][0][field]=str(path)
+        refuses('resolved_real_'+field+'_dry_refused',lambda config=config:validate(config,True))
 
     original_env = dict(os.environ)
     original_popen, original_dump = ledger.subprocess.Popen, ledger.dump
