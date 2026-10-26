@@ -8,6 +8,8 @@ from pathlib import Path
 from prepare_runtime import owned
 
 AUTHORITY = 'D:/IntrusiveAnomalies/_reviews/094-15-ruling.md#EP1'
+AMENDMENT = 'D:/IntrusiveAnomalies/_reviews/094-16-ruling.md#EQ4'
+ARMING_JOB = '09417'
 RUNTIME_SCOPE = dict(host='425', kind='editor-preview-owner-leg', owner_started=True,
     world='EditorPreview', maximum_editor_sessions=1, preview_seconds=60,
     pie=False, cook=False, commandlet=False, packaging=False, automated_input=False, save=False)
@@ -30,6 +32,8 @@ def validate(config, dry_run=False):
         raise RuntimeError('This kit permits only the 4.25 owner preview.')
     if config.get('authorized_by_chat') is not True or config.get('authorization_citation') != AUTHORITY:
         raise RuntimeError('This kit is not armed by chat. No editor was started.')
+    if config.get('arming_job') != ARMING_JOB or config.get('authorization_amendment') != AMENDMENT:
+        raise RuntimeError('This arming has been superseded. Use the current owner kit; no editor was started.')
     template = config.get('job_template', {})
     if template.get('runtime_authorized') is not True or template.get('runtime_scope') != RUNTIME_SCOPE:
         raise RuntimeError('The runtime authorization is outside the one owner preview.')
@@ -54,6 +58,18 @@ def validate(config, dry_run=False):
     state = owned(Path(config['state_root']))
     if not state.is_relative_to(Path('D:/IA_Europa/Receipts')) or any(state.is_relative_to(r) or r.is_relative_to(state) for r in roots):
         raise RuntimeError('Launch state must be separate from the attempt slots.')
+    real = []
+    for job in ('09416', ARMING_JOB):
+        real.extend(owned(Path('D:/IA_Europa')/base/job/'owner-attempts') for base in ('Receipts','Temp'))
+        real.append(owned(Path('D:/IA_Europa/Receipts')/job/'owner-state'))
+    if dry_run and any(a.is_relative_to(b) or b.is_relative_to(a) for a in [*roots,*temps,state] for b in real):
+        raise RuntimeError('Dry runs cannot name any real attempt or launch-state path.')
+    if not dry_run:
+        expected_roots = [owned(Path('D:/IA_Europa/Receipts')/ARMING_JOB/'owner-attempts'/f'{i:02}') for i in (1,2,3)]
+        expected_temps = [owned(Path('D:/IA_Europa/Temp')/ARMING_JOB/'owner-attempts'/f'{i:02}') for i in (1,2,3)]
+        expected_state = owned(Path('D:/IA_Europa/Receipts')/ARMING_JOB/'owner-state')
+        if roots != expected_roots or temps != expected_temps or state != expected_state:
+            raise RuntimeError('Real attempt paths do not match the current arming.')
     return template
 
 
@@ -110,7 +126,7 @@ class Guard:
         create_json(self.state / 'launch-reserved.json', dict(slot=slot['number'], reserved_utc=stamp(), owner_wrapper_pid=os.getpid()))
 
     def mark_launched(self, slot, pid):
-        create_json(self.state / 'launched.json', dict(slot=slot['number'], editor_pid=pid, launched_utc=stamp(), authorization_citation=AUTHORITY))
+        create_json(self.state / 'launched.json', dict(slot=slot['number'], editor_pid=pid, launched_utc=stamp(), authorization_citation=AUTHORITY, authorization_amendment=AMENDMENT))
 
     def cancel_unstarted(self, slot):
         path = self.state / 'launch-reserved.json'

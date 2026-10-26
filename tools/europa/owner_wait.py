@@ -1,8 +1,9 @@
 import json
 import os
+import subprocess
 import time
 
-from idle_gate import Window, collect
+from idle_gate import Window, collect, reading_error
 
 TIMEOUT_LINE = 'No quiet start within 45 minutes. No editor was started. Close heavy jobs, then double-click again to use the next attempt.'
 CLEAR_LINE = 'Quiet-start checks passed three times.'
@@ -45,7 +46,10 @@ def wait_idle(output, collector=collect, clock=time.monotonic, sleep=time.sleep,
                 stream.write(json.dumps(row)+'\n')
                 return row
             if now >= next_poll:
-                sample = collector()
+                try:
+                    sample = collector()
+                except (subprocess.SubprocessError, OSError) as error:
+                    sample = dict(reading_errors={'collector': reading_error(error)})
                 now = clock()
                 result = window.poll(now, sample, [os.getpid()])
                 stream.write(json.dumps(dict(elapsed_seconds=now-started, sample=sample, result=result))+'\n')

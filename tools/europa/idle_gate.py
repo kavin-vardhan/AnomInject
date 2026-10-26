@@ -62,6 +62,8 @@ def reasons(sample, owned_pids=(), profile='measured'):
             if process.get('pid') in owned:
                 continue
             text = process.get('image', '')
+            if profile == 'owner-preview' and Path(text).name.casefold() in ('unrealtraceserver.exe', 'unrealversionselector.exe'):
+                continue
             if process.get('is_game') or process.get('blocked_runtime') or FOREIGN.search(text) or (profile == 'owner-preview' and re.search(r'unreal|ue4', text, re.I)):
                 failures.append('foreign_process:' + str(process.get('pid')))
     for drive, minimum in FLOORS.items():
@@ -104,25 +106,84 @@ class Window:
             self.previous_poll = None
         return {'valid': valid, 'reasons': failures, 'rerun_at_next_idle_window': bool(failures), 'd2_attempt': False}
 
-def collect():
+def read_idle():
     class LastInput(ctypes.Structure):
         _fields_ = [('cbSize', wintypes.UINT), ('dwTime', wintypes.DWORD)]
     last = LastInput(ctypes.sizeof(LastInput), 0)
     if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(last)):
         raise ctypes.WinError()
-    idle = ((ctypes.windll.kernel32.GetTickCount() - last.dwTime) & 0xffffffff) / 1000
-    command = r'''$ErrorActionPreference='Stop';
-$os=Get-CimInstance Win32_OperatingSystem;
-$gpu=(Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction Stop).CounterSamples;
-if (-not $gpu) { throw 'No GPU counter samples' };
-$procs=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId; parent_pid=$_.ParentProcessId; image=$_.Name; created=[string]$_.CreationDate; blocked_runtime=([bool]($_.Name -match 'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)' -or $_.CommandLine -match '(?i)-run=cook|AutomationTool.dll|RunUAT.bat'))} });
-@{free_memory_bytes=([long]$os.FreePhysicalMemory*1024);gpu_percent=[math]::Min(100,($gpu|Measure-Object CookedValue -Sum).Sum);processes=$procs}|ConvertTo-Json -Depth 5 -Compress'''
-    from environment import filtered
-    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', command], capture_output=True, text=True, check=True, timeout=20, env=filtered(os.environ))
-    sample = json.loads(result.stdout)
-    sample['idle_seconds'] = idle
-    sample['volumes'] = {d: {'resolved_drive': Path(d + ':/').resolve(strict=True).drive[0].upper(), 'free_bytes': shutil.disk_usage(d + ':/').free} for d in FLOORS}
+    return ((ctypes.windll.kernel32.GetTickCount() - last.dwTime) & 0xffffffff) / 1000
+
+
+def powershell_json(command):
+    from environment import boundary, filtered
+    env = filtered(os.environ)
+    boundary(os.environ, env)
+    result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command',
+        "$ErrorActionPreference='Stop'; " + command], capture_output=True, text=True,
+        check=True, timeout=20, env=env)
+    return json.loads(result.stdout)
+
+
+def read_memory():
+    from build_memory import sample
+    return sample()['free_physical']
+
+
+def read_gpu():
+    return powershell_json(r"$gpu=(Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction Stop).CounterSamples; if (-not $gpu) { throw 'No GPU counter samples' }; [math]::Min(100,($gpu|Measure-Object CookedValue -Sum).Sum)|ConvertTo-Json -Compress")
+
+
+def process_record(row):
+    image = row.get('image', '')
+    command = row.get('command_line') or ''
+    blocked = bool(re.search(r'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)', image, re.I)
+        or re.search(r'-run=cook|AutomationTool\.dll|RunUAT\.bat', command, re.I)
+        or (Path(image).name.casefold() == 'dotnet.exe' and re.search(r'(?:^|[\\/\s"\'])UnrealBuildTool(?:\.dll|\.exe)?(?:[\s"\']|$)', command, re.I)))
+    return dict(pid=row['pid'], parent_pid=row['parent_pid'], image=image,
+        created=row.get('created'), blocked_runtime=blocked)
+
+
+def read_processes():
+    rows = powershell_json(r"$rows=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId;parent_pid=$_.ParentProcessId;image=$_.Name;created=[string]$_.CreationDate;command_line=$_.CommandLine} }); ConvertTo-Json -InputObject $rows -Depth 4 -Compress")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('Running-program reading is not a nonempty list')
+    return [process_record(row) for row in rows]
+
+
+def read_volume(drive):
+    return dict(resolved_drive=Path(drive+':/').resolve(strict=True).drive[0].upper(),
+        free_bytes=shutil.disk_usage(drive+':/').free)
+
+
+def reading_error(error):
+    row = dict(type=type(error).__name__)
+    if isinstance(error, subprocess.CalledProcessError):
+        row['returncode'] = error.returncode
+    if isinstance(error, subprocess.TimeoutExpired):
+        row['timeout_seconds'] = error.timeout
+    return row
+
+
+def collect(readers=None):
+    readers = readers or dict(input_idle=read_idle, physical_memory=read_memory,
+        gpu=read_gpu, processes=read_processes,
+        **{'disk:'+d: (lambda d=d: read_volume(d)) for d in FLOORS})
+    sample = dict(idle_seconds=None, free_memory_bytes=None, gpu_percent=None,
+        processes=None, volumes={}, reading_errors={})
+    fields = dict(input_idle='idle_seconds', physical_memory='free_memory_bytes',
+        gpu='gpu_percent', processes='processes')
+    for name in (*fields, *('disk:'+d for d in FLOORS)):
+        try:
+            value = readers[name]()
+            if name.startswith('disk:'):
+                sample['volumes'][name[-1]] = value
+            else:
+                sample[fields[name]] = value
+        except Exception as error:
+            sample['reading_errors'][name] = reading_error(error)
     return sample
+
 
 def self_test():
     import copy

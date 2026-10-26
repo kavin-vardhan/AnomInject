@@ -393,7 +393,7 @@ def child_env(folder):
     receipt = masked(env)
     return env, receipt
 
-def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=None):
+def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=None, before_create=None, on_creation_failed=None):
     folder = Path(os.environ['EUROPA_OPERATION_DIR'])
     lognum = len(list(folder.glob('child-*.json'))) + 1
     env, routing = child_env(folder)
@@ -414,34 +414,43 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
         receipt['memory_admission'] = wait_for_window(memory_log)
         receipt['memory_log'] = str(memory_log)
         dump(path, receipt)
-    start = time.monotonic()
-    proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, encoding='utf-8', errors='replace', bufsize=1)
-    receipt['pid'] = proc.pid
-    dump(path, receipt)
-    if memory_guard:
-        tree = OwnedTree(proc.pid)
-    observer = None
+    observer, thread, code = None, None, None
     child_result = {}
     stop_observer = threading.Event()
-    if env.get('EUROPA_BUILD_CHILDREN') == '1' and not memory_guard:
-        from compile_children import observe
-        observer = threading.Thread(target=observe, args=(proc.pid, stop_observer, child_result))
-        observer.start()
-    def consume():
-        with (folder / f'child-{lognum:03}.log').open('w', encoding='utf-8') as output:
-            for line in proc.stdout:
-                output.write(line)
-                output.flush()
-                if 'TICKPIN probe' not in line:
-                    print(line.rstrip(), flush=True)
-    thread = threading.Thread(target=consume)
-    thread.start()
-    code = None
-    last_memory, last_floor, low_count = time.monotonic(), time.monotonic(), 0
+    start = time.monotonic()
+    if before_create is not None:
+        before_create()
+    try:
+        proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding='utf-8', errors='replace', bufsize=1)
+    except BaseException:
+        if on_creation_failed is not None:
+            on_creation_failed()
+        raise
     try:
         if on_started is not None:
             on_started(proc.pid)
+        receipt['pid'] = proc.pid
+        dump(path, receipt)
+        if memory_guard:
+            tree = OwnedTree(proc.pid)
+        if env.get('EUROPA_BUILD_CHILDREN') == '1' and not memory_guard:
+            from compile_children import observe
+            observer = threading.Thread(target=observe, args=(proc.pid, stop_observer, child_result))
+            observer.start()
+        def consume():
+            try:
+                with (folder / f'child-{lognum:03}.log').open('w', encoding='utf-8') as output:
+                    for line in proc.stdout:
+                        output.write(line)
+                        output.flush()
+                        if 'TICKPIN probe' not in line:
+                            print(line.rstrip(), flush=True)
+            except BaseException as error:
+                child_result['console_error'] = dict(type=type(error).__name__, message=str(error))
+        thread = threading.Thread(target=consume)
+        thread.start()
+        last_memory, last_floor, low_count = time.monotonic(), time.monotonic(), 0
         while proc.poll() is None:
             if tree:
                 tree.poll()
@@ -451,6 +460,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
             if time.monotonic() - last_floor >= 20:
                 floors()
                 last_floor = time.monotonic()
+            if child_result.get('console_error'):
+                raise RuntimeError('Child console reader failed')
             time.sleep(0.2 if tree else 1)
         code = proc.returncode
     except BaseException as error:
@@ -462,16 +473,22 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
         code = proc.wait()
         raise
     finally:
-        thread.join()
+        stop_observer.set()
+        if thread is not None and thread.ident is not None:
+            thread.join()
         if tree:
             receipt['compile_children'] = tree.receipt()
             tree.close()
-        if observer:
-            stop_observer.set()
+        if observer is not None and observer.ident is not None:
             observer.join()
             receipt['compile_children'] = child_result
+        if proc.stdout:
+            proc.stdout.close()
         receipt.update({'ended_utc': now(), 'exit_code': code, 'duration_seconds': time.monotonic() - start})
         dump(path, receipt)
+    if child_result.get('console_error'):
+        raise RuntimeError('Child console reader failed')
+
     if observer and child_result.get('result') != 'PASS':
         raise RuntimeError('Compile child observer failed: ' + json.dumps(child_result))
     if code not in acceptable:

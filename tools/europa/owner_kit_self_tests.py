@@ -8,7 +8,7 @@ import sys
 
 from environment import filtered
 from idle_gate import FLOORS, GIB, Window, reasons, self_test
-from owner_attempts import AUTHORITY, RUNTIME_SCOPE, Guard, create_json, validate
+from owner_attempts import AUTHORITY, AMENDMENT, ARMING_JOB, RUNTIME_SCOPE, Guard, create_json, validate
 from owner_wait import CLEAR_LINE, TIMEOUT_LINE, SyntheticClock, wait_idle, waiting_line
 from prepare_runtime import owned
 
@@ -51,7 +51,7 @@ def tests(output):
     def fixture(name):
         root = scratch / name
         return dict(host='425', kind='editor-preview-owner-leg', authorized_by_chat=True,
-            authorization_citation=AUTHORITY, dry_run_only=True, gate_profile='owner-preview', human_idle=False,
+            authorization_citation=AUTHORITY, authorization_amendment=AMENDMENT, arming_job=ARMING_JOB, dry_run_only=True, gate_profile='owner-preview', human_idle=False,
             state_root=str(root/'state'), job_template=dict(build_pairs=[], query_pairs=[], runtime_authorized=True,
                 runtime_scope=copy.deepcopy(RUNTIME_SCOPE), authority=AUTHORITY, max_parallel_actions=4,
                 memory=dict(start_physical_GiB=4, start_commit_GiB=16, stop_physical_GiB=None, stop_commit_GiB=6)),

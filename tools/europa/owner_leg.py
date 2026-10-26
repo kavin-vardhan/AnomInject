@@ -5,9 +5,11 @@ import json
 import os
 from pathlib import Path
 import sys
+import traceback
+import uuid
 
-from environment import boundary, filtered, masked
-from owner_attempts import Guard, RUNTIME_SCOPE, create_json, validate
+from environment import boundary, filtered, masked, secret_name
+from owner_attempts import ARMING_JOB, Guard, RUNTIME_SCOPE, create_json, validate
 from owner_wait import SyntheticClock, wait_idle
 from prepare_runtime import prepare, owned
 from runtime_attribution import validate_redirects
@@ -41,7 +43,8 @@ def check_ddc(project):
     return dict(path=str(path), sha256=digest(path), graphs=3)
 
 
-def run(config_path, dry_run=False, owner_started=False, dry_run_samples=None):
+def run(config_path, dry_run=False, owner_started=False, dry_run_samples=None, context=None):
+    context = context if context is not None else {}
     config_path = owned(config_path)
     config = json.loads(config_path.read_text())
     print('Europa owner preview: checking authorization.', flush=True)
@@ -56,6 +59,7 @@ def run(config_path, dry_run=False, owner_started=False, dry_run_samples=None):
     with Guard(config) as guard:
         slot, scope_path = guard.claim()
         root = Path(slot['job_root'])
+        context['attempt_root'] = root
         result = dict(result='CHECKING', slot=slot['number'], launches=0, dry_run=dry_run,
             authorization_citation=config['authorization_citation'], runtime_scope=RUNTIME_SCOPE)
         admission_operation = None
@@ -126,19 +130,17 @@ def run(config_path, dry_run=False, owner_started=False, dry_run_samples=None):
                 print('Dry run complete: the armed path passed. No editor was started; real attempts were not used.', flush=True)
                 return result
             print('Starting the one authorized editor session. Do not open Play. Answer No to any rebuild prompt. Close with File > Exit and save nothing.', flush=True)
-            guard.reserve_launch(slot)
             def launched(pid):
+                context['process_created'] = True
                 result['launches'] = 1
                 result['editor_pid'] = pid
                 guard.mark_launched(slot, pid)
-            try:
-                os.environ['EUROPA_BUILD_CHILDREN'] = '1'
-                with (output/'runtime-ledger-console.log').open('a', encoding='utf-8') as log, contextlib.redirect_stdout(log):
-                    result['exit_code'] = ledger.run_child(argv, cwd=project.parent, acceptable=tuple(range(256)), on_started=launched)
-                result['result'] = 'EDITOR_CLOSED'
-            finally:
-                if result['launches'] == 0:
-                    guard.cancel_unstarted(slot)
+            os.environ['EUROPA_BUILD_CHILDREN'] = '1'
+            with (output/'runtime-ledger-console.log').open('a', encoding='utf-8') as log, contextlib.redirect_stdout(log):
+                result['exit_code'] = ledger.run_child(argv, cwd=project.parent, acceptable=tuple(range(256)),
+                    on_started=launched, before_create=lambda: guard.reserve_launch(slot),
+                    on_creation_failed=lambda: guard.cancel_unstarted(slot))
+            result['result'] = 'EDITOR_CLOSED'
             print('Editor closed. Tell chat what happened. This kit will not start another editor session.', flush=True)
             return result
         except BaseException as error:
@@ -156,19 +158,38 @@ def run(config_path, dry_run=False, owner_started=False, dry_run_samples=None):
                 create_json(root/'attempt-result.json', result)
 
 
-def main():
+def stop_unexpected(error, context, sensitive=(), emit=print):
+    root = context.get('attempt_root')
+    if root is None:
+        root = ROOT/'Receipts'/ARMING_JOB/'refused-attempts'/uuid.uuid4().hex
+    root = owned(Path(root))
+    root.mkdir(parents=True, exist_ok=True)
+    path = root/('unexpected-error-'+uuid.uuid4().hex+'.txt')
+    details = ''.join(traceback.format_exception(error))
+    for value in sorted(set(sensitive), key=len, reverse=True):
+        if value:
+            details = details.replace(value, '<redacted>')
+    path.write_text(details, encoding='utf-8')
+    suffix = ('An editor may have started. This kit remains locked; tell chat before trying again.'
+        if context.get('process_created') else 'No editor was started.')
+    emit('Stopped: unexpected error; details saved to '+str(path)+'. '+suffix)
+    return path
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=Path, default=ROOT/'Launch/Europa425-OwnerLeg.json')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--owner-started', action='store_true')
     parser.add_argument('--dry-run-samples', type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    context = {}
+    sensitive = [v for k,v in os.environ.items() if secret_name(k) and v]
     try:
-        result = run(args.config, args.dry_run, args.owner_started, args.dry_run_samples)
+        result = run(args.config, args.dry_run, args.owner_started, args.dry_run_samples, context=context)
         return 0 if result['result'] in ('ARMED_DRY_RUN_PASS', 'EDITOR_CLOSED') else 2
-    except (RuntimeError, OSError, ValueError, AssertionError) as error:
-        print('Stopped: '+str(error), flush=True)
-        print('Keep this console open and send the message to chat. Do not accept rebuild, convert, update or resave prompts.', flush=True)
+    except BaseException as error:
+        stop_unexpected(error, context, sensitive, emit=lambda line: print(line, flush=True))
         return 2
 
 
