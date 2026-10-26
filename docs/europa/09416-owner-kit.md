@@ -1,5 +1,7 @@
 # 094-16: armed owner preview kit
 
+Superseded by [09417-owner-kit.md](09417-owner-kit.md). The current entrypoint refuses this arming; its real slots remain unused.
+
 The A6 owner kit is armed under D:/IntrusiveAnomalies/_reviews/094-15-ruling.md EP1. The same double-click file is D:/IA_Europa/Launch/Europa425-Editor-OwnerLeg.bat. Chat sends the final owner card after review. This preparation job launches no Unreal process and changes no bound binary, manifest, host source, descriptor, engine or setting.
 
 The configuration authorizes exactly one owner-started 4.25 EditorPreview session: open /Game/ParisStreet/Meshes/SM_WindowHouse3 for 60 seconds, then File > Exit, saving nothing. No PIE, commandlet, cook, packaging, automated input or second editor session is authorized. The owner must close Blender and other heavy jobs first, answer No to any rebuild-modules prompt, and never accept convert/update/resave prompts or open plugin Content.

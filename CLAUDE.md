@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-17, 2026-10-26 — owner kit corrected and re-armed under EQ1–EQ4; zero Unreal launches.**
+> Failed readings wait and reset clearance; a created child permanently locks the authorization before bookkeeping. Resolved dry-run paths cannot consume real slots.
+> 159 checks plus 62 owner / 48 measured regressions pass; 200 real collector calls have zero uncaught exceptions. Three fresh 09417 slots remain unused; 09416 is superseded.
+> Bound 27/39/44 artifacts remain unchanged. Chat supplies the final owner card, then 094-18 follows the owner report. See docs/europa/09417-owner-kit.md. No build, push or tags.
+
 > **094-16, 2026-10-26 - owner preview kit armed under EP1/EP2; no runtime launch.**
 > Three ordered real attempt slots remain unused. Armed throwaway dry-run, 62 EP2 checks and 48 measured-gate checks pass; the measured idle rule stays intact.
 > Bound 27/39/44 artifacts and A5 production/probe source are unchanged. Chat supplies the owner card; 094-17 follows the owner's report under EP3.

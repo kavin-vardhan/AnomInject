@@ -1,7 +1,7 @@
 {
   "base": "d7eee97731812384d4fd00af9032254923363ada",
   "comparison": "git diff --name-only d7eee97..HEAD after commit; added files included before commit",
-  "status": "094-16 owner kit armed and dry-run only; A5 binaries unchanged; owner/runtime work remains EP1/EP3.",
+  "status": "094-17 corrected owner kit re-armed and dry-run only; A5 binaries unchanged; owner/runtime evidence remains EP1/EP3, next 094-18.",
   "classes": {
     "N": "changed but meant to be neutral on 5.1, subject to reach gates",
     "C": "changed tooling, host or diagnostic surface",
@@ -1336,6 +1336,16 @@
       ]
     },
     {
+      "path": "docs/europa/09417-owner-kit.md",
+      "effect_51": "C",
+      "reason": "094-17 owner-kit tooling or documentation; bound production/probe files unchanged.",
+      "reached_behavior": "Owner preview admission, failures, retry state and evidence only",
+      "gates": [
+        "A3",
+        "R3"
+      ]
+    },
+    {
       "path": "docs/europa/phase-a-a3-closure.md",
       "effect_51": "C",
       "reason": "Scoped setup, build/evidence tooling or explicit port documentation; no runtime-neutrality claim",
@@ -1582,6 +1592,16 @@
       "effect_51": "C",
       "reason": "094-16 owner-kit tooling or documentation; bound production and probe binaries unchanged.",
       "reached_behavior": "Owner preview admission and retry receipts only",
+      "gates": [
+        "A3",
+        "R3"
+      ]
+    },
+    {
+      "path": "docs/sessions/2026-10-26-09417-owner-kit.md",
+      "effect_51": "C",
+      "reason": "094-17 owner-kit tooling or documentation; bound production/probe files unchanged.",
+      "reached_behavior": "Owner preview admission, failures, retry state and evidence only",
       "gates": [
         "A3",
         "R3"
@@ -2023,6 +2043,16 @@
       "effect_51": "C",
       "reason": "094-16 owner-kit tooling or documentation; bound production and probe binaries unchanged.",
       "reached_behavior": "Owner preview admission and retry receipts only",
+      "gates": [
+        "A3",
+        "R3"
+      ]
+    },
+    {
+      "path": "tools/europa/owner_eq_self_tests.py",
+      "effect_51": "C",
+      "reason": "094-17 owner-kit tooling or documentation; bound production/probe files unchanged.",
+      "reached_behavior": "Owner preview admission, failures, retry state and evidence only",
       "gates": [
         "A3",
         "R3"
