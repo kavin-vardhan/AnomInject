@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-20, 2026-10-27 - probe teardown fix; six rebuilds pending, no runtime launch.**
+> A6's owner half is accepted by ET1; its exit rows await the next authorized runtime leg. The shared probe avoids actor iterators and GC-time object lookup, records skipped teardown snapshots, and caches world identity.
+> The static check and both mutant families pass. Production Source/Content/rules are unchanged. ET2's marker stays; the owner kit remains spent. EU3/EU4 are reserved for the next arming job.
+> See docs/sessions/2026-10-27-094-20-probe-teardown.md and Receipts/09420.
+
 > **094-17, 2026-10-26 — owner kit corrected and re-armed under EQ1–EQ4; zero Unreal launches.**
 > Failed readings wait and reset clearance; a created child permanently locks the authorization before bookkeeping. Resolved dry-run paths cannot consume real slots.
 > 159 checks plus 62 owner / 48 measured regressions pass; 200 real collector calls have zero uncaught exceptions. Three fresh 09417 slots remain unused; 09416 is superseded.

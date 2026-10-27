@@ -22,10 +22,15 @@ public:
 	void Snapshot(UWorld* World, const FString& Label);
 	void SnapshotState(UWorld* World, const FString& Label);
 	static FString Identity(const UObject* Object);
+	static bool IsInspectable(const UObject* Object);
+	static const TCHAR* UnsafeSnapshotReason(const UWorld* World);
 
 private:
 	struct FWorldState
 	{
+		FString Identity;
+		FString Name;
+		int32 WorldType = -1;
 		uint64 Epoch = 0;
 		uint64 Eligible = 0;
 		bool bInUpdate = false;
@@ -38,6 +43,8 @@ private:
 		bool bWasRooted = false;
 		TWeakObjectPtr<UObject> TestObject;
 	};
+	void CaptureWorld(UWorld* World);
+	void CacheClasses();
 	void Created(UWorld* World);
 	void PreInitialize(UWorld* World, const UWorld::InitializationValues Values);
 	void Initialized(UWorld* World, const UWorld::InitializationValues Values);
@@ -67,6 +74,8 @@ private:
 	uint64 DriverFrame = 0;
 	uint64 NextDriverFrame = 0;
 	TMap<TWeakObjectPtr<UWorld>, FWorldState> Worlds;
+	TWeakObjectPtr<UClass> CapturedControlClass;
+	TWeakObjectPtr<UClass> CapturedBenchClass;
 	TWeakObjectPtr<UWorld> DriverWorld;
 	TArray<TSharedPtr<FJsonValue>> Script;
 	int32 ScriptIndex = 0;

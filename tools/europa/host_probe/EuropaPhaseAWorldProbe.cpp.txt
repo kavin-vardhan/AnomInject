@@ -11,6 +11,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "UObject/UObjectGlobals.h"
 #include "CoreGlobals.h"
+#include "UObject/GarbageCollection.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Engine.h"
@@ -34,6 +35,43 @@ FString FEuropaPhaseAWorldProbe::Identity(const UObject* Object)
 	return Object ? FString::Printf(TEXT("%p:%u"), Object, Object->GetUniqueID()) : TEXT("null");
 }
 
+bool FEuropaPhaseAWorldProbe::IsInspectable(const UObject* Object)
+{
+	if (!Object || Object->IsUnreachable()) { return false; }
+#if ENGINE_MAJOR_VERSION >= 5
+	return IsValid(Object);
+#else
+	return !Object->IsPendingKill();
+#endif
+}
+
+const TCHAR* FEuropaPhaseAWorldProbe::UnsafeSnapshotReason(const UWorld* World)
+{
+	if (IsEngineExitRequested() || GExitPurge) { return TEXT("engine_exit"); }
+	if (IsGarbageCollecting()) { return TEXT("garbage_collection"); }
+	if (!IsInspectable(World)) { return TEXT("invalid_world"); }
+	if (World->bIsTearingDown) { return TEXT("world_teardown"); }
+	return nullptr;
+}
+
+void FEuropaPhaseAWorldProbe::CaptureWorld(UWorld* World)
+{
+	if (UnsafeSnapshotReason(World)) { return; }
+	FWorldState& State = Worlds.FindOrAdd(World);
+	State.Identity = Identity(World);
+	State.Name = World->GetName();
+	State.WorldType = static_cast<int32>(World->WorldType);
+}
+
+void FEuropaPhaseAWorldProbe::CacheClasses()
+{
+	if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return; }
+#if ENGINE_MAJOR_VERSION >= 5
+	CapturedControlClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyControlServer.AnomalyControlServerSubsystem"));
+#endif
+	CapturedBenchClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyBench.AnomalyBenchTwoPartActor"));
+}
+
 void FEuropaPhaseAWorldProbe::Emit(const TCHAR* Kind, UWorld* World, const TSharedPtr<FJsonObject>& Data)
 {
 	if (!bEnabled || bWriting || !IsInGameThread()) { return; }
@@ -42,11 +80,12 @@ void FEuropaPhaseAWorldProbe::Emit(const TCHAR* Kind, UWorld* World, const TShar
 	Data->SetNumberField(TEXT("sequence"), static_cast<double>(++Sequence));
 	Data->SetNumberField(TEXT("process_frame"), static_cast<double>(GFrameCounter));
 	Data->SetNumberField(TEXT("monotonic_seconds"), FPlatformTime::Seconds());
-	Data->SetStringField(TEXT("world"), Identity(World));
+	const FWorldState* State = World ? Worlds.Find(World) : nullptr;
+	Data->SetStringField(TEXT("world"), State ? State->Identity : TEXT("null"));
 	Data->SetStringField(TEXT("world_pointer"), FString::Printf(TEXT("%p"), World));
-	Data->SetStringField(TEXT("world_name"), GetNameSafe(World));
-	Data->SetNumberField(TEXT("world_type"), World ? static_cast<int32>(World->WorldType) : -1);
-	Data->SetNumberField(TEXT("epoch"), World && Worlds.Contains(World) ? static_cast<double>(Worlds[World].Epoch) : 0.0);
+	Data->SetStringField(TEXT("world_name"), State ? State->Name : TEXT("None"));
+	Data->SetNumberField(TEXT("world_type"), State ? State->WorldType : -1);
+	Data->SetNumberField(TEXT("epoch"), State ? static_cast<double>(State->Epoch) : 0.0);
 	FString Line;
 	TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Line);
 	FJsonSerializer::Serialize(Data.ToSharedRef(), Writer);
@@ -135,27 +174,37 @@ void FEuropaPhaseAWorldProbe::Serialize(const TCHAR* Text, ELogVerbosity::Type V
 
 void FEuropaPhaseAWorldProbe::Created(UWorld* World)
 {
-	Worlds.FindOrAdd(World);
+	CaptureWorld(World);
 	Emit(TEXT("world_created"), World, MakeShared<FJsonObject>());
 }
 
 void FEuropaPhaseAWorldProbe::PreInitialize(UWorld* World, const UWorld::InitializationValues Values)
 {
-	Worlds.FindOrAdd(World);
+	CaptureWorld(World);
 	Emit(TEXT("world_pre_initialize"), World, MakeShared<FJsonObject>());
 }
 
 void FEuropaPhaseAWorldProbe::Initialized(UWorld* World, const UWorld::InitializationValues Values)
 {
-	Worlds.FindOrAdd(World);
+	CaptureWorld(World);
 	Emit(TEXT("world_initialized"), World, MakeShared<FJsonObject>());
+	CacheClasses();
 	Snapshot(World, TEXT("initialized"));
 }
 
 void FEuropaPhaseAWorldProbe::Cleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)
 {
-	Snapshot(World, TEXT("cleanup_before"));
 	auto Data = MakeShared<FJsonObject>();
+	if (const TCHAR* Reason = UnsafeSnapshotReason(World))
+	{
+		Data->SetStringField(TEXT("actor_snapshot"), TEXT("skipped"));
+		Data->SetStringField(TEXT("skip_reason"), Reason);
+	}
+	else
+	{
+		Snapshot(World, TEXT("cleanup_before"));
+		Data->SetStringField(TEXT("actor_snapshot"), TEXT("recorded"));
+	}
 	Data->SetBoolField(TEXT("session_ended"), bSessionEnded);
 	Emit(TEXT("world_cleanup"), World, Data);
 }
@@ -163,10 +212,12 @@ void FEuropaPhaseAWorldProbe::Cleanup(UWorld* World, bool bSessionEnded, bool bC
 void FEuropaPhaseAWorldProbe::Cleaned(UWorld* World, bool bSessionEnded, bool bCleanupResources)
 {
 	Emit(TEXT("world_cleaned"), World, MakeShared<FJsonObject>());
+	Worlds.Remove(World);
 }
 
 void FEuropaPhaseAWorldProbe::TickStart(UWorld* World, ELevelTick Type, float DeltaSeconds)
 {
+	if (UnsafeSnapshotReason(World)) { return; }
 	FWorldState& State = Worlds.FindOrAdd(World);
 	if (State.bInUpdate) { TickEnd(World, State.Type, 0.0f); }
 	++State.Epoch;
@@ -186,6 +237,7 @@ void FEuropaPhaseAWorldProbe::TickStart(UWorld* World, ELevelTick Type, float De
 
 void FEuropaPhaseAWorldProbe::TickEnd(UWorld* World, ELevelTick Type, float DeltaSeconds)
 {
+	if (UnsafeSnapshotReason(World)) { return; }
 	if (!Worlds.FindOrAdd(World).bInUpdate) { return; }
 	auto Data = MakeShared<FJsonObject>();
 	Data->SetNumberField(TEXT("tick_type"), static_cast<int32>(Type));
@@ -225,17 +277,27 @@ namespace
 
 void FEuropaPhaseAWorldProbe::Snapshot(UWorld* World, const FString& Label)
 {
-	if (!World) { return; }
 	auto Data = MakeShared<FJsonObject>();
 	Data->SetStringField(TEXT("label"), Label);
+	if (const TCHAR* Reason = UnsafeSnapshotReason(World))
+	{
+		Data->SetStringField(TEXT("skip_reason"), Reason);
+		Emit(TEXT("world_snapshot_skipped"), World, Data);
+		return;
+	}
 	TArray<TSharedPtr<FJsonValue>> Rows;
 	ObserveSubsystem<UAnomalyInjectorSubsystem>(World, Rows);
 	ObserveSubsystem<UAnomalyAutoInjectorSubsystem>(World, Rows);
 	ObserveSubsystem<UAnomalySelectorSubsystem>(World, Rows);
 	ObserveSubsystem<UAnomalyCaptureSubsystem>(World, Rows);
 #if ENGINE_MAJOR_VERSION >= 5
-	UClass* ControlClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyControlServer.AnomalyControlServerSubsystem"));
-	check(ControlClass);
+	UClass* ControlClass = CapturedControlClass.Get();
+	if (!ControlClass)
+	{
+		Data->SetStringField(TEXT("skip_reason"), TEXT("control_class_unavailable"));
+		Emit(TEXT("world_snapshot_skipped"), World, Data);
+		return;
+	}
 	const UTickableWorldSubsystem* ControlCDO = CastChecked<UTickableWorldSubsystem>(ControlClass->GetDefaultObject());
 	auto ControlRow = MakeShared<FJsonObject>();
 	ControlRow->SetStringField(TEXT("class"), ControlClass->GetName());

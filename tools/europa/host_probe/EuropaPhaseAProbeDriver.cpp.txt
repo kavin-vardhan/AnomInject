@@ -23,7 +23,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/Texture2D.h"
 #include "Engine/StaticMesh.h"
-#include "EngineUtils.h"
+#include "Engine/Level.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
@@ -54,7 +54,7 @@ void FEuropaPhaseAWorldProbe::Command(const TArray<FString>& Args, UWorld* World
 
 void FEuropaPhaseAWorldProbe::EndFrame()
 {
-	if (!bEnabled) { return; }
+	if (!bEnabled || IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return; }
 	for (auto& Pair : Worlds) { if (Pair.Key.IsValid() && Pair.Value.bInUpdate) { TickEnd(Pair.Key.Get(), Pair.Value.Type, 0.0f); } }
 	++DriverFrame;
 	if (DormantReleaseFrame && DriverFrame >= DormantReleaseFrame)
@@ -144,7 +144,7 @@ void FEuropaPhaseAWorldProbe::LoadScript(UWorld* World, const FString& Path)
 
 bool FEuropaPhaseAWorldProbe::Execute(const TArray<FString>& Args, UWorld* World)
 {
-	if (Args.Num() == 0) { return false; }
+	if (Args.Num() == 0 || (World && UnsafeSnapshotReason(World))) { return false; }
 	const FString Op = Args[0].ToLower();
 	auto Data = MakeShared<FJsonObject>();
 	Data->SetStringField(TEXT("command"), Op);
@@ -216,7 +216,17 @@ bool FEuropaPhaseAWorldProbe::Execute(const TArray<FString>& Args, UWorld* World
 				if (Variable) { Variable->Set(Pair.Value, ECVF_SetByConsole); Data->SetNumberField(Pair.Key, Variable->GetInt()); }
 			}
 			APlayerController* PC = World->GetFirstPlayerController();
-			for (TActorIterator<ACameraActor> It(World); It; ++It) { if (PC && It->ActorHasTag(TEXT("EA_Camera"))) { PC->SetViewTarget(*It); bSuccess = true; break; } }
+			for (ULevel* Level : World->GetLevels())
+			{
+				if (!IsInspectable(Level)) { continue; }
+				for (AActor* Actor : Level->Actors)
+				{
+					if (!IsInspectable(Actor)) { continue; }
+					ACameraActor* Camera = Cast<ACameraActor>(Actor);
+					if (PC && Camera && Camera->ActorHasTag(TEXT("EA_Camera"))) { PC->SetViewTarget(Camera); bSuccess = true; break; }
+				}
+				if (bSuccess) { break; }
+			}
 		}
 		Data->SetNumberField(TEXT("active_count"), Injector ? Injector->GetActiveAnomalyCount() : -1);
 	}
@@ -275,14 +285,33 @@ void FEuropaPhaseAWorldProbe::SnapshotState(UWorld* World, const FString& Label)
 {
 	auto Data = MakeShared<FJsonObject>();
 	Data->SetStringField(TEXT("label"), Label);
+	if (const TCHAR* Reason = UnsafeSnapshotReason(World))
+	{
+		Data->SetStringField(TEXT("skip_reason"), Reason);
+		Emit(TEXT("component_state_skipped"), World, Data);
+		return;
+	}
+	int32 NullActors = 0, UnreachableActors = 0, PendingKillActors = 0, SkippedComponents = 0;
+	TArray<AActor*> SafeActors;
+	for (ULevel* Level : World->GetLevels())
+	{
+		if (!IsInspectable(Level)) { continue; }
+		for (AActor* Candidate : Level->Actors)
+		{
+			if (!Candidate) { ++NullActors; continue; }
+			if (Candidate->IsUnreachable()) { ++UnreachableActors; continue; }
+			if (!IsInspectable(Candidate)) { ++PendingKillActors; continue; }
+			SafeActors.Add(Candidate);
+		}
+	}
 	TArray<TSharedPtr<FJsonValue>> Actors;
-	for (TActorIterator<AActor> It(World); It; ++It)
+	for (AActor* It : SafeActors)
 	{
 		bool bFixture = false;
 		for (const FName& Tag : It->Tags) { bFixture |= Tag.ToString().StartsWith(TEXT("EA_")); }
 		if (!bFixture) { continue; }
 		auto Actor = MakeShared<FJsonObject>();
-		Actor->SetStringField(TEXT("identity"), Identity(*It));
+		Actor->SetStringField(TEXT("identity"), Identity(It));
 		Actor->SetStringField(TEXT("name"), It->GetName());
 		Actor->SetBoolField(TEXT("hidden"), It->IsHidden());
 		TArray<TSharedPtr<FJsonValue>> Components;
@@ -290,6 +319,7 @@ void FEuropaPhaseAWorldProbe::SnapshotState(UWorld* World, const FString& Label)
 		It->GetComponents(Owned);
 		for (UActorComponent* Component : Owned)
 		{
+			if (!IsInspectable(Component)) { ++SkippedComponents; continue; }
 			auto Row = MakeShared<FJsonObject>();
 			Row->SetStringField(TEXT("identity"), Identity(Component));
 			Row->SetStringField(TEXT("name"), Component->GetName());
@@ -333,6 +363,10 @@ void FEuropaPhaseAWorldProbe::SnapshotState(UWorld* World, const FString& Label)
 		Actor->SetArrayField(TEXT("components"), Components);
 		Actors.Add(MakeShared<FJsonValueObject>(Actor));
 	}
+	Data->SetNumberField(TEXT("skipped_null_actors"), NullActors);
+	Data->SetNumberField(TEXT("skipped_unreachable_actors"), UnreachableActors);
+	Data->SetNumberField(TEXT("skipped_pending_kill_actors"), PendingKillActors);
+	Data->SetNumberField(TEXT("skipped_components"), SkippedComponents);
 	Data->SetArrayField(TEXT("actors"), Actors);
 	Emit(TEXT("component_state"), World, Data);
 }
@@ -351,6 +385,7 @@ void FEuropaPhaseAWorldProbe::ReleaseGC()
 
 void FEuropaPhaseAWorldProbe::GCProbe(UWorld* World)
 {
+	if (UnsafeSnapshotReason(World)) { return; }
 	UAnomalyInjectorSubsystem* Injector = World->GetSubsystem<UAnomalyInjectorSubsystem>();
 	if (!Injector || Injector->GetActiveAnomalyCount() || GCInjector.IsValid()) { return; }
 	GCFields.Reset();
@@ -391,7 +426,7 @@ void FEuropaPhaseAWorldProbe::GCProbe(UWorld* World)
 	Emit(TEXT("gc_released"), World, After);
 	GCFields.Reset();
 	GCArrayObject.Reset();
-	UClass* BenchClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyBench.AnomalyBenchTwoPartActor"));
+	UClass* BenchClass = CapturedBenchClass.Get();
 	AActor* BenchActor = BenchClass ? World->SpawnActor<AActor>(BenchClass) : nullptr;
 	auto Components = MakeShared<FJsonObject>();
 	Components->SetBoolField(TEXT("constructed"), BenchActor != nullptr);
@@ -438,15 +473,18 @@ namespace
 
 void FEuropaPhaseAWorldProbe::LifetimeProbe(UWorld* World)
 {
+	if (UnsafeSnapshotReason(World)) { return; }
 	if (Dormant.Num()) { return; }
+#if ENGINE_MAJOR_VERSION >= 5
+	UClass* ControlClass = CapturedControlClass.Get();
+	if (!ControlClass) { return; }
+#endif
 	TArray<TSharedPtr<FJsonValue>> Rows;
 	MakeDormant<UAnomalyInjectorSubsystem>(World, Dormant, Rows);
 	MakeDormant<UAnomalyAutoInjectorSubsystem>(World, Dormant, Rows);
 	MakeDormant<UAnomalySelectorSubsystem>(World, Dormant, Rows);
 	MakeDormant<UAnomalyCaptureSubsystem>(World, Dormant, Rows);
 #if ENGINE_MAJOR_VERSION >= 5
-	UClass* ControlClass = FindObject<UClass>(nullptr, TEXT("/Script/AnomalyControlServer.AnomalyControlServerSubsystem"));
-	check(ControlClass);
 	MakeDormant<UTickableWorldSubsystem>(World, Dormant, Rows, ControlClass);
 #else
 	MakeDormant<UAnomalyControlServerSubsystem>(World, Dormant, Rows);
