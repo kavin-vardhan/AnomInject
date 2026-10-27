@@ -1,3 +1,7 @@
+### 094-21 closeout (2026-10-28)
+
+EV5 probe source 40a8eaf983518fe1992e172434aa8caf347654f1 compiled in all six targets, including d7eee97. EI4 is clear; 27/39/44 artifacts are rebound in Receipts/09421/qualification. Static check 25/25, entry/exit P9 and EA11 passed. Runtime exit confirmation and owner-kit arming remain EV7 work. No push or tags.
+
 # AnomalyInjector — canonical context
 
 Personal research project **"GDP: Anomaly Injection"** (intrusive UE5 track). This is a
