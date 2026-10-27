@@ -12,7 +12,7 @@ import threading
 import time
 
 GIB = 1024 ** 3
-LIMITS = {'C': (13, 11, 10), 'D': (70, 55, 50), 'E': (25, 20, 15)}
+LIMITS = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (25, 20, 15)}
 
 
 def reading():
@@ -352,28 +352,28 @@ def self_tests(output):
                 for key,v in LIMITS.items()}
     before = disks(74)
     small = {'C':0, 'D':GIB, 'E':0}
-    test('foreign_drop_pauses', decision(before, disks(44), small)['result']=='PAUSE')
-    test('port_growth_alone_stops', decision(before, disks(44), dict(small, D=25*GIB))['result']=='STOP')
+    test('foreign_drop_pauses', decision(before, disks(LIMITS['D'][2]-6), small)['result']=='PAUSE')
+    test('port_growth_alone_stops', decision(before, disks(LIMITS['D'][2]-6), dict(small, D=(74-LIMITS['D'][2]+1)*GIB))['result']=='STOP')
     test('healthy_does_not_pause', decision(before, disks(60), small)['result']=='PASS')
-    test('preexisting_drop_before_any_port_write_pauses', decision(disks(44), disks(44), {d:0 for d in LIMITS})['result']=='PAUSE')
+    test('preexisting_drop_before_any_port_write_pauses', decision(disks(LIMITS['D'][2]-6), disks(LIMITS['D'][2]-6), {d:0 for d in LIMITS})['result']=='PAUSE')
     test('deletions_do_not_hide_growth', growth({'d:/a':10000}, {'d:/b':20000})['D']==20000)
     fake_time = [0]
     def sleep(seconds):
         fake_time[0] += seconds
-    sequence = iter([disks(44), disks(56), disks(56), disks(54), disks(56), disks(56), disks(56)])
+    sequence = iter([disks(LIMITS['D'][2]-6), disks(LIMITS['D'][1]+1), disks(LIMITS['D'][1]+1), disks(LIMITS['D'][1]-1), disks(LIMITS['D'][1]+1), disks(LIMITS['D'][1]+1), disks(LIMITS['D'][1]+1)])
     result = recover(['D'], output.with_name('foreign-recovery.json'), {}, sampler=lambda:next(sequence),
                      sleeper=sleep, clock=lambda:fake_time[0])
     test('three_spaced_clear_polls_and_reset', result['state']=='RESUMED' and fake_time[0]==360)
     fake_time[0] = 0
-    result = recover(['D'], output.with_name('no-disk-window.json'), {}, sampler=lambda:disks(44),
+    result = recover(['D'], output.with_name('no-disk-window.json'), {}, sampler=lambda:disks(LIMITS['D'][2]-6),
                      sleeper=sleep, clock=lambda:fake_time[0])
     test('four_hour_timeout', result['state']=='TIMEOUT' and result['reason']=='no disk window' and fake_time[0]==14400)
     fake_time[0] = 14340
-    result = recover(['D'], output.with_name('attribution-time.json'), {}, sampler=lambda:disks(44),
+    result = recover(['D'], output.with_name('attribution-time.json'), {}, sampler=lambda:disks(LIMITS['D'][2]-6),
                      sleeper=sleep, clock=lambda:fake_time[0], started_at=0)
     test('attribution_time_in_four_hour_limit', result['state']=='TIMEOUT' and fake_time[0]==14400)
     fake_time[0] = 0
-    result = recover(['D'], output.with_name('wall-limit.json'), {}, sampler=lambda:disks(44),
+    result = recover(['D'], output.with_name('wall-limit.json'), {}, sampler=lambda:disks(LIMITS['D'][2]-6),
                      sleeper=sleep, clock=lambda:fake_time[0], wall_remaining=120)
     test('pauses_count_towards_wall_limit', result['state']=='TIMEOUT' and fake_time[0]==120)
     from build_memory import OwnedTree
@@ -399,7 +399,7 @@ def self_tests(output):
             control.terminate()
         control.wait()
     fake_time[0] = 0
-    sequence = iter([disks(44), disks(44), disks(56), disks(56), disks(56), disks(56)])
+    sequence = iter([disks(LIMITS['D'][2]-6), disks(LIMITS['D'][2]-6), disks(LIMITS['D'][1]+1), disks(LIMITS['D'][1]+1), disks(LIMITS['D'][1]+1), disks(LIMITS['D'][1]+1)])
     preparation = PreparationGuard(before, output.with_name('preparation-supervisor.json'),
         lambda:9*3600, sampler=lambda:next(sequence), clock=lambda:fake_time[0], sleeper=sleep)
     preparation.poll(force=True)

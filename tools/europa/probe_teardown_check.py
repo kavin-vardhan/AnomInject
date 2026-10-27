@@ -30,20 +30,48 @@ def functions(text):
 def check(sources):
     violations, locations = [], []
     all_functions = {}
-    lookup = re.compile(r'\b(?:FindObject\w*|StaticFindObject\w*|LoadObject\w*|StaticLoadObject\w*)\s*(?:<|\()')
-    actor = re.compile(r'\bTActor(?:Iterator|Range)\s*<')
+    lookup = re.compile(r'\b(?:FindObject\w*|StaticFindObject\w*|FindFirstObject\w*|LoadObject\w*|StaticLoadObject\w*|LoadClass\w*|StaticLoadClass\w*)\s*(?:<|\()')
+    actor = re.compile(r'\bT(?:Actor|Object)(?:Iterator|Range)\s*<')
     for name, text in sources.items():
         clean = tokens(text)
         funcs = functions(text)
         all_functions.update({k: v[2] for k, v in funcs.items()})
         for match in actor.finditer(clean):
-            violations.append(dict(file=name, line=text.count('\n', 0, match.start()) + 1, family='actor_iterator'))
+            violations.append(dict(file=name, line=text.count('\n', 0, match.start()) + 1, family='actor_or_object_iterator'))
         for match in lookup.finditer(clean):
             containing = [k for k, (a, b, _) in funcs.items() if a <= match.start() < b]
             row = dict(file=name, line=text.count('\n', 0, match.start()) + 1, family='object_lookup', function=containing)
             locations.append(row)
             if containing != ['CacheClasses']:
                 violations.append(row)
+    root_change = re.compile(r'\b(?:AddToRoot|RemoveFromRoot)\s*\(')
+    for name, text in sources.items():
+        clean = tokens(text)
+        funcs = functions(text)
+        for match in root_change.finditer(clean):
+            containing = [k for k, (a, b, _) in funcs.items() if a <= match.start() < b]
+            if containing != ['ChangeRoot']:
+                violations.append(dict(file=name, line=text.count('\n', 0, match.start())+1,
+                                       family='root_change_outside_guarded_helper', function=containing))
+    guarded = ('Identity','IsInspectable','ChangeRoot','Start','CacheClasses','Command',
+               'EndFrame','Execute','ScreenshotDone','ReleaseGC')
+    expected = 'IsEngineExitRequested()||GExitPurge||IsGarbageCollecting()'
+    for name in guarded:
+        body = all_functions.get(name, '')
+        first = re.match(r'\s*if\s*\(([^{};]*)\)\s*\{([^{}]*)\}', body)
+        condition = re.sub(r'\s+', '', first[1]) if first else ''
+        if not first or condition not in (expected, '!bEnabled||'+expected) or not re.search(r'\breturn\b', first[2]):
+            violations.append(dict(family='exit_purge_entry_guard', function=name))
+    for name in ('CaptureWorld','LoadScript','RequestPicture','GCProbe','LifetimeProbe','TickStart','TickEnd'):
+        body = re.sub(r'\s+', '', all_functions.get(name, ''))
+        if not body.startswith('if(UnsafeSnapshotReason(World)){return;}'):
+            violations.append(dict(family='world_entry_guard', function=name))
+    header = sources.get('EuropaPhaseAWorldProbe.h', '')
+    if 'TMap<UPTRINT, FWorldState> Worlds;' not in header:
+        violations.append(dict(family='purge_safe_receipt_key'))
+    for name, text in sources.items():
+        if re.search(r'\bWorlds\s*\.\s*(?:Find|FindOrAdd|Remove)\s*\(\s*World\s*\)', tokens(text)):
+            violations.append(dict(file=name, family='weak_world_key_constructed_during_purge'))
     required = ('Cleanup', 'Cleaned', 'Stop', 'Snapshot', 'SnapshotState', 'EndFrame', 'ReleaseGC', 'UnsafeSnapshotReason', 'CacheClasses', 'Initialized')
     for name in required:
         if name not in all_functions:
@@ -71,7 +99,7 @@ def check(sources):
                 violations.append(dict(family='missing_skip_evidence', missing=field))
     return dict(result='PASS' if not violations else 'FAIL', violations=violations,
                 lookup_locations=locations, functions=sorted(all_functions),
-                scope='All probe code bans actor iterators; object lookup allowed only in guarded initialization capture. No runtime claim.')
+                scope='EV5: iterator and lookup/load families across all probe code; lookup only in guarded initialization. Root changes only in a guarded helper; callback entry guards and purge-safe cached receipt keys. No runtime claim.')
 
 
 def self_tests(sources):
@@ -108,6 +136,40 @@ def self_tests(sources):
     start = functions(value)['Cleanup'][0]
     mutant['EuropaPhaseAWorldProbe.cpp'] = value[:start] + '\nauto Bad = &FEuropaPhaseAWorldProbe::CacheClasses;\n' + value[start:]
     test('lookup_capture_address_taken_from_cleanup', mutant, 'FAIL')
+    for name, expression in (
+        ('load_class_teardown', 'LoadClass<UObject>(nullptr, TEXT("synthetic"));'),
+        ('static_load_class_teardown', 'StaticLoadClass(UObject::StaticClass(), nullptr, TEXT("synthetic"));'),
+        ('object_iterator_teardown', 'TObjectIterator<UObject> Bad;'),
+        ('object_range_teardown', 'TObjectRange<UObject> Bad;'),
+        ('find_first_object_teardown', 'FindFirstObject<UObject>(TEXT("synthetic"));'),
+        ('root_remove_after_purge', 'if (GExitPurge) { Dormant[0]->RemoveFromRoot(); }'),
+        ('root_add_after_purge', 'if (GExitPurge) { Dormant[0]->AddToRoot(); }')):
+        mutant = dict(sources)
+        value = mutant['EuropaPhaseAWorldProbe.cpp']
+        point = functions(value)['Stop'][0]
+        mutant['EuropaPhaseAWorldProbe.cpp'] = value[:point]+'\n'+expression+'\n'+value[point:]
+        test(name, mutant, 'FAIL')
+    mutant = dict(sources)
+    value = mutant['EuropaPhaseAWorldProbe.cpp']
+    point = functions(value)['ChangeRoot'][0]
+    mutant['EuropaPhaseAWorldProbe.cpp'] = value[:point]+'\nObject->RemoveFromRoot();\n'+value[point:]
+    test('root_change_before_helper_guard', mutant, 'FAIL')
+    for name, filename in (('ChangeRoot','EuropaPhaseAWorldProbe.cpp'),
+                           ('ReleaseGC','EuropaPhaseAProbeDriver.cpp'),
+                           ('ScreenshotDone','EuropaPhaseAProbeDriver.cpp'),
+                           ('Command','EuropaPhaseAProbeDriver.cpp'),
+                           ('Execute','EuropaPhaseAProbeDriver.cpp'),
+                           ('Identity','EuropaPhaseAWorldProbe.cpp')):
+        mutant = dict(sources)
+        value = mutant[filename]
+        a, b, _ = functions(value)[name]
+        body = value[a:b].replace('GExitPurge', 'false')
+        mutant[filename] = value[:a]+body+value[b:]
+        test('missing_purge_guard_'+name, mutant, 'FAIL')
+    mutant = dict(sources)
+    mutant['EuropaPhaseAWorldProbe.h'] = mutant['EuropaPhaseAWorldProbe.h'].replace(
+        'TMap<UPTRINT, FWorldState>', 'TMap<TWeakObjectPtr<UWorld>, FWorldState>')
+    test('weak_key_receipt_after_purge', mutant, 'FAIL')
     assert all(r['pass_'] for r in rows), 'Static check self-test failed'
     return rows
 

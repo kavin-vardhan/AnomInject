@@ -6,6 +6,25 @@ from pathlib import Path
 ROOT = Path('D:/IA_Europa')
 
 
+
+def memory_policy_allowed(data, job):
+    if data['memory'] in (
+        {'start_physical_GiB': 6, 'start_commit_GiB': 12, 'stop_physical_GiB': 1, 'stop_commit_GiB': 4},
+        {'start_physical_GiB': 4, 'start_commit_GiB': 16, 'stop_physical_GiB': None, 'stop_commit_GiB': 6}):
+        return True
+    pairs = {
+        ('425','StylizedParisStreetEditor','Development'), ('425','StylizedParisStreet','Development'),
+        ('51base','StackOBotEditor','Development'), ('51base','StackOBot','Development'),
+        ('51port','StackOBotEditor','Development'), ('51port','StackOBot','Development')}
+    return (job == ROOT/'Receipts/09421' and
+            data.get('incremental_memory_authority') == '094-20-ruling EV4' and
+            data.get('incremental_builds_only') is True and not data.get('full_rebuild', False) and
+            not data.get('runtime_authorized', False) and
+            {tuple(p) for p in data['build_pairs']} == pairs and
+            data['memory'] == {'start_physical_GiB':4,'start_commit_GiB':10,
+                               'stop_physical_GiB':None,'stop_commit_GiB':6})
+
+
 def load(path=None):
     raw = path or os.environ.get('EUROPA_JOB_CONFIG')
     if not raw:
@@ -32,10 +51,8 @@ def load(path=None):
                 raise RuntimeError('Unapproved Shipping pair')
     if data['max_parallel_actions'] not in (1, 4):
         raise RuntimeError('Unapproved action parallelism')
-    if data['memory'] not in (
-        {'start_physical_GiB': 6, 'start_commit_GiB': 12, 'stop_physical_GiB': 1, 'stop_commit_GiB': 4},
-        {'start_physical_GiB': 4, 'start_commit_GiB': 16, 'stop_physical_GiB': None, 'stop_commit_GiB': 6}):
-        raise RuntimeError('Memory policy is not a ruled EF1/EI2 policy')
+    if not memory_policy_allowed(data, job):
+        raise RuntimeError('Memory policy is not a ruled EF1/EI2/EV4 policy')
     return dict(data, config_path=str(path), config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 
 

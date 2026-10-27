@@ -47,6 +47,8 @@ bool FEuropaPhaseAWorldProbe::ResolveOutput(const FString& Name, FString& Out) c
 
 void FEuropaPhaseAWorldProbe::Command(const TArray<FString>& Args, UWorld* World)
 {
+	if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return; }
+
 	if (!bEnabled || QueuedCommand.Num() != 0 || Args.Num() == 0) { return; }
 	QueuedCommand = Args;
 	QueuedWorld = World;
@@ -55,11 +57,11 @@ void FEuropaPhaseAWorldProbe::Command(const TArray<FString>& Args, UWorld* World
 void FEuropaPhaseAWorldProbe::EndFrame()
 {
 	if (!bEnabled || IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return; }
-	for (auto& Pair : Worlds) { if (Pair.Key.IsValid() && Pair.Value.bInUpdate) { TickEnd(Pair.Key.Get(), Pair.Value.Type, 0.0f); } }
+	for (auto& Pair : Worlds) { if (Pair.Value.World.IsValid() && Pair.Value.bInUpdate) { TickEnd(Pair.Value.World.Get(), Pair.Value.Type, 0.0f); } }
 	++DriverFrame;
 	if (DormantReleaseFrame && DriverFrame >= DormantReleaseFrame)
 	{
-		for (UObject* Object : Dormant) { if (Object) { Object->RemoveFromRoot(); } }
+		for (UObject* Object : Dormant) { ChangeRoot(Object, false); }
 		Dormant.Reset();
 		DormantReleaseFrame = 0;
 		Emit(TEXT("dormant_release"), DriverWorld.Get(), MakeShared<FJsonObject>());
@@ -112,6 +114,8 @@ void FEuropaPhaseAWorldProbe::EndFrame()
 
 void FEuropaPhaseAWorldProbe::LoadScript(UWorld* World, const FString& Path)
 {
+	if (UnsafeSnapshotReason(World)) { return; }
+
 	FString Full = FPaths::ConvertRelativePathToFull(Path);
 	FPaths::NormalizeFilename(Full);
 	FPaths::CollapseRelativeDirectories(Full);
@@ -144,6 +148,8 @@ void FEuropaPhaseAWorldProbe::LoadScript(UWorld* World, const FString& Path)
 
 bool FEuropaPhaseAWorldProbe::Execute(const TArray<FString>& Args, UWorld* World)
 {
+	if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return false; }
+
 	if (Args.Num() == 0 || (World && UnsafeSnapshotReason(World))) { return false; }
 	const FString Op = Args[0].ToLower();
 	auto Data = MakeShared<FJsonObject>();
@@ -238,13 +244,15 @@ bool FEuropaPhaseAWorldProbe::Execute(const TArray<FString>& Args, UWorld* World
 
 void FEuropaPhaseAWorldProbe::RequestPicture(UWorld* World, const FString& Name)
 {
+	if (UnsafeSnapshotReason(World)) { return; }
+
 	FString Path;
 	if (!PendingPicture.IsEmpty() || FScreenshotRequest::IsScreenshotRequested() || !Name.EndsWith(TEXT(".png")) || !ResolveOutput(Name, Path)) { return; }
 	if (!GEngine || !GEngine->GameViewport || GEngine->GameViewport->GetWorld() != World) { return; }
 	PendingPicture = Path;
 	PictureWorld = World;
 	PictureWorldId = Identity(World);
-	PictureEpoch = Worlds.FindOrAdd(World).Epoch;
+	PictureEpoch = Worlds.FindOrAdd(reinterpret_cast<UPTRINT>(World)).Epoch;
 	PictureStartFrame = GFrameCounter;
 	++PictureRequest;
 	auto Data = MakeShared<FJsonObject>();
@@ -258,6 +266,17 @@ void FEuropaPhaseAWorldProbe::RequestPicture(UWorld* World, const FString& Name)
 
 void FEuropaPhaseAWorldProbe::ScreenshotDone()
 {
+    if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting())
+    {
+        auto Data = MakeShared<FJsonObject>();
+        Data->SetStringField(TEXT("request_world"), PictureWorldId);
+        Data->SetStringField(TEXT("skip_reason"), TEXT("engine_exit_or_gc"));
+        Emit(TEXT("screenshot_skipped"), nullptr, Data);
+        PendingPicture.Reset();
+        PictureWorld.Reset();
+        return;
+    }
+
 	if (PendingPicture.IsEmpty()) { return; }
 	TArray<uint8> Bytes;
 	const bool bRead = FFileHelper::LoadFileToArray(Bytes, *PendingPicture);
@@ -373,11 +392,22 @@ void FEuropaPhaseAWorldProbe::SnapshotState(UWorld* World, const FString& Label)
 
 void FEuropaPhaseAWorldProbe::ReleaseGC()
 {
+    if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting())
+    {
+        GCInjector.Reset();
+        GCFields.Reset();
+        GCArrayObject.Reset();
+        auto Data = MakeShared<FJsonObject>();
+        Data->SetStringField(TEXT("skip_reason"), TEXT("engine_exit_or_gc"));
+        Emit(TEXT("gc_restore_skipped"), nullptr, Data);
+        return;
+    }
+
 	UAnomalyInjectorSubsystem* Injector = GCInjector.Get();
 	for (FGCField& Field : GCFields)
 	{
 		if (Injector && Field.Property) { Field.Property->SetObjectPropertyValue_InContainer(Injector, Field.Original); }
-		if (Field.Original && !Field.bWasRooted) { Field.Original->RemoveFromRoot(); }
+		if (Field.Original && !Field.bWasRooted) { ChangeRoot(Field.Original, false); }
 	}
 	if (Injector && GCArrayObject.IsValid()) { Injector->TexCorruptLetGo(GCArrayObject.Get()); }
 	GCInjector.Reset();
@@ -398,7 +428,7 @@ void FEuropaPhaseAWorldProbe::GCProbe(UWorld* World)
 		Field.Property = Property;
 		Field.Original = Property->GetObjectPropertyValue_InContainer(Injector);
 		Field.bWasRooted = Field.Original && Field.Original->IsRooted();
-		if (Field.Original && !Field.bWasRooted) { Field.Original->AddToRoot(); }
+		if (Field.Original && !Field.bWasRooted) { ChangeRoot(Field.Original, true); }
 		UObject* Test = FCString::Strcmp(Name, TEXT("TexCorruptNoise")) == 0 ? static_cast<UObject*>(NewObject<UTexture2D>(GetTransientPackage())) : static_cast<UObject*>(NewObject<UMaterial>(GetTransientPackage()));
 		Field.TestObject = Test;
 		Property->SetObjectPropertyValue_InContainer(Injector, Test);
@@ -455,10 +485,12 @@ void FEuropaPhaseAWorldProbe::GCProbe(UWorld* World)
 
 namespace
 {
-	template<class T> void MakeDormant(UWorld* World, TArray<UObject*>& Objects, TArray<TSharedPtr<FJsonValue>>& Rows, UClass* Class = T::StaticClass())
+	template<class T> void MakeDormant(UWorld* World, TArray<UObject*>& Objects, TArray<TSharedPtr<FJsonValue>>& Rows, UClass* Class = nullptr)
 	{
-		T* Object = NewObject<T>(World, Class);
-		Object->AddToRoot();
+        if (FEuropaPhaseAWorldProbe::UnsafeSnapshotReason(World)) { return; }
+        if (!Class) { Class = T::StaticClass(); }
+        T* Object = NewObject<T>(World, Class);
+		FEuropaPhaseAWorldProbe::ChangeRoot(Object, true);
 		Objects.Add(Object);
 		auto Row = MakeShared<FJsonObject>();
 		Row->SetStringField(TEXT("class"), Class->GetName());

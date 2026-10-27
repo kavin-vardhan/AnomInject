@@ -11,6 +11,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-21, 2026-10-28 - exit-purge guards qualified; incremental rebuilds next.**
+> One probe source guards Stop root changes, GC restoration and late callbacks; cached receipt emission avoids UObject weak-key construction during purge.
+> EV5's source check passes the real probe and 24 mutants. EV3 D: 40/30/25 and scoped EV4 10/4 GiB admission are installed; full builds keep 16 GiB.
+> No production or content edit and no runtime launch. See docs/sessions/2026-10-28-094-21-probe-exit-purge.md and Receipts/09421.
+
 > **094-20, 2026-10-27 - probe teardown fix; six rebuilds pending, no runtime launch.**
 > A6's owner half is accepted by ET1; its exit rows await the next authorized runtime leg. The shared probe avoids actor iterators and GC-time object lookup, records skipped teardown snapshots, and caches world identity.
 > The static check and both mutant families pass. Production Source/Content/rules are unchanged. ET2's marker stays; the owner kit remains spent. EU3/EU4 are reserved for the next arming job.

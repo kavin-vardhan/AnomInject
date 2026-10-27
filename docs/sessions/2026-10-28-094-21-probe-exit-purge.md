@@ -1,0 +1,7 @@
+# 094-21 exit-purge safety and incremental rebuilds
+
+The accepted 1722348 probe still called RemoveFromRoot on raw UObject pointers in Stop and restored GC fields through stale pointers at module shutdown. UE 4.25 Obj.cpp:4476 sets GExitPurge before fully purging objects; LaunchEngineLoop.cpp:4218 and its subsequent UnloadModulesAtShutdown call order explains why module cleanup cannot assume UObject lifetime. EV5 authorizes skipping these accesses.
+
+The probe centralizes root changes behind engine-exit/purge/GC and object-validity guards. ReleaseGC skips restoration and records why after exit or during GC. Identity, command and screenshot callbacks guard their UObject access. Receipt world keys are integer addresses with cached identity; their weak references are read only behind normal frame guards. Cleanup continues to emit skipped rows and Stop reports whether root release was skipped. No new runtime leg is permitted.
+
+The source gate now covers LoadClass, StaticLoadClass, TObjectIterator, FindFirstObject and root changes, as well as the prior actor/lookup families. Real source plus 24 mutants pass the gate's can-fail suite. EV3 and job-scoped EV4 are implemented and tested, without lowering full-build memory admission. The source commit precedes all six incremental builds; final outcomes and manifests are recorded in Receipts/09421 and the run report. A6 owner evidence keeps its old bindings. EV6's glass-normal baseline and EV7's carries are recorded in the dated predictions.

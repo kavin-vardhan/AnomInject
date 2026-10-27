@@ -32,17 +32,29 @@
 
 FString FEuropaPhaseAWorldProbe::Identity(const UObject* Object)
 {
+	if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return TEXT("unavailable"); }
+
 	return Object ? FString::Printf(TEXT("%p:%u"), Object, Object->GetUniqueID()) : TEXT("null");
 }
 
 bool FEuropaPhaseAWorldProbe::IsInspectable(const UObject* Object)
 {
+	if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return false; }
+
 	if (!Object || Object->IsUnreachable()) { return false; }
 #if ENGINE_MAJOR_VERSION >= 5
 	return IsValid(Object);
 #else
 	return !Object->IsPendingKill();
 #endif
+}
+
+void FEuropaPhaseAWorldProbe::ChangeRoot(UObject* Object, bool bRooted)
+{
+    if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return; }
+    if (!IsInspectable(Object)) { return; }
+    if (bRooted) { Object->AddToRoot(); }
+    else { Object->RemoveFromRoot(); }
 }
 
 const TCHAR* FEuropaPhaseAWorldProbe::UnsafeSnapshotReason(const UWorld* World)
@@ -57,7 +69,8 @@ const TCHAR* FEuropaPhaseAWorldProbe::UnsafeSnapshotReason(const UWorld* World)
 void FEuropaPhaseAWorldProbe::CaptureWorld(UWorld* World)
 {
 	if (UnsafeSnapshotReason(World)) { return; }
-	FWorldState& State = Worlds.FindOrAdd(World);
+	FWorldState& State = Worlds.FindOrAdd(reinterpret_cast<UPTRINT>(World));
+	State.World = World;
 	State.Identity = Identity(World);
 	State.Name = World->GetName();
 	State.WorldType = static_cast<int32>(World->WorldType);
@@ -80,7 +93,7 @@ void FEuropaPhaseAWorldProbe::Emit(const TCHAR* Kind, UWorld* World, const TShar
 	Data->SetNumberField(TEXT("sequence"), static_cast<double>(++Sequence));
 	Data->SetNumberField(TEXT("process_frame"), static_cast<double>(GFrameCounter));
 	Data->SetNumberField(TEXT("monotonic_seconds"), FPlatformTime::Seconds());
-	const FWorldState* State = World ? Worlds.Find(World) : nullptr;
+	const FWorldState* State = World ? Worlds.Find(reinterpret_cast<UPTRINT>(World)) : nullptr;
 	Data->SetStringField(TEXT("world"), State ? State->Identity : TEXT("null"));
 	Data->SetStringField(TEXT("world_pointer"), FString::Printf(TEXT("%p"), World));
 	Data->SetStringField(TEXT("world_name"), State ? State->Name : TEXT("None"));
@@ -99,6 +112,8 @@ void FEuropaPhaseAWorldProbe::Emit(const TCHAR* Kind, UWorld* World, const TShar
 
 void FEuropaPhaseAWorldProbe::Start()
 {
+	if (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) { return; }
+
 	if (!FParse::Param(FCommandLine::Get(), TEXT("IAIBench")) || !FParse::Param(FCommandLine::Get(), TEXT("EuropaPhaseA"))) { return; }
 	if (!FParse::Value(FCommandLine::Get(), TEXT("EuropaProbeOut="), OutputRoot)) { return; }
 	OutputRoot = FPaths::ConvertRelativePathToFull(OutputRoot);
@@ -155,10 +170,11 @@ void FEuropaPhaseAWorldProbe::Stop()
 	FScreenshotRequest::OnScreenshotRequestProcessed().Remove(ScreenshotHandle);
 	if (Console) { IConsoleManager::Get().UnregisterConsoleObject(Console); Console = nullptr; }
 	ReleaseGC();
-	for (UObject* Object : Dormant) { if (Object) { Object->RemoveFromRoot(); } }
+	for (UObject* Object : Dormant) { ChangeRoot(Object, false); }
 	Dormant.Reset();
 	auto Data = MakeShared<FJsonObject>();
-	Data->SetBoolField(TEXT("outstanding_screenshot"), !PendingPicture.IsEmpty());
+    Data->SetStringField(TEXT("root_release"), (IsEngineExitRequested() || GExitPurge || IsGarbageCollecting()) ? TEXT("skipped") : TEXT("completed"));
+    Data->SetBoolField(TEXT("outstanding_screenshot"), !PendingPicture.IsEmpty());
 	Data->SetNumberField(TEXT("observed_worlds"), Worlds.Num());
 	Emit(TEXT("probe_stop"), nullptr, Data);
 	bEnabled = false;
@@ -212,13 +228,13 @@ void FEuropaPhaseAWorldProbe::Cleanup(UWorld* World, bool bSessionEnded, bool bC
 void FEuropaPhaseAWorldProbe::Cleaned(UWorld* World, bool bSessionEnded, bool bCleanupResources)
 {
 	Emit(TEXT("world_cleaned"), World, MakeShared<FJsonObject>());
-	Worlds.Remove(World);
+	Worlds.Remove(reinterpret_cast<UPTRINT>(World));
 }
 
 void FEuropaPhaseAWorldProbe::TickStart(UWorld* World, ELevelTick Type, float DeltaSeconds)
 {
 	if (UnsafeSnapshotReason(World)) { return; }
-	FWorldState& State = Worlds.FindOrAdd(World);
+	FWorldState& State = Worlds.FindOrAdd(reinterpret_cast<UPTRINT>(World));
 	if (State.bInUpdate) { TickEnd(World, State.Type, 0.0f); }
 	++State.Epoch;
 	State.Type = Type;
@@ -238,12 +254,12 @@ void FEuropaPhaseAWorldProbe::TickStart(UWorld* World, ELevelTick Type, float De
 void FEuropaPhaseAWorldProbe::TickEnd(UWorld* World, ELevelTick Type, float DeltaSeconds)
 {
 	if (UnsafeSnapshotReason(World)) { return; }
-	if (!Worlds.FindOrAdd(World).bInUpdate) { return; }
+	if (!Worlds.FindOrAdd(reinterpret_cast<UPTRINT>(World)).bInUpdate) { return; }
 	auto Data = MakeShared<FJsonObject>();
 	Data->SetNumberField(TEXT("tick_type"), static_cast<int32>(Type));
 	Data->SetBoolField(TEXT("paused"), World->IsPaused());
 	Emit(TEXT("world_update_end"), World, Data);
-	Worlds.FindOrAdd(World).bInUpdate = false;
+	Worlds.FindOrAdd(reinterpret_cast<UPTRINT>(World)).bInUpdate = false;
 }
 
 namespace

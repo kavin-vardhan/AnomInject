@@ -32,7 +32,7 @@ def dump(p, value):
     p.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
 
 def floors(start=False):
-    limits = {'C': (13, 11, 10), 'D': (70, 55, 50), 'E': (25, 20, 15)}
+    limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (25, 20, 15)}
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
         'start': v[0] * GIB, 'warning': v[1] * GIB, 'floor': v[2] * GIB} for d, v in limits.items()}
     if any(v['free'] < v['floor'] for v in data.values()) and os.environ.get('EUROPA_DISK_SUPERVISOR_PID'):

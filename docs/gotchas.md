@@ -10231,3 +10231,8 @@ Release's public control header reaches IWebSocketServer.h from a private module
 ### G466 - Reading failures and post-Popen errors must preserve admission state
 
 094-17: independently catch each required reading so a counter timeout cannot escape the wait loop or retain a prior passing streak. Write the durable launch mark as the first callback after Popen, before receipts, observers or threads. Only Popen's own exception may release the reservation. Exercise every owner-launch bookkeeping step with harmless children, including mark-write failure retaining the reservation. Resolve configuration paths before comparing dry-run roots against real state; lexical prefix checks miss dot-dot aliases. See docs/europa/09417-owner-kit.md and Receipts/09417.
+
+
+## G467 - Module shutdown can follow UObject exit purge (094-21)
+
+A raw UObject pointer is not safe merely because the probe rooted it earlier. Guard root changes and GC-field restoration before inspecting any UObject; engine purge destroys the object system before late module shutdown. Even a cached receipt map keyed by TWeakObjectPtr can touch UObject identity when converting a raw world pointer. Use cached scalar identity and address keys for exit rows, with weak references accessed only in guarded live paths. EV5 source checks and mutants protect these paths; runtime clean exit remains a later authorized proof.
