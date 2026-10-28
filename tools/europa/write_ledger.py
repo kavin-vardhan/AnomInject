@@ -248,9 +248,10 @@ def classification(scope, path, kind, change=None, build_ok=False):
     if scope == 'paris_original':
         return 'STOP', 'Original Paris changed'
     if scope in ('c_root', 'd_root', 'e_root'):
+        if change and (change['before_kind'] is None or change['after_kind'] is None):
+            from root_attribution import classify
+            return classify(change, JOB)
         if change and (change['after_kind'] or change['before_kind']).startswith('directory'):
-            if change['before_kind'] is None or change['after_kind'] is None:
-                return 'STOP', 'ED5 new or removed root folder'
             return 'foreign', 'existing root directory timestamp; contents independently scoped'
         if Path(p).name in ('pagefile.sys', 'swapfile.sys', 'hiberfil.sys', 'dumpstack.log.tmp', 'dumpstack.log'):
             return 'foreign', 'Windows-managed paging and crash file'
@@ -420,6 +421,9 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     from environment import fingerprints
     receipt['environment_contract'] = {'result': 'PASS', 'policy': 'EL1/EM2/EW3' if execution else 'EL1/EM2 orchestration', 'nonblocked_base_preserved': True, 'effective_sha256_by_name': fingerprints(env)}
     path = folder / f'child-{lognum:03}.json'
+    from root_attribution import context
+    with (folder / 'root-contexts.jsonl').open('a', encoding='utf-8') as contexts:
+        contexts.write(json.dumps(dict(utc=now(), child_receipt=str(path), references=context(argv,cwd or Path.cwd(),env)))+'\n')
     dump(path, receipt)
     memory_log = folder / f'child-{lognum:03}-memory.jsonl'
     tree = None
