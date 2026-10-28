@@ -74,7 +74,7 @@ def main(argv=None):
               ('No editor was started.' if args.dry_run else 'The two launch authorizations are spent.'),flush=True)
         return 0
     except BaseException as error:
-        print('Stopped: '+str(error)+' No editor was started by this entry point.',flush=True)
+        print('Stopped: '+str(error)+' No further session will be started.',flush=True)
         return 2
 
 
