@@ -36,7 +36,7 @@ def main(output):
     import write_ledger as ledger
     output=policy.canonical(output)
     output.mkdir(parents=True,exist_ok=False)
-    temp=policy.ROOT/'Temp/09422/self-tests'/output.name
+    temp=policy.ROOT/'Temp'/output.relative_to(policy.ROOT/'Receipts')
     temp.mkdir(parents=True,exist_ok=False)
     rows=[]
     def check(name,condition):

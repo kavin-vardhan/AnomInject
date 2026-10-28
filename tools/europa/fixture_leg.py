@@ -14,6 +14,7 @@ from fixture_policy import (ROOT, HOST, TOOLS, SCOPE, RECIPES, OUTPUTS, canonica
     output_preflight, verify_content_after)
 from fixture_attempts import Guard, GlobalGuard, create_json
 from fixture_wait import wait
+from fixture_session_gate import SessionGate
 from owner_wait import SyntheticClock
 from owner_leg import check_ddc
 
@@ -122,14 +123,15 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                 print(recipe+': armed dry run passed. No editor was started; real slots remain unused.',flush=True)
                 return result
             print(recipe+': starting the one authorized authoring session; limit 1800 seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
-            with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log):
+            with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl') as monitor:
                 operation=ledger.begin('fixture-runtime','runtime')
                 def launched(pid):
                     context['process_created']=True
                     result.update(launches=1,editor_pid=pid)
                     guard.mark_launched(slot,pid)
+                    monitor.start(pid)
                 result['exit_code']=ledger.run_child(argv,cwd=HOST,acceptable=(0,),runtime_guard=True,
-                    timeout_seconds=1800,echo=False,on_started=launched,
+                    timeout_seconds=1800,echo=False,on_started=launched,running_check=monitor.check,
                     before_create=lambda:guard.reserve_launch(slot),
                     on_creation_failed=lambda:guard.cancel_unstarted(slot))
             result['probe_exit']=probe_exit(root/'session/probe/probe.jsonl')

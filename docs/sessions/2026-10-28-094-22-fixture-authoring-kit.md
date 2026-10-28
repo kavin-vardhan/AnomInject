@@ -11,3 +11,5 @@ The first suite passed 72 checks but left its own test junction, which strict le
 Entry proof carries 1022 metadata rows already admitted, byte-for-byte, by 09421's accepted exit proof. Its initial missing-history comparison remains preserved. P9 v2 itself is unchanged. No EN5 exception is needed for this carry-forward or test cleanup.
 
 The arming, actual-entry-point dry run, final protection/scans and command audit are recorded in Receipts/09422 and the run report. Real authoring, clean-exit runtime confirmation, cold reopen, picture/noise/ROI qualification and A7 onward remain future work. No push or tags.
+
+Final review added EA6's mid-session gate: 17 checks pass, including a blocked collector that cannot delay the owned-tree timeout, gate loss that stops the harmless child, and a permanently spent launch lock. Read-only collector subprocesses also strip all wrapper metadata. Test scratch follows the supplied receipt root, including reviewer throwaway roots. The 89 kit and 48 measured regressions pass again. The initial real-entry dry run passed both recipes; the final re-bound kit receives its own separate dry run.

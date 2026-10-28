@@ -124,9 +124,8 @@ def read_idle():
 
 
 def powershell_json(command):
-    from environment import boundary, filtered
-    env = filtered(os.environ)
-    boundary(os.environ, env)
+    from environment import execution_env
+    env, contract = execution_env(os.environ)
     result = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command',
         "$ErrorActionPreference='Stop'; " + command], capture_output=True, text=True,
         check=True, timeout=20, env=env)

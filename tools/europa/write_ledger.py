@@ -406,7 +406,7 @@ def child_env(folder, execution=False):
     return env, receipt
 
 def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=None, before_create=None, on_creation_failed=None,
-              runtime_guard=False, timeout_seconds=None, echo=True):
+              runtime_guard=False, timeout_seconds=None, echo=True, running_check=None):
     folder = Path(os.environ['EUROPA_OPERATION_DIR'])
     lognum = len(list(folder.glob('child-*.json'))) + 1
     from environment import execution_command
@@ -475,6 +475,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
         while proc.poll() is None or runtime_guard and any(tree.kernel.WaitForSingleObject(r['handle'],0) != 0 for r in tree.known.values()):
             if tree:
                 tree.poll()
+                if running_check is not None:
+                    running_check(tuple(tree.known))
                 if runtime_guard and time.monotonic()-start >= timeout_seconds:
                     receipt['deadline_seconds'] = timeout_seconds
                     raise RuntimeError('Session limit reached; stopped only the owned editor tree, including crash reporter children.')
