@@ -28,14 +28,20 @@ def tests(output):
         row={field:['e:/syntheticforeign']}
         check('own_'+field+'_stops',decide(contexts=[row])['result']=='STOP')
     check('removed_foreign_continues',decide(change(removed=True),None)['result']=='FOREIGN')
+    check('removed_foreign_D_continues',decide(change('D:/SyntheticForeign',True),None)['result']=='FOREIGN')
     check('removed_P9_root_RED',decide(change('E:/IA_BuildCache',True),None)['result']=='RED')
+    check('removed_P9_D_root_RED',decide(change('D:/UESource',True),None)['result']=='RED')
     check('adjacent_D_remains_port_attributed',decide(change('D:/SyntheticForeign'))['result']=='STOP')
     check('inside_port_remains_port_attributed',decide(change('D:/IA_Europa/Synthetic'))['result']=='STOP')
     check('missing_metadata_refuses',decide(details=None)['result']=='STOP')
     bad=copy.deepcopy(metadata);bad['errors']=[dict(type='PermissionError')]
     check('unreadable_metadata_refuses',decide(details=bad)['result']=='STOP')
-    for name in ('Runtime.log','probe.jsonl','fixture_leg.py','receipt.json','ledger.sqlite','cache.ddc','cache.udd','map.umap','mesh.uasset','data.ucas','ShaderWorking'):
+    for name in ('Runtime.log','probe.jsonl','fixture_leg.py','receipt.json','ledger.sqlite','cache.ddc','cache.ddp','cache.udd','map.umap','mesh.uasset','data.ucas','ShaderWorking','full_suites09425.py','filtered09425.ps1'):
         check('pattern_'+name,any(roots.fnmatch.fnmatchcase(name.casefold(),p) for p in roots.port_patterns()))
+    (scratch/'filtered09425.ps1').write_bytes(b'synthetic port script')
+    with patch.object(Path,'open',side_effect=AssertionError('Foreign file contents must never be opened')):
+        port_metadata=roots.metadata(scratch)
+    check('run_script_metadata_stops_without_opening_files',decide(details=port_metadata)['result']=='STOP' and port_metadata['file_contents_opened']==0)
     refs=roots.context(['python','--output=E:/SyntheticForeign/out.json'],'D:/IA_Europa',{'TEMP':'E:/SyntheticForeign/tmp'})
     check('references_have_no_environment_values',refs['environment']==['e:\\syntheticforeign'] and refs['values_recorded'] is False)
     result=dict(result='PASS',cases=cases,patterns=roots.port_patterns(),metadata=metadata,

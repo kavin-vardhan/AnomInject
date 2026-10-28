@@ -15,7 +15,7 @@ PATTERNS = (
     'runtime.log', 'crashclient.log', 'ue4*.log', 'unreal*.log', 'port*.log',
     'makefile.bin', 'makefile.ubt', '*.uhtmanifest', '*.uhtpath', '*.target', '*.modules',
     '*.uasset', '*.umap', '*.uexp', '*.ubulk', '*.pak', '*.ucas', '*.utoc',
-    '*.ddc', '*.udd', '*.upipelinecache', '*.ushaderbytecode', '*.ushadercache',
+    '*.ddc', '*.ddp', '*.udd', '*.upipelinecache', '*.ushaderbytecode', '*.ushadercache',
     'deriveddatacache', 'ddc', 'shaderworking', 'unrealshaderworkingdir*')
 
 
@@ -61,7 +61,10 @@ def protected_roots():
 
 
 def port_patterns():
-    return sorted(set(PATTERNS)|{p.name.casefold() for p in Path(__file__).parent.iterdir() if p.is_file()})
+    names={p.name.casefold() for p in Path(__file__).parent.iterdir() if p.is_file()}
+    names.update(p.name.casefold() for p in RUN.iterdir()
+                 if p.is_file() and p.suffix.casefold() in ('.py','.ps1','.bat','.cmd','.log','.json','.jsonl'))
+    return sorted(set(PATTERNS)|names)
 
 
 def metadata(path):
@@ -98,7 +101,7 @@ def decide(change,own_contexts,protected,declared,details=None):
     path=change['path'];removed=change.get('after_kind') is None
     protected_match=any(related(path,p) for p in protected)
     declared_match=any(related(path,p) for p in declared)
-    adjacent=norm(path).startswith('d:\\') and (
+    adjacent=not removed and norm(path).startswith('d:\\') and (
         PureWindowsPath(path).parent in (PureWindowsPath(ROOT).parent,PureWindowsPath(RUN).parent))
     mentions=[dict(index=i,field=k,root=value) for i,row in enumerate(own_contexts)
         for k in ('command_line','working_folder','environment') for value in row.get(k,[]) if related(path,value)]
