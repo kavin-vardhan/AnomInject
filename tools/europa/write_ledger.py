@@ -33,6 +33,9 @@ def dump(p, value):
     p.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
 
 def floors(start=False):
+    if (start and not AUTHORING_STARTED and SCOPE.get('runtime_authorized') is True
+            and SCOPE.get('runtime_scope', {}).get('kind') == 'fixture-authoring'):
+        start = False
     limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (15, 12, 10)}
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
         'start': v[0] * GIB, 'warning': v[1] * GIB, 'floor': v[2] * GIB} for d, v in limits.items()}
