@@ -15,6 +15,7 @@ from fixture_policy import (ROOT, HOST, TOOLS, SCOPE, RECIPES, OUTPUTS, canonica
 from fixture_attempts import Guard, GlobalGuard, create_json
 from fixture_wait import wait
 from fixture_session_gate import SessionGate
+from fixture_quarantine import quarantine
 from owner_wait import SyntheticClock
 from owner_leg import check_ddc
 
@@ -125,6 +126,20 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             print(recipe+': starting the one authorized authoring session; limit 1800 seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
             with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl') as monitor:
                 operation=ledger.begin('fixture-runtime','runtime')
+                marker=canonical(os.environ['EUROPA_AUTHORING_MARKER'])
+                if marker != guard.state/'authoring-started.json':
+                    raise RuntimeError('Authoring session phase marker differs from the bound recipe state.')
+                def reserve():
+                    guard.reserve_launch(slot)
+                    create_json(marker,dict(authority='094-22-ruling EX2',wrapper_pid=os.getpid(),
+                        recipe=recipe,slot=slot['number'],phase='authoring_started'))
+                    ledger.AUTHORING_STARTED=True
+                def creation_failed():
+                    guard.cancel_unstarted(slot)
+                    create_json(root/'creation-failed-marker-removal.json',dict(path=str(marker),
+                        sha256=sha(marker),reason='Process creation failed; no session began.'))
+                    marker.unlink()
+                    ledger.AUTHORING_STARTED=False
                 def launched(pid):
                     context['process_created']=True
                     result.update(launches=1,editor_pid=pid)
@@ -132,8 +147,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                     monitor.start(pid)
                 result['exit_code']=ledger.run_child(argv,cwd=HOST,acceptable=(0,),runtime_guard=True,
                     timeout_seconds=1800,echo=False,on_started=launched,running_check=monitor.check,
-                    before_create=lambda:guard.reserve_launch(slot),
-                    on_creation_failed=lambda:guard.cancel_unstarted(slot))
+                    before_create=reserve,on_creation_failed=creation_failed)
             result['probe_exit']=probe_exit(root/'session/probe/probe.jsonl')
             authored=json.loads((root/'authoring.json').read_text())
             if authored.get('result')!='AUTHORED_NOT_QUALIFIED' or authored.get('recipe')!=recipe:
@@ -150,6 +164,8 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             raise
         finally:
             try:
+                if context.get('process_created') and result['result']!='AUTHORING_PASS':
+                    result['quarantine']=quarantine(recipe,root,before,result.get('reason','Failed authoring session'))
                 if operation is not None:
                     with (root/'runtime-ledger-console.log').open('a',encoding='utf-8') as log,contextlib.redirect_stdout(log):
                         ledger.finish(operation,'runtime')
@@ -158,6 +174,10 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                         print(recipe+': clean exit and output checks passed; this recipe is now spent.',flush=True)
             except BaseException as error:
                 result.update(result='STOP',ledger_error=type(error).__name__,reason=str(error))
+                if context.get('process_created') and not (root/'quarantine-receipt.json').exists():
+                    try:result['quarantine']=quarantine(recipe,root,before,result['reason'])
+                    except BaseException as cleanup_error:
+                        result['quarantine_error']=dict(type=type(cleanup_error).__name__,reason=str(cleanup_error))
                 raise
             finally:
                 create_json(root/'attempt-result.json',result)

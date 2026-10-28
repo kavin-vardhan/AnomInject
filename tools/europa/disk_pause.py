@@ -229,11 +229,34 @@ def acknowledge_restart(pending, cleanup_receipt, ledger_summary, receipt):
     pending.unlink()
 
 
-def supervise(argv, output, config, run, kind, recovery=False):
+def authoring_marker_path(path,scope,argv,kind):
+    if path is None:return None
+    from fixture_policy import canonical,validate,SCOPE,TOOLS
+    if kind!='runtime' or not scope.get('runtime_authorized') or scope.get('runtime_scope')!=SCOPE:
+        raise RuntimeError('EX2 phase routing is limited to the EW2 authoring scope.')
+    if len(argv)<7 or Path(argv[2]).resolve()!=TOOLS/'fixture_leg.py' or argv[1]!='-B':
+        raise RuntimeError('EX2 phase routing requires the bound fixture leg helper.')
+    kit=json.loads(Path(argv[argv.index('--config')+1]).read_text())
+    validate(kit,'--dry-run' in argv)
+    recipe=argv[argv.index('--recipe')+1]
+    expected=canonical(Path(kit['recipes'][recipe]['state_root'])/'authoring-started.json')
+    if canonical(path)!=expected:raise RuntimeError('EX2 phase marker is outside the recipe state.')
+    return expected
+
+
+def authoring_started(marker,pid):
+    if marker is None or not marker.exists():return False
+    try:row=json.loads(marker.read_text())
+    except (OSError,ValueError):return False
+    return row.get('authority')=='094-22-ruling EX2' and row.get('wrapper_pid')==pid and row.get('phase')=='authoring_started'
+
+
+def supervise(argv, output, config, run, kind, recovery=False, authoring_marker=None):
     from build_memory import OwnedTree
     from environment import filtered, forbidden_child_name, masked
     assert not any(forbidden_child_name(k) for k in os.environ)
     scope = json.loads(config.read_text())
+    authoring_marker=authoring_marker_path(authoring_marker,scope,argv,kind)
     job = Path(scope['job_root'])
     pending = job/'disk-restart-required.json'
     recovery_tool = Path('D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/tools/europa/disk_recovery.py')
@@ -278,7 +301,9 @@ def supervise(argv, output, config, run, kind, recovery=False):
         identity.close()
     env.update(EUROPA_JOB_CONFIG=str(config), EUROPA_DISK_SUPERVISOR_PID=str(os.getpid()),
                EUROPA_DISK_SUPERVISOR_CREATED=str(stamp))
+    if authoring_marker is not None:env['EUROPA_AUTHORING_MARKER']=str(authoring_marker)
     row = dict(result='RUNNING', argv=argv, kind=kind, start_disks=start_free, footprint=initial_summary,
+               authoring_marker=str(authoring_marker) if authoring_marker else None,
                started_utc=dt.datetime.now(dt.timezone.utc).isoformat(), environment=masked(env),
                wrapper_pid=os.getpid(), authority='094-19-ruling EU2', launches_of_unreal_runtime=0,
                preparation_polls=preparation.polls, preparation_pause_receipts=[str(p) for p in preparation.receipts])
@@ -299,7 +324,12 @@ def supervise(argv, output, config, run, kind, recovery=False):
         while True:
             tree.poll()
             current = reading()
-            if any(v['free'] < v['floor'] for v in current.values()):
+            session_started=authoring_started(authoring_marker,proc.pid)
+            if session_started and any(v['free']<v['floor'] for v in current.values()):
+                if 'EX2_session_floor_policy' not in row:
+                    row['EX2_session_floor_policy']='No EU2 pause: the in-process session monitor stops the retained editor tree and quarantines declared partial outputs.'
+                    write(output,row)
+            if any(v['free'] < v['floor'] for v in current.values()) and not session_started:
                 detected_at = time.monotonic()
                 detected_utc = dt.datetime.now(dt.timezone.utc).isoformat()
                 stopped = tree.stop()
@@ -428,6 +458,7 @@ if __name__ == '__main__':
     p.add_argument('--run-folder', type=Path)
     p.add_argument('--kind', default='setup')
     p.add_argument('--recovery', action='store_true')
+    p.add_argument('--authoring-marker', type=Path)
     p.add_argument('command', nargs=argparse.REMAINDER)
     a = p.parse_args()
     if a.self_test:
@@ -435,6 +466,6 @@ if __name__ == '__main__':
     else:
         args = a.command[1:] if a.command[:1]==['--'] else a.command
         try:
-            raise SystemExit(supervise(args, a.output, a.job_config, a.run_folder, a.kind, a.recovery))
+            raise SystemExit(supervise(args, a.output, a.job_config, a.run_folder, a.kind, a.recovery, a.authoring_marker))
         except PreparationEnded as stopped:
             raise SystemExit(stopped.code)

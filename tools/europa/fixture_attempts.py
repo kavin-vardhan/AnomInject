@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 from owner_attempts import Guard as BaseGuard, create_json, stamp
-from fixture_policy import canonical, CITATION, RULE
+from fixture_policy import canonical, CITATION, RULE, AMENDMENTS
 
 
 class Guard(BaseGuard):
@@ -32,7 +32,7 @@ class Guard(BaseGuard):
 
     def mark_launched(self,slot,pid):
         create_json(self.state/'launched.json',dict(recipe=self.recipe,slot=slot['number'],editor_pid=pid,
-            launched_utc=stamp(),authorization_citation=CITATION,policy_citation=RULE))
+            launched_utc=stamp(),authorization_citation=CITATION,policy_citation=RULE,amendment_citations=AMENDMENTS))
 
 
 class GlobalGuard(BaseGuard):

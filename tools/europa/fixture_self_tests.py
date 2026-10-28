@@ -24,11 +24,12 @@ from toolchain_environment import compare, selected
 
 def config(template):
     return dict(authorized_by_chat=True,authorization_citation=policy.CITATION,policy_citation=policy.RULE,
-        arming_job='09422',gate_profile='measured',human_idle=True,session_seconds=1800,dry_run_only=False,
+        arming_job=policy.ARMING_JOB,amendment_citations=policy.AMENDMENTS,session_policy=policy.SESSION_POLICY,gate_profile='measured',human_idle=True,session_seconds=1800,dry_run_only=False,
         manifests=policy.manifest_rows(),declared_outputs={r:list(map(str,p)) for r,p in policy.OUTPUTS.items()},
-        recipes={r:policy.make_recipe(r,policy.ROOT/'Receipts/09422',policy.ROOT/'Temp/09422') for r in policy.RECIPES},
-        global_state=str(policy.ROOT/'Receipts/09422/fixture-state/global'),
-        job_template=dict(template,runtime_authorized=True,runtime_scope=policy.SCOPE,build_pairs=[],query_pairs=[]),
+        recipes={r:policy.make_recipe(r,policy.ROOT/'Receipts'/policy.ARMING_JOB,policy.ROOT/'Temp'/policy.ARMING_JOB) for r in policy.RECIPES},
+        global_state=str(policy.ROOT/'Receipts'/policy.ARMING_JOB/'fixture-state/global'),
+        job_template=dict(template,runtime_authorized=True,runtime_scope=policy.SCOPE,build_pairs=[],query_pairs=[],
+            authority='09423 armed for EW2 and EW3, as amended by 094-22-ruling EX1-EX5'),
         tooling_files=[],host_files=[],engine_files=[],existing_content=[])
 
 
@@ -49,7 +50,7 @@ def main(output):
             check(name,bool(str(error)))
             rows[-1]['reason']=str(error)
         else:check(name,False)
-    template=json.loads((policy.ROOT/'Receipts/09422/job-config.json').read_text())
+    template=json.loads(Path(os.environ['EUROPA_JOB_CONFIG']).read_text())
     real=config(template)
     check('exact_EW2_real_config',policy.validate(real,False)==real['job_template'])
     dry=policy.throwaway(real,output/'dry',temp/'dry')

@@ -15,6 +15,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-23, 2026-10-28 - launcher ancestry and authoring-session rules corrected; re-arming.**
+> EX1 records/excludes the current launcher tree. EX2 acts only on disk floors, free commit below 6 GiB and the 1800-second deadline during authoring. EX3 quarantines declared partial outputs by receipt; no automatic retry.
+> The first candidate passed 57 EX checks, 89 kit regressions, 48 measured checks and 33 static cases. EW1 binaries, all Content and the probe source remain unchanged. Both dry runs and the live observe-only reading are next.
+> See docs/europa/09423-authoring-amendments.md and docs/sessions/2026-10-28-094-23-launcher-session-rearm.md. No runtime launch, build, push or tags.
+
 > **094-22, 2026-10-28 - automated A6 authoring kit armed; both final dry runs passed.**
 > EA_Core and EA_Travel use bounded stock Python editor sessions, exact new outputs, the full measured gate, EU3/EU4, and permanent per-recipe launch locks. EW1 binaries and all Content/probe/production source remain unchanged.
 > 89 kit checks, 48 measured regressions, and 33 static cases on each of four sources pass. Arming and final dry-run receipts are in Receipts/09422; real execution requires the later chat ruling.

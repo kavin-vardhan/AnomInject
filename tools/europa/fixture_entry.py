@@ -8,7 +8,7 @@ import sys
 import uuid
 
 from environment import execution_env, masked
-from fixture_policy import ROOT, TOOLS, RECIPES, canonical, validate, verify_files, throwaway
+from fixture_policy import ROOT, TOOLS, RECIPES, ARMING_JOB, canonical, validate, verify_files, throwaway
 from owner_attempts import create_json
 
 
@@ -36,9 +36,9 @@ def main(argv=None):
             raise RuntimeError('Throwaway options are dry-run only.')
         if args.dry_run and not args.dry_run_samples:
             raise RuntimeError('Dry run needs explicitly labelled synthetic gate readings.')
-        parent=(canonical(args.dry_run_root) if args.dry_run_root else ROOT/'Receipts/09422')/'fixture-runs'
+        parent=(canonical(args.dry_run_root) if args.dry_run_root else ROOT/'Receipts'/ARMING_JOB)/'fixture-runs'
         run=parent/uuid.uuid4().hex
-        temp=(canonical(args.dry_run_temp) if args.dry_run_temp else ROOT/'Temp/09422')/'fixture-runs'/run.name
+        temp=(canonical(args.dry_run_temp) if args.dry_run_temp else ROOT/'Temp'/ARMING_JOB)/'fixture-runs'/run.name
         canonical(run);canonical(temp)
         run.mkdir(parents=True,exist_ok=False)
         temp.mkdir(parents=True,exist_ok=False)
@@ -59,7 +59,8 @@ def main(argv=None):
                 print(recipe+': previously completed; its launch authorization remains spent.',flush=True)
                 continue
             command=[sys.executable,'-B',str(TOOLS/'disk_pause.py'),'--output',str(run/(recipe+'-disk.json')),
-                '--job-config',str(run/'job-config.json'),'--run-folder',str(run),'--kind','runtime','--',
+                '--job-config',str(run/'job-config.json'),'--run-folder',str(run),'--kind','runtime',
+                '--authoring-marker',str(Path(config['recipes'][recipe]['state_root'])/'authoring-started.json'),'--',
                 sys.executable,'-B',str(TOOLS/'fixture_leg.py'),'--config',str(run/'kit.json'),'--recipe',recipe]
             if args.dry_run:
                 command += ['--dry-run','--dry-run-samples',str(canonical(args.dry_run_samples))]

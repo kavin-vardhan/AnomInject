@@ -29,6 +29,28 @@ def descendants(processes, roots):
     return owned
 
 
+def launcher_tree(processes):
+    if not isinstance(processes,list):return []
+    by_pid={p['pid']:p for p in processes if isinstance(p.get('pid'),int)}
+    roots={pid for pid,p in by_pid.items() if Path(p.get('image','')).name.casefold()=='epicgameslauncher.exe'}
+    excluded=[]
+    for pid,p in by_pid.items():
+        ancestry=[];seen=set();current=pid
+        while current in by_pid and current not in seen:
+            seen.add(current);ancestry.append(current)
+            if current in roots:
+                excluded.append(dict(p,launcher_root_pid=current,ancestry=ancestry,
+                    exclusion='094-22-ruling EX1: current launcher process ancestry'))
+                break
+            parent=by_pid[current].get('parent_pid')
+            if parent in by_pid:
+                child_created=by_pid[current].get('created_utc')
+                parent_created=by_pid[parent].get('created_utc')
+                if child_created and parent_created and child_created<parent_created:break
+            current=parent
+    return sorted(excluded,key=lambda p:p['pid'])
+
+
 def validate_profile(profile, human_idle=None):
     if profile not in ('measured', 'owner-preview'):
         raise RuntimeError('Unknown idle-gate profile')
@@ -60,12 +82,12 @@ def reasons(sample, owned_pids=(), profile='measured', require_launcher=False):
     else:
         if require_launcher and not any(Path(p.get('image','')).name.casefold() == 'epicgameslauncher.exe' for p in processes):
             failures.append('launcher')
+        excluded={p['pid'] for p in launcher_tree(processes)}
+        sample['launcher_tree_excluded']=launcher_tree(processes)
         for process in processes:
-            if process.get('pid') in owned:
+            if process.get('pid') in owned or process.get('pid') in excluded:
                 continue
             text = process.get('image', '')
-            if Path(text).name.casefold() in ('epicgameslauncher.exe','unrealcefsubprocess.exe','epicwebhelper.exe'):
-                continue
             if Path(text).name.casefold() in ('unrealbuildtool.exe','unrealheadertool.exe'):
                 failures.append('foreign_process:' + str(process.get('pid')))
                 continue
@@ -148,11 +170,11 @@ def process_record(row):
         or re.search(r'-run=cook|AutomationTool\.dll|RunUAT\.bat', command, re.I)
         or (Path(image).name.casefold() == 'dotnet.exe' and re.search(r'(?:^|[\\/\s"\'])UnrealBuildTool(?:\.dll|\.exe)?(?:[\s"\']|$)', command, re.I)))
     return dict(pid=row['pid'], parent_pid=row['parent_pid'], image=image,
-        created=row.get('created'), blocked_runtime=blocked)
+        created=row.get('created'), created_utc=row.get('created_utc'), blocked_runtime=blocked)
 
 
 def read_processes():
-    rows = powershell_json(r"$rows=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId;parent_pid=$_.ParentProcessId;image=$_.Name;created=[string]$_.CreationDate;command_line=$_.CommandLine} }); ConvertTo-Json -InputObject $rows -Depth 4 -Compress")
+    rows = powershell_json(r"$rows=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId;parent_pid=$_.ParentProcessId;image=$_.Name;created=[string]$_.CreationDate;created_utc=$(if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().ToString('o') } else { $null });command_line=$_.CommandLine} }); ConvertTo-Json -InputObject $rows -Depth 4 -Compress")
     if not isinstance(rows, list) or not rows:
         raise ValueError('Running-program reading is not a nonempty list')
     return [process_record(row) for row in rows]
@@ -189,6 +211,7 @@ def collect(readers=None):
                 sample[fields[name]] = value
         except Exception as error:
             sample['reading_errors'][name] = reading_error(error)
+    sample['launcher_tree_excluded']=launcher_tree(sample['processes'])
     return sample
 
 

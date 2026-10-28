@@ -23,6 +23,7 @@ USER = Path('C:/Users/kavin')
 LOCAL = USER / 'AppData/Local'
 GIB = 1024 ** 3
 LIMITS = {'C': 250000000, 'E': 50000000, 'engine51': 100000000}
+AUTHORING_STARTED = False
 
 def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
@@ -35,7 +36,7 @@ def floors(start=False):
     limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (25, 20, 15)}
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
         'start': v[0] * GIB, 'warning': v[1] * GIB, 'floor': v[2] * GIB} for d, v in limits.items()}
-    if any(v['free'] < v['floor'] for v in data.values()) and os.environ.get('EUROPA_DISK_SUPERVISOR_PID'):
+    if any(v['free'] < v['floor'] for v in data.values()) and os.environ.get('EUROPA_DISK_SUPERVISOR_PID') and not AUTHORING_STARTED:
         from disk_pause import checkpoint
         checkpoint(data)
         return floors(start)
