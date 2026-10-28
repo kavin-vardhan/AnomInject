@@ -128,7 +128,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                 result['result']='ARMED_DRY_RUN_PASS'
                 print(recipe+': armed dry run passed. No editor was started; real slots remain unused.',flush=True)
                 return result
-            print(recipe+': starting the one authorized authoring session; limit 1800 seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
+            print(recipe+': starting the one authorized authoring session; limit '+str(policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else 1800)+' seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
             monitor_args=fixture_rehearsal.monitor_arguments() if policy.REHEARSAL is not None else {}
             deadline=policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else 1800
             with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl',**monitor_args) as monitor:
