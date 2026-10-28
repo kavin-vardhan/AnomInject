@@ -40,12 +40,53 @@ def boundary(base, actual, routing=None):
 
 def compare_native(expected_hashes, actual):
     actual = {k.upper(): v for k, v in actual.items()}
-    blocked = sorted(k for k in actual if forbidden_child_name(k))
+    blocked = sorted(k for k in actual if execution_forbidden(k))
     hashes = {k: hashlib.sha256(v.encode('utf-8')).hexdigest() for k, v in actual.items() if not forbidden_child_name(k)}
     missing = sorted(set(expected_hashes) - set(hashes))
     changed = sorted(k for k in expected_hashes.keys() & hashes.keys() if expected_hashes[k] != hashes[k])
     return dict(result='STOP' if blocked or missing or changed else 'PASS', blocked_names=blocked,
                 missing_base_names=missing, changed_base_names=changed, added_names=sorted(set(hashes) - set(expected_hashes)))
+
+
+
+def wrapper_metadata_name(name):
+    return name.upper().startswith('EUROPA_')
+
+
+def execution_forbidden(name):
+    return forbidden_child_name(name) or wrapper_metadata_name(name)
+
+
+def execution_env(base, routing=None):
+    expected = {k: v for k,v in filtered(base).items() if not wrapper_metadata_name(k)}
+    routing = {k.upper(): v for k,v in (routing or {}).items()}
+    if any(execution_forbidden(k) for k in routing):
+        raise RuntimeError('Wrapper metadata or blocked name in execution routing')
+    expected.update(routing)
+    return expected, execution_boundary(base, expected, routing)
+
+
+def execution_boundary(base, actual, routing=None):
+    expected = {k:v for k,v in filtered(base).items() if not wrapper_metadata_name(k)}
+    expected.update({k.upper():v for k,v in (routing or {}).items()})
+    actual = {k.upper():v for k,v in actual.items()}
+    blocked = sorted(k for k in actual if execution_forbidden(k))
+    missing = sorted(set(expected)-set(actual))
+    changed = sorted(k for k in expected.keys() & actual.keys() if expected[k] != actual[k])
+    extra = sorted(set(actual)-set(expected))
+    if blocked or missing or changed or extra:
+        raise RuntimeError('EW3 execution environment refused: '+json.dumps(dict(blocked=blocked,missing=missing,changed=changed,extra=extra)))
+    return dict(result='PASS',policy='EL1/EM2/EW3',wrapper_metadata_names=[],blocked_names=[],
+                nonblocked_base_preserved=True,routing_overrides=sorted(routing or {}),effective_sha256_by_name=fingerprints(actual))
+
+
+def execution_command(argv):
+    image = Path(str(argv[0])).name.casefold()
+    return (image in ('unrealbuildtool.exe','unrealheadertool.exe','cl.exe','link.exe','lib.exe','rc.exe','mt.exe',
+                      'ue4editor.exe','ue4editor-cmd.exe','unrealeditor.exe','unrealeditor-cmd.exe',
+                      'shadercompileworker.exe','crashreportclient.exe','crashreportclienteditor.exe','automationtool.exe','runuat.bat')
+            or image == 'dotnet.exe' and any('unrealbuildtool' in str(a).casefold() or 'automationtool' in str(a).casefold() for a in argv[1:])
+            or '/binaries/win64/' in str(argv[0]).replace('\\','/').lower())
 
 
 def masked(environ):
@@ -123,7 +164,7 @@ def effective_receipt(plan, makefile, output, expected_hashes, native_policy=Non
     delta = json.loads(Path(plan).read_text(encoding='utf-8-sig')).get('Environment', {})
     merged = dict(actual)
     merged.update({k.upper(): v for k, v in delta.items()})
-    forbidden = sorted(k for k in merged if forbidden_child_name(k))
+    forbidden = sorted(k for k in merged if execution_forbidden(k))
     if native_policy is None:
         comparator = lambda values: compare_native(expected_hashes, values)
     else:

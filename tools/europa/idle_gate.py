@@ -11,7 +11,7 @@ import subprocess
 import time
 
 GIB = 1024**3
-FLOORS = {'C': 10 * GIB, 'D': 50 * GIB, 'E': 15 * GIB}
+FLOORS = {'C': 10 * GIB, 'D': 25 * GIB, 'E': 15 * GIB}
 FOREIGN = re.compile(r'unrealeditor|ue4editor|unrealgame|ue4game|shadercompileworker|automationtool|runuat|(?:^|[ /\\=])cook(?:[ .]|$)|stackobot|lyragame|stylizedparisstreet|[a-z0-9_]+-win64-(?:shipping|test|development)', re.I)
 
 def descendants(processes, roots):
@@ -38,7 +38,7 @@ def validate_profile(profile, human_idle=None):
     return expected
 
 
-def reasons(sample, owned_pids=(), profile='measured'):
+def reasons(sample, owned_pids=(), profile='measured', require_launcher=False):
     human_idle = validate_profile(profile)
     failures = []
     for name, predicate in [
@@ -58,10 +58,17 @@ def reasons(sample, owned_pids=(), profile='measured'):
     if not isinstance(processes, list):
         failures.append('processes:unknown')
     else:
+        if require_launcher and not any(Path(p.get('image','')).name.casefold() == 'epicgameslauncher.exe' for p in processes):
+            failures.append('launcher')
         for process in processes:
             if process.get('pid') in owned:
                 continue
             text = process.get('image', '')
+            if Path(text).name.casefold() in ('epicgameslauncher.exe','unrealcefsubprocess.exe','epicwebhelper.exe'):
+                continue
+            if Path(text).name.casefold() in ('unrealbuildtool.exe','unrealheadertool.exe'):
+                failures.append('foreign_process:' + str(process.get('pid')))
+                continue
             if profile == 'owner-preview' and Path(text).name.casefold() in ('unrealtraceserver.exe', 'unrealversionselector.exe'):
                 continue
             if process.get('is_game') or process.get('blocked_runtime') or FOREIGN.search(text) or (profile == 'owner-preview' and re.search(r'unreal|ue4', text, re.I)):
@@ -76,9 +83,10 @@ def reasons(sample, owned_pids=(), profile='measured'):
     return failures
 
 class Window:
-    def __init__(self, started, profile='measured', human_idle=None):
+    def __init__(self, started, profile='measured', human_idle=None, require_launcher=False):
         validate_profile(profile, human_idle)
         self.profile = profile
+        self.require_launcher = require_launcher
         self.started = started
         self.consecutive = 0
         self.previous_poll = None
@@ -87,7 +95,7 @@ class Window:
     def poll(self, now, sample, owned_pids=()):
         if now - self.started >= (2700 if self.profile == 'owner-preview' else 4 * 3600):
             return {'status': 'NEEDS-DECISION', 'reason': 'no idle window', 'd2_attempt': False}
-        failures = reasons(sample, owned_pids, self.profile)
+        failures = reasons(sample, owned_pids, self.profile, self.require_launcher)
         spaced = self.previous_poll is None or now - self.previous_poll >= 24
         if failures:
             self.consecutive = 0
@@ -98,7 +106,7 @@ class Window:
         return {'status': 'CLEAR' if self.cleared else 'WAIT', 'reasons': failures, 'consecutive': self.consecutive}
 
     def mid_leg(self, sample, owned_pids=()):
-        failures = reasons(sample, owned_pids, self.profile)
+        failures = reasons(sample, owned_pids, self.profile, self.require_launcher)
         valid = self.cleared and not failures
         if failures:
             self.cleared = False
@@ -137,7 +145,7 @@ def read_gpu():
 def process_record(row):
     image = row.get('image', '')
     command = row.get('command_line') or ''
-    blocked = bool(re.search(r'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)', image, re.I)
+    blocked = bool(re.search(r'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealBuildTool|UnrealHeaderTool|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)', image, re.I)
         or re.search(r'-run=cook|AutomationTool\.dll|RunUAT\.bat', command, re.I)
         or (Path(image).name.casefold() == 'dotnet.exe' and re.search(r'(?:^|[\\/\s"\'])UnrealBuildTool(?:\.dll|\.exe)?(?:[\s"\']|$)', command, re.I)))
     return dict(pid=row['pid'], parent_pid=row['parent_pid'], image=image,

@@ -100,7 +100,7 @@ def git_proof(out):
 def allowed_metadata():
     rows = json.loads((ledger.ROOT / 'Receipts/09406/stop/engine-differences.json').read_text())['changes']
     result = {norm(r['path']): dict(r, after_sha256=r['sha256'], authority='EG1 inherited 1023 files') for r in rows}
-    for file in [*sorted((ledger.ROOT / 'Receipts/09407/ledger').glob('*/classified-changes.jsonl.gz')), *sorted((ledger.ROOT / 'Receipts/09408/ledger').glob('*/classified-changes.jsonl.gz')), *sorted((ledger.ROOT / 'Receipts/09409/ledger').glob('*/classified-changes.jsonl.gz')), *sorted((ledger.ROOT / 'Receipts/09415/ledger').glob('*/classified-changes.jsonl.gz')), *sorted(ledger.LEDGER.glob('*/classified-changes.jsonl.gz'))]:
+    for file in [*sorted((ledger.ROOT / 'Receipts/09407/ledger').glob('*/classified-changes.jsonl.gz')), *sorted((ledger.ROOT / 'Receipts/09408/ledger').glob('*/classified-changes.jsonl.gz')), *sorted((ledger.ROOT / 'Receipts/09409/ledger').glob('*/classified-changes.jsonl.gz')), *sorted((ledger.ROOT / 'Receipts/09415/ledger').glob('*/classified-changes.jsonl.gz')), *sorted((ledger.ROOT / 'Receipts/09421/ledger').glob('*/classified-changes.jsonl.gz')), *sorted(ledger.LEDGER.glob('*/classified-changes.jsonl.gz'))]:
         with gzip.open(file, 'rt', encoding='utf-8') as stream:
             for line in stream:
                 row = json.loads(line)

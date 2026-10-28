@@ -238,6 +238,9 @@ def classification(scope, path, kind, change=None, build_ok=False):
             return 'engine51_metadata', 'EG1 stock build bookkeeping; success, failure and interruption covered'
         return 'STOP', '5.1 engine write outside EG1 bookkeeping classes'
     if scope == 'engine425':
+        import re
+        if re.fullmatch(r'e:/epicgames/ue_4[.]25/engine/intermediate/editorruns/[0-9]+',p) and change and all(change.get(k) in (None,0) for k in ('before_size','after_size')):
+            return 'port_E_exception', 'ET2 zero-byte stock runtime marker; process identities recorded by the runtime child tracker'
         if '/engine/intermediate/build/buildrules/' in p:
             return 'port_E_exception', 'EA4 installed BuildRules'
         return 'STOP', '4.25 engine mutation outside BuildRules'
@@ -376,7 +379,7 @@ def finish(folder, kind):
         raise RuntimeError('EB1/ED4/ED5 ledger STOP')
     return result
 
-def child_env(folder):
+def child_env(folder, execution=False):
     from environment import filtered, masked
     env = filtered(os.environ)
     if any(key in env for key in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')):
@@ -389,6 +392,11 @@ def child_env(folder):
         'DOTNET_NOLOGO': '1', 'NUGET_PACKAGES': str(temp / 'NuGet'), 'GIT_OPTIONAL_LOCKS': '0',
         'PYTHONDONTWRITEBYTECODE': '1', 'EUROPA_OPERATION_DIR': str(folder),
         'EUROPA_JOB_CONFIG': SCOPE['config_path']}
+    if execution:
+        from environment import execution_env, masked, wrapper_metadata_name
+        routing = {k:v for k,v in routing.items() if not wrapper_metadata_name(k)}
+        env, contract = execution_env(os.environ,routing)
+        return env, masked(env)
     env.update({key.upper(): value for key, value in routing.items()})
     selected = {key.casefold() for key in routing}
     selected.update(key.casefold() for key in ('DOTNET_ROOT', 'DOTNET_MULTILEVEL_LOOKUP', 'EUROPA_DESCRIPTOR_PROBE', 'UE-CmdLineArgs', 'EUROPA_BUILD_CHILDREN'))
@@ -397,20 +405,27 @@ def child_env(folder):
     receipt = masked(env)
     return env, receipt
 
-def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=None, before_create=None, on_creation_failed=None):
+def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=None, before_create=None, on_creation_failed=None,
+              runtime_guard=False, timeout_seconds=None, echo=True):
     folder = Path(os.environ['EUROPA_OPERATION_DIR'])
     lognum = len(list(folder.glob('child-*.json'))) + 1
-    env, routing = child_env(folder)
+    from environment import execution_command
+    execution = memory_guard or runtime_guard or execution_command(argv)
+    env, routing = child_env(folder,execution=execution)
     receipt = {'argv': list(map(str, argv)), 'windows_command_line': subprocess.list2cmdline(list(map(str, argv))),
         'cwd': str(cwd or Path.cwd()), 'started_utc': now(), 'environment': routing,
         'job_config_sha256': SCOPE['config_sha256'],
         'W4': {x: None for x in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')}}
     from environment import fingerprints
-    receipt['environment_contract'] = {'result': 'PASS', 'policy': 'EL1/EM2', 'nonblocked_base_preserved': True, 'effective_sha256_by_name': fingerprints(env)}
+    receipt['environment_contract'] = {'result': 'PASS', 'policy': 'EL1/EM2/EW3' if execution else 'EL1/EM2 orchestration', 'nonblocked_base_preserved': True, 'effective_sha256_by_name': fingerprints(env)}
     path = folder / f'child-{lognum:03}.json'
     dump(path, receipt)
     memory_log = folder / f'child-{lognum:03}-memory.jsonl'
     tree = None
+    if runtime_guard and (not timeout_seconds or timeout_seconds <= 0):
+        raise RuntimeError('Runtime requires a positive session deadline')
+    if runtime_guard:
+        from build_memory import OwnedTree
     if memory_guard:
         if Path(argv[0]).name.casefold() != 'unrealbuildtool.exe':
             raise RuntimeError('EF1 guard requires a directly owned UBT executable')
@@ -432,13 +447,15 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
             on_creation_failed()
         raise
     try:
+        if runtime_guard:
+            tree = OwnedTree(proc.pid)
         if on_started is not None:
             on_started(proc.pid)
         receipt['pid'] = proc.pid
         dump(path, receipt)
         if memory_guard:
             tree = OwnedTree(proc.pid)
-        if env.get('EUROPA_BUILD_CHILDREN') == '1' and not memory_guard:
+        if os.environ.get('EUROPA_BUILD_CHILDREN') == '1' and not (memory_guard or runtime_guard):
             from compile_children import observe
             observer = threading.Thread(target=observe, args=(proc.pid, stop_observer, child_result))
             observer.start()
@@ -448,17 +465,22 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
                     for line in proc.stdout:
                         output.write(line)
                         output.flush()
-                        if 'TICKPIN probe' not in line:
+                        if echo and 'TICKPIN probe' not in line:
                             print(line.rstrip(), flush=True)
             except BaseException as error:
                 child_result['console_error'] = dict(type=type(error).__name__, message=str(error))
         thread = threading.Thread(target=consume)
         thread.start()
         last_memory, last_floor, low_count = time.monotonic(), time.monotonic(), 0
-        while proc.poll() is None:
+        while proc.poll() is None or runtime_guard and any(tree.kernel.WaitForSingleObject(r['handle'],0) != 0 for r in tree.known.values()):
             if tree:
                 tree.poll()
-                if time.monotonic() - last_memory >= 5:
+                if runtime_guard and time.monotonic()-start >= timeout_seconds:
+                    receipt['deadline_seconds'] = timeout_seconds
+                    raise RuntimeError('Session limit reached; stopped only the owned editor tree, including crash reporter children.')
+                if runtime_guard and any(Path(r['image']).name.casefold() in ('cl.exe','link.exe','unrealheadertool.exe','automationtool.exe','unrealpak.exe','ue4editor-cmd.exe') for r in tree.known.values()):
+                    raise RuntimeError('An unauthorized compile, commandlet, cook or packaging child appeared.')
+                if memory_guard and time.monotonic() - last_memory >= 5:
                     low_count = monitor_sample(sample(), low_count, tree.stop, memory_log)
                     last_memory = time.monotonic()
             if time.monotonic() - last_floor >= 20:
@@ -479,7 +501,9 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     finally:
         stop_observer.set()
         if thread is not None and thread.ident is not None:
-            thread.join()
+            thread.join(timeout=10)
+            if thread.is_alive():
+                child_result['console_error'] = dict(type='TimeoutError',message='Child output did not close after owned-tree stop')
         if tree:
             receipt['compile_children'] = tree.receipt()
             tree.close()

@@ -1,7 +1,7 @@
 import hashlib
 import ntpath
 
-from environment import forbidden_child_name, fingerprints
+from environment import execution_forbidden, fingerprints
 
 
 def selected(host):
@@ -38,7 +38,7 @@ def inside_toolchain(value, policy):
 
 def compare(expected, actual, policy):
     actual = {k.upper(): v for k, v in actual.items()}
-    blocked = sorted(k for k in actual if forbidden_child_name(k))
+    blocked = sorted(k for k in actual if execution_forbidden(k))
     hashes = {k: hashlib.sha256(v.encode()).hexdigest() for k, v in actual.items() if k not in blocked}
     missing = sorted(set(expected) - set(hashes))
     changed = sorted(k for k in expected.keys() & hashes.keys() if expected[k] != hashes[k])

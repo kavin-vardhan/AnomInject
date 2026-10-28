@@ -15,6 +15,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-22, 2026-10-28 - automated A6 authoring kit prepared; dry-run only.**
+> EA_Core and EA_Travel use bounded stock Python editor sessions, exact new outputs, the full measured gate, EU3/EU4, and permanent per-recipe launch locks. EW1 binaries and all Content/probe/production source remain unchanged.
+> 89 kit checks, 48 measured regressions, and 33 static cases on each of four sources pass. Arming and final dry-run receipts are in Receipts/09422; real execution requires the later chat ruling.
+> See docs/europa/09422-authoring-design.md and docs/sessions/2026-10-28-094-22-fixture-authoring-kit.md. No runtime launch, build, push or tags.
+
 > **094-21, 2026-10-28 - exit-purge guards qualified; incremental rebuilds next.**
 > One probe source guards Stop root changes, GC restoration and late callbacks; cached receipt emission avoids UObject weak-key construction during purge.
 > EV5's source check passes the real probe and 24 mutants. EV3 D: 40/30/25 and scoped EV4 10/4 GiB admission are installed; full builds keep 16 GiB.

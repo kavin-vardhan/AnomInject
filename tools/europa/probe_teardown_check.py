@@ -30,8 +30,8 @@ def functions(text):
 def check(sources):
     violations, locations = [], []
     all_functions = {}
-    lookup = re.compile(r'\b(?:FindObject\w*|StaticFindObject\w*|FindFirstObject\w*|LoadObject\w*|StaticLoadObject\w*|LoadClass\w*|StaticLoadClass\w*)\s*(?:<|\()')
-    actor = re.compile(r'\bT(?:Actor|Object)(?:Iterator|Range)\s*<')
+    lookup = re.compile(r'\b(?:FindObject\w*|StaticFindObject\w*|FindFirstObject\w*|StaticFindFirstObject\w*|LoadObject\w*|StaticLoadObject\w*|LoadClass\w*|StaticLoadClass\w*)\s*(?:<|\()')
+    actor = re.compile(r'\b(?:T(?:Actor|Object)(?:Iterator|Range)\s*<|FObjectIterator\b|ForEachObjectOfClass\s*\(|GetObjectsOfClass\s*\()')
     for name, text in sources.items():
         clean = tokens(text)
         funcs = functions(text)
@@ -44,6 +44,23 @@ def check(sources):
             locations.append(row)
             if containing != ['CacheClasses']:
                 violations.append(row)
+    for name,text in sources.items():
+        clean=tokens(text)
+        funcs=functions(text)
+        for match in re.finditer(r'\b(?:LoadSynchronous|ClearInternalFlags|SetInternalFlags)\s*\(',clean):
+            violations.append(dict(file=name,line=text.count('\n',0,match.start())+1,family='synchronous_load_or_internal_root_change'))
+        for function in ('Cleanup','Cleaned','Stop','Emit'):
+            if function not in funcs:
+                continue
+            body=funcs[function][2]
+            if re.search(r'\b(?:TWeakObjectPtr\s*<|FWeakObjectPtr\b)',body):
+                violations.append(dict(file=name,function=function,family='weak_pointer_constructed_in_teardown'))
+            if function in ('Cleaned','Stop'):
+                for pointer in re.findall(r'([A-Za-z_]\w*(?:\s*\[[^]]+\])?)\s*->',body):
+                    if pointer not in ('Audit','GLog','Data'):
+                        violations.append(dict(file=name,function=function,family='unguarded_object_dereference',pointer=pointer))
+                if re.search(r'(?:[;{(=,]|return)\s*\*\s*(?:Object|World|Dormant|GCInjector|DriverWorld|QueuedWorld|PictureWorld)\b',body):
+                    violations.append(dict(file=name,function=function,family='unguarded_unary_object_dereference'))
     root_change = re.compile(r'\b(?:AddToRoot|RemoveFromRoot)\s*\(')
     for name, text in sources.items():
         clean = tokens(text)
@@ -170,6 +187,19 @@ def self_tests(sources):
     mutant['EuropaPhaseAWorldProbe.h'] = mutant['EuropaPhaseAWorldProbe.h'].replace(
         'TMap<UPTRINT, FWorldState>', 'TMap<TWeakObjectPtr<UWorld>, FWorldState>')
     test('weak_key_receipt_after_purge', mutant, 'FAIL')
+    for name, expression, function in (
+        ('EW3_static_find_first','StaticFindFirstObject(nullptr, TEXT("synthetic"));','Cleanup'),
+        ('EW3_f_object_iterator','FObjectIterator Bad;','Stop'),
+        ('EW3_for_each_object','ForEachObjectOfClass(nullptr, [](UObject*) {});','Cleaned'),
+        ('EW3_get_objects','GetObjectsOfClass(nullptr, Objects);','Cleaned'),
+        ('EW3_clear_internal_root','Object->ClearInternalFlags(EInternalObjectFlags::RootSet);','Stop'),
+        ('EW3_soft_load','TSoftObjectPtr<UObject> Soft; Soft.LoadSynchronous();','Cleanup'),
+        ('EW3_raw_world_weak','TWeakObjectPtr<UWorld> Bad(World);','Cleaned'),
+        ('EW3_plain_dereference','Dormant[0]->GetName();','Stop')):
+        mutant=dict(sources);value=mutant['EuropaPhaseAWorldProbe.cpp']
+        point=functions(value)[function][0]
+        mutant['EuropaPhaseAWorldProbe.cpp']=value[:point]+'\n'+expression+'\n'+value[point:]
+        test(name,mutant,'FAIL')
     assert all(r['pass_'] for r in rows), 'Static check self-test failed'
     return rows
 
