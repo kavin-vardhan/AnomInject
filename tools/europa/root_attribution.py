@@ -11,7 +11,7 @@ ROOT = Path('D:/IA_Europa')
 RUN = Path('D:/IntrusiveAnomalies/_relay/runs/2026-10-16-094-01-europa-phase-a-plan')
 PATTERNS = (
     'europa*', 'ia_canary*', '094*-*', '094*_*.py', 'probe*', 'owner-leg*', 'fixture-*',
-    'receipt*.json*', '*-receipt.json', '*-ledger*', 'ledger*', 'job-config.json',
+    'receipt*.json*', '*-receipt.json', 'child-*.json', 'summary.json', '*-ledger*', 'ledger*', 'job-config.json',
     'runtime.log', 'crashclient.log', 'ue4*.log', 'unreal*.log', 'port*.log',
     'makefile.bin', 'makefile.ubt', '*.uhtmanifest', '*.uhtpath', '*.target', '*.modules',
     '*.uasset', '*.umap', '*.uexp', '*.ubulk', '*.pak', '*.ucas', '*.utoc',
@@ -62,8 +62,7 @@ def protected_roots():
 
 def port_patterns():
     names={p.name.casefold() for p in Path(__file__).parent.iterdir() if p.is_file()}
-    names.update(p.name.casefold() for p in RUN.iterdir()
-                 if p.is_file() and p.suffix.casefold() in ('.py','.ps1','.bat','.cmd','.log','.json','.jsonl'))
+    names.update(p.name.casefold() for p in RUN.iterdir() if p.is_file())
     return sorted(set(PATTERNS)|names)
 
 

@@ -42,6 +42,8 @@ def tests(output):
     with patch.object(Path,'open',side_effect=AssertionError('Foreign file contents must never be opened')):
         port_metadata=roots.metadata(scratch)
     check('run_script_metadata_stops_without_opening_files',decide(details=port_metadata)['result']=='STOP' and port_metadata['file_contents_opened']==0)
+    for name in ('report.md','last-message.txt','summary.json','child-001.json'):
+        check('receipt_pattern_'+name,any(roots.fnmatch.fnmatchcase(name.casefold(),p) for p in roots.port_patterns()))
     refs=roots.context(['python','--output=E:/SyntheticForeign/out.json'],'D:/IA_Europa',{'TEMP':'E:/SyntheticForeign/tmp'})
     check('references_have_no_environment_values',refs['environment']==['e:\\syntheticforeign'] and refs['values_recorded'] is False)
     result=dict(result='PASS',cases=cases,patterns=roots.port_patterns(),metadata=metadata,
