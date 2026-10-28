@@ -37,7 +37,7 @@ def tests(output):
     real=config(template)
     healthy=dict(free_commit_bytes=6*GIB,volumes={d:dict(free_bytes=n,resolved_drive=d) for d,n in FLOORS.items()})
     good=dict(idle_seconds=300,free_memory_bytes=6*GIB,free_commit_bytes=12*GIB,gpu_percent=15,
-        processes=[dict(pid=10,parent_pid=1,image='EpicGamesLauncher.exe',created_utc='2026-01-01T00:00:00Z')],
+        processes=[dict(pid=10,parent_pid=1,image='EpicGamesLauncher.exe',image_path='C:/Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe',created_utc='2026-01-01T00:00:00Z')],
         volumes=copy.deepcopy(healthy['volumes']))
     group=copy.deepcopy(good)
     group['processes'] += [process_record(dict(pid=11,parent_pid=10,image='EOSOverlayRenderer-Win64-Shipping.exe',created_utc='2026-01-01T00:01:00Z')),
@@ -51,9 +51,9 @@ def tests(output):
     check('EX1_every_descendant_recorded',{p['pid'] for p in group['launcher_tree_excluded']}=={10,11,12,14})
     check('EX1_ancestry_recorded',next(p for p in group['launcher_tree_excluded'] if p['pid']==12)['ancestry']==[12,11,10])
     for image in ('UnrealEditor.exe','OtherGame-Win64-Shipping.exe','UnrealBuildTool.exe','UnrealHeaderTool.exe'):
-        foreign=copy.deepcopy(group);foreign['processes'].append(process_record(dict(pid=90,parent_pid=1,image=image)))
+        foreign=copy.deepcopy(group);foreign['processes'].append(process_record(dict(pid=90,parent_pid=1,image=image,image_path='D:/Synthetic/'+image)))
         check('EX1_outside_tree_'+image,'foreign_process:90' in reasons(foreign,require_launcher=True))
-    foreign=copy.deepcopy(group);foreign['processes'].append(process_record(dict(pid=91,parent_pid=1,image='dotnet.exe',command_line='dotnet E:/Engine/UnrealBuildTool.dll')))
+    foreign=copy.deepcopy(group);foreign['processes'].append(process_record(dict(pid=91,parent_pid=1,image='dotnet.exe',image_path='D:/Synthetic/dotnet.exe',command_line='dotnet E:/Engine/UnrealBuildTool.dll')))
     check('EX1_outside_dotnet_UBT_blocks','foreign_process:91' in reasons(foreign,require_launcher=True))
     no_launcher=copy.deepcopy(group);no_launcher['processes']=no_launcher['processes'][1:]
     check('EX1_absent_launcher_waits','launcher' in reasons(no_launcher,require_launcher=True))
@@ -62,12 +62,12 @@ def tests(output):
     check('EX1_changed_parent_rechecks_descendants',all('foreign_process:'+str(p) in reasons(changed,require_launcher=True) for p in (11,12,13)))
     reused=copy.deepcopy(group);reused['processes'][0]['created_utc']='2026-01-02T00:00:00Z'
     check('EX1_parent_created_after_child_not_ancestor','foreign_process:11' in reasons(reused,require_launcher=True))
-    outside=copy.deepcopy(good);outside['processes'].append(dict(pid=90,parent_pid=1,image='UnrealCEFSubProcess.exe',blocked_runtime=True))
+    outside=copy.deepcopy(good);outside['processes'].append(dict(pid=90,parent_pid=1,image='UnrealCEFSubProcess.exe',image_path='D:/Synthetic/UnrealCEFSubProcess.exe',blocked_runtime=True))
     check('EY3_CEF_is_recorded_only','foreign_process:90' not in reasons(outside,require_launcher=True))
     check('EX2_thresholds_inclusive',not stop_reasons(healthy))
     observe=copy.deepcopy(group)
     observe.update(idle_seconds=0,free_memory_bytes=1,gpu_percent=100)
-    observe['processes'].append(dict(pid=90,parent_pid=1,image='UnrealEditor.exe'))
+    observe['processes'].append(dict(pid=90,parent_pid=1,image='UnrealEditor.exe',image_path='D:/Synthetic/UnrealEditor.exe'))
     with SessionGate(output/'observe-only.jsonl',limits_reader=lambda:healthy) as monitor:
         monitor.results.put(dict(sample=observe,collected=time.monotonic()))
         monitor.check(())

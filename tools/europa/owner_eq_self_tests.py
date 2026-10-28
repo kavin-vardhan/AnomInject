@@ -46,10 +46,10 @@ def tests(output):
             check(name, True)
         else:
             check(name, False)
-    good = dict(idle_seconds=300, free_memory_bytes=6*idle.GIB, gpu_percent=15, processes=[],
+    good = dict(idle_seconds=300, free_memory_bytes=6*idle.GIB, free_commit_bytes=12*idle.GIB, gpu_percent=15, processes=[],
         volumes={d:dict(resolved_drive=d,free_bytes=n) for d,n in idle.FLOORS.items()})
     readers = dict(input_idle=lambda:good['idle_seconds'],physical_memory=lambda:good['free_memory_bytes'],
-        gpu=lambda:good['gpu_percent'],processes=lambda:[],
+        commit_memory=lambda:good['free_commit_bytes'],gpu=lambda:good['gpu_percent'],processes=lambda:[],
         **{'disk:'+d:(lambda d=d: good['volumes'][d]) for d in idle.FLOORS})
     conditions = dict(physical_memory='free memory',gpu='GPU use',processes='running programs',
         **{'disk:'+d:'free space on '+d for d in idle.FLOORS})
@@ -108,21 +108,21 @@ def tests(output):
     check('details_redact_secret_values', 'synthetic-value-for-redaction' not in detail.read_text() and '<redacted>' in detail.read_text())
 
     for name in ('UnrealTraceServer.exe','UnrealVersionSelector.exe'):
-        record = idle.process_record(dict(pid=99,parent_pid=1,image=name,command_line=''))
+        record = idle.process_record(dict(pid=99,parent_pid=1,image=name,image_path='D:/Synthetic/'+name,command_line=''))
         sample = dict(good,processes=[record])
         check(name+'_recorded_owner_ignored', record['image']==name and not idle.reasons(sample,profile='owner-preview'))
         check(name+'_measured_unchanged', not idle.reasons(sample,profile='measured'))
     for image in ('UnrealEditor.exe','UE4Editor-Cmd.exe','UnrealBuildTool.exe','UnrealHeaderTool.exe','ShaderCompileWorker.exe','StackOBot.exe','UnrealTraceServerHelper.exe'):
-        sample = dict(good,processes=[idle.process_record(dict(pid=99,parent_pid=1,image=image,command_line=''))])
+        sample = dict(good,processes=[idle.process_record(dict(pid=99,parent_pid=1,image=image,image_path='D:/Synthetic/'+image,command_line=''))])
         check(image+'_owner_still_blocks', bool(idle.reasons(sample,profile='owner-preview')))
     for command in ('dotnet.exe "E:/EpicGames/UE_5.7/Engine/Binaries/DotNET/UnrealBuildTool/UnrealBuildTool.dll" Example Win64 Development',
         'dotnet.exe D:\\Engine\\UnrealBuildTool.dll Example', 'dotnet.exe UnrealBuildTool Example'):
-        record = idle.process_record(dict(pid=99,parent_pid=1,image='dotnet.exe',command_line=command))
+        record = idle.process_record(dict(pid=99,parent_pid=1,image='dotnet.exe',image_path='D:/Synthetic/dotnet.exe',command_line=command))
         sample = dict(good,processes=[record])
         check('dotnet_UBT_both_profiles_'+str(len(cases)), all(idle.reasons(sample,profile=p) for p in ('measured','owner-preview')))
         check('command_line_discarded_'+str(len(cases)), 'command_line' not in record)
         check('owned_UBT_descendant_exempt_'+str(len(cases)), not idle.reasons(sample,[1],profile='owner-preview'))
-    sample = dict(good,processes=[idle.process_record(dict(pid=99,parent_pid=1,image='dotnet.exe',command_line='dotnet.exe Other.dll'))])
+    sample = dict(good,processes=[idle.process_record(dict(pid=99,parent_pid=1,image='dotnet.exe',image_path='D:/Synthetic/dotnet.exe',command_line='dotnet.exe Other.dll'))])
     check('other_dotnet_does_not_block', not idle.reasons(sample,profile='owner-preview'))
     for job in ('09416',ARMING_JOB):
         for field in ('state_root','job_root','temp_root'):
@@ -260,7 +260,7 @@ def tests(output):
     os.environ.clear()
     os.environ.update(original_env)
     prior = prior_tests(scratch/'prior-tests.json')
-    check('prior_62_owner_and_48_measured_regression',len(prior['cases'])==62 and len(prior['measured_regression']['cases'])==48)
+    check('prior_62_owner_and_50_measured_regression',len(prior['cases'])==62 and len(prior['measured_regression']['cases'])==50)
     result = dict(result='PASS',cases=cases,harmless_children=children,UE_launches=0,
         prior_owner_cases=len(prior['cases']),prior_measured_cases=len(prior['measured_regression']['cases']),
         scope='Synthetic readings through real wait loop; actual harmless Python Popen failure paths; no editor executable used')

@@ -113,7 +113,7 @@ def tests(output):
         check('mutex_released_without_consuming_slot', guard.claim()[0]['number']==1)
     rejects('measured_cannot_drop_human_idle', lambda: Window(0, profile='measured', human_idle=False))
     rejects('unknown_profile_refused', lambda: Window(0, profile='other'))
-    good = dict(idle_seconds=0, free_memory_bytes=6*GIB, gpu_percent=15, processes=[],
+    good = dict(idle_seconds=0, free_memory_bytes=6*GIB, free_commit_bytes=12*GIB, gpu_percent=15, processes=[],
         volumes={d:dict(resolved_drive=d,free_bytes=n) for d,n in FLOORS.items()})
     check('owner_recent_input_allowed', not reasons(good, profile='owner-preview'))
     check('measured_recent_input_refused', 'input_idle' in reasons(good))
@@ -124,7 +124,7 @@ def tests(output):
     for key, value in [('free_memory_bytes', 6*GIB-1), ('gpu_percent', 15.1), ('processes',None)]:
         check('owner_retains_'+key, bool(reasons(dict(good, **{key:value}), profile='owner-preview')))
     for name in ('UnrealBuildTool.exe','UnrealHeaderTool.exe','UnrealEditor.exe','UE4Editor.exe','ShaderCompileWorker.exe'):
-        bad = dict(good, processes=[dict(pid=42,parent_pid=1,image=name)])
+        bad = dict(good, processes=[dict(pid=42,parent_pid=1,image=name,image_path='D:/Synthetic/'+name)])
         check('foreign_'+name+'_refused', bool(reasons(bad, profile='owner-preview')))
         check('own_'+name+'_exempt', not reasons(bad,[42],profile='owner-preview'))
     labels = {'physical_memory':'free memory is below 6 GiB', 'gpu':'GPU use is above 15%',
@@ -138,7 +138,7 @@ def tests(output):
     clock = SyntheticClock()
     notices = []
     busy = dict(good, free_memory_bytes=GIB, gpu_percent=80,
-        processes=[dict(pid=42,parent_pid=1,image='UnrealBuildTool.exe')])
+        processes=[dict(pid=42,parent_pid=1,image='UnrealBuildTool.exe',image_path='D:/Synthetic/UnrealBuildTool.exe')])
     result = wait_idle(scratch/'timeout.jsonl', collector=lambda:busy, clock=clock.now, sleep=clock.sleep,
         emit=lambda line:notices.append((clock.now(),line)))
     waiting = [(t,line) for t,line in notices if line.startswith('Waiting:')]

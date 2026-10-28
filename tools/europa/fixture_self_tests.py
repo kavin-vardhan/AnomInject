@@ -29,7 +29,7 @@ def config(template):
         recipes={r:policy.make_recipe(r,policy.ROOT/'Receipts'/policy.ARMING_JOB,policy.ROOT/'Temp'/policy.ARMING_JOB) for r in policy.RECIPES},
         global_state=str(policy.ROOT/'Receipts'/policy.ARMING_JOB/'fixture-state/global'),
         job_template=dict(template,runtime_authorized=True,runtime_scope=policy.SCOPE,build_pairs=[],query_pairs=[],
-            authority='09424 armed for EW2 and EW3, as amended by EX1-EX5 and EY1-EY4',
+            authority=policy.ARMING_JOB+' armed for EW2 and EW3, as amended by EX1-EX5, EY1-EY4 and EZ1-EZ2',
             memory=dict(start_physical_GiB=6,start_commit_GiB=12,stop_physical_GiB=None,stop_commit_GiB=6)),
         tooling_files=[],host_files=[],engine_files=[],existing_content=[])
 
@@ -169,17 +169,17 @@ def main(output):
     with Guard(existing,'EA_Core') as g:
         slot,_=g.claim();check('existing_slot_folder_is_not_reused',slot['number']==2)
     good=dict(idle_seconds=300,free_memory_bytes=6*1024**3,free_commit_bytes=12*1024**3,gpu_percent=15,
-        processes=[dict(pid=700001,parent_pid=1,image='EpicGamesLauncher.exe')],
+        processes=[dict(pid=700001,parent_pid=1,image='EpicGamesLauncher.exe',image_path='C:/Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe')],
         volumes={d:dict(resolved_drive=d,free_bytes=80*1024**3) for d in 'CDE'})
     window=Window(0,profile='measured',require_launcher=True)
     check('three_measured_polls', [window.poll(t,good)['status'] for t in (0,25,50)]==['WAIT','WAIT','CLEAR'])
     missing=copy.deepcopy(good);missing['processes']=[]
     check('launcher_absent_waits','launcher' in reasons(missing,require_launcher=True))
     launchers=copy.deepcopy(good)
-    launchers['processes'] += [dict(pid=700002,parent_pid=700001,image='UnrealCEFSubProcess.exe'),dict(pid=700003,parent_pid=700001,image='EpicWebHelper.exe')]
+    launchers['processes'] += [dict(pid=700002,parent_pid=700001,image='UnrealCEFSubProcess.exe',image_path='C:/Program Files (x86)/Epic Games/Launcher/Engine/Binaries/Win64/UnrealCEFSubProcess.exe'),dict(pid=700003,parent_pid=700001,image='EpicWebHelper.exe',image_path='C:/Program Files (x86)/Epic Games/Launcher/Engine/Binaries/Win64/EpicWebHelper.exe')]
     check('launcher_family_recorded_but_not_blocking',not reasons(launchers,require_launcher=True) and len(launchers['processes'])==3)
     for image,cmd in [('UnrealBuildTool.exe',''),('UnrealHeaderTool.exe',''),('dotnet.exe','dotnet E:/Engine/UnrealBuildTool.dll'),('UnrealEditor.exe','')]:
-        bad=copy.deepcopy(good);bad['processes'].append(process_record(dict(pid=710000,parent_pid=1,image=image,command_line=cmd)))
+        bad=copy.deepcopy(good);bad['processes'].append(process_record(dict(pid=710000,parent_pid=1,image=image,image_path='D:/Synthetic/'+image,command_line=cmd)))
         check('foreign_'+image+'_'+str(len(cmd)),any(x.startswith('foreign_process:') for x in reasons(bad,require_launcher=True)))
     for field,value,reason in [('idle_seconds',299,'input_idle'),('free_memory_bytes',1,'physical_memory'),('gpu_percent',16,'gpu'),('gpu_percent',None,'gpu:unknown')]:
         bad=copy.deepcopy(good);bad[field]=value
