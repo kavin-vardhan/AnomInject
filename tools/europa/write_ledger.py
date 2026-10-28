@@ -332,7 +332,8 @@ def assess(changes, kind, previous=None, build_ok=False):
         if cumulative[d] > limit:
             stops.append({'budget': d, 'bytes': cumulative[d], 'limit': limit})
     return {'result': 'STOP' if stops else 'PASS', 'classification_counts': classes,
-        'exception_growth_charged': current, 'cumulative_job_exception_growth': cumulative, 'stops': stops}
+        'exception_growth_charged': current, 'cumulative_job_exception_growth': cumulative, 'stops': stops,
+        'root_attributions': [item['root_attribution'] for item in changes if 'root_attribution' in item]}
 
 def prior_charge():
     result = {d: 0 for d in LIMITS}

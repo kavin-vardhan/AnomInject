@@ -1,6 +1,7 @@
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -46,6 +47,20 @@ def tests(output):
         check('receipt_pattern_'+name,any(roots.fnmatch.fnmatchcase(name.casefold(),p) for p in roots.port_patterns()))
     refs=roots.context(['python','--output=E:/SyntheticForeign/out.json'],'D:/IA_Europa',{'TEMP':'E:/SyntheticForeign/tmp'})
     check('references_have_no_environment_values',refs['environment']==['e:\\syntheticforeign'] and refs['values_recorded'] is False)
+    import write_ledger as ledger
+    for name,c,details,expected in [('new',change(),metadata,'FOREIGN'),
+        ('removed',change(removed=True),None,'FOREIGN'),
+        ('protected',change('E:/IA_BuildCache',True),None,'RED')]:
+        attribution=decide(c,details)
+        item=dict(c,scope='e_root',before_size=0,after_size=0,root_attribution=attribution)
+        failed=False
+        with patch.object(ledger,'LEDGER',output/'ledger'),patch.object(ledger,'floors'),\
+             patch.object(ledger,'snapshot',return_value=({},[item])),patch.dict(os.environ):
+            try:ledger.begin(name,'read_only')
+            except RuntimeError:failed=True
+        saved=json.loads((output/'ledger'/name/'between-operations.json').read_text())
+        check('persisted_'+name+'_root_attribution',saved['root_attributions']==[attribution]
+              and attribution['result']==expected and failed==(expected=='RED'))
     result=dict(result='PASS',cases=cases,patterns=roots.port_patterns(),metadata=metadata,
         synthetic_external_paths_created=0,foreign_file_contents_opened=0,unreal_launches=0)
     (output/'result.json').write_text(json.dumps(result,indent=2)+'\n')
