@@ -1,0 +1,15 @@
+# 09425 authoring preparation
+
+Authority: chat 094-24 EZ1-EZ6 and 094-23 EY1-EY8, amending EW2/EW3 and EX1-EX5. This job prepares and rehearses the kit with harmless stand-ins only. The later real leg is governed by EZ5 and EY7. The port scope is 4.25 only; the two EW1 5.1 binary manifests remain frozen records.
+
+The retained 15-file EY tooling state was verified against the 09424 stop receipt, passed its five retained suites, and was committed unchanged as a44c19d. EZ1, EZ2, G2, O1 and O2 are separate changes. The final code commit must pass every retained suite and the complete scratch rehearsal before arming.
+
+EZ1 attributes new root entries using declared roots, P9 protection, own-process launch command/working-folder/environment root references, and metadata-only port-pattern inventory. Foreign file contents are never opened. Removed foreign roots are recorded; protected removals fail. The pattern list is executable in tools/europa/root_attribution.py. OBSVideos and the owner's 10-28 E: removals are closed as foreign by chat, conditional on a passing P9 v2 proof.
+
+EZ2 keeps disk lines C: 13/11/10, D: 40/30/25 and E: 15/12/10 GiB (start/warn/floor). During fixture admission a start-line miss above the floor waits in the four-hour measured window and prints the drive and start line. Below-floor preparation still uses EU2. In-session behavior is unchanged: only disk floors, commit below 6 GiB, unreadable acting readings for 60 seconds and the session deadline stop the owned tree. Input, GPU, physical memory and foreign activity are observations.
+
+G2 supplies commit-memory readings and image paths to the historical tests. It preserves their original expectations, including owner-preview's omission of input-idle and measured admission's stricter conditions. O1 detects named environment reads through dict(environ), environ.copy(), getattr(os, 'environ') and __getitem__, with a failing filtered-name mutant and a passing PATH control for each. O2 prints the actual shortened rehearsal deadline.
+
+The scratch rehearsal uses the real batch entry, non-dry fixture_leg.main(), attempt claims, markers, reservations, launch lock, runtime guard, session gate, qualification and quarantine. Host, Content, bindings, logs, state and TEMP are beneath each owned rehearsal case. Only synthetic admission/P9/monitor inputs and harmless stand-ins replace the external engine. Cases cover both passes, each partial recipe, an undeclared file, a missing probe_stop, detached-child deadline and a crash-reporter-named child. The latter is a hash-verified copy of Windows PING.EXE, never an Unreal crash reporter. Same-named siblings remain outside the retained owned tree.
+
+09425 receives fresh real state and attempt paths. Every previous arming is refused by the generation contract. No real path may exist at closeout. The kit keeps the exact EW2 scope, the EU4 no-upload switch, immutable EW1 manifests, output refusal and spent launch locks. Reports under Receipts/09425 bind final test, rehearsal, dry-run, live-gate and scan receipts; this design note predicts those checks and does not claim they have already passed.

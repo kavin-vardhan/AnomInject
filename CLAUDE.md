@@ -15,6 +15,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-25, 2026-10-29 - retained EY tooling committed; final qualification before re-arm.**
+> The port is 4.25 only under EY5; both 5.1 manifests are frozen. The 15 retained files passed their five suites and were committed unchanged as a44c19d. EZ1 records foreign root changes by attribution; EZ2 waits for disk start lines at fixture admission.
+> G2 refreshes historical synthetic readings, O1 covers copied environment reads, and O2 prints the actual rehearsal deadline. All suites and every stand-in rehearsal case must pass on the final code commit before arming 09425. No Unreal launch, build, push or tags.
+> See docs/europa/09425-authoring-amendments.md and docs/sessions/2026-10-29-094-25-finish-authoring-tooling.md; evidence is under Receipts/09425.
+
 > **094-23, 2026-10-28 - fixture kit re-armed; both dry runs and the live gate reading passed.**
 > EX1 records/excludes the current launcher tree. EX2 acts only on disk floors, free commit below 6 GiB and the 1800-second deadline during authoring. EX3 quarantines declared partial outputs by receipt; no automatic retry.
 > The first candidate passed 57 EX checks, 89 kit regressions, 48 measured checks and 33 static cases. EW1 binaries, all Content and the probe source remain unchanged. Both final dry runs passed. The live reading excluded all nine launcher-tree processes; only human idle remained. All real slots are unused; closeout proofs pass.

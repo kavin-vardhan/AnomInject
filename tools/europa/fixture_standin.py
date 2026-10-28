@@ -15,12 +15,12 @@ def main():
     parser.add_argument('--attempt',type=Path,required=True)
     parser.add_argument('--host',type=Path,required=True)
     parser.add_argument('--recipe',choices=policy.RECIPES,required=True)
-    parser.add_argument('--mode',choices=('pass','partial','extra','missing_probe_stop','deadline'),required=True)
+    parser.add_argument('--mode',choices=('pass','partial','extra','missing_probe_stop','deadline','crash_name'),required=True)
     args,extra=parser.parse_known_args()
     if extra!=[policy.UPLOAD]:raise RuntimeError('Stand-in requires the same EU4 switch.')
     attempt=policy.canonical(args.attempt,policy.ROOT/'Receipts')
     rel=attempt.relative_to(policy.ROOT/'Receipts')
-    if len(rel.parts)!=6 or rel.parts[0] not in ('09424','CodeReview09424') or rel.parts[1]!='rehearsal' or rel.parts[3]!='fixture-attempts' or rel.parts[4]!=args.recipe:
+    if len(rel.parts)!=6 or rel.parts[0] not in ('09425','CodeReview09425') or rel.parts[1]!='rehearsal' or rel.parts[3]!='fixture-attempts' or rel.parts[4]!=args.recipe:
         raise RuntimeError('Stand-in attempt is not owned rehearsal scratch.')
     case=Path(*rel.parts[:3])
     host=policy.canonical(args.host,policy.ROOT/'Temp'/case)
@@ -30,13 +30,19 @@ def main():
     target=host/'Content/EuropaPhaseA';target.mkdir(parents=True,exist_ok=True)
     for name in files:
         with (target/name).open('xb') as stream:stream.write(('Synthetic '+args.recipe+' '+name+'\n').encode())
-        if args.mode in ('partial','deadline'):break
+        if args.mode in ('partial','deadline','crash_name'):break
     (attempt/'standin-environment.json').write_text(json.dumps(dict(environment=masked(os.environ),blocked_names=[],wrapper_metadata_names=[]),indent=2)+'\n')
-    if args.mode=='deadline':
+    if args.mode in ('deadline','crash_name'):
         env,_=execution_env(os.environ)
-        child=subprocess.Popen([sys.executable,'-B','-c','import time;time.sleep(120)','--crash-reporter-standin'],env=env,
+        child_argv=[sys.executable,'-B','-c','import time;time.sleep(120)','--crash-reporter-standin']
+        if args.mode=='crash_name':
+            harmless=policy.canonical(host.parent/'standin-bin/CrashReportClient.exe',host.parent)
+            if policy.sha(harmless)!=policy.sha(Path('C:/Windows/System32/PING.EXE')):
+                raise RuntimeError('Crash-named stand-in must be the unchanged harmless system ping image.')
+            child_argv=[str(harmless),'-n','200','127.0.0.1']
+        child=subprocess.Popen(child_argv,env=env,
             creationflags=subprocess.DETACHED_PROCESS|subprocess.CREATE_NEW_PROCESS_GROUP)
-        (attempt/'standin-child.json').write_text(json.dumps(dict(pid=child.pid,role='harmless detached crash-reporter stand-in'))+'\n')
+        (attempt/'standin-child.json').write_text(json.dumps(dict(pid=child.pid,role='harmless detached crash-reporter stand-in',argv=child_argv,image_sha256=policy.sha(Path(child_argv[0]))))+'\n')
         print('Stand-in: waiting past the shortened rehearsal deadline.',flush=True)
         time.sleep(120)
     if args.mode=='partial':

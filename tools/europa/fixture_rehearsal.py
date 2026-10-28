@@ -6,7 +6,7 @@ import sys
 import fixture_policy as policy
 
 ACTIVE=None
-MODES={'pass','partial','extra','missing_probe_stop','deadline'}
+MODES={'pass','partial','extra','missing_probe_stop','deadline','crash_name'}
 
 
 def activate(config):
@@ -17,8 +17,8 @@ def activate(config):
     receipts=policy.canonical(data['receipts_root'],policy.ROOT/'Receipts')
     temp=policy.canonical(data['temp_root'],policy.ROOT/'Temp')
     relative=receipts.relative_to(policy.ROOT/'Receipts')
-    if len(relative.parts)!=3 or relative.parts[0] not in ('09424','CodeReview09424') or relative.parts[1]!='rehearsal':
-        raise RuntimeError('Rehearsal receipts must be one owned 09424 rehearsal case.')
+    if len(relative.parts)!=3 or relative.parts[0] not in ('09425','CodeReview09425') or relative.parts[1]!='rehearsal':
+        raise RuntimeError('Rehearsal receipts must be one owned 09425 rehearsal case.')
     if temp != policy.ROOT/'Temp'/relative or policy.canonical(data['host'],temp)!=temp/'host':
         raise RuntimeError('Rehearsal host and TEMP must be inside the matching scratch case.')
     if set(data.get('modes',{}))!=set(policy.RECIPES) or any(v not in MODES for v in data['modes'].values()):
