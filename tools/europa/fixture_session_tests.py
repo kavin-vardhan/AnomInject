@@ -36,7 +36,7 @@ def tests(output):
     template=json.loads(Path(os.environ['EUROPA_JOB_CONFIG']).read_text())
     real=config(template)
     healthy=dict(free_commit_bytes=6*GIB,volumes={d:dict(free_bytes=n,resolved_drive=d) for d,n in FLOORS.items()})
-    good=dict(idle_seconds=300,free_memory_bytes=6*GIB,gpu_percent=15,
+    good=dict(idle_seconds=300,free_memory_bytes=6*GIB,free_commit_bytes=12*GIB,gpu_percent=15,
         processes=[dict(pid=10,parent_pid=1,image='EpicGamesLauncher.exe',created_utc='2026-01-01T00:00:00Z')],
         volumes=copy.deepcopy(healthy['volumes']))
     group=copy.deepcopy(good)
@@ -44,9 +44,12 @@ def tests(output):
         process_record(dict(pid=12,parent_pid=11,image='EOSOverlayRenderer-Win64-Shipping.exe')),
         process_record(dict(pid=13,parent_pid=12,image='UE4Editor.exe')),
         process_record(dict(pid=14,parent_pid=10,image='UnrealCEFSubProcess.exe'))]
-    check('EX1_whole_launcher_tree_not_blocking',not reasons(group,require_launcher=True))
-    check('EX1_every_descendant_recorded',{p['pid'] for p in group['launcher_tree_excluded']}=={10,11,12,13,14})
-    check('EX1_ancestry_recorded',next(p for p in group['launcher_tree_excluded'] if p['pid']==13)['ancestry']==[13,12,11,10])
+    for process in group['processes']:
+        process['image_path']=('C:/Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe' if process['pid']==10 else
+            'C:/Program Files (x86)/Epic Games/Epic Online Services/managedArtifacts/synthetic/'+process['image'])
+    check('EY2_editor_inside_launcher_tree_blocks',reasons(group,require_launcher=True)==['foreign_process:13'])
+    check('EX1_every_descendant_recorded',{p['pid'] for p in group['launcher_tree_excluded']}=={10,11,12,14})
+    check('EX1_ancestry_recorded',next(p for p in group['launcher_tree_excluded'] if p['pid']==12)['ancestry']==[12,11,10])
     for image in ('UnrealEditor.exe','OtherGame-Win64-Shipping.exe','UnrealBuildTool.exe','UnrealHeaderTool.exe'):
         foreign=copy.deepcopy(group);foreign['processes'].append(process_record(dict(pid=90,parent_pid=1,image=image)))
         check('EX1_outside_tree_'+image,'foreign_process:90' in reasons(foreign,require_launcher=True))
@@ -60,7 +63,7 @@ def tests(output):
     reused=copy.deepcopy(group);reused['processes'][0]['created_utc']='2026-01-02T00:00:00Z'
     check('EX1_parent_created_after_child_not_ancestor','foreign_process:11' in reasons(reused,require_launcher=True))
     outside=copy.deepcopy(good);outside['processes'].append(dict(pid=90,parent_pid=1,image='UnrealCEFSubProcess.exe',blocked_runtime=True))
-    check('EX1_image_name_alone_cannot_exempt','foreign_process:90' in reasons(outside,require_launcher=True))
+    check('EY3_CEF_is_recorded_only','foreign_process:90' not in reasons(outside,require_launcher=True))
     check('EX2_thresholds_inclusive',not stop_reasons(healthy))
     observe=copy.deepcopy(group)
     observe.update(idle_seconds=0,free_memory_bytes=1,gpu_percent=100)

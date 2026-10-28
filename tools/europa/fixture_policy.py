@@ -10,11 +10,13 @@ HOST = ROOT/'StylizedParisStreet'
 TOOLS = HOST/'Plugins/AnomalyInjector/tools/europa'
 CITATION = 'D:/IntrusiveAnomalies/_reviews/094-21-ruling.md#EW2'
 RULE = 'D:/IntrusiveAnomalies/_reviews/094-21-ruling.md#EW3'
-ARMING_JOB = '09423'
-AMENDMENTS = ['D:/IntrusiveAnomalies/_reviews/094-22-ruling.md#EX'+str(i) for i in range(1,6)]
-SESSION_POLICY = dict(start='full_measured',during=['disk_floor','free_commit_below_6_GiB','1800_second_limit'],
+ARMING_JOB = '09424'
+REHEARSAL = None
+AMENDMENTS = (['D:/IntrusiveAnomalies/_reviews/094-22-ruling.md#EX'+str(i) for i in range(1,6)]
+    + ['D:/IntrusiveAnomalies/_reviews/094-23-ruling.md#EY'+str(i) for i in range(1,5)])
+SESSION_POLICY = dict(start='full_measured',during=['disk_floor','free_commit_below_6_GiB','1800_second_limit','unreadable_acting_reading_60_seconds'],
     observe_only=['physical_memory','GPU','human_input','foreign_processes'],automatic_retry=False,
-    failed_declared_outputs='receipt_and_quarantine_before_chat_rearm')
+    failed_declared_outputs='receipt_and_quarantine_before_chat_rearm',start_commit_GiB=12,unreadable_seconds=60)
 UPLOAD = '-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False'
 RECIPES = ('EA_Core', 'EA_Travel')
 OUTPUTS = {
@@ -51,20 +53,29 @@ def canonical(path, root=ROOT):
 
 
 def manifest_rows():
+    if REHEARSAL is not None:return REHEARSAL['manifests']
     return [dict(host=h, path=str(ROOT/'Receipts/09421/qualification'/('final-'+h+'-binaries.json')), sha256=s)
             for h,s in MANIFESTS.items()]
 
 
 def validate(config, dry_run):
+    if config.get('rehearsal') is not None:
+        from fixture_rehearsal import validate as validate_rehearsal
+        receipts,temp=validate_rehearsal(config)
+    else:
+        if REHEARSAL is not None:raise RuntimeError('A rehearsal process cannot switch to the real kit.')
+        receipts,temp=ROOT/'Receipts'/ARMING_JOB,ROOT/'Temp'/ARMING_JOB
     if config.get('authorized_by_chat') is not True or config.get('authorization_citation') != CITATION:
         raise RuntimeError('Fixture authoring is not armed by chat EW2.')
     if config.get('arming_job') != ARMING_JOB or config.get('policy_citation') != RULE:
-        raise RuntimeError('Fixture arming is not the 09423 EW2/EW3 arming amended by EX1-EX5.')
+        raise RuntimeError('Fixture arming is not the 09424 EW2/EW3 arming amended by EX1-EX5 and EY1-EY4.')
     if config.get('amendment_citations') != AMENDMENTS or config.get('session_policy') != SESSION_POLICY:
         raise RuntimeError('The EX1-EX5 amendments and EX2 session policy are required.')
     template = config.get('job_template', {})
     if 'armed for EW2' not in template.get('authority','') or 'preparation and dry-run only' in template.get('authority',''):
         raise RuntimeError('Armed slot authority must say armed for EW2, as amended by EX1-EX5.')
+    if template.get('memory') != {'start_physical_GiB':6,'start_commit_GiB':12,'stop_physical_GiB':None,'stop_commit_GiB':6}:
+        raise RuntimeError('EY3 authoring requires 6 GiB physical and 12 GiB commit at start, and the 6 GiB commit stop.')
     if template.get('runtime_authorized') is not True or template.get('runtime_scope') != SCOPE:
         raise RuntimeError('Runtime scope must be exactly the two EW2 authoring recipes.')
     if template.get('build_pairs') != [] or template.get('query_pairs') != []:
@@ -87,14 +98,14 @@ def validate(config, dry_run):
         slots = row.get('attempt_slots', [])
         if len(slots) != 3 or [s.get('number') for s in slots] != [1,2,3]:
             raise RuntimeError('Each recipe needs three ordered prelaunch attempt slots.')
-        expected = make_recipe(recipe, ROOT/'Receipts'/ARMING_JOB, ROOT/'Temp'/ARMING_JOB)
+        expected = make_recipe(recipe, receipts, temp)
         if not dry_run and row != expected:
-            raise RuntimeError('Real slots must use the bound 09423 recipe paths.')
+            raise RuntimeError('Real slots must use the bound 09424 recipe paths.')
         paths = [canonical(row['state_root'], ROOT/'Receipts')]
         for slot in slots:
             paths += [canonical(slot['job_root'], ROOT/'Receipts'),canonical(slot['temp_root'], ROOT/'Temp')]
         for p in paths:
-            if dry_run and any(p.is_relative_to(ROOT/base/job) for base in ('Receipts','Temp') for job in ('09416','09417','09422')):
+            if dry_run and any(p.is_relative_to(ROOT/base/job) for base in ('Receipts','Temp') for job in ('09416','09417','09422','09423')):
                 raise RuntimeError('Dry run cannot consume old owner arming paths.')
             if dry_run and any(p.is_relative_to(ROOT/base/ARMING_JOB/part) for base in ('Receipts','Temp') for part in ('fixture-attempts','fixture-state','fixture-runs')):
                 raise RuntimeError('Dry run cannot consume real fixture slots.')
@@ -105,10 +116,10 @@ def validate(config, dry_run):
     global_state = canonical(config['global_state'], ROOT/'Receipts')
     if any(global_state == p or global_state.is_relative_to(p) or p.is_relative_to(global_state) for p in all_paths):
         raise RuntimeError('Global lock overlaps a recipe state or attempt path.')
-    if not dry_run and global_state != ROOT/'Receipts'/ARMING_JOB/'fixture-state/global':
+    if not dry_run and global_state != receipts/'fixture-state/global':
         raise RuntimeError('Real global lock path changed.')
     if dry_run and any(global_state.is_relative_to(ROOT/'Receipts'/job/part) for job,part in
-                      [('09416','owner-state'),('09417','owner-state'),('09422','fixture-state'),(ARMING_JOB,'fixture-state')]):
+                      [('09416','owner-state'),('09417','owner-state'),('09422','fixture-state'),('09423','fixture-state'),(ARMING_JOB,'fixture-state')]):
         raise RuntimeError('Dry run cannot consume a real global lock.')
     return template
 
@@ -150,6 +161,9 @@ def verify_manifests(config):
 
 
 def command(recipe, root):
+    if REHEARSAL is not None:
+        from fixture_rehearsal import command as rehearsal_command
+        return rehearsal_command(recipe,root)
     from prepare_runtime import prepare
     root = canonical(root)
     argv = prepare('425',root/'session',probe=True,audit=False,authoring=True)

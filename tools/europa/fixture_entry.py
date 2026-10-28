@@ -16,6 +16,7 @@ def main(argv=None):
     parser=argparse.ArgumentParser()
     parser.add_argument('--config',type=Path,default=ROOT/'Launch/Europa425-FixtureAuthoring.json')
     parser.add_argument('--dry-run',action='store_true')
+    parser.add_argument('--rehearsal',action='store_true')
     parser.add_argument('--dry-run-root',type=Path)
     parser.add_argument('--dry-run-temp',type=Path)
     parser.add_argument('--dry-run-samples',type=Path)
@@ -26,6 +27,11 @@ def main(argv=None):
     try:
         config_path=canonical(args.config)
         config=json.loads(config_path.read_text())
+        if args.rehearsal:
+            if args.dry_run:raise RuntimeError('Rehearsal must use the non-dry branch.')
+            from fixture_rehearsal import activate
+            activate(config)
+            print('Rehearsal: owned scratch and harmless stand-ins; no Unreal process will start.',flush=True)
         if args.dry_run and not config.get('dry_run_only'):
             if not args.dry_run_root or not args.dry_run_temp:
                 raise RuntimeError('Dry run needs explicit throwaway receipt and TEMP roots.')
@@ -36,9 +42,11 @@ def main(argv=None):
             raise RuntimeError('Throwaway options are dry-run only.')
         if args.dry_run and not args.dry_run_samples:
             raise RuntimeError('Dry run needs explicitly labelled synthetic gate readings.')
-        parent=(canonical(args.dry_run_root) if args.dry_run_root else ROOT/'Receipts'/ARMING_JOB)/'fixture-runs'
+        receipts=Path(config['rehearsal']['receipts_root']) if args.rehearsal else ROOT/'Receipts'/ARMING_JOB
+        scratch=Path(config['rehearsal']['temp_root']) if args.rehearsal else ROOT/'Temp'/ARMING_JOB
+        parent=(canonical(args.dry_run_root) if args.dry_run_root else receipts)/'fixture-runs'
         run=parent/uuid.uuid4().hex
-        temp=(canonical(args.dry_run_temp) if args.dry_run_temp else ROOT/'Temp'/ARMING_JOB)/'fixture-runs'/run.name
+        temp=(canonical(args.dry_run_temp) if args.dry_run_temp else scratch)/'fixture-runs'/run.name
         canonical(run);canonical(temp)
         run.mkdir(parents=True,exist_ok=False)
         temp.mkdir(parents=True,exist_ok=False)
@@ -62,6 +70,7 @@ def main(argv=None):
                 '--job-config',str(run/'job-config.json'),'--run-folder',str(run),'--kind','runtime',
                 '--authoring-marker',str(Path(config['recipes'][recipe]['state_root'])/'authoring-started.json'),'--',
                 sys.executable,'-B',str(TOOLS/'fixture_leg.py'),'--config',str(run/'kit.json'),'--recipe',recipe]
+            if args.rehearsal:command += ['--rehearsal']
             if args.dry_run:
                 command += ['--dry-run','--dry-run-samples',str(canonical(args.dry_run_samples))]
             routed,child_contract=execution_env(env,dict(TEMP=str(temp),TMP=str(temp)))

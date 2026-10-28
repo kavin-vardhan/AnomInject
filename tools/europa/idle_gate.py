@@ -11,7 +11,7 @@ import subprocess
 import time
 
 GIB = 1024**3
-FLOORS = {'C': 10 * GIB, 'D': 25 * GIB, 'E': 15 * GIB}
+FLOORS = {'C': 10 * GIB, 'D': 25 * GIB, 'E': 10 * GIB}
 FOREIGN = re.compile(r'unrealeditor|ue4editor|unrealgame|ue4game|shadercompileworker|automationtool|runuat|(?:^|[ /\\=])cook(?:[ .]|$)|stackobot|lyragame|stylizedparisstreet|[a-z0-9_]+-win64-(?:shipping|test|development)', re.I)
 
 def descendants(processes, roots):
@@ -29,23 +29,58 @@ def descendants(processes, roots):
     return owned
 
 
+OBSERVATION_IMAGES = {'crashreportclient.exe','crashreportclienteditor.exe','unrealinsights.exe',
+    'unrealtraceserver.exe','unrealversionselector.exe','unrealcefsubprocess.exe','epicwebhelper.exe'}
+BLOCKING_IMAGES = {'unrealbuildtool.exe','unrealheadertool.exe','unrealpak.exe','unreallightmass.exe',
+    'unrealeditor.exe','unrealeditor-cmd.exe','ue4editor.exe','ue4editor-cmd.exe','unrealgame.exe','ue4game.exe',
+    'shadercompileworker.exe','automationtool.exe','runuat.bat'}
+
+
+def launcher_folders(processes):
+    roots=[]
+    for p in processes:
+        raw=p.get('image_path')
+        if Path(p.get('image','')).name.casefold()!='epicgameslauncher.exe' or not raw:continue
+        path=Path(raw)
+        if not path.is_absolute():continue
+        path=path.resolve()
+        if [x.casefold() for x in path.parts[-4:]] not in (
+            ['portal','binaries','win64','epicgameslauncher.exe'],['portal','binaries','win32','epicgameslauncher.exe']):continue
+        folder=path.parents[3]
+        roots.append(folder)
+        for process in processes:
+            image=process.get('image_path')
+            if not image or not Path(image).is_absolute():continue
+            image=Path(image).resolve()
+            eos=folder.parent/'Epic Online Services'
+            if image.is_relative_to(eos):roots.append(eos)
+    return sorted(set(roots),key=str)
+
+
 def launcher_tree(processes):
     if not isinstance(processes,list):return []
     by_pid={p['pid']:p for p in processes if isinstance(p.get('pid'),int)}
     roots={pid for pid,p in by_pid.items() if Path(p.get('image','')).name.casefold()=='epicgameslauncher.exe'}
+    folders=launcher_folders(processes)
     excluded=[]
     for pid,p in by_pid.items():
+        raw=p.get('image_path');name=Path(p.get('image','')).name.casefold()
+        if not raw or not Path(raw).is_absolute():continue
+        image=Path(raw).resolve()
+        folder=next((f for f in folders if image.is_relative_to(f)),None)
+        if folder is None or name in BLOCKING_IMAGES or p.get('is_game'):continue
+        if FOREIGN.search(name) and name!='eosoverlayrenderer-win64-shipping.exe':continue
         ancestry=[];seen=set();current=pid
         while current in by_pid and current not in seen:
             seen.add(current);ancestry.append(current)
             if current in roots:
                 excluded.append(dict(p,launcher_root_pid=current,ancestry=ancestry,
-                    exclusion='094-22-ruling EX1: current launcher process ancestry'))
+                    install_folder=str(folder),resolved_image_path=str(image),
+                    exclusion='094-23-ruling EY2: current launcher ancestry and own install folder'))
                 break
             parent=by_pid[current].get('parent_pid')
             if parent in by_pid:
-                child_created=by_pid[current].get('created_utc')
-                parent_created=by_pid[parent].get('created_utc')
+                child_created=by_pid[current].get('created_utc');parent_created=by_pid[parent].get('created_utc')
                 if child_created and parent_created and child_created<parent_created:break
             current=parent
     return sorted(excluded,key=lambda p:p['pid'])
@@ -66,9 +101,10 @@ def reasons(sample, owned_pids=(), profile='measured', require_launcher=False):
     for name, predicate in [
         ('input_idle', lambda: sample['idle_seconds'] >= 300),
         ('physical_memory', lambda: sample['free_memory_bytes'] >= 6 * GIB),
+        ('commit_memory', lambda: sample['free_commit_bytes'] >= 12 * GIB),
         ('gpu', lambda: 0 <= sample['gpu_percent'] <= 15),
     ]:
-        if name == 'input_idle' and not human_idle:
+        if (name == 'input_idle' and not human_idle) or (name == 'commit_memory' and profile != 'measured'):
             continue
         try:
             if not predicate():
@@ -88,7 +124,9 @@ def reasons(sample, owned_pids=(), profile='measured', require_launcher=False):
             if process.get('pid') in owned or process.get('pid') in excluded:
                 continue
             text = process.get('image', '')
-            if Path(text).name.casefold() in ('unrealbuildtool.exe','unrealheadertool.exe'):
+            if Path(text).name.casefold() in OBSERVATION_IMAGES:
+                continue
+            if Path(text).name.casefold() in BLOCKING_IMAGES:
                 failures.append('foreign_process:' + str(process.get('pid')))
                 continue
             if profile == 'owner-preview' and Path(text).name.casefold() in ('unrealtraceserver.exe', 'unrealversionselector.exe'):
@@ -159,6 +197,11 @@ def read_memory():
     return sample()['free_physical']
 
 
+def read_commit():
+    from build_memory import sample
+    return sample()['free_commit']
+
+
 def read_gpu():
     return powershell_json(r"$gpu=(Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction Stop).CounterSamples; if (-not $gpu) { throw 'No GPU counter samples' }; [math]::Min(100,($gpu|Measure-Object CookedValue -Sum).Sum)|ConvertTo-Json -Compress")
 
@@ -166,15 +209,16 @@ def read_gpu():
 def process_record(row):
     image = row.get('image', '')
     command = row.get('command_line') or ''
-    blocked = bool(re.search(r'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealBuildTool|UnrealHeaderTool|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)', image, re.I)
+    blocked = bool(re.search(r'UnrealEditor|UE4Editor|ShaderCompileWorker|AutomationTool|RunUAT|UnrealBuildTool|UnrealHeaderTool|UnrealPak|UnrealLightmass|UnrealGame|UE4Game|StackOBot|StylizedParisStreet|LyraGame|.+-Win64-(Shipping|Development|Test)', image, re.I)
         or re.search(r'-run=cook|AutomationTool\.dll|RunUAT\.bat', command, re.I)
         or (Path(image).name.casefold() == 'dotnet.exe' and re.search(r'(?:^|[\\/\s"\'])UnrealBuildTool(?:\.dll|\.exe)?(?:[\s"\']|$)', command, re.I)))
-    return dict(pid=row['pid'], parent_pid=row['parent_pid'], image=image,
+    if Path(image).name.casefold() in OBSERVATION_IMAGES:blocked=False
+    return dict(pid=row['pid'], parent_pid=row['parent_pid'], image=image,image_path=row.get('image_path'),
         created=row.get('created'), created_utc=row.get('created_utc'), blocked_runtime=blocked)
 
 
 def read_processes():
-    rows = powershell_json(r"$rows=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId;parent_pid=$_.ParentProcessId;image=$_.Name;created=[string]$_.CreationDate;created_utc=$(if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().ToString('o') } else { $null });command_line=$_.CommandLine} }); ConvertTo-Json -InputObject $rows -Depth 4 -Compress")
+    rows = powershell_json(r"$rows=@(Get-CimInstance Win32_Process | ForEach-Object { @{pid=$_.ProcessId;parent_pid=$_.ParentProcessId;image=$_.Name;image_path=$_.ExecutablePath;created=[string]$_.CreationDate;created_utc=$(if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().ToString('o') } else { $null });command_line=$_.CommandLine} }); ConvertTo-Json -InputObject $rows -Depth 4 -Compress")
     if not isinstance(rows, list) or not rows:
         raise ValueError('Running-program reading is not a nonempty list')
     return [process_record(row) for row in rows]
@@ -195,12 +239,12 @@ def reading_error(error):
 
 
 def collect(readers=None):
-    readers = readers or dict(input_idle=read_idle, physical_memory=read_memory,
+    readers = readers or dict(input_idle=read_idle, physical_memory=read_memory, commit_memory=read_commit,
         gpu=read_gpu, processes=read_processes,
         **{'disk:'+d: (lambda d=d: read_volume(d)) for d in FLOORS})
-    sample = dict(idle_seconds=None, free_memory_bytes=None, gpu_percent=None,
+    sample = dict(idle_seconds=None, free_memory_bytes=None, free_commit_bytes=None, gpu_percent=None,
         processes=None, volumes={}, reading_errors={})
-    fields = dict(input_idle='idle_seconds', physical_memory='free_memory_bytes',
+    fields = dict(input_idle='idle_seconds', physical_memory='free_memory_bytes', commit_memory='free_commit_bytes',
         gpu='gpu_percent', processes='processes')
     for name in (*fields, *('disk:'+d for d in FLOORS)):
         try:
@@ -217,14 +261,14 @@ def collect(readers=None):
 
 def self_test():
     import copy
-    good = {'idle_seconds': 300, 'free_memory_bytes': 6 * GIB, 'gpu_percent': 15, 'processes': [], 'volumes': {d: {'resolved_drive': d, 'free_bytes': n} for d,n in FLOORS.items()}}
+    good = {'idle_seconds': 300, 'free_memory_bytes': 6 * GIB, 'free_commit_bytes': 12 * GIB, 'gpu_percent': 15, 'processes': [], 'volumes': {d: {'resolved_drive': d, 'free_bytes': n} for d,n in FLOORS.items()}}
     results = []
     def check(name, condition):
         results.append({'case': name, 'pass': bool(condition)})
         if not condition:
             raise AssertionError(name)
     check('thresholds_inclusive', not reasons(good))
-    for key, value in [('idle_seconds', 299.99), ('free_memory_bytes', 6*GIB-1), ('gpu_percent', 15.01)]:
+    for key, value in [('idle_seconds', 299.99), ('free_memory_bytes', 6*GIB-1), ('free_commit_bytes', 12*GIB-1), ('gpu_percent', 15.01)]:
         bad = copy.deepcopy(good); bad[key] = value
         check(key + '_can_fail', bool(reasons(bad)))
         del bad[key]

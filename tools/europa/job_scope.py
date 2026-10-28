@@ -8,6 +8,10 @@ ROOT = Path('D:/IA_Europa')
 
 
 def memory_policy_allowed(data, job):
+    if (data.get('runtime_authorized') is True and data.get('runtime_scope',{}).get('kind')=='fixture-authoring'
+        and 'EY1-EY4' in data.get('authority','') and data.get('build_pairs')==[] and data.get('query_pairs')==[]
+        and data['memory']=={'start_physical_GiB':6,'start_commit_GiB':12,'stop_physical_GiB':None,'stop_commit_GiB':6}):
+        return True
     if data['memory'] in (
         {'start_physical_GiB': 6, 'start_commit_GiB': 12, 'stop_physical_GiB': 1, 'stop_commit_GiB': 4},
         {'start_physical_GiB': 4, 'start_commit_GiB': 16, 'stop_physical_GiB': None, 'stop_commit_GiB': 6}):

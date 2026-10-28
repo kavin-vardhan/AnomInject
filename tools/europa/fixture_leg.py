@@ -8,6 +8,7 @@ import sys
 import traceback
 import uuid
 
+import fixture_policy as policy
 from environment import filtered, masked
 from fixture_policy import (ROOT, HOST, TOOLS, SCOPE, RECIPES, OUTPUTS, canonical, sha, validate,
     verify_files, verify_manifests, command, validate_argv, content_snapshot, config_snapshot,
@@ -80,13 +81,17 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             (root/'script/author.py').write_text(generated,encoding='utf-8')
             argv=command(recipe,root)
             validate_argv(argv,recipe,root)
-            ddc=check_ddc(HOST/'StylizedParisStreet.uproject')
+            if policy.REHEARSAL is not None:
+                import fixture_rehearsal
+                ddc=fixture_rehearsal.check_ddc()
+            else:ddc=check_ddc(HOST/'StylizedParisStreet.uproject')
             create_json(root/'content-before.json',before)
             create_json(root/'config-before.json',configs)
             with (root/'preflight-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log):
                 preflight=ledger.begin('fixture-preflight','read_only')
                 try:
-                    ledger.run_child([sys.executable,'-B',str(TOOLS/'owner_p9.py'),'entry-fixture'])
+                    if policy.REHEARSAL is not None:fixture_rehearsal.preflight(root)
+                    else:ledger.run_child([sys.executable,'-B',str(TOOLS/'owner_p9.py'),'entry-fixture'])
                 finally:
                     ledger.finish(preflight,'read_only')
             proof=root/'P9/entry-fixture/summary.json'
@@ -98,14 +103,14 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             create_json(root/'prepared.json',result)
             print(recipe+': protected files, Content, binaries and routing passed.',flush=True)
             arguments={}
-            if samples_path:
-                samples=json.loads(canonical(samples_path).read_text())
+            if samples_path or policy.REHEARSAL is not None:
+                samples=fixture_rehearsal.samples() if policy.REHEARSAL is not None else json.loads(canonical(samples_path).read_text())
                 if not isinstance(samples,list) or not samples:
                     raise RuntimeError('Dry run samples must be a nonempty list.')
                 iterator=iter(samples)
                 clock=SyntheticClock()
                 arguments=dict(collector=lambda:next(iterator,samples[-1]),clock=clock.now,sleep=clock.sleep)
-                result['gate_readings']='SYNTHETIC; real P9, Content, hashes, routing and argv checks'
+                result['gate_readings']='REHEARSAL scratch admission and synthetic gate' if policy.REHEARSAL is not None else 'SYNTHETIC; real P9, Content, hashes, routing and argv checks'
             else:
                 result['gate_readings']='LIVE'
             result['gate']=wait(root/'idle.jsonl',owned=(os.getpid(),),**arguments)
@@ -124,11 +129,11 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                 print(recipe+': armed dry run passed. No editor was started; real slots remain unused.',flush=True)
                 return result
             print(recipe+': starting the one authorized authoring session; limit 1800 seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
-            with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl') as monitor:
+            monitor_args=fixture_rehearsal.monitor_arguments() if policy.REHEARSAL is not None else {}
+            deadline=policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else 1800
+            with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl',**monitor_args) as monitor:
                 operation=ledger.begin('fixture-runtime','runtime')
-                marker=canonical(os.environ['EUROPA_AUTHORING_MARKER'])
-                if marker != guard.state/'authoring-started.json':
-                    raise RuntimeError('Authoring session phase marker differs from the bound recipe state.')
+                marker=canonical(guard.state/'authoring-started.json')
                 def reserve():
                     guard.reserve_launch(slot)
                     create_json(marker,dict(authority='094-22-ruling EX2',wrapper_pid=os.getpid(),
@@ -146,7 +151,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                     guard.mark_launched(slot,pid)
                     monitor.start(pid)
                 result['exit_code']=ledger.run_child(argv,cwd=HOST,acceptable=(0,),runtime_guard=True,
-                    timeout_seconds=1800,echo=False,on_started=launched,running_check=monitor.check,
+                    timeout_seconds=deadline,echo=False,on_started=launched,running_check=monitor.check,
                     before_create=reserve,on_creation_failed=creation_failed)
             result['probe_exit']=probe_exit(root/'session/probe/probe.jsonl')
             authored=json.loads((root/'authoring.json').read_text())
@@ -188,11 +193,18 @@ def main(argv=None):
     p.add_argument('--config',type=Path,required=True)
     p.add_argument('--recipe',choices=RECIPES,required=True)
     p.add_argument('--dry-run',action='store_true')
+    p.add_argument('--rehearsal',action='store_true')
     p.add_argument('--dry-run-samples',type=Path)
     a=p.parse_args(argv)
     clean=filtered(os.environ)
     os.environ.clear();os.environ.update(clean)
     try:
+        if a.rehearsal:
+            if a.dry_run:raise RuntimeError('Rehearsal must use the non-dry branch.')
+            from fixture_rehearsal import activate
+            activate(json.loads(canonical(a.config).read_text()))
+            global HOST,OUTPUTS
+            HOST,OUTPUTS=policy.HOST,policy.OUTPUTS
         result=run(a.config,a.recipe,a.dry_run,a.dry_run_samples)
         return 0 if result['result'] in ('AUTHORING_PASS','ARMED_DRY_RUN_PASS') else 2
     except BaseException as error:

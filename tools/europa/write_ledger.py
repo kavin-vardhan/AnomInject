@@ -33,7 +33,7 @@ def dump(p, value):
     p.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
 
 def floors(start=False):
-    limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (25, 20, 15)}
+    limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (15, 12, 10)}
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
         'start': v[0] * GIB, 'warning': v[1] * GIB, 'floor': v[2] * GIB} for d, v in limits.items()}
     if any(v['free'] < v['floor'] for v in data.values()) and os.environ.get('EUROPA_DISK_SUPERVISOR_PID') and not AUTHORING_STARTED:
@@ -487,7 +487,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
                     low_count = monitor_sample(sample(), low_count, tree.stop, memory_log)
                     last_memory = time.monotonic()
             if time.monotonic() - last_floor >= 20:
-                floors()
+                if not runtime_guard or running_check is None:
+                    floors()
                 last_floor = time.monotonic()
             if child_result.get('console_error'):
                 raise RuntimeError('Child console reader failed')

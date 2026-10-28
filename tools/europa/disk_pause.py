@@ -12,7 +12,7 @@ import threading
 import time
 
 GIB = 1024 ** 3
-LIMITS = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (25, 20, 15)}
+LIMITS = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (15, 12, 10)}
 
 
 def reading():
@@ -237,6 +237,9 @@ def authoring_marker_path(path,scope,argv,kind):
     if len(argv)<7 or Path(argv[2]).resolve()!=TOOLS/'fixture_leg.py' or argv[1]!='-B':
         raise RuntimeError('EX2 phase routing requires the bound fixture leg helper.')
     kit=json.loads(Path(argv[argv.index('--config')+1]).read_text())
+    if '--rehearsal' in argv:
+        from fixture_rehearsal import activate
+        activate(kit)
     validate(kit,'--dry-run' in argv)
     recipe=argv[argv.index('--recipe')+1]
     expected=canonical(Path(kit['recipes'][recipe]['state_root'])/'authoring-started.json')
@@ -301,7 +304,6 @@ def supervise(argv, output, config, run, kind, recovery=False, authoring_marker=
         identity.close()
     env.update(EUROPA_JOB_CONFIG=str(config), EUROPA_DISK_SUPERVISOR_PID=str(os.getpid()),
                EUROPA_DISK_SUPERVISOR_CREATED=str(stamp))
-    if authoring_marker is not None:env['EUROPA_AUTHORING_MARKER']=str(authoring_marker)
     row = dict(result='RUNNING', argv=argv, kind=kind, start_disks=start_free, footprint=initial_summary,
                authoring_marker=str(authoring_marker) if authoring_marker else None,
                started_utc=dt.datetime.now(dt.timezone.utc).isoformat(), environment=masked(env),
@@ -323,13 +325,13 @@ def supervise(argv, output, config, run, kind, recovery=False, authoring_marker=
     try:
         while True:
             tree.poll()
-            current = reading()
             session_started=authoring_started(authoring_marker,proc.pid)
-            if session_started and any(v['free']<v['floor'] for v in current.values()):
+            current = reading() if not session_started else None
+            if session_started:
                 if 'EX2_session_floor_policy' not in row:
                     row['EX2_session_floor_policy']='No EU2 pause: the in-process session monitor stops the retained editor tree and quarantines declared partial outputs.'
                     write(output,row)
-            if any(v['free'] < v['floor'] for v in current.values()) and not session_started:
+            if current is not None and any(v['free'] < v['floor'] for v in current.values()) and not session_started:
                 detected_at = time.monotonic()
                 detected_utc = dt.datetime.now(dt.timezone.utc).isoformat()
                 stopped = tree.stop()

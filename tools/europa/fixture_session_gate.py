@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 from pathlib import Path
 import queue
 import threading
@@ -24,14 +25,24 @@ def limits_sample():
     return result
 
 
+def numeric(value):
+    return isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value) and value>=0
+
+
+def volume_reading(sample,drive):
+    volumes=sample.get('volumes')
+    value=volumes.get(drive) if isinstance(volumes,dict) else None
+    return value if isinstance(value,dict) else {}
+
+
 def stop_reasons(sample):
     found=[]
     commit=sample.get('free_commit_bytes')
-    if isinstance(commit,(int,float)) and commit<6*GIB:
+    if numeric(commit) and commit<6*GIB:
         found.append('free commit below 6 GiB')
     for drive,minimum in FLOORS.items():
-        volume=sample.get('volumes',{}).get(drive,{})
-        if isinstance(volume.get('free_bytes'),(int,float)) and volume['free_bytes']<minimum:
+        volume=volume_reading(sample,drive)
+        if volume.get('resolved_drive')==drive and numeric(volume.get('free_bytes')) and volume['free_bytes']<minimum:
             found.append('disk '+drive+': below its '+str(minimum//GIB)+' GiB floor')
     return found
 
@@ -48,13 +59,14 @@ class SessionGate:
         self.last=None
         self.owned=()
         self.last_limits=float('-inf')
+        self.unreadable_since={}
 
     def __enter__(self):
         self.stream=self.path.open('x',encoding='utf-8')
         return self
 
     def write(self,row):
-        row=dict(row,utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),authority='094-22-ruling EX2')
+        row=dict(row,utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),authority='094-22-ruling EX2; 094-23-ruling EY3')
         self.stream.write(json.dumps(row)+'\n');self.stream.flush()
 
     def start(self,pid):
@@ -75,9 +87,22 @@ class SessionGate:
         self.owned=tuple(owned)
         if self.clock()-self.last_limits>=1:
             self.last_limits=self.clock()
-            limits=self.limits_reader()
+            try:limits=self.limits_reader()
+            except Exception as error:limits=dict(reading_errors=dict(acting=reading_error(error)))
+            if not isinstance(limits,dict):limits=dict(reading_errors=dict(acting=dict(type='InvalidReading')))
             failures=stop_reasons(limits)
-            self.write(dict(kind='acting_limits',sample=limits,reasons=failures,owned_pids=list(self.owned),
+            values={'free_commit':limits.get('free_commit_bytes')}
+            for drive in FLOORS:
+                volume=volume_reading(limits,drive)
+                values['disk:'+drive]=volume.get('free_bytes') if volume.get('resolved_drive')==drive else None
+            for key,value in values.items():
+                valid=numeric(value)
+                if valid:self.unreadable_since.pop(key,None)
+                else:
+                    self.unreadable_since.setdefault(key,self.clock())
+                    if self.clock()-self.unreadable_since[key]>=60:
+                        failures.append(key+' reading unavailable for 60 seconds')
+            self.write(dict(kind='acting_limits',sample=limits,reasons=failures,unreadable_since=self.unreadable_since.copy(),owned_pids=list(self.owned),
                 action='stop_owned_tree' if failures else 'record',deadline='independent 1800-second runtime guard'))
             if failures:
                 raise RuntimeError('Authoring session stopped: '+'; '.join(failures)+'. Only the owned tree is stopped; this recipe remains spent.')
