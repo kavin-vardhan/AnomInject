@@ -22,8 +22,18 @@ def inspect_source(text, name):
             for target in node.targets:
                 if isinstance(target,ast.Name):constants[target.id]=node.value.value
     def is_env(node):
-        return (isinstance(node,ast.Name) and node.id in env_names or
-            isinstance(node,ast.Attribute) and node.attr=='environ' and isinstance(node.value,ast.Name) and node.value.id in os_names)
+        if (isinstance(node,ast.Name) and node.id in env_names or
+            isinstance(node,ast.Attribute) and node.attr=='environ' and isinstance(node.value,ast.Name) and node.value.id in os_names):
+            return True
+        if isinstance(node,ast.Call):
+            if isinstance(node.func,ast.Name) and node.func.id=='dict' and node.args:
+                return is_env(node.args[0])
+            if isinstance(node.func,ast.Attribute) and node.func.attr=='copy' and not node.args:
+                return is_env(node.func.value)
+            if isinstance(node.func,ast.Name) and node.func.id=='getattr' and len(node.args)>=2:
+                return (isinstance(node.args[0],ast.Name) and node.args[0].id in os_names and
+                    isinstance(node.args[1],ast.Constant) and node.args[1].value=='environ')
+        return False
     changed=True
     while changed:
         changed=False
@@ -54,7 +64,7 @@ def inspect_source(text, name):
              isinstance(function,ast.Attribute) and isinstance(function.value,ast.Name) and
              function.value.id in os_names and function.attr=='getenv')
         env_method=isinstance(function,ast.Attribute) and is_env(function.value)
-        if get or env_method and function.attr in ('get','pop','setdefault'):
+        if get or env_method and function.attr in ('get','pop','setdefault','__getitem__'):
             reads.append((node,literal(node.args[0]) if node.args else None,'getenv' if get else function.attr))
         if env_method and function.attr=='setdefault' and node.args:
             writes.append((node,literal(node.args[0]),scope(node)))
@@ -96,6 +106,17 @@ def self_tests():
         actual=bool(rows) and all(r['result']=='PASS' for r in rows)
         cases.append(dict(case=name,passed=actual==expected,reads=rows))
         assert actual==expected,name
+    for form,expression in (
+        ('dict_alias','env=dict(os.environ)\nx=env[N]'),
+        ('copy_subscript','x=os.environ.copy()[N]'),
+        ('getattr_subscript','x=getattr(os,"environ")[N]'),
+        ('dunder_getitem','x=os.environ.__getitem__(N)')):
+        for key,expected in (('FAKE_TOKEN',False),('PATH',True)):
+            name=form+('_mutant' if not expected else '_preserved')
+            rows=inspect_source('import os\nN='+repr(key)+'\n'+expression,name)
+            actual=bool(rows) and all(r['result']=='PASS' for r in rows)
+            cases.append(dict(case=name,passed=actual==expected,reads=rows))
+            assert actual==expected,name
     return cases
 
 
