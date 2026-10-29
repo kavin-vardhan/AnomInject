@@ -135,6 +135,25 @@ class OwnedTree:
                 if parent and row['pid'] not in self.known and row['exe'].casefold() != 'mspdbsrv.exe':
                     progress = self.add(row['pid'], parent, parent['depth'] + 1) or progress
 
+    def command_line(self, row):
+        class UnicodeString(ctypes.Structure):
+            _fields_ = [('length',wintypes.USHORT),('maximum',wintypes.USHORT),('buffer',ctypes.c_void_p)]
+        query=ctypes.WinDLL('ntdll').NtQueryInformationProcess
+        query.argtypes=[wintypes.HANDLE,wintypes.ULONG,ctypes.c_void_p,wintypes.ULONG,ctypes.POINTER(wintypes.ULONG)]
+        query.restype=ctypes.c_long
+        length=wintypes.ULONG()
+        query(row['handle'],60,None,0,ctypes.byref(length))
+        if not length.value or length.value>1024*1024:
+            raise RuntimeError('Owned process command line length unavailable')
+        data=ctypes.create_string_buffer(length.value)
+        status=query(row['handle'],60,data,len(data),ctypes.byref(length))
+        if status<0:
+            raise RuntimeError('Owned process command line query status '+hex(status & 0xffffffff))
+        value=UnicodeString.from_buffer(data)
+        if value.length%2 or not value.buffer:
+            raise RuntimeError('Invalid owned process command line')
+        return ctypes.wstring_at(value.buffer,value.length//2)
+
     def stop(self):
         self.poll()
         stopped = []

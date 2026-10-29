@@ -14,25 +14,29 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--attempt',type=Path,required=True)
     parser.add_argument('--host',type=Path,required=True)
-    parser.add_argument('--recipe',choices=policy.RECIPES,required=True)
-    parser.add_argument('--mode',choices=('pass','partial','extra','missing_probe_stop','deadline','crash_name'),required=True)
+    parser.add_argument('--recipe',choices=policy.SESSIONS,required=True)
+    parser.add_argument('--mode',choices=('pass','partial','extra','missing_probe_stop','deadline','crash_name','ubt_build','smoke_fail'),required=True)
     args,extra=parser.parse_known_args()
-    if extra!=[policy.UPLOAD]:raise RuntimeError('Stand-in requires the same EU4 switch.')
+    if extra!=[policy.UPLOAD,policy.ANALYTICS]:raise RuntimeError('Stand-in requires the same EU4 switch.')
     attempt=policy.canonical(args.attempt,policy.ROOT/'Receipts')
     rel=attempt.relative_to(policy.ROOT/'Receipts')
-    if len(rel.parts)!=6 or rel.parts[0] not in ('09425','CodeReview09425') or rel.parts[1]!='rehearsal' or rel.parts[3]!='fixture-attempts' or rel.parts[4]!=args.recipe:
+    if len(rel.parts)!=6 or rel.parts[0] not in ('09428','CodeReview09428') or rel.parts[1]!='rehearsal' or rel.parts[3]!='fixture-attempts' or rel.parts[4]!=args.recipe:
         raise RuntimeError('Stand-in attempt is not owned rehearsal scratch.')
     case=Path(*rel.parts[:3])
     host=policy.canonical(args.host,policy.ROOT/'Temp'/case)
     if host!=policy.ROOT/'Temp'/case/'host':raise RuntimeError('Stand-in host escaped scratch.')
     if any(execution_forbidden(k) for k in os.environ):raise RuntimeError('Stand-in received blocked execution metadata.')
-    files=['SM_EA_TwoLod.uasset','EA_Core.umap'] if args.recipe=='EA_Core' else ['EA_Travel.umap']
+    if args.mode=='ubt_build':
+        env,_=execution_env(os.environ)
+        subprocess.Popen([sys.executable,'-B','-c','import time;time.sleep(120)','--fc6-ubt-standin','-Mode=Build'],env=env)
+        time.sleep(120)
+    files=[] if args.recipe=='Smoke' else ['SM_EA_TwoLod.uasset','EA_Core.umap'] if args.recipe=='EA_Core' else ['EA_Travel.umap']
     target=host/'Content/EuropaPhaseA';target.mkdir(parents=True,exist_ok=True)
     for name in files:
         with (target/name).open('xb') as stream:stream.write(('Synthetic '+args.recipe+' '+name+'\n').encode())
-        if args.mode in ('partial','deadline','crash_name'):break
+        if args.mode in ('partial','deadline','crash_name','ubt_build','smoke_fail'):break
     (attempt/'standin-environment.json').write_text(json.dumps(dict(environment=masked(os.environ),blocked_names=[],wrapper_metadata_names=[]),indent=2)+'\n')
-    if args.mode in ('deadline','crash_name'):
+    if args.mode in ('deadline','crash_name','ubt_build','smoke_fail'):
         env,_=execution_env(os.environ)
         child_argv=[sys.executable,'-B','-c','import time;time.sleep(120)','--crash-reporter-standin']
         if args.mode=='crash_name':
@@ -53,7 +57,11 @@ def main():
     rows=[dict(sequence=1,kind='world_cleanup',actor_snapshot='skipped',skip_reason='engine_exit',world_type=4)]
     if args.mode!='missing_probe_stop':rows.append(dict(sequence=2,kind='probe_stop',root_release='skipped'))
     (probe/'probe.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
-    (attempt/'authoring.json').write_text(json.dumps(dict(result='AUTHORED_NOT_QUALIFIED',recipe=args.recipe,synthetic=True))+'\n')
+    if args.recipe=='Smoke':
+        (attempt/'smoke.json').write_text(json.dumps(dict(result='SMOKE_FAIL' if args.mode=='smoke_fail' else 'SMOKE_PASS',synthetic=True,creates=0,saves=0))+'\n')
+    else:
+        (attempt/'authoring.json').write_text(json.dumps(dict(result='AUTHORED_NOT_QUALIFIED',recipe=args.recipe,synthetic=True))+'\n')
+    (attempt/'session/CrashClient.log').write_text('Harmless stand-in: privacy disabled sending.\n')
     (attempt/'session/Runtime.log').write_text('Harmless stand-in. No Unreal module loaded.\n')
     print('Stand-in: synthetic outputs and exit rows written.',flush=True)
     time.sleep(2)

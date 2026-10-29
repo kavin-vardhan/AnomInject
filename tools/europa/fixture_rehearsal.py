@@ -6,7 +6,7 @@ import sys
 import fixture_policy as policy
 
 ACTIVE=None
-MODES={'pass','partial','extra','missing_probe_stop','deadline','crash_name'}
+MODES={'pass','partial','extra','missing_probe_stop','deadline','crash_name','ubt_build','smoke_fail'}
 
 
 def activate(config):
@@ -17,11 +17,11 @@ def activate(config):
     receipts=policy.canonical(data['receipts_root'],policy.ROOT/'Receipts')
     temp=policy.canonical(data['temp_root'],policy.ROOT/'Temp')
     relative=receipts.relative_to(policy.ROOT/'Receipts')
-    if len(relative.parts)!=3 or relative.parts[0] not in ('09425','CodeReview09425') or relative.parts[1]!='rehearsal':
-        raise RuntimeError('Rehearsal receipts must be one owned 09425 rehearsal case.')
+    if len(relative.parts)!=3 or relative.parts[0] not in ('09428','CodeReview09428') or relative.parts[1]!='rehearsal':
+        raise RuntimeError('Rehearsal receipts must be one owned 09428 rehearsal case.')
     if temp != policy.ROOT/'Temp'/relative or policy.canonical(data['host'],temp)!=temp/'host':
         raise RuntimeError('Rehearsal host and TEMP must be inside the matching scratch case.')
-    if set(data.get('modes',{}))!=set(policy.RECIPES) or any(v not in MODES for v in data['modes'].values()):
+    if set(data.get('modes',{}))!=set(policy.SESSIONS) or any(v not in MODES for v in data['modes'].values()):
         raise RuntimeError('Unknown harmless stand-in variant.')
     if type(data.get('deadline_seconds')) is not int or not 2<=data['deadline_seconds']<=30:
         raise RuntimeError('Rehearsal deadline must be 2 to 30 seconds.')
@@ -35,7 +35,7 @@ def activate(config):
     ACTIVE=copy.deepcopy(data)
     policy.REHEARSAL=ACTIVE
     policy.HOST=temp/'host'
-    policy.OUTPUTS={
+    policy.OUTPUTS={'Smoke':[],
         'EA_Core':[policy.HOST/'Content/EuropaPhaseA/SM_EA_TwoLod.uasset',policy.HOST/'Content/EuropaPhaseA/EA_Core.umap'],
         'EA_Travel':[policy.HOST/'Content/EuropaPhaseA/EA_Travel.umap']}
     return ACTIVE
@@ -45,7 +45,7 @@ def validate(config):
     if ACTIVE is None or config.get('rehearsal')!=ACTIVE:
         raise RuntimeError('Rehearsal roots are refused outside explicit test mode.')
     receipts=Path(ACTIVE['receipts_root']);temp=Path(ACTIVE['temp_root'])
-    expected={r:policy.make_recipe(r,receipts,temp) for r in policy.RECIPES}
+    expected={r:policy.make_recipe(r,receipts,temp) for r in policy.SESSIONS}
     if config.get('recipes')!=expected or Path(config['global_state'])!=receipts/'fixture-state/global':
         raise RuntimeError('Rehearsal state or attempt path escaped its owned scratch case.')
     if config.get('dry_run_only') is not False:
@@ -57,7 +57,7 @@ def command(recipe,root):
     if ACTIVE is None:raise RuntimeError('No active rehearsal.')
     root=policy.canonical(root,Path(ACTIVE['receipts_root']))
     return [sys.executable,'-B',str(policy.TOOLS/'fixture_standin.py'),'--attempt',str(root),
-        '--host',str(policy.HOST),'--recipe',recipe,'--mode',ACTIVE['modes'][recipe],policy.UPLOAD]
+        '--host',str(policy.HOST),'--recipe',recipe,'--mode',ACTIVE['modes'][recipe],policy.UPLOAD,policy.ANALYTICS]
 
 
 def samples():

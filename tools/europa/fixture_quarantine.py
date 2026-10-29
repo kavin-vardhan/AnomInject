@@ -7,7 +7,7 @@ from owner_attempts import create_json,stamp
 
 
 def quarantine(recipe,attempt,before,reason):
-    if recipe not in policy.RECIPES:
+    if recipe not in policy.SESSIONS:
         raise RuntimeError('Unknown quarantine recipe.')
     attempt=policy.canonical(attempt,policy.ROOT/'Receipts')
     prepared=json.loads((attempt/'prepared.json').read_text())

@@ -10,7 +10,7 @@ import uuid
 
 import fixture_policy as policy
 from environment import filtered, masked
-from fixture_policy import (ROOT, HOST, TOOLS, SCOPE, RECIPES, OUTPUTS, canonical, sha, validate,
+from fixture_policy import (ROOT, HOST, TOOLS, SCOPE, RECIPES, SESSIONS, OUTPUTS, canonical, sha, validate,
     verify_files, verify_manifests, command, validate_argv, content_snapshot, config_snapshot,
     output_preflight, verify_content_after)
 from fixture_attempts import Guard, GlobalGuard, create_json
@@ -46,7 +46,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
     config_path=canonical(config_path)
     config=json.loads(config_path.read_text())
     validate(config,dry_run)
-    if recipe not in RECIPES:
+    if recipe not in SESSIONS:
         raise RuntimeError('Unknown recipe: '+recipe)
     if samples_path and not dry_run:
         raise RuntimeError('Synthetic readings are restricted to throwaway dry runs.')
@@ -60,7 +60,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
         root=Path(slot['job_root'])
         result=dict(result='CHECKING',recipe=recipe,slot=slot['number'],launches=0,dry_run=dry_run,
                     authorization_citation=config['authorization_citation'],runtime_scope=SCOPE)
-        print(recipe+': attempt '+str(slot['number'])+' of 3; checking protected files, Content, binaries and routing.',flush=True)
+        print(recipe+': attempt '+str(slot['number'])+' of '+str(len(config['recipes'][recipe]['attempt_slots']))+'; checking protected files, Content, binaries and routing.',flush=True)
         os.environ['EUROPA_JOB_CONFIG']=str(scope_path)
         import write_ledger as ledger
         if ledger.SCOPE['config_path'] != str(scope_path):
@@ -70,14 +70,22 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             ledger.floors(start=True)
             before=content_snapshot()
             configs=config_snapshot()
+            builds=policy.build_snapshot()
+            create_json(root/'build-before.json',builds)
+            create_json(root/'managed-before.json',policy.managed_snapshot())
             verify_files(config['existing_content'])
             core_path=Path(config['recipes']['EA_Core']['state_root'])/'success.json'
             core=json.loads(core_path.read_text()) if core_path.exists() else None
+            if recipe!='Smoke' and not dry_run:
+                smoke_path=Path(config['recipes']['Smoke']['state_root'])/'success.json'
+                if not smoke_path.exists() or json.loads(smoke_path.read_text()).get('result')!='AUTHORING_PASS':
+                    raise RuntimeError('FC3 requires the successful smoke before any recipe launch.')
             output_preflight(recipe,core,dry_run)
             (root/'script').mkdir()
             author=TOOLS/'author_425_fixture.py'
-            generated=("import runpy\nmodule = runpy.run_path(%r)\nmodule['author'](%r, %r)\n" %
-                       (str(author),recipe,str(root/'authoring.json')))
+            from fixture_launcher import script
+            generated=script(str(author),recipe,str(root/('smoke.json' if recipe=='Smoke' else 'authoring.json')),
+                             str(TOOLS/'fixture_smoke_425.py'))
             (root/'script/author.py').write_text(generated,encoding='utf-8')
             argv=command(recipe,root)
             validate_argv(argv,recipe,root)
@@ -122,19 +130,25 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             verify_files(before)
             if config_snapshot()!=configs:
                 raise RuntimeError('Config or descriptor changed during admission.')
+            if recipe!='Smoke' and not dry_run:
+                smoke_path=Path(config['recipes']['Smoke']['state_root'])/'success.json'
+                if not smoke_path.exists() or json.loads(smoke_path.read_text()).get('result')!='AUTHORING_PASS':
+                    raise RuntimeError('FC3 requires the successful smoke before any recipe launch.')
             output_preflight(recipe,core,dry_run)
             ledger.floors()
             if dry_run:
                 result['result']='ARMED_DRY_RUN_PASS'
                 print(recipe+': armed dry run passed. No editor was started; real slots remain unused.',flush=True)
                 return result
-            print(recipe+': starting the one authorized authoring session; limit '+str(policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else 1800)+' seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
+            print(recipe+': starting the one authorized '+('smoke' if recipe=='Smoke' else 'authoring')+' session; limit '+str(policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else (300 if recipe=='Smoke' else 1800))+' seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
             monitor_args=fixture_rehearsal.monitor_arguments() if policy.REHEARSAL is not None else {}
-            deadline=policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else 1800
+            deadline=policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else (300 if recipe=='Smoke' else 1800)
             with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl',**monitor_args) as monitor:
                 operation=ledger.begin('fixture-runtime','runtime')
                 marker=canonical(guard.state/'authoring-started.json')
                 def reserve():
+                    if policy.REHEARSAL is None and datetime.datetime.now(datetime.timezone.utc)>=datetime.datetime.fromisoformat(policy.WINDOW_END):
+                        raise RuntimeError('FC7 session-start window ended. No editor was started.')
                     guard.reserve_launch(slot)
                     create_json(marker,dict(authority='094-22-ruling EX2',wrapper_pid=os.getpid(),
                         recipe=recipe,slot=slot['number'],phase='authoring_started'))
@@ -154,10 +168,19 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                     timeout_seconds=deadline,echo=False,on_started=launched,running_check=monitor.check,
                     before_create=reserve,on_creation_failed=creation_failed)
             result['probe_exit']=probe_exit(root/'session/probe/probe.jsonl')
-            authored=json.loads((root/'authoring.json').read_text())
-            if authored.get('result')!='AUTHORED_NOT_QUALIFIED' or authored.get('recipe')!=recipe:
+            authored=json.loads((root/('smoke.json' if recipe=='Smoke' else 'authoring.json')).read_text())
+            expected='SMOKE_PASS' if recipe=='Smoke' else 'AUTHORED_NOT_QUALIFIED'
+            if authored.get('result')!=expected or (recipe!='Smoke' and authored.get('recipe')!=recipe):
                 raise RuntimeError('Author script did not report the requested recipe complete.')
             result['outputs']=verify_content_after(before,recipe)
+            create_json(root/'managed-after.json',policy.managed_snapshot())
+            if policy.build_snapshot()!=builds:
+                raise RuntimeError('FC6 build outputs changed during the session.')
+            from fixture_uploads import check as upload_check
+            result['uploads']=upload_check(root/'session')
+            create_json(root/'upload-check.json',result['uploads'])
+            if result['uploads']['result']!='PASS':
+                raise RuntimeError('FC4 session logs show an upload or incomplete upload evidence.')
             if config_snapshot()!=configs:
                 raise RuntimeError('Config or descriptor changed during the session.')
             verify_manifests(config)
@@ -169,6 +192,16 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             raise
         finally:
             try:
+                if context.get('process_created'):
+                    from fixture_uploads import check as upload_check
+                    result['uploads']=upload_check(root/'session')
+                    if not (root/'upload-check.json').exists():
+                        create_json(root/'upload-check.json',result['uploads'])
+                    if not (root/'managed-after.json').exists():
+                        create_json(root/'managed-after.json',policy.managed_snapshot())
+                    result['build_outputs_unchanged']=policy.build_snapshot()==builds
+                    if result['uploads']['result']!='PASS' or not result['build_outputs_unchanged']:
+                        result.update(result='STOP',reason=result.get('reason','FC4 upload evidence or FC6 build-output check failed.'))
                 if context.get('process_created') and result['result']!='AUTHORING_PASS':
                     result['quarantine']=quarantine(recipe,root,before,result.get('reason','Failed authoring session'))
                 if operation is not None:
@@ -191,7 +224,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
 def main(argv=None):
     p=argparse.ArgumentParser()
     p.add_argument('--config',type=Path,required=True)
-    p.add_argument('--recipe',choices=RECIPES,required=True)
+    p.add_argument('--recipe',choices=SESSIONS,required=True)
     p.add_argument('--dry-run',action='store_true')
     p.add_argument('--rehearsal',action='store_true')
     p.add_argument('--dry-run-samples',type=Path)

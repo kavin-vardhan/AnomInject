@@ -159,21 +159,24 @@ def tests(output):
         invalid2=output/'quarantine-wrong-declaration';invalid2.mkdir()
         create_json(invalid2/'prepared.json',dict(recipe='EA_Core',declared_outputs=[str(preserved)]))
         refuses('EX3_declaration_escape_refused',lambda:quarantine('EA_Core',invalid2,before,'synthetic'))
-        aliased=fixture/'alias';target=temp/'outside-quarantine';target.mkdir()
-        made=subprocess.run(['cmd.exe','/d','/c','mklink','/J',str(aliased),str(target)],env=env,capture_output=True)
-        check('EX3_synthetic_junction_created',made.returncode==0)
-        try:
-            bad_outputs=dict(outputs,EA_Core=[aliased/'EA_Core.umap'])
-            (target/'EA_Core.umap').write_bytes(b'foreign synthetic target')
-            bad=output/'quarantine-alias';bad.mkdir()
-            create_json(bad/'prepared.json',dict(recipe='EA_Core',declared_outputs=list(map(str,bad_outputs['EA_Core']))))
-            with patch.object(policy,'OUTPUTS',bad_outputs):
-                refuses('EX3_source_junction_refused',lambda:quarantine('EA_Core',bad,before,'synthetic'))
-            check('EX3_alias_target_untouched',(target/'EA_Core.umap').read_bytes()==b'foreign synthetic target')
-        finally:
-            assert aliased.parent.resolve()==fixture.resolve() and aliased.resolve()==target.resolve()
-            create_json(output/'quarantine-alias-removal.json',dict(path=str(aliased),target=str(target),remove_link_only=True,created_by_this_test=True))
-            os.rmdir(aliased)
+        aliased=fixture/'alias';aliased.mkdir()
+        (aliased/'EA_Core.umap').write_bytes(b'foreign synthetic target')
+        bad_outputs=dict(outputs,EA_Core=[aliased/'EA_Core.umap'])
+        bad=output/'quarantine-alias';bad.mkdir()
+        create_json(bad/'prepared.json',dict(recipe='EA_Core',declared_outputs=list(map(str,bad_outputs['EA_Core']))))
+        from types import SimpleNamespace
+        original_stat=Path.stat
+        def synthetic_reparse(path,*args,**kwargs):
+            info=original_stat(path,*args,**kwargs)
+            if path==aliased and kwargs.get('follow_symlinks') is False:
+                values={key:getattr(info,key) for key in dir(info) if key.startswith('st_')}
+                values['st_file_attributes'] |= 1024
+                return SimpleNamespace(**values)
+            return info
+        with patch.object(policy,'OUTPUTS',bad_outputs),patch.object(Path,'stat',synthetic_reparse):
+            refuses('EX3_FA1_simulated_reparse_refused',lambda:quarantine('EA_Core',bad,before,'synthetic'))
+        check('EX3_alias_target_untouched',(aliased/'EA_Core.umap').read_bytes()==b'foreign synthetic target')
+        check('FA1_no_reparse_created',not aliased.stat(follow_symlinks=False).st_file_attributes&1024)
     bad=copy.deepcopy(real);bad['arming_job']='09422'
     refuses('EX4_old09422_arming_refused',lambda:policy.validate(bad,False))
     check('EX5_job_template_armed_wording','armed for EW2' in real['job_template']['authority'])

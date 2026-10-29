@@ -224,6 +224,10 @@ def snapshot(folder, label):
 def classification(scope, path, kind, change=None, build_ok=False):
     p = path.lower().replace('\\', '/')
     if scope == 'port':
+        from fixture_policy import managed_kind
+        managed=managed_kind(Path(path))
+        if managed:
+            return 'port_D', managed+'; recorded, not bound (094-26-ruling FC5)'
         role = 'DDC' if '/ddc/' in p else 'shader_working' if '/shaderworking/' in p else 'crash_report' if '/crash' in p else 'host_output'
         return 'port_D', ('runtime ' + role) if kind == 'runtime' else 'owned scratch and hosts'
     if scope.startswith('tool_'):
@@ -484,6 +488,9 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
         while proc.poll() is None or runtime_guard and any(tree.kernel.WaitForSingleObject(r['handle'],0) != 0 for r in tree.known.values()):
             if tree:
                 tree.poll()
+                if runtime_guard:
+                    from fixture_children import poll as poll_runtime_children
+                    poll_runtime_children(tree,folder/f'child-{lognum:03}-process-polls.jsonl')
                 if running_check is not None:
                     running_check(tuple(tree.known))
                 if runtime_guard and time.monotonic()-start >= timeout_seconds:

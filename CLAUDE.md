@@ -15,6 +15,9 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-28, 2026-10-29 - Python 2.7 authoring fix and privacy guards tested; re-arm pending.**
+> Module-retaining launchers, a no-create smoke session, analytics overrides, managed-file classification and owned UBT argv checks are prepared. Python 2.7 full recipe stubs, FC can-fails and 21 retained suites pass. Scratch rehearsal and real smoke/recipes remain pending. See docs/europa/09428-authoring-amendments.md.
+
 > **094-26r, 2026-10-29 - RED: real authoring stopped in EA_Core; no packages.**
 > The unchanged 09425 kit launched one editor session (exit 0, 43.426 s); the probe exit is clean. The Python recipe failed before authoring.json, and EA_Travel did not start. The Core lock remains spent; no retry or fix.
 > One existing crash-client config disappeared, and CrashClient.log records shutdown analytics sending/POST despite the EU4 switch. All 1458 existing Content files, 110 bound binaries, manifests and marker 31124 remain unchanged; full P9 entry/exit passed.

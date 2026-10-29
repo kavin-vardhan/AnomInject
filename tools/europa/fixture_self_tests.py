@@ -26,10 +26,10 @@ def config(template):
     return dict(authorized_by_chat=True,authorization_citation=policy.CITATION,policy_citation=policy.RULE,
         arming_job=policy.ARMING_JOB,amendment_citations=policy.AMENDMENTS,session_policy=policy.SESSION_POLICY,gate_profile='measured',human_idle=True,session_seconds=1800,dry_run_only=False,
         manifests=policy.manifest_rows(),declared_outputs={r:list(map(str,p)) for r,p in policy.OUTPUTS.items()},
-        recipes={r:policy.make_recipe(r,policy.ROOT/'Receipts'/policy.ARMING_JOB,policy.ROOT/'Temp'/policy.ARMING_JOB) for r in policy.RECIPES},
+        recipes={r:policy.make_recipe(r,policy.ROOT/'Receipts'/policy.ARMING_JOB,policy.ROOT/'Temp'/policy.ARMING_JOB) for r in policy.SESSIONS},
         global_state=str(policy.ROOT/'Receipts'/policy.ARMING_JOB/'fixture-state/global'),
         job_template=dict(template,runtime_authorized=True,runtime_scope=policy.SCOPE,build_pairs=[],query_pairs=[],
-            authority=policy.ARMING_JOB+' armed for EW2 and EW3, as amended by EX1-EX5, EY1-EY4 and EZ1-EZ2',
+            authority=policy.ARMING_JOB+' armed for EW2 and EW3, as amended by EX1-EX5, EY1-EY4 and EZ1-EZ2, FC1-FC7',
             memory=dict(start_physical_GiB=6,start_commit_GiB=12,stop_physical_GiB=None,stop_commit_GiB=6)),
         tooling_files=[],host_files=[],engine_files=[],existing_content=[])
 
@@ -63,7 +63,7 @@ def main(output):
         ('human_idle_removed',lambda d:d.update(human_idle=False)),
         ('wrong_limit',lambda d:d.update(session_seconds=999)),
         ('old_manifest',lambda d:d['manifests'][0].update(sha256='synthetic')),
-        ('scope_extra_session',lambda d:d['job_template']['runtime_scope'].update(maximum_editor_sessions=3)),
+        ('scope_extra_session',lambda d:d['job_template']['runtime_scope'].update(maximum_editor_sessions=4)),
         ('build_scope',lambda d:d['job_template'].update(build_pairs=[['425','StylizedParisStreetEditor','Development']])),
         ('wrong_outputs',lambda d:d['declared_outputs']['EA_Core'].append('D:/bad.uasset')),
         ('real_paths_in_dry_run',lambda d:d.update(recipes=copy.deepcopy(real['recipes']))),
@@ -99,27 +99,24 @@ def main(output):
         refuses('actual_83_alias',lambda:policy.canonical(Path(short.value)))
     else:
         check('83_generation_disabled_literal_still_refused',True)
-    alias=temp/'junction-alias'
-    env,contract=execution_env(os.environ)
-    made=subprocess.run(['cmd.exe','/d','/c','mklink','/J',str(alias),str(alias_target)],env=env,capture_output=True,text=True)
-    check('junction_created_in_throwaway_temp',made.returncode==0)
-    try:
-        refuses('actual_junction_alias',lambda:policy.canonical(alias/'slots'))
+    alias=temp/'junction-alias';alias.mkdir()
+    from types import SimpleNamespace
+    original_stat=Path.stat
+    def synthetic_reparse(path,*args,**kwargs):
+        info=original_stat(path,*args,**kwargs)
+        if path==alias and kwargs.get('follow_symlinks') is False:
+            values={key:getattr(info,key) for key in dir(info) if key.startswith('st_')}
+            values['st_file_attributes'] |= 1024
+            return SimpleNamespace(**values)
+        return info
+    with patch.object(Path,'stat',synthetic_reparse):
+        refuses('FA1_simulated_reparse_attribute',lambda:policy.canonical(alias/'slots'))
         aliased=copy.deepcopy(dry)
         aliased['recipes']['EA_Core']['attempt_slots'][0]['temp_root']=str(alias/'slots')
-        refuses('actual_junction_in_kit_config',lambda:policy.validate(aliased,True))
-    finally:
-        assert alias.parent.resolve(strict=True)==temp.resolve(strict=True)
-        assert alias_target.resolve(strict=True).is_relative_to(temp.resolve(strict=True))
-        assert alias.resolve(strict=True)==alias_target.resolve(strict=True)
-        attributes=alias.stat(follow_symlinks=False).st_file_attributes
-        assert attributes & 1024
-        (output/'aliases.json').write_text(json.dumps(dict(target=str(alias_target),short_name=short.value,
-            junction=str(alias),attributes=attributes,created_by_test=True,remove_link_only=True,
-            target_content_deleted=False,boundary=contract),indent=2))
-        os.rmdir(alias)
-        assert alias_target.is_dir() and not alias.exists()
-        check('test_junction_removed_by_receipt',True)
+        refuses('FA1_simulated_reparse_in_config',lambda:policy.validate(aliased,True))
+    check('FA1_no_reparse_created',not alias.stat(follow_symlinks=False).st_file_attributes&1024)
+    (output/'aliases.json').write_text(json.dumps(dict(path=str(alias),method='Mock stat reparse attribute; actual folder remains plain',
+        authority='094-25-ruling FA1; no junction or symlink creation',created_reparse_points=0),indent=2))
 
     package=temp/'synthetic.uasset'
     package.write_bytes(b'synthetic package')

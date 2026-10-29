@@ -8,7 +8,7 @@ import sys
 import uuid
 
 from environment import execution_env, masked
-from fixture_policy import ROOT, TOOLS, RECIPES, ARMING_JOB, canonical, validate, verify_files, throwaway
+from fixture_policy import ROOT, TOOLS, RECIPES, SESSIONS, ARMING_JOB, canonical, validate, verify_files, throwaway
 from owner_attempts import create_json
 
 
@@ -57,7 +57,7 @@ def main(argv=None):
         create_json(run/'job-config.json',scope)
         codes=[]
         print('Europa fixture authoring: checking the EW2 arming.',flush=True)
-        for recipe in RECIPES:
+        for recipe in SESSIONS:
             success=Path(config['recipes'][recipe]['state_root'])/'success.json'
             if not args.dry_run and success.exists():
                 completed=json.loads(success.read_text())
@@ -66,6 +66,9 @@ def main(argv=None):
                 verify_files(completed['outputs'])
                 print(recipe+': previously completed; its launch authorization remains spent.',flush=True)
                 continue
+            if not args.dry_run and not args.rehearsal:
+                from fixture_precheck import wait as idle_precheck
+                idle_precheck(run/(recipe+'-idle-precheck.jsonl'))
             command=[sys.executable,'-B',str(TOOLS/'disk_pause.py'),'--output',str(run/(recipe+'-disk.json')),
                 '--job-config',str(run/'job-config.json'),'--run-folder',str(run),'--kind','runtime',
                 '--authoring-marker',str(Path(config['recipes'][recipe]['state_root'])/'authoring-started.json'),'--',
@@ -80,8 +83,8 @@ def main(argv=None):
             if code:
                 print('Stopped: '+recipe+' did not pass. No later recipe or automatic retry will start.',flush=True)
                 return code
-        print('Both recipe '+('dry runs' if args.dry_run else 'sessions')+' finished. '+
-              ('No editor was started.' if args.dry_run else 'The two launch authorizations are spent.'),flush=True)
+        print('Smoke and both recipe '+('dry runs' if args.dry_run else 'sessions')+' finished. '+
+              ('No editor was started.' if args.dry_run else 'The three launch authorizations are spent.'),flush=True)
         return 0
     except BaseException as error:
         print('Stopped: '+str(error)+' No further session will be started.',flush=True)
