@@ -34,9 +34,9 @@ def main():
     target=host/'Content/EuropaPhaseA';target.mkdir(parents=True,exist_ok=True)
     for name in files:
         with (target/name).open('xb') as stream:stream.write(('Synthetic '+args.recipe+' '+name+'\n').encode())
-        if args.mode in ('partial','deadline','crash_name','ubt_build','smoke_fail'):break
+        if args.mode in ('partial','deadline','crash_name'):break
     (attempt/'standin-environment.json').write_text(json.dumps(dict(environment=masked(os.environ),blocked_names=[],wrapper_metadata_names=[]),indent=2)+'\n')
-    if args.mode in ('deadline','crash_name','ubt_build','smoke_fail'):
+    if args.mode in ('deadline','crash_name'):
         env,_=execution_env(os.environ)
         child_argv=[sys.executable,'-B','-c','import time;time.sleep(120)','--crash-reporter-standin']
         if args.mode=='crash_name':
