@@ -1,0 +1,219 @@
+{
+  "job": "09426r",
+  "result": "RED",
+  "source_commit": "83d614f01f2e0110090dba89f0114821840e5ec7",
+  "armed_tooling_commit": "a8d342595b2f9a900fb8d6078d4976ce41c2e681",
+  "authority": [
+    "094-26-request",
+    "094-25-ruling FA3 FA5 FA6 FA8",
+    "094-23-ruling EY7"
+  ],
+  "editor_sessions": 1,
+  "completed_recipes": [],
+  "travel_started": false,
+  "retry_authorized": false,
+  "finding": "Authoring failed before packages; existing crash-client config missing; shutdown analytics send/POST recorded.",
+  "receipts": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\P9\\entry\\summary.json",
+      "size": 748,
+      "sha256": "ae7a36d7f9a276bc8c2828580f13ac18a4d305f821768b10b51b4e16000b1c6e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\P9\\exit\\summary.json",
+      "size": 748,
+      "sha256": "917ba5e496b57cf4877daebb8ee20a804fd281a3cdf8f6510734a869e705e66f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\bound-entry.json",
+      "size": 1887,
+      "sha256": "3940f521f025b88bc6a3ee048ee5e73e45e905a9958e5ba9fe2218b9c1fc838c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\toolchains.json",
+      "size": 6787,
+      "sha256": "2e1d4cfd81d79a5936aa63ec4ec6facf371ffa0ee1a4e07376c815e12c937c29"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\launcher-entry.json",
+      "size": 172184,
+      "sha256": "7df45197db397edec1f5115a266c1d38647822fcbf457ab764f9bdaac03b5b6b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\runtime-baseline.json",
+      "size": 7326,
+      "sha256": "9329d66fd74c42f4ffab11d9743a25183059f94007fb4ee28a66c87f938ea607"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\entrypoint-01.json",
+      "size": 16873,
+      "sha256": "ceea98399b5066442b6363fa8f01d6980a459712f45f9edc46efe17b4839a6ea"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\entrypoint-01-console.log",
+      "size": 974,
+      "sha256": "355db647bd863695a129f834560a34aed35a7d902a5232e4808940908393d9c2"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\idle-precheck-01.jsonl",
+      "size": 26452653,
+      "sha256": "462d9183b5edb19c7c25e5ca678b513980fa55d13ebd7b6e0f08cdb0e515cfe6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\precheck-01-pause-01.json",
+      "size": 19075,
+      "sha256": "9f272a3b5df6b5a6aa57f49e4c9f2e40cb2dcc8b2ec2f21976dfa853b4f39df9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\result-evidence.json",
+      "size": 1480438,
+      "sha256": "9db2c31af5490fbca97d2fbe8b2775cc1ca955279488abdf2148fd83de28e4c5"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\assessment.json",
+      "size": 11599,
+      "sha256": "38e46964b50b42caf92112db39911f0ad2d08797d32bf6f0a0cc0934ec918e7c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\binary-hashes.tsv",
+      "size": 18298,
+      "sha256": "514384d7ff93fec5b47b793829ddc711b929e7e7f605d88e722cd3cdc49ac487"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\canary-exit.json",
+      "size": 648,
+      "sha256": "4881cdf0b3d45da449e347580e0aeff3c9c4d410a39e6bbb4ecdc0933cb226cf"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\command-audit-before-docs.json",
+      "size": 71509,
+      "sha256": "25545c8702dfb6916f3e4cc1ff04573e4639ae3234fcd03c626e5fd6f2b375ba"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\foreign-root-closeout.json",
+      "size": 1805,
+      "sha256": "41a4e2c58b1a5231d536823dcb7eda3693f5071450aa35f1e2d78355b2481241"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\ledger\\closeout\\between-operations.json",
+      "size": 26742,
+      "sha256": "6a4057f67f831287155e375df2ca760ccc17a8babacabf28030e28c3bd429599"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\ledger\\entry\\summary.json",
+      "size": 3343,
+      "sha256": "4b19aafec3d38929afba7a86ba6aa334e2faccf82dfaedf1829c19a003891225"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426r\\ledger\\closeout\\summary.json",
+      "size": 3346,
+      "sha256": "6a412c1f83177cc1c83bcc2d8ed6fefd4857ba826f9f1333fb7b2d7b553115af"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\attempt-result.json",
+      "size": 4227,
+      "sha256": "e555296e18335658decbbaef69d15a41d5dd65aa6e2f330442d980edb80d38bd"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\prepared.json",
+      "size": 3015,
+      "sha256": "0c035385e9d0dd167223e80331c03b72bbc866dc27890ccfd4ef3bc6350c61e4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\quarantine-receipt.json",
+      "size": 704,
+      "sha256": "553fbf12c0f932fe326628e31bd0284a1b9d8f741724e88260aa52d4c6b13bb1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\idle.jsonl",
+      "size": 1115450,
+      "sha256": "3596d35aa94196a64b3d0bd231a2ec8a1c1294f9a2a65283f946685a78e5b19c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\session\\Runtime.log",
+      "size": 107807,
+      "sha256": "1d6bbbcd13622d4ded623f7895181b2c0480ed0ad81622aa00ff5ed490dcc190"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\session\\CrashClient.log",
+      "size": 9127,
+      "sha256": "88400650cc2766dcac7f2546a56d053948927776ac36322c9c89e8548d2e4cdd"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\session\\probe\\probe.jsonl",
+      "size": 8885,
+      "sha256": "fdebbad6e167d07eff690894347d3fceac4e43623337526cfeedad2849dc3a39"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\ledger\\fixture-runtime\\child-001.json",
+      "size": 15826,
+      "sha256": "7141f3a60e7fc2c8872347d9a4b904c43b3472c29a233f46ba4fdda62e2a6b4f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09425\\fixture-attempts\\EA_Core\\01\\ledger\\fixture-runtime\\summary.json",
+      "size": 3390,
+      "sha256": "06e4c88ced2f6928ad956f0ea23222c699edd80393054a3d787ad6e763543dca"
+    }
+  ],
+  "output_packages": [
+    {
+      "recipe": "EA_Core",
+      "exists": false,
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\SM_EA_TwoLod.uasset"
+    },
+    {
+      "recipe": "EA_Core",
+      "exists": false,
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\EA_Core.umap"
+    },
+    {
+      "recipe": "EA_Travel",
+      "exists": false,
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\EA_Travel.umap"
+    }
+  ],
+  "runtime_images": [
+    {
+      "path": "C:\\Windows\\System32\\conhost.exe",
+      "size": 1003520,
+      "sha256": "c86146188b78e484f32cc29e2331689659943b47689a85570342044f499938ac"
+    },
+    {
+      "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+      "size": 1441536,
+      "sha256": "07c1a6fbc30271b96679253143eb620c49db5b2919a1cbb7430e8fc6bdab9bd0"
+    },
+    {
+      "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClientEditor.exe",
+      "size": 18538752,
+      "sha256": "ccd60dfe533f605b1ad8c8d550121be3eda3073b846f3e0df51a478a17a380e7"
+    },
+    {
+      "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+      "size": 462080,
+      "sha256": "4a6d83264e68403534aa917e92f741e0d09add5e8cf20c19b76d2cfe4558c387"
+    }
+  ],
+  "bound_manifests": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09421\\qualification\\final-425-binaries.json",
+      "size": 18380,
+      "sha256": "c501895c9856638dd76e1c2091be8726f6797014bcb0714e306fd9d6ebd98df6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09421\\qualification\\final-baseline51-binaries.json",
+      "size": 25456,
+      "sha256": "b05e6f8c9ce12fa1c5b4dbd142a59383f737bb8a3b7885b7219d1bcdb6c1fc37"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09421\\qualification\\final-regate51-binaries.json",
+      "size": 28298,
+      "sha256": "3865fe0c6ed039d5bad2bc54d1a6a89f11c403e98237b4c6caf74ca661ea12e2"
+    }
+  ],
+  "binary_inventory": "D:\\IA_Europa\\Receipts\\09426r\\binary-hashes.tsv",
+  "final_audit_and_ledger": "Receipts/09426r/command-audit-final.json and ledger-summary.json are bound by the run report after this documentation commit.",
+  "no_source_build_rearm_or_kit_edit": true,
+  "pushed": false,
+  "tags": []
+}

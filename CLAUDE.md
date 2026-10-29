@@ -15,6 +15,11 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-26r, 2026-10-29 - RED: real authoring stopped in EA_Core; no packages.**
+> The unchanged 09425 kit launched one editor session (exit 0, 43.426 s); the probe exit is clean. The Python recipe failed before authoring.json, and EA_Travel did not start. The Core lock remains spent; no retry or fix.
+> One existing crash-client config disappeared, and CrashClient.log records shutdown analytics sending/POST despite the EU4 switch. All 1458 existing Content files, 110 bound binaries, manifests and marker 31124 remain unchanged; full P9 entry/exit passed.
+> See docs/europa/09426-authoring-receipts.json and docs/sessions/2026-10-29-094-26-real-authoring-stop.md. No source/build/kit/re-arm change, push or tags.
+
 > **094-25, 2026-10-29 - fixture kit armed, rehearsed and dry-run; zero Unreal launches.**
 > The port is 4.25 only under EY5; both 5.1 manifests are frozen. The retained 15-file diff was committed unchanged as a44c19d. Final tooling a8d342595b2f9a900fb8d6078d4976ce41c2e681 passed all 21 suite entry points and seven complete real-branch scratch cases (nine harmless stand-in sessions).
 > EZ1 attribution, EZ2 admission waits, G2 synthetic readings, O1 copied environment reads and O2 deadline wording are qualified. Both recipe dry runs passed; the live observe-only gate reading is retained. All 15 real paths remain absent, and the 09423 arming is refused.
