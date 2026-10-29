@@ -15,8 +15,9 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **094-28, 2026-10-29 - Python 2.7 authoring fix and privacy guards tested; re-arm pending.**
-> Module-retaining launchers, a no-create smoke session, analytics overrides, managed-file classification and owned UBT argv checks are prepared. Python 2.7 full recipe stubs, FC can-fails and 21 retained suites pass. Scratch rehearsal and real smoke/recipes remain pending. See docs/europa/09428-authoring-amendments.md.
+> **094-28, 2026-10-30 - NEEDS-DECISION: Smoke stopped by an over-strict UBT guard; no recipe started and no package was created.**
+> Python 2.7, FC can-fails, 21 retained suites, full stand-in rehearsals and all three dry runs passed; the kit was re-armed for 09428 on c2e7318. The real Smoke editor ran for 9.547 seconds, then the kit stopped its owned tree on -Mode=ValidatePlatforms -allplatforms. The guard admitted only QueryTargets. No smoke receipt or probe exit rows were produced. Both recipe slots remain unused; no retry or fix followed the failed Smoke.
+> See docs/europa/09428-authoring-receipts.json and docs/sessions/2026-10-29-094-28-authoring-fixes.md for the measured outcome and remaining work. No push or tags.
 
 > **094-26r, 2026-10-29 - RED: real authoring stopped in EA_Core; no packages.**
 > The unchanged 09425 kit launched one editor session (exit 0, 43.426 s); the probe exit is clean. The Python recipe failed before authoring.json, and EA_Travel did not start. The Core lock remains spent; no retry or fix.

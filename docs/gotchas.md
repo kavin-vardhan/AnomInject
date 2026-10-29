@@ -10236,3 +10236,15 @@ Release's public control header reaches IWebSocketServer.h from a private module
 ## G467 - Module shutdown can follow UObject exit purge (094-21)
 
 A raw UObject pointer is not safe merely because the probe rooted it earlier. Guard root changes and GC-field restoration before inspecting any UObject; engine purge destroys the object system before late module shutdown. Even a cached receipt map keyed by TWeakObjectPtr can touch UObject identity when converting a raw world pointer. Use cached scalar identity and address keys for exit rows, with weak references accessed only in guarded live paths. EV5 source checks and mutants protect these paths; runtime clean exit remains a later authorized proof.
+
+## G468 - Test retained in-editor functions under the installed Python version (094-28)
+
+Python 2.7 runpy removes its temporary module; calling a function later through the returned dictionary can find cleared globals. Keep the fixture module alive with imp.load_source and test the generated launcher under the engine's actual interpreter. The 09428 recording stub covers both complete recipe sequences and rejects the old runpy shape. Native Unreal API availability still requires the separate real-editor smoke. See docs/europa/09428-authoring-amendments.md and the receipt index.
+
+## G469 - Crash-report privacy does not disable usage analytics (094-28)
+
+The 4.25 launch argv requires both CrashReportsPrivacySettings.bSendUnattendedBugReports=False and AnalyticsPrivacySettings.bSendUsageData=False as EditorSettings ini overrides. EngineAnalytics and shared crash context use the latter for editor and session-summary analytics. A crash monitor may still run, so verify its argv and both Runtime.log and CrashClient.log. Never infer no uploads from a clean editor exit or from the crash-report switch alone. Sources and live evidence are indexed by 09428-authoring-receipts.json.
+
+## G470 - The editor also invokes UBT to validate installed SDKs (094-28)
+
+TargetPlatformManagerModule.cpp:996-1031 starts UnrealBuildTool with -Mode=ValidatePlatforms -allplatforms. ValidatePlatformsMode.cs:35-60 checks SDK status and emits VALID/INVALID lines. The 09428 guard admitted only QueryTargets and terminated Smoke on this stock validation child after 9.547 seconds, before the smoke receipt or probe exit rows existed. No compiler, linker or UHT was recorded and build outputs were unchanged. The refusal remains intact: FC3 forbids retry after failed Smoke. A future authorized correction must cover this validation path and repeat the real smoke; no correction was applied during closeout.
