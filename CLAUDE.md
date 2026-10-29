@@ -15,6 +15,10 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-26c, 2026-10-30 - RED: Smoke passed all 51 bindings; EA_Core exited cleanly but created a bound Saved/Config/WorldState file. The kit quarantined both Core packages and stopped before EA_Travel.**
+> FE1 removed only the two unsupported post-process anti-aliasing bindings; the re-bound recipe, Python 2.7 harness and affected suites passed. Smoke passed 51/51 native bindings. Core authored two packages and exited 0, but stock WorldState serialization added a bound Config path. Both packages are quarantined; Travel never started. No crash/upload evidence, retry, dry run, push or tags. The Config STOP is preserved for chat; FC5 was not broadened.
+> See docs/europa/09426c-authoring-receipts.json and docs/sessions/2026-10-30-094-26c-fixture-aa-config-stop.md.
+
 > **094-26b, 2026-10-30 - NEEDS-DECISION: FD2/FD3 qualified; Smoke exposed two unavailable 4.25 anti-aliasing properties; no recipe ran and no package was created.**
 > The corrected UBT guard admitted the stock ValidatePlatforms child. Smoke exited normally (0, 23.169 s), retained the fixture module, and found 51/53 native bindings. The two missing PostProcessSettings anti-aliasing properties stop both recipes under FC3. Content, config, descriptors, manifests and binaries stayed unchanged; no crash/upload evidence. No retry, dry run, push or tags.
 > See docs/europa/09426b-authoring-receipts.json and docs/sessions/2026-10-30-094-26b-ubt-memory-smoke.md.
