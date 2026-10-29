@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "authority": "094-26b-ruling FE1",
+  "revision": "09426c",
+  "prior_source_commit": "c1ef76b7c5f16bb23478e478ad3704e333f81402",
+  "prior_recipe": {
+    "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\author_425_fixture.py",
+    "size": 5558,
+    "sha256": "55234029b69ccf3ea3c40ae5523a5204ffa031946a44278ae520d22357052c15"
+  },
+  "recipe": {
+    "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\author_425_fixture.py",
+    "size": 5529,
+    "sha256": "f55aff4ddc6e239907d3b278ad2bb0a032f79fa24e502d32fa32ac84297a43dd"
+  },
+  "recipe_document": {
+    "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\docs\\europa\\09411-fixture-recipes.md",
+    "size": 5399,
+    "sha256": "7050e652be5899d72dfab9baa4b9af044b754f1e864584d67e1110b70a5e761d"
+  },
+  "smoke_checker": {
+    "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\fixture_smoke_425.py",
+    "size": 4129,
+    "sha256": "d27a3a8ea6cda131a4a8ba293ab4541a3c55c864546369be6005d8e9905f02cc"
+  },
+  "binary_manifests_unchanged": [
+    {
+      "host": "425",
+      "path": "D:\\IA_Europa\\Receipts\\09421\\qualification\\final-425-binaries.json",
+      "sha256": "c501895c9856638dd76e1c2091be8726f6797014bcb0714e306fd9d6ebd98df6"
+    },
+    {
+      "host": "baseline51",
+      "path": "D:\\IA_Europa\\Receipts\\09421\\qualification\\final-baseline51-binaries.json",
+      "sha256": "b05e6f8c9ce12fa1c5b4dbd142a59383f737bb8a3b7885b7219d1bcdb6c1fc37"
+    },
+    {
+      "host": "regate51",
+      "path": "D:\\IA_Europa\\Receipts\\09421\\qualification\\final-regate51-binaries.json",
+      "sha256": "3865fe0c6ed039d5bad2bc54d1a6a89f11c403e98237b4c6caf74ca661ea12e2"
+    }
+  ],
+  "removed_post_process_items": [
+    "override_anti_aliasing_method",
+    "anti_aliasing_method"
+  ],
+  "remaining_post_process_items": {
+    "override_auto_exposure_min_brightness": true,
+    "override_auto_exposure_max_brightness": true,
+    "auto_exposure_min_brightness": 1.0,
+    "auto_exposure_max_brightness": 1.0,
+    "override_motion_blur_amount": true,
+    "motion_blur_amount": 0.0
+  },
+  "outputs": {
+    "Smoke": [],
+    "EA_Core": [
+      "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\SM_EA_TwoLod.uasset",
+      "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\EA_Core.umap"
+    ],
+    "EA_Travel": [
+      "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\EA_Travel.umap"
+    ]
+  },
+  "items": [
+    "Owned physical project only; no overwrite",
+    "Engine sphere LOD0 / cube LOD1; two LODs",
+    "Floor (700,0,-50), scale (18,18,1)",
+    "Hide (600,-260,110), blink (600,260,110), scales (2,2,2)",
+    "LOD actor (800,0,160), scale (3,3,3)",
+    "Movable point light (450,0,650), intensity 5000, radius 1800, shadows",
+    "Camera (-550,0,480), rotation (-12,0,0), FOV 50",
+    "Unbound post-process volume; fixed exposure and motion blur off",
+    "GameModeBase; PlayerStart (-550,0,500)",
+    "Save only new declared packages; AUTHORED_NOT_QUALIFIED; no PIE"
+  ],
+  "qualification_pending": [
+    "cold reopen",
+    "shader/streaming readiness",
+    "20-frame noise",
+    "ROI freeze",
+    "three events per route",
+    "travel/GC",
+    "owner preview and eye check"
+  ],
+  "AA_capture_authority": "FE1: process-only AA override deferred to A7/094-27"
+}

@@ -84,8 +84,7 @@ def author(recipe, receipt_path):
         settings=pp.get_editor_property('settings')
         for field,value in [('override_auto_exposure_min_brightness',True),('override_auto_exposure_max_brightness',True),
                             ('auto_exposure_min_brightness',1.0),('auto_exposure_max_brightness',1.0),
-                            ('override_motion_blur_amount',True),('motion_blur_amount',0.0),
-                            ('override_anti_aliasing_method',True),('anti_aliasing_method',unreal.AntiAliasingMethod.AAM_NONE)]:
+                            ('override_motion_blur_amount',True),('motion_blur_amount',0.0)]:
             settings.set_editor_property(field,value)
         pp.set_editor_property('settings',settings)
         world=ELL.get_editor_world()

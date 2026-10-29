@@ -27,7 +27,7 @@ PROPERTIES = {
     'CameraComponent': ['field_of_view'], 'PostProcessVolume': ['unbound', 'settings'],
     'PostProcessSettings': ['override_auto_exposure_min_brightness', 'override_auto_exposure_max_brightness',
         'auto_exposure_min_brightness', 'auto_exposure_max_brightness', 'override_motion_blur_amount',
-        'motion_blur_amount', 'override_anti_aliasing_method', 'anti_aliasing_method'],
+        'motion_blur_amount'],
     'WorldSettings': ['default_game_mode'],
 }
 

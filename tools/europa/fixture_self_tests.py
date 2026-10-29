@@ -29,7 +29,7 @@ def config(template):
         recipes={r:policy.make_recipe(r,policy.ROOT/'Receipts'/policy.ARMING_JOB,policy.ROOT/'Temp'/policy.ARMING_JOB) for r in policy.SESSIONS},
         global_state=str(policy.ROOT/'Receipts'/policy.ARMING_JOB/'fixture-state/global'),
         job_template=dict(template,runtime_authorized=True,runtime_scope=policy.SCOPE,build_pairs=[],query_pairs=[],
-            authority=policy.ARMING_JOB+' armed for EW2 and EW3, as amended by EX1-EX5, EY1-EY4 and EZ1-EZ2, FC1-FC7, FD1-FD5',
+            authority=policy.ARMING_JOB+' armed for EW2 and EW3, as amended by EX1-EX5, EY1-EY4 and EZ1-EZ2, FC1-FC7, FD1-FD5, FE1-FE2/FE4',
             memory=dict(start_physical_GiB=6,start_commit_GiB=8,stop_physical_GiB=None,stop_commit_GiB=4)),
         tooling_files=[],host_files=[],engine_files=[],existing_content=[])
 

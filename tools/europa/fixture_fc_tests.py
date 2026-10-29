@@ -22,7 +22,7 @@ def main(output):
         else:raise AssertionError(name+' accepted')
     data=config(ledger.SCOPE)
     policy.validate(data,False)
-    for old in ('09422','09423','09424','09425','09428'):
+    for old in ('09422','09423','09424','09425','09428','09426b'):
         bad=dict(data,arming_job=old)
         refuses('retired_'+old,lambda:policy.validate(bad,False))
     for recipe in policy.SESSIONS:

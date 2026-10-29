@@ -154,7 +154,7 @@ def expected(recipe):
             'set_mobility','set_static_mesh','Vector','set_actor_scale3d']
     names+=['Vector','spawn_actor_from_class','set_actor_label','Name','set_editor_property','set_mobility']+['set_editor_property']*3
     names+=['Vector','Rotator','spawn_actor_from_class','set_actor_label','Name','set_editor_property','set_editor_property']
-    names+=['Vector','spawn_actor_from_class','set_editor_property','get_editor_property']+['set_editor_property']*9
+    names+=['Vector','spawn_actor_from_class','set_editor_property','get_editor_property']+['set_editor_property']*7
     names+=['get_editor_world','get_world_settings','set_editor_property','Vector','Rotator','spawn_actor_from_class',
         'save_current_level','get_all_level_actors']+['get_actor_label']*8
     return names
@@ -163,7 +163,7 @@ def expected(recipe):
 def main(output):
     assert sys.version_info[:3]==(2,7,14),sys.version
     output=os.path.abspath(output)
-    assert output.lower().startswith('d:\\ia_europa\\receipts\\09428\\')
+    assert output.lower().startswith('d:\\ia_europa\\receipts\\09426c\\')
     assert not os.path.exists(output)
     os.makedirs(output)
     stub=types.ModuleType('unreal')
@@ -200,9 +200,10 @@ def main(output):
             assert data['lod_count']==2 and len(ACTORS)==8
             assert set(data['maps'][0]['anomaly_targets'].values())==set(['EA_HideCube','EA_BlinkCube','EA_LOD','EA_Light'])
             props=[c['args'][1:] for c in CALLS if c['name']=='set_editor_property']
+            assert not any(pair[0] in ('override_anti_aliasing_method','anti_aliasing_method') for pair in props)
             for pair in (['intensity',5000.0],['attenuation_radius',1800.0],['cast_shadows',True],['field_of_view',50.0],
                          ['auto_exposure_min_brightness',1.0],['auto_exposure_max_brightness',1.0],['motion_blur_amount',0.0],
-                         ['anti_aliasing_method','AAM_NONE'],['default_game_mode','GameModeBase']):assert pair in props,pair
+                         ['default_game_mode','GameModeBase']):assert pair in props,pair
             if recipe=='EA_Core':
                 assert [c['args'] for c in CALLS if c['name']=='set_lod_from_static_mesh']==[['/Game/EuropaPhaseA/SM_EA_TwoLod',1,'/Engine/BasicShapes/Cube',0,True]]
         with open(os.path.join(output,recipe+'-calls.json'),'w') as stream:json.dump(CALLS,stream,indent=2)
