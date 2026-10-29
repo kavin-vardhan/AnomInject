@@ -15,6 +15,10 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-26b, 2026-10-30 - NEEDS-DECISION: FD2/FD3 qualified; Smoke exposed two unavailable 4.25 anti-aliasing properties; no recipe ran and no package was created.**
+> The corrected UBT guard admitted the stock ValidatePlatforms child. Smoke exited normally (0, 23.169 s), retained the fixture module, and found 51/53 native bindings. The two missing PostProcessSettings anti-aliasing properties stop both recipes under FC3. Content, config, descriptors, manifests and binaries stayed unchanged; no crash/upload evidence. No retry, dry run, push or tags.
+> See docs/europa/09426b-authoring-receipts.json and docs/sessions/2026-10-30-094-26b-ubt-memory-smoke.md.
+
 > **094-28, 2026-10-30 - NEEDS-DECISION: Smoke stopped by an over-strict UBT guard; no recipe started and no package was created.**
 > Python 2.7, FC can-fails, 21 retained suites, full stand-in rehearsals and all three dry runs passed; the kit was re-armed for 09428 on c2e7318. The real Smoke editor ran for 9.547 seconds, then the kit stopped its owned tree on -Mode=ValidatePlatforms -allplatforms. The guard admitted only QueryTargets. No smoke receipt or probe exit rows were produced. Both recipe slots remain unused; no retry or fix followed the failed Smoke.
 > See docs/europa/09428-authoring-receipts.json and docs/sessions/2026-10-29-094-28-authoring-fixes.md for the measured outcome and remaining work. No push or tags.

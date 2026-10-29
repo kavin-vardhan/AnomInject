@@ -10248,3 +10248,7 @@ The 4.25 launch argv requires both CrashReportsPrivacySettings.bSendUnattendedBu
 ## G470 - The editor also invokes UBT to validate installed SDKs (094-28)
 
 TargetPlatformManagerModule.cpp:996-1031 starts UnrealBuildTool with -Mode=ValidatePlatforms -allplatforms. ValidatePlatformsMode.cs:35-60 checks SDK status and emits VALID/INVALID lines. The 09428 guard admitted only QueryTargets and terminated Smoke on this stock validation child after 9.547 seconds, before the smoke receipt or probe exit rows existed. No compiler, linker or UHT was recorded and build outputs were unchanged. The refusal remains intact: FC3 forbids retry after failed Smoke. A future authorized correction must cover this validation path and repeat the real smoke; no correction was applied during closeout.
+
+## G471 - Native 4.25 smoke must verify post-process properties (094-26b)
+
+The real editor exposes AntiAliasingMethod.AAM_NONE but not PostProcessSettings.override_anti_aliasing_method or PostProcessSettings.anti_aliasing_method. The unchanged A5 authoring recipe sets both. A recording stub can accept these names, so its complete call sequence is not native API proof. The 09426b no-create smoke retained its module, reported those two missing names, quit normally and stopped both recipes. Native callable arity was unavailable for 26 checks under Python 2.7; the receipt retains their binding docs. Do not suppress these checks or retry a spent smoke. A compatible recipe correction requires authorization and a fresh arm. See 09426b-authoring-receipts.json.

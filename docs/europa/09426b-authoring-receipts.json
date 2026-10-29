@@ -1,0 +1,238 @@
+{
+  "job": "09426b",
+  "source_commit": "09e776bfb2467a1429cd469058ee745acb7df33c",
+  "verdict": "NEEDS-DECISION",
+  "summary": "FD2/FD3 qualified; Smoke exposed two unavailable 4.25 anti-aliasing properties; no recipe ran and no package was created.",
+  "authority": [
+    "094-26b-request",
+    "094-28-ruling FD1-FD6",
+    "094-26-ruling FC1-FC9"
+  ],
+  "editor_sessions": 1,
+  "recipe_sessions": 0,
+  "dry_run_sessions": 0,
+  "outputs": [
+    {
+      "recipe": "EA_Core",
+      "exists": false,
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\SM_EA_TwoLod.uasset"
+    },
+    {
+      "recipe": "EA_Core",
+      "exists": false,
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\EA_Core.umap"
+    },
+    {
+      "recipe": "EA_Travel",
+      "exists": false,
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Content\\EuropaPhaseA\\EA_Travel.umap"
+    }
+  ],
+  "findings": [
+    {
+      "name": "PostProcessSettings.override_anti_aliasing_method",
+      "exists": false,
+      "error": "type object 'PostProcessSettings' has no attribute 'override_anti_aliasing_method'"
+    },
+    {
+      "name": "PostProcessSettings.anti_aliasing_method",
+      "exists": false,
+      "error": "type object 'PostProcessSettings' has no attribute 'anti_aliasing_method'"
+    }
+  ],
+  "receipts": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\arming\\console-catalog.json",
+      "size": 126592,
+      "sha256": "0449ba528b8a7237e706d95607515b93e746f46fc2722d67bcd6bcc74dbb1f71"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\arming\\exact-argv.json",
+      "size": 10109,
+      "sha256": "a22bf9e03ef30f05f3bde171a398b016e4721d71318495402e2bb2e3321caa54"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\arming\\receipt.json",
+      "size": 33916,
+      "sha256": "476e4761fb6368a2fb99cff964a22b5d89cdc535ecfc465d17a836d769d17d4c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\assessment.json",
+      "size": 10095,
+      "sha256": "e511d91f771a27db35f78973298b8aaba41592f868aebf99ef71ae3f68c0d5da"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\binary-hashes.tsv",
+      "size": 18298,
+      "sha256": "514384d7ff93fec5b47b793829ddc711b929e7e7f605d88e722cd3cdc49ac487"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\bound-entry.json",
+      "size": 2080,
+      "sha256": "1fb65f8a3d62174c3c31d5e8034dd1827b2242e71502485abe5edb8ffd9b4216"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\canary-exit.json",
+      "size": 7351,
+      "sha256": "1756bd7c4847097ad8f616348b293c5b60ae462466c14babb94246d50255528d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\command-audit-before-docs.json",
+      "size": 66520,
+      "sha256": "58d81f0320df0676dc3f2efb0b8001b0cd96fe544c71517baa19ca4191e51ebb"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\entrypoint-01-console.log",
+      "size": 823,
+      "sha256": "0ed23c9192aa78433bf0866ccb633deec5008543004602ac49928bd7a374269e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\entrypoint-01.json",
+      "size": 16911,
+      "sha256": "7863619babaf4559c4e485a02cfa58ab0b096a2cf64cb0ac55519ab896d425e3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\final-suites.json",
+      "size": 18639,
+      "sha256": "23a3d57895682c350580e7b724826d2e8e949c572916baeebd6d17d869bfc574"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\attempt-result.json",
+      "size": 4771,
+      "sha256": "7275adf2ec45611dbf6a232010e083c2f583ea9b7193773c793f3ac0532355d8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\build-before.json",
+      "size": 89900,
+      "sha256": "c9546cf076fa421ab5f23a65b819dbe213cc492fe79b990c8001cf56d25c5f87"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\ledger\\fixture-runtime\\child-001.json",
+      "size": 17930,
+      "sha256": "d710de204bdd72f1b90e82549fb51f1f0d7a5f0b3c8da5e6763fa3bbddeffd88"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\managed-after.json",
+      "size": 6620,
+      "sha256": "3a6f828f75448a255ec5b7e67a5545897c75ddc680d2c120c431083862965166"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\managed-before.json",
+      "size": 6620,
+      "sha256": "6fb8e71203490ef3e92de2f532d0861cc4caca0b6e15920ea66362a61a28e3c1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\prepared.json",
+      "size": 3120,
+      "sha256": "e08f20d355afe98f297393bdbd3a146f08226e7ea505eccc62bd194646168f4a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\quarantine-receipt.json",
+      "size": 461,
+      "sha256": "d4bd7ad79492a52d7c8978e9fa98c1191306e8f7f04f21d768f3fa24839909a8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\session\\CrashClient.log",
+      "size": 6643,
+      "sha256": "4ca05e5b879e5b5c88c30287bd54d538493d8d5a0199aa9fffcbf1489073b68b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\session\\probe\\probe.jsonl",
+      "size": 8886,
+      "sha256": "0bcfe4c79b4b4f93b17777d19ce1927647f901f4dd9b8e9bceb2aa37609def9a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\session\\Runtime.log",
+      "size": 106067,
+      "sha256": "d9768935fa5a01ff686db29bb3f40587fdd3f5fdc4a5b0bce8a9f81fa95356ce"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\smoke.json",
+      "size": 10431,
+      "sha256": "cf2dbe1b64e97b0b7fb405035e99d30f68f4141d03da1e3eea2f2fa03cf10ca3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\fixture-attempts\\Smoke\\01\\upload-check.json",
+      "size": 676,
+      "sha256": "5757a73820387cba0de8eacc43d9e24d6a33956745b979a4a72aa427701af04f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\initialization.json",
+      "size": 35081,
+      "sha256": "f1457dc534f158764c18044aaf4cf25c8412b40df778fabe169a42cfc0a28b30"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\ledger-summary-before-docs.json",
+      "size": 23477,
+      "sha256": "1b977877ce78f68c4f69a0433dc65a8aca118e301728b10bcfd2d638e08f9e16"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\live-gate.json",
+      "size": 160893,
+      "sha256": "848e0ef63479c5ed17d57493eccf3cf09a9c658068748c36e92b5108feb663f4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\P9\\entry\\summary.json",
+      "size": 748,
+      "sha256": "7b1218e56183b2701ead66f1b5196f6cfa68796bce04245391729b72c2ea5d12"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\P9\\exit\\summary.json",
+      "size": 748,
+      "sha256": "a140a05e3ca9bf6416811980e7350b99c3ebd0dd50163bc3de31b1bd641a4dff"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\prior-results-entry.json",
+      "size": 1010,
+      "sha256": "a9bc783ac4ef36e62a7814b95fd19238d14049317d5ecbc6715a98c2e79917fc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\process-closeout.json",
+      "size": 4856,
+      "sha256": "f6b7e37c902158a5e8c7146ec8dd0c0c5bc61e83df704bfe74b3e83486c29b2f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\rehearsal-summary.json",
+      "size": 3725,
+      "sha256": "87d9d30ee5c75a49d8c3ce0e621fd6ccf5fa60ca2b0316a78447012747658491"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\result-evidence.json",
+      "size": 2195660,
+      "sha256": "84526b7ad2decda48e4726841da028bb8db9990d4f3595fd2f57cd9776ed8aa9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\runtime-baseline.json",
+      "size": 460448,
+      "sha256": "67e89abd98c832405cb29bf9b30ba2db43263cc93412c5ebd0a48b92f3f5eb3f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\step4-complete.json",
+      "size": 428,
+      "sha256": "06d7f3f46859aa9f0f163b24acd1d9c28faabbf0426f779a7202cb5e7528c55b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\tests\\affected-final\\summary.json",
+      "size": 17358,
+      "sha256": "f1f490d739ec6679d57c3e755455fcb8dcdfa2715d91c208704d6ed593eb65c5"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\tests\\fd-final\\summary.json",
+      "size": 3732,
+      "sha256": "39f96b958ebb169e263d7191a067e93433c3f6e53d0dd18d16ac91838cf54df0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\toolchains.json",
+      "size": 6787,
+      "sha256": "2e1d4cfd81d79a5936aa63ec4ec6facf371ffa0ee1a4e07376c815e12c937c29"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09426b\\tooling-commit.json",
+      "size": 1149,
+      "sha256": "a30d6e473bda32d7de40707564a3f70e72945e701e0acb5be9c3324e45e8127d"
+    }
+  ],
+  "final_report": "Run-folder report.md binds subsequent documentation commit, final audit, canary scan and ledger rollup. The indexed rollup is the pre-documentation snapshot.",
+  "pushed": false,
+  "tags": []
+}
