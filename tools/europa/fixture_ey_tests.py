@@ -18,7 +18,7 @@ def tests(output):
         rows.append(dict(case=name,passed=bool(condition)))
         (output/'progress.json').write_text(json.dumps(rows,indent=2)+'\n')
         assert condition,name
-    good=dict(idle_seconds=300,free_memory_bytes=6*gate.GIB,free_commit_bytes=12*gate.GIB,gpu_percent=15,
+    good=dict(idle_seconds=300,free_memory_bytes=6*gate.GIB,free_commit_bytes=8*gate.GIB,gpu_percent=15,
         processes=[dict(pid=1,parent_pid=0,image='EpicGamesLauncher.exe',image_path='C:/Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe')],
         volumes={d:dict(free_bytes=n,resolved_drive=d) for d,n in gate.FLOORS.items()})
     group=copy.deepcopy(good)
@@ -45,13 +45,13 @@ def tests(output):
         sample=copy.deepcopy(good);sample['processes'].append(dict(pid=5,parent_pid=1,image=image,blocked_runtime=True))
         check('EY3_observe_'+image,'foreign_process:5' not in gate.reasons(sample,require_launcher=True))
     sample=copy.deepcopy(good);sample['free_commit_bytes']-=1
-    check('EY3_12_GiB_start_commit','commit_memory' in gate.reasons(sample))
-    check('EY3_commit_Waiting_line',waiting_line(['commit_memory'])=='Waiting: 12 GiB free commit.')
-    check('EY3_inclusive_12_GiB',not gate.reasons(good,require_launcher=True))
+    check('FD3_8_GiB_start_commit','commit_memory' in gate.reasons(sample))
+    check('EY3_commit_Waiting_line',waiting_line(['commit_memory'])=='Waiting: 8 GiB free commit.')
+    check('FD3_inclusive_8_GiB',not gate.reasons(good,require_launcher=True))
     for drive,expected in [('C',(13,11,10)),('D',(40,30,25)),('E',(15,12,10))]:
         check('EY4_'+drive+'_pause_lines',disk_pause.LIMITS[drive]==expected)
         check('EY4_'+drive+'_floor',gate.FLOORS[drive]==expected[-1]*gate.GIB)
-    healthy=dict(free_commit_bytes=6*gate.GIB,volumes=copy.deepcopy(good['volumes']))
+    healthy=dict(free_commit_bytes=4*gate.GIB,volumes=copy.deepcopy(good['volumes']))
     for key in ('commit','C','D','E'):
         now=[0];sample=copy.deepcopy(healthy)
         if key=='commit':sample['free_commit_bytes']=None
@@ -66,11 +66,11 @@ def tests(output):
             else:check('EY3_'+key+'_60_seconds_stop',False)
     now=[0];sample=copy.deepcopy(healthy);sample['free_commit_bytes']=None
     with SessionGate(output/'recovery.jsonl',clock=lambda:now[0],limits_reader=lambda:sample) as monitor:
-        monitor.check(());now[0]=59;sample['free_commit_bytes']=6*gate.GIB;monitor.check(())
+        monitor.check(());now[0]=59;sample['free_commit_bytes']=4*gate.GIB;monitor.check(())
         check('EY3_recovery_clears_timer',not monitor.unreadable_since)
         now[0]=60;sample['free_commit_bytes']=None;monitor.check(());now[0]=119;monitor.check(())
         check('EY3_new_gap_has_fresh_timer',monitor.unreadable_since=={'free_commit':60})
-    for name,reader in [('exception',lambda:(_ for _ in ()).throw(OSError('synthetic'))),('invalid',lambda:None),('volumes_null',lambda:dict(free_commit_bytes=6*gate.GIB,volumes=None))]:
+    for name,reader in [('exception',lambda:(_ for _ in ()).throw(OSError('synthetic'))),('invalid',lambda:None),('volumes_null',lambda:dict(free_commit_bytes=4*gate.GIB,volumes=None))]:
         now=[0]
         with SessionGate(output/(name+'.jsonl'),clock=lambda:now[0],limits_reader=reader) as monitor:
             monitor.check(());now[0]=60

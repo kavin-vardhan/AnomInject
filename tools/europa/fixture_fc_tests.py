@@ -22,7 +22,7 @@ def main(output):
         else:raise AssertionError(name+' accepted')
     data=config(ledger.SCOPE)
     policy.validate(data,False)
-    for old in ('09422','09423','09424','09425'):
+    for old in ('09422','09423','09424','09425','09428'):
         bad=dict(data,arming_job=old)
         refuses('retired_'+old,lambda:policy.validate(bad,False))
     for recipe in policy.SESSIONS:
@@ -40,10 +40,12 @@ def main(output):
                      'Saved/Config/Windows/EditorSettings.ini','Intermediate/Build/Makefile.bin','Binaries/Win64/game.dll'):
         check('bound_'+relative,not policy.managed_kind(policy.HOST/relative))
     check('UBT_query',reason('UnrealBuildTool.exe','UnrealBuildTool.exe -Mode=QueryTargets -Project="owned"') is None)
-    for image,command in [('UnrealBuildTool.exe',None),('UnrealBuildTool.exe','UnrealBuildTool.exe Target Win64 Development'),
+    for image,command in [('UnrealBuildTool.exe','UnrealBuildTool.exe Target Win64 Development'),
                           ('UnrealBuildTool.exe','UnrealBuildTool.exe -Mode=Build'),('cl.exe','cl.exe'),('link.exe','link.exe'),
                           ('UnrealHeaderTool.exe','UnrealHeaderTool.exe'),('UE4Editor.exe','UE4Editor.exe')]:
         check('build_refused_'+str(command),bool(reason(image,command)))
+    check('UBT_unreadable_not_build',reason('UnrealBuildTool.exe',None) is None)
+    check('UBT_validate',reason('UnrealBuildTool.exe','UnrealBuildTool.exe -Mode=ValidatePlatforms -allplatforms') is None)
     check('standin_build',bool(reason('python.exe','python.exe --fc6-ubt-standin -Mode=Build',rehearsal=True)))
     check('standin_only_explicit_rehearsal',reason('python.exe','python.exe --fc6-ubt-standin -Mode=Build') is None)
     old=uploads(policy.ROOT/'Receipts/09425/fixture-attempts/EA_Core/01/session')
@@ -64,7 +66,7 @@ def main(output):
     import fixture_precheck
     from fixture_rehearsal import samples
     for name,mutate in [('input_599',lambda s:s.update(idle_seconds=599)),
-                        ('commit_below_12',lambda s:s.update(free_commit_bytes=12*1024**3-1)),
+                        ('commit_below_8',lambda s:s.update(free_commit_bytes=8*1024**3-1)),
                         ('launcher_absent',lambda s:s.update(processes=[])),
                         ('disk_between_floor_start',lambda s:s['volumes']['D'].update(free_bytes=39*1024**3))]:
         sample=samples()[0];sample['idle_seconds']=600;mutate(sample)

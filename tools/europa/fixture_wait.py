@@ -25,7 +25,7 @@ class AdmissionWindow(Window):
         return result
 
 LABELS = dict(input_idle='mouse and keyboard idle for 300 seconds', physical_memory='6 GiB free physical memory',
-              commit_memory='12 GiB free commit', gpu='GPU use at or below 15 percent', processes='a readable running-program list',
+              commit_memory='8 GiB free commit', gpu='GPU use at or below 15 percent', processes='a readable running-program list',
               launcher='Epic Games Launcher already running')
 
 

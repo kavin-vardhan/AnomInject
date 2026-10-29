@@ -35,8 +35,8 @@ def tests(output):
         else:check(name,False)
     template=json.loads(Path(os.environ['EUROPA_JOB_CONFIG']).read_text())
     real=config(template)
-    healthy=dict(free_commit_bytes=6*GIB,volumes={d:dict(free_bytes=n,resolved_drive=d) for d,n in FLOORS.items()})
-    good=dict(idle_seconds=300,free_memory_bytes=6*GIB,free_commit_bytes=12*GIB,gpu_percent=15,
+    healthy=dict(free_commit_bytes=4*GIB,volumes={d:dict(free_bytes=n,resolved_drive=d) for d,n in FLOORS.items()})
+    good=dict(idle_seconds=300,free_memory_bytes=6*GIB,free_commit_bytes=8*GIB,gpu_percent=15,
         processes=[dict(pid=10,parent_pid=1,image='EpicGamesLauncher.exe',image_path='C:/Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe',created_utc='2026-01-01T00:00:00Z')],
         volumes=copy.deepcopy(healthy['volumes']))
     group=copy.deepcopy(good)
@@ -75,7 +75,7 @@ def tests(output):
     notes=next(r for r in recorded if r['kind']=='observe_only')
     check('EX2_own_GPU_physical_memory_input_do_not_stop',notes['action']=='record_only' and all(x in notes['reasons'] for x in ('input_idle','physical_memory','gpu')))
     check('EX2_foreign_process_recorded_not_acting','foreign_process:90' in notes['reasons'])
-    for name,mutate in [('commit',lambda s:s.update(free_commit_bytes=6*GIB-1))]+[(d,lambda s,d=d:s['volumes'][d].update(free_bytes=FLOORS[d]-1)) for d in FLOORS]:
+    for name,mutate in [('commit',lambda s:s.update(free_commit_bytes=4*GIB-1))]+[(d,lambda s,d=d:s['volumes'][d].update(free_bytes=FLOORS[d]-1)) for d in FLOORS]:
         bad=copy.deepcopy(healthy);mutate(bad)
         with SessionGate(output/('limit-'+name+'.jsonl'),limits_reader=lambda:bad) as monitor:
             refuses('EX2_'+name+'_acts',lambda:monitor.check(()))
@@ -107,7 +107,7 @@ def tests(output):
             def limits():
                 data=copy.deepcopy(healthy)
                 if entered[0] is not None and time.monotonic()-entered[0]>1:
-                    if condition=='commit':data['free_commit_bytes']=6*GIB-1
+                    if condition=='commit':data['free_commit_bytes']=4*GIB-1
                     if condition=='disk':data['volumes']['D']['free_bytes']=FLOORS['D']-1
                 return data
             release=threading.Event()

@@ -101,7 +101,7 @@ def reasons(sample, owned_pids=(), profile='measured', require_launcher=False):
     for name, predicate in [
         ('input_idle', lambda: sample['idle_seconds'] >= 300),
         ('physical_memory', lambda: sample['free_memory_bytes'] >= 6 * GIB),
-        ('commit_memory', lambda: sample['free_commit_bytes'] >= 12 * GIB),
+        ('commit_memory', lambda: sample['free_commit_bytes'] >= 8 * GIB),
         ('gpu', lambda: 0 <= sample['gpu_percent'] <= 15),
     ]:
         if (name == 'input_idle' and not human_idle) or (name == 'commit_memory' and profile != 'measured'):
@@ -261,14 +261,14 @@ def collect(readers=None):
 
 def self_test():
     import copy
-    good = {'idle_seconds': 300, 'free_memory_bytes': 6 * GIB, 'free_commit_bytes': 12 * GIB, 'gpu_percent': 15, 'processes': [], 'volumes': {d: {'resolved_drive': d, 'free_bytes': n} for d,n in FLOORS.items()}}
+    good = {'idle_seconds': 300, 'free_memory_bytes': 6 * GIB, 'free_commit_bytes': 8 * GIB, 'gpu_percent': 15, 'processes': [], 'volumes': {d: {'resolved_drive': d, 'free_bytes': n} for d,n in FLOORS.items()}}
     results = []
     def check(name, condition):
         results.append({'case': name, 'pass': bool(condition)})
         if not condition:
             raise AssertionError(name)
     check('thresholds_inclusive', not reasons(good))
-    for key, value in [('idle_seconds', 299.99), ('free_memory_bytes', 6*GIB-1), ('free_commit_bytes', 12*GIB-1), ('gpu_percent', 15.01)]:
+    for key, value in [('idle_seconds', 299.99), ('free_memory_bytes', 6*GIB-1), ('free_commit_bytes', 8*GIB-1), ('gpu_percent', 15.01)]:
         bad = copy.deepcopy(good); bad[key] = value
         check(key + '_can_fail', bool(reasons(bad)))
         del bad[key]

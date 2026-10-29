@@ -29,8 +29,8 @@ def config(template):
         recipes={r:policy.make_recipe(r,policy.ROOT/'Receipts'/policy.ARMING_JOB,policy.ROOT/'Temp'/policy.ARMING_JOB) for r in policy.SESSIONS},
         global_state=str(policy.ROOT/'Receipts'/policy.ARMING_JOB/'fixture-state/global'),
         job_template=dict(template,runtime_authorized=True,runtime_scope=policy.SCOPE,build_pairs=[],query_pairs=[],
-            authority=policy.ARMING_JOB+' armed for EW2 and EW3, as amended by EX1-EX5, EY1-EY4 and EZ1-EZ2, FC1-FC7',
-            memory=dict(start_physical_GiB=6,start_commit_GiB=12,stop_physical_GiB=None,stop_commit_GiB=6)),
+            authority=policy.ARMING_JOB+' armed for EW2 and EW3, as amended by EX1-EX5, EY1-EY4 and EZ1-EZ2, FC1-FC7, FD1-FD5',
+            memory=dict(start_physical_GiB=6,start_commit_GiB=8,stop_physical_GiB=None,stop_commit_GiB=4)),
         tooling_files=[],host_files=[],engine_files=[],existing_content=[])
 
 
@@ -165,7 +165,7 @@ def main(output):
     Path(existing['recipes']['EA_Core']['attempt_slots'][0]['job_root']).mkdir(parents=True)
     with Guard(existing,'EA_Core') as g:
         slot,_=g.claim();check('existing_slot_folder_is_not_reused',slot['number']==2)
-    good=dict(idle_seconds=300,free_memory_bytes=6*1024**3,free_commit_bytes=12*1024**3,gpu_percent=15,
+    good=dict(idle_seconds=300,free_memory_bytes=6*1024**3,free_commit_bytes=8*1024**3,gpu_percent=15,
         processes=[dict(pid=700001,parent_pid=1,image='EpicGamesLauncher.exe',image_path='C:/Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe')],
         volumes={d:dict(resolved_drive=d,free_bytes=80*1024**3) for d in 'CDE'})
     window=Window(0,profile='measured',require_launcher=True)

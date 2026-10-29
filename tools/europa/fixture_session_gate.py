@@ -38,8 +38,8 @@ def volume_reading(sample,drive):
 def stop_reasons(sample):
     found=[]
     commit=sample.get('free_commit_bytes')
-    if numeric(commit) and commit<6*GIB:
-        found.append('free commit below 6 GiB')
+    if numeric(commit) and commit<4*GIB:
+        found.append('free commit below 4 GiB')
     for drive,minimum in FLOORS.items():
         volume=volume_reading(sample,drive)
         if volume.get('resolved_drive')==drive and numeric(volume.get('free_bytes')) and volume['free_bytes']<minimum:
@@ -48,11 +48,12 @@ def stop_reasons(sample):
 
 
 class SessionGate:
-    def __init__(self,path,collector=collect,clock=time.monotonic,limits_reader=limits_sample):
+    def __init__(self,path,collector=collect,clock=time.monotonic,limits_reader=limits_sample,build_check=None):
         self.path=Path(path)
         self.collector=collector
         self.clock=clock
         self.limits_reader=limits_reader
+        self.build_check=build_check
         self.results=queue.Queue()
         self.stop_event=threading.Event()
         self.thread=None
@@ -66,7 +67,7 @@ class SessionGate:
         return self
 
     def write(self,row):
-        row=dict(row,utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),authority='094-22-ruling EX2; 094-23-ruling EY3')
+        row=dict(row,utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),authority='094-22-ruling EX2; 094-23-ruling EY3; 094-28-ruling FD2-FD3')
         self.stream.write(json.dumps(row)+'\n');self.stream.flush()
 
     def start(self,pid):
@@ -87,6 +88,7 @@ class SessionGate:
         self.owned=tuple(owned)
         if self.clock()-self.last_limits>=1:
             self.last_limits=self.clock()
+            if self.build_check:self.build_check()
             try:limits=self.limits_reader()
             except Exception as error:limits=dict(reading_errors=dict(acting=reading_error(error)))
             if not isinstance(limits,dict):limits=dict(reading_errors=dict(acting=dict(type='InvalidReading')))

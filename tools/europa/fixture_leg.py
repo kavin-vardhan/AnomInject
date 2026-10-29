@@ -142,6 +142,9 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                 return result
             print(recipe+': starting the one authorized '+('smoke' if recipe=='Smoke' else 'authoring')+' session; limit '+str(policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else (300 if recipe=='Smoke' else 1800))+' seconds. Output is recorded in '+str(root/'session')+'.',flush=True)
             monitor_args=fixture_rehearsal.monitor_arguments() if policy.REHEARSAL is not None else {}
+            from fixture_children import BuildOutputWatch
+            build_watch=BuildOutputWatch(HOST,root/'build-watch.jsonl')
+            monitor_args['build_check']=build_watch.check
             deadline=policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else (300 if recipe=='Smoke' else 1800)
             with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl',**monitor_args) as monitor:
                 operation=ledger.begin('fixture-runtime','runtime')
@@ -167,6 +170,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                 result['exit_code']=ledger.run_child(argv,cwd=HOST,acceptable=(0,),runtime_guard=True,
                     timeout_seconds=deadline,echo=False,on_started=launched,running_check=monitor.check,
                     before_create=reserve,on_creation_failed=creation_failed)
+                build_watch.check()
             result['probe_exit']=probe_exit(root/'session/probe/probe.jsonl')
             authored=json.loads((root/('smoke.json' if recipe=='Smoke' else 'authoring.json')).read_text())
             expected='SMOKE_PASS' if recipe=='Smoke' else 'AUTHORED_NOT_QUALIFIED'

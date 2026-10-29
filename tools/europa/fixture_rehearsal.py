@@ -62,7 +62,7 @@ def command(recipe,root):
 
 def samples():
     from idle_gate import FLOORS,GIB
-    sample=dict(idle_seconds=300,free_memory_bytes=6*GIB,free_commit_bytes=12*GIB,gpu_percent=0,
+    sample=dict(idle_seconds=300,free_memory_bytes=6*GIB,free_commit_bytes=8*GIB,gpu_percent=0,
         processes=[dict(pid=1,parent_pid=0,image='EpicGamesLauncher.exe',
             image_path='C:/Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe')],
         volumes={d:dict(resolved_drive=d,free_bytes=max(n,50*GIB)) for d,n in FLOORS.items()})
@@ -72,7 +72,7 @@ def samples():
 def monitor_arguments():
     sample=samples()[0]
     return dict(collector=lambda:copy.deepcopy(sample),limits_reader=lambda:dict(
-        free_commit_bytes=12*1024**3,volumes=copy.deepcopy(sample['volumes'])))
+        free_commit_bytes=8*1024**3,volumes=copy.deepcopy(sample['volumes'])))
 
 
 def preflight(root):
