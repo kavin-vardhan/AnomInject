@@ -98,12 +98,13 @@ def descriptor(actions, products, modules, shipping):
 
 AUDIT = re.compile(r'EUROPA-TICK op=(\w+) instance=(\S+) class=(\S+) world=(\S+) .* frame=(\d+) .* initialized=(\d) template=(\d)')
 
-def worlds(rows, require_audit=True, cycles=3, require_two_pie=True):
+def worlds(rows, require_audit=True, cycles=3, require_two_pie=True, required_types=None):
     require(rows and all(b['sequence'] > a['sequence'] for a,b in zip(rows,rows[1:])), 'Missing or reordered probe stream')
     snapshots = [r for r in rows if r['kind'] == 'world_snapshot']
     require(snapshots, 'No world observations')
     observed = {r['world_type'] for r in snapshots}
-    require({2,4} <= observed and observed & {1,3}, 'Missing positive Editor/EditorPreview/Game-or-PIE world')
+    required_types = {2,4} if required_types is None else set(required_types)
+    require(required_types <= observed and observed & {1,3}, 'Missing required positive world observations')
     pie = {r['world'] for r in snapshots if r['world_type'] == 3}
     if require_two_pie:
         require(len(pie) >= 2, 'No second PIE world')

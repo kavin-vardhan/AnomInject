@@ -489,7 +489,10 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
             if tree:
                 tree.poll()
                 if runtime_guard:
-                    from fixture_children import poll as poll_runtime_children
+                    if SCOPE.get('runtime_scope', {}).get('kind') == 'phase-a-runtime':
+                        from runtime_children import poll as poll_runtime_children
+                    else:
+                        from fixture_children import poll as poll_runtime_children
                     poll_runtime_children(tree,folder/f'child-{lognum:03}-process-polls.jsonl')
                 if running_check is not None:
                     running_check(tuple(tree.known))

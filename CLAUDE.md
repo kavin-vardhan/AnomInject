@@ -15,6 +15,10 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-27, 2026-10-30 - runtime kit prepared; real qualification pending.**
+> FB1–FB7 cover 4.25 load, worlds, GC, four visible smoke anomalies with controls, and non-package admission. The kit keeps Content immutable, adds FE3 UBT checks, uses FB3's 6 GiB session commit floor, and retains failed evidence. Python 2.7, guard/reader tests and owned-scratch rehearsal pass. Arming, all-leg dry run and the real smoke/legs follow; no runtime claim yet.
+> See docs/europa/09427-runtime-design.md and docs/sessions/2026-10-30-094-27-runtime-kit.md.
+
 > **094-26d, 2026-10-30 - GREEN: both A6 fixture recipes authored in 4.25 with clean exits.**
 > FF2 records host Saved bookkeeping except Saved/Config .ini, which stays protected. Core then Travel each used slot 01 and exited 0; exactly three new packages remain. Prior Core packages stay quarantined. No smoke or dry run (FF3/FF4), build, upload, protected difference, push or tag. The recipe, launcher, FD2 and FD3 are unchanged. A7 cold reopen, pictures, route checks and owner review remain pending.
 > See docs/europa/09426d-authoring-receipts.json and docs/sessions/2026-10-30-094-26d-fixture-authoring.md.
