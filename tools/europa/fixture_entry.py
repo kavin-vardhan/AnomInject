@@ -83,8 +83,8 @@ def main(argv=None):
             if code:
                 print('Stopped: '+recipe+' did not pass. No later recipe or automatic retry will start.',flush=True)
                 return code
-        print('Smoke and both recipe '+('dry runs' if args.dry_run else 'sessions')+' finished. '+
-              ('No editor was started.' if args.dry_run else 'The three launch authorizations are spent.'),flush=True)
+        print('Both recipe '+('dry runs' if args.dry_run else 'sessions')+' finished. '+
+              ('No editor was started.' if args.dry_run else 'The two launch authorizations are spent.'),flush=True)
         return 0
     except BaseException as error:
         print('Stopped: '+str(error)+' No further session will be started.',flush=True)

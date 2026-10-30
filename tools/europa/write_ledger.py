@@ -227,7 +227,7 @@ def classification(scope, path, kind, change=None, build_ok=False):
         from fixture_policy import managed_kind
         managed=managed_kind(Path(path))
         if managed:
-            return 'port_D', managed+'; recorded, not bound (094-26-ruling FC5)'
+            return 'port_D', managed+'; recorded, not bound (094-26-ruling FC5; 094-26c-ruling FF2)'
         role = 'DDC' if '/ddc/' in p else 'shader_working' if '/shaderworking/' in p else 'crash_report' if '/crash' in p else 'host_output'
         return 'port_D', ('runtime ' + role) if kind == 'runtime' else 'owned scratch and hosts'
     if scope.startswith('tool_'):

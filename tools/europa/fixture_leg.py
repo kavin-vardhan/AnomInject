@@ -76,7 +76,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             verify_files(config['existing_content'])
             core_path=Path(config['recipes']['EA_Core']['state_root'])/'success.json'
             core=json.loads(core_path.read_text()) if core_path.exists() else None
-            if recipe!='Smoke' and not dry_run:
+            if 'Smoke' in SESSIONS and recipe!='Smoke' and not dry_run:
                 smoke_path=Path(config['recipes']['Smoke']['state_root'])/'success.json'
                 if not smoke_path.exists() or json.loads(smoke_path.read_text()).get('result')!='AUTHORING_PASS':
                     raise RuntimeError('FC3 requires the successful smoke before any recipe launch.')
@@ -128,9 +128,8 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             verify_manifests(config)
             verify_files(config['host_files']);verify_files(config['engine_files']);verify_files(config['tooling_files'])
             verify_files(before)
-            if config_snapshot()!=configs:
-                raise RuntimeError('Config or descriptor changed during admission.')
-            if recipe!='Smoke' and not dry_run:
+            policy.verify_config_after(configs,'admission')
+            if 'Smoke' in SESSIONS and recipe!='Smoke' and not dry_run:
                 smoke_path=Path(config['recipes']['Smoke']['state_root'])/'success.json'
                 if not smoke_path.exists() or json.loads(smoke_path.read_text()).get('result')!='AUTHORING_PASS':
                     raise RuntimeError('FC3 requires the successful smoke before any recipe launch.')
@@ -185,8 +184,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             create_json(root/'upload-check.json',result['uploads'])
             if result['uploads']['result']!='PASS':
                 raise RuntimeError('FC4 session logs show an upload or incomplete upload evidence.')
-            if config_snapshot()!=configs:
-                raise RuntimeError('Config or descriptor changed during the session.')
+            policy.verify_config_after(configs,'the session')
             verify_manifests(config)
             verify_files(config['host_files']);verify_files(config['engine_files']);verify_files(config['tooling_files'])
             result['result']='AUTHORING_PASS'

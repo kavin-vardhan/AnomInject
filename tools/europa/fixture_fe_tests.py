@@ -43,8 +43,8 @@ def main(output):
            ('path_escape',str(FOLDER/'../sample.evtx'),Denied(),False)]
     for name,path,error,wanted in cases:check('FE2_'+name,excluded_denial(path,error)==wanted)
     old=json.loads((policy.ROOT/'Launch/Europa425-FixtureAuthoring.json').read_text())
-    guards=[r for r in old['tooling_files'] if Path(r['path']).name in ('fixture_children.py','fixture_leg.py','fixture_session_gate.py','idle_gate.py','fixture_launcher.py')]
-    check('FD2_FD3_FC2_implementation_unchanged',len(guards)==5 and policy.verify_files(guards)==5)
+    guards=[r for r in old['tooling_files'] if Path(r['path']).name in ('fixture_children.py','fixture_session_gate.py','idle_gate.py','fixture_launcher.py')]
+    check('FD2_FD3_FC2_implementation_unchanged',len(guards)==4 and policy.verify_files(guards)==4)
     output.parent.mkdir(parents=True,exist_ok=True)
     output.write_text(json.dumps(dict(result='PASS',cases=rows,native_receipt=dict(path=str(prior),sha256=policy.sha(prior)),
         manifest=dict(path=str(manifest),sha256=policy.sha(manifest)),unreal_launches=0,dry_run_sessions=0),indent=2)+'\n')

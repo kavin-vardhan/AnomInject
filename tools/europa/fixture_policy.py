@@ -10,23 +10,24 @@ HOST = ROOT/'StylizedParisStreet'
 TOOLS = HOST/'Plugins/AnomalyInjector/tools/europa'
 CITATION = 'D:/IntrusiveAnomalies/_reviews/094-21-ruling.md#EW2'
 RULE = 'D:/IntrusiveAnomalies/_reviews/094-21-ruling.md#EW3'
-ARMING_JOB = '09426c'
+ARMING_JOB = '09426d'
 REHEARSAL = None
 AMENDMENTS = (['D:/IntrusiveAnomalies/_reviews/094-22-ruling.md#EX'+str(i) for i in range(1,6)]
     + ['D:/IntrusiveAnomalies/_reviews/094-23-ruling.md#EY'+str(i) for i in range(1,5)]
     + ['D:/IntrusiveAnomalies/_reviews/094-24-ruling.md#EZ'+str(i) for i in range(1,3)]
     + ['D:/IntrusiveAnomalies/_reviews/094-26-ruling.md#FC'+str(i) for i in range(1,8)]
     + ['D:/IntrusiveAnomalies/_reviews/094-28-ruling.md#FD'+str(i) for i in range(1,6)]
-    + ['D:/IntrusiveAnomalies/_reviews/094-26b-ruling.md#FE'+str(i) for i in (1,2,4)])
+    + ['D:/IntrusiveAnomalies/_reviews/094-26b-ruling.md#FE'+str(i) for i in (1,2,4)]
+    + ['D:/IntrusiveAnomalies/_reviews/094-26c-ruling.md#FF'+str(i) for i in range(1,5)])
 SESSION_POLICY = dict(start='full_measured',during=['disk_floor','free_commit_below_4_GiB','1800_second_limit','unreadable_acting_reading_60_seconds'],
     observe_only=['physical_memory','GPU','human_input','foreign_processes'],automatic_retry=False,
     failed_declared_outputs='receipt_and_quarantine_before_chat_rearm',start_commit_GiB=8,unreadable_seconds=60)
 UPLOAD = '-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False'
 RECIPES = ('EA_Core', 'EA_Travel')
-SESSIONS = ('Smoke',) + RECIPES
+SESSIONS = RECIPES
 ANALYTICS = '-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False'
-WINDOW_END = '2026-10-30T02:15:00+00:00'
-OUTPUTS = {'Smoke': [],
+WINDOW_END = '2026-10-31T01:00:00+00:00'
+OUTPUTS = {
     'EA_Core': [HOST/'Content/EuropaPhaseA/SM_EA_TwoLod.uasset', HOST/'Content/EuropaPhaseA/EA_Core.umap'],
     'EA_Travel': [HOST/'Content/EuropaPhaseA/EA_Travel.umap']}
 MANIFESTS = {
@@ -34,8 +35,7 @@ MANIFESTS = {
     'baseline51': 'b05e6f8c9ce12fa1c5b4dbd142a59383f737bb8a3b7885b7219d1bcdb6c1fc37',
     'regate51': '3865fe0c6ed039d5bad2bc54d1a6a89f11c403e98237b4c6caf74ca661ea12e2'}
 SCOPE = dict(host='425', kind='fixture-authoring', recipes=list(RECIPES),
-    maximum_editor_sessions=3, maximum_sessions_per_recipe=1, session_seconds=1800,
-    smoke=dict(name='Smoke',maximum_sessions=1,seconds=300,creates=False,saves=False,authority='094-26-ruling FC3'),
+    maximum_editor_sessions=2, maximum_sessions_per_recipe=1, session_seconds=1800,
     new_fixture_packages_only=True, overwrite=False, pie=False, cook=False,
     commandlet=False, packaging=False, production_edit=False, config_edit=False)
 
@@ -76,7 +76,7 @@ def validate(config, dry_run):
     if config.get('authorized_by_chat') is not True or config.get('authorization_citation') != CITATION:
         raise RuntimeError('Fixture authoring is not armed by chat EW2.')
     if config.get('arming_job') != ARMING_JOB or config.get('policy_citation') != RULE:
-        raise RuntimeError('Fixture arming is not the 09426c EW2/EW3 arming amended by EX1-EX5, EY1-EY4, EZ1-EZ2, FC1-FC7, FD1-FD5 and FE1-FE2/FE4.')
+        raise RuntimeError('Fixture arming is not the 09426d EW2/EW3 arming amended by EX1-EX5, EY1-EY4, EZ1-EZ2, FC1-FC7, FD1-FD5, FE1-FE2/FE4 and FF1-FF4.')
     if config.get('amendment_citations') != AMENDMENTS or config.get('session_policy') != SESSION_POLICY:
         raise RuntimeError('The EX1-EX5 amendments and EX2 session policy are required.')
     template = config.get('job_template', {})
@@ -99,7 +99,7 @@ def validate(config, dry_run):
     if dry_run != (config.get('dry_run_only') is True):
         raise RuntimeError('Dry runs require throwaway slots; live runs require real slots.')
     if set(config.get('recipes', {})) != set(SESSIONS):
-        raise RuntimeError('Smoke followed by exactly EA_Core and EA_Travel is required.')
+        raise RuntimeError('FF3 requires exactly EA_Core and EA_Travel, without a smoke session.')
     all_paths = []
     for recipe in SESSIONS:
         row = config['recipes'][recipe]
@@ -109,12 +109,12 @@ def validate(config, dry_run):
             raise RuntimeError('Each recipe needs three ordered prelaunch attempt slots.')
         expected = make_recipe(recipe, receipts, temp)
         if not dry_run and row != expected:
-            raise RuntimeError('Real slots must use the bound 09426c session paths.')
+            raise RuntimeError('Real slots must use the bound 09426d session paths.')
         paths = [canonical(row['state_root'], ROOT/'Receipts')]
         for slot in slots:
             paths += [canonical(slot['job_root'], ROOT/'Receipts'),canonical(slot['temp_root'], ROOT/'Temp')]
         for p in paths:
-            if dry_run and any(p.is_relative_to(ROOT/base/job) for base in ('Receipts','Temp') for job in ('09416','09417','09422','09423','09424','09425','09428','09426b')):
+            if dry_run and any(p.is_relative_to(ROOT/base/job) for base in ('Receipts','Temp') for job in ('09416','09417','09422','09423','09424','09425','09428','09426b','09426c')):
                 raise RuntimeError('Dry run cannot consume old owner arming paths.')
             if dry_run and any(p.is_relative_to(ROOT/base/ARMING_JOB/part) for base in ('Receipts','Temp') for part in ('fixture-attempts','fixture-state','fixture-runs')):
                 raise RuntimeError('Dry run cannot consume real fixture slots.')
@@ -128,7 +128,7 @@ def validate(config, dry_run):
     if not dry_run and global_state != receipts/'fixture-state/global':
         raise RuntimeError('Real global lock path changed.')
     if dry_run and any(global_state.is_relative_to(ROOT/'Receipts'/job/part) for job,part in
-                      [('09416','owner-state'),('09417','owner-state'),('09422','fixture-state'),('09423','fixture-state'),('09424','fixture-state'),('09425','fixture-state'),('09428','fixture-state'),('09426b','fixture-state'),(ARMING_JOB,'fixture-state')]):
+                      [('09416','owner-state'),('09417','owner-state'),('09422','fixture-state'),('09423','fixture-state'),('09424','fixture-state'),('09425','fixture-state'),('09428','fixture-state'),('09426b','fixture-state'),('09426c','fixture-state'),(ARMING_JOB,'fixture-state')]):
         raise RuntimeError('Dry run cannot consume a real global lock.')
     return template
 
@@ -212,6 +212,11 @@ def config_snapshot():
     return [dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(paths)]
 
 
+def verify_config_after(before, phase):
+    if config_snapshot()!=before:
+        raise RuntimeError('Config or descriptor changed during '+phase+'.')
+
+
 def output_preflight(recipe, core_success=None, dry_run=False):
     if recipe=='Smoke':
         if any(p.exists() for r in RECIPES for p in OUTPUTS[r]):
@@ -247,10 +252,10 @@ def managed_kind(path):
     try: rel=Path(path).relative_to(HOST).as_posix().lower()
     except ValueError:return None
     parts=rel.split('/')
-    if len(parts)>=4 and parts[:3]==['saved','config','crashreportclient'] and parts[3].startswith('ue4cc-'):
-        return 'FC5 crash-client managed config'
-    if rel=='saved/autosaves/packagerestoredata.json':return 'FC5 package restore data'
-    if rel.startswith('saved/logs/'):return 'FC5 editor log'
+    if '..' in parts:return None
+    if parts[0]=='saved':
+        if len(parts)>=3 and parts[1]=='config' and Path(path).suffix.lower()=='.ini':return None
+        return 'FF2 editor-managed Saved file'
     if rel.startswith('intermediate/') and ('assetregistrycache' in parts or Path(path).name.lower().startswith('cachedassetregistry')):
         return 'FC5 asset-registry cache'
     return None

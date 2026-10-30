@@ -22,7 +22,7 @@ def main(output):
         else:raise AssertionError(name+' accepted')
     data=config(ledger.SCOPE)
     policy.validate(data,False)
-    for old in ('09422','09423','09424','09425','09428','09426b'):
+    for old in ('09422','09423','09424','09425','09428','09426b','09426c'):
         bad=dict(data,arming_job=old)
         refuses('retired_'+old,lambda:policy.validate(bad,False))
     for recipe in policy.SESSIONS:
@@ -32,12 +32,13 @@ def main(output):
         for flag in (policy.UPLOAD,policy.ANALYTICS):
             refuses(recipe+'_missing_'+flag,lambda:policy.validate_argv([a for a in argv if a!=flag],recipe,root))
         refuses(recipe+'_contradictory_analytics',lambda:policy.validate_argv(argv+[policy.ANALYTICS.replace('False','True')],recipe,root))
-    for relative in ('Saved/Config/CrashReportClient/UE4CC-test/CrashReportClient.ini',
+    for relative in ('Saved/Config/CrashReportClient/UE4CC-test/report.json',
                      'Saved/Autosaves/PackageRestoreData.json','Intermediate/CachedAssetRegistry.bin',
                      'Intermediate/AssetRegistryCache/cache.bin','Saved/Logs/editor.log'):
         check('managed_'+relative,bool(policy.managed_kind(policy.HOST/relative)))
     for relative in ('Config/DefaultEngine.ini','StylizedParisStreet.uproject','Plugins/AnomalyInjector/AnomalyInjector.uplugin',
-                     'Saved/Config/Windows/EditorSettings.ini','Intermediate/Build/Makefile.bin','Binaries/Win64/game.dll'):
+                      'Saved/Config/Windows/EditorSettings.ini','Saved/Config/CrashReportClient/UE4CC-test/CrashReportClient.ini',
+                      'Intermediate/Build/Makefile.bin','Binaries/Win64/game.dll'):
         check('bound_'+relative,not policy.managed_kind(policy.HOST/relative))
     check('UBT_query',reason('UnrealBuildTool.exe','UnrealBuildTool.exe -Mode=QueryTargets -Project="owned"') is None)
     for image,command in [('UnrealBuildTool.exe','UnrealBuildTool.exe Target Win64 Development'),
