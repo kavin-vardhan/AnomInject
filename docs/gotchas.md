@@ -10264,3 +10264,7 @@ Chat FF2 supersedes G472's narrower FC5 classification: record every file under 
 ## G474 - Cleanup readers must use the bound probe schema (094-27)
 
 The real probe emits world_cleanup/actor_snapshot=skipped during engine exit, followed by probe_stop/root_release=skipped. A new reader and its synthetic stand-in both expected world_snapshot_skipped/label=cleanup; their shared mistake passed synthetic checks and rejected a clean real Smoke. Preserve and replay actual raw rows, with negative mutations, before a future authorized run. Do not repair or retry after FB7's failed smoke. CrashClient.log also showed a respawned monitor absent from the retained owned-process list; tree coverage needs proof before relying on deadline ownership for it. All runtime gates and pictures remain pending.
+
+## 094-27b — Real emitters and reparented crash monitors
+
+The cleanup reader consumes world_cleanup/actor_snapshot=skipped and is replayed against kept real files, including the previously rejected Smoke. Exact -MONITOR=<owned root PID> adoption follows the stock 4.25 respawn; retained handles and creation identities prevent name-based ownership. A normal failed leg proceeds under FH3; abnormal exit/protected change/upload/canary and smoke binding failures still stop. Per-picture AA readback must be zero. See europa/09427b-runtime-amendment.md for emitter citations and the receipt index for measured outcomes.
