@@ -41,6 +41,9 @@ def main(output):
         ('smoke_no_start',dict(leg='Smoke',driver=driver,execution=dict(result='SESSION_STOP',launches=0)))):
         check(name,classify(**change)['end_run'])
     check('smoke_reader_failure_continues',not classify(leg='Smoke',driver=driver,reader=dict(result='FAIL',reason='reader test'))['end_run'])
+    for reason in ('FB2 protected file changed during session','FD2 write to build outputs; only the owned tree is stopped.','FH3 upload sign during session'):
+        stopped=dict(process,result='SESSION_STOP',exit_code=125,stopped_owned_processes=[dict(pid=1)],reason=reason)
+        check('observed_stop_retained_'+reason,classify(execution=stopped)['end_run'])
     check('exact_monitor_pid',monitor_matches('arbitrary.exe -MONITOR=123',123))
     for command in ('CrashReportClientEditor.exe','x -MONITOR=1234','x -MONITOR=0123','x -MONITOR=123 -MONITOR=123','x --MONITOR=123','x -foo=-MONITOR=123'):
         check('not_adopted_'+command,not monitor_matches(command,123))
