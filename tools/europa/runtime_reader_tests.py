@@ -17,6 +17,7 @@ def fixture(root,route,control):
                          process_frame=frame,monotonic_seconds=100+frame,**kw))
     def picture(name,active=False):
         nonlocal frame
+        emit('command_result',command='prepare',arguments=['prepare'],success=True,skip_restore_control=False,**{'r.PostProcessAAQuality':0})
         frame+=1;path=folder/name
         im=Image.new('RGB',(1280,720),(30,30,30))
         if active:
@@ -67,16 +68,25 @@ def main(output):
     else:raise AssertionError('Human-input events counted')
     cases.append(dict(case='input-contaminated-events-do-not-count',result='PASS'))
     for case,mutation in (('missing-probe-stop','stop'),('upload','upload'),('plugin-error','plugin'),('outside-PIE','pie')):
-        root=output/case;(root/'session').mkdir(parents=True)
-        (root/'execution.json').write_text(json.dumps(dict(exit_code=0,result='PROCESS_PASS')))
-        (root/'session/Runtime.log').write_text('LogExit: Exiting.\n'+('LogAnomaly: Error: synthetic\n' if mutation=='plugin' else ''))
-        (root/'session/CrashClient.log').write_text('POST synthetic\n' if mutation=='upload' else 'No network operation.\n')
-        rows=[dict(kind='world_snapshot_skipped',label='cleanup')]
-        if mutation!='stop':rows.append(dict(kind='probe_stop',root_release='skipped',outstanding_screenshot=False))
-        if mutation=='pie':rows.append(dict(kind='world_snapshot',world_type=3))
+        from runtime_real_files import clone,SMOKE
+        root=output/case;rows=clone(SMOKE,root)
+        if mutation=='plugin':
+            with (root/'session/Runtime.log').open('a') as stream:stream.write('LogAnomaly: Error: synthetic\n')
+        if mutation=='upload':
+            with (root/'session/CrashClient.log').open('a') as stream:stream.write('POST synthetic\n')
+        if mutation=='stop':rows=rows[:-1]
+        if mutation=='pie':next(r for r in rows if r['kind']=='world_created')['world_type']=3
         try:clean_exit('Smoke',root,rows)
         except gates.GateFailure:cases.append(dict(case=case,result='PASS'))
         else:raise AssertionError(case)
+    for value in (4,None):
+        root=output/('aa-'+str(value));rows=fixture(root,'missing_object','positive')
+        for row in rows:
+            if row['kind']=='command_result' and row['command']=='prepare':row['r.PostProcessAAQuality']=value
+        try:pictures('A7_:missing_object:positive',root,rows)
+        except gates.GateFailure as error:assert 'three valid' in str(error)
+        else:raise AssertionError('Nonzero/unreadable AA picture counted')
+        cases.append(dict(case='AA-'+str(value)+'-does-not-count',result='PASS'))
     rows=[dict(kind='world_update_begin',world_type=3,process_frame=1,world=w) for w in ('first','second')]
     rows += [dict(kind='dormant_created') for n in range(3)]
     rows += [dict(kind='command_result',command='travel',success=True) for n in range(3)]

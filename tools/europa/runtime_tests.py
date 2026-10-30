@@ -25,11 +25,11 @@ def main(output):
         except (RuntimeError,ValueError):check(name,True)
         else:check(name,False)
     base=output/'slots';temp=policy.TEMP/'scratch/tests'
-    config=dict(arming_job='09427',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
+    config=dict(arming_job='09427b',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
         memory=policy.MEMORY,window_deadline_utc=policy.WINDOW_END,manifest=policy.MANIFEST,mode='rehearsal',
         receipts_root=str(base),temp_root=str(temp),slots={leg:policy.paths(base,temp,leg) for leg in policy.LEGS})
     check('exact_runtime_scope',policy.validate(config,'rehearsal'))
-    for job in ('09417','09422','09423','09425','09428','09426b','09426c','09426d'):
+    for job in ('09417','09422','09423','09425','09428','09426b','09426c','09426d','09427'):
         refuses('old_arming_'+job,lambda job=job:policy.validate(dict(config,arming_job=job),'rehearsal'))
     refuses('unknown_leg',lambda:policy.command('unarmed',output/'unarmed'))
     altered=copy.deepcopy(config);altered['slots']['Smoke']['root']='C:/wrong'
@@ -50,14 +50,14 @@ def main(output):
         check('forbidden_child_'+image,bool(reason(image,image)))
     check('additional_editor',bool(reason('UE4Editor.exe','UE4Editor.exe')))
     check('authorized_root',reason('UE4Editor.exe','UE4Editor.exe',root=True) is None)
-    scope=dict(runtime_authorized=True,runtime_scope=policy.SCOPE,authority='094-27 FB1-FB7',build_pairs=[],query_pairs=[],memory=policy.MEMORY)
+    scope=dict(runtime_authorized=True,runtime_scope=policy.SCOPE,authority='094-27b FH1-FH9',build_pairs=[],query_pairs=[],memory=policy.MEMORY)
     check('FB3_scope',memory_policy_allowed(scope,policy.JOB))
     sample=samples()[0];sample['free_commit_bytes']=8*GIB;sample['free_memory_bytes']=6*GIB
     check('start_lines_inclusive',not reasons(sample,require_launcher=True))
     sample['free_commit_bytes']-=1;check('start_commit_wait','commit_memory' in reasons(sample,require_launcher=True))
-    limit=dict(free_commit_bytes=6*GIB,volumes={d:dict(free_bytes=v,resolved_drive=d) for d,v in FLOORS.items()})
-    check('session_6_inclusive',not stop_reasons(limit))
-    check('session_below_6',bool(stop_reasons(dict(limit,free_commit_bytes=6*GIB-1))))
+    limit=dict(free_commit_bytes=4*GIB,volumes={d:dict(free_bytes=v,resolved_drive=d) for d,v in FLOORS.items()})
+    check('session_4_inclusive',not stop_reasons(limit))
+    check('session_below_4',bool(stop_reasons(dict(limit,free_commit_bytes=4*GIB-1))))
     observations=[dict(started_qpc=10,ended_qpc=20,last_input_qpc=0,foreign_gpu_percent=0,free_physical_bytes=1)]
     check('valid_window',validity(observations,11,19)['valid'])
     for key,value in (('last_input_qpc',15),('foreign_gpu_percent',15.01),('foreign_gpu_percent',None)):

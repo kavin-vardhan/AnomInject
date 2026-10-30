@@ -11,6 +11,8 @@ import time
 import idle_gate
 from fixture_session_gate import limits_sample, numeric, volume_reading, GIB
 from fixture_children import BuildOutputWatch
+from fixture_policy import managed_kind
+from fixture_uploads import check as upload_check
 
 
 def qpc():
@@ -19,8 +21,8 @@ def qpc():
 
 def stop_reasons(sample):
     found=[]
-    if numeric(sample.get('free_commit_bytes')) and sample['free_commit_bytes'] < 6*GIB:
-        found.append('FB3 free commit below 6 GiB')
+    if numeric(sample.get('free_commit_bytes')) and sample['free_commit_bytes'] < 4*GIB:
+        found.append('FH7 free commit below 4 GiB')
     for drive, floor in idle_gate.FLOORS.items():
         volume=volume_reading(sample,drive)
         if volume.get('resolved_drive') == drive and numeric(volume.get('free_bytes')) and volume['free_bytes'] < floor:
@@ -69,11 +71,15 @@ def close_window(pid):
 
 
 class Monitor:
-    def __init__(self,root,host,leg,protected,game=True,synthetic=False):
+    def __init__(self,root,host,leg,protected,game=True,synthetic=False,temp=None):
         self.root,self.host,self.leg=Path(root),Path(host),leg
         self.game,self.synthetic=game,synthetic
         self.owned=()
         self.pid=None
+        self.temp=Path(temp) if temp else self.root
+        self.root_exit=None
+        self.crash_changes=[]
+        self.pid_markers=[]
         self.last_limits=0
         self.unreadable={}
         self.observations=[]
@@ -94,13 +100,16 @@ class Monitor:
         for base in (self.host/'Content',self.host/'Plugins/AnomalyInjector/Content',self.host/'Config',self.host/'Saved/Config'):
             if base.exists():
                 for path in base.rglob('*'):
-                    if path.is_file() and (base!=self.host/'Saved/Config' or path.suffix.lower()=='.ini'):
+                    if path.is_file() and (base!=self.host/'Saved/Config' or not managed_kind(path,self.host)):
                         result.setdefault(str(path),(path.stat().st_size,path.stat().st_mtime_ns))
         return result
 
     def crash_folders(self):
-        root=self.host/'Saved/Crashes'
-        return sorted(str(p) for p in root.rglob('*') if p.is_dir()) if root.exists() else []
+        roots=[self.host/'Saved/Crashes']
+        if not self.synthetic:
+            local=Path('C:/Users/kavin/AppData/Local')
+            roots += [Path('E:/EpicGames/UE_4.25/Engine/Saved/Crashes'),local/'CrashReportClient/Saved/Crashes',local/'StylizedParisStreet/Saved/Crashes',local/'UnrealEngine/4.25/Saved/Crashes']
+        return sorted(str(p) for root in roots if root.exists() for p in root.rglob('*') if p.is_dir())
 
     def record(self,row):
         with (self.root/'monitor.jsonl').open('a',encoding='utf-8') as stream:
@@ -138,7 +147,15 @@ class Monitor:
                            free_physical_bytes=idle_gate.read_memory())
             except Exception as error:
                 row.update(ended_qpc=qpc(),error=type(error).__name__)
+            if self.done.is_set() and self.root_exit is not None and row.get('error'):
+                row['kind']='collector_close_race'
+                row['event_observation']=False
             self.queue.put(row)
+
+    def process_exited(self,code):
+        self.root_exit=dict(exit_code=code,qpc=qpc())
+        self.done.set()
+        self.record(dict(kind='root_exited',**self.root_exit))
 
     def read_probe(self):
         path=self.root/'session/probe/probe.jsonl'
@@ -157,7 +174,7 @@ class Monitor:
             try:row=self.queue.get_nowait()
             except queue.Empty:break
             self.observations.append(row)
-            self.record(dict(kind='event_observation',**row))
+            self.record(dict({'kind':'event_observation'},**row))
         now=time.monotonic()
         if now-self.last_limits >= 1:
             self.last_limits=now
@@ -180,13 +197,21 @@ class Monitor:
                 changed=[p for p in set(current)|set(self.before) if current.get(p)!=self.before.get(p)]
                 self.record(dict(kind='protected_write',paths=changed))
                 raise RuntimeError('FB2 protected file changed during session')
-            if self.crash_folders()!=self.crashes:
-                raise RuntimeError('New crash report folder; no further session')
+            changed=sorted(set(self.crash_folders())-set(self.crashes))
+            if changed!=self.crash_changes:
+                self.crash_changes=changed
+                self.record(dict(kind='new_crash_report_folders',paths=changed,action='FH3 leg failure after normal exit'))
+            marker=self.temp/('ue4-crc-pid-'+str(self.pid))
+            if marker.exists() and str(marker) not in self.pid_markers:
+                self.pid_markers.append(str(marker))
+                self.record(dict(kind='engine_managed_monitor_pid_file',path=str(marker),size=marker.stat().st_size))
+            if any(row.get('hits') for row in upload_check(self.root/'session')['logs']):
+                raise RuntimeError('FH3 upload sign during session')
         self.read_probe()
-        if any(row.get('kind')=='driver_failure' for row in self.rows):
-            raise RuntimeError('Native runtime driver failed')
+        driver_failed=any(row.get('kind')=='driver_failure' for row in self.rows)
         complete=(any(r.get('kind')=='world_initialized' and r.get('world_name','').endswith('EA_Travel') for r in self.rows)
                   if self.leg in ('WorldsGame','Admission') else any(r.get('kind')=='script_complete' for r in self.rows))
+        complete=complete or driver_failed
         if complete and not hasattr(self,'complete_at'):
             self.complete_at=now
         if self.game and complete and not self.closed and now-self.complete_at>=2:
@@ -195,9 +220,10 @@ class Monitor:
 
     def close(self):
         self.done.set()
-        if self.thread:self.thread.join(timeout=5)
+        if self.thread:self.thread.join(timeout=21)
         while True:
             try:row=self.queue.get_nowait()
             except queue.Empty:break
-            self.observations.append(row);self.record(dict(kind='event_observation',**row))
-        self.record(dict(kind='monitor_closed',collector_live=bool(self.thread and self.thread.is_alive())))
+            self.observations.append(row);self.record(dict({'kind':'event_observation'},**row))
+        self.crash_changes=sorted(set(self.crash_folders())-set(self.crashes))
+        self.record(dict(kind='monitor_closed',collector_live=bool(self.thread and self.thread.is_alive()),new_crash_report_folders=self.crash_changes))

@@ -248,12 +248,14 @@ def verify_content_after(before, recipe):
     return added
 
 
-def managed_kind(path):
-    try: rel=Path(path).relative_to(HOST).as_posix().lower()
+def managed_kind(path,host=None):
+    try: rel=Path(path).relative_to(HOST if host is None else host).as_posix().lower()
     except ValueError:return None
     parts=rel.split('/')
     if '..' in parts:return None
     if parts[0]=='saved':
+        if (len(parts)==5 and parts[1:3]==['config','crashreportclient'] and parts[3].startswith('ue4cc-') and Path(path).suffix.lower()=='.ini'):
+            return 'FG2 engine-managed crash-client config'
         if len(parts)>=3 and parts[1]=='config' and Path(path).suffix.lower()=='.ini':return None
         return 'FF2 editor-managed Saved file'
     if rel.startswith('intermediate/') and ('assetregistrycache' in parts or Path(path).name.lower().startswith('cachedassetregistry')):

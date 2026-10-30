@@ -15,6 +15,9 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-27b, 2026-10-30 — FH2–FH8 tooling qualified; real runtime pending.**
+> Correct cleanup contract tested against kept real files and mutations; exact-PID crash monitor adoption, leg-failure continuation, immutable raw receipts, 8/6/4 GiB lines and per-picture AA echoes are qualified. See docs/europa/09427b-runtime-amendment.md. The old arming is spent; no native build, push or tags.
+
 > **094-27, 2026-10-30 - NEEDS-DECISION: runtime Smoke stopped by an incorrect cleanup reader; no runtime leg started.**
 > Tooling 599ef70 passed Python 2.7, guard/reader suites, five stand-in rehearsals and all 18 dry runs. The actual Smoke exited 0 and passed 31/31 bindings, but its reader expected the wrong cleanup row. The raw skipped cleanup and one probe_stop are present. Crash-monitor respawn lifetime coverage is also incomplete. Fixtures, config, descriptors and binaries are unchanged; no crash/upload evidence. All A3/A5/A6/A7/A8 runtime gates and pictures remain pending. The run is spent; no repair, retry, push or tags.
 > See docs/europa/09427-runtime-receipts.json, docs/europa/09427-runtime-design.md and docs/sessions/2026-10-30-094-27-runtime-kit.md.

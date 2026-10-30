@@ -10,6 +10,8 @@ ROUTES = {
 def steps(leg):
     rows = []
     def add(command, args=None, wait=1, success=True):
+        if command == 'screenshot':
+            rows.append(dict(command='prepare', args=[], wait_frames=1, expect_success=True))
         rows.append(dict(command=command, args=args or [], wait_frames=wait, expect_success=success))
     if leg == 'WorldsGame':
         add('preview'); add('snapshot', ['before_pause']); add('lifetime', wait=5)

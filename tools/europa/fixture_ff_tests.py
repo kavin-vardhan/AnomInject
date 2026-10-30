@@ -31,8 +31,9 @@ def main(output):
     check('FF4_window',policy.WINDOW_END=='2026-10-31T01:00:00+00:00')
     managed=('Saved/Config/WorldState/1202994220.json','Saved/Backup/EA_Core_stamp.umap',
              'Saved/Autosaves/Map.umap','Saved/Logs/Runtime.log',
-             'Saved/Config/CrashReportClient/UE4CC-test/report.json','Saved/Elsewhere/settings.ini')
-    protected=('Saved/Config/Windows/EditorSettings.ini','Saved/Config/CrashReportClient/UE4CC-test/CrashReportClient.ini',
+             'Saved/Config/CrashReportClient/UE4CC-test/report.json','Saved/Elsewhere/settings.ini',
+             'Saved/Config/CrashReportClient/UE4CC-test/CrashReportClient.ini')
+    protected=('Saved/Config/Windows/EditorSettings.ini','Saved/Config/CrashReportClient/not-UE4CC/CrashReportClient.ini',
                'Saved/Config/Nested/UPPER.INI','Config/DefaultEngine.ini','Config/WorldState.json')
     for relative in managed+protected:
         for action in ('new','changed','removed'):
@@ -53,10 +54,10 @@ def main(output):
                 if relative in managed:
                     policy.verify_config_after(before,'the session')
                     after=policy.managed_snapshot()
-                    check(name,managed_before!=after and policy.managed_kind(path)=='FF2 editor-managed Saved file',
+                    check(name,managed_before!=after and policy.managed_kind(path) in ('FF2 editor-managed Saved file','FG2 engine-managed crash-client config'),
                           before=managed_before,after=after)
                     classified=ledger.classification('port',str(path),'runtime')
-                    check(name+'_ledger_recorded',classified[0]=='port_D' and 'FF2' in classified[1])
+                    check(name+'_ledger_recorded',classified[0]=='port_D' and any(rule in classified[1] for rule in ('FF2','FG2')))
                 else:
                     check(name+'_bound_class',policy.managed_kind(path) is None)
                     refuses(name,lambda:policy.verify_config_after(before,'the session'))

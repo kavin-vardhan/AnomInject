@@ -117,7 +117,7 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);args=parser.parse_args()
     assert sys.version_info[:3]==(2,7,14),'FC2 requires engine Python 2.7.14'
     output=os.path.abspath(args.output)
-    assert output.lower().startswith('d:\\ia_europa\\receipts\\09427\\scratch\\') and not os.path.exists(output)
+    assert output.lower().startswith('d:\\ia_europa\\receipts\\09427b\\scratch\\') and not os.path.exists(output)
     os.makedirs(output)
     here=os.path.dirname(os.path.abspath(__file__))
     for name in ('runtime_editor_425.py','runtime_scripts.py'):
@@ -151,6 +151,7 @@ def main():
         commands=[r['command'] for r in rows]
         if leg.startswith('A7_'):
             assert commands.count('apply')>=1 and commands.count('revert')>=1
+            assert all(index>0 and rows[index-1]['command']=='prepare' for index,row in enumerate(rows) if row['command']=='screenshot')
             assert sum(r['command']=='screenshot' and r['args'][0].startswith('clean-') for r in rows)==20
         native.append(dict(leg=leg,steps=rows))
     assert scripts.validate(scripts.pie_steps())

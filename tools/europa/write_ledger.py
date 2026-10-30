@@ -416,7 +416,7 @@ def child_env(folder, execution=False):
     return env, receipt
 
 def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=None, before_create=None, on_creation_failed=None,
-              runtime_guard=False, timeout_seconds=None, echo=True, running_check=None):
+              runtime_guard=False, timeout_seconds=None, echo=True, running_check=None, on_root_exit=None):
     folder = Path(os.environ['EUROPA_OPERATION_DIR'])
     lognum = len(list(folder.glob('child-*.json'))) + 1
     from environment import execution_command
@@ -437,7 +437,10 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     tree = None
     if runtime_guard and (not timeout_seconds or timeout_seconds <= 0):
         raise RuntimeError('Runtime requires a positive session deadline')
-    if runtime_guard:
+    runtime_phase=runtime_guard and SCOPE.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
+    if runtime_phase:
+        from runtime_owned import RuntimeTree as OwnedTree
+    elif runtime_guard:
         from build_memory import OwnedTree
     if memory_guard:
         if Path(argv[0]).name.casefold() != 'unrealbuildtool.exe':
@@ -485,6 +488,7 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
         thread = threading.Thread(target=consume)
         thread.start()
         last_memory, last_floor, low_count = time.monotonic(), time.monotonic(), 0
+        root_exit_at=None
         while proc.poll() is None or runtime_guard and any(tree.kernel.WaitForSingleObject(r['handle'],0) != 0 for r in tree.known.values()):
             if tree:
                 tree.poll()
@@ -494,9 +498,15 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
                     else:
                         from fixture_children import poll as poll_runtime_children
                     poll_runtime_children(tree,folder/f'child-{lognum:03}-process-polls.jsonl')
-                if running_check is not None:
+                root_code=proc.poll()
+                if runtime_phase and root_code is not None and root_exit_at is None:
+                    root_exit_at=time.monotonic();receipt['root_ended_utc']=now()
+                    if on_root_exit:on_root_exit(root_code)
+                if runtime_phase and root_exit_at is not None and time.monotonic()-root_exit_at>=60:
+                    tree.stop_monitors('FH5 still alive 60 seconds after root exit')
+                if running_check is not None and (not runtime_phase or root_code is None):
                     running_check(tuple(tree.known))
-                if runtime_guard and time.monotonic()-start >= timeout_seconds:
+                if runtime_guard and time.monotonic()-start >= timeout_seconds and (not runtime_phase or root_code is None or any(not r.get("monitor_of") and tree.kernel.WaitForSingleObject(r["handle"],0)!=0 for r in tree.known.values())):
                     receipt['deadline_seconds'] = timeout_seconds
                     raise RuntimeError('Session limit reached; stopped only the owned editor tree, including crash reporter children.')
                 if runtime_guard and any(Path(r['image']).name.casefold() in ('cl.exe','link.exe','unrealheadertool.exe','automationtool.exe','unrealpak.exe','ue4editor-cmd.exe') for r in tree.known.values()):
@@ -512,6 +522,9 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
                 raise RuntimeError('Child console reader failed')
             time.sleep(0.2 if tree else 1)
         code = proc.returncode
+        if runtime_phase and root_exit_at is None:
+            receipt['root_ended_utc']=now()
+            if on_root_exit:on_root_exit(code)
     except BaseException as error:
         receipt['interruption'] = {'type': type(error).__name__, 'message': str(error)}
         if tree:

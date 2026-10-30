@@ -7,6 +7,7 @@ import gate_readers as gates
 from fixture_policy import sha
 from fixture_uploads import check as upload_check
 from runtime_monitor import validity
+from runtime_probe_contract import stream as probe_contract, aa_echoes
 from owner_attempts import create_json
 
 ROIS={'blinking':[805,310,360,360],'missing_object':[115,310,360,360],
@@ -23,8 +24,8 @@ def clean_exit(leg,root,rows):
     stops=[r for r in rows if r['kind']=='probe_stop']
     gates.require(len(stops)==1 and stops[0]['root_release']=='skipped' and not stops[0]['outstanding_screenshot'],
                   'Missing clean probe stop')
-    skipped=[r for r in rows if r['kind']=='world_snapshot_skipped' and r.get('label')=='cleanup']
-    gates.require(skipped,'No skipped cleanup proof')
+    contract=probe_contract(rows)
+    skipped=[r for r in rows if r['kind']=='world_cleanup' and r.get('actor_snapshot')=='skipped']
     gates.require(not any(r['kind']=='driver_failure' for r in rows),'Native driver failure')
     if leg!='WorldsPIE':gates.require(not any(r.get('world_type')==3 for r in rows),'PIE outside its armed leg')
     upload=upload_check(root/'session')
@@ -66,6 +67,8 @@ def states(rows):
 def pictures(leg,root,rows):
     unused,route,control=leg.split(':')
     complete=gates.screenshot_pairs(rows)
+    aa=aa_echoes(rows)
+    create_json(root/'picture-aa.json',dict(pictures=list(aa.values())))
     by_name={Path(r['path']).name:r for r in complete}
     for row in complete:
         path=Path(row['path']).resolve()
@@ -83,12 +86,17 @@ def pictures(leg,root,rows):
         after=[by_name[prefix+'-after-%d.png'%n] for n in range(2)]
         during=[r for name,r in sorted(by_name.items()) if name.startswith(prefix+'-during-')]
         interval=validity(observed,before['monotonic_seconds'],after[-1]['monotonic_seconds'])
+        event_pictures=[before]+during+after
+        bad_aa=[r['path'] for r in event_pictures if not aa.get(r['path'],{}).get('counted_eligible')]
+        bad_clean=[p for p in clean if not aa.get(p,{}).get('counted_eligible')]
+        if bad_aa or bad_clean:
+            interval['valid']=False;interval['reasons'].append('FH8 missing/nonzero effective AA echo')
         baseline=gates.image(before['path'])
         measurements=[gates.metrics(baseline,gates.image(r['path']),roi) for r in during]
         active=[r['path'] for r,m in zip(during,measurements) if m['mean']>=4 and m['fraction_ge8']>=.01]
         visible=[r['path'] for r,m in zip(during,measurements) if m['mean']<=.5 and m['fraction_ge8']<=.001]
         event=dict(number=number,validity=interval,roi=roi,before=before['path'],during=[r['path'] for r in during],
-                   after=[r['path'] for r in after],pixel_measures=measurements)
+                   after=[r['path'] for r in after],pixel_measures=measurements,aa=[aa.get(r['path']) for r in event_pictures])
         try:
             gates.require(active,'No visible active picture')
             if route=='blinking':gates.require(visible,'No visible phase of blinking')
@@ -174,9 +182,10 @@ def lifecycle(rows,pie):
 
 
 def read_leg(leg,root):
-    root=Path(root);rows=jsonl(root/'session/probe/probe.jsonl')
+    root=Path(root)
     result=dict(result='INCOMPLETE',leg=leg)
     try:
+        rows=jsonl(root/'session/probe/probe.jsonl')
         result['clean_exit']=clean_exit(leg,root,rows)
         text=(root/'session/Runtime.log').read_text(encoding='utf-8-sig',errors='replace')
         if leg in ('Smoke','Load','WorldsPIE'):
@@ -194,6 +203,5 @@ def read_leg(leg,root):
         result['result']='PASS'
     except Exception as error:
         result.update(result='FAIL',reason=str(error))
-        raise
     finally:create_json(root/'reader.json',result)
     return result
