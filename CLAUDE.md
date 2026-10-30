@@ -15,6 +15,10 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-26d, 2026-10-30 - GREEN: both A6 fixture recipes authored in 4.25 with clean exits.**
+> FF2 records host Saved bookkeeping except Saved/Config .ini, which stays protected. Core then Travel each used slot 01 and exited 0; exactly three new packages remain. Prior Core packages stay quarantined. No smoke or dry run (FF3/FF4), build, upload, protected difference, push or tag. The recipe, launcher, FD2 and FD3 are unchanged. A7 cold reopen, pictures, route checks and owner review remain pending.
+> See docs/europa/09426d-authoring-receipts.json and docs/sessions/2026-10-30-094-26d-fixture-authoring.md.
+
 > **094-26c, 2026-10-30 - RED: Smoke passed all 51 bindings; EA_Core exited cleanly but created a bound Saved/Config/WorldState file. The kit quarantined both Core packages and stopped before EA_Travel.**
 > FE1 removed only the two unsupported post-process anti-aliasing bindings; the re-bound recipe, Python 2.7 harness and affected suites passed. Smoke passed 51/51 native bindings. Core authored two packages and exited 0, but stock WorldState serialization added a bound Config path. Both packages are quarantined; Travel never started. No crash/upload evidence, retry, dry run, push or tags. The Config STOP is preserved for chat; FC5 was not broadened.
 > See docs/europa/09426c-authoring-receipts.json and docs/sessions/2026-10-30-094-26c-fixture-aa-config-stop.md.
