@@ -10268,3 +10268,7 @@ The real probe emits world_cleanup/actor_snapshot=skipped during engine exit, fo
 ## 094-27b — Real emitters and reparented crash monitors
 
 The cleanup reader consumes world_cleanup/actor_snapshot=skipped and is replayed against kept real files, including the previously rejected Smoke. Exact -MONITOR=<owned root PID> adoption follows the stock 4.25 respawn; retained handles and creation identities prevent name-based ownership. A normal failed leg proceeds under FH3; abnormal exit/protected change/upload/canary and smoke binding failures still stop. Per-picture AA readback must be zero. See europa/09427b-runtime-amendment.md for emitter citations and the receipt index for measured outcomes.
+
+## 094-27c — G410 and Slate callback re-entry
+
+The 4.25 Python Rotator native-make signature is roll, pitch, yaw. Both kits now enforce all three names as keywords, model that signature in the Python 2.7 recording stub, and reject the old rolled-camera line. Authoring asserts normalized angles before any package save. A Slate post-tick driver must guard re-entry during synchronous map loads that pump progress UI, and unregister on its first failure before requesting exit once. Three prior load requests were already in flight before any completed; the later Niagara crash root cause is unconfirmed. FI4 permits one runtime crash with owned-tree cleanup, but a second, any authoring crash, protected change, upload/canary or broken smoke ends the run. See europa/09427c-runtime-authoring-amendment.md for source citations and tests.
