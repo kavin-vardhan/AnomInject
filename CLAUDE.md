@@ -15,9 +15,9 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **094-27, 2026-10-30 - runtime kit prepared; real qualification pending.**
-> FB1–FB7 cover 4.25 load, worlds, GC, four visible smoke anomalies with controls, and non-package admission. The kit keeps Content immutable, adds FE3 UBT checks, uses FB3's 6 GiB session commit floor, and retains failed evidence. Python 2.7, guard/reader tests and owned-scratch rehearsal pass. Arming, all-leg dry run and the real smoke/legs follow; no runtime claim yet.
-> See docs/europa/09427-runtime-design.md and docs/sessions/2026-10-30-094-27-runtime-kit.md.
+> **094-27, 2026-10-30 - NEEDS-DECISION: runtime Smoke stopped by an incorrect cleanup reader; no runtime leg started.**
+> Tooling 599ef70 passed Python 2.7, guard/reader suites, five stand-in rehearsals and all 18 dry runs. The actual Smoke exited 0 and passed 31/31 bindings, but its reader expected the wrong cleanup row. The raw skipped cleanup and one probe_stop are present. Crash-monitor respawn lifetime coverage is also incomplete. Fixtures, config, descriptors and binaries are unchanged; no crash/upload evidence. All A3/A5/A6/A7/A8 runtime gates and pictures remain pending. The run is spent; no repair, retry, push or tags.
+> See docs/europa/09427-runtime-receipts.json, docs/europa/09427-runtime-design.md and docs/sessions/2026-10-30-094-27-runtime-kit.md.
 
 > **094-26d, 2026-10-30 - GREEN: both A6 fixture recipes authored in 4.25 with clean exits.**
 > FF2 records host Saved bookkeeping except Saved/Config .ini, which stays protected. Core then Travel each used slot 01 and exited 0; exactly three new packages remain. Prior Core packages stay quarantined. No smoke or dry run (FF3/FF4), build, upload, protected difference, push or tag. The recipe, launcher, FD2 and FD3 are unchanged. A7 cold reopen, pictures, route checks and owner review remain pending.

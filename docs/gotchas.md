@@ -10260,3 +10260,7 @@ FActorFolders subscribes to PostSaveWorld (EditorActorFolders.cpp:49). OnWorldSa
 ## G473 - Saved bookkeeping has a protected INI subset (094-26d)
 
 Chat FF2 supersedes G472's narrower FC5 classification: record every file under the owned host Saved tree, while any .ini under Saved/Config remains protected, including crash-client .ini files. WorldState JSON, Backup maps, Autosaves and logs do not imply a project Config change. New/changed/removed cases exercise the actual config gate; descriptor and .uproject bindings remain independent. Core and Travel now pass with their normal save bookkeeping recorded. FF1 preserves earlier quarantined packages; FF3 omits redundant smoke. A6 authoring success does not imply A7 picture or runtime qualification.
+
+## G474 - Cleanup readers must use the bound probe schema (094-27)
+
+The real probe emits world_cleanup/actor_snapshot=skipped during engine exit, followed by probe_stop/root_release=skipped. A new reader and its synthetic stand-in both expected world_snapshot_skipped/label=cleanup; their shared mistake passed synthetic checks and rejected a clean real Smoke. Preserve and replay actual raw rows, with negative mutations, before a future authorized run. Do not repair or retry after FB7's failed smoke. CrashClient.log also showed a respawned monitor absent from the retained owned-process list; tree coverage needs proof before relying on deadline ownership for it. All runtime gates and pictures remain pending.
