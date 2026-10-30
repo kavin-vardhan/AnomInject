@@ -7,20 +7,17 @@ import fixture_policy as fixture
 from fixture_policy import ROOT, HOST, TOOLS, canonical, sha, verify_files
 from runtime_scripts import ROUTES
 
-JOB = ROOT/'Receipts/09427c'
-TEMP = ROOT/'Temp/09427c'
-AUTHORITY = 'D:/IntrusiveAnomalies/_reviews/094-27b-ruling.md#FI1-FI6; 094-27-ruling.md#FH1-FH9'
-WINDOW_END = '2026-10-31T00:30:00+00:00'
+JOB = ROOT/'Receipts/09427d'
+TEMP = ROOT/'Temp/09427d'
+AUTHORITY = '094-27d request; 094-27c-ruling FJ1-FJ4; FD3; FI4; FH1-FH9 as narrowed by FJ1'
+WINDOW_END = '2026-10-31T01:30:00+00:00'
 MANIFEST = dict(host='425', path=str(ROOT/'Receipts/09421/qualification/final-425-binaries.json'),
                 sha256=fixture.MANIFESTS['425'])
-LEGS = ['Smoke','Load','WorldsPIE','WorldsGame','GC']
-LEGS += ['A7_:%s:positive' % r for r in ROUTES]
-LEGS += ['A7_:%s:%s' % (r,c) for c in ('NoApply','SkipRestore') for r in ROUTES]
-LEGS += ['Admission']
+LEGS = ['Smoke','A7_:blinking:positive','A7_:lod_corruption:positive']
 LIMITS = {name: (900 if name.endswith(':positive') else 600 if name in ('WorldsPIE','Admission') else 300)
           for name in LEGS}
 SCOPE = dict(host='425', kind='phase-a-runtime', legs=LEGS, maximum_sessions_per_leg=1,
-             pie=True, standalone_game=True, save=False, cook=False, commandlet=False,
+             pie=False, standalone_game=True, save=False, cook=False, commandlet=False,
              packaging=False, build=False, content_changes=False)
 MEMORY = dict(start_physical_GiB=6,start_commit_GiB=8,stop_physical_GiB=None,stop_commit_GiB=4)
 
@@ -49,7 +46,7 @@ def manifest_check(row):
 
 
 def validate(config, mode):
-    if config.get('arming_job') != '09427c' or config.get('authority') != AUTHORITY:
+    if config.get('arming_job') != '09427d' or config.get('authority') != AUTHORITY:
         raise RuntimeError('Older or unknown runtime arming refused')
     if config.get('scope') != SCOPE or config.get('limits') != LIMITS or config.get('memory') != MEMORY:
         raise RuntimeError('Runtime scope/limits changed')
@@ -60,9 +57,9 @@ def validate(config, mode):
     base, temp = canonical(config['receipts_root']), canonical(config['temp_root'])
     if mode == 'real':
         if base != JOB or temp != TEMP:
-            raise RuntimeError('Real runtime slots must be 09427c')
+            raise RuntimeError('Real runtime slots must be 09427d')
     elif not base.is_relative_to(JOB/'scratch') or not temp.is_relative_to(TEMP/'scratch'):
-        raise RuntimeError('Throwaway runtime roots must be owned 09427c scratch')
+        raise RuntimeError('Throwaway runtime roots must be owned 09427d scratch')
     expected = {leg: paths(base,temp,leg) for leg in LEGS}
     if config.get('slots') != expected:
         raise RuntimeError('Slot paths differ from armed scope')

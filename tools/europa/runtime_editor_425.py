@@ -77,6 +77,14 @@ def binding_check():
     return rows
 
 
+def begin_step(name):
+    if STATE.get('terminal') or name in STATE.setdefault('steps_started',[]):
+        return False
+    STATE['steps_started'].append(name)
+    record()
+    return True
+
+
 def readback(map_name):
     import unreal
     ell = unreal.EditorLevelLibrary
@@ -183,6 +191,8 @@ def tick(delta):
         if STATE['ticks'] < 10:
             return
         if STATE['leg'] == 'Smoke':
+            if not begin_step('smoke_bindings'):
+                return
             STATE['bindings'] = binding_check()
             if not all(row['present'] for row in STATE['bindings']):
                 raise RuntimeError('Missing native runtime binding')
@@ -191,17 +201,19 @@ def tick(delta):
             finish('SMOKE_PASS')
         elif STATE['leg'] == 'Load':
             for name in ('EA_Core','EA_Travel'):
-                readback(name)
+                if begin_step('readback_'+name):
+                    readback(name)
             STATE.update(saves=0,creates=0)
             finish('DRIVER_PASS')
         else:
             elapsed = time.time()-STATE['started']
             if STATE['cycle'] < 3 and elapsed >= STATE['next_cycle']:
-                console(unreal.EditorLevelLibrary.get_editor_world(), 'Automation RunTests System.Maps.PIE')
                 STATE['cycle'] += 1
                 STATE['next_cycle'] = elapsed+20.0
                 STATE['seen_worlds'] = []
                 record()
+                if begin_step('PIE_cycle_'+str(STATE['cycle'])):
+                    console(unreal.EditorLevelLibrary.get_editor_world(), 'Automation RunTests System.Maps.PIE')
             worlds = [w for w in unreal.ObjectIterator(unreal.World) if 'UEDPIE_' in w.get_path_name()]
             if len(worlds) >= 2:
                 world = unreal.EditorLevelLibrary.get_game_world()

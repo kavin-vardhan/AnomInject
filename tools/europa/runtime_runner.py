@@ -122,12 +122,12 @@ def run(config_path,dry=False):
         try:
             if not dry:
                 proof=json.loads(Path(config['entry_proof']).read_text())
-                if proof['result']!='PASS':raise RuntimeError('FH9 full entry proof is absent')
-                operation=ledger.begin('runtime-run','runtime')
+                if proof['feature']['branch']!='feat/europa-port':raise RuntimeError('FJ1 fast entry check is absent')
+                operation=base/'process-receipts'
+                operation.mkdir(exist_ok=False)
+                os.environ['EUROPA_OPERATION_DIR']=str(operation)
             for leg in policy.LEGS:
                 slot=config['slots'][leg];root,temp=Path(slot['root']),Path(slot['temp'])
-                if not dry:
-                    precheck(base/(policy.slug(leg)+'-precheck.jsonl'))
                 with Guard(dict(state_root=slot['state'])) as guard:
                     guard.check_unused_launch()
                     root.mkdir(parents=True,exist_ok=False);temp.mkdir(parents=True,exist_ok=False)
@@ -136,22 +136,26 @@ def run(config_path,dry=False):
                     create_json(root/'prepared.json',prepared)
                     print(leg+': checking Content, config, binaries, tooling and routing.',flush=True)
                     quick_check(config)
-                    from fixture_wait import wait
+                    from runtime_lean_gate import wait
                     args={}
                     if dry:
                         from fixture_rehearsal import samples
                         from owner_wait import SyntheticClock
-                        clock=SyntheticClock();readings=samples()
-                        for sample in readings:sample['idle_seconds']=600
-                        iterator=iter(readings)
-                        args=dict(collector=lambda:next(iterator,readings[-1]),clock=clock.now,sleep=clock.sleep)
-                    gate=wait(root/'gate.jsonl',owned=(os.getpid(),),**args)
+                        readings=samples()
+                        sample=readings[-1];sample['idle_seconds']=300
+                        for drive in sample['volumes']:sample['volumes'][drive]['free_bytes']=100*1024**3
+                        sample['free_memory_bytes']=8*1024**3;sample['free_commit_bytes']=12*1024**3
+                        args=dict(collector=lambda:sample)
+                    gate=wait(root/'gate.jsonl',policy.WINDOW_END,**args)
                     if gate['status']!='CLEAR':
                         row=dict(leg=leg,result='FAIL',launches=0,reason='No measured idle window',end_run=False,gate=gate)
                         create_json(root/'result.json',row);record_leg(overall,row)
                         print(leg+': no session started; evidence kept; proceeding to the next leg.',flush=True)
-                        continue
-                    quick_check(config)
+                        overall.update(result='WINDOW_ENDED',reason='FJ3 launch window ended')
+                        break
+                    before=policy.protection_snapshot()
+                    if before!=config['protected']:raise RuntimeError('FB2 protected files changed before session')
+                    create_json(root/'protection-before.json',dict(result='PASS',snapshot=before))
                     create_json(root/'managed-before.json',managed_snapshot())
                     if dry:
                         row=dict(result='ARMED_DRY_RUN_PASS',leg=leg,launches=0,gate=gate,prepared=prepared)
@@ -159,7 +163,7 @@ def run(config_path,dry=False):
                         print(leg+': dry run passed; no editor or game started.',flush=True)
                         continue
                     if datetime.datetime.now(datetime.timezone.utc)>=datetime.datetime.fromisoformat(policy.WINDOW_END):
-                        raise RuntimeError('FH9 launch window ended')
+                        raise RuntimeError('FJ3 launch window ended')
                     if leg!='Smoke' and not any(r['leg']=='Smoke' and r.get('launches')==1 and not r.get('end_run') for r in overall['legs']):
                         raise RuntimeError('Smoke did not start; no runtime leg can start')
                     guard.reserve_launch(dict(number=1))
@@ -180,7 +184,7 @@ def run(config_path,dry=False):
             print('Stopped: '+str(error)+'. No further session will be started.',flush=True)
         finally:
             try:
-                if operation is not None:overall['ledger']=ledger.finish(operation,'runtime')
+                if operation is not None:overall['accounting']='FJ1 charged-growth accounting deferred; process receipts retained'
             except Exception as error:
                 overall.update(result='STOP',ledger_error=str(error))
             finally:

@@ -64,11 +64,12 @@ def states(rows):
     return {r['label']:r for r in rows if r['kind']=='component_state'}
 
 
-def pictures(leg,root,rows):
+def pictures(leg,root,rows,output=None):
+    output=Path(output) if output is not None else root
     unused,route,control=leg.split(':')
     complete=gates.screenshot_pairs(rows)
     aa=aa_echoes(rows)
-    create_json(root/'picture-aa.json',dict(pictures=list(aa.values())))
+    create_json(output/'picture-aa.json',dict(pictures=list(aa.values())))
     by_name={Path(r['path']).name:r for r in complete}
     for row in complete:
         path=Path(row['path']).resolve()
@@ -85,7 +86,8 @@ def pictures(leg,root,rows):
         before=by_name[prefix+'-before.png']
         after=[by_name[prefix+'-after-%d.png'%n] for n in range(2)]
         during=[r for name,r in sorted(by_name.items()) if name.startswith(prefix+'-during-')]
-        interval=validity(observed,before['monotonic_seconds'],after[-1]['monotonic_seconds'])
+        observation=validity(observed,before['monotonic_seconds'],after[-1]['monotonic_seconds'])
+        interval=dict(valid=True,reasons=[],record_only=observation,authority='094-27c FJ1')
         event_pictures=[before]+during+after
         bad_aa=[r['path'] for r in event_pictures if not aa.get(r['path'],{}).get('counted_eligible')]
         bad_clean=[p for p in clean if not aa.get(p,{}).get('counted_eligible')]
@@ -101,7 +103,7 @@ def pictures(leg,root,rows):
             gates.require(active,'No visible active picture')
             if route=='blinking':gates.require(visible,'No visible phase of blinking')
             event['pixels']=gates.picture_event(clean,before['path'],active,[r['path'] for r in after],roi,
-                state[prefix+'-before']['actors'],state[prefix+'-after']['actors'])
+                state[prefix+'-before']['actors'],state[prefix+'-after']['actors'],quantization=True)
             event['picture_result']='PASS'
         except gates.GateFailure as error:
             event.update(picture_result='FAIL',reason=str(error))
@@ -116,11 +118,12 @@ def pictures(leg,root,rows):
                 applied=len(applied),reverted=len(reverted),refused=len(refusals),counted=sum(e['counted'] for e in events),
                 invalid=sum(not e['validity']['valid'] for e in events),roi=roi,
                 glass_mask='No Paris glass in authored primitive fixture; fixed ROI excludes all other content.')
-    create_json(root/'picture-events.json',result)
+    result['result']='PASS' if result['counted']>=3 else 'FAIL'
+    create_json(output/'picture-events.json',result)
     if control=='positive':
         gates.require(result['counted']>=3,'Fewer than three valid visible restored events')
         gates.require(len(applied)==len(reverted)==6 and len(refusals)>=2,'Apply/revert/refusal accounting mismatch')
-        contact_sheet(root,route,[e for e in events if e['counted']])
+        contact_sheet(output,route,[e for e in events if e['counted']])
     else:
         gates.require(all(e['validity']['valid'] for e in events),'Control event invalid under FB3')
         expected='No visible active picture' if control=='NoApply' else 'Pixel restore residue'
@@ -140,8 +143,9 @@ def contact_sheet(root,route,events):
         for col,(phase,path) in enumerate(zip(('before','during','after'),
                                              (event['before'],event['chosen_during'],event['after'][-1]))):
             with Image.open(path) as source:sheet.paste(source.convert('RGB').resize((640,360)),(col*640,row*384+24))
-            draw.text((col*640+8,row*384+5),route+' event '+str(event['number'])+' '+phase,fill='white')
-            index.append(dict(event=event['number'],phase=phase,path=path,sha256=sha(path),native_size=[1280,720]))
+            echo=next(a for a in event['aa'] if a and a['path']==path)
+            draw.text((col*640+8,row*384+5),route+' event '+str(event['number'])+' '+phase+' AA='+str(echo['effective_AA_quality']),fill='white')
+            index.append(dict(event=event['number'],phase=phase,path=path,sha256=sha(path),native_size=[1280,720],aa=echo))
     output=root/(route+'-contact-sheet.png');sheet.save(output)
     create_json(root/'contact-sheet-index.json',dict(contact_sheet=str(output),sha256=sha(output),pictures=index))
 

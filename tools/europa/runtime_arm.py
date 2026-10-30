@@ -25,7 +25,7 @@ def arm(output, mode='real'):
     extra=Path('E:/EpicGames/UE_4.25/Engine/Plugins/Tests/EditorTests/Binaries/Win64/UE4Editor-EditorTests.dll')
     engine_files.append(dict(path=str(extra),size=extra.stat().st_size,sha256=sha(extra)))
     base,temp=(policy.JOB,policy.TEMP) if mode=='real' else (policy.JOB/'scratch/dry',policy.TEMP/'scratch/dry')
-    config=dict(arming_job='09427c',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
+    config=dict(arming_job='09427d',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
         memory=policy.MEMORY,window_deadline_utc=policy.WINDOW_END,manifest=policy.MANIFEST,mode=mode,
         receipts_root=str(base),temp_root=str(temp),slots={leg:policy.paths(base,temp,leg) for leg in policy.LEGS},
         protected=before,host_files=old['host_files'],engine_files=engine_files,
@@ -33,7 +33,7 @@ def arm(output, mode='real'):
                        for p in sorted(policy.TOOLS.rglob('*')) if p.is_file() and p.suffix in ('.py','.txt','.bat')],
         job_config=dict(path=str(policy.JOB/'runtime-job-config.json'),size=(policy.JOB/'runtime-job-config.json').stat().st_size,
                         sha256=sha(policy.JOB/'runtime-job-config.json')),
-        entry_proof=str(policy.JOB/'P9/entry/summary.json'),tooling_qualification=str(evidence),
+        entry_proof=str(policy.JOB/'entry.json'),tooling_qualification=str(evidence),
         armed_utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
     import subprocess
     config['source_commit']=subprocess.check_output(['git','-C',str(policy.TOOLS.parents[1]),'rev-parse','HEAD'],

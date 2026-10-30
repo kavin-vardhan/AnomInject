@@ -13,6 +13,19 @@ from fixture_session_gate import limits_sample, numeric, volume_reading, GIB
 from fixture_children import BuildOutputWatch
 from fixture_policy import managed_kind
 from fixture_uploads import check as upload_check
+from runtime_lean_gate import FLOOR_GIB
+
+
+def shared_probe_text(path,offset,attempts=3,sleep=time.sleep):
+    for attempt in range(attempts):
+        try:
+            with Path(path).open('r',encoding='utf-8') as stream:
+                stream.seek(offset)
+                text=stream.read()
+                return text,stream.tell()
+        except PermissionError:
+            if attempt+1==attempts:return None
+            sleep(.01)
 
 
 def qpc():
@@ -23,7 +36,8 @@ def stop_reasons(sample):
     found=[]
     if numeric(sample.get('free_commit_bytes')) and sample['free_commit_bytes'] < 4*GIB:
         found.append('FH7 free commit below 4 GiB')
-    for drive, floor in idle_gate.FLOORS.items():
+    for drive, minimum in FLOOR_GIB.items():
+        floor=minimum*GIB
         volume=volume_reading(sample,drive)
         if volume.get('resolved_drive') == drive and numeric(volume.get('free_bytes')) and volume['free_bytes'] < floor:
             found.append('disk '+drive+' below floor')
@@ -160,10 +174,12 @@ class Monitor:
     def read_probe(self):
         path=self.root/'session/probe/probe.jsonl'
         if not path.exists():return
-        with path.open('r',encoding='utf-8') as stream:
-            stream.seek(self.probe_offset)
-            text=self.tail+stream.read()
-            self.probe_offset=stream.tell()
+        read=shared_probe_text(path,self.probe_offset)
+        if read is None:
+            self.record(dict(kind='probe_read_sharing_retry',offset=self.probe_offset))
+            return
+        text=self.tail+read[0]
+        self.probe_offset=read[1]
         lines=text.split('\n')
         self.tail=lines.pop()
         self.rows.extend(json.loads(line) for line in lines if line)
@@ -207,15 +223,15 @@ class Monitor:
                 self.record(dict(kind='engine_managed_monitor_pid_file',path=str(marker),size=marker.stat().st_size))
             if any(row.get('hits') for row in upload_check(self.root/'session')['logs']):
                 raise RuntimeError('FH3 upload sign during session')
-        self.read_probe()
-        driver_failed=any(row.get('kind')=='driver_failure' for row in self.rows)
-        complete=(any(r.get('kind')=='world_initialized' and r.get('world_name','').endswith('EA_Travel') for r in self.rows)
-                  if self.leg in ('WorldsGame','Admission') else any(r.get('kind')=='script_complete' for r in self.rows))
-        complete=complete or driver_failed
+        complete=False
+        if self.game and self.leg.startswith('A7_'):
+            route=self.leg.split(':')[1]
+            last=self.root/('session/probe/'+route+'-5-after-1.png')
+            complete=last.is_file() and last.stat().st_size>0
         if complete and not hasattr(self,'complete_at'):
             self.complete_at=now
         if self.game and complete and not self.closed and now-self.complete_at>=2:
-            self.record(dict(kind='graceful_close',pid=self.pid,windows=close_window(self.pid),reason='native leg complete'))
+            self.record(dict(kind='graceful_close',pid=self.pid,windows=close_window(self.pid),reason='last picture written plus two-second native tail grace; no live probe handle'))
             self.closed=True
 
     def close(self):
@@ -226,4 +242,5 @@ class Monitor:
             except queue.Empty:break
             self.observations.append(row);self.record(dict({'kind':'event_observation'},**row))
         self.crash_changes=sorted(set(self.crash_folders())-set(self.crashes))
+        self.read_probe()
         self.record(dict(kind='monitor_closed',collector_live=bool(self.thread and self.thread.is_alive()),new_crash_report_folders=self.crash_changes))

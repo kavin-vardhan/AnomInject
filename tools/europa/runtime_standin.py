@@ -13,7 +13,7 @@ def main():
     p.add_argument('--hold',action='store_true');p.add_argument('--fc6-ubt-standin',action='store_true');p.add_argument('-Mode')
     p.add_argument('-MONITOR',type=int);p.add_argument('--broker',action='store_true');p.add_argument('--leg',default='Load')
     a=p.parse_args()
-    if not a.root.resolve().is_relative_to(Path('D:/IA_Europa/Receipts/09427c/scratch').resolve()):raise RuntimeError('Owned rehearsal only')
+    if not a.root.resolve().is_relative_to(Path('D:/IA_Europa/Receipts/09427d/scratch').resolve()):raise RuntimeError('Owned rehearsal only')
     if a.hold:time.sleep(60);return 0
     if a.broker:
         request=a.root/'monitor-request.json'

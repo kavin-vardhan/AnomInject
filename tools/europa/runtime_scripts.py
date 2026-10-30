@@ -3,7 +3,7 @@ import json
 ROUTES = {
     'blinking': ['EA_BlinkCube', '12'],
     'lighting_mismatch': ['EA_Light', 'dim', '0.05'],
-    'lod_corruption': ['EA_LOD', '2'],
+    'lod_corruption': ['EA_LOD', '1'],
     'missing_object': ['EA_HideCube']}
 
 

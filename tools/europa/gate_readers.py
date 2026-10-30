@@ -32,11 +32,23 @@ def metrics(a, b, roi):
     d = np.abs(a[y:y+h, x:x+w] - b[y:y+h, x:x+w])
     return {'mean': float(d.mean()), 'fraction_ge8': float((d.max(axis=2) >= 8).mean())}
 
-def picture_event(clean_paths, before, active, after, roi, state_before, state_after, artifact_dir=None):
+def clean_noise(clean, roi, quantization=False):
+    x,y,w,h=roi
+    readings=[]
+    for a,b in zip(clean,clean[1:]):
+        delta=b[y:y+h,x:x+w]-a[y:y+h,x:x+w]
+        readings.append(dict(mean=float(np.abs(delta).mean()),signed_mean=float(delta.mean()),maximum=int(np.abs(delta).max())))
+    require(readings,'Missing clean comparisons')
+    noise=max(r['mean'] for r in readings)
+    bounded=all(r['maximum']<=1 and abs(r['signed_mean'])<=.01 for r in readings)
+    require(noise<=.25 or quantization and bounded,'Unqualified clean-frame noise')
+    return noise,readings
+
+
+def picture_event(clean_paths, before, active, after, roi, state_before, state_after, artifact_dir=None, quantization=False):
     require(len(set(clean_paths)) >= 20 and len(after) >= 2 and len(active) >= 1, 'Missing clean/active/two restore frames')
     clean = [image(p) for p in clean_paths]
-    noise = max(metrics(a, b, roi)['mean'] for a, b in zip(clean, clean[1:]))
-    require(noise <= .25, 'Unqualified clean-frame noise')
+    noise,clean_measures = clean_noise(clean,roi,quantization)
     reference = image(before)
     changed = [metrics(reference, image(p), roi) for p in active]
     require(all(m['mean'] >= max(4., 4*noise) and m['fraction_ge8'] >= .01 for m in changed), 'No visible active picture')
@@ -55,7 +67,7 @@ def picture_event(clean_paths, before, active, after, roi, state_before, state_a
             Image.fromarray(difference).save(output/('difference-%02d.png'%index))
             sheet.paste(Image.fromarray(actual.astype('uint8')).resize((640,360)),(index*640,0))
         sheet.save(output/'contact-sheet.png')
-    return {'noise': noise, 'active': changed, 'restored': restored}
+    return {'noise': noise, 'clean_measures':clean_measures, 'active': changed, 'restored': restored}
 
 def screenshot_pairs(rows):
     outstanding = None
