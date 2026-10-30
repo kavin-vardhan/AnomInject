@@ -26,9 +26,9 @@ def main(output):
     bad=copy.deepcopy(data)
     bad['recipes']['Smoke']=policy.make_recipe('Smoke',policy.ROOT/'Receipts'/policy.ARMING_JOB,policy.ROOT/'Temp'/policy.ARMING_JOB)
     refuses('smoke_session_refused',lambda:policy.validate(bad,False))
-    for name in ('09426c','09426b','09428','09425','09424','09423','09422'):
+    for name in ('09426d','09426c','09426b','09428','09425','09424','09423','09422'):
         refuses('old_arming_'+name,lambda:policy.validate(dict(data,arming_job=name),False))
-    check('FF4_window',policy.WINDOW_END=='2026-10-31T01:00:00+00:00')
+    check('FI6_window',policy.WINDOW_END=='2026-10-31T00:30:00+00:00')
     managed=('Saved/Config/WorldState/1202994220.json','Saved/Backup/EA_Core_stamp.umap',
              'Saved/Autosaves/Map.umap','Saved/Logs/Runtime.log',
              'Saved/Config/CrashReportClient/UE4CC-test/report.json','Saved/Elsewhere/settings.ini',
@@ -73,9 +73,9 @@ def main(output):
             path.write_text('after')
             refuses('descriptor_binding_'+name,lambda:policy.verify_files(bound))
     old=json.loads((policy.ROOT/'Receipts/09426c/arming/receipt.json').read_text())
-    retained=[r for r in old['tooling'] if Path(r['path']).name in ('author_425_fixture.py','fixture_smoke_425.py','fixture_launcher.py',
-        'fixture_children.py','idle_gate.py','fixture_session_gate.py','canary_eventlogs.py','09426c-a5-fixture-manifest.json','09411-fixture-recipes.md')]
-    check('recipe_launcher_guard_memory_canary_and_A5_unchanged',len(retained)==9 and policy.verify_files(retained)==9)
+    retained=[r for r in old['tooling'] if Path(r['path']).name in ('fixture_launcher.py',
+        'fixture_children.py','idle_gate.py','fixture_session_gate.py')]
+    check('launcher_guard_memory_unchanged_under_FI',len(retained)==4 and policy.verify_files(retained)==4)
     ledger.dump(output/'summary.json',dict(result='PASS',cases=rows,retained_bindings=retained,unreal_launches=0,
         dry_run_sessions=0,real_slots_used=0,authority='094-26c-ruling FF1-FF4'))
     print(json.dumps(dict(result='PASS',cases=len(rows),unreal_launches=0,dry_run_sessions=0)))

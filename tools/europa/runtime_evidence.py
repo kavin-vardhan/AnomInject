@@ -46,8 +46,9 @@ def outcome(leg,execution,protection,upload,reader,driver=None,crashes=(),raw=No
         fatal.append('upload sign')
     if (raw or {}).get('canary_hit_paths') or 'canary' in execution.get('reason','').lower():fatal.append('canary hit')
     deliberate=bool(execution.get('stopped_owned_processes'))
-    if execution.get('launches') and execution.get('exit_code') not in (0,None) and not deliberate:
-        fatal.append('abnormal editor/game exit')
+    crashed=bool(execution.get('launches') and execution.get('exit_code') not in (0,None) and not deliberate)
+    if crashed:
+        reasons.append('abnormal editor/game exit; FI4 runtime crash counted')
     if execution.get('hard_stop'):
         fatal.append('unauthorized build/launch hard STOP')
     if leg=='Smoke':
@@ -61,7 +62,7 @@ def outcome(leg,execution,protection,upload,reader,driver=None,crashes=(),raw=No
     if crashes:reasons.append('new crash/ensure report folder after session')
     return dict(result='FAIL' if fatal or reasons else 'PASS',end_run=bool(fatal),run_stop_reasons=fatal,
                 leg_failure_reasons=reasons,new_crash_report_folders=list(crashes),reader=reader,
-                upload=upload,deliberate_owned_stop=deliberate)
+                 upload=upload,deliberate_owned_stop=deliberate,crashed=crashed)
 
 
 def ensure_frozen(path):

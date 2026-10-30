@@ -15,6 +15,8 @@ from runtime_scripts import steps,validate
 
 
 def main(output):
+    from rotator_contract import check_all
+    check_all()
     output=policy.canonical(output,policy.JOB/'scratch');output.mkdir(parents=True,exist_ok=False)
     rows=[]
     def check(name,value):
@@ -25,11 +27,11 @@ def main(output):
         except (RuntimeError,ValueError):check(name,True)
         else:check(name,False)
     base=output/'slots';temp=policy.TEMP/'scratch/tests'
-    config=dict(arming_job='09427b',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
+    config=dict(arming_job='09427c',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
         memory=policy.MEMORY,window_deadline_utc=policy.WINDOW_END,manifest=policy.MANIFEST,mode='rehearsal',
         receipts_root=str(base),temp_root=str(temp),slots={leg:policy.paths(base,temp,leg) for leg in policy.LEGS})
     check('exact_runtime_scope',policy.validate(config,'rehearsal'))
-    for job in ('09417','09422','09423','09425','09428','09426b','09426c','09426d','09427'):
+    for job in ('09417','09422','09423','09425','09428','09426b','09426c','09426d','09427','09427b'):
         refuses('old_arming_'+job,lambda job=job:policy.validate(dict(config,arming_job=job),'rehearsal'))
     refuses('unknown_leg',lambda:policy.command('unarmed',output/'unarmed'))
     altered=copy.deepcopy(config);altered['slots']['Smoke']['root']='C:/wrong'

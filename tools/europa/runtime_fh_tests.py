@@ -32,7 +32,6 @@ def main(output):
         ('drive_owned_stop',dict(execution=dict(process,result='SESSION_STOP',exit_code=125,stopped_owned_processes=[dict(pid=1)],reason='disk D below floor')))):
         result=classify(**change);check(name,result['result']=='FAIL' and not result['end_run'])
     for name,change in (
-        ('abnormal_exit',dict(execution=dict(process,result='SESSION_STOP',exit_code=7))),
         ('protected_change',dict(protection=dict(result='FAIL'))),
         ('upload',dict(upload=dict(result='FAIL',logs=[dict(hits=[dict(line=1,text='POST synthetic')])]))),
         ('canary_hit',dict(raw=dict(canary_hit_paths=['synthetic']))),
@@ -58,7 +57,6 @@ def main(output):
             if ended:monitor.process_exited(0)
             else:monitor.done.set()
             raise subprocess.CalledProcessError(1,['synthetic-counter'])
-        # A collector close race is excluded only after an explicitly recorded root exit.
         with patch('runtime_monitor.idle_gate.powershell_json',side_effect=failing_counter):monitor.observe()
         sample=monitor.queue.get_nowait()
         if ended:check('close_race_separate',sample.get('kind')=='collector_close_race')

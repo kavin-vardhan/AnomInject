@@ -18,14 +18,14 @@ def arm(output, mode='real'):
     verify_files(qualification['files'])
     verify_files(qualification['source_files'])
     old=json.loads((policy.ROOT/'Launch/Europa425-FixtureAuthoring.json').read_text())
-    if old['arming_job']!='09426d':raise RuntimeError('Unexpected authoring predecessor')
+    if old['arming_job']!='09427c':raise RuntimeError('Unexpected authoring predecessor')
     before=policy.protection_snapshot()
     policy.manifest_check(policy.MANIFEST)
     engine_files=list(old['engine_files'])
     extra=Path('E:/EpicGames/UE_4.25/Engine/Plugins/Tests/EditorTests/Binaries/Win64/UE4Editor-EditorTests.dll')
     engine_files.append(dict(path=str(extra),size=extra.stat().st_size,sha256=sha(extra)))
     base,temp=(policy.JOB,policy.TEMP) if mode=='real' else (policy.JOB/'scratch/dry',policy.TEMP/'scratch/dry')
-    config=dict(arming_job='09427b',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
+    config=dict(arming_job='09427c',authority=policy.AUTHORITY,scope=policy.SCOPE,limits=policy.LIMITS,
         memory=policy.MEMORY,window_deadline_utc=policy.WINDOW_END,manifest=policy.MANIFEST,mode=mode,
         receipts_root=str(base),temp_root=str(temp),slots={leg:policy.paths(base,temp,leg) for leg in policy.LEGS},
         protected=before,host_files=old['host_files'],engine_files=engine_files,

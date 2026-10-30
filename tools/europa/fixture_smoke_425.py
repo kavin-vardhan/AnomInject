@@ -2,17 +2,16 @@ import inspect
 import json
 import os
 
-# Argument counts include the receiver for instance methods. No UObject is made.
 CALLS = [
     ('Paths.project_dir', 0), ('EditorAssetLibrary.does_asset_exist', 1),
     ('EditorAssetLibrary.duplicate_asset', 2), ('EditorAssetLibrary.save_loaded_asset', 2),
     ('load_asset', 1), ('EditorStaticMeshLibrary.set_lod_from_static_mesh', 5),
-    ('EditorStaticMeshLibrary.get_lod_count', 1), ('EditorLevelLibrary.new_level', 1),
+    ('EditorStaticMeshLibrary.get_lod_count', 1), ('EditorLoadingAndSavingUtils.new_blank_map', 1),
     ('EditorLevelLibrary.spawn_actor_from_class', 2), ('EditorLevelLibrary.spawn_actor_from_class', 3),
-    ('EditorLevelLibrary.get_editor_world', 0), ('EditorLevelLibrary.save_current_level', 0),
+    ('EditorLoadingAndSavingUtils.save_map', 2), ('SystemLibrary.execute_console_command', 2),
     ('EditorLevelLibrary.get_all_level_actors', 0), ('Actor.set_actor_label', 2),
     ('Actor.set_editor_property', 3), ('Actor.get_editor_property', 2),
-    ('Actor.set_actor_scale3d', 2), ('Actor.get_actor_label', 1),
+    ('Actor.set_actor_scale3d', 2), ('Actor.get_actor_label', 1), ('Actor.get_actor_rotation', 1),
     ('SceneComponent.set_mobility', 2), ('StaticMeshComponent.set_static_mesh', 2),
     ('Object.set_editor_property', 3), ('StructBase.set_editor_property', 3),
     ('World.get_world_settings', 1), ('Vector', 3), ('Rotator', 3), ('Name', 1),

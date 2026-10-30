@@ -10,8 +10,9 @@ from owner_attempts import create_json
 REAL_ROOTS=[ROOT/'Receipts'/p for p in (
     '09426c/fixture-attempts/EA_Core/01','09426d/fixture-attempts/EA_Core/01',
     '09426d/fixture-attempts/EA_Travel/01','09427/runtime-attempts/Smoke/01',
-    '09426c/fixture-attempts/Smoke/01')]
+    '09426c/fixture-attempts/Smoke/01','09427b/runtime-attempts/Smoke/01')]
 SMOKE=REAL_ROOTS[3]
+FAILED_LOAD=ROOT/'Receipts/09427b/runtime-attempts/Load/01'
 
 
 def clone(source,target,include_execution=True):
@@ -78,6 +79,12 @@ def main(output):
         assert sha(binding['path'])==binding['sha256']
     smoke_copy=output/'exact-prior-smoke';clone(SMOKE,smoke_copy)
     smoke=read_leg('Smoke',smoke_copy);assert smoke['result']=='PASS',smoke
+    failed_copy=output/'kept-failed-load';clone(FAILED_LOAD,failed_copy)
+    failed=read_leg('Load',failed_copy);assert failed['result']=='FAIL',failed
+    path=FAILED_LOAD/'session/probe/probe.jsonl'
+    bindings.append(dict(path=str(path),size=path.stat().st_size,sha256=sha(path)))
+    table.append(dict(source=str(FAILED_LOAD),result='EXPECTED_FAIL',reader=failed,
+        reason='FI1 retains the real crash file; a failing real leg is not relabelled PASS'))
     result=dict(result='PASS',real_file_table=table,mutations=mutations,original_bindings=bindings,
                 exact_previous_failed_smoke=smoke,emitters=EMITTERS,
                 future_rows='FH2d: absent real rows require their source emitters; full gate verdicts remain unproved until real legs.')

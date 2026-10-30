@@ -57,6 +57,7 @@ def execute(leg,root,temp,host,protected,argv,ledger,deadline,on_started=None,sy
         if receipt.exists():
             child=json.loads(receipt.read_text())
             result.update(exit_code=child.get('exit_code'),stopped_owned_processes=child.get('stopped_owned_processes',[]),
+                post_crash_owned_stop=child.get('post_crash_owned_stop',[]),
                 root_ended_utc=child.get('root_ended_utc',child.get('ended_utc')),
                 adopted_monitors=child.get('compile_children',{}).get('adopted_monitors',[]))
             reason=child.get('interruption',{}).get('message','')
@@ -66,7 +67,7 @@ def execute(leg,root,temp,host,protected,argv,ledger,deadline,on_started=None,sy
     return result
 
 
-def perform_session(leg,root,temp,host,protected,argv,ledger,deadline,check_protection,on_started=None,synthetic=False):
+def perform_session(leg,root,temp,host,protected,argv,ledger,deadline,check_protection,on_started=None,synthetic=False,prior_crashes=0):
     row=execute(leg,root,temp,host,protected,argv,ledger,deadline,on_started,synthetic)
     try:
         check_protection();protection=dict(result='PASS')
@@ -83,12 +84,22 @@ def perform_session(leg,root,temp,host,protected,argv,ledger,deadline,check_prot
     if not (root/'upload-check.json').exists():create_json(root/'upload-check.json',upload)
     driver=json.loads((root/'driver.json').read_text()) if (root/'driver.json').exists() else None
     row.update(outcome(leg,row,protection,upload,reader,driver,row['new_crash_report_folders'],raw))
+    row=crash_policy(row,prior_crashes)
     row['raw_evidence']=str(root/'raw-evidence.json')
     create_json(root/'result.json',row)
     return row
 
 
+def crash_policy(row,prior_crashes):
+    row=dict(row,crash_count=prior_crashes+int(row.get('crashed',False)))
+    if row.get('crashed') and row['crash_count']>=2 and 'FI4 second runtime crash' not in row['run_stop_reasons']:
+        row.update(end_run=True,run_stop_reasons=list(row['run_stop_reasons'])+['FI4 second runtime crash'])
+    return row
+
+
 def record_leg(overall,row):
+    row=crash_policy(row,overall.get('crash_count',0))
+    overall['crash_count']=row['crash_count']
     overall['legs'].append(row)
     if row.get('end_run'):
         overall.update(result='STOP',reason='; '.join(row['run_stop_reasons']))
@@ -103,7 +114,7 @@ def run(config_path,dry=False):
     quick_check(config)
     base=Path(config['receipts_root']);base.mkdir(parents=True,exist_ok=True)
     overall=dict(result='RUNNING',config=str(config_path),sha256=sha(config_path),legs=[],launches=0,
-                 started_utc=stamp(),automatic_retry=False)
+                  started_utc=stamp(),automatic_retry=False,crash_count=0)
     with Guard(dict(state_root=str(base/'runtime-state/global'))):
         if (base/'run-result.json').exists():raise RuntimeError('This runtime run is already spent')
         import write_ledger as ledger
@@ -155,6 +166,7 @@ def run(config_path,dry=False):
                     print(leg+': starting its one session; limit '+str(policy.LIMITS[leg])+' seconds.',flush=True)
                     row=perform_session(leg,root,temp,policy.HOST,config['protected'],prepared['argv'],ledger,policy.LIMITS[leg],
                         check_protection=lambda:quick_check(config),
+                        prior_crashes=overall['crash_count'],
                         on_started=lambda pid:create_json(Path(slot['state'])/'launched.json',dict(pid=pid,leg=leg,utc=stamp(),authority=policy.AUTHORITY)))
                     create_json(root/'managed-after.json',managed_snapshot())
                     if not record_leg(overall,row):

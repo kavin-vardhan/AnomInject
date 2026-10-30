@@ -43,6 +43,10 @@ def main(output):
             if name=='deadline':
                 detached=json.loads((root/'detached-pid.json').read_text())['pid']
                 assert detached in [r['pid'] for r in stopped]
+            if (standin or name)=='fail':
+                detached=json.loads((root/'post-crash-child.json').read_text())['pid']
+                assert detached in [r['pid'] for r in child.get('post_crash_owned_stop',[])]
+                assert result['crashed'] and not result['deliberate_owned_stop']
             if name=='monitor':
                 detached=json.loads((root/'detached-pid.json').read_text())
                 adopted=child['compile_children']['adopted_monitors']
@@ -60,7 +64,7 @@ def main(output):
         for name in ('pass','fail','deadline','content','ubt-build','monitor'):
             result=case(name)
             assert (result['result']=='PASS')==(name=='pass'),(name,result)
-            assert result['end_run']==(name in ('fail','content','ubt-build')),(name,result)
+            assert result['end_run']==(name in ('content','ubt-build')),(name,result)
             rows.append(dict(case=name,result='PASS',leg=result))
         following=dict(legs=[],result='RUNNING')
         bad=case('continuation-fail','normal-fail')
@@ -71,8 +75,17 @@ def main(output):
         rows.append(dict(case='failing-leg-then-passing-leg',result='PASS',legs=following['legs']))
         ensure=case('normal-ensure','ensure');abnormal=case('abnormal-exit','fail')
         assert ensure['result']=='FAIL' and not ensure['end_run'] and ensure['new_crash_report_folders']
-        assert abnormal['result']=='FAIL' and abnormal['end_run']
+        assert abnormal['result']=='FAIL' and not abnormal['end_run'] and abnormal['crashed']
         rows.append(dict(case='ensure-folder-versus-abnormal-exit',result='PASS',normal_ensure=ensure,abnormal=abnormal))
+        single=case('failure-path')
+        assert single['result']=='FAIL' and not single['end_run'] and single['exit_code']==0
+        rows.append(dict(case='FI3-single-shot-reentrant-driver',result='PASS',leg=single))
+        counted=dict(legs=[],result='RUNNING',crash_count=0)
+        first=case('first-crash','fail');assert record_leg(counted,first) and counted['crash_count']==1
+        following=case('after-first-crash','pass');assert record_leg(counted,following) and following['result']=='PASS'
+        second=case('second-crash','fail');assert not record_leg(counted,second) and counted['crash_count']==2
+        assert counted['result']=='STOP' and len(counted['legs'])==3
+        rows.append(dict(case='FI4-first-crash-continues-second-stops',result='PASS',run=counted))
     finally:
         os.environ['EUROPA_OPERATION_DIR']=previous
         if sibling.poll() is None:sibling.terminate()

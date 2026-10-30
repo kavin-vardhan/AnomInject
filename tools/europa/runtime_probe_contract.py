@@ -7,7 +7,6 @@ PROBE=Path('D:/IA_Europa/StylizedParisStreet/Source/EuropaPhaseAProbe')
 WORLD=PROBE/'EuropaPhaseAWorldProbe.cpp'
 DRIVER=PROBE/'EuropaPhaseAProbeDriver.cpp'
 
-# These are emitter contracts, not fabricated samples. The referenced native files stay bound.
 EMITTERS=[
     dict(readers='all',kind='*',fields='kind sequence process_frame monotonic_seconds world world_pointer world_name world_type epoch',source=str(WORLD),lines=[88,101]),
     dict(readers='clean_exit startup',kind='probe_start',fields='capture_define control_define shader_define',source=str(WORLD),lines=[143,155]),

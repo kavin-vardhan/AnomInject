@@ -50,6 +50,23 @@ def author(recipe, receipt_path):
         return actor
 
     record()
+    world=need(unreal.EditorLoadingAndSavingUtils.new_blank_map(False),'unsaved blank map')
+    camera=tag(need(ELL.spawn_actor_from_class(unreal.CameraActor,unreal.Vector(-550,0,480),
+        unreal.Rotator(pitch=-12.0, yaw=0.0, roll=0.0)),'fixture camera'),'EA_Camera')
+    rotation=camera.get_actor_rotation()
+    actual={key:float(getattr(rotation,key)) for key in ('pitch','yaw','roll')}
+    expected=dict(pitch=-12.0,yaw=0.0,roll=0.0)
+    normalized={key:(value+180.0)%360.0-180.0 for key,value in actual.items()}
+    passed=all(abs((normalized[key]-expected[key]+180.0)%360.0-180.0)<=0.01 for key in expected)
+    receipt['camera_check']=dict(actual=actual,normalized=normalized,expected=expected,tolerance_degrees=0.01,
+        passed=passed,checked_before_any_save=True)
+    record()
+    if not passed:
+        receipt.update(result='AUTHORING_FAIL',reason='FI2 camera angle assertion failed',exit_requests=1)
+        record()
+        unreal.SystemLibrary.execute_console_command(world,'QUIT_EDITOR')
+        return receipt
+    camera.camera_component.set_editor_property('field_of_view',50.0)
     cube=need(unreal.load_asset('/Engine/BasicShapes/Cube'),'engine cube')
     sphere=need(unreal.load_asset('/Engine/BasicShapes/Sphere'),'engine sphere')
     if recipe == 'EA_Core':
@@ -66,8 +83,6 @@ def author(recipe, receipt_path):
 
     for name in (recipe,):
         level=ROOT+'/'+name
-        need(ELL.new_level(level),'new level '+level)
-        receipt['created'].append(level);record()
         static(cube,'EA_Floor',(700,0,-50),(18,18,1))
         static(cube,'EA_HideCube',(600,-260,110),(2,2,2))
         static(cube,'EA_BlinkCube',(600,260,110),(2,2,2))
@@ -77,8 +92,6 @@ def author(recipe, receipt_path):
         light.light_component.set_editor_property('intensity',5000.0)
         light.light_component.set_editor_property('attenuation_radius',1800.0)
         light.light_component.set_editor_property('cast_shadows',True)
-        camera=tag(ELL.spawn_actor_from_class(unreal.CameraActor,unreal.Vector(-550,0,480),unreal.Rotator(-12,0,0)),'EA_Camera')
-        camera.camera_component.set_editor_property('field_of_view',50.0)
         pp=ELL.spawn_actor_from_class(unreal.PostProcessVolume,unreal.Vector(0,0,0))
         pp.set_editor_property('unbound',True)
         settings=pp.get_editor_property('settings')
@@ -87,10 +100,10 @@ def author(recipe, receipt_path):
                             ('override_motion_blur_amount',True),('motion_blur_amount',0.0)]:
             settings.set_editor_property(field,value)
         pp.set_editor_property('settings',settings)
-        world=ELL.get_editor_world()
         world.get_world_settings().set_editor_property('default_game_mode',unreal.GameModeBase)
-        ELL.spawn_actor_from_class(unreal.PlayerStart,unreal.Vector(-550,0,500),unreal.Rotator(0,0,0))
-        need(ELL.save_current_level(),'save '+level)
+        ELL.spawn_actor_from_class(unreal.PlayerStart,unreal.Vector(-550,0,500),unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0))
+        need(unreal.EditorLoadingAndSavingUtils.save_map(world,level),'save '+level)
+        receipt['created'].append(level);record()
         receipt.setdefault('maps',[]).append(dict(path=level,actors=sorted(a.get_actor_label() for a in ELL.get_all_level_actors()),
             anomaly_targets=dict(missing_object='EA_HideCube',blinking='EA_BlinkCube',lod_corruption='EA_LOD',lighting_mismatch='EA_Light')))
         record()

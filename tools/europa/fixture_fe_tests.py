@@ -19,15 +19,19 @@ def main(output):
     port=policy.TOOLS.parents[1]
     original=ledger.capture_child(['git','-C',str(port),'show','c1ef76b:tools/europa/author_425_fixture.py'])
     expected=original.replace("('override_motion_blur_amount',True),('motion_blur_amount',0.0),\n                            ('override_anti_aliasing_method',True),('anti_aliasing_method',unreal.AntiAliasingMethod.AAM_NONE)]", "('override_motion_blur_amount',True),('motion_blur_amount',0.0)]")
-    check('sole_recipe_change_is_FE1',expected!=original and (policy.TOOLS/'author_425_fixture.py').read_text()==expected)
+    current=(policy.TOOLS/'author_425_fixture.py').read_text()
+    check('FE1_removed_properties_stay_absent',expected!=original and 'override_anti_aliasing_method' not in current and 'anti_aliasing_method' not in current)
     prior=policy.ROOT/'Receipts/09426b/fixture-attempts/Smoke/01/smoke.json'
     native=json.loads(prior.read_text())
     missing={r['name'] for r in native['checks'] if not r['exists']}
     check('prior_missing_exactly_FE1',missing=={'PostProcessSettings.override_anti_aliasing_method','PostProcessSettings.anti_aliasing_method'})
     actual=Counter([(n,a) for n,a in smoke.CALLS]+[(n,None) for n in smoke.NAMES]+[(k+'.'+p,None) for k,ps in smoke.PROPERTIES.items() for p in ps])
     present=Counter((r['name'],r.get('arguments')) for r in native['checks'] if r['exists'] and 'error' not in r)
-    check('remaining_51_checks_match_native_present_receipt',actual==present and sum(actual.values())==51)
-    manifest=port/'docs/europa/09426c-a5-fixture-manifest.json'
+    removed=Counter([('EditorLevelLibrary.new_level',1),('EditorLevelLibrary.get_editor_world',0),('EditorLevelLibrary.save_current_level',0)])
+    added=Counter([('EditorLoadingAndSavingUtils.new_blank_map',1),('EditorLoadingAndSavingUtils.save_map',2),
+                   ('SystemLibrary.execute_console_command',2),('Actor.get_actor_rotation',1)])
+    check('remaining_native_bindings_plus_FI2_source_bound_calls',actual==present-removed+added)
+    manifest=port/'docs/europa/09427c-a5-fixture-manifest.json'
     data=json.loads(manifest.read_text())
     check('recipe_and_manifest_bindings',policy.verify_files([data[k] for k in ('recipe','recipe_document','smoke_checker')])==3)
     check('EW1_binary_bindings_not_revised',data['binary_manifests_unchanged']==policy.manifest_rows())
@@ -38,7 +42,7 @@ def main(output):
            ('case_insensitive_folder','c:/WINDOWS/system32/WINEVT/logs/sample.EVTX',Denied(),True),
            ('other_file_type',FOLDER/'sample.ini',Denied(),False),
            ('other_directory','D:/IA_Europa/Receipts/sample.evtx',Denied(),False),
-           ('not_access_denied',FOLDER/'sample.evtx',Sharing(),False),
+           ('FI5_sharing_locked_eventlog',FOLDER/'sample.evtx',Sharing(),True),
            ('readable_eventlog',FOLDER/'sample.evtx',None,False),
            ('path_escape',str(FOLDER/'../sample.evtx'),Denied(),False)]
     for name,path,error,wanted in cases:check('FE2_'+name,excluded_denial(path,error)==wanted)

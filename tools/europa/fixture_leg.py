@@ -95,14 +95,19 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             else:ddc=check_ddc(HOST/'StylizedParisStreet.uproject')
             create_json(root/'content-before.json',before)
             create_json(root/'config-before.json',configs)
-            with (root/'preflight-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log):
-                preflight=ledger.begin('fixture-preflight','read_only')
-                try:
-                    if policy.REHEARSAL is not None:fixture_rehearsal.preflight(root)
-                    else:ledger.run_child([sys.executable,'-B',str(TOOLS/'owner_p9.py'),'entry-fixture'])
-                finally:
-                    ledger.finish(preflight,'read_only')
-            proof=root/'P9/entry-fixture/summary.json'
+            if config.get('entry_proof') and policy.REHEARSAL is None:
+                verify_files([config['entry_proof']])
+                proof=Path(config['entry_proof']['path'])
+                create_json(root/'shared-entry-proof.json',dict(authority='FF5 one full preflight per run',proof=config['entry_proof']))
+            else:
+                with (root/'preflight-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log):
+                    preflight=ledger.begin('fixture-preflight','read_only')
+                    try:
+                        if policy.REHEARSAL is not None:fixture_rehearsal.preflight(root)
+                        else:ledger.run_child([sys.executable,'-B',str(TOOLS/'owner_p9.py'),'entry-fixture'])
+                    finally:
+                        ledger.finish(preflight,'read_only')
+                proof=root/'P9/entry-fixture/summary.json'
             if json.loads(proof.read_text())['result']!='PASS':
                 raise RuntimeError('P9 fixture preflight failed.')
             result.update(argv=argv,p9=str(proof),ddc=ddc,manifests=config['manifests'],
@@ -145,6 +150,8 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
             build_watch=BuildOutputWatch(HOST,root/'build-watch.jsonl')
             monitor_args['build_check']=build_watch.check
             deadline=policy.REHEARSAL['deadline_seconds'] if policy.REHEARSAL is not None else (300 if recipe=='Smoke' else 1800)
+            crash_before=policy.crash_folders()
+            create_json(root/'crash-folders-before.json',crash_before)
             with (root/'runtime-ledger-console.log').open('x',encoding='utf-8') as log,contextlib.redirect_stdout(log), SessionGate(root/'session-gate.jsonl',**monitor_args) as monitor:
                 operation=ledger.begin('fixture-runtime','runtime')
                 marker=canonical(guard.state/'authoring-started.json')
@@ -171,6 +178,9 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
                     before_create=reserve,on_creation_failed=creation_failed)
                 build_watch.check()
             result['probe_exit']=probe_exit(root/'session/probe/probe.jsonl')
+            result['new_crash_report_folders']=sorted(set(policy.crash_folders())-set(crash_before))
+            if result['new_crash_report_folders']:
+                raise RuntimeError('Authoring session created a crash or ensure report folder.')
             authored=json.loads((root/('smoke.json' if recipe=='Smoke' else 'authoring.json')).read_text())
             expected='SMOKE_PASS' if recipe=='Smoke' else 'AUTHORED_NOT_QUALIFIED'
             if authored.get('result')!=expected or (recipe!='Smoke' and authored.get('recipe')!=recipe):
@@ -195,6 +205,7 @@ def run(config_path,recipe,dry_run=False,samples_path=None):
         finally:
             try:
                 if context.get('process_created'):
+                    result['new_crash_report_folders']=sorted(set(policy.crash_folders())-set(crash_before))
                     from fixture_uploads import check as upload_check
                     result['uploads']=upload_check(root/'session')
                     if not (root/'upload-check.json').exists():

@@ -121,7 +121,6 @@ class RuntimeTree(OwnedTree):
         return stopped
 
     def stop(self):
-        # Retained handles survive reparenting and PID reuse; monitor stops precede the editor.
         try:self.poll()
         except RuntimeError:pass
         monitors=self.stop_monitors('owned-tree stop: monitor before editor')

@@ -35,6 +35,8 @@ def config(template):
 
 
 def main(output):
+    from rotator_contract import check_all
+    check_all()
     import write_ledger as ledger
     output=policy.canonical(output)
     output.mkdir(parents=True,exist_ok=False)

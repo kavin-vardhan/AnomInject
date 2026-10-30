@@ -1,5 +1,6 @@
 from __future__ import print_function
 import imp
+import hashlib
 import json
 import os
 import sys
@@ -13,6 +14,7 @@ ACTORS=[]
 def value(item):
     if isinstance(item,type):return item.__name__
     if isinstance(item,Object):return item.identity
+    if isinstance(item,Rotation):return dict(roll=item.roll,pitch=item.pitch,yaw=item.yaw)
     if isinstance(item,(list,tuple)):return [value(x) for x in item]
     return item
 
@@ -46,6 +48,9 @@ class StaticMeshComponent(SceneComponent):
 class PointLightComponent(SceneComponent):pass
 class CameraComponent(SceneComponent):pass
 class Actor(Object):
+    def get_actor_rotation(self):
+        log('get_actor_rotation',self)
+        return self.rotation
     def set_actor_label(self,v):
         log('set_actor_label',self,v)
         self.label=v
@@ -72,9 +77,13 @@ class AntiAliasingMethod(object):AAM_NONE='AAM_NONE'
 def Vector(*args):
     log('Vector',*args)
     return list(args)
-def Rotator(*args):
-    log('Rotator',*args)
-    return list(args)
+class Rotation(object):
+    def __init__(self,roll,pitch,yaw):self.roll,self.pitch,self.yaw=roll,pitch,yaw
+
+
+def Rotator(roll=0.0,pitch=0.0,yaw=0.0):
+    log('Rotator',roll,pitch,yaw)
+    return Rotation(roll,pitch,yaw)
 def Name(name):
     log('Name',name)
     return name
@@ -125,6 +134,7 @@ class EditorLevelLibrary(object):
     def spawn_actor_from_class(kind,position,rotation=None):
         log('spawn_actor_from_class',kind,position,rotation)
         actor=kind(kind.__name__+str(len(ACTORS)))
+        actor.rotation=rotation or Rotation(0.0,0.0,0.0)
         if kind is StaticMeshActor:actor.static_mesh_component=StaticMeshComponent(actor.identity+'.mesh')
         if kind is PointLight:actor.light_component=PointLightComponent(actor.identity+'.light')
         if kind is CameraActor:actor.camera_component=CameraComponent(actor.identity+'.camera')
@@ -144,26 +154,43 @@ class EditorLevelLibrary(object):
         return ACTORS
 
 
+class EditorLoadingAndSavingUtils(object):
+    @staticmethod
+    def new_blank_map(save_existing):
+        log('new_blank_map',save_existing)
+        assert save_existing is False
+        return World('world')
+    @staticmethod
+    def save_map(world,path):
+        log('save_map',world,path)
+        return True
+
+
+class SystemLibrary(object):
+    @staticmethod
+    def execute_console_command(world,command):log('execute_console_command',world,command)
+
+
 def expected(recipe):
-    names=['project_dir']+['does_asset_exist']*(2 if recipe=='EA_Core' else 1)+['load_asset','load_asset']
+    names=['project_dir']+['does_asset_exist']*(2 if recipe=='EA_Core' else 1)
+    names+=['new_blank_map','Vector','Rotator','spawn_actor_from_class','set_actor_label','Name',
+        'set_editor_property','get_actor_rotation','set_editor_property','load_asset','load_asset']
     if recipe=='EA_Core':names+=['duplicate_asset','set_lod_from_static_mesh','get_lod_count','save_loaded_asset','get_lod_count']
     else:names+=['load_asset','get_lod_count','get_lod_count']
-    names+=['new_level']
     for unused in range(4):
         names+=['Vector','spawn_actor_from_class','set_actor_label','Name','set_editor_property',
             'set_mobility','set_static_mesh','Vector','set_actor_scale3d']
     names+=['Vector','spawn_actor_from_class','set_actor_label','Name','set_editor_property','set_mobility']+['set_editor_property']*3
-    names+=['Vector','Rotator','spawn_actor_from_class','set_actor_label','Name','set_editor_property','set_editor_property']
     names+=['Vector','spawn_actor_from_class','set_editor_property','get_editor_property']+['set_editor_property']*7
-    names+=['get_editor_world','get_world_settings','set_editor_property','Vector','Rotator','spawn_actor_from_class',
-        'save_current_level','get_all_level_actors']+['get_actor_label']*8
+    names+=['get_world_settings','set_editor_property','Vector','Rotator','spawn_actor_from_class',
+        'save_map','get_all_level_actors']+['get_actor_label']*8
     return names
 
 
 def main(output):
     assert sys.version_info[:3]==(2,7,14),sys.version
     output=os.path.abspath(output)
-    assert output.lower().startswith('d:\\ia_europa\\receipts\\09426c\\')
+    assert output.lower().startswith('d:\\ia_europa\\receipts\\09427c\\')
     assert not os.path.exists(output)
     os.makedirs(output)
     stub=types.ModuleType('unreal')
@@ -182,6 +209,16 @@ def main(output):
         with open(path,'rb') as stream:compile(stream.read(),path,'exec')
         syntax.append(path)
     results=[]
+    declared=[os.path.normcase(os.path.abspath('D:/IA_Europa/StylizedParisStreet/Content/EuropaPhaseA/'+name))
+        for name in ('SM_EA_TwoLod.uasset','EA_Core.umap','EA_Travel.umap')]
+    exists=os.path.exists
+    before={p:hashlib.sha256(open(p,'rb').read()).hexdigest() for p in declared if exists(p)}
+    os.path.exists=lambda p:False if os.path.normcase(os.path.abspath(p)) in declared else exists(p)
+    import rotator_contract
+    static_rows=rotator_contract.check_all(HERE)
+    for name in rotator_contract.SCRIPTS:
+        assert rotator_contract.check_source('unreal.Rotator(-12,0,0)',name)
+    assert not rotator_contract.check_source('unreal.Rotator(pitch=-12, yaw=0, roll=0)','keyword')
     for recipe in ('Smoke','EA_Core','EA_Travel'):
         del CALLS[:];del ACTORS[:]
         receipt=os.path.join(output,recipe+'.json')
@@ -198,6 +235,10 @@ def main(output):
             assert data['result']=='AUTHORED_NOT_QUALIFIED',data
             assert [c['name'] for c in CALLS]==expected(recipe),CALLS
             assert data['lod_count']==2 and len(ACTORS)==8
+            assert data['camera_check']['passed'] and data['camera_check']['actual']==dict(pitch=-12.0,yaw=0.0,roll=0.0)
+            names=[c['name'] for c in CALLS]
+            assert names.index('get_actor_rotation')<names.index('save_map')
+            if recipe=='EA_Core':assert names.index('get_actor_rotation')<names.index('duplicate_asset')
             assert set(data['maps'][0]['anomaly_targets'].values())==set(['EA_HideCube','EA_BlinkCube','EA_LOD','EA_Light'])
             props=[c['args'][1:] for c in CALLS if c['name']=='set_editor_property']
             assert not any(pair[0] in ('override_anti_aliasing_method','anti_aliasing_method') for pair in props)
@@ -214,11 +255,28 @@ def main(output):
         assert isinstance(error,AttributeError) and 'NoneType' in str(error),(type(error).__name__,str(error))
         results.append(dict(case='runpy_returned_dict_mutant',result='EXPECTED_FAIL',error_type=type(error).__name__,error=str(error)))
     else:raise AssertionError('runpy returned-dict mutant unexpectedly survived')
-    del stub.EditorLevelLibrary.save_current_level
+    del CALLS[:];del ACTORS[:]
+    with open(source) as stream:old=stream.read().replace('unreal.Rotator(pitch=-12.0, yaw=0.0, roll=0.0)','unreal.Rotator(-12,0,0)')
+    assert old.count('unreal.Rotator(-12,0,0)')==1
+    mutant_module=types.ModuleType('old_camera_mutant')
+    exec(compile(old,'old_camera_mutant','exec'),mutant_module.__dict__)
+    mutant_receipt=os.path.join(output,'old-camera.json')
+    mutant_module.author('EA_Core',mutant_receipt)
+    with open(mutant_receipt) as stream:bad=json.load(stream)
+    assert bad['result']=='AUTHORING_FAIL' and not bad['camera_check']['passed']
+    assert bad['camera_check']['actual']==dict(pitch=0.0,yaw=0.0,roll=-12.0)
+    assert not any(c['name'] in ('save_loaded_asset','save_map','new_level','duplicate_asset') for c in CALLS)
+    exits=[c for c in CALLS if c['name']=='execute_console_command']
+    assert len(exits)==1 and exits[0]['args'][-1]=='QUIT_EDITOR' and CALLS[-1] is exits[0]
+    results.append(dict(case='old_positional_camera',result='EXPECTED_FAIL',camera=bad['camera_check'],saves=0,exit_requests=1))
+    del stub.EditorLoadingAndSavingUtils.save_map
     failed=smoke.check(namespace['fixture_module'],os.path.join(output,'missing-api.json'))
     assert failed['result']=='SMOKE_FAIL'
     results.append(dict(case='missing_api_mutant',result='EXPECTED_FAIL'))
-    result=dict(result='PASS',python=sys.version,syntax=syntax,cases=results,asset_writes=0,
+    os.path.exists=exists
+    assert before=={p:hashlib.sha256(open(p,'rb').read()).hexdigest() for p in before}
+    result=dict(result='PASS',python=sys.version,syntax=syntax,cases=results,asset_writes=0,rotator_static=static_rows,
+        simulated_absent_output_paths=declared,existing_packages_unchanged=before,
         note='All Unreal operations are recording stubs. Only harness scripts and JSON evidence were written.')
     with open(os.path.join(output,'summary.json'),'w') as stream:json.dump(result,stream,indent=2)
     print(json.dumps(result))

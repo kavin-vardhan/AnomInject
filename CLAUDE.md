@@ -15,6 +15,9 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-27c, 2026-10-30 — camera/callback corrections in qualification.**
+> Keyword rotators and pre-save camera assertion; re-entry and single-shot exit guards; first/second runtime crash counting; OS-locked Windows scan class. Authoring and all runtime gates remain pending. See docs/europa/09427c-runtime-authoring-amendment.md. No build, push or tags.
+
 > **094-27b, 2026-10-30 — RED.**
 > Smoke passed. A3 Load exited 3 after the driver reported "Saved camera rotation differs", followed by an access violation with Niagara at the top of the engine stack. FH3 stopped the remaining 16 legs; no A7 pictures were produced. The crash cause remains unresolved. FH2–FH8 fixes passed real-file mutations, Python 2.7 and eight rehearsal cases; both 18-leg dry runs passed. Real sessions: 2; runtime legs started: 1. Run result STOP. Gates: A3 FAIL, A5 NOT_RUN, A6 NOT_RUN, A7 NOT_RUN, A8 NOT_RUN. Counted-event contact sheets: 0. Stop reason: abnormal editor/game exit. Raw evidence and reader verdicts are retained; no verdict was changed by hand. Content, config, descriptors, bound artifacts and marker 31124 remain equal. No build, push or tags.
 > See docs/europa/09427b-runtime-receipts.json and docs/europa/09427b-runtime-amendment.md.
