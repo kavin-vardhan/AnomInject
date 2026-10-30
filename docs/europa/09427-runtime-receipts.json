@@ -175,11 +175,6 @@
       "sha256": "218e2b48cd70f5ee410dc979fae7f4db27811fd6bf32313beb15352ae614c51b"
     },
     {
-      "path": "D:\\IA_Europa\\Receipts\\09427\\ledger\\current.sqlite",
-      "size": 204656640,
-      "sha256": "2dd82ded4a8c367b2e296891ed72998d0d0839d5ed9c8690287308dce5100720"
-    },
-    {
       "path": "D:\\IA_Europa\\Receipts\\09427\\ledger\\entry\\after-delta.jsonl.gz",
       "size": 1914,
       "sha256": "54cfc71315f3613409cd7352bd4bcf6a2bf154dd45025d4010ebf438eddc43af"
@@ -598,11 +593,6 @@
       "path": "D:\\IA_Europa\\Receipts\\09427\\ledger\\runtime-tooling\\summary.json",
       "size": 3351,
       "sha256": "f7269851780b5ed07aaea426b8a19d90d5f2cc903a752e22c0847880a9be1621"
-    },
-    {
-      "path": "D:\\IA_Europa\\Receipts\\09427\\ledger\\scratch-removals.jsonl",
-      "size": 810,
-      "sha256": "ef0387566ad2bf2bad2039b16bdaa562d39eba378be9541957b22ef337c35d21"
     },
     {
       "path": "D:\\IA_Europa\\Receipts\\09427\\ledger-summary-before-docs.json",
@@ -8532,7 +8522,11 @@
       "detail": "CrashClient.log records -RespawnedInstance -MONITOR=2344 and normal exit; the owned-process receipt contains only editor 2344, UBT 13868 and conhost 39276. Descendant lifetime coverage for the crash monitor is not proven."
     }
   ],
-  "note": "This index binds immutable receipts. Run-folder report.md separately binds the documentation commit, final state, final audit/canary and documentation ledger tail.",
+  "note": "This index binds immutable receipts. Run-folder report.md separately binds the documentation commit, final state, final audit/canary and documentation ledger tail. Mutable current.sqlite and scratch-removals.jsonl are not immutable receipts; per-operation frozen metadata/delta files and canonical hashes remain bound.",
   "pushed": false,
-  "tags": []
+  "tags": [],
+  "mutable_ledger_files_excluded": [
+    "D:\\IA_Europa\\Receipts\\09427\\ledger\\current.sqlite",
+    "D:\\IA_Europa\\Receipts\\09427\\ledger\\scratch-removals.jsonl"
+  ]
 }
