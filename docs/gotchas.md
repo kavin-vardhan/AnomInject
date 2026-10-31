@@ -10283,6 +10283,6 @@ Stock 4.25 tonemapper quantization can vary unchanged 8-bit frames by one intens
 
 The FK1 start amendment also needs the exact 4/8/none/4 tuple in the shared job-scope validator. Limit that acceptance to the authorized runtime job with empty build/query lists; a lower threshold and a build scope must still refuse. The first dry invocation caught this before any session. The retained 094-27d fixes then passed real blinking and LOD pictures: no competing live A7 probe read, and forced LOD model 1 for the sphere.
 
-## G475 - Readback class presence does not establish mapping parity (094-30)
+## G488 - Readback class presence does not establish mapping parity (094-30)
 
 Stock 4.25 has FRHIGPUTextureReadback, as PHASE0 measured, but RHIGPUReadback.h:99 offers Lock(uint32), not the 5.1 pitch/height overload. RHIGPUReadback.cpp:128-136 maps and discards width/height. Use an owned 4.25 staging/fence adapter that retains the map dimensions; never infer tight stride from image width. AddEnqueueCopyPass and view-family extension-data attachment are also absent even though RDG itself is present. These are source findings for Phase C, not a compiled or runtime proof; see europa/PHASEC-capture-port-plan.md.

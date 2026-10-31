@@ -1,4 +1,5 @@
-#if ANOMALY_CAPTURE
+#include "Compat/AnomalyCaptureFeatures.h"
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalyLabelWriter.h"
 #include "Containers/Set.h"
 #include "HAL/CriticalSection.h"
@@ -10,7 +11,7 @@
 
 #include "AnomalyCaptureLog.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyViewport.h"

@@ -1,4 +1,5 @@
-#if ANOMALY_CAPTURE
+#include "Compat/AnomalyCaptureFeatures.h"
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalySveCapturer.h"
 #include "Engine/Texture.h"
 #include "PixelFormat.h"
@@ -8,7 +9,7 @@
 #endif
 #include "Templates/SharedPointerInternals.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "AnomalyCaptureLog.h"
 

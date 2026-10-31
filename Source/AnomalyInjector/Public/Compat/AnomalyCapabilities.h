@@ -20,7 +20,7 @@ namespace AnomalyCompat
 
     constexpr FBackendCapabilities PhaseABackends()
     {
-        return { ANOMALY_ENGINE_51 && !UE_BUILD_SHIPPING,
+        return { (ANOMALY_ENGINE_51 || ANOMALY_ENGINE_425) && !UE_BUILD_SHIPPING,
             ANOMALY_ENGINE_51 && !UE_BUILD_SHIPPING,
             ANOMALY_ENGINE_51 && !UE_BUILD_SHIPPING,
             ANOMALY_ENGINE_51 && !UE_BUILD_SHIPPING,

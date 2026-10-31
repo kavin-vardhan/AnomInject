@@ -343,7 +343,7 @@ public class AnomalyCapture : ModuleRules
 			"Json"
 		});
 
-		if (AnomalyEngineRules.Is51(Target) && Target.Configuration != UnrealTargetConfiguration.Shipping)
+		if ((AnomalyEngineRules.Is51(Target) || AnomalyEngineRules.Is425(Target)) && Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PublicDefinitions.Add("ANOMALY_CAPTURE=1");
 
@@ -351,12 +351,15 @@ public class AnomalyCapture : ModuleRules
 			{
 				"RenderCore",
 				"RHI",
-				"Renderer",
 				"Slate",
 				"SlateCore",
-				"ApplicationCore",
-				"AnomalyShaders"
+				"ApplicationCore"
 			});
+
+			if (AnomalyEngineRules.Is51(Target))
+			{
+				PrivateDependencyModuleNames.AddRange(new string[] { "Renderer", "AnomalyShaders" });
+			}
 
 #if UE_5_1_OR_LATER && !UE_5_2_OR_LATER
 			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
@@ -367,7 +370,7 @@ public class AnomalyCapture : ModuleRules
 			PublicDefinitions.Add("ANOMALY_CAPTURE=0");
 		}
 
-		if (AnomalyEngineRules.Is51(Target) && Target.bBuildEditor)
+		if (Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.Add("UnrealEd");
 		}

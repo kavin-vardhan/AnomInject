@@ -1,5 +1,7 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyCaptureSubsystem.h"
-#if ANOMALY_CAPTURE
+#include "Compat/AnomalyCaptureSession425.h"
+#if ANOMALY_CAPTURE_ADVANCED
 #include "RHIDefinitions.h"
 #if __has_include("RHIFeatureLevel.h")
 #include "RHIFeatureLevel.h"
@@ -55,7 +57,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "CoreGlobals.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalyLabelWriter.h"
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyPreviewTee.h"
@@ -137,7 +139,7 @@
 #endif
 #endif
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 static TAutoConsoleVariable<int32> GChangeTeardownAt(TEXT("IAI.Bench.ChangeTeardownAt"), -1,
 	TEXT("Fixture-only actual world teardown after N captures; -IAIBenchFixture and CB_GateLevel required. Default off."));
 static bool GChangeTeardownIssued = false;
@@ -242,13 +244,13 @@ struct FSessionEventAccum
 };
 #endif
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 static void CountEntryReasons(const AnomalyLabel::FCaptureSnapshot& Snap, int32* ReasonEntries, int32& UnlabelledActive);
 #endif
 
 struct FAnomalyCaptureAsyncState
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer;
 	TSharedPtr<FAnomalySveCapturer, ESPMode::ThreadSafe> SveCapturer;
 	TSharedPtr<FAnomalySceneViewExtension, ESPMode::ThreadSafe> SveExtension;
@@ -576,7 +578,7 @@ struct FAnomalyCaptureAsyncState
 #endif
 };
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 namespace
 {
 	constexpr int32 GTargetMaskMaxHoldTicks = 4;
@@ -718,6 +720,10 @@ namespace
 UAnomalyCaptureSubsystem::UAnomalyCaptureSubsystem()
 {
 	Async = MakeUnique<FAnomalyCaptureAsyncState>();
+#if ANOMALY_CAPTURE_FRAMES425
+    Frames425 = MakeUnique<FAnomalyCaptureSession425>();
+    bSveCapture = bMaskMeasure = bTargetMask = bCensus = bShaderPrewarm = false;
+#endif
 }
 
 UAnomalyCaptureSubsystem::UAnomalyCaptureSubsystem(FVTableHelper& Helper) : Super(Helper) {}
@@ -730,7 +736,7 @@ TStatId UAnomalyCaptureSubsystem::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UAnomalyCaptureSubsystem, STATGROUP_Tickables);
 }
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 static EAnomalyMaskReduceMode GMaskReduceMode = EAnomalyMaskReduceMode::Gpu;
 static bool GMaskReduceFromIni = false;
 static bool GMaskReduceFromConsole = false;
@@ -760,7 +766,7 @@ static const TCHAR* DescribeMaskReduceSource()
 void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	RegisterBenchStuckMipLevers();
 	MaskEndFrameHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UAnomalyCaptureSubsystem::OnEndFrameMaskSample);
 	MaskWorldTickEndHandle = FWorldDelegates::OnWorldTickEnd.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldTickEndCombined);
@@ -965,7 +971,7 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 #endif
 #else
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (compiled out: ANOMALY_CAPTURE=0)."));
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (compiled out: ANOMALY_CAPTURE_ADVANCED=0)."));
 #endif
 }
 
@@ -973,7 +979,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 {
 	bDeinitializing = true;
 	StopRun();
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	ClearExclusionTrailProvider();
 	EndRunLog();
 	if (MaskEndFrameHandle.IsValid())
@@ -1033,7 +1039,12 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_FRAMES425
+    Frames425->Tick(GetWorld());
+    bRunning = Frames425->IsRunning();
+    FramesWritten = Frames425->Written();
+#endif
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!bRunning)
 	{
 		return;
@@ -1316,7 +1327,7 @@ void UAnomalyCaptureSubsystem::SetDeferredOnsetTimeoutFrames(int32 InFrames)
 
 void UAnomalyCaptureSubsystem::OnWorldTickEndCombined(UWorld* World, ELevelTick TickType, float DeltaSeconds)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	const bool bConditionWindow = World == GetWorld() && bRunning;
 	if (bConditionWindow)
 	{
@@ -1333,7 +1344,7 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndCombined(UWorld* World, ELevelTick 
 
 void UAnomalyCaptureSubsystem::OnWorldTickEndSample(UWorld* World, ELevelTick TickType, float DeltaSeconds)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (World != GetWorld() || !bRunning)
 	{
 		return;
@@ -1344,7 +1355,7 @@ void UAnomalyCaptureSubsystem::OnWorldTickEndSample(UWorld* World, ELevelTick Ti
 
 void UAnomalyCaptureSubsystem::OnWorldTickEndMask(UWorld* World, ELevelTick TickType, float DeltaSeconds)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (World != GetWorld() || !bMaskMeasure || !bRunning || !Async.IsValid() || !Async->MaskExtension.IsValid())
 	{
 		return;
@@ -1445,7 +1456,7 @@ void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TA
 	TSharedPtr<const TArray<uint8>, ESPMode::ThreadSafe> FrozenMask,
 	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!Async.IsValid() || !Async->Writer.IsValid() || SessionIndex < 0 || W <= 0 || H <= 0)
 	{
 		return;
@@ -1466,7 +1477,7 @@ void UAnomalyCaptureSubsystem::EnqueueTargetMaskPng(int32 SessionIndex, const TA
 void UAnomalyCaptureSubsystem::FoldExposureExclusion(const TArray<uint8>& Gray, int32 W, int32 H,
 	const TMap<uint8, FString>* TagEvent)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (W <= 0 || H <= 0 || !TagEvent)
 	{
 		return;
@@ -1553,7 +1564,7 @@ void UAnomalyCaptureSubsystem::FoldExposureExclusion(const TArray<uint8>& Gray, 
 
 void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (TargetMaskSelfTagged.Num() == 0 || TargetMaskSelfTaggedTick == GFrameCounter)
 	{
 		return;
@@ -1572,7 +1583,7 @@ void UAnomalyCaptureSubsystem::ReleaseTargetMaskSelfTags()
 
 void UAnomalyCaptureSubsystem::EnsureMaskRecordsForCapturedFrame()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!Async.IsValid() || !bMaskMeasure)
 	{
 		return;
@@ -1623,7 +1634,7 @@ void UAnomalyCaptureSubsystem::EnsureMaskRecordsForCapturedFrame()
 
 void UAnomalyCaptureSubsystem::UpdateMaskRecordLabelledWindow()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!Async.IsValid() || !bMaskMeasure)
 	{
 		return;
@@ -1643,7 +1654,7 @@ void UAnomalyCaptureSubsystem::UpdateMaskRecordLabelledWindow()
 
 bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!Async.IsValid() || !Async->MaskExtension.IsValid())
 	{
 		return false;
@@ -1801,7 +1812,7 @@ bool UAnomalyCaptureSubsystem::ArmTargetMaskOwn(int32 SessionIndex)
 
 void UAnomalyCaptureSubsystem::ServiceTargetMask()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!bTargetMaskEffective || !Async.IsValid() || !Async->MaskExtension.IsValid()
 		|| TargetMaskPendingSessionIndex.Num() == 0)
 	{
@@ -1984,7 +1995,7 @@ void UAnomalyCaptureSubsystem::ServiceTargetMask()
 
 void UAnomalyCaptureSubsystem::RunStencilHygieneCheck(bool bFinal)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!Async.IsValid())
 	{
 		return;
@@ -2038,7 +2049,7 @@ void UAnomalyCaptureSubsystem::RunStencilHygieneCheck(bool bFinal)
 
 void UAnomalyCaptureSubsystem::OnEndFrameMaskSample()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!bMaskMeasure || !bRunning || !Async.IsValid())
 	{
 		return;
@@ -2318,7 +2329,7 @@ void UAnomalyCaptureSubsystem::SetBenchVetoArmUngated(bool bInUngated)
 
 void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!bBenchMaskPairingProbe || MaskPairingProbe.IsValid())
 	{
 		return;
@@ -2376,7 +2387,7 @@ void UAnomalyCaptureSubsystem::SpawnMaskPairingProbe()
 
 void UAnomalyCaptureSubsystem::StepMaskPairingProbe(int32 SessionIndex)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!bBenchMaskPairingProbe)
 	{
 		return;
@@ -2397,7 +2408,7 @@ void UAnomalyCaptureSubsystem::StepMaskPairingProbe(int32 SessionIndex)
 
 void UAnomalyCaptureSubsystem::DestroyMaskPairingProbe()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (AActor* Probe = MaskPairingProbe.Get())
 	{
 		Probe->Destroy();
@@ -2499,7 +2510,7 @@ void UAnomalyCaptureSubsystem::SetBenchCensusMaskDump(int32 InFrames)
 
 void UAnomalyCaptureSubsystem::SetBenchTagPoolLimit(int32 InValues)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning,
@@ -2554,7 +2565,7 @@ void UAnomalyCaptureSubsystem::SetBenchForceTagCollision(int32 InSessionIndex)
 
 void UAnomalyCaptureSubsystem::StepBenchForceTagCollision(int32 SessionIndex)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (BenchForceTagCollision < 0 || bBenchForceTagCollisionFired || SessionIndex != BenchForceTagCollision)
 	{
 		return;
@@ -2653,7 +2664,7 @@ void UAnomalyCaptureSubsystem::StepBenchForceTagCollision(int32 SessionIndex)
 
 void UAnomalyCaptureSubsystem::StepBenchObservabilityLevers(int32 SessionIndex)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (BenchTeleportOffscreenAt >= 0 && !bBenchTeleportFired && SessionIndex == BenchTeleportOffscreenAt)
 	{
 		bBenchTeleportFired = true;
@@ -2792,7 +2803,7 @@ void UAnomalyCaptureSubsystem::StepBenchObservabilityLevers(int32 SessionIndex)
 
 void UAnomalyCaptureSubsystem::RestoreBenchTeleports()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	for (const TPair<TWeakObjectPtr<AActor>, FVector>& Pair : BenchTeleportRestore)
 	{
 		if (AActor* Actor = Pair.Key.Get())
@@ -2813,7 +2824,7 @@ void UAnomalyCaptureSubsystem::RestoreBenchTeleports()
 void UAnomalyCaptureSubsystem::EnqueueCensusMaskDump(uint64 ArmTick, const TArray<uint8>& Gray, int32 W, int32 H,
 	const TArray<FString>& TagRows)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!Async.IsValid() || !Async->Writer.IsValid() || W <= 0 || H <= 0)
 	{
 		return;
@@ -3010,7 +3021,7 @@ void UAnomalyCaptureSubsystem::SetTargetMask(bool bInOn)
 
 int32 UAnomalyCaptureSubsystem::GetShaderJobsPending()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	return GShaderCompilingManager ? GShaderCompilingManager->GetNumRemainingJobs() : 0;
 #else
 	return 0;
@@ -3019,7 +3030,7 @@ int32 UAnomalyCaptureSubsystem::GetShaderJobsPending()
 
 void UAnomalyCaptureSubsystem::GatherAnomalySwapMaterials(TArray<UMaterialInterface*>& Out) const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	Out.Reset();
 	UWorld* World = GetWorld();
 	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
@@ -3034,7 +3045,7 @@ void UAnomalyCaptureSubsystem::GatherAnomalySwapMaterials(TArray<UMaterialInterf
 
 void UAnomalyCaptureSubsystem::GatherAnomalyPrewarmMaterials(TArray<UMaterialInterface*>& Out) const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	GatherAnomalySwapMaterials(Out);
 	AnomalyTexCorrupt::GatherCorruptorMaterials(GetWorld(), Out);
 #endif
@@ -3042,7 +3053,7 @@ void UAnomalyCaptureSubsystem::GatherAnomalyPrewarmMaterials(TArray<UMaterialInt
 
 bool UAnomalyCaptureSubsystem::IsTexCorruptWarmWanted() const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bTargetedMode && (AnomalyTexCorrupt::IsTexCorruptId(TargetAnomalyId)
 		|| (TargetAnomalyId == FName(TEXT("stuck_low_mip")) && AnomalyStuckMip::GetRoute() != AnomalyProxyBlur::ERoute::Hold)))
 	{
@@ -3081,7 +3092,7 @@ void UAnomalyCaptureSubsystem::SetTexCorruptWarmDraw(bool bInOn)
 
 int32 UAnomalyCaptureSubsystem::CountIncompleteAnomalyMaterials() const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	TArray<UMaterialInterface*> Materials;
 	GatherAnomalySwapMaterials(Materials);
 	int32 Incomplete = 0;
@@ -3133,7 +3144,7 @@ void UAnomalyCaptureSubsystem::SetShaderPrewarm(bool bInOn)
 
 void UAnomalyCaptureSubsystem::BenchForceAnomalyShaderRecompile()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	TArray<UMaterialInterface*> Materials;
 	GatherAnomalySwapMaterials(Materials);
 
@@ -3168,7 +3179,7 @@ void UAnomalyCaptureSubsystem::BenchForceAnomalyShaderRecompile()
 
 void UAnomalyCaptureSubsystem::PrewarmAnomalyShaders()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	ShaderPrewarmMs = -1.0;
 	ShaderPrewarmMaterials = 0;
 	ShaderPrewarmIncomplete = 0;
@@ -3227,7 +3238,7 @@ const TCHAR* UAnomalyCaptureSubsystem::DescribeCensusTranslucentWritersSource() 
 
 int32 UAnomalyCaptureSubsystem::ScanHostPostProcessCustomDepthReaders(UWorld* World, TArray<FString>* OutNames) const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	int32 Volumes = 0;
 	int32 CameraBlends = 0;
 	int32 BlendableEntries = 0;
@@ -3451,7 +3462,7 @@ FString UAnomalyCaptureSubsystem::DescribeLabelsInDelivery() const
 
 void UAnomalyCaptureSubsystem::SetLabelsInDelivery(bool bInWrite)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.DeliveryLabels: ignored mid-run (stop first)."));
@@ -3471,7 +3482,7 @@ void UAnomalyCaptureSubsystem::SetLabelsInDelivery(bool bInWrite)
 
 bool UAnomalyCaptureSubsystem::IsTickPinCompiled()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	return AnomalyTickPin::bCompiled;
 #else
 	return false;
@@ -3480,7 +3491,7 @@ bool UAnomalyCaptureSubsystem::IsTickPinCompiled()
 
 void UAnomalyCaptureSubsystem::SetTickPin(bool bInPin)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.TickPin: ignored mid-run (stop first)."));
@@ -3576,7 +3587,18 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	const FString& InTargetAnomaly, const FString& InTargetActor, const TArray<FString>& InTargetArgs,
 	int32 InOutputHeight)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_FRAMES425
+    if (!InTargetAnomaly.IsEmpty() || !InTargetActor.IsEmpty() || InTargetArgs.Num() || InOutputHeight > 0 || !bPng)
+    {
+        UE_LOG(LogAnomalyCapture, Error, TEXT("Capture425: C1 admits native PNG frames only; labels/masks/targets unavailable"));
+        return;
+    }
+    bRunning = Frames425->Start(GetWorld(), BaseDir, InFrameCap);
+    LastRunDir = BaseDir;
+    return;
+#endif
+
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: already running (stop first)."));
@@ -4036,13 +4058,13 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		BeginActualRun();
 	}
 #else
-	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE=0)."));
+	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE_ADVANCED=0)."));
 #endif
 }
 
 bool UAnomalyCaptureSubsystem::ResolveRunLogEffective(FString& OutSource) const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (RunLogOverride >= 0)
 	{
 		OutSource = FString::Printf(TEXT("forced %s, from IAI.Capture.RunLog"),
@@ -4065,7 +4087,7 @@ bool UAnomalyCaptureSubsystem::ResolveRunLogEffective(FString& OutSource) const
 
 void UAnomalyCaptureSubsystem::StartRunLog()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	FString Source;
 	const bool bWant = ResolveRunLogEffective(Source);
 
@@ -4127,7 +4149,7 @@ void UAnomalyCaptureSubsystem::StartRunLog()
 
 void UAnomalyCaptureSubsystem::EndRunLog()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bRunLogVerbosityRaised)
 	{
 		LogAnomaly.SetVerbosity((ELogVerbosity::Type)RunLogSavedVerbosity);
@@ -4162,7 +4184,7 @@ void UAnomalyCaptureSubsystem::EndRunLog()
 
 void UAnomalyCaptureSubsystem::SetRunLog(int32 InState)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.RunLog: ignored - a capture run is in progress."));
@@ -4189,7 +4211,7 @@ void UAnomalyCaptureSubsystem::SetRunLog(int32 InState)
 
 void UAnomalyCaptureSubsystem::SetRunLogVerbose(bool bInVerbose)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.RunLogVerbose: ignored - a capture run is in progress."));
@@ -4207,7 +4229,7 @@ void UAnomalyCaptureSubsystem::SetRunLogVerbose(bool bInVerbose)
 
 void UAnomalyCaptureSubsystem::BeginActualRun()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	StartFrame = GFrameCounter;
 
 	AnomalyLabel::FRunManifest M;
@@ -4429,7 +4451,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 
 bool UAnomalyCaptureSubsystem::HasGameWindow(UWorld* World) const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
 	return GV && GV->Viewport;
 #else
@@ -4439,7 +4461,7 @@ bool UAnomalyCaptureSubsystem::HasGameWindow(UWorld* World) const
 
 bool UAnomalyCaptureSubsystem::IsGameWindowFocused(UWorld* World) const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	UGameViewportClient* GV = World ? World->GetGameViewport() : nullptr;
 	if (GV && GV->Viewport)
 	{
@@ -4453,7 +4475,11 @@ bool UAnomalyCaptureSubsystem::IsGameWindowFocused(UWorld* World) const
 
 void UAnomalyCaptureSubsystem::StopRun()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_FRAMES425
+    if (Frames425) { Frames425->Stop(); }
+    bRunning = false;
+#endif
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!bRunning)
 	{
 		return;
@@ -4472,7 +4498,7 @@ void UAnomalyCaptureSubsystem::GetStatus(bool& bOutRunning, int32& OutFrames, FS
 
 void UAnomalyCaptureSubsystem::LogStatus() const
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!bRunning)
 	{
 		UE_LOG(LogAnomalyCapture, Log,
@@ -4492,11 +4518,11 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 		BurstCount > 0 ? *FString::Printf(TEXT("/%d"), BurstCount) : TEXT(""),
 		FramesWritten, PositiveFramesWritten, ZeroMatchBursts);
 #else
-	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: compiled out (ANOMALY_CAPTURE=0)."));
+	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: compiled out (ANOMALY_CAPTURE_ADVANCED=0)."));
 #endif
 }
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 namespace
 {
@@ -5649,7 +5675,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame()
 
 void UAnomalyCaptureSubsystem::PreviewPump()
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (PreviewTee.IsValid())
 	{
 		PreviewTee->Pump(IsCaptureActive());
@@ -5659,7 +5685,7 @@ void UAnomalyCaptureSubsystem::PreviewPump()
 
 void UAnomalyCaptureSubsystem::PreviewArm(uint32 InViewEpoch)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (IsCaptureActive())
 	{
 		return;
@@ -5688,7 +5714,7 @@ void UAnomalyCaptureSubsystem::PreviewArm(uint32 InViewEpoch)
 
 bool UAnomalyCaptureSubsystem::PreviewPoll(TArray<uint8>& OutJpeg, int32& OutW, int32& OutH, uint32& OutEpoch)
 {
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	if (!PreviewTee.IsValid())
 	{
 		return false;
@@ -8797,7 +8823,7 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 		GameClockSpeedRatio, TicksAtLastArm - TicksAtFirstArm);
 }
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 static bool MaskStateProvidesMeasurement(EAnomalyMaskState State)
 {
 	switch (State)
@@ -8876,7 +8902,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 	OpenConditionWindow();
 	SampleDeferredActiveState();
 	CloseConditionWindow();
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 	const bool bDeferM55Closure = bRenderTruthRun && Async.IsValid() && Async->ObserveQueue.Num() > 0;
 	if (Async.IsValid() && Async->ChangeStage.IsValid() && !bDeferM55Closure)
 	{
@@ -9784,7 +9810,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 	if (!bWroteSession)
 	{
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 		if (Async.IsValid() && Async->ChangeStage.IsValid())
 		{
 			Async->ChangeStage->Discard();
@@ -11591,7 +11617,7 @@ static FAutoConsoleCommandWithWorldAndArgs GCaptureCensusHostTagCmd(
 
 #endif
 
-#if !ANOMALY_CAPTURE
+#if !ANOMALY_CAPTURE_ADVANCED
 void UAnomalyCaptureSubsystem::PreviewPump() {}
 void UAnomalyCaptureSubsystem::PreviewArm(uint32 InViewEpoch) {}
 bool UAnomalyCaptureSubsystem::PreviewPoll(TArray<uint8>& OutJpeg, int32& OutW, int32& OutH, uint32& OutEpoch)

@@ -1,6 +1,7 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyStencilTag.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "AnomalyViewport.h"
 #include "AnomalyLabelSync.h"

@@ -1,7 +1,8 @@
-#if ANOMALY_CAPTURE
+#include "Compat/AnomalyCaptureFeatures.h"
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalyChangeStage.h"
 #include "Dom/JsonValue.h"
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
 #include "Policies/CondensedJsonPrintPolicy.h"

@@ -1,5 +1,6 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyChangeFamilyData.h"
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 #include "HAL/ThreadSafeCounter64.h"
 
 const TCHAR* FAnomalyChangeFamilyData::GSubclassIdentifier = TEXT("AnomalyChangeFamilyData.m55");

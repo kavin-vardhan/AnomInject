@@ -1,11 +1,12 @@
-#if ANOMALY_CAPTURE
+#include "Compat/AnomalyCaptureFeatures.h"
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalyMeasurability.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIShaderPlatform.h")
 #include "RHIShaderPlatform.h"
 #endif
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "AnomalyViewport.h"
 #include "AnomalyTargetPolicy.h"

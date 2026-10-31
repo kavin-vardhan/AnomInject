@@ -1,6 +1,7 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyMaskMeasure.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "AnomalyCaptureLog.h"
 #include "AnomalyMaskSceneViewExtension.h"

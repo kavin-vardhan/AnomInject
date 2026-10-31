@@ -289,11 +289,16 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 
 	if (!OwnSubRect.IsValid() || OwnSize != FIntPoint(W, H) || OwnFormat != SrcFormat)
 	{
+#if ANOMALY_ENGINE_425
+        FRHIResourceCreateInfo Info(TEXT("AnomalyBackbufferSubRect"));
+        OwnSubRect = RHICreateTexture2D(W, H, SrcFormat, 1, 1, TexCreate_ShaderResource, Info);
+#else
 		const FRHITextureCreateDesc OwnDesc =
 			FRHITextureCreateDesc::Create2D(TEXT("AnomalyBackbufferSubRect"), W, H, SrcFormat)
 			.SetFlags(ETextureCreateFlags::ShaderResource)
 			.SetInitialState(ERHIAccess::CopyDest);
 		OwnSubRect = RHICreateTexture(OwnDesc);
+#endif
 		OwnSize = FIntPoint(W, H);
 		OwnFormat = SrcFormat;
 
@@ -313,6 +318,7 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 
 	if (!OwnSubRect.IsValid())
 	{
+		GuardDrops.Increment();
 		UE_LOG(LogAnomalyCapture, Error,
 			TEXT("Capture(async): could not create the plugin-owned %dx%d fmt=%d sub-rect texture for frame ")
 			TEXT("id=%llu — FRAME DROPPED, NOT WRITTEN. No fallback to a sub-rect readback exists on purpose: ")
@@ -327,12 +333,20 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 	CopyInfo.Size = FIntVector(W, H, 1);
 	RHICmdList.CopyTexture(BackBuffer.GetReference(), OwnSubRect.GetReference(), CopyInfo);
 
+#if ANOMALY_ENGINE_425
+    RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, OwnSubRect.GetReference());
+#else
 	RHICmdList.Transition(FRHITransitionInfo(OwnSubRect.GetReference(), ERHIAccess::CopyDest, ERHIAccess::CopySrc));
+#endif
 
-	TUniquePtr<FRHIGPUTextureReadback> Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("AnomalyColorReadback"));
+	TUniquePtr<FAnomalyColorReadback> Readback = MakeUnique<FAnomalyColorReadback>(TEXT("AnomalyColorReadback"));
 	Readback->EnqueueCopy(RHICmdList, OwnSubRect.GetReference());
 
+#if ANOMALY_ENGINE_425
+    RHICmdList.TransitionResource(EResourceTransitionAccess::EWritable, OwnSubRect.GetReference());
+#else
 	RHICmdList.Transition(FRHITransitionInfo(OwnSubRect.GetReference(), ERHIAccess::CopySrc, ERHIAccess::CopyDest));
+#endif
 
 	FInFlight Item;
 	Item.RequestId = Arm.RequestId;
@@ -374,6 +388,16 @@ void FAnomalyFrameCapturer::Drain_RenderThread()
 		int32 RowPitchInPixels = 0;
 		int32 BufferHeight = 0;
 		void* Src = Item.Readback->Lock(RowPitchInPixels, &BufferHeight);
+#if ANOMALY_ENGINE_425
+        if (!AnomalyReadback425::Accept(Src != nullptr, Item.Rect.Width(), Item.Rect.Height(), RowPitchInPixels, BufferHeight))
+        {
+            GuardDrops.Increment();
+            UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture425: dropped mapping id=%llu requested=%dx%d mapped=%dx%d"), Item.RequestId, Item.Rect.Width(), Item.Rect.Height(), RowPitchInPixels, BufferHeight);
+            if (Src) { Item.Readback->Unlock(); }
+            InFlight.RemoveAt(i);
+            continue;
+        }
+#endif
 		if (Src && RowPitchInPixels > 0)
 		{
 			const int32 W = Item.Rect.Width();

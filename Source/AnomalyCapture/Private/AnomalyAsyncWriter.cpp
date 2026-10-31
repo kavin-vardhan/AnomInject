@@ -1,10 +1,11 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyAsyncWriter.h"
 #if __has_include("Templates/SharedPointerFwd.h")
 #include "Templates/SharedPointerFwd.h"
 #endif
 #include "Templates/SharedPointerInternals.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "AnomalyLabelWriter.h"
 #include "AnomalyCaptureLog.h"

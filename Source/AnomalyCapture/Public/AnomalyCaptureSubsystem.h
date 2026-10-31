@@ -11,6 +11,7 @@
 #include "AnomalyCaptureSubsystem.generated.h"
 
 struct FAnomalyCaptureAsyncState;
+class FAnomalyCaptureSession425;
 struct FAnomalyChangeReceipt;
 struct FAnomalyCapturedFrame;
 class FAnomalyPreviewTee;
@@ -595,6 +596,7 @@ private:
 	int32 TranslucentOnlyExcludedTargets = 0;
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
+	TUniquePtr<FAnomalyCaptureSession425> Frames425;
 	TUniquePtr<FAnomalyPreviewTee> PreviewTee;
 
 	TUniquePtr<FAnomalyRunLog> RunLog;

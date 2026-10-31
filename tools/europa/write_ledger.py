@@ -458,7 +458,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
         before_create()
     try:
         proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, encoding='utf-8', errors='replace', bufsize=1)
+            text=True, encoding='utf-8', errors='replace', bufsize=1,
+            creationflags=subprocess.BELOW_NORMAL_PRIORITY_CLASS if memory_guard else 0)
     except BaseException:
         if on_creation_failed is not None:
             on_creation_failed()

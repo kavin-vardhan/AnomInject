@@ -16,6 +16,13 @@
 #if ANOMALY_CAPTURE
 
 #include "RHIGPUReadback.h"
+#include "Compat/AnomalyEngineVersion.h"
+#if ANOMALY_ENGINE_425
+#include "Compat/AnomalyReadback425.h"
+using FAnomalyColorReadback = FAnomalyReadback425;
+#else
+using FAnomalyColorReadback = FRHIGPUTextureReadback;
+#endif
 #include "PixelFormat.h"
 #include "HAL/ThreadSafeCounter.h"
 
@@ -95,6 +102,7 @@ public:
 	void EnqueueDrain();
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
 	int32 NumPendingApprox() const;
+	int32 GetDropped() const { return GuardDrops.GetValue() + ClampDrops.GetValue(); }
 
 	FAnomalyReadbackLayout GetReadbackLayout() const;
 	void ResetReadbackLayout();
@@ -115,7 +123,7 @@ private:
 	struct FInFlight
 	{
 		uint64 RequestId = 0;
-		TUniquePtr<FRHIGPUTextureReadback> Readback;
+		TUniquePtr<FAnomalyColorReadback> Readback;
 		FIntRect Rect;
 		FIntPoint SourceExtent = FIntPoint::ZeroValue;
 		EPixelFormat Format = PF_Unknown;

@@ -1,4 +1,5 @@
-#if ANOMALY_CAPTURE
+#include "Compat/AnomalyCaptureFeatures.h"
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalyMaskSceneViewExtension.h"
 #include "RHI.h"
 #include "RHICommandList.h"
@@ -14,7 +15,7 @@
 #endif
 #include "Templates/SharedPointerInternals.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"

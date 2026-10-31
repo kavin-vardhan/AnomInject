@@ -1,8 +1,9 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #pragma once
 
 #include "CoreMinimal.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "UObject/WeakObjectPtr.h"
 #include "AnomalyCensusProvider.h"

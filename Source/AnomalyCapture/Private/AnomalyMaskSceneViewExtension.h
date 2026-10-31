@@ -1,9 +1,10 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #pragma once
 
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
 
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "SceneView.h"
 #include "SceneViewExtension.h"

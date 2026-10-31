@@ -1,5 +1,6 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #pragma once
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 
 #include "CoreMinimal.h"
 #include "Containers/Map.h"

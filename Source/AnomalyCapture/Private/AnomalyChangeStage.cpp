@@ -1,4 +1,5 @@
-#if ANOMALY_CAPTURE
+#include "Compat/AnomalyCaptureFeatures.h"
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalyChangeStage.h"
 #include "Dom/JsonValue.h"
 #include "SceneInterface.h"
@@ -6,7 +7,7 @@
 #include "Templates/SharedPointerFwd.h"
 #endif
 #include "Templates/SharedPointerInternals.h"
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 #include "AnomalyCaptureLog.h"
 #include "Async/Async.h"
 #include "Dom/JsonObject.h"

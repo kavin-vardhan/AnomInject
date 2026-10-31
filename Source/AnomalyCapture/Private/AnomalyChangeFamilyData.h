@@ -1,7 +1,8 @@
+#include "Compat/AnomalyCaptureFeatures.h"
 #pragma once
 
 #include "AnomalyChangeStage.h"
-#if ANOMALY_CAPTURE
+#if ANOMALY_CAPTURE_ADVANCED
 #include "SceneView.h"
 
 class FAnomalyChangeFamilyData : public ISceneViewFamilyExtentionData
