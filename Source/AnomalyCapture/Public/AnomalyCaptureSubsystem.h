@@ -597,6 +597,8 @@ private:
 	EContentClock ContentClock = EContentClock::Wall;
 	TUniquePtr<FAnomalyCaptureAsyncState> Async;
 	TUniquePtr<FAnomalyCaptureSession425> Frames425;
+    FDelegateHandle Frame425TickHandle;
+    void OnWorldPostActorTick425(UWorld* World, ELevelTick TickType, float DeltaSeconds);
 	TUniquePtr<FAnomalyPreviewTee> PreviewTee;
 
 	TUniquePtr<FAnomalyRunLog> RunLog;

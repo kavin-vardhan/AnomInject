@@ -766,6 +766,9 @@ static const TCHAR* DescribeMaskReduceSource()
 void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+#if ANOMALY_CAPTURE_FRAMES425
+    Frame425TickHandle = FWorldDelegates::OnWorldPostActorTick.AddUObject(this, &UAnomalyCaptureSubsystem::OnWorldPostActorTick425);
+#endif
 #if ANOMALY_CAPTURE_ADVANCED
 	RegisterBenchStuckMipLevers();
 	MaskEndFrameHandle = FCoreDelegates::OnEndFrame.AddUObject(this, &UAnomalyCaptureSubsystem::OnEndFrameMaskSample);
@@ -980,6 +983,10 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UAnomalyCaptureSubsystem::Deinitialize()
 {
 	bDeinitializing = true;
+#if ANOMALY_CAPTURE_FRAMES425
+    FWorldDelegates::OnWorldPostActorTick.Remove(Frame425TickHandle);
+    Frame425TickHandle.Reset();
+#endif
 	StopRun();
 #if ANOMALY_CAPTURE_ADVANCED
 	ClearExclusionTrailProvider();
@@ -1038,14 +1045,19 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
+void UAnomalyCaptureSubsystem::OnWorldPostActorTick425(UWorld* World, ELevelTick TickType, float DeltaSeconds)
 {
-	Super::Tick(DeltaTime);
 #if ANOMALY_CAPTURE_FRAMES425
-    Frames425->Tick(GetWorld());
+    if (bDeinitializing || World != GetWorld() || TickType != LEVELTICK_All) { return; }
+    Frames425->Tick(World);
     bRunning = Frames425->IsRunning();
     FramesWritten = Frames425->Written();
 #endif
+}
+
+void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
 #if ANOMALY_CAPTURE_ADVANCED
 	if (!bRunning)
 	{
