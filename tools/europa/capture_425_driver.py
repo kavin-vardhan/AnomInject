@@ -26,7 +26,8 @@ def finish(result,reason=None):
     if HANDLE is not None:
         handle=HANDLE;HANDLE=None
         unreal.unregister_slate_post_tick_callback(handle)
-    unreal.SystemLibrary.execute_console_command(unreal.EditorLevelLibrary.get_editor_world(),'QUIT_EDITOR')
+    world=unreal.EditorLevelLibrary.get_game_world() or unreal.EditorLevelLibrary.get_editor_world()
+    unreal.SystemLibrary.execute_console_command(world,'QUIT_EDITOR')
 
 def step(name):
     if name in STATE['steps']:return False
@@ -53,12 +54,11 @@ def tick(delta):
             STATE['module_alive']=__name__ in sys.modules and sys.modules[__name__].__dict__ is globals()
             if not STATE['module_alive'] or not all(row['present'] for row in STATE['bindings']):raise RuntimeError('C1 smoke binding missing')
             finish('SMOKE_PASS');return
-        editor=unreal.EditorLevelLibrary.get_editor_world()
         if step('load'):
             if not unreal.EditorLevelLibrary.load_level('/Game/EuropaPhaseA/EA_Core'):raise RuntimeError('Load refused')
             return
         if step('pie_start'):
-            console(editor,'IAI.Capture.PIEStart');return
+            console(unreal.EditorLevelLibrary.get_editor_world(),'IAI.Capture.PIEStart');return
         game=unreal.EditorLevelLibrary.get_game_world()
         if 'pie_end' in STATE['steps']:
             if not game:finish('PASS')
@@ -74,7 +74,7 @@ def tick(delta):
             except (ValueError,IOError):return
             STATE['capture']=data
             if data['written']!=60:raise RuntimeError('Plugin frame count differs')
-            if step('pie_end'):console(editor,'IAI.Capture.PIEEnd')
+            if step('pie_end'):console(game,'IAI.Capture.PIEEnd')
     except Exception as error:
         finish('FAIL',type(error).__name__+': '+str(error))
     finally:BUSY=False

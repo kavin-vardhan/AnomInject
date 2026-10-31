@@ -22,6 +22,10 @@ DEADLINE='2026-11-01T01:30:00+00:00'
 AUTHORITY='094-31b FM1-FM2 FL1-FL6 FJ1 FK1'
 INSTALLED=ROOT/'Launch/Europa425-Runtime.json'
 REFERENCE=ROOT/'Receipts/09427e/runtime-attempts/A7_-lod_corruption-positive/01/session/probe/lod_corruption-0-before.png'
+BACKBUFFER8='-ini:Engine:[/Script/Engine.RendererSettings]:r.DefaultBackBufferPixelFormat=0'
+
+def require_frame_format(argv):
+    if argv.count(BACKBUFFER8)!=1:raise RuntimeError('C1 requires the process-only 8-bit backbuffer override')
 
 def native_source_equal(commit):
     code=subprocess.call(['git','-C',str(TOOLS.parent.parent),'diff','--quiet',commit,'HEAD','--','Source','Shaders','AnomalyInjector.uplugin'])
@@ -32,7 +36,7 @@ def command(leg,root):
     if leg not in ('Smoke','C1PIE','C1Game'):raise RuntimeError('Unarmed C1 leg')
     argv=prepare('425',root/'session',True,False,leg!='C1Game')
     argv.insert(2,'/Engine/Maps/Entry' if leg!='C1Game' else '/Game/EuropaPhaseA/EA_Travel')
-    argv += [UPLOAD,ANALYTICS,'-nowrite','-SkipCompile','-stdout','-unattended','-NoSplash',
+    argv += [UPLOAD,ANALYTICS,BACKBUFFER8,'-nowrite','-SkipCompile','-stdout','-unattended','-NoSplash',
         '-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False',
         '-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False']
     commands=['r.PostProcessAAQuality 0','r.ScreenPercentage 100','r.DynamicRes.OperationMode 0','r.MotionBlurQuality 0','t.MaxFPS 30']
@@ -40,7 +44,9 @@ def command(leg,root):
     else:
         argv += ['-game','-IAICaptureExit']
         commands += ['IAI.Capture.C1 '+(root/'plugin-frames').as_posix()+' 60']
-    return argv+['-ExecCmds='+','.join(commands)]
+    argv += ['-ExecCmds='+','.join(commands)]
+    require_frame_format(argv)
+    return argv
 
 def run_session(leg,*args,**kwargs):
     mode={'Smoke':'Smoke','C1PIE':'Load','C1Game':'C1Game'}[leg]

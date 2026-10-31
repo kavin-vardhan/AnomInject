@@ -16,7 +16,9 @@ def main(output):
         def get_path_name(self):return '/Game/UEDPIE_0_EA_Core'
     class Editor(object):
         @staticmethod
-        def get_editor_world():return World()
+        def get_editor_world():
+            if game[0] is not None:raise RuntimeError('Editor world requested during PIE')
+            return World()
         @staticmethod
         def get_game_world():return game[0]
         @staticmethod
@@ -41,6 +43,11 @@ def main(output):
         compile(source,name,'exec');assert not rotator_contract.check_source(source,name);static.append(name)
     assert rotator_contract.check_source('unreal.Rotator(-12,0,0)','mutant')
     cases=[]
+    game[0]=World()
+    try:Editor.get_editor_world()
+    except RuntimeError:cases.append(dict(case='editor_query_during_pie',result='EXPECTED_FAIL'))
+    else:raise AssertionError('PIE editor query was admitted')
+    game[0]=None
     calls[:]=[]
     module=imp.load_source('capture_smoke',os.path.join(here,'capture_425_driver.py'));driver[0]=module
     module.start(os.path.join(output,'smoke.json'),os.path.join(output,'never-created'),True)
