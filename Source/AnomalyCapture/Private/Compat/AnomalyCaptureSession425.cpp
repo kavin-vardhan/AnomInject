@@ -58,11 +58,13 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         }
         const FString Name = FString::Printf(TEXT("frame-%06llu.png"), Frame.RequestId - 1);
         const FString Path = Output / Name;
+        const FString MaskOutput = AnomalyCaptureC2::Masks() ? Output : FString();
         if (Labels && !Labels->Pair(Frame.LabelKey425, Name)) { ++Failures; continue; }
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
-        Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path]()
+        Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path, MaskOutput]()
         {
+            if (!MaskOutput.IsEmpty() && !FAnomalyMasks425::Save(Frame,MaskOutput)) { return false; }
             TArray<FColor> Pixels; Pixels.SetNumUninitialized(Frame.Width * Frame.Height);
             for (int32 I = 0; I < Pixels.Num(); ++I)
             {
@@ -116,6 +118,8 @@ void FAnomalyCaptureSession425::Stop()
     FString Json = FString::Printf(TEXT("{\"rhi\":\"%s\",\"backbuffer_format\":%d,\"requested\":%d,\"written\":%d,\"dropped\":%d,\"pitch\":%d,\"mapped_height\":%d,\"elapsed_seconds\":%.6f,\"labels\":\"unqualified\",\"masks\":\"unavailable\",\"frames\":["),
         *RHI, Layout.Format, Count, Completed, Dropped, Layout.RowPitchInPixels, Layout.BufferHeight, FPlatformTime::Seconds() - Started);
     Json += FString::Join(Rows, TEXT(",")) + TEXT("]}");
+    if (AnomalyCaptureC2::Masks()) { Json.ReplaceInline(TEXT("\"masks\":\"unavailable\""),TEXT("\"masks\":\"stencil-depth-rdg425\"")); }
+
     const bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: finish RHI=%s written=%d requested=%d dropped=%d receipt=%d"), *RHI, Completed, Count, Dropped, Saved ? 1 : 0);
     Backend.Reset();

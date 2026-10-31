@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 
-#if ANOMALY_SHADERS
+#if ANOMALY_SHADERS && !ANOMALY_SHADERS425
 
 #include "GlobalShader.h"
 #include "ShaderParameterStruct.h"

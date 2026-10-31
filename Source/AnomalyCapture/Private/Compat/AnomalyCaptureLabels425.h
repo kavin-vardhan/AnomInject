@@ -5,6 +5,7 @@
 #include "AnomalyLabelFrame425.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
+#include "AnomalyMasks425.h"
 
 class FAnomalyCaptureLabels425
 {
@@ -18,6 +19,7 @@ public:
     bool Failed() const { return !Failure.IsEmpty(); }
 private:
     void Prepare(UWorld* World, ELevelTick TickType, float Delta);
+    TUniquePtr<FAnomalyMasks425> MaskOwner;
     TWeakObjectPtr<UWorld> Owner;
     FDelegateHandle PrepareHandle;
     FString Output;
@@ -39,6 +41,7 @@ namespace AnomalyCaptureC2
 {
     bool Enabled();
     bool Boundary();
+    bool Masks();
     void Finished(UWorld* World, bool Success);
 }
 #endif

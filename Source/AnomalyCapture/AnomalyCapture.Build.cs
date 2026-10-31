@@ -356,11 +356,12 @@ public class AnomalyCapture : ModuleRules
 				"ApplicationCore"
 			});
 
-			if (AnomalyEngineRules.Is51(Target))
+			if (AnomalyEngineRules.Is51(Target) || AnomalyEngineRules.Is425(Target))
 			{
 				PrivateDependencyModuleNames.AddRange(new string[] { "Renderer", "AnomalyShaders" });
 			}
 
+if (AnomalyEngineRules.Is425(Target)) { PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Source", "Runtime", "Renderer", "Private")); }
 #if UE_5_1_OR_LATER && !UE_5_2_OR_LATER
 			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
 #endif

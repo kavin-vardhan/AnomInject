@@ -12,6 +12,8 @@ struct FAnomalyLabelKey425
     uint32 FamilyFrame = 0;
     int32 SessionIndex = -1;
     int32 AA = -1;
+    bool Masks = false;
+    uint32 MaskTarget = 0;
 };
 
 namespace AnomalyLabelKey425

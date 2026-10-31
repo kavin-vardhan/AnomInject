@@ -267,6 +267,16 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 }
 
 #if ANOMALY_ENGINE_425
+void FAnomalyFrameCapturer::CaptureMask_RenderThread(uint64 Id, const FTextureRHIRef& Source, const FVertexBufferRHIRef& Table)
+{
+    FMaskFlight425 Item;
+    Item.Pixels = MakeUnique<FAnomalyReadback425>(TEXT("AnomalyMaskPixels425"));
+    Item.Table = MakeUnique<FRHIGPUBufferReadback>(TEXT("AnomalyMaskTable425"));
+    FRHICommandListImmediate& Cmd = FRHICommandListExecutor::GetImmediateCommandList();
+    Item.Pixels->EnqueueCopy(Cmd,Source);
+    Item.Table->EnqueueCopy(Cmd,Table,1536*4);
+    PendingMasks425.Add(Id,MoveTemp(Item));
+}
 void FAnomalyFrameCapturer::CaptureView_RenderThread(uint64 Id, const FTexture2DRHIRef& Source, const FIntRect& Rect)
 {
     check(IsInRenderingThread());
@@ -400,6 +410,9 @@ void FAnomalyFrameCapturer::Submit_RenderThread(const FArm& Arm, const FTexture2
 	FInFlight Item;
 	Item.RequestId = Arm.RequestId;
 	Item.Readback = MoveTemp(Readback);
+#if ANOMALY_ENGINE_425
+    if (FMaskFlight425* Mask = PendingMasks425.Find(Arm.RequestId)) { Item.Mask425 = MoveTemp(*Mask); PendingMasks425.Remove(Arm.RequestId); }
+#endif
 	Item.Rect = Rect;
 	Item.SourceExtent = FIntPoint(BBW, BBH);
 	Item.Format = SrcFormat;
@@ -434,7 +447,10 @@ void FAnomalyFrameCapturer::Drain_RenderThread()
 			continue;
 		}
 
-		int32 RowPitchInPixels = 0;
+#if ANOMALY_ENGINE_425
+        if (Item.Mask425.Pixels && (!Item.Mask425.Pixels->IsReady() || !Item.Mask425.Table->IsReady())) { continue; }
+#endif
+        int32 RowPitchInPixels = 0;
 		int32 BufferHeight = 0;
 		void* Src = Item.Readback->Lock(RowPitchInPixels, &BufferHeight);
 #if ANOMALY_ENGINE_425
@@ -484,9 +500,24 @@ void FAnomalyFrameCapturer::Drain_RenderThread()
 				FMemory::Memcpy(Frame.RawBytes.GetData() + (int64)y * W * BPP, SrcRow, (int64)W * BPP);
 			}
 
-			Item.Readback->Unlock();
-
-			{
+            Item.Readback->Unlock();
+#if ANOMALY_ENGINE_425
+            if (Item.Mask425.Pixels)
+            {
+                int32 Pitch = 0, Height = 0;
+                void* Pixels = Item.Mask425.Pixels->Lock(Pitch,&Height);
+                if (!AnomalyReadback425::Accept(Pixels != nullptr,W,H,Pitch,Height))
+                {
+                    if (Pixels) { Item.Mask425.Pixels->Unlock(); }
+                    GuardDrops.Increment(); InFlight.RemoveAt(i); continue;
+                }
+                Frame.MaskData425.Append(static_cast<const uint8*>(Pixels),W*H*16); Item.Mask425.Pixels->Unlock();
+                void* Table = Item.Mask425.Table->Lock(1536*4);
+                if (!Table) { GuardDrops.Increment(); InFlight.RemoveAt(i); continue; }
+                Frame.MaskTable425.Append(static_cast<const uint32*>(Table),1536); Item.Mask425.Table->Unlock();
+            }
+#endif
+            {
 				FScopeLock Lock(&CompletedCS);
 				Completed.Add(MoveTemp(Frame));
 			}

@@ -12,9 +12,11 @@ public class AnomalyShaders : ModuleRules
 			"Core"
 		});
 
-		if (AnomalyEngineRules.Is51(Target) && Target.Configuration != UnrealTargetConfiguration.Shipping)
+		PublicDefinitions.Add("ANOMALY_SHADERS425=" + (AnomalyEngineRules.Is425(Target) ? "1" : "0"));
+		if ((AnomalyEngineRules.Is51(Target) || AnomalyEngineRules.Is425(Target)) && Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PublicDefinitions.Add("ANOMALY_SHADERS=1");
+            if (AnomalyEngineRules.Is425(Target)) { PublicDependencyModuleNames.Add("Renderer"); }
 
 			PublicDependencyModuleNames.AddRange(new string[]
 			{

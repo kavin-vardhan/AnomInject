@@ -5,6 +5,7 @@
 #include "SceneInterface.h"
 #include "CoreGlobals.h"
 #include "UnrealClient.h"
+#include "AnomalyMasks425.h"
 FAnomalyViewMetadata425::FAnomalyViewMetadata425(const FAutoRegister& Register, UWorld* World)
     : FSceneViewExtensionBase(Register), Owner(World) {}
 bool FAnomalyViewMetadata425::IsActiveThisFrame(FViewport* Viewport) const
@@ -53,7 +54,7 @@ bool FAnomalyViewMetadata425::Queue(const FAnomalyLabelKey425& Key, SWindow* Win
     Tickets.Add(Key.Request, Ticket);
     return true;
 }
-void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListImmediate&, FSceneViewFamily& Family)
+void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family)
 {
     FScopeLock Lock(&Guard);
     for (auto& Pair : Tickets)
@@ -69,6 +70,10 @@ void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListI
             {
                 Rejections.Increment();
                 continue;
+            }
+            if (Ticket.Key.Masks && !FAnomalyMasks425::Render(Cmd,Family,Ticket.Key.Request,Ticket.Key.MaskTarget,*Capturer))
+            {
+                Rejections.Increment(); continue;
             }
             Capturer->CaptureView_RenderThread(Ticket.Key.Request, Source->GetTexture2D(), Rect);
         }

@@ -10,6 +10,8 @@
 #include "Layout/ArrangedChildren.h"
 #include "RenderingThread.h"
 #include "CoreGlobals.h"
+#include "AnomalyCaptureLabels425.h"
+#include "AnomalyMasks425.h"
 bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
 {
     if (!World || !World->IsGameWorld() || !World->GetGameViewport() || !FSlateApplication::IsInitialized()) { return false; }
@@ -32,6 +34,8 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
     FAnomalyLabelKey425 Key;
     Key.Epoch = LabelEpoch; Key.Owner = World->GetUniqueID(); Key.Request = Id;
     Key.SampleFrame = GFrameCounter; Key.SessionIndex = int32(Id - 1);
+    Key.Masks = AnomalyCaptureC2::Masks();
+    Key.MaskTarget = Key.Masks ? FAnomalyMasks425::Selection(World) : 0;
     if (!View->Queue(Key, Window.Get(), ViewRect, Capturer)) { return false; }
     PendingAA.Add(Id, AA);
     return true;

@@ -68,6 +68,11 @@ namespace
 bool FAnomalyCaptureLabels425::Start(UWorld* World, const FString& Directory, bool Boundary)
 {
     if (!World || !World->IsGameWorld() || !World->GetSubsystem<UAnomalyInjectorSubsystem>()) { return false; }
+    if (AnomalyCaptureC2::Masks())
+    {
+        MaskOwner = MakeUnique<FAnomalyMasks425>();
+        if (!MaskOwner->Start(World)) { MaskOwner->Restore(); MaskOwner.Reset(); return false; }
+    }
     Owner = World; Output = Directory; BoundaryOnly = Boundary; RunEpoch = ++CaptureEpoch425;
     Started = FPlatformTime::Seconds(); SavedFixed = FApp::UseFixedTimeStep(); SavedDelta = FApp::GetFixedDeltaTime();
     SavedPace = CapturePace425;
@@ -205,6 +210,13 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
         Failure = TEXT("Unpaired, stale or duplicate label key"); return false;
     }
     auto Row = *Found;
+    if (MaskOwner)
+    {
+        if (!Key.Masks) { Failure = TEXT("Mask family not paired"); return false; }
+        Row->SetStringField(TEXT("mask"),FString::Printf(TEXT("mask-%06d.png"),Key.SessionIndex));
+        Row->SetStringField(TEXT("mask_evidence"),FString::Printf(TEXT("evidence-%06d.u32x4.zlib"),Key.SessionIndex));
+        Row->SetNumberField(TEXT("mask_target_tag"),Key.MaskTarget);
+    }
     Row->SetStringField(TEXT("image"), File); Row->SetNumberField(TEXT("family_frame"), Key.FamilyFrame);
     Row->SetNumberField(TEXT("aa"), Key.AA); Row->SetStringField(TEXT("pairing"), TEXT("post_actor_tick_to_post_render_family"));
     Frames.Add(Key.SessionIndex, Row); Pending.Remove(Key.Request);
@@ -221,13 +233,15 @@ void FAnomalyCaptureLabels425::Stop(int32 Written, int32 Dropped)
             Injector->RevertAllActive(); Injector->SetSynthTickOrder(false);
         }
     }
+    const bool MaskRestored = !MaskOwner || MaskOwner->Restore();
+    if (!MaskRestored) { Failure = TEXT("Stencil ownership restoration failed"); }
     FApp::SetFixedDeltaTime(SavedDelta); FApp::SetUseFixedTimeStep(SavedFixed);
     CapturePace425 = SavedPace;
     TArray<int32> Indices; Frames.GetKeys(Indices); Indices.Sort();
     FString Lines;
     TArray<TSharedPtr<FJsonValue>> Events;
     for (int32 Index : Indices) { Lines += Json425(Frames[Index]) + TEXT("\n"); }
-    for (int32 Event = 0; !BoundaryOnly && Event != 24; ++Event)
+    for (int32 Event = 0; !BoundaryOnly && Event != (AnomalyCaptureC2::Masks() ? 12 : 24); ++Event)
     {
         TArray<int32> Affected, Injected;
         const TCHAR* Route = CaptureRoutes425[(Event / 3) % 4];
@@ -264,7 +278,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written, int32 Dropped)
     Annotation->SetNumberField(TEXT("label_schema"),2); Annotation->SetNumberField(TEXT("label_schema_minor"),1);
     Annotation->SetNumberField(TEXT("transition_frame_count"),0);
     Annotation->SetStringField(TEXT("session_id"),FString::Printf(TEXT("425-%llu"),RunEpoch));
-    Annotation->SetStringField(TEXT("profile"),TEXT("4.25 colour and frame-exact labels; masks unavailable"));
+    Annotation->SetStringField(TEXT("profile"),AnomalyCaptureC2::Masks() ? TEXT("4.25 paired colour, labels, stencil/depth and masks") : TEXT("4.25 colour and frame-exact labels; masks unavailable"));
     auto Video = MakeShared<FJsonObject>(); Video->SetStringField(TEXT("frames_dir"),Output);
     Video->SetStringField(TEXT("path"),TEXT("")); Video->SetNumberField(TEXT("fps"),30);
     Video->SetNumberField(TEXT("total_frames"),Written); Video->SetNumberField(TEXT("target_fps"),30);
@@ -275,6 +289,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written, int32 Dropped)
     Result->SetStringField(TEXT("failure"),Failure); Result->SetNumberField(TEXT("epoch"),double(RunEpoch));
     Result->SetNumberField(TEXT("written"),Written); Result->SetNumberField(TEXT("paired"),Frames.Num());
     Result->SetNumberField(TEXT("unmatched_dropped"),Pending.Num()); Result->SetNumberField(TEXT("dropped"),Dropped);
+    Result->SetBoolField(TEXT("mask_state_restored"),MaskRestored);
     Result->SetBoolField(TEXT("boundary_only"),BoundaryOnly); Result->SetBoolField(TEXT("pacing_restored"),FApp::UseFixedTimeStep() == SavedFixed && FApp::GetFixedDeltaTime() == SavedDelta);
     Result->SetArrayField(TEXT("commands"),Commands);
     const bool Saved = FFileHelper::SaveStringToFile(Lines,*(Output/TEXT("labels.jsonl")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM) &&
@@ -286,6 +301,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written, int32 Dropped)
 
 bool AnomalyCaptureC2::Enabled() { return CapturePhase425 != 0; }
 bool AnomalyCaptureC2::Boundary() { return CapturePhase425 == 2; }
+bool AnomalyCaptureC2::Masks() { return CapturePhase425 == 3; }
 void AnomalyCaptureC2::Finished(UWorld* World, bool Success)
 {
     if (!Success || CapturePhase425 != 1)
@@ -319,6 +335,16 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureLabelsCommand425(TEXT("IAI.Cap
         if (UAnomalyCaptureSubsystem* Capture = World->GetSubsystem<UAnomalyCaptureSubsystem>())
         {
             Capture->StartRun(CaptureRoot425/TEXT("epoch01"),true,0,480);
+        }
+    }));
+static FAutoConsoleCommandWithWorldAndArgs CaptureMasksCommand425(TEXT("IAI.Capture.C3"),TEXT("C3 bounded paired RGB, stencil and masks"),
+    FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
+    {
+        if (CapturePhase425 || Args.Num() != 1 || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench")) || !Camera425(World)) { return; }
+        CaptureRoot425 = Args[0]; CapturePhase425 = 3;
+        if (UAnomalyCaptureSubsystem* Capture = World->GetSubsystem<UAnomalyCaptureSubsystem>())
+        {
+            Capture->StartRun(CaptureRoot425/TEXT("epoch01"),true,0,240);
         }
     }));
 #endif

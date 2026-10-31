@@ -52,6 +52,8 @@ struct FAnomalyCapturedFrame
 {
 #if ANOMALY_ENGINE_425
     FAnomalyLabelKey425 LabelKey425;
+    TArray<uint8> MaskData425;
+    TArray<uint32> MaskTable425;
 #endif
 	uint64 RequestId = 0;
 	int32 Width = 0;
@@ -105,6 +107,7 @@ public:
 	void ArmForCapture(uint64 RequestId, SWindow* TargetWindow, const FIntRect& CaptureRect);
 #if ANOMALY_ENGINE_425
     void CaptureView_RenderThread(uint64 Id, const FTexture2DRHIRef& Source, const FIntRect& Rect);
+    void CaptureMask_RenderThread(uint64 Id, const FTextureRHIRef& Source, const FVertexBufferRHIRef& Table);
 #endif
 	void EnqueueDrain();
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
@@ -129,10 +132,22 @@ private:
 
 	void Submit_RenderThread(const FArm& Arm, const FTexture2DRHIRef& Source);
 
-	struct FInFlight
+#if ANOMALY_ENGINE_425
+    struct FMaskFlight425
+    {
+        TUniquePtr<FAnomalyReadback425> Pixels;
+        TUniquePtr<FRHIGPUBufferReadback> Table;
+    };
+    TMap<uint64,FMaskFlight425> PendingMasks425;
+#endif
+
+    struct FInFlight
 	{
 		uint64 RequestId = 0;
 		TUniquePtr<FAnomalyColorReadback> Readback;
+#if ANOMALY_ENGINE_425
+        FMaskFlight425 Mask425;
+#endif
 		FIntRect Rect;
 		FIntPoint SourceExtent = FIntPoint::ZeroValue;
 		EPixelFormat Format = PF_Unknown;

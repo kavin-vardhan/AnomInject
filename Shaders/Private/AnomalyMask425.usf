@@ -1,0 +1,27 @@
+#include "/Engine/Private/Common.ush"
+RWTexture2D<uint4> Evidence;
+RWTexture2D<uint> Mask;
+RWTexture2D<uint> Drawn;
+int2 OutputSize;
+int2 InternalMin;
+int2 InternalSize;
+uint TargetTag;
+float DepthBias;
+[numthreads(8,8,1)]
+void MainCS(uint3 DispatchId : SV_DispatchThreadID)
+{
+    int2 P = int2(DispatchId.xy);
+    if (any(P >= OutputSize)) return;
+    int2 S = InternalMin + min((P * InternalSize) / OutputSize, InternalSize - 1);
+    uint Tag = SceneTexturesStruct.CustomStencilTexture.Load(int3(S,0)) STENCIL_COMPONENT_SWIZZLE;
+    float CustomZ = SceneTexturesStruct.CustomDepthTexture.Load(int3(S,0)).r;
+    float SceneZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(S,0)).r;
+    bool Reserved = Tag >= 128 && Tag <= 131;
+    bool Selected = TargetTag == 255 ? Reserved : TargetTag != 0 && Tag == TargetTag;
+    bool Visible = CustomZ > 0 && CustomZ >= SceneZ - DepthBias;
+    uint M = Selected && Visible ? Tag : 0;
+    uint D = M != 0 && abs(CustomZ - SceneZ) <= DepthBias ? Tag : 0;
+    Evidence[P] = uint4(Tag, asuint(CustomZ), asuint(SceneZ), M | (D << 8));
+    Mask[P] = M;
+    Drawn[P] = D;
+}
