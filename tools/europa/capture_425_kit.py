@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 
 from fixture_policy import HOST,TOOLS,ROOT,sha,verify_files,UPLOAD,ANALYTICS,managed_snapshot
@@ -22,6 +23,11 @@ AUTHORITY='094-31 FL1-FL6 FJ1 FK1'
 INSTALLED=ROOT/'Launch/Europa425-Runtime.json'
 REFERENCE=ROOT/'Receipts/09427e/runtime-attempts/A7_-lod_corruption-positive/01/session/probe/lod_corruption-0-before.png'
 
+def native_source_equal(commit):
+    code=subprocess.call(['git','-C',str(TOOLS.parent.parent),'diff','--quiet',commit,'HEAD','--','Source','Shaders','AnomalyInjector.uplugin'])
+    if code not in (0,1):raise RuntimeError('Cannot compare build source')
+    return code==0
+
 def command(leg,root):
     if leg not in ('Smoke','C1PIE','C1Game'):raise RuntimeError('Unarmed C1 leg')
     argv=prepare('425',root/'session',True,False,leg!='C1Game')
@@ -38,6 +44,7 @@ def command(leg,root):
 
 def arm():
     built=[json.loads(p.read_text()) for p in (JOB/'builds').glob('*/result.json')]
+    built=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and native_source_equal(r['commit'])]
     for target in ('StylizedParisStreetEditor','StylizedParisStreet'):
         if not any(r.get('target')==target and r.get('gate_result')=='PASS' and r.get('exit_code')==0 for r in built):
             raise RuntimeError('Both qualified C1 builds are required before arming')
