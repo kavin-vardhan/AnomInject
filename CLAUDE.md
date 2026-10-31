@@ -15,6 +15,8 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-31b, 2026-10-31 - C1 qualification resumed under FM1.** Entry tip 466ecb1 is clean; the old admission processes are gone and no 094-31 build ran. The two 4.25 Development targets now use one free-commit reading >=8 GiB, below-normal UBT priority, two parallel actions, an immediate owned-tree stop below 3 GiB and at most three attempts per target. C1 runtime gates remain pending. No push or tags.
+
 > **094-31, 2026-10-31 - IN PROGRESS: C1 source implemented; native qualification pending.** The exact-4.25 non-Shipping route enables frame-only capture, preserves the 5.1 guarded path, and keeps ControlServer/Shaders off. FL3 rejects and counts mismatched staging layouts; G488 is renumbered. Targeted Python 2.7, pixel-reader, arming and stand-in checks pass. The first UBT build is queued under the retained 4 GiB physical / 16 GiB commit start gate; no compiler or Unreal session has started. Both C1 gates remain unproved. See docs/sessions/2026-10-31-094-31-c1-frames.md. No push or tags.
 
 > **094-30, 2026-10-31 — capture-port plan complete; implementation not started.** Phase C now precedes texture work: C1 plugin frames, C2 zero-frame label mismatch, C3 paired masks. The 36-row stock-4.25 inventory distinguishes available readback classes from their incompatible mapping contract, and keeps networking out of the capture prerequisite. No build, editor/game launch, native change, push or tags. Phase A remains complete; Capture/ControlServer/Shaders remain compiled out on 4.25. See docs/europa/PHASEC-capture-port-plan.md.

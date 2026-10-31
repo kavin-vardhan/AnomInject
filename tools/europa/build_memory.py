@@ -31,7 +31,13 @@ def policy():
 
 def admission(reading, limits=None):
     limits = limits or policy()
-    return reading['free_physical'] >= limits['start_physical_GiB'] * GIB and reading['free_commit'] >= limits['start_commit_GiB'] * GIB
+    physical = limits['start_physical_GiB']
+    return (physical is None or reading['free_physical'] >= physical * GIB) and reading['free_commit'] >= limits['start_commit_GiB'] * GIB
+
+
+def required_readings(start):
+    from job_scope import load
+    return 1 if load().get('incremental_memory_authority') == '094-31-ruling FM1' else (3 if start else 2)
 
 def pressure(reading, limits=None):
     limits = limits or policy()
@@ -48,12 +54,13 @@ def event(path, value):
 
 def wait_for_window(log, sampler=sample, sleeper=time.sleep, clock=time.monotonic, limit=4 * 3600):
     start, consecutive = clock(), 0
+    required = required_readings(True)
     while True:
         reading = sampler()
         consecutive = consecutive + 1 if admission(reading) else 0
-        event(log, {'event': 'admitted' if consecutive >= 3 else 'waiting', 'reading': reading,
+        event(log, {'event': 'admitted' if consecutive >= required else 'waiting', 'reading': reading,
             'consecutive': consecutive, 'wait_seconds': clock() - start, 'policy': policy()})
-        if consecutive >= 3:
+        if consecutive >= required:
             return reading
         if clock() - start >= limit:
             event(log, {'event': 'timeout', 'wait_seconds': clock() - start})
@@ -63,10 +70,10 @@ def wait_for_window(log, sampler=sample, sleeper=time.sleep, clock=time.monotoni
 def monitor_sample(reading, consecutive, stop, log):
     consecutive = consecutive + 1 if pressure(reading) else 0
     event(log, {'event': 'running', 'reading': reading, 'consecutive_low': consecutive})
-    if consecutive >= 2:
+    if consecutive >= required_readings(False):
         stopped = stop()
         event(log, {'event': 'stopped_owned_tree', 'reading': reading, 'processes': stopped})
-        raise MemoryStopped('EF1 stopped owned UBT tree; clean outputs before waiting again')
+        raise MemoryStopped('Stopped owned UBT tree on ruled memory pressure; preserve evidence and retry only within the job attempt limit')
     return consecutive
 
 class OwnedTree:

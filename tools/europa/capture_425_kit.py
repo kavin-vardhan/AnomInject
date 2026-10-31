@@ -16,10 +16,10 @@ from runtime_evidence import freeze,outcome
 from fixture_uploads import check as uploads
 from capture_425_reader import check as read_frames
 
-JOB=ROOT/'Receipts/09431'
-TEMP=ROOT/'Temp/09431/runtime'
+JOB=ROOT/'Receipts/09431b'
+TEMP=ROOT/'Temp/09431b/runtime'
 DEADLINE='2026-11-01T01:30:00+00:00'
-AUTHORITY='094-31 FL1-FL6 FJ1 FK1'
+AUTHORITY='094-31b FM1-FM2 FL1-FL6 FJ1 FK1'
 INSTALLED=ROOT/'Launch/Europa425-Runtime.json'
 REFERENCE=ROOT/'Receipts/09427e/runtime-attempts/A7_-lod_corruption-positive/01/session/probe/lod_corruption-0-before.png'
 
@@ -49,7 +49,7 @@ def run_session(leg,*args,**kwargs):
 def arm():
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before arming C1')
     prior=json.loads(INSTALLED.read_text())
-    assert prior.get('arming_job')!='09431'
+    assert prior.get('arming_job')!='09431b'
     verify_files(prior['engine_files'])
     built=[json.loads(p.read_text()) for p in (JOB/'builds').glob('*/result.json')]
     built=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and native_source_equal(r['commit'])]
@@ -77,7 +77,7 @@ def arm():
         build_pairs=[],query_pairs=[],max_parallel_actions=1,memory=memory,runtime_authorized=True,runtime_scope=scope,
         window_deadline_utc=DEADLINE)
     create_json(JOB/'capture-job-config.json',job)
-    config=dict(arming_job='09431',authority=AUTHORITY,source_commit=head,scope=scope,memory=memory,
+    config=dict(arming_job='09431b',authority=AUTHORITY,source_commit=head,scope=scope,memory=memory,
         window_deadline_utc=DEADLINE,session_seconds=90,protected=protection_snapshot(),engine_files=prior['engine_files'],
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),reference=dict(path=str(REFERENCE),sha256=sha(REFERENCE)),
         tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
@@ -93,7 +93,7 @@ def arm():
     return config
 
 def validate(config):
-    if config.get('arming_job')!='09431' or config.get('authority')!=AUTHORITY:raise RuntimeError('Spent/older arming refused')
+    if config.get('arming_job')!='09431b' or config.get('authority')!=AUTHORITY:raise RuntimeError('Spent/older arming refused')
     if config['session_seconds']!=90 or config['window_deadline_utc']!=DEADLINE:raise RuntimeError('C1 scope changed')
     verify_files(config['tooling_files'])
     verify_files(config['engine_files'])

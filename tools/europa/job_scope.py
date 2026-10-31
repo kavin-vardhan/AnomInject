@@ -6,8 +6,27 @@ from pathlib import Path
 ROOT = Path('D:/IA_Europa')
 
 
+def fm1(data, job):
+    return (job == ROOT/'Receipts/09431b' and
+            data.get('incremental_memory_authority') == '094-31-ruling FM1' and
+            data.get('incremental_builds_only') is True and not data.get('full_rebuild', False) and
+            data.get('runtime_authorized') is False and data.get('query_pairs') == [] and
+            data.get('max_parallel_actions') == 2 and data.get('max_build_attempts_per_target') == 3 and
+            {tuple(p) for p in data.get('build_pairs', [])} == {
+                ('425','StylizedParisStreetEditor','Development'), ('425','StylizedParisStreet','Development')} and
+            data.get('memory') == {'start_physical_GiB':None,'start_commit_GiB':8,
+                                   'stop_physical_GiB':None,'stop_commit_GiB':3})
+
 
 def memory_policy_allowed(data, job):
+    if fm1(data, job):
+        return True
+    if (job == ROOT/'Receipts/09431b' and data.get('runtime_authorized') is True
+        and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
+        and data.get('authority')=='094-31b FM1-FM2 FL1-FL6 FJ1 FK1'
+        and data.get('build_pairs')==[] and data.get('query_pairs')==[]
+        and data['memory']=={'start_physical_GiB':4,'start_commit_GiB':8,'stop_physical_GiB':None,'stop_commit_GiB':4}):
+        return True
     if (job == ROOT/'Receipts/09431' and data.get('runtime_authorized') is True
         and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
         and data.get('authority')=='094-31 FL1-FL6 FJ1 FK1'
@@ -73,7 +92,7 @@ def load(path=None):
                 raise RuntimeError('Unknown target in job allow-list')
             if configuration == 'Shipping' and (target.endswith('Editor') or host == '51base'):
                 raise RuntimeError('Unapproved Shipping pair')
-    if data['max_parallel_actions'] not in (1, 4):
+    if data['max_parallel_actions'] not in (1, 4) and not fm1(data, job):
         raise RuntimeError('Unapproved action parallelism')
     if not memory_policy_allowed(data, job):
         raise RuntimeError('Memory policy is not a ruled EF1/EI2/EV4/FD3/FK1 policy')
