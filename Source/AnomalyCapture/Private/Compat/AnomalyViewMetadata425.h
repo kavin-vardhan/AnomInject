@@ -11,6 +11,8 @@ public:
     void SetupViewFamily(FSceneViewFamily&) override {}
     void SetupView(FSceneViewFamily&, FSceneView&) override {}
     void BeginRenderViewFamily(FSceneViewFamily& Family) override;
+    void PreRenderViewFamily_RenderThread(FRHICommandListImmediate&, FSceneViewFamily&) override {}
+    void PreRenderView_RenderThread(FRHICommandListImmediate&, FSceneView&) override {}
     bool IsActiveThisFrame(FViewport* Viewport) const override;
     bool Read(FIntRect& Rect, int32& AA, uint32& FamilyFrame) const;
 private:
