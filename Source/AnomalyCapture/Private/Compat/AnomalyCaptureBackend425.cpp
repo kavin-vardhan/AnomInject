@@ -17,7 +17,7 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
     {
         Owner = World;
         Capturer = MakeShared<FAnomalyFrameCapturer, ESPMode::ThreadSafe>();
-        Capturer->RegisterBackbufferHook();
+        Capturer->SetLayoutPathName(TEXT("view-family-pre-ui-425"));
         View = FSceneViewExtensions::NewExtension<FAnomalyViewMetadata425>(World);
         return false;
     }
@@ -29,23 +29,10 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
     if (!Window || !Client->Viewport || Client->Viewport->GetSizeXY() != FIntPoint(1280, 720)) { return false; }
     FIntRect ViewRect; int32 AA = -1; uint32 Frame = 0;
     if (!View->Read(ViewRect, AA, Frame) || ViewRect.Size() != FIntPoint(1280, 720)) { return false; }
-    FArrangedChildren Children(EVisibility::Visible);
-    Children.AddWidget(FArrangedWidget(Window.ToSharedRef(), Window->GetWindowGeometryInWindow()));
-    FWidgetPath Path(Window.ToSharedRef(), Children);
-    if (!Path.ExtendPathTo(FWidgetMatcher(Widget.ToSharedRef()), EVisibility::Visible)) { return false; }
-    const FArrangedWidget Arranged = Path.FindArrangedWidget(Widget.ToSharedRef()).Get(FArrangedWidget::GetNullWidget());
-    const FVector2D Origin = Arranged.Geometry.GetAbsolutePosition();
-    const FVector2D Size = Arranged.Geometry.GetAbsoluteSize();
-    FIntRect Rect(FMath::RoundToInt(Origin.X), FMath::RoundToInt(Origin.Y), FMath::RoundToInt(Origin.X + Size.X), FMath::RoundToInt(Origin.Y + Size.Y));
-    if (Rect.Size() != FIntPoint(1280, 720)) { return false; }
-    if (LabelEpoch)
-    {
-        FAnomalyLabelKey425 Key;
-        Key.Epoch = LabelEpoch; Key.Owner = World->GetUniqueID(); Key.Request = Id;
-        Key.SampleFrame = GFrameCounter; Key.SessionIndex = int32(Id - 1);
-        if (!View->Queue(Key, Window.Get(), Rect, Capturer)) { return false; }
-    }
-    else { Capturer->ArmForCapture(Id, Window.Get(), Rect); }
+    FAnomalyLabelKey425 Key;
+    Key.Epoch = LabelEpoch; Key.Owner = World->GetUniqueID(); Key.Request = Id;
+    Key.SampleFrame = GFrameCounter; Key.SessionIndex = int32(Id - 1);
+    if (!View->Queue(Key, Window.Get(), ViewRect, Capturer)) { return false; }
     PendingAA.Add(Id, AA);
     return true;
 }
@@ -56,8 +43,8 @@ bool FAnomalyCaptureBackend425::PollFrame(FAnomalyCapturedFrame& Frame)
     if (!Capturer->PopCompleted(Frame)) { return false; }
     int32* AA = PendingAA.Find(Frame.RequestId);
     if (!AA) { return false; }
-    if (LabelEpoch && !View->Take(Frame.RequestId, Frame.LabelKey425)) { PendingAA.Remove(Frame.RequestId); return false; }
-    Frame.TemporalAaMethod = LabelEpoch ? Frame.LabelKey425.AA : *AA;
+    if (!View->Take(Frame.RequestId, Frame.LabelKey425)) { PendingAA.Remove(Frame.RequestId); return false; }
+    Frame.TemporalAaMethod = Frame.LabelKey425.AA;
     Frame.bTemporalViewKnown = true;
     PendingAA.Remove(Frame.RequestId);
     return true;

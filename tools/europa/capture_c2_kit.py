@@ -28,7 +28,7 @@ def command(leg,root):
     return argv
 
 def validate(config):
-    if config.get('arming_job')!='09432' or config.get('stage')!='C2' or config['deadline']!=c1.DEADLINE:raise RuntimeError('Wrong C2 arming')
+    if config.get('arming_job')!='09433' or config.get('stage')!='C2' or config['deadline']!=c1.DEADLINE:raise RuntimeError('Wrong C2 arming')
     verify_files(config['engine_files']);verify_files(config['tooling_files']);verify_protection(config['protected'])
     if sha(config['manifest']['path'])!=config['manifest']['sha256']:raise RuntimeError('Manifest changed')
     verify_files(json.loads(Path(config['manifest']['path']).read_text())['files'])
@@ -37,8 +37,9 @@ def validate(config):
 def arm():
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before C2 arming')
     prior=json.loads(INSTALLED.read_text())
-    if prior.get('stage')=='C2':raise RuntimeError('C2 already armed/spent')
-    for leg,slot in [('C1PIE','01'),('C1Game','02')]:
+    if prior.get('stage')=='C2' and prior.get('arming_job')=='09433':raise RuntimeError('C2 already armed/spent')
+    for leg in ('C1PIE','C1Game'):
+        slot=next(s for s in ('01','02') if (J/'capture-attempts'/leg/s/'result.json').exists() and json.loads((J/'capture-attempts'/leg/s/'result.json').read_text())['result']=='PASS')
         root=J/'capture-attempts'/leg/slot
         assert json.loads((root/'result.json').read_text())['result']=='PASS'
         ensure_frozen(root/'raw-evidence.json')
@@ -51,10 +52,10 @@ def arm():
     manifest=json.loads(Path(prior['manifest']['path']).read_text())
     for row in manifest['files']:
         p=Path(row['path']);row.update(size=p.stat().st_size,mtime_ns=p.stat().st_mtime_ns,sha256=sha(p))
-    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09432 C2 label builds; C1 raw evidence retained')
+    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09433 C2 label builds; C1 raw evidence retained')
     manifest_path=J/'c2-425-binaries.json';create_json(manifest_path,manifest)
     refs=json.loads((J/'c2-reference-plan.json').read_text())
-    config=dict(arming_job='09432',stage='C2',authority=c1.AUTHORITY,source_commit=head,deadline=c1.DEADLINE,
+    config=dict(arming_job='09433',stage='C2',authority=c1.AUTHORITY,source_commit=head,deadline=c1.DEADLINE,
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),protected=current,
         engine_files=prior['engine_files'],tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
         reference_files=refs['files'],references=refs['references'],boundary_reference=prior['game_reference'],
@@ -62,7 +63,7 @@ def arm():
     config['reference_files'].append(dict(path=prior['game_reference']['path'],size=Path(prior['game_reference']['path']).stat().st_size,sha256=prior['game_reference']['sha256']))
     job=json.loads((J/'capture-job-config.json').read_text())
     job['runtime_scope'].update(legs=['Smoke','C2'],maximum_sessions_per_leg=1)
-    job['temp_root']=str(c1.ROOT/'Temp/09432/c2')
+    job['temp_root']=str(c1.ROOT/'Temp/09433/c2')
     create_json(J/'c2-job-config.json',job)
     validate(config)
     create_json(J/'c2-prior-arming.json',prior);create_json(J/'c2-arming.json',config)
@@ -91,7 +92,7 @@ def run(leg):
     config=json.loads(INSTALLED.read_text());validate(config)
     if leg not in config['slots']:raise RuntimeError('Unarmed leg')
     if leg=='C2' and json.loads((Path(config['slots']['Smoke'])/'result.json').read_text())['result']!='PASS':raise RuntimeError('C2 binding smoke failed')
-    root=Path(config['slots'][leg]);temp=c1.ROOT/'Temp/09432/c2'/leg
+    root=Path(config['slots'][leg]);temp=c1.ROOT/'Temp/09433/c2'/leg
     os.environ['EUROPA_JOB_CONFIG']=str(J/'c2-job-config.json')
     import write_ledger as ledger
     from runtime_lean_gate import wait
@@ -123,6 +124,8 @@ def run(leg):
                 result=reader.read(str(root/'plugin-frames/epoch01'),config['references'],str(negatives))
                 primary=[json.loads(line) for line in (root/'plugin-frames/epoch01/labels.jsonl').read_text().splitlines() if line]
                 result['boundary']=boundary(root,primary,config['boundary_reference']['path'])
+                from capture_fo_reader import check as check_ui
+                result['ui_free']=check_ui(root/'plugin-frames','C2')
         except Exception as error:result=dict(result='FAIL',reason=str(error))
         create_json(root/'reader.json',result)
         raw=freeze(root,list(process.glob('*'))+[p for p in (root/'plugin-frames').rglob('*') if p.is_file()])

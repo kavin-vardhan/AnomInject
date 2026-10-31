@@ -4,6 +4,7 @@
 #include "Misc/ScopeLock.h"
 #include "SceneInterface.h"
 #include "CoreGlobals.h"
+#include "UnrealClient.h"
 FAnomalyViewMetadata425::FAnomalyViewMetadata425(const FAutoRegister& Register, UWorld* World)
     : FSceneViewExtensionBase(Register), Owner(World) {}
 bool FAnomalyViewMetadata425::IsActiveThisFrame(FViewport* Viewport) const
@@ -62,7 +63,14 @@ void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListI
         Ticket.Rendered = true;
         if (TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer = Ticket.Capturer.Pin())
         {
-            Capturer->ArmForCapture(Ticket.Key.Request, Ticket.Window, Ticket.Rect);
+            const FTextureRHIRef Source = Family.RenderTarget ? Family.RenderTarget->GetRenderTargetTexture() : FTextureRHIRef();
+            const FIntRect Rect = Family.Views.Num() == 1 ? Family.Views[0]->UnscaledViewRect : FIntRect();
+            if (!Source.IsValid() || !Source->GetTexture2D() || Rect != Ticket.Rect)
+            {
+                Rejections.Increment();
+                continue;
+            }
+            Capturer->CaptureView_RenderThread(Ticket.Key.Request, Source->GetTexture2D(), Rect);
         }
         else { Rejections.Increment(); }
     }

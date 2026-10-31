@@ -263,6 +263,23 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 		return;
 	}
 
+    Submit_RenderThread(Arm, BackBuffer);
+}
+
+#if ANOMALY_ENGINE_425
+void FAnomalyFrameCapturer::CaptureView_RenderThread(uint64 Id, const FTexture2DRHIRef& Source, const FIntRect& Rect)
+{
+    check(IsInRenderingThread());
+    Drain_RenderThread();
+    if (!Source.IsValid()) { GuardDrops.Increment(); return; }
+    FArm Arm;
+    Arm.RequestId = Id; Arm.Rect = Rect; Arm.RegisteredRtFrame = GFrameNumberRenderThread;
+    Submit_RenderThread(Arm, Source);
+}
+#endif
+
+void FAnomalyFrameCapturer::Submit_RenderThread(const FArm& Arm, const FTexture2DRHIRef& BackBuffer)
+{
 	const int32 BBW = (int32)BackBuffer->GetSizeX();
 	const int32 BBH = (int32)BackBuffer->GetSizeY();
 	const FIntRect Requested = Arm.Rect;

@@ -16,13 +16,13 @@ from runtime_evidence import freeze,outcome
 from fixture_uploads import check as uploads
 from capture_425_reader import check as read_frames
 
-JOB=ROOT/'Receipts/09432'
-TEMP=ROOT/'Temp/09432/runtime'
+JOB=ROOT/'Receipts/09433'
+TEMP=ROOT/'Temp/09433/runtime'
 DEADLINE='2026-11-01T06:30:00+00:00'
-AUTHORITY='094-32 FN1-FN5 FM1 FL1-FL6 FJ1 FK1'
+AUTHORITY='094-33 FO1-FO5 FN2 FM1 FJ1 FK1'
 INSTALLED=ROOT/'Launch/Europa425-Runtime.json'
 REFERENCE=ROOT/'Receipts/09427e/runtime-attempts/A7_-lod_corruption-positive/01/session/probe/lod_corruption-0-before.png'
-GAME_REFERENCE=JOB/'capture-attempts/C1Game/01/diagnostics/source.png'
+GAME_REFERENCE=ROOT/'Receipts/09432/capture-attempts/C1Game/01/diagnostics/source.png'
 
 def reference_for(config,leg):
     return config['game_reference']['path'] if leg=='C1Game' else config['reference']['path']
@@ -34,7 +34,7 @@ def require_slot_history(config,leg,number,old,smoke_result):
     if leg!='Smoke' and smoke_result!='PASS':
         raise RuntimeError('Passing C1 binding smoke for this core revision required')
     if leg=='Smoke' and number==2:
-        if config.get('guard_requalification')!='09432-UBT-command-race':raise RuntimeError('Unarmed core requalification')
+        if config.get('guard_requalification')!='09433-UBT-command-race':raise RuntimeError('Unarmed core requalification')
     elif number==2 and not any(r['leg']==leg and r['result']=='FAIL' and not r['end_run'] for r in old):
         raise RuntimeError('Retry requires a diagnosed failed first session')
 
@@ -67,7 +67,7 @@ def run_session(leg,*args,**kwargs):
 def arm():
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before arming C1')
     prior=json.loads(INSTALLED.read_text())
-    assert prior.get('arming_job')!='09432'
+    assert prior.get('arming_job')!='09433'
     verify_files(prior['engine_files'])
     built=[json.loads(p.read_text()) for p in (JOB/'builds').glob('*/result.json')]
     built=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and native_source_equal(r['commit'])]
@@ -77,15 +77,15 @@ def arm():
     entry=json.loads((JOB/'entry.json').read_text())['protected']
     current=protection_snapshot()
     if any(entry[k]!=current[k] for k in ('content','config','descriptors')):raise RuntimeError('Protected change since entry')
-    manifest=json.loads((ROOT/'Receipts/09431b/final-425-binaries.json').read_text())
+    manifest=json.loads((ROOT/'Receipts/09432/c2-425-binaries.json').read_text())
     for row in manifest['files']:
         path=Path(row['path']);row.update(size=path.stat().st_size,mtime_ns=path.stat().st_mtime_ns,sha256=sha(path))
     head=__import__('subprocess').check_output(['git','-C',str(TOOLS.parent.parent),'rev-parse','HEAD'],text=True).strip()
     manifest.update(source_commit=head,tooling_commit=head,authority=AUTHORITY,purpose='C1 authorized Development rebuild; Shipping retained',
         production_source_equal='C1 changed capture source; no Phase A production-equality claim',
         build_sources={r['target']:r['commit'] for r in built if r.get('gate_result')=='PASS'},
-        prior_manifest=str(ROOT/'Receipts/09431b/final-425-binaries.json'),
-        prior_manifest_sha256=sha(ROOT/'Receipts/09431b/final-425-binaries.json'))
+        prior_manifest=str(ROOT/'Receipts/09432/c2-425-binaries.json'),
+        prior_manifest_sha256=sha(ROOT/'Receipts/09432/c2-425-binaries.json'))
     manifest_path=JOB/'final-425-binaries.json';create_json(manifest_path,manifest)
     verify_files(manifest['files']);verify_files(manifest['probe_source'])
     memory=dict(start_physical_GiB=4,start_commit_GiB=8,stop_physical_GiB=None,stop_commit_GiB=4)
@@ -95,9 +95,9 @@ def arm():
         build_pairs=[],query_pairs=[],max_parallel_actions=1,memory=memory,runtime_authorized=True,runtime_scope=scope,
         window_deadline_utc=DEADLINE)
     create_json(JOB/'capture-job-config.json',job)
-    config=dict(arming_job='09432',authority=AUTHORITY,source_commit=head,scope=scope,memory=memory,
+    config=dict(arming_job='09433',authority=AUTHORITY,source_commit=head,scope=scope,memory=memory,
         window_deadline_utc=DEADLINE,session_seconds=90,protected=protection_snapshot(),engine_files=prior['engine_files'],
-        manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),reference=dict(path=str(REFERENCE),sha256=sha(REFERENCE)),
+        manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),reference=dict(path=str(REFERENCE),sha256=sha(REFERENCE)),game_reference=dict(path=str(GAME_REFERENCE),sha256=sha(GAME_REFERENCE)),
         tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
         slots={leg:{str(n):str(JOB/'capture-attempts'/leg/('%02d'%n)) for n in ((1,) if leg=='Smoke' else (1,2))} for leg in scope['legs']})
     create_json(JOB/'superseded-runtime.json',prior)
@@ -111,7 +111,7 @@ def arm():
     return config
 
 def validate(config):
-    if config.get('arming_job')!='09432' or config.get('authority')!=AUTHORITY:raise RuntimeError('Spent/older arming refused')
+    if config.get('arming_job')!='09433' or config.get('authority')!=AUTHORITY:raise RuntimeError('Spent/older arming refused')
     if config['session_seconds']!=90 or config['window_deadline_utc']!=DEADLINE:raise RuntimeError('C1 scope changed')
     verify_files(config['tooling_files'])
     verify_files(config['engine_files'])
@@ -168,7 +168,10 @@ def run(only=None,number=1):
                 if leg=='Smoke':
                     if not driver or driver.get('result')!='SMOKE_PASS':raise ValueError('C1 binding smoke failed')
                     reader=dict(result='PASS',bindings=driver['bindings'],loads=0,saves=0)
-                else:reader=read_frames(str(root),reference_for(config,leg))
+                else:
+                    reader=read_frames(str(root),reference_for(config,leg))
+                    from capture_fo_reader import check as check_ui
+                    reader['ui_free']=check_ui(root/'plugin-frames',leg)
                 log=(root/'session/Runtime.log').read_text(encoding='utf-8-sig',errors='replace')
                 if row.get('exit_code')!=0 or 'LogExit: Exiting.' not in log:raise ValueError('Normal exit missing')
                 if 'AnomalyControlServer module started (compiled out: ANOMALY_CONTROL_SERVER=0).' not in log or 'AnomalyShaders compiled out (ANOMALY_SHADERS=0).' not in log:raise ValueError('C1 disabled modules differ')

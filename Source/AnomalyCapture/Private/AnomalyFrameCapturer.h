@@ -103,6 +103,9 @@ public:
 	void RegisterBackbufferHook();
 	void UnregisterBackbufferHook();
 	void ArmForCapture(uint64 RequestId, SWindow* TargetWindow, const FIntRect& CaptureRect);
+#if ANOMALY_ENGINE_425
+    void CaptureView_RenderThread(uint64 Id, const FTexture2DRHIRef& Source, const FIntRect& Rect);
+#endif
 	void EnqueueDrain();
 	bool PopCompleted(FAnomalyCapturedFrame& Out);
 	int32 NumPendingApprox() const;
@@ -123,6 +126,8 @@ private:
 		FIntRect Rect;
 		uint32 RegisteredRtFrame = 0;
 	};
+
+	void Submit_RenderThread(const FArm& Arm, const FTexture2DRHIRef& Source);
 
 	struct FInFlight
 	{
