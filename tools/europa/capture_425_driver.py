@@ -1,6 +1,7 @@
 from __future__ import print_function
 import json
 import os
+import sys
 import time
 
 STATE={}
@@ -40,6 +41,18 @@ def tick(delta):
         STATE['ticks']+=1
         if time.time()-STATE['started']>80:raise RuntimeError('C1 driver deadline')
         if STATE['ticks']<5:return
+        if STATE.get('smoke'):
+            names=('EditorLevelLibrary.get_editor_world','EditorLevelLibrary.get_game_world',
+                'EditorLevelLibrary.load_level','SystemLibrary.execute_console_command',
+                'register_slate_post_tick_callback','unregister_slate_post_tick_callback')
+            STATE['bindings']=[]
+            for name in names:
+                value=unreal
+                for part in name.split('.'):value=getattr(value,part,None)
+                STATE['bindings'].append(dict(binding=name,present=callable(value)))
+            STATE['module_alive']=__name__ in sys.modules and sys.modules[__name__].__dict__ is globals()
+            if not STATE['module_alive'] or not all(row['present'] for row in STATE['bindings']):raise RuntimeError('C1 smoke binding missing')
+            finish('SMOKE_PASS');return
         editor=unreal.EditorLevelLibrary.get_editor_world()
         if step('load'):
             if not unreal.EditorLevelLibrary.load_level('/Game/EuropaPhaseA/EA_Core'):raise RuntimeError('Load refused')
@@ -66,11 +79,11 @@ def tick(delta):
         finish('FAIL',type(error).__name__+': '+str(error))
     finally:BUSY=False
 
-def start(receipt,output):
+def start(receipt,output,smoke=False):
     import unreal
     global STATE,HANDLE,BUSY
     if os.path.exists(receipt):raise RuntimeError('Receipt already exists')
-    STATE=dict(receipt=receipt,output=output,started=time.time(),ticks=0,steps=[],terminal=False,exit_requests=0,result='RUNNING')
+    STATE=dict(receipt=receipt,output=output,started=time.time(),ticks=0,steps=[],terminal=False,exit_requests=0,result='RUNNING',smoke=smoke)
     BUSY=False
     record()
     HANDLE=unreal.register_slate_post_tick_callback(tick)

@@ -41,6 +41,13 @@ def main(output):
         compile(source,name,'exec');assert not rotator_contract.check_source(source,name);static.append(name)
     assert rotator_contract.check_source('unreal.Rotator(-12,0,0)','mutant')
     cases=[]
+    calls[:]=[]
+    module=imp.load_source('capture_smoke',os.path.join(here,'capture_425_driver.py'));driver[0]=module
+    module.start(os.path.join(output,'smoke.json'),os.path.join(output,'never-created'),True)
+    for unused in range(10):module.tick(.1)
+    assert module.STATE['result']=='SMOKE_PASS' and module.STATE['module_alive'] and callback[0] is None
+    assert not any(c[0]=='load' for c in calls) and calls[-1]==['console','QUIT_EDITOR']
+    cases.append(dict(case='smoke_no_load',result='PASS'))
     for fail in (False,True):
         calls[:]=[];game[0]=None
         module=imp.load_source('capture_test',os.path.join(here,'capture_425_driver.py'));driver[0]=module
