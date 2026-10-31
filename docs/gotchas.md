@@ -10309,3 +10309,10 @@ An arm-time request ID alone is not a rendered-image label. The 4.25 C2 path car
 A correct 1280x720 staging layout can still contain unsupported pixels. The first C1 PIE session mapped pitch 1280 and height 720 but returned format 18, PF_A2B10G10R10. Stock 4.25 defaults r.DefaultBackBufferPixelFormat to 4. The historical 094-31b retry selected value 0 through a process-only override; FN2 superseded that workaround in 094-32. Keep the stock format and convert its channels exactly; the armed kit now refuses a backbuffer-format override. Do not reinterpret 10-bit bytes as 8-bit pixels or weaken the image reader. Source anchors and preserved evidence are in [the retry note](europa/09431b-c1-format-retry.md).
 
 FO4 restores the original 094-31b paragraph above. This appended correction supersedes its format workaround without rewriting the historical record. FO2 subsequently moves 4.25 colour sampling to the pre-UI rendered-family hook; the original stock 10-bit decoder remains.
+
+
+## G490 - 4.25 RDG reads inspect TargetableFlags (094-33)
+
+Create2DDesc keeps Flags and TargetableFlags separate (RenderCore/Public/RendererInterface.h:109-110). ShaderParameterStruct.cpp:496-503 requires TexCreate_ShaderResource in TargetableFlags for a graph texture parameter. A texture created with that bit only in common Flags can compile natively and compile its shader, then fail the runtime RDG access check. 09433 C3 logged this for MaskTexture and DrawnTexture before its first output and stalled until the owned deadline. The descriptor error is confirmed; the exact stall site is not. C3 remains unqualified and needs the descriptor correction plus a new authorized build/session.
+
+Do not call every shader error a shader compilation failure. The 09433 kit used a broad error-plus-shader search, so its original FAIL receipt also marks a crash/compile failure even though the observed error was runtime parameter validation and the wrapper terminated at its deadline. Preserve raw verdicts and record that limitation; no boot compile failure or independent exception was proved.

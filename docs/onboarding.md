@@ -122,8 +122,8 @@ Europa 094-27c (2026-10-30): The two A6 maps and shared mesh were quarantined an
 094-27e, 2026-10-31 — GREEN. Phase A is complete under FJ2: A3 Load already passed and all four A7 anomalies now have counted apply/revert pictures (blinking 6, lighting_mismatch 5, lod_corruption 6, missing_object 6). Smoke, blinking and LOD passed with exit 0. Lighting retains 094-27c evidence; missing_object retains the 094-27d re-read. Protected files and refs are unchanged; no crash or upload. A5, reflected GC, A8 and controls remain deferred under FJ1; the native probe write self-disable remains deferred under FK4. No native build, push or tags. The 09427e kit is spent. See `europa/09427e-a7-receipts.json` for the four contact sheets and session evidence.
 
 
-## Europa capture status (094-32)
+## Europa capture status (094-33)
 
-Phase A is complete. C1 now passes plugin-frame gates in PIE EA_Core and standalone -game EA_Travel using stock 10-bit D3D11 output, without a format override. C2's four-anomaly qualification route passes 480 labelled frames, both tick orders, every apply/revert/blink-toggle edge, three independent label-shift negatives, and a clean 12-frame travel epoch. Ordinary C1 capture remains frame-only; broader exporter parity, masks, wall-rate throughput and ControlServer are later work.
+Phase A remains complete. The 4.25 pre-UI colour path passes both C1 gates and the four-anomaly C2 gate: 60 frames per C1 session, 480 primary plus 12 travel C2 frames, zero label mismatches and zero heartbeat pixels. Stock 10-bit D3D11 output is retained without a format override.
 
-Only an authorized armed kit may launch a session; the used 09432 slots are spent. Native source 13ced10 is bound in the current 27-file manifest. See [receipts](europa/09432-capture-receipts.json) and [journal](sessions/2026-11-01-094-32-capture.md). No push or tags.
+C3 compiled and its binding smoke passed, but the mask leg produced no frames: RDG parameter validation found missing ShaderResource in TargetableFlags before the owned deadline stop. C3 is not qualified. The installed 09433 C3 slots and three FM1 build starts per target are spent. The next native correction and the kit's overbroad shader-error crash classification are recorded in G490 and the [journal](sessions/2026-11-01-094-33-pre-ui-masks.md). No push or tags.
