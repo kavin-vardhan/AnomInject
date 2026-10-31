@@ -43,6 +43,10 @@ def command(leg,root):
     return argv+['-ExecCmds='+','.join(commands)]
 
 def arm():
+    if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before arming C1')
+    prior=json.loads(INSTALLED.read_text())
+    assert prior.get('arming_job')!='09431'
+    verify_files(prior['engine_files'])
     built=[json.loads(p.read_text()) for p in (JOB/'builds').glob('*/result.json')]
     built=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and native_source_equal(r['commit'])]
     for target in ('StylizedParisStreetEditor','StylizedParisStreet'):
@@ -70,12 +74,10 @@ def arm():
         window_deadline_utc=DEADLINE)
     create_json(JOB/'capture-job-config.json',job)
     config=dict(arming_job='09431',authority=AUTHORITY,source_commit=head,scope=scope,memory=memory,
-        window_deadline_utc=DEADLINE,session_seconds=90,protected=protection_snapshot(),
+        window_deadline_utc=DEADLINE,session_seconds=90,protected=protection_snapshot(),engine_files=prior['engine_files'],
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),reference=dict(path=str(REFERENCE),sha256=sha(REFERENCE)),
         tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
         slots={leg:{str(n):str(JOB/'capture-attempts'/leg/('%02d'%n)) for n in ((1,) if leg=='Smoke' else (1,2))} for leg in scope['legs']})
-    prior=json.loads(INSTALLED.read_text())
-    assert prior.get('arming_job')!='09431'
     create_json(JOB/'superseded-runtime.json',prior)
     create_json(JOB/'capture-arming.json',config)
     shutil.copyfile(JOB/'capture-arming.json',INSTALLED)
@@ -90,6 +92,7 @@ def validate(config):
     if config.get('arming_job')!='09431' or config.get('authority')!=AUTHORITY:raise RuntimeError('Spent/older arming refused')
     if config['session_seconds']!=90 or config['window_deadline_utc']!=DEADLINE:raise RuntimeError('C1 scope changed')
     verify_files(config['tooling_files'])
+    verify_files(config['engine_files'])
     manifest=Path(config['manifest']['path'])
     if sha(manifest)!=config['manifest']['sha256']:raise RuntimeError('Manifest changed')
     verify_files(json.loads(manifest.read_text())['files'])
