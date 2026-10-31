@@ -1,0 +1,125 @@
+{
+  "job": "09432",
+  "result": "GREEN",
+  "native_commit": "13ced10da4e4099796326c18b82125310b6d35eb",
+  "receipt_root": "D:\\IA_Europa\\Receipts\\09432",
+  "entry": "D:\\IA_Europa\\Receipts\\09432\\entry.json",
+  "exit": "D:\\IA_Europa\\Receipts\\09432\\exit.json",
+  "builds": "D:\\IA_Europa\\Receipts\\09432\\build-summary.json",
+  "sessions": "D:\\IA_Europa\\Receipts\\09432\\session-summary.json",
+  "artifacts": "D:\\IA_Europa\\Receipts\\09432\\artifact-hashes.json",
+  "manifest": {
+    "path": "D:\\IA_Europa\\Receipts\\09432\\c2-425-binaries.json",
+    "result": "PASS",
+    "sha256": "b1e20eb9585c4d880539d35514374ef0be58b251b981b2618bd4b607af4d3046",
+    "files": 27
+  },
+  "tests": [
+    "D:\\IA_Europa\\Receipts\\09432\\tests\\summary.json",
+    "D:\\IA_Europa\\Receipts\\09432\\tests\\fn-final.json",
+    "D:\\IA_Europa\\Receipts\\09432\\tests\\native-conversion.json",
+    "D:\\IA_Europa\\Receipts\\09432\\tests\\game-reference.json",
+    "D:\\IA_Europa\\Receipts\\09432\\tests\\c2-summary.json",
+    "D:\\IA_Europa\\Receipts\\09432\\tests\\c2-kept-pixel-negatives.json",
+    "D:\\IA_Europa\\Receipts\\09432\\tests\\c2-python27.json"
+  ],
+  "c1": {
+    "PIE": "C1PIE/01 PASS",
+    "Game": "C1Game/02 PASS",
+    "retained_failure": "C1Game/01: wrong-map reference; thresholds unchanged",
+    "frames_each": 60,
+    "format": "PF_A2B10G10R10",
+    "RHI": "D3D11",
+    "dropped": 0
+  },
+  "c2": {
+    "reader": "D:\\IA_Europa\\Receipts\\09432\\c2-attempts\\C2\\01\\reader.json",
+    "primary_frames": 480,
+    "travel_frames": 12,
+    "mismatches": 0,
+    "ambiguous": 0,
+    "totals": [
+      {
+        "anomaly": "blinking",
+        "order": 0,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 6,
+        "mismatches": 0
+      },
+      {
+        "anomaly": "lighting_mismatch",
+        "order": 0,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 0,
+        "mismatches": 0
+      },
+      {
+        "anomaly": "lod_corruption",
+        "order": 0,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 0,
+        "mismatches": 0
+      },
+      {
+        "anomaly": "missing_object",
+        "order": 0,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 0,
+        "mismatches": 0
+      },
+      {
+        "anomaly": "blinking",
+        "order": 1,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 6,
+        "mismatches": 0
+      },
+      {
+        "anomaly": "lighting_mismatch",
+        "order": 1,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 0,
+        "mismatches": 0
+      },
+      {
+        "anomaly": "lod_corruption",
+        "order": 1,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 0,
+        "mismatches": 0
+      },
+      {
+        "anomaly": "missing_object",
+        "order": 1,
+        "events": 3,
+        "apply_edges": 3,
+        "revert_edges": 3,
+        "blink_toggle_edges": 0,
+        "mismatches": 0
+      }
+    ]
+  },
+  "scope_limits": [
+    "Four-anomaly C2 qualification route; ordinary C1 is frame-only",
+    "Wall-rate pacing, throughput, masks and full exporter parity unqualified"
+  ],
+  "crashes": 0,
+  "upload_signs": 0,
+  "protected_changes": 0,
+  "pushed": [],
+  "tags_created": []
+}
