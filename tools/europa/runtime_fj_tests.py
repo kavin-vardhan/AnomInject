@@ -58,19 +58,19 @@ def main(output):
         model.check((123,))
     assert not hasattr(model,'complete_at')
     done('probe writer protected: live A7 monitor never opens probe, absent last picture cannot finish')
-    good=dict(idle_seconds=300,free_memory_bytes=6*lean.GIB,free_commit_bytes=8*lean.GIB,
+    good=dict(idle_seconds=120,free_memory_bytes=4*lean.GIB,free_commit_bytes=8*lean.GIB,
         gpu_percent=100,processes=None,reading_errors={'gpu':'unknown'},volumes={d:dict(resolved_drive=d,free_bytes=n*lean.GIB) for d,n in lean.START_GIB.items()})
     assert not lean.reasons(good)
     gate=lean.wait(output/'one-reading.jsonl',policy.WINDOW_END,collector=lambda:good,sleep=lambda _:None)
     assert gate['status']=='CLEAR' and gate['polls']==1
-    for key,value in [('idle_seconds',299),('free_memory_bytes',6*lean.GIB-1),('free_commit_bytes',8*lean.GIB-1)]:
+    for key,value in [('idle_seconds',119),('free_memory_bytes',4*lean.GIB-1),('free_commit_bytes',8*lean.GIB-1)]:
         bad=copy.deepcopy(good);bad[key]=value;assert lean.reasons(bad)
     bad=copy.deepcopy(good);bad['volumes']['D']['free_bytes']=25*lean.GIB-1;assert lean.reasons(bad)
     sample=dict(free_commit_bytes=4*lean.GIB,volumes={d:dict(resolved_drive=d,free_bytes=n*lean.GIB) for d,n in lean.FLOOR_GIB.items()})
     assert not monitor.stop_reasons(sample)
     bad=copy.deepcopy(sample);bad['volumes']['D']['free_bytes']-=1;assert monitor.stop_reasons(bad)
     bad=copy.deepcopy(sample);bad['free_commit_bytes']-=1;assert monitor.stop_reasons(bad)
-    done('lean gate: one reading, exact FD3/D limits; GPU and missing coverage do not block')
+    done('lean gate: one reading, FK1/FK2 start and FD3 stop lines; GPU and missing coverage do not block')
     generated=scripts.steps('A7_:lod_corruption:positive')
     applies=[r for r in generated if r['command']=='apply' and r['args'][0]=='lod_corruption']
     assert len(applies)==6 and all(r['args']==['lod_corruption','EA_LOD','1'] for r in applies)

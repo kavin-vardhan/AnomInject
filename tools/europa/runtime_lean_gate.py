@@ -12,7 +12,7 @@ FLOOR_GIB={'C':10,'D':15,'E':10}
 
 def reasons(sample):
     found=[]
-    for key,minimum in (('idle_seconds',300),('free_memory_bytes',6*GIB),('free_commit_bytes',8*GIB)):
+    for key,minimum in (('idle_seconds',120),('free_memory_bytes',4*GIB),('free_commit_bytes',8*GIB)):
         if not numeric(sample.get(key)) or sample[key]<minimum:found.append(key)
     for drive,minimum in START_GIB.items():
         volume=volume_reading(sample,drive)
@@ -31,7 +31,7 @@ def wait(path,deadline,collector=idle_gate.collect,sleep=time.sleep,now=None):
             failures=reasons(sample)
             result=dict(status='WAIT' if failures else 'CLEAR',reasons=failures,polls=polls,
                 elapsed_seconds=time.monotonic()-began,sample=sample,utc=now().isoformat(),
-                authority='FJ1 one reading; GPU/process/input coverage recorded only; idle >=300 seconds')
+                authority='FK1/FK2; FJ1 one reading; GPU/process/input coverage recorded only; idle >=120 seconds')
             stream.write(json.dumps(result)+'\n');stream.flush()
             if not failures:return result
             sleep(min(30,max(0,(end-now()).total_seconds())))
