@@ -10272,3 +10272,8 @@ The cleanup reader consumes world_cleanup/actor_snapshot=skipped and is replayed
 ## 094-27c — G410 and Slate callback re-entry
 
 The 4.25 Python Rotator native-make signature is roll, pitch, yaw. Both kits now enforce all three names as keywords, model that signature in the Python 2.7 recording stub, and reject the old rolled-camera line. Authoring asserts normalized angles before any package save. A Slate post-tick driver must guard re-entry during synchronous map loads that pump progress UI, and unregister on its first failure before requesting exit once. Three prior load requests were already in flight before any completed; the later Niagara crash root cause is unconfirmed. FI4 permits one runtime crash with owned-tree cleanup, but a second, any authoring crash, protected change, upload/canary or broken smoke ends the run. See europa/09427c-runtime-authoring-amendment.md for source citations and tests.
+
+
+### 094-27d picture checks and exclusive probe writes
+
+Stock 4.25 tonemapper quantization can vary unchanged 8-bit frames by one intensity level. Qualify that bounded, balanced dither separately from brightness drift; never weaken active-change or restore checks to hide an anomaly. The fixture automatic LOD already selects the cube at this camera, so forced model 2 has no visible effect; model 1 selects the sphere. Never hold a read handle on the live exclusive-write probe: use completed screenshot signals for bounded normal closure and read the sealed probe after process exit. See `europa/09427d-a7-lean.md`.

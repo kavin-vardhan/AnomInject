@@ -15,6 +15,9 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **094-27d, 2026-10-31 — NEEDS-DECISION. A7 counted events: blinking 0, lighting_mismatch 5, lod_corruption 0, missing_object 6. Lighting uses kept 094-27c evidence; missing-object was re-read with a bounded one-level quantization check; only blinking and LOD were armed again, with a smoke slot because the lean gate and monitor core changed. A3 was already complete. A5, reflected GC, A8 and controls are deferred under FJ1. No native build, Content edit, push or tag. No real session launched before the 07:00 IST deadline; the gate remained below the physical-memory start line. **
+> See docs/europa/09427d-a7-receipts.json and docs/europa/09427d-a7-lean.md.
+
 > **094-27c, 2026-10-30 — RED.**
 > The two A6 maps and shared mesh were quarantined and authored fresh; both camera checks passed before any save. Keyword-only Rotator checks, the real-signature Python 2.7 stub, callback re-entry/single-shot exit and crash counting passed qualification. The prior Niagara shutdown crash root cause remains unconfirmed. Runtime sessions: 18 of 18; crashes: 1. Gates: A3 PASS, A5 FAIL, A6 FAIL, A7 FAIL, A8 FAIL. Counted-event contact sheets: 1. Initial exit canary scan: GAP, 4 unreadable paths outside the tested exclusions, no matches. Raw files and generated reader verdicts are retained. No native build, push or tags.
 > See docs/europa/09427c-runtime-receipts.json and docs/europa/09427c-runtime-authoring-amendment.md.

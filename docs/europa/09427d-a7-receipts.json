@@ -1,0 +1,101 @@
+{
+  "result": "NEEDS-DECISION",
+  "summary": "094-27d, 2026-10-31 \u2014 NEEDS-DECISION. A7 counted events: blinking 0, lighting_mismatch 5, lod_corruption 0, missing_object 6. Lighting uses kept 094-27c evidence; missing-object was re-read with a bounded one-level quantization check; only blinking and LOD were armed again, with a smoke slot because the lean gate and monitor core changed. A3 was already complete. A5, reflected GC, A8 and controls are deferred under FJ1. No native build, Content edit, push or tag. No real session launched before the 07:00 IST deadline; the gate remained below the physical-memory start line. ",
+  "tooling_commit": "9360c18043ee2310af3fcc2aad065454ef63cda8",
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\entry.json",
+      "size": 474171,
+      "sha256": "10608ab8f3c45514feae8eaf165326de4903cd0676f18df794bdd55ffa1d505c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\exit.json",
+      "size": 493407,
+      "sha256": "f11435eadfa9de2dbff62aa5bfda46cadeaa8f1d611a07dfe3987915cea3a992"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\diagnosis-measurements.json",
+      "size": 166068,
+      "sha256": "9e01d30f33a79686398f3cf1c0c07eccdee06a9362cc6b3ec5ae7e541456ddb4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\tooling-qualification.json",
+      "size": 4133,
+      "sha256": "d24d58bd1260cbf3829c83e79ea7fae393d8652d6f7fddfd70369c7e3a721ba9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\arming-receipt.json",
+      "size": 1849,
+      "sha256": "8886fd36b932358585fd5964abacbf2b50559568d25b9e9e7684c2c275c393c6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\qualification.json",
+      "size": 938,
+      "sha256": "f511f4c15c9463bedf4b575a44cff659f1af50679f7364b964abf361238b89a6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\live-reading.json",
+      "size": 202452,
+      "sha256": "982a8d614d29e959612ef8d6b4ad0b4d91fbc51e9f431f5dce5b995b5a54ee55"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\run-result.json",
+      "size": 908,
+      "sha256": "a8af21af86949488be5e2960a9c27fbe9d0151d468e7f6a1f4db5967c75f75c2"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\session-summary.json",
+      "size": 1159,
+      "sha256": "0099b23108af19b1e628638a37c5bb630702c34e77071a4db0453bfa7cea5b6a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\gate-summary.json",
+      "size": 602,
+      "sha256": "66cde3bfae7a8dfdbbf6ae1e506b98441abec7a5689e6487b114aac6b738462f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\contact-sheet-index.json",
+      "size": 47506,
+      "sha256": "c0be5900d1df23b81eaffe540f2e1868c08351a852709ff902526d53c7a927e8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\entry-console.txt",
+      "size": 136,
+      "sha256": "7d75c8c332dd160f3966c9e198a4d0274de2683a59566976fbe492c76fec0372"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\scratch\\unit-attempt1\\summary.json",
+      "size": 1538,
+      "sha256": "d0b5d7a73bc1c5c08c35b9e5ed0acdeff5c72f3b6a023e98a25e20daa12464e0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\scratch\\python27-attempt1\\summary.json",
+      "size": 84491,
+      "sha256": "0ef91dc6226c63efd900304bf3de13f30ee616644efa451ac4221e6c2f87c063"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\scratch\\core-rehearsal-attempt1\\summary.json",
+      "size": 14785,
+      "sha256": "5da444588a7e82ab93aaab787d7dc96a20539ca06c1359f4635341fe42c54291"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\scratch\\dry\\run-result.json",
+      "size": 11538,
+      "sha256": "f39da0b6845f58c3fa5441f3dd795d0c443b95c469aadd4a4cbf4a84c500e414"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\rereads\\missing_object\\reader.json",
+      "size": 43822,
+      "sha256": "b9d61674bea58648c297c2a22e7a788c5d3e54baf4795c91fac286492994edc9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427d\\rereads\\lod_corruption\\reader.json",
+      "size": 218,
+      "sha256": "b585bd869cc7bc97d0a3b68e63747174d0d5bd44ce9608e51cfa242db268886c"
+    }
+  ],
+  "contact_sheet_index": "D:\\IA_Europa\\Receipts\\09427d\\contact-sheet-index.json",
+  "profile": "FJ1 lean",
+  "pushes": [],
+  "tags": []
+}
