@@ -10286,3 +10286,12 @@ The FK1 start amendment also needs the exact 4/8/none/4 tuple in the shared job-
 ## G488 - Readback class presence does not establish mapping parity (094-30)
 
 Stock 4.25 has FRHIGPUTextureReadback, as PHASE0 measured, but RHIGPUReadback.h:99 offers Lock(uint32), not the 5.1 pitch/height overload. RHIGPUReadback.cpp:128-136 maps and discards width/height. Use an owned 4.25 staging/fence adapter that retains the map dimensions; never infer tight stride from image width. AddEnqueueCopyPass and view-family extension-data attachment are also absent even though RDG itself is present. These are source findings for Phase C, not a compiled or runtime proof; see europa/PHASEC-capture-port-plan.md.
+
+
+## 094-31b - Stock backbuffer format and short-lived child queries
+
+A correct 1280x720 staging layout can still contain unsupported pixels. The first C1 PIE session mapped pitch 1280 and height 720 but returned format 18, PF_A2B10G10R10. Stock 4.25 defaults r.DefaultBackBufferPixelFormat to 4. Its value 0 selects PF_B8G8R8A8; apply the process-only renderer-settings INI override before viewport creation with -nowrite. Do not reinterpret 10-bit bytes as 8-bit pixels or weaken the image reader. Source anchors and preserved evidence are in [the retry note](europa/09431b-c1-format-retry.md).
+
+The owned UBT guard later obtained ValidatePlatforms argv from a retained handle, then lost a subsequent NtQueryInformationProcess class-60 length query. Bounded retries may recover a transient query. A cached command is usable only after the same handle is signalled exited; live unreadable children, and exited children whose command was never captured, still refuse. The exact OS timing that caused the observed read failure remains unconfirmed. Keep failed session verdicts and require a new smoke after changing this core guard.
+
+A valid format, exact map layout and complete file count do not establish a valid picture. C1Game02 wrote sixty identical RGB-zero PNGs with no drop and normal exit. Keep the independent pixel gate and distinguish a confirmed black output from an unconfirmed camera/source/copy cause; do not infer which boundary failed without source and staging pixel evidence.

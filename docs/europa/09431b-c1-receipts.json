@@ -1,0 +1,45 @@
+{
+  "job": "09431b",
+  "result": "NEEDS-DECISION",
+  "summary": "Builds PASS; C1PIE FAIL; C1Game FAIL with 60 black PNGs",
+  "native_source": "024e5fc9f3ee5871f056f40f760274dc5fe76001",
+  "tooling_source": "31f6ab89b6af8fcc67d105dfc891a0b3680ebd51",
+  "receipts_root": "D:\\IA_Europa\\Receipts\\09431b",
+  "entry": "D:\\IA_Europa\\Receipts\\09431b\\entry.json",
+  "exit": "D:\\IA_Europa\\Receipts\\09431b\\exit.json",
+  "builds": "D:\\IA_Europa\\Receipts\\09431b\\build-summary.json",
+  "sessions": "D:\\IA_Europa\\Receipts\\09431b\\session-summary.json",
+  "pixel_diagnosis": "D:\\IA_Europa\\Receipts\\09431b\\game02-pixel-diagnosis.json",
+  "manifest": {
+    "path": "D:\\IA_Europa\\Receipts\\09431b\\final-425-binaries.json",
+    "result": "PASS",
+    "sha256": "98d186d13755ea013413ef7568a18e786cf4d6f24819ffde2cf4859ebc408360",
+    "files": 27
+  },
+  "artifact_hashes": "D:\\IA_Europa\\Receipts\\09431b\\artifact-hashes.json",
+  "tests": [
+    "D:\\IA_Europa\\Receipts\\09431b\\tests\\fm1\\summary.json",
+    "D:\\IA_Europa\\Receipts\\09431b\\tests\\fl3-negative.json",
+    "D:\\IA_Europa\\Receipts\\09431b\\tests\\python27-retry\\summary.json",
+    "D:\\IA_Europa\\Receipts\\09431b\\tests\\retry-tooling.json",
+    "D:\\IA_Europa\\Receipts\\09431b\\tests\\child-race-final\\summary.json"
+  ],
+  "rehearsal": "D:\\IA_Europa\\Receipts\\09431b\\guard-rehearsal\\summary.json",
+  "arming": "D:\\IA_Europa\\Receipts\\09431b\\arming-receipt.json",
+  "dry": "D:\\IA_Europa\\Receipts\\09431b\\capture-dry\\summary.json",
+  "revisions": [
+    "D:\\IA_Europa\\Receipts\\09431b\\tooling-revision-01\\receipt.json",
+    "D:\\IA_Europa\\Receipts\\09431b\\tooling-revision-02\\receipt.json"
+  ],
+  "crashes": 0,
+  "uploads": 0,
+  "protected_changes": 0,
+  "pushed_commits": [],
+  "archives": [],
+  "local_commits_before_close": [
+    "1ab689741053d04acd21728d3db53fbcae5859e8",
+    "024e5fc9f3ee5871f056f40f760274dc5fe76001",
+    "3e44a297a328571e9eb0cb6f238a64861bc00827",
+    "31f6ab89b6af8fcc67d105dfc891a0b3680ebd51"
+  ]
+}

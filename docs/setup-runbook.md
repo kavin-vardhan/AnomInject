@@ -886,3 +886,10 @@ Europa 094-27c (2026-10-30): The two A6 maps and shared mesh were quarantined an
 ### 094-27e: Phase A complete (2026-10-31)
 
 094-27e, 2026-10-31 — GREEN. Phase A is complete under FJ2: A3 Load already passed and all four A7 anomalies now have counted apply/revert pictures (blinking 6, lighting_mismatch 5, lod_corruption 6, missing_object 6). Smoke, blinking and LOD passed with exit 0. Lighting retains 094-27c evidence; missing_object retains the 094-27d re-read. Protected files and refs are unchanged; no crash or upload. A5, reflected GC, A8 and controls remain deferred under FJ1; the native probe write self-disable remains deferred under FK4. No native build, push or tags. The 09427e kit is spent. See `europa/09427e-a7-receipts.json` for the four contact sheets and session evidence.
+
+
+## Europa C1 incremental builds and sessions (094-31b)
+
+Use the job's authorized build wrapper and armed capture kit. FM1 admits UBT on one reading of at least 8 GiB free commit, starts it BelowNormal with -MaxParallelActions=2, and stops only its owned tree at the first reading below 3 GiB. There are at most three actual UBT starts per target. Rebind the 27-file manifest only after both Development targets pass and their native source matches.
+
+The C1 kit admits sessions on the FJ1/FK1 tuple: five idle minutes, 4 GiB physical and 8 GiB commit; it stops below 4 GiB commit in-session. Each slot is single-use with a 90-second limit. The process-only r.DefaultBackBufferPixelFormat=0 override is required before viewport creation, alongside the upload opt-outs and -nowrite. Keep failed receipts and raw hashes. The first PIE slot exposed unsupported stock 10-bit output; its retry stopped on an unreadable UBT argv. Both PIE slots are spent. A core guard repair requires the separately armed Smoke02 before Game02; no third PIE or Game slot is authorized. See the [job journal](sessions/2026-10-31-094-31b-c1-frames.md) for the final outcome.
