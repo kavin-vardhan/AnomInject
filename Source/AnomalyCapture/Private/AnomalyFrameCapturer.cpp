@@ -24,6 +24,9 @@
 #include "RHICommandList.h"
 #include "RHIResources.h"
 #include "PixelFormat.h"
+#if ANOMALY_CAPTURE_FRAMES425
+#include "RenderUtils.h"
+#endif
 #include "CoreGlobals.h"
 #include "HAL/IConsoleManager.h"
 
