@@ -881,3 +881,8 @@ Europa 094-27c (2026-10-30): The two A6 maps and shared mesh were quarantined an
 ### 094-27d lean Phase A closeout (2026-10-31)
 
 094-27d, 2026-10-31 — NEEDS-DECISION. A7 counted events: blinking 0, lighting_mismatch 5, lod_corruption 0, missing_object 6. Lighting uses kept 094-27c evidence; missing-object was re-read with a bounded one-level quantization check; only blinking and LOD were armed again, with a smoke slot because the lean gate and monitor core changed. A3 was already complete. A5, reflected GC, A8 and controls are deferred under FJ1. No native build, Content edit, push or tag. No real session launched before the 07:00 IST deadline; the gate remained below the physical-memory start line.  See `europa/09427d-a7-receipts.json` for the evidence. The 09427d kit is spent; a new session requires a fresh authorized arming.
+
+
+### 094-27e: Phase A complete (2026-10-31)
+
+094-27e, 2026-10-31 — GREEN. Phase A is complete under FJ2: A3 Load already passed and all four A7 anomalies now have counted apply/revert pictures (blinking 6, lighting_mismatch 5, lod_corruption 6, missing_object 6). Smoke, blinking and LOD passed with exit 0. Lighting retains 094-27c evidence; missing_object retains the 094-27d re-read. Protected files and refs are unchanged; no crash or upload. A5, reflected GC, A8 and controls remain deferred under FJ1; the native probe write self-disable remains deferred under FK4. No native build, push or tags. The 09427e kit is spent. See `europa/09427e-a7-receipts.json` for the four contact sheets and session evidence.

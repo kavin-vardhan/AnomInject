@@ -1,0 +1,111 @@
+{
+  "result": "GREEN",
+  "summary": "094-27e, 2026-10-31 \u2014 GREEN. Phase A is complete under FJ2: A3 Load already passed and all four A7 anomalies now have counted apply/revert pictures (blinking 6, lighting_mismatch 5, lod_corruption 6, missing_object 6). Smoke, blinking and LOD passed with exit 0. Lighting retains 094-27c evidence; missing_object retains the 094-27d re-read. Protected files and refs are unchanged; no crash or upload. A5, reflected GC, A8 and controls remain deferred under FJ1; the native probe write self-disable remains deferred under FK4. No native build, push or tags.",
+  "arming_source_commit": "f77d0fcc171425acb6c01b2c7dbc193fe44bcaed",
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\entry.json",
+      "size": 474172,
+      "sha256": "962a0d9500cf57da5ab6e1fa2aa4ef668a5f4ab9555d51237fd02c13f7cfe7df"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\exit.json",
+      "size": 493409,
+      "sha256": "5d8c8daa6cfcbe7c925819c433b4ec930d1d54f8dfc9dbc5114a90cfb2d2ab91"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\qualification.json",
+      "size": 979,
+      "sha256": "381023a5208440568a82778a09eb101bd90c701ccdd6ba93338c8c213a9f2a9e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\tooling-qualification.json",
+      "size": 4407,
+      "sha256": "6bc9dcd7b53a56f128cf2c1a3fe2387df66dbfd05e6f728dcfb366285919c35e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\arming-receipt-v2.json",
+      "size": 2042,
+      "sha256": "d585314ba2df706ebeca7639908a84875837e5bd71cb9745823c31e107a39c8b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\run-result.json",
+      "size": 301862,
+      "sha256": "8f70d7b1cad7620cf6cc1352e39b92288404c8da683048d643b6c39eff999978"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\session-summary.json",
+      "size": 997694,
+      "sha256": "94ff6ed6551069d456f164ada4cabae0c4b9b52340c01fb505e288a46de4d6a7"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\gate-summary.json",
+      "size": 1663,
+      "sha256": "5bddcc976fc1a8f745400d73bf30a0c66e102ce4032c101e6d5c1978c9f223da"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\contact-sheet-index.json",
+      "size": 65032,
+      "sha256": "5dc268f6e1df6638008c1ff16d1feb39c3dd297b9f70ab308fef51d5dca287c3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\entry-console.txt",
+      "size": 657,
+      "sha256": "ecb3393f4a3186dda8499532929c2b6a03c271db508b049ce98c3cf5eae69a1f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\scratch\\parameter-tests\\summary.json",
+      "size": 1274,
+      "sha256": "3ad1b44f2a7019fd23b428c7172a87b1bbaa5d3673f99a34c91c3f8e6c865d84"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\scratch\\scope-parameter-tests.json",
+      "size": 185,
+      "sha256": "edc376fa60dda20b25e609df6549b5f5d54a1007dda6611056427ced79ba25dc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\scratch\\dry-invocation-1.json",
+      "size": 222,
+      "sha256": "a793d7365b675fcdc68365b67f46dc2326fbd8ff6144b08a5d1dfb1bcc8d3a52"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\scratch\\dry\\run-result.json",
+      "size": 11568,
+      "sha256": "03d2b2ef33b4748f827a21fa87ec011e8afaa4692b3a09b17680d79845cb0cac"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\runtime-attempts\\A7_-blinking-positive\\01\\raw-evidence.json",
+      "size": 58721,
+      "sha256": "2aef627a130814a28d6774212231b821a8c4b399939272d31904754f52dbaea8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\runtime-attempts\\A7_-lod_corruption-positive\\01\\raw-evidence.json",
+      "size": 15730,
+      "sha256": "a0ec311b8674910f8fc05a15e51e2a2a72aec218fb0f10579f2d2f5ca34fb7fa"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\runtime-attempts\\Smoke\\01\\raw-evidence.json",
+      "size": 2640,
+      "sha256": "01f9d62d5c2216013e35db9b054a7f2827b542c1c7a5d772748f1e805463378c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\runtime-attempts\\A7_-blinking-positive\\01\\reader.json",
+      "size": 173550,
+      "sha256": "fb834642515302aa445e7452797e350669cb193e43bbaa5b0119a3f931d8f759"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\runtime-attempts\\A7_-lod_corruption-positive\\01\\reader.json",
+      "size": 47295,
+      "sha256": "3ebae8835364af02b316a6ff3b32f8e2ed52c19291c6602d2527ac57107072f3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09427e\\runtime-attempts\\Smoke\\01\\reader.json",
+      "size": 4819,
+      "sha256": "f3edb82c4e95cf179f58d74a88e2543e02c98529091660dda6db22fc364eaba0"
+    }
+  ],
+  "contact_sheet_index": "D:\\IA_Europa\\Receipts\\09427e\\contact-sheet-index.json",
+  "profile": "FJ1 with FK1/FK2",
+  "pushes": [],
+  "tags": []
+}

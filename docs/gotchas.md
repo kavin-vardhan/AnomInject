@@ -10277,3 +10277,8 @@ The 4.25 Python Rotator native-make signature is roll, pitch, yaw. Both kits now
 ### 094-27d picture checks and exclusive probe writes
 
 Stock 4.25 tonemapper quantization can vary unchanged 8-bit frames by one intensity level. Qualify that bounded, balanced dither separately from brightness drift; never weaken active-change or restore checks to hide an anomaly. The fixture automatic LOD already selects the cube at this camera, so forced model 2 has no visible effect; model 1 selects the sphere. Never hold a read handle on the live exclusive-write probe: use completed screenshot signals for bounded normal closure and read the sealed probe after process exit. See `europa/09427d-a7-lean.md`.
+
+
+### 094-27e: ruled memory tuples must reach the shared validator
+
+The FK1 start amendment also needs the exact 4/8/none/4 tuple in the shared job-scope validator. Limit that acceptance to the authorized runtime job with empty build/query lists; a lower threshold and a build scope must still refuse. The first dry invocation caught this before any session. The retained 094-27d fixes then passed real blinking and LOD pictures: no competing live A7 probe read, and forced LOD model 1 for the sphere.

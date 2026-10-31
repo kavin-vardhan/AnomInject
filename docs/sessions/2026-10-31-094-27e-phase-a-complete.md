@@ -1,0 +1,7 @@
+# 094-27e: Phase A complete
+
+094-27e, 2026-10-31 — GREEN. Phase A is complete under FJ2: A3 Load already passed and all four A7 anomalies now have counted apply/revert pictures (blinking 6, lighting_mismatch 5, lod_corruption 6, missing_object 6). Smoke, blinking and LOD passed with exit 0. Lighting retains 094-27c evidence; missing_object retains the 094-27d re-read. Protected files and refs are unchanged; no crash or upload. A5, reflected GC, A8 and controls remain deferred under FJ1; the native probe write self-disable remains deferred under FK4. No native build, push or tags.
+
+The start gate uses 4 GiB physical, 8 GiB free commit and 120 seconds idle; the in-session commit stop remains below 4 GiB. Parameter checks and old-arming refusals passed. The first dry invocation stopped before any slot at the shared memory-policy validator; its exact FK1 tuple was then added only for the authorized 09427e runtime job, with negative tests. The three-slot dry run then passed. Unchanged editor/game scripts, picture readers and native binaries were retained from 094-27d.
+
+All 69 counted screenshots are 1280x720 PNGs, hash-checked with per-picture AA=0 evidence. The new blinking sheet shows the right cube disappearing and returning; the LOD sheet shows cube-to-sphere-to-cube. No second slot was needed. See [predictions](../europa/09427e-predictions.md) and [receipts](../europa/09427e-a7-receipts.json).
