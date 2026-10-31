@@ -42,6 +42,10 @@ def command(leg,root):
         commands += ['IAI.Capture.C1 '+(root/'plugin-frames').as_posix()+' 60']
     return argv+['-ExecCmds='+','.join(commands)]
 
+def run_session(leg,*args,**kwargs):
+    mode={'Smoke':'Smoke','C1PIE':'Load','C1Game':'C1Game'}[leg]
+    return execute(mode,*args,**kwargs)
+
 def arm():
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before arming C1')
     prior=json.loads(INSTALLED.read_text())
@@ -131,7 +135,7 @@ def run(only=None,number=1):
             process=root/'process';process.mkdir();os.environ['EUROPA_OPERATION_DIR']=str(process)
             guard.reserve_launch(dict(number=number))
             print(leg+': launching bounded C1 session.',flush=True)
-            row=execute('Load' if leg=='C1PIE' else 'C1Game',root,temp,HOST,config['protected'],argv,ledger,90,
+            row=run_session(leg,root,temp,HOST,config['protected'],argv,ledger,90,
                 on_started=lambda pid:create_json(JOB/'capture-state'/leg/('%02d'%number)/'launched.json',dict(pid=pid,utc=stamp())))
             row['leg']=leg
             try:validate(config);protected=dict(result='PASS')
