@@ -16,6 +16,11 @@
 #include "IImageWrapperModule.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#if WITH_EDITOR
+#include "Editor.h"
+#include "PlayInEditorDataTypes.h"
+#include "Settings/LevelEditorPlaySettings.h"
+#endif
 
 bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, int32 InCount)
 {
@@ -33,6 +38,7 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
 void FAnomalyCaptureSession425::Tick(UWorld* World)
 {
     if (!Running) { return; }
+    if (FPlatformTime::Seconds() - Started < 3.0) { return; }
     FAnomalyCapturedFrame Frame;
     while (Backend->PollFrame(Frame))
     {
@@ -99,7 +105,7 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureFrames425(TEXT("IAI.Capture.C1
         if (!PC) { return; }
         for (TActorIterator<ACameraActor> It(World); It; ++It)
         {
-            if (It->GetName().Contains(TEXT("Camera"))) { PC->SetViewTarget(*It); break; }
+            if (It->ActorHasTag(TEXT("EA_Camera"))) { PC->SetViewTarget(*It); break; }
         }
         PC->bShowMouseCursor = false;
         if (UAnomalyCaptureSubsystem* Capture = World->GetSubsystem<UAnomalyCaptureSubsystem>())
@@ -107,4 +113,19 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureFrames425(TEXT("IAI.Capture.C1
             Capture->StartRun(Args[0], true, 0, FCString::Atoi(*Args[1]));
         }
     }));
+
+#if WITH_EDITOR
+static FAutoConsoleCommand CapturePIEStart425(TEXT("IAI.Capture.PIEStart"), TEXT("Begin the C1 in-process PIE viewport"),
+    FConsoleCommandDelegate::CreateLambda([]()
+    {
+        if (!GEditor || GEditor->PlayWorld) { return; }
+        FRequestPlaySessionParams Params;
+        GEditor->RequestPlaySession(Params);
+    }));
+static FAutoConsoleCommand CapturePIEEnd425(TEXT("IAI.Capture.PIEEnd"), TEXT("End the C1 PIE viewport"),
+    FConsoleCommandDelegate::CreateLambda([]()
+    {
+        if (GEditor) { GEditor->RequestEndPlayMap(); }
+    }));
+#endif
 #endif
