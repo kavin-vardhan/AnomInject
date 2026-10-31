@@ -30,6 +30,13 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     if (!IFileManager::Get().MakeDirectory(*Directory, true)) { return false; }
     FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     Backend = AnomalyCompat::CreateCaptureBackend425();
+    SessionWorld = World;
+    if (AnomalyCaptureC2::Enabled())
+    {
+        Labels = MakeUnique<FAnomalyCaptureLabels425>();
+        if (!Labels->Start(World, Directory, AnomalyCaptureC2::Boundary())) { Labels.Reset(); Backend.Reset(); return false; }
+        static_cast<FAnomalyCaptureBackend425*>(Backend.Get())->Labelled(Labels->Epoch());
+    }
     Output = Directory; Count = InCount; Requested = Completed = Failures = 0; NextId = 1;
     Writes.Empty(); Rows.Empty(); Running = true; Started = FPlatformTime::Seconds();
     RHI = GDynamicRHI ? GDynamicRHI->GetName() : TEXT("unknown");
@@ -51,6 +58,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         }
         const FString Name = FString::Printf(TEXT("frame-%06llu.png"), Frame.RequestId - 1);
         const FString Path = Output / Name;
+        if (Labels && !Labels->Pair(Frame.LabelKey425, Name)) { ++Failures; continue; }
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
         Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path]()
@@ -75,11 +83,16 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
             Writes.RemoveAt(I);
         }
     }
-    if (Completed + Failures >= Count || Failures || FPlatformTime::Seconds() - Started >= 80.0)
+    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (Labels ? 150.0 : 80.0))
     {
         Stop(); return;
     }
-    if (Requested < Count && Backend->RequestFrame(World, NextId)) { ++NextId; ++Requested; }
+    if (Requested < Count && Backend->RequestFrame(World, NextId))
+    {
+        if (Labels && !Labels->Snapshot(World, NextId)) { ++Failures; }
+        ++NextId; ++Requested;
+        if (Labels) { Labels->SetNext(Requested); }
+    }
 }
 
 void FAnomalyCaptureSession425::Stop()
@@ -92,13 +105,22 @@ void FAnomalyCaptureSession425::Stop()
     FAnomalyCaptureBackend425* Concrete = static_cast<FAnomalyCaptureBackend425*>(Backend.Get());
     const FAnomalyReadbackLayout Layout = Concrete->Layout();
     const int32 Dropped = Concrete->Dropped() + Failures;
+    bool LabelsPassed = true;
+    const bool HadLabels = bool(Labels);
+    if (Labels)
+    {
+        Labels->Stop(Completed, Dropped);
+        LabelsPassed = !Labels->Failed() && Dropped == 0 && Completed == Count;
+        Labels.Reset();
+    }
     FString Json = FString::Printf(TEXT("{\"rhi\":\"%s\",\"backbuffer_format\":%d,\"requested\":%d,\"written\":%d,\"dropped\":%d,\"pitch\":%d,\"mapped_height\":%d,\"elapsed_seconds\":%.6f,\"labels\":\"unqualified\",\"masks\":\"unavailable\",\"frames\":["),
         *RHI, Layout.Format, Count, Completed, Dropped, Layout.RowPitchInPixels, Layout.BufferHeight, FPlatformTime::Seconds() - Started);
     Json += FString::Join(Rows, TEXT(",")) + TEXT("]}");
     const bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: finish RHI=%s written=%d requested=%d dropped=%d receipt=%d"), *RHI, Completed, Count, Dropped, Saved ? 1 : 0);
     Backend.Reset();
-    if (FParse::Param(FCommandLine::Get(), TEXT("IAICaptureExit"))) { FPlatformMisc::RequestExit(false); }
+    if (HadLabels) { AnomalyCaptureC2::Finished(SessionWorld.Get(), LabelsPassed && Saved); }
+    else if (FParse::Param(FCommandLine::Get(), TEXT("IAICaptureExit"))) { FPlatformMisc::RequestExit(false); }
 }
 
 static FAutoConsoleCommandWithWorldAndArgs CaptureFrames425(TEXT("IAI.Capture.C1"), TEXT("C1 native PNG frames: absolute output directory and count; labels/masks unavailable"),

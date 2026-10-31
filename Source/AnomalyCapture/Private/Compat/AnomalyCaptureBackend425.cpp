@@ -9,6 +9,7 @@
 #include "Layout/ArrangedWidget.h"
 #include "Layout/ArrangedChildren.h"
 #include "RenderingThread.h"
+#include "CoreGlobals.h"
 bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
 {
     if (!World || !World->IsGameWorld() || !World->GetGameViewport() || !FSlateApplication::IsInitialized()) { return false; }
@@ -20,7 +21,7 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
         View = FSceneViewExtensions::NewExtension<FAnomalyViewMetadata425>(World);
         return false;
     }
-    if (Owner.Get() != World || PendingAA.Num() >= 1) { return false; }
+    if (Owner.Get() != World || PendingAA.Num() >= (LabelEpoch ? 8 : 1)) { return false; }
     UGameViewportClient* Client = World->GetGameViewport();
     TSharedPtr<SViewport> Widget = Client->GetGameViewportWidget();
     if (!Widget) { return false; }
@@ -37,8 +38,15 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
     const FVector2D Size = Arranged.Geometry.GetAbsoluteSize();
     FIntRect Rect(FMath::RoundToInt(Origin.X), FMath::RoundToInt(Origin.Y), FMath::RoundToInt(Origin.X + Size.X), FMath::RoundToInt(Origin.Y + Size.Y));
     if (Rect.Size() != FIntPoint(1280, 720)) { return false; }
+    if (LabelEpoch)
+    {
+        FAnomalyLabelKey425 Key;
+        Key.Epoch = LabelEpoch; Key.Owner = World->GetUniqueID(); Key.Request = Id;
+        Key.SampleFrame = GFrameCounter; Key.SessionIndex = int32(Id - 1);
+        if (!View->Queue(Key, Window.Get(), Rect, Capturer)) { return false; }
+    }
+    else { Capturer->ArmForCapture(Id, Window.Get(), Rect); }
     PendingAA.Add(Id, AA);
-    Capturer->ArmForCapture(Id, Window.Get(), Rect);
     return true;
 }
 bool FAnomalyCaptureBackend425::PollFrame(FAnomalyCapturedFrame& Frame)
@@ -48,20 +56,21 @@ bool FAnomalyCaptureBackend425::PollFrame(FAnomalyCapturedFrame& Frame)
     if (!Capturer->PopCompleted(Frame)) { return false; }
     int32* AA = PendingAA.Find(Frame.RequestId);
     if (!AA) { return false; }
-    Frame.TemporalAaMethod = *AA;
+    if (LabelEpoch && !View->Take(Frame.RequestId, Frame.LabelKey425)) { PendingAA.Remove(Frame.RequestId); return false; }
+    Frame.TemporalAaMethod = LabelEpoch ? Frame.LabelKey425.AA : *AA;
     Frame.bTemporalViewKnown = true;
     PendingAA.Remove(Frame.RequestId);
     return true;
 }
-int32 FAnomalyCaptureBackend425::Dropped() const { return Capturer ? Capturer->GetDropped() : FinalDrops; }
+int32 FAnomalyCaptureBackend425::Dropped() const { return Capturer ? Capturer->GetDropped() + (View ? View->Rejected() : 0) : FinalDrops; }
 FAnomalyReadbackLayout FAnomalyCaptureBackend425::Layout() const { return Capturer ? Capturer->GetReadbackLayout() : FinalLayout; }
 void FAnomalyCaptureBackend425::Stop()
 {
     if (!Capturer) { return; }
     Capturer->UnregisterBackbufferHook();
-    View.Reset();
     FlushRenderingCommands();
-    FinalDrops = Capturer->GetDropped();
+    FinalDrops = Capturer->GetDropped() + View->Rejected() + PendingAA.Num();
+    View.Reset();
     FinalLayout = Capturer->GetReadbackLayout();
     Capturer.Reset(); PendingAA.Empty();
 }

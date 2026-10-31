@@ -12,6 +12,7 @@ public:
     void Stop() override;
     int32 Dropped() const;
     FAnomalyReadbackLayout Layout() const;
+    void Labelled(uint64 Epoch) { LabelEpoch = Epoch; }
     ~FAnomalyCaptureBackend425() override { Stop(); }
 private:
     TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer;
@@ -19,6 +20,7 @@ private:
     TWeakObjectPtr<UWorld> Owner;
     TMap<uint64, int32> PendingAA;
     int32 FinalDrops = 0;
+    uint64 LabelEpoch = 0;
     FAnomalyReadbackLayout FinalLayout;
 };
 #endif

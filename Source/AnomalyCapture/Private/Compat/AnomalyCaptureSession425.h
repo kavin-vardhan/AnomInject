@@ -4,6 +4,7 @@
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureBackend425.h"
 #include "Async/Future.h"
+#include "AnomalyCaptureLabels425.h"
 class FAnomalyCaptureSession425
 {
 public:
@@ -14,6 +15,8 @@ public:
     int32 Written() const { return Completed; }
 private:
     TUniquePtr<IAnomalyCaptureBackend> Backend;
+    TUniquePtr<FAnomalyCaptureLabels425> Labels;
+    TWeakObjectPtr<UWorld> SessionWorld;
     TArray<TFuture<bool>> Writes;
     TArray<FString> Rows;
     FString Output;

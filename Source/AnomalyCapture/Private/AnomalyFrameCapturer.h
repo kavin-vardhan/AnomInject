@@ -19,6 +19,7 @@
 #include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_ENGINE_425
 #include "Compat/AnomalyReadback425.h"
+#include "Compat/AnomalyLabelFrame425.h"
 using FAnomalyColorReadback = FAnomalyReadback425;
 #else
 using FAnomalyColorReadback = FRHIGPUTextureReadback;
@@ -49,6 +50,9 @@ struct FAnomalyRenderMipSample
 
 struct FAnomalyCapturedFrame
 {
+#if ANOMALY_ENGINE_425
+    FAnomalyLabelKey425 LabelKey425;
+#endif
 	uint64 RequestId = 0;
 	int32 Width = 0;
 	int32 Height = 0;
