@@ -37,6 +37,18 @@ def main(output):
     except RuntimeError:pass
     else:raise AssertionError('Spent arming accepted')
     cases.append(dict(case='spent_arming_refused',result='PASS'))
+    import write_ledger as ledger
+    original=ledger.shutil.disk_usage
+    try:
+        ledger.shutil.disk_usage=lambda path:type('Usage',(),dict(free=100*1024**3))()
+        limits=ledger.floors(True)['D']
+        assert limits['start']==25*1024**3 and limits['floor']==15*1024**3
+        ledger.shutil.disk_usage=lambda path:type('Usage',(),dict(free=(14 if path.startswith('D:') else 100)*1024**3))()
+        try:ledger.floors()
+        except RuntimeError:pass
+        else:raise AssertionError('D floor breach admitted')
+    finally:ledger.shutil.disk_usage=original
+    cases.append(dict(case='FJ1_D_25_start_15_floor_and_breach_refusal',result='PASS'))
     result=dict(result='PASS',cases=cases,launches=0,native_converter='AnomalyPixel425.h synthetic-buffer static_asserts must also compile in both actual targets')
     Path(output).write_text(json.dumps(result,indent=2))
     print(json.dumps(result))
