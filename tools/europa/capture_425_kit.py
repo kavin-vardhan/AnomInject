@@ -37,6 +37,13 @@ def command(leg,root):
     return argv+['-ExecCmds='+','.join(commands)]
 
 def arm():
+    built=[json.loads(p.read_text()) for p in (JOB/'builds').glob('*/result.json')]
+    for target in ('StylizedParisStreetEditor','StylizedParisStreet'):
+        if not any(r.get('target')==target and r.get('gate_result')=='PASS' and r.get('exit_code')==0 for r in built):
+            raise RuntimeError('Both qualified C1 builds are required before arming')
+    entry=json.loads((JOB/'entry.json').read_text())['protected']
+    current=protection_snapshot()
+    if any(entry[k]!=current[k] for k in ('content','config','descriptors')):raise RuntimeError('Protected change since entry')
     manifest=json.loads((ROOT/'Receipts/09421/qualification/final-425-binaries.json').read_text())
     for row in manifest['files']:
         path=Path(row['path']);row.update(size=path.stat().st_size,sha256=sha(path))

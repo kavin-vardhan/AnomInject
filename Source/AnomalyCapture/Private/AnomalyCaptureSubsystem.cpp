@@ -970,8 +970,10 @@ void UAnomalyCaptureSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		bMouseLabelOverridden = true;
 	}
 #endif
+#elif ANOMALY_CAPTURE_FRAMES425
+    UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture425: native frames enabled; labels unqualified; masks unavailable."));
 #else
-	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (compiled out: ANOMALY_CAPTURE_ADVANCED=0)."));
+	UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture subsystem initialized (compiled out: ANOMALY_CAPTURE=0)."));
 #endif
 }
 
@@ -4058,7 +4060,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 		BeginActualRun();
 	}
 #else
-	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE_ADVANCED=0)."));
+	UE_LOG(LogAnomalyCapture, Warning, TEXT("IAI.Capture.Start: capture compiled out (ANOMALY_CAPTURE=0)."));
 #endif
 }
 
@@ -4498,6 +4500,10 @@ void UAnomalyCaptureSubsystem::GetStatus(bool& bOutRunning, int32& OutFrames, FS
 
 void UAnomalyCaptureSubsystem::LogStatus() const
 {
+#if ANOMALY_CAPTURE_FRAMES425
+    UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: running=%d frames=%d labels=unqualified masks=unavailable"), bRunning ? 1 : 0, FramesWritten);
+    return;
+#endif
 #if ANOMALY_CAPTURE_ADVANCED
 	if (!bRunning)
 	{
@@ -4518,7 +4524,7 @@ void UAnomalyCaptureSubsystem::LogStatus() const
 		BurstCount > 0 ? *FString::Printf(TEXT("/%d"), BurstCount) : TEXT(""),
 		FramesWritten, PositiveFramesWritten, ZeroMatchBursts);
 #else
-	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: compiled out (ANOMALY_CAPTURE_ADVANCED=0)."));
+	UE_LOG(LogAnomalyCapture, Log, TEXT("Capture: compiled out (ANOMALY_CAPTURE=0)."));
 #endif
 }
 
