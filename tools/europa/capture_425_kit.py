@@ -27,6 +27,14 @@ BACKBUFFER8='-ini:Engine:[/Script/Engine.RendererSettings]:r.DefaultBackBufferPi
 def require_frame_format(argv):
     if argv.count(BACKBUFFER8)!=1:raise RuntimeError('C1 requires the process-only 8-bit backbuffer override')
 
+def require_slot_history(config,leg,number,old,smoke_result):
+    if leg!='Smoke' and smoke_result!='PASS':
+        raise RuntimeError('Passing C1 binding smoke for this core revision required')
+    if leg=='Smoke' and number==2:
+        if config.get('guard_requalification')!='09431b-UBT-command-race':raise RuntimeError('Unarmed core requalification')
+    elif number==2 and not any(r['leg']==leg and r['result']=='FAIL' and not r['end_run'] for r in old):
+        raise RuntimeError('Retry requires a diagnosed failed first session')
+
 def native_source_equal(commit):
     code=subprocess.call(['git','-C',str(TOOLS.parent.parent),'diff','--quiet',commit,'HEAD','--','Source','Shaders','AnomalyInjector.uplugin'])
     if code not in (0,1):raise RuntimeError('Cannot compare build source')
@@ -121,8 +129,8 @@ def run(only=None,number=1):
     result['crash_count']=sum(bool(r.get('crashed')) for r in old)
     for leg in ([only] if only else ['Smoke','C1PIE','C1Game']):
         if leg not in config['slots'] or str(number) not in config['slots'][leg]:raise RuntimeError('Unarmed slot')
-        if leg!='Smoke' and not any(r['leg']=='Smoke' and r['result']=='PASS' for r in old):raise RuntimeError('Passing C1 binding smoke required')
-        if number==2 and not any(r['leg']==leg and r['result']=='FAIL' and not r['end_run'] for r in old):raise RuntimeError('Retry requires a diagnosed failed first session')
+        smoke_path=JOB/'capture-attempts/Smoke'/('%02d'%config.get('required_smoke_slot',1))/'result.json'
+        require_slot_history(config,leg,number,old,json.loads(smoke_path.read_text()).get('result') if smoke_path.exists() else None)
         root=Path(config['slots'][leg][str(number)]);temp=TEMP/leg/('%02d'%number)
         with Guard(dict(state_root=str(JOB/'capture-state'/leg/('%02d'%number)))) as guard:
             guard.check_unused_launch();root.mkdir(parents=True,exist_ok=False);temp.mkdir(parents=True,exist_ok=False)

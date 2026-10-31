@@ -24,27 +24,38 @@ def reason(image, command_line, root=False, rehearsal=False):
     return None
 
 
+def observed_command(tree, row):
+    cached=row.get('command_line')
+    for attempt in range(11):
+        if tree.kernel.WaitForSingleObject(row['handle'],0)==0:
+            return cached,False,attempt
+        try:
+            command=tree.command_line(row)
+            if not command:raise RuntimeError('Owned process command line empty')
+            row['command_line']=command
+            row.pop('command_line_error',None)
+            return command,True,attempt+1
+        except RuntimeError as exc:
+            row['command_line_error']=str(exc)
+            if attempt<10:tree.kernel.WaitForSingleObject(row['handle'],50)
+    if tree.kernel.WaitForSingleObject(row['handle'],0)==0:
+        return cached,False,11
+    return None,True,11
+
+
 def poll(tree, path):
     import datetime
     import json
     rows = []
     error = None
     for row in tree.known.values():
-        live = tree.kernel.WaitForSingleObject(row['handle'], 0) != 0
-        command = row.get('command_line')
-        if live:
-            try:
-                command = tree.command_line(row)
-                row['command_line'] = command
-                row.pop('command_line_error', None)
-            except RuntimeError as exc:
-                row['command_line_error'] = str(exc)
-                command = None
+        command,live,attempts=observed_command(tree,row)
         why = reason(row['image'], command, root=row['pid'] == tree.root_pid)
         if why:
             error = why
         rows.append(dict(pid=row['pid'], parent_pid=row['parent_pid'], image=row['image'],
-                         live=live, command_line=command, read_error=row.get('command_line_error'), reason=why))
+                         live=live, command_line=command, read_attempts=attempts,
+                         cached_after_exit=bool(command and not live),read_error=row.get('command_line_error'), reason=why))
     with Path(path).open('a', encoding='utf-8') as stream:
         stream.write(json.dumps(dict(utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                                      authority='094-27 FB7 / FE3 / FD2', processes=rows))+'\n')

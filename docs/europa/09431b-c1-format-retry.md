@@ -9,3 +9,11 @@ The retry uses -ini:Engine:[/Script/Engine.RendererSettings]:r.DefaultBackBuffer
 The driver also stops querying get_editor_world during PIE. Slot 01 logged that prohibited editor scripting query every tick; the game-world context already exists and suffices for the end/exit commands. The recording stub now raises on such a query and still models reentrant multi-tick loading and single-shot failure.
 
 Prediction before retry: fresh PIE slot 02 writes exactly 60 native 1280×720 PNGs in format 2 with zero dropped frames and normal exit; the unchanged independent fixture region check passes. The unspent Game slot uses the same process override. Preserve slot 01 and its raw hashes; rebind only changed tooling, retain the qualified native manifest and all slot histories. No further PIE retry is authorized.
+
+## Guard diagnosis and remaining Game retry
+
+The PIE retry stopped before the driver started. child-001-process-polls.jsonl records PID31860 with the allowed ValidatePlatforms argv at 16:09:00.724799Z, then a command-line length read failure at 16:09:00.961339Z. Game slot 01 likewise stopped on PID35772's first unreadable command at 16:10:58.217726Z. These are controlled stops, not crashes; no binary write was observed. The exact OS timing behind the unreadability is unconfirmed.
+
+runtime_children.poll previously discarded an already read argv whenever another PEB read failed. The focused fix retries reads for at most 500 ms against the retained process handle. It can use a cached argv only when that same handle is signalled exited; a live unreadable process, or an exited process whose argv was never captured, still stops. Build modes and target triples still stop. No PID/name fallback is added.
+
+The six guard cases, three revision admission negatives and two harmless actual-process cases qualify this change. FJ1's core-change exception requires Smoke slot 02, a dry preparation of Smoke02/Game02 and one observe-only reading. Game slot 02 is the remaining C1 retry; PIE remains failed with its two slots spent. Prediction: the fresh smoke passes and Game writes sixty format-2 frames with the unchanged pixel check. No native rebuild or extra PIE session is authorized by this tooling repair.
