@@ -15,7 +15,7 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **094-33b, 2026-11-01 - IN PROGRESS: C3 descriptor repair and mask qualification.** FP1 accepts UI-free C1/C2; FP2 rules the prior C3 fatal path as its first crash and resets this job's count. FP3 moves shader-read usage into TargetableFlags, with a descriptor can-fail, one new FM1 build pair, one C3 session and one qualified retry. FO3 thresholds and the same-session C2 check remain fixed. No push or tags.
+> **094-33b, 2026-11-01 - RETRY QUALIFIED.** Final log review found a separate handled D3D11 ensure in slot 01: the reduction buffer lacked BUF_SourceCopy (Runtime.log:642-643; stock D3D11Commands.cpp:2320). No crash or upload occurred. The copy-source descriptor negative now fails the old usage and passes the repaired usage. The one FP3 retry is qualified to verify that fix after a new FM1 build pair; frozen colour-coverage failures are expected to remain and are not hidden or relaxed.
 
 > **094-33, 2026-11-01 - RED: UI-free C1/C2 pass; C3 remains unqualified.** FO2 PASS; C3 FAIL before any mask frame. The pre-UI family hook passes both 60-frame C1 gates and C2 (480 primary plus 12 travel frames, zero mismatches). C3 shaders compiled and the binding smoke passed, but the first mask reduction logged missing TargetableFlags shader-resource access and stalled. The kit stopped only its owned tree at the 180-second limit (exit 125). No mask metric is qualified. Both targets built from b80b971; all three FM1 starts per target and the C3 slot are spent. No upload or protected change; no push or tags. See docs/europa/09433-pre-ui-mask-receipts.json.
 
