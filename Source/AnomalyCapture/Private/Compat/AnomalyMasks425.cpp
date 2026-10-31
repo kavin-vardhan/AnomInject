@@ -96,8 +96,8 @@ bool FAnomalyMasks425::Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& F
     FRDGBuilder Graph(Cmd);
     auto MakeTexture = [&](EPixelFormat Format, const TCHAR* Name)
     {
-        return Graph.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(1280,720), Format, FClearValueBinding::None,
-            TexCreate_ShaderResource | TexCreate_UAV), Name);
+        return Graph.CreateTexture(FRDGTextureDesc::Create2DDesc(FIntPoint(1280,720), Format, FClearValueBinding::None,
+            TexCreate_ShaderResource, TexCreate_UAV, false), Name);
     };
     FRDGTextureRef Evidence = MakeTexture(PF_R32G32B32A32_UINT, TEXT("AnomalyEvidence425"));
     FRDGTextureRef Mask = MakeTexture(PF_R32_UINT, TEXT("AnomalyMask425"));
