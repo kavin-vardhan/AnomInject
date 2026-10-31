@@ -63,7 +63,7 @@ void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListI
         Ticket.Rendered = true;
         if (TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer = Ticket.Capturer.Pin())
         {
-            const FTextureRHIRef Source = Family.RenderTarget ? Family.RenderTarget->GetRenderTargetTexture() : FTextureRHIRef();
+            const FTexture2DRHIRef Source = Family.RenderTarget ? Family.RenderTarget->GetRenderTargetTexture() : FTexture2DRHIRef();
             const FIntRect Rect = Family.Views.Num() == 1 ? Family.Views[0]->UnscaledViewRect : FIntRect();
             if (!Source.IsValid() || !Source->GetTexture2D() || Rect != Ticket.Rect)
             {
