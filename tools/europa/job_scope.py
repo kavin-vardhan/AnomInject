@@ -7,7 +7,7 @@ ROOT = Path('D:/IA_Europa')
 
 
 def fm1(data, job):
-    return (job == ROOT/'Receipts/09431b' and
+    return (job in (ROOT/'Receipts/09431b',ROOT/'Receipts/09432') and
             data.get('incremental_memory_authority') == '094-31-ruling FM1' and
             data.get('incremental_builds_only') is True and not data.get('full_rebuild', False) and
             data.get('runtime_authorized') is False and data.get('query_pairs') == [] and
@@ -20,6 +20,12 @@ def fm1(data, job):
 
 def memory_policy_allowed(data, job):
     if fm1(data, job):
+        return True
+    if (job == ROOT/'Receipts/09432' and data.get('runtime_authorized') is True
+        and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
+        and data.get('authority')=='094-32 FN1-FN5 FM1 FL1-FL6 FJ1 FK1'
+        and data.get('build_pairs')==[] and data.get('query_pairs')==[]
+        and data['memory']=={'start_physical_GiB':4,'start_commit_GiB':8,'stop_physical_GiB':None,'stop_commit_GiB':4}):
         return True
     if (job == ROOT/'Receipts/09431b' and data.get('runtime_authorized') is True
         and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'

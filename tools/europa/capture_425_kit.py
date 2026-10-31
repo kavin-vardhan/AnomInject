@@ -16,22 +16,21 @@ from runtime_evidence import freeze,outcome
 from fixture_uploads import check as uploads
 from capture_425_reader import check as read_frames
 
-JOB=ROOT/'Receipts/09431b'
-TEMP=ROOT/'Temp/09431b/runtime'
-DEADLINE='2026-11-01T01:30:00+00:00'
-AUTHORITY='094-31b FM1-FM2 FL1-FL6 FJ1 FK1'
+JOB=ROOT/'Receipts/09432'
+TEMP=ROOT/'Temp/09432/runtime'
+DEADLINE='2026-11-01T06:30:00+00:00'
+AUTHORITY='094-32 FN1-FN5 FM1 FL1-FL6 FJ1 FK1'
 INSTALLED=ROOT/'Launch/Europa425-Runtime.json'
 REFERENCE=ROOT/'Receipts/09427e/runtime-attempts/A7_-lod_corruption-positive/01/session/probe/lod_corruption-0-before.png'
-BACKBUFFER8='-ini:Engine:[/Script/Engine.RendererSettings]:r.DefaultBackBufferPixelFormat=0'
 
 def require_frame_format(argv):
-    if argv.count(BACKBUFFER8)!=1:raise RuntimeError('C1 requires the process-only 8-bit backbuffer override')
+    if any('defaultbackbufferpixelformat' in a.casefold() for a in argv):raise RuntimeError('FN2 refuses any backbuffer override')
 
 def require_slot_history(config,leg,number,old,smoke_result):
     if leg!='Smoke' and smoke_result!='PASS':
         raise RuntimeError('Passing C1 binding smoke for this core revision required')
     if leg=='Smoke' and number==2:
-        if config.get('guard_requalification')!='09431b-UBT-command-race':raise RuntimeError('Unarmed core requalification')
+        if config.get('guard_requalification')!='09432-UBT-command-race':raise RuntimeError('Unarmed core requalification')
     elif number==2 and not any(r['leg']==leg and r['result']=='FAIL' and not r['end_run'] for r in old):
         raise RuntimeError('Retry requires a diagnosed failed first session')
 
@@ -44,7 +43,7 @@ def command(leg,root):
     if leg not in ('Smoke','C1PIE','C1Game'):raise RuntimeError('Unarmed C1 leg')
     argv=prepare('425',root/'session',True,False,leg!='C1Game')
     argv.insert(2,'/Engine/Maps/Entry' if leg!='C1Game' else '/Game/EuropaPhaseA/EA_Travel')
-    argv += [UPLOAD,ANALYTICS,BACKBUFFER8,'-nowrite','-SkipCompile','-stdout','-unattended','-NoSplash',
+    argv += [UPLOAD,ANALYTICS,'-nowrite','-SkipCompile','-stdout','-unattended','-NoSplash',
         '-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False',
         '-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False']
     commands=['r.PostProcessAAQuality 0','r.ScreenPercentage 100','r.DynamicRes.OperationMode 0','r.MotionBlurQuality 0','t.MaxFPS 30']
@@ -52,6 +51,7 @@ def command(leg,root):
     else:
         argv += ['-game','-IAICaptureExit']
         commands += ['IAI.Capture.C1 '+(root/'plugin-frames').as_posix()+' 60']
+    if leg!='Smoke':argv += ['-IAICaptureDiagnostics='+(root/'diagnostics').as_posix()]
     argv += ['-ExecCmds='+','.join(commands)]
     require_frame_format(argv)
     return argv
@@ -63,7 +63,7 @@ def run_session(leg,*args,**kwargs):
 def arm():
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before arming C1')
     prior=json.loads(INSTALLED.read_text())
-    assert prior.get('arming_job')!='09431b'
+    assert prior.get('arming_job')!='09432'
     verify_files(prior['engine_files'])
     built=[json.loads(p.read_text()) for p in (JOB/'builds').glob('*/result.json')]
     built=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and native_source_equal(r['commit'])]
@@ -73,15 +73,15 @@ def arm():
     entry=json.loads((JOB/'entry.json').read_text())['protected']
     current=protection_snapshot()
     if any(entry[k]!=current[k] for k in ('content','config','descriptors')):raise RuntimeError('Protected change since entry')
-    manifest=json.loads((ROOT/'Receipts/09421/qualification/final-425-binaries.json').read_text())
+    manifest=json.loads((ROOT/'Receipts/09431b/final-425-binaries.json').read_text())
     for row in manifest['files']:
-        path=Path(row['path']);row.update(size=path.stat().st_size,sha256=sha(path))
+        path=Path(row['path']);row.update(size=path.stat().st_size,mtime_ns=path.stat().st_mtime_ns,sha256=sha(path))
     head=__import__('subprocess').check_output(['git','-C',str(TOOLS.parent.parent),'rev-parse','HEAD'],text=True).strip()
     manifest.update(source_commit=head,tooling_commit=head,authority=AUTHORITY,purpose='C1 authorized Development rebuild; Shipping retained',
         production_source_equal='C1 changed capture source; no Phase A production-equality claim',
         build_sources={r['target']:r['commit'] for r in built if r.get('gate_result')=='PASS'},
-        prior_manifest=str(ROOT/'Receipts/09421/qualification/final-425-binaries.json'),
-        prior_manifest_sha256=sha(ROOT/'Receipts/09421/qualification/final-425-binaries.json'))
+        prior_manifest=str(ROOT/'Receipts/09431b/final-425-binaries.json'),
+        prior_manifest_sha256=sha(ROOT/'Receipts/09431b/final-425-binaries.json'))
     manifest_path=JOB/'final-425-binaries.json';create_json(manifest_path,manifest)
     verify_files(manifest['files']);verify_files(manifest['probe_source'])
     memory=dict(start_physical_GiB=4,start_commit_GiB=8,stop_physical_GiB=None,stop_commit_GiB=4)
@@ -91,7 +91,7 @@ def arm():
         build_pairs=[],query_pairs=[],max_parallel_actions=1,memory=memory,runtime_authorized=True,runtime_scope=scope,
         window_deadline_utc=DEADLINE)
     create_json(JOB/'capture-job-config.json',job)
-    config=dict(arming_job='09431b',authority=AUTHORITY,source_commit=head,scope=scope,memory=memory,
+    config=dict(arming_job='09432',authority=AUTHORITY,source_commit=head,scope=scope,memory=memory,
         window_deadline_utc=DEADLINE,session_seconds=90,protected=protection_snapshot(),engine_files=prior['engine_files'],
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),reference=dict(path=str(REFERENCE),sha256=sha(REFERENCE)),
         tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
@@ -107,7 +107,7 @@ def arm():
     return config
 
 def validate(config):
-    if config.get('arming_job')!='09431b' or config.get('authority')!=AUTHORITY:raise RuntimeError('Spent/older arming refused')
+    if config.get('arming_job')!='09432' or config.get('authority')!=AUTHORITY:raise RuntimeError('Spent/older arming refused')
     if config['session_seconds']!=90 or config['window_deadline_utc']!=DEADLINE:raise RuntimeError('C1 scope changed')
     verify_files(config['tooling_files'])
     verify_files(config['engine_files'])
@@ -169,7 +169,7 @@ def run(only=None,number=1):
                 if 'AnomalyControlServer module started (compiled out: ANOMALY_CONTROL_SERVER=0).' not in log or 'AnomalyShaders compiled out (ANOMALY_SHADERS=0).' not in log:raise ValueError('C1 disabled modules differ')
             except Exception as error:reader=dict(result='FAIL',reason=str(error))
             create_json(root/'reader.json',reader)
-            raw=freeze(root,list(process.glob('*'))+list((root/'plugin-frames').glob('*')))
+            raw=freeze(root,list(process.glob('*'))+list((root/'plugin-frames').glob('*'))+list((root/'diagnostics').glob('*')))
             row.update(outcome(leg,row,protected,upload,reader,driver=driver,crashes=row.get('new_crash_report_folders',[]),raw=raw))
             row=crash_policy(row,result['crash_count']);result['crash_count']=row['crash_count']
             create_json(root/'result.json',row);result['legs'].append(row)

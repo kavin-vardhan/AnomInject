@@ -26,6 +26,12 @@
 #include "PixelFormat.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "RenderUtils.h"
+#include "AnomalyPreviewCapture.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 #endif
 #include "CoreGlobals.h"
 #include "HAL/IConsoleManager.h"
@@ -345,6 +351,28 @@ void FAnomalyFrameCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& Sla
 
 	TUniquePtr<FAnomalyColorReadback> Readback = MakeUnique<FAnomalyColorReadback>(TEXT("AnomalyColorReadback"));
 	Readback->EnqueueCopy(RHICmdList, OwnSubRect.GetReference());
+
+#if ANOMALY_CAPTURE_FRAMES425
+    FString DiagnosticRoot;
+    if (Arm.RequestId == 1 && FParse::Value(FCommandLine::Get(), TEXT("IAICaptureDiagnostics="), DiagnosticRoot) && !FPaths::IsRelative(DiagnosticRoot))
+    {
+        IFileManager::Get().MakeDirectory(*DiagnosticRoot, true);
+        auto ReadDiagnostic = [&RHICmdList, &DiagnosticRoot](FRHITexture* Texture, const FIntRect& Area, const TCHAR* Name)
+        {
+            TArray<FColor> Pixels;
+            RHICmdList.ReadSurfaceData(Texture, Area, Pixels, FReadSurfaceDataFlags(RCM_UNorm));
+            uint64 Sum = 0; uint8 Max = 0;
+            for (const FColor& P : Pixels) { Sum += P.R + P.G + P.B; Max = FMath::Max(Max, FMath::Max(P.R, FMath::Max(P.G, P.B))); }
+            TArray<uint8> Png;
+            const bool Saved = Pixels.Num() == Area.Width() * Area.Height() &&
+                AnomalyPreview::EncodePixels(AnomalyPreview::EImageFormat::PNG, Pixels, Area.Width(), Area.Height(), Png, 0) &&
+                FFileHelper::SaveArrayToFile(Png, *(DiagnosticRoot / (FString(Name) + TEXT(".png"))));
+            UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425 diagnostic: %s pixels=%d rgb_sum=%llu max=%u saved=%d"), Name, Pixels.Num(), Sum, uint32(Max), Saved ? 1 : 0);
+        };
+        ReadDiagnostic(BackBuffer.GetReference(), Rect, TEXT("source"));
+        ReadDiagnostic(OwnSubRect.GetReference(), FIntRect(0, 0, W, H), TEXT("copy"));
+    }
+#endif
 
 #if ANOMALY_ENGINE_425
     RHICmdList.TransitionResource(EResourceTransitionAccess::EWritable, OwnSubRect.GetReference());

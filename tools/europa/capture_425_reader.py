@@ -14,12 +14,13 @@ def metadata(data):
     require(len(rows)==60 and sorted(r['index'] for r in rows)==list(range(60)),'Missing or duplicate index')
     require(sorted(r['request'] for r in rows)==list(range(1,61)),'Missing or duplicate request')
     require(data['rhi'] in ('D3D11','D3D12'),'Unknown RHI')
+    require(data['backbuffer_format'] in (2,18,37),'Unknown backbuffer format')
     require(isinstance(data['dropped'],int) and data['dropped']>=0,'Dropped count missing')
     require(data['elapsed_seconds']<=90,'Capture deadline exceeded')
     require(data['pitch']==1280 and data['mapped_height']==720,'Mapped layout differs')
     for row in rows:
         require((row['width'],row['height'])==(1280,720),'Native dimensions differ')
-        require(row['format'] in (2,37),'Unknown format')
+        require(row['format'] in (2,18,37) and row['format']==data['backbuffer_format'],'Unknown or inconsistent format')
         require(row['aa']==0,'AA must be off')
         require(row['file']=='frame-%06d.png'%row['index'],'Frame filename differs')
     return rows
@@ -51,5 +52,5 @@ def check(root,reference,image_loader=None):
         fraction=sum(max(abs(x-y) for x,y in zip(px,py))>24 for px,py in zip(a,b))/float(len(a))
         require(error<=8 and fraction<=0.10,'Fixture region differs from independent Phase A clean reference: %.3f %.3f'%(error,fraction))
         measurements.append(dict(index=row['index'],region_mean_error=error,region_fraction_gt24=fraction,black=False))
-    return dict(result='PASS',count=len(rows),indices=list(range(60)),rhi=data['rhi'],dropped=data['dropped'],unknown_formats=0,
+    return dict(result='PASS',count=len(rows),indices=list(range(60)),rhi=data['rhi'],backbuffer_format=data['backbuffer_format'],dropped=data['dropped'],unknown_formats=0,
         black_frames=0,region=REGION,reference=reference,frames=measurements,elapsed_seconds=data['elapsed_seconds'])

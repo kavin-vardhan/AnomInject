@@ -2,6 +2,8 @@
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyCaptureLog.h"
+#include "AnomalyPixel425.h"
+#include "Camera/PlayerCameraManager.h"
 #include "AnomalyPreviewCapture.h"
 #include "Async/Async.h"
 #include "DynamicRHI.h"
@@ -43,7 +45,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
     while (Backend->PollFrame(Frame))
     {
         if (Frame.RequestId < 1 || Frame.RequestId > uint64(Count) || Frame.Width != 1280 || Frame.Height != 720 ||
-            Frame.BytesPerPixel != 4 || (Frame.Format != PF_B8G8R8A8 && Frame.Format != PF_R8G8B8A8) || Frame.RawBytes.Num() != 1280 * 720 * 4)
+            Frame.BytesPerPixel != 4 || !AnomalyPixel425::Accept(Frame.Format) || Frame.RawBytes.Num() != 1280 * 720 * 4)
         {
             ++Failures; continue;
         }
@@ -57,7 +59,9 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
             for (int32 I = 0; I < Pixels.Num(); ++I)
             {
                 const uint8* P = Frame.RawBytes.GetData() + I * 4;
-                Pixels[I] = Frame.Format == PF_B8G8R8A8 ? FColor(P[2], P[1], P[0], 255) : FColor(P[0], P[1], P[2], 255);
+                const AnomalyPixel425::FPixel Pixel = AnomalyPixel425::Decode(Frame.Format, AnomalyPixel425::Word(P));
+                if (!Pixel.Valid) { return false; }
+                Pixels[I] = FColor(Pixel.R, Pixel.G, Pixel.B, 255);
             }
             TArray<uint8> Png;
             return AnomalyPreview::EncodePixels(AnomalyPreview::EImageFormat::PNG, Pixels, Frame.Width, Frame.Height, Png, 0) && FFileHelper::SaveArrayToFile(Png, *Path);
@@ -88,8 +92,8 @@ void FAnomalyCaptureSession425::Stop()
     FAnomalyCaptureBackend425* Concrete = static_cast<FAnomalyCaptureBackend425*>(Backend.Get());
     const FAnomalyReadbackLayout Layout = Concrete->Layout();
     const int32 Dropped = Concrete->Dropped() + Failures;
-    FString Json = FString::Printf(TEXT("{\"rhi\":\"%s\",\"requested\":%d,\"written\":%d,\"dropped\":%d,\"pitch\":%d,\"mapped_height\":%d,\"elapsed_seconds\":%.6f,\"labels\":\"unqualified\",\"masks\":\"unavailable\",\"frames\":["),
-        *RHI, Count, Completed, Dropped, Layout.RowPitchInPixels, Layout.BufferHeight, FPlatformTime::Seconds() - Started);
+    FString Json = FString::Printf(TEXT("{\"rhi\":\"%s\",\"backbuffer_format\":%d,\"requested\":%d,\"written\":%d,\"dropped\":%d,\"pitch\":%d,\"mapped_height\":%d,\"elapsed_seconds\":%.6f,\"labels\":\"unqualified\",\"masks\":\"unavailable\",\"frames\":["),
+        *RHI, Layout.Format, Count, Completed, Dropped, Layout.RowPitchInPixels, Layout.BufferHeight, FPlatformTime::Seconds() - Started);
     Json += FString::Join(Rows, TEXT(",")) + TEXT("]}");
     const bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: finish RHI=%s written=%d requested=%d dropped=%d receipt=%d"), *RHI, Completed, Count, Dropped, Saved ? 1 : 0);
@@ -108,6 +112,9 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureFrames425(TEXT("IAI.Capture.C1
             if (It->ActorHasTag(TEXT("EA_Camera"))) { PC->SetViewTarget(*It); break; }
         }
         PC->bShowMouseCursor = false;
+        UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: view target=%s location=%s rotation=%s"), *GetNameSafe(PC->GetViewTarget()),
+            PC->PlayerCameraManager ? *PC->PlayerCameraManager->GetCameraLocation().ToString() : TEXT("unknown"),
+            PC->PlayerCameraManager ? *PC->PlayerCameraManager->GetCameraRotation().ToString() : TEXT("unknown"));
         if (UAnomalyCaptureSubsystem* Capture = World->GetSubsystem<UAnomalyCaptureSubsystem>())
         {
             Capture->StartRun(Args[0], true, 0, FCString::Atoi(*Args[1]));

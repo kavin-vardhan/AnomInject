@@ -71,7 +71,7 @@ def main(output):
         for unused in range(10):module.tick(.1)
         assert calls==frozen
         cases.append(dict(case='failure_once' if fail else 'multi_tick_load',result='PASS',calls=list(calls)))
-    good=dict(requested=60,written=60,rhi='D3D11',dropped=0,pitch=1280,mapped_height=720,elapsed_seconds=8,
+    good=dict(requested=60,written=60,rhi='D3D11',backbuffer_format=2,dropped=0,pitch=1280,mapped_height=720,elapsed_seconds=8,
         frames=[dict(index=i,request=i+1,file='frame-%06d.png'%i,width=1280,height=720,format=2,aa=0) for i in range(60)])
     reader.metadata(good)
     for name in ('duplicate','zero_map','unknown_format'):
