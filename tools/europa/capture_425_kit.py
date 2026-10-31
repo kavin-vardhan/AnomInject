@@ -22,6 +22,10 @@ DEADLINE='2026-11-01T06:30:00+00:00'
 AUTHORITY='094-32 FN1-FN5 FM1 FL1-FL6 FJ1 FK1'
 INSTALLED=ROOT/'Launch/Europa425-Runtime.json'
 REFERENCE=ROOT/'Receipts/09427e/runtime-attempts/A7_-lod_corruption-positive/01/session/probe/lod_corruption-0-before.png'
+GAME_REFERENCE=JOB/'capture-attempts/C1Game/01/diagnostics/source.png'
+
+def reference_for(config,leg):
+    return config['game_reference']['path'] if leg=='C1Game' else config['reference']['path']
 
 def require_frame_format(argv):
     if any('defaultbackbufferpixelformat' in a.casefold() for a in argv):raise RuntimeError('FN2 refuses any backbuffer override')
@@ -115,6 +119,7 @@ def validate(config):
     if sha(manifest)!=config['manifest']['sha256']:raise RuntimeError('Manifest changed')
     verify_files(json.loads(manifest.read_text())['files'])
     if sha(config['reference']['path'])!=config['reference']['sha256']:raise RuntimeError('Reference changed')
+    if 'game_reference' in config and sha(config['game_reference']['path'])!=config['game_reference']['sha256']:raise RuntimeError('Game reference changed')
     verify_protection(config['protected'])
 
 def run(only=None,number=1):
@@ -163,7 +168,7 @@ def run(only=None,number=1):
                 if leg=='Smoke':
                     if not driver or driver.get('result')!='SMOKE_PASS':raise ValueError('C1 binding smoke failed')
                     reader=dict(result='PASS',bindings=driver['bindings'],loads=0,saves=0)
-                else:reader=read_frames(str(root),str(REFERENCE))
+                else:reader=read_frames(str(root),reference_for(config,leg))
                 log=(root/'session/Runtime.log').read_text(encoding='utf-8-sig',errors='replace')
                 if row.get('exit_code')!=0 or 'LogExit: Exiting.' not in log:raise ValueError('Normal exit missing')
                 if 'AnomalyControlServer module started (compiled out: ANOMALY_CONTROL_SERVER=0).' not in log or 'AnomalyShaders compiled out (ANOMALY_SHADERS=0).' not in log:raise ValueError('C1 disabled modules differ')
