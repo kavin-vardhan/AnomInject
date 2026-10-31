@@ -10326,3 +10326,5 @@ Do not equate IoU 1 with complete anomaly coverage. In kept frame 63, 344,769 of
 ## G492 - 4.25 staging-buffer copies require explicit source usage (094-33b)
 
 FRDGBufferDesc::CreateBufferDesc provides shader read/UAV usage but not BUF_SourceCopy. FRHIGPUBufferReadback::EnqueueCopy calls CopyToStagingBuffer (RHIGPUReadback.cpp:71); D3D11Commands.cpp:2320 ensures SourceCopy is set. Slot 01 copied correct data but emitted this handled ensure. Add BUF_SourceCopy to the reduction descriptor before creation; test the absent flag independently. A successful copy and normal exit do not prove the resource contract is clean.
+
+09433b retry result for G492: 4.25 EBufferUsageFlags also needs an explicit cast when combining flags (no |= overload). Editor 3/Game 2 compiled the correction; C3 slot 02 exited normally with all 240 masks and no ensure. This repairs the resource contract, while G491's independent lighting/LOD coverage failures remain.

@@ -118,6 +118,74 @@
         "log": "D:\\IA_Europa\\Receipts\\09433b\\builds\\editor-01\\UBT.log"
       },
       {
+        "attempt": "editor-02",
+        "target": "StylizedParisStreetEditor",
+        "commit": "0d2c4b5e2e14c3137d883b7287aa25ba92b28295",
+        "gate_result": "FAIL",
+        "exit_code": 6,
+        "started_utc": "2026-10-31T22:26:40.465691+00:00",
+        "ended_utc": "2026-10-31T22:26:59.170966+00:00",
+        "duration_seconds": 18.703617799998028,
+        "pid": 14324,
+        "start_free_commit_GiB": 9.759326934814453,
+        "minimum_free_commit_GiB": 8.78689193725586,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreetEditor",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09433b\\builds\\editor-02\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {
+          "AnomalyCapture": 1
+        },
+        "compile_errors": [
+          "ParallelExecutor.ExecuteActions:   D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyMasks425.cpp(113): error C2678: binary '|=': no operator found which takes a left-hand operand of type 'EBufferUsageFlags' (or there is no acceptable conversion)"
+        ],
+        "log": "D:\\IA_Europa\\Receipts\\09433b\\builds\\editor-02\\UBT.log"
+      },
+      {
+        "attempt": "editor-03",
+        "target": "StylizedParisStreetEditor",
+        "commit": "47f9be28cdd3e5373e288b3a611fa7900c9fea6d",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-10-31T22:27:36.166931+00:00",
+        "ended_utc": "2026-10-31T22:28:11.565379+00:00",
+        "duration_seconds": 35.39637770000263,
+        "pid": 34052,
+        "start_free_commit_GiB": 9.724761962890625,
+        "minimum_free_commit_GiB": 8.287830352783203,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreetEditor",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09433b\\builds\\editor-03\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09433b\\builds\\editor-03\\UBT.log"
+      },
+      {
         "attempt": "game-01",
         "target": "StylizedParisStreet",
         "commit": "e129eba3bb7b8959ab363b119fea41af2ede872c",
@@ -148,6 +216,38 @@
         "compile_error_counts": {},
         "compile_errors": [],
         "log": "D:\\IA_Europa\\Receipts\\09433b\\builds\\game-01\\UBT.log"
+      },
+      {
+        "attempt": "game-02",
+        "target": "StylizedParisStreet",
+        "commit": "47f9be28cdd3e5373e288b3a611fa7900c9fea6d",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-10-31T22:28:44.059618+00:00",
+        "ended_utc": "2026-10-31T22:29:33.790084+00:00",
+        "duration_seconds": 49.728515099996,
+        "pid": 10012,
+        "start_free_commit_GiB": 9.766448974609375,
+        "minimum_free_commit_GiB": 7.411720275878906,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreet",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09433b\\builds\\game-02\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09433b\\builds\\game-02\\UBT.log"
       }
     ],
     "priority": "BELOW_NORMAL_PRIORITY_CLASS on UBT creation",
@@ -615,13 +715,512 @@
       ],
       "monitor_stops": [],
       "stopped_owned_processes": [],
+      "runtime_diagnostics": [
+        "[2026.10.31-22.18.38:442][ 94]LogOutputDevice: Error: Ensure condition failed: (SourceBufferRHI->GetUsage() & BUF_SourceCopy) != 0 [File:D:/Build/++UE4/Sync/Engine/Source/Runtime/Windows/D3D11RHI/Private/D3D11Commands.cpp] [Line: 2320]"
+      ],
       "raw_evidence": {
         "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-attempts\\C3\\01\\raw-evidence.json",
         "sha256": "c4d58f73b075942e57ba4a631866900ff48b1e484ec69a2b89d4271fe041c84a",
         "files": 975
       }
+    },
+    {
+      "slot": "02",
+      "root": "D:\\IA_Europa\\Receipts\\09433b\\c3-attempts\\C3\\02",
+      "result": "FAIL",
+      "exit_code": 0,
+      "started_utc": "2026-10-31T22:31:53.507623+00:00",
+      "ended_utc": "2026-10-31T22:32:10.308674+00:00",
+      "duration_seconds": 16.78961239999626,
+      "pid": 8816,
+      "crashed": false,
+      "end_run": false,
+      "reason": null,
+      "failure_reasons": [
+        "reader FAIL: incomplete"
+      ],
+      "reader": {
+        "result": "FAIL",
+        "frames": 240,
+        "thresholds": {
+          "iou": 0.9,
+          "coverage": 0.95,
+          "spill": 0.01
+        },
+        "change_level": 8,
+        "depth_bias": 1e-06,
+        "per_anomaly": [
+          {
+            "anomaly": "blinking",
+            "events": 3,
+            "frames": 42,
+            "failed_frames": 0,
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "coverage": null
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "events": 3,
+            "frames": 42,
+            "failed_frames": 42,
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "coverage": {
+              "min": 0.5645476028387785,
+              "median": 0.5646179899151005,
+              "p95": 0.5646869817709682,
+              "max": 0.5646935793303872
+            }
+          },
+          {
+            "anomaly": "lod_corruption",
+            "events": 3,
+            "frames": 42,
+            "failed_frames": 42,
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "coverage": {
+              "min": 0.04931486665684397,
+              "median": 0.04935357339675298,
+              "p95": 0.0493900694999366,
+              "max": 0.04939378478253817
+            }
+          },
+          {
+            "anomaly": "missing_object",
+            "events": 3,
+            "frames": 42,
+            "failed_frames": 0,
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "coverage": null
+          }
+        ],
+        "edge_failures": [],
+        "clean_noise": [
+          {
+            "event": 0,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 1,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 2,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 3,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 4,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 5,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 6,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 7,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 8,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 9,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 10,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          },
+          {
+            "event": 11,
+            "pixels_over_level": 0,
+            "fraction": 0.0
+          }
+        ],
+        "mutant": null,
+        "rhi": "D3D11",
+        "format": 18,
+        "dropped": 0,
+        "stencil_restored": true,
+        "gpu_reduction": "240 tables match",
+        "mask_negatives": [
+          {
+            "kind": "shift",
+            "result": "PASS",
+            "reader_result": "FAIL"
+          },
+          {
+            "kind": "wrong_target",
+            "result": "PASS",
+            "reader_result": "FAIL"
+          }
+        ],
+        "c2": {
+          "result": "PASS",
+          "mismatches": 0,
+          "ambiguous": 0
+        }
+      },
+      "metric_groups": [
+        {
+          "anomaly": "blinking",
+          "hidden": false,
+          "frames": 21,
+          "failures": 0,
+          "metrics": {
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "coverage": null,
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            }
+          }
+        },
+        {
+          "anomaly": "blinking",
+          "hidden": true,
+          "frames": 21,
+          "failures": 0,
+          "metrics": {
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "coverage": null,
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            }
+          }
+        },
+        {
+          "anomaly": "lighting_mismatch",
+          "hidden": null,
+          "frames": 42,
+          "failures": 42,
+          "metrics": {
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "coverage": {
+              "min": 0.5645476028387785,
+              "median": 0.5646179899151005,
+              "p95": 0.5646869817709682,
+              "max": 0.5646935793303872
+            },
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            }
+          }
+        },
+        {
+          "anomaly": "lod_corruption",
+          "hidden": null,
+          "frames": 42,
+          "failures": 42,
+          "metrics": {
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "coverage": {
+              "min": 0.04931486665684397,
+              "median": 0.04935357339675298,
+              "p95": 0.0493900694999366,
+              "max": 0.04939378478253817
+            },
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            }
+          }
+        },
+        {
+          "anomaly": "missing_object",
+          "hidden": null,
+          "frames": 42,
+          "failures": 0,
+          "metrics": {
+            "iou": {
+              "min": 1.0,
+              "median": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "coverage": null,
+            "spill": {
+              "min": 0.0,
+              "median": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            }
+          }
+        }
+      ],
+      "c2": {
+        "result": "PASS",
+        "frames": 240,
+        "profile": "C3",
+        "mismatches": 0,
+        "mismatch_rows": [],
+        "ambiguous": 0,
+        "totals": [
+          {
+            "anomaly": "blinking",
+            "order": 0,
+            "events": 3,
+            "apply_edges": 3,
+            "revert_edges": 3,
+            "blink_toggle_edges": 6,
+            "mismatches": 0
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "order": 0,
+            "events": 3,
+            "apply_edges": 3,
+            "revert_edges": 3,
+            "blink_toggle_edges": 0,
+            "mismatches": 0
+          },
+          {
+            "anomaly": "lod_corruption",
+            "order": 0,
+            "events": 3,
+            "apply_edges": 3,
+            "revert_edges": 3,
+            "blink_toggle_edges": 0,
+            "mismatches": 0
+          },
+          {
+            "anomaly": "missing_object",
+            "order": 0,
+            "events": 3,
+            "apply_edges": 3,
+            "revert_edges": 3,
+            "blink_toggle_edges": 0,
+            "mismatches": 0
+          }
+        ],
+        "offset": "ALIGNED",
+        "separation_ratio": 5.0,
+        "transition_exclusions": 0,
+        "rhi": "D3D11",
+        "backbuffer_format": 18,
+        "dropped": 0,
+        "negatives": [
+          {
+            "kind": "apply",
+            "result": "PASS",
+            "shifted_indices": [
+              6,
+              26,
+              46,
+              63,
+              83,
+              103,
+              123,
+              143,
+              163,
+              183,
+              203,
+              223
+            ],
+            "refusal": "Pixel/label mismatch: [{\"index\": 6, \"anomaly\": \"blinking\", \"label\": false, \"pixel\": true}, {\"index\": 26, \"anomaly\": \"blinking\", \"label\": false, \"pixel\": true}, {\"index\": 46, \"anomaly\": \"blinking\", \"label\": false, \"pixel\": true}, {\"index\": 63, \"anomaly\": \"lighting_mismatch\", \"label\": false, \"pixel\": true}, {\"index\": 83, \"anomaly\": \"lighting_mismatch\", \"label\": false, \"pixel\": true}, {\"index\": 103, \"anomaly\": \"lighting_mismatch\", \"label\": false, \"pixel\": true}, {\"index\": 123, \"anomaly\": \"lod_corruption\", \"label\": false, \"pixel\": true}, {\"index\": 143, \"anomaly\": \"lod_corruption\", \"label\": false, \"pixel\": true}, {\"index\": 163, \"anomaly\": \"lod_corruption\", \"label\": false, \"pixel\": true}, {\"index\": 183, \"anomaly\": \"missing_object\", \"label\": false, \"pixel\": true}, {\"index\": 203, \"anomaly\": \"missing_object\", \"label\": false, \"pixel\": true}, {\"index\": 223, \"anomaly\": \"missing_object\", \"label\": false, \"pixel\": true}]"
+          },
+          {
+            "kind": "revert",
+            "result": "PASS",
+            "shifted_indices": [
+              17,
+              37,
+              57,
+              77,
+              97,
+              117,
+              137,
+              157,
+              177,
+              197,
+              217,
+              237
+            ],
+            "refusal": "Pixel/label mismatch: [{\"index\": 17, \"anomaly\": \"blinking\", \"label\": true, \"pixel\": false}, {\"index\": 37, \"anomaly\": \"blinking\", \"label\": true, \"pixel\": false}, {\"index\": 57, \"anomaly\": \"blinking\", \"label\": true, \"pixel\": false}, {\"index\": 77, \"anomaly\": \"lighting_mismatch\", \"label\": true, \"pixel\": false}, {\"index\": 97, \"anomaly\": \"lighting_mismatch\", \"label\": true, \"pixel\": false}, {\"index\": 117, \"anomaly\": \"lighting_mismatch\", \"label\": true, \"pixel\": false}, {\"index\": 137, \"anomaly\": \"lod_corruption\", \"label\": true, \"pixel\": false}, {\"index\": 157, \"anomaly\": \"lod_corruption\", \"label\": true, \"pixel\": false}, {\"index\": 177, \"anomaly\": \"lod_corruption\", \"label\": true, \"pixel\": false}, {\"index\": 197, \"anomaly\": \"missing_object\", \"label\": true, \"pixel\": false}, {\"index\": 217, \"anomaly\": \"missing_object\", \"label\": true, \"pixel\": false}, {\"index\": 237, \"anomaly\": \"missing_object\", \"label\": true, \"pixel\": false}]"
+          },
+          {
+            "kind": "blink_toggle",
+            "result": "PASS",
+            "shifted_indices": [
+              10,
+              14,
+              30,
+              34,
+              50,
+              54
+            ],
+            "refusal": "Pixel/label mismatch: [{\"index\": 10, \"anomaly\": \"blinking\", \"label\": true, \"pixel\": false}, {\"index\": 14, \"anomaly\": \"blinking\", \"label\": false, \"pixel\": true}, {\"index\": 30, \"anomaly\": \"blinking\", \"label\": true, \"pixel\": false}, {\"index\": 34, \"anomaly\": \"blinking\", \"label\": false, \"pixel\": true}, {\"index\": 50, \"anomaly\": \"blinking\", \"label\": true, \"pixel\": false}, {\"index\": 54, \"anomaly\": \"blinking\", \"label\": false, \"pixel\": true}]"
+          }
+        ]
+      },
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-attempts\\C3\\02\\session\\Runtime.log",
+            "exists": true,
+            "size": 132630,
+            "sha256": "bbc8796d14147a073ab015f1fa2d8c20d0e8db491338dfb5c64a82939731e92a",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-attempts\\C3\\02\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6635,
+            "sha256": "4385a6d6694eba1ed61bac3ddeb957ff4375b781c76658f5c7f93d07c9fa59bc",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "protected": {
+        "result": "PASS"
+      },
+      "monitors": [
+        {
+          "pid": 31640,
+          "parent_pid": 11320,
+          "depth": -1,
+          "created_filetime": 134379595138578027,
+          "image": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClientEditor.exe",
+          "monitor_of": 8816,
+          "command_line": "\"E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClientEditor.exe\" \"../../../Engine/Binaries/Win64/CrashReportClientEditor.exe\"  -READ=500 -WRITE=512 -MONITOR=8816 -abslog=D:/IA_Europa/Receipts/09433b/c3-attempts/C3/02/session/CrashClient.log -ConcertServer=\"A59749284B802731490F478617BFC1FE\" -RespawnedInstance",
+          "started_utc": "2026-10-31T22:31:53.857803+00:00",
+          "adopted_utc": "2026-10-31T22:31:54.944839+00:00",
+          "authority": "FH5 exact -MONITOR PID match"
+        }
+      ],
+      "monitor_stops": [],
+      "stopped_owned_processes": [],
+      "runtime_diagnostics": [],
+      "raw_evidence": {
+        "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-attempts\\C3\\02\\raw-evidence.json",
+        "sha256": "15bed5940bd2a7ab543366beab9967e8cad4b3dd7444191e902457b7c737ec9a",
+        "files": 975
+      }
     }
   ],
+  "copy_source_test": {
+    "result": "PASS",
+    "usage": [
+      "BUF_ShaderResource",
+      "BUF_SourceCopy",
+      "BUF_UnorderedAccess"
+    ],
+    "negative": "4.25 staging source missing BUF_SourceCopy",
+    "evidence": "c3-attempts/C3/01/session/Runtime.log:642-643",
+    "citations": [
+      "D3D11Commands.cpp:2311-2320",
+      "RHIGPUReadback.cpp:71",
+      "RHIDefinitions.h:1097"
+    ],
+    "prediction": "Retry clears the handled copy-source ensure. Frozen coverage remains expected to fail; no colour/reference/threshold change."
+  },
+  "retry_qualification": {
+    "result": "PASS",
+    "quick_testable_fix": true,
+    "diagnosis": "First C3 logged a handled D3D11 ensure at frame 94: reduction readback source lacks BUF_SourceCopy. Add that usage flag; independent descriptor negative reproduces its refusal. This qualifies the sole retry for the new observed descriptor defect, not a relaxation of FO3.",
+    "tests": [
+      {
+        "path": "D:\\IA_Europa\\Receipts\\09433b\\tests\\copy-source.json",
+        "size": 510,
+        "sha256": "5495886cfb5efe982da1d70fed74dd1d4590a49ce5a7999b612601ce77bbf561"
+      }
+    ]
+  },
   "diagnosis": {
     "result": "DIAGNOSED",
     "raw_files_verified": 975,
@@ -809,7 +1408,33 @@
         ]
       }
     ],
-    "retry": "Not qualified: no mask-only correction can reach frozen coverage with the permitted spill on these kept colour frames. Render/scenario changes require a separately justified design; no threshold or reference-region relaxation."
+    "retry": "The later complete-log review found a handled BUF_SourceCopy ensure. Its independent descriptor test qualified the one retry, which cleared the ensure. Both slots are now spent; no mask, colour, reference or threshold changed. Lighting/LOD coverage remains FAIL.",
+    "first_decision_preserved_in": "diagnosis-slot01.json",
+    "retained_comparison": {
+      "result": "PASS",
+      "verified_raw_files": [
+        975,
+        975
+      ],
+      "between_sessions": {
+        "frame-": {
+          "files": 240,
+          "equal": 240
+        },
+        "mask-": {
+          "files": 240,
+          "equal": 240
+        },
+        "evidence-": {
+          "files": 240,
+          "equal": 240
+        },
+        "reduce-": {
+          "files": 240,
+          "equal": 240
+        }
+      }
+    }
   },
   "entry": {
     "path": "D:\\IA_Europa\\Receipts\\09433b\\entry.json",
@@ -818,16 +1443,16 @@
   "exit": {
     "result": "PASS",
     "failures": [],
-    "utc": "2026-10-31T22:22:59.697766+00:00",
+    "utc": "2026-10-31T22:35:14.815390+00:00",
     "feature": {
-      "head": "e129eba3bb7b8959ab363b119fea41af2ede872c",
+      "head": "47f9be28cdd3e5373e288b3a611fa7900c9fea6d",
       "branch": "feat/europa-port",
       "status": ""
     },
     "manifest": {
-      "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-425-binaries-01.json",
+      "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-425-binaries-02.json",
       "result": "PASS",
-      "sha256": "e11177ee8dda3b56e5b133e68ec9b502ea07d8a6c3ea941acbd697a0daec8940",
+      "sha256": "67efdee3755d12819fc89291dbb39700028b5d943910fd3693be1785a2b7c6df",
       "files": 27
     },
     "root_changes": {
@@ -845,14 +1470,14 @@
       }
     },
     "free_GiB": {
-      "C:": 29.026531219482422,
-      "D:": 56.05611801147461,
-      "E:": 179.13699340820312
+      "C:": 29.019351959228516,
+      "D:": 55.870975494384766,
+      "E:": 179.13684844970703
     }
   },
   "manifest": {
-    "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-425-binaries-01.json",
-    "sha256": "e11177ee8dda3b56e5b133e68ec9b502ea07d8a6c3ea941acbd697a0daec8940"
+    "path": "D:\\IA_Europa\\Receipts\\09433b\\c3-425-binaries-02.json",
+    "sha256": "67efdee3755d12819fc89291dbb39700028b5d943910fd3693be1785a2b7c6df"
   },
   "binaries": [
     {
@@ -869,8 +1494,8 @@
     {
       "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
       "size": 139110400,
-      "mtime_ns": 1793484995018854100,
-      "sha256": "3e8b934acdb7d8b47920ffd818136f687fa463adb83b255c6a7d25d9f1c597ea",
+      "mtime_ns": 1793485773121073000,
+      "sha256": "a757a185597981c8566bbeb84685d38d33adde78b779a141bf525ecd44e33e04",
       "prior_sha256": "5b14a10a3383e5234c91a7f400426c0ccff32be56fe98bfa1b2af4fae5e74a24",
       "byte_identical_to_A5": false,
       "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
@@ -913,8 +1538,8 @@
     {
       "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
       "size": 583680,
-      "mtime_ns": 1793484912156267600,
-      "sha256": "05546183468060c409711f10b6512d88617aac5bc6ed12e5f55de586073ceb41",
+      "mtime_ns": 1793485690867206700,
+      "sha256": "115637170cbcb566855b3fcd3dfda66138602b1b5ae6cd9ad60892fe8c0749ee",
       "prior_sha256": "9627b803fdb4e94c4e80678176c7478435c092b1c7f993b3024cc936bb50c36c",
       "byte_identical_to_A5": true,
       "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
@@ -955,34 +1580,6 @@
       "origin": "retained bound A5 artifact"
     }
   ],
-  "summary": "Descriptor repair qualified; C3 still fails frozen changed-pixel coverage. Editor and Game Development built on first FM1 attempts from e129eba. One normal 16.923-second session produced 240 paired RGB/mask/label frames, D3D11 format 18, zero drops. Blinking (drawn and hidden) and missing_object pass; lighting coverage 0.564548-0.564694 and LOD coverage 0.049315-0.049394 fail >=0.95. All silhouettes have IoU 1 and spill 0. Same-session C2 has zero mismatches or ambiguity; both mask negatives and all three label negatives reject. No quick mask-only fix qualifies slot 02: the uncovered changes are outside the required reference silhouettes. Slot 01 stays FAIL and slot 02 is unused/unqualified. No crash, upload sign or protected change; no push or tags.",
-  "phase": "slot 01 retained; retry qualified, not yet run",
-  "copy_source_test": {
-    "result": "PASS",
-    "usage": [
-      "BUF_ShaderResource",
-      "BUF_SourceCopy",
-      "BUF_UnorderedAccess"
-    ],
-    "negative": "4.25 staging source missing BUF_SourceCopy",
-    "evidence": "c3-attempts/C3/01/session/Runtime.log:642-643",
-    "citations": [
-      "D3D11Commands.cpp:2311-2320",
-      "RHIGPUReadback.cpp:71",
-      "RHIDefinitions.h:1097"
-    ],
-    "prediction": "Retry clears the handled copy-source ensure. Frozen coverage remains expected to fail; no colour/reference/threshold change."
-  },
-  "retry_qualification": {
-    "result": "PASS",
-    "quick_testable_fix": true,
-    "diagnosis": "First C3 logged a handled D3D11 ensure at frame 94: reduction readback source lacks BUF_SourceCopy. Add that usage flag; independent descriptor negative reproduces its refusal. This qualifies the sole retry for the new observed descriptor defect, not a relaxation of FO3.",
-    "tests": [
-      {
-        "path": "D:\\IA_Europa\\Receipts\\09433b\\tests\\copy-source.json",
-        "size": 510,
-        "sha256": "5495886cfb5efe982da1d70fed74dd1d4590a49ce5a7999b612601ce77bbf561"
-      }
-    ]
-  }
+  "summary": "Both descriptor defects are fixed and both Development targets are built. Two C3 sessions exited normally with 240 paired masks each; the retry cleared the handled BUF_SourceCopy ensure. Blinking drawn/hidden and missing_object pass, but lighting and LOD fail the frozen changed-pixel coverage gate. IoU is 1 and spill 0 throughout; same-session C2 has zero mismatches/ambiguity. All mask and label negatives reject. Both slots are spent; no threshold or reference was relaxed. Protected files/refs and the final 27-file manifest pass; no crash, upload sign, push or tag.",
+  "phase": "final: both C3 slots spent"
 }
