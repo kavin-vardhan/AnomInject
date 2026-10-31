@@ -15,12 +15,17 @@ def need(value,message):
 def claimed(row,route):
     return any(a['id']==route for a in row['anomalies'])
 
-def evaluate(rows,observed,commands,annotation,strict=True):
-    need(len(rows)==len(observed)==480,'Expected 480 primary frames')
-    need([r['frame_index'] for r in rows]==list(range(480)),'Missing, duplicate or out-of-order index')
+def expected_frames(profile):
+    need(profile in ('C2','C3'),'Unknown label profile')
+    return 480 if profile=='C2' else 240
+
+def evaluate(rows,observed,commands,annotation,strict=True,profile='C2'):
+    count=expected_frames(profile)
+    need(len(rows)==len(observed)==count,'Expected '+str(count)+' primary frames')
+    need([r['frame_index'] for r in rows]==list(range(count)),'Missing, duplicate or out-of-order index')
     keys=[(r['epoch'],r['world_owner'],r['request'],r['session_index']) for r in rows]
-    need(len(set(keys))==480 and len(set(k[:2] for k in keys))==1,'Stale or duplicate frame key')
-    need([r['request'] for r in rows]==list(range(1,481)),'Request sequence differs')
+    need(len(set(keys))==count and len(set(k[:2] for k in keys))==1,'Stale or duplicate frame key')
+    need([r['request'] for r in rows]==list(range(1,count+1)),'Request sequence differs')
     need(all(r['session_index']==r['frame_index'] and r['aa']==0 and r['tickpin_compiled']==0 for r in rows),'Frame metadata differs')
     need(all(b['sample_frame']>a['sample_frame'] and b['family_frame']>a['family_frame'] for a,b in zip(rows,rows[1:])),'Stale or reordered render family')
     events=[]
@@ -37,7 +42,7 @@ def evaluate(rows,observed,commands,annotation,strict=True):
             need(len(state)==1 and state[0]['labelled']==claimed(row,route),'Exported label disagrees with sampled policy')
             pixel=observed[i] if route==expected_route else False
             if claimed(row,route)!=pixel:mismatches.append(dict(index=i,anomaly=route,label=claimed(row,route),pixel=pixel))
-    for event in range(24):
+    for event in range(count//20):
         start=event*20;route=ROUTES[(event//3)%4];bits=observed[start:start+20]
         need(not any(bits[:3]) and not any(bits[17:]),'No clean apply/revert flanks for event '+str(event))
         edges=[start+i for i in range(1,20) if bits[i]!=bits[i-1]]
@@ -53,18 +58,18 @@ def evaluate(rows,observed,commands,annotation,strict=True):
             blink_toggle_edges=len(edges)-2 if route=='blinking' else 0,edge_indices=edges,affected_frames=sorted(actual)))
     if strict:need(not mismatches,'Pixel/label mismatch: '+json.dumps(mismatches[:12]))
     totals=[]
-    for order in (0,1):
+    for order in range(count//240):
         for route in ROUTES:
             subset=[e for e in events if e['order']==order and e['anomaly']==route]
             totals.append(dict(anomaly=route,order=order,events=len(subset),apply_edges=sum(e['apply_edges'] for e in subset),
                 revert_edges=sum(e['revert_edges'] for e in subset),blink_toggle_edges=sum(e['blink_toggle_edges'] for e in subset),
                 mismatches=sum(m['anomaly']==route and m['index']//240==order for m in mismatches)))
-    return dict(result='FAIL' if mismatches else 'PASS',frames=480,mismatches=len(mismatches),mismatch_rows=mismatches,ambiguous=0,totals=totals,events=events,
+    return dict(result='FAIL' if mismatches else 'PASS',frames=count,profile=profile,mismatches=len(mismatches),mismatch_rows=mismatches,ambiguous=0,totals=totals,events=events,
         offset='ALIGNED',separation_ratio=SEPARATION_RATIO,transition_exclusions=0)
 
 def mutate(rows,observed,kind):
     changed=copy.deepcopy(rows);indices=[]
-    for event in range(24):
+    for event in range(len(rows)//20):
         start=event*20;route=ROUTES[(event//3)%4]
         edges=[start+i for i in range(1,20) if observed[start+i]!=observed[start+i-1]]
         selected=edges[:1] if kind=='apply' else edges[-1:] if kind=='revert' else edges[1:-1] if route=='blinking' else []
@@ -80,7 +85,7 @@ def mutate(rows,observed,kind):
     return changed,indices
 
 def annotation_for(rows):
-    return dict(anomalies=[dict(bench_event=e,affected_frames=dict(frame_indices=[i for i in range(e*20,e*20+20) if claimed(rows[i],ROUTES[(e//3)%4])])) for e in range(24)])
+    return dict(anomalies=[dict(bench_event=e,affected_frames=dict(frame_indices=[i for i in range(e*20,e*20+20) if claimed(rows[i],ROUTES[(e//3)%4])])) for e in range(len(rows)//20)])
 
 def pixel_states(root,rows,references):
     from PIL import Image,ImageChops,ImageStat
@@ -104,23 +109,24 @@ def pixel_states(root,rows,references):
         measurements.append(dict(index=row['frame_index'],anomaly=route,clean_error=dc,active_error=da,separation=separation,observed=da<dc))
     return observed,measurements
 
-def read(root,references,negative_output=None):
+def read(root,references,negative_output=None,profile='C2'):
     def load(name):
         with open(os.path.join(root,name)) as stream:return json.load(stream)
     with open(os.path.join(root,'labels.jsonl')) as stream:rows=[json.loads(line) for line in stream if line.strip()]
     observed,measurements=pixel_states(root,rows,references)
     native=load('labels-receipt.json');annotation=load('annotation.json');capture=load('capture.json')
-    need(annotation['label_schema']==2 and annotation['label_schema_minor']==1 and annotation['video']['total_frames']==480,'Annotation schema differs')
-    need(native['result']=='PASS' and native['paired']==native['written']==480 and native['unmatched_dropped']==native['dropped']==0,'Native pairing/stop failure')
+    count=expected_frames(profile)
+    need(annotation['label_schema']==2 and annotation['label_schema_minor']==1 and annotation['video']['total_frames']==count,'Annotation schema differs')
+    need(native['result']=='PASS' and native['paired']==native['written']==count and native['unmatched_dropped']==native['dropped']==0,'Native pairing/stop failure')
     need(native['pacing_restored'],'Pacing was not restored')
-    need(capture['written']==capture['requested']==480 and capture['dropped']==0 and capture['backbuffer_format'] in (2,18,37),'Capture accounting differs')
-    need([r['index'] for r in sorted(capture['frames'],key=lambda r:r['index'])]==list(range(480)),'PNG index differs')
-    result=evaluate(rows,observed,native['commands'],annotation,strict=False)
+    need(capture['written']==capture['requested']==count and capture['dropped']==0 and capture['backbuffer_format'] in (2,18,37),'Capture accounting differs')
+    need([r['index'] for r in sorted(capture['frames'],key=lambda r:r['index'])]==list(range(count)),'PNG index differs')
+    result=evaluate(rows,observed,native['commands'],annotation,strict=False,profile=profile)
     result.update(rhi=capture['rhi'],backbuffer_format=capture['backbuffer_format'],dropped=capture['dropped'],pixel_measurements=measurements)
     negatives=[]
     for kind in ('apply','revert','blink_toggle'):
         mutant,indices=mutate(rows,observed,kind)
-        try:evaluate(mutant,observed,native['commands'],annotation_for(mutant))
+        try:evaluate(mutant,observed,native['commands'],annotation_for(mutant),profile=profile)
         except ValueError as error:
             need('Pixel/label mismatch' in str(error),'Negative failed for wrong reason: '+str(error))
             negatives.append(dict(kind=kind,result='PASS',shifted_indices=indices,refusal=str(error)))
