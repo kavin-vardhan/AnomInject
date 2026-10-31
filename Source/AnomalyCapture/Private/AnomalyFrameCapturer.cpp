@@ -2,6 +2,7 @@
 #include "AnomalyFrameCapturer.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/ThreadSafeCounter.h"
+#include "Misc/ScopeLock.h"
 #include "RHI.h"
 #if __has_include("RHIAccess.h")
 #include "RHIAccess.h"
