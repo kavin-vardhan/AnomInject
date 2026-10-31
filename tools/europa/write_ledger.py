@@ -37,6 +37,8 @@ def floors(start=False):
             and SCOPE.get('runtime_scope', {}).get('kind') == 'fixture-authoring'):
         start = False
     limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (15, 12, 10)}
+    if JOB == ROOT/'Receipts/09431':
+        limits['D'] = (25, 25, 15)
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
         'start': v[0] * GIB, 'warning': v[1] * GIB, 'floor': v[2] * GIB} for d, v in limits.items()}
     if any(v['free'] < v['floor'] for v in data.values()) and os.environ.get('EUROPA_DISK_SUPERVISOR_PID') and not AUTHORING_STARTED:
@@ -456,6 +458,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     start = time.monotonic()
     if before_create is not None:
         before_create()
+    if memory_guard and JOB == ROOT/'Receipts/09431':
+        floors(start=True)
     try:
         proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding='utf-8', errors='replace', bufsize=1,
