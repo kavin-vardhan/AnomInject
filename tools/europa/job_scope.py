@@ -8,6 +8,12 @@ ROOT = Path('D:/IA_Europa')
 
 
 def memory_policy_allowed(data, job):
+    if (job == ROOT/'Receipts/09427e' and data.get('runtime_authorized') is True
+        and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
+        and '094-27d-ruling FK1-FK4' in data.get('authority','')
+        and data.get('build_pairs')==[] and data.get('query_pairs')==[]
+        and data['memory']=={'start_physical_GiB':4,'start_commit_GiB':8,'stop_physical_GiB':None,'stop_commit_GiB':4}):
+        return True
     if (data.get('runtime_authorized') is True and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
         and 'FH1-FH9' in data.get('authority','') and data.get('build_pairs')==[] and data.get('query_pairs')==[]
         and data['memory']=={'start_physical_GiB':6,'start_commit_GiB':8,'stop_physical_GiB':None,'stop_commit_GiB':4}):
@@ -64,7 +70,7 @@ def load(path=None):
     if data['max_parallel_actions'] not in (1, 4):
         raise RuntimeError('Unapproved action parallelism')
     if not memory_policy_allowed(data, job):
-        raise RuntimeError('Memory policy is not a ruled EF1/EI2/EV4/FD3 policy')
+        raise RuntimeError('Memory policy is not a ruled EF1/EI2/EV4/FD3/FK1 policy')
     return dict(data, config_path=str(path), config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 
 
