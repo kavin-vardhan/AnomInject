@@ -11,7 +11,7 @@ def accept(source):
     m=re.search(r'FRDGBufferDesc TableDesc = FRDGBufferDesc::CreateBufferDesc\(4,1536\);(.*?)Graph.CreateBuffer\(TableDesc,',source,re.S)
     usage={'BUF_ShaderResource','BUF_UnorderedAccess'}
     if m:
-        for flag in re.findall(r'TableDesc.Usage \|= (BUF_\w+);',m.group(1)):usage.add(flag)
+        for flag in re.findall(r'TableDesc.Usage = EBufferUsageFlags\(TableDesc.Usage \| (BUF_\w+)\);',m.group(1)):usage.add(flag)
     if 'BUF_SourceCopy' not in usage:raise ValueError('4.25 staging source missing BUF_SourceCopy')
     return sorted(usage)
 
@@ -22,7 +22,7 @@ def run():
     assert 'RHICmdList.CopyToStagingBuffer(SourceBuffer,' in readback
     source=(P/'Source/AnomalyCapture/Private/Compat/AnomalyMasks425.cpp').read_text()
     usage=accept(source)
-    old=source.replace('TableDesc.Usage |= BUF_SourceCopy;','')
+    old=source.replace('TableDesc.Usage = EBufferUsageFlags(TableDesc.Usage | BUF_SourceCopy);','')
     assert old!=source
     try:accept(old)
     except ValueError as error:refusal=str(error)

@@ -110,7 +110,7 @@ bool FAnomalyMasks425::Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& F
     Params->TargetTag = Target; Params->DepthBias = 0.000001f;
     FComputeShaderUtils::AddPass(Graph, RDG_EVENT_NAME("AnomalyMask425"), Shader, Params, FIntVector(160,90,1));
     FRDGBufferDesc TableDesc = FRDGBufferDesc::CreateBufferDesc(4,1536);
-    TableDesc.Usage |= BUF_SourceCopy;
+    TableDesc.Usage = EBufferUsageFlags(TableDesc.Usage | BUF_SourceCopy);
     FRDGBufferRef Table = Graph.CreateBuffer(TableDesc, TEXT("AnomalyMaskTable425"));
     auto TableUAV = Graph.CreateUAV(Table, PF_R32_UINT);
     AddClearUAVPass(Graph, TableUAV, 0u);
