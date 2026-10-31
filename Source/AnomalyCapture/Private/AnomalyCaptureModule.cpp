@@ -14,8 +14,10 @@ public:
 #if ANOMALY_CAPTURE
 #if ANOMALY_CAPTURE_ADVANCED
 		AnomalyViewport::SetNaniteComponentProbe(&AnomalyMeasurability::ComponentDrawsNanite);
-#endif
 		UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture module started (idle — use IAI.Capture.Start)."));
+#else
+        UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture module started (4.25 frames — use IAI.Capture.C1; labels unqualified; masks unavailable)."));
+#endif
 #else
 		UE_LOG(LogAnomalyCapture, Log, TEXT("AnomalyCapture module started (compiled out: ANOMALY_CAPTURE=0)."));
 #endif

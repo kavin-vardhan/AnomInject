@@ -48,7 +48,11 @@ def arm():
     for row in manifest['files']:
         path=Path(row['path']);row.update(size=path.stat().st_size,sha256=sha(path))
     head=__import__('subprocess').check_output(['git','-C',str(TOOLS.parent.parent),'rev-parse','HEAD'],text=True).strip()
-    manifest.update(source_commit=head,tooling_commit=head,authority=AUTHORITY,purpose='C1 authorized Development rebuild; Shipping retained')
+    manifest.update(source_commit=head,tooling_commit=head,authority=AUTHORITY,purpose='C1 authorized Development rebuild; Shipping retained',
+        production_source_equal='C1 changed capture source; no Phase A production-equality claim',
+        build_sources={r['target']:r['commit'] for r in built if r.get('gate_result')=='PASS'},
+        prior_manifest=str(ROOT/'Receipts/09421/qualification/final-425-binaries.json'),
+        prior_manifest_sha256=sha(ROOT/'Receipts/09421/qualification/final-425-binaries.json'))
     manifest_path=JOB/'final-425-binaries.json';create_json(manifest_path,manifest)
     verify_files(manifest['files']);verify_files(manifest['probe_source'])
     memory=dict(start_physical_GiB=4,start_commit_GiB=8,stop_physical_GiB=None,stop_commit_GiB=4)

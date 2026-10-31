@@ -3590,7 +3590,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	int32 InOutputHeight)
 {
 #if ANOMALY_CAPTURE_FRAMES425
-    if (!InTargetAnomaly.IsEmpty() || !InTargetActor.IsEmpty() || InTargetArgs.Num() || InOutputHeight > 0 || !bPng)
+    if (!InTargetAnomaly.IsEmpty() || !InTargetActor.IsEmpty() || InTargetArgs.Num() || InOutputHeight > 0 || !bPng ||
+        bSveCapture || bMaskMeasure || bTargetMask || bCensus || bMaskProbe || !bAsyncCapture)
     {
         UE_LOG(LogAnomalyCapture, Error, TEXT("Capture425: C1 admits native PNG frames only; labels/masks/targets unavailable"));
         return;
