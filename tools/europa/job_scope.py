@@ -8,6 +8,12 @@ ROOT = Path('D:/IA_Europa')
 
 
 def memory_policy_allowed(data, job):
+    if (job == ROOT/'Receipts/09431' and data.get('runtime_authorized') is True
+        and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
+        and data.get('authority')=='094-31 FL1-FL6 FJ1 FK1'
+        and data.get('build_pairs')==[] and data.get('query_pairs')==[]
+        and data['memory']=={'start_physical_GiB':4,'start_commit_GiB':8,'stop_physical_GiB':None,'stop_commit_GiB':4}):
+        return True
     if (job == ROOT/'Receipts/09427e' and data.get('runtime_authorized') is True
         and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
         and '094-27d-ruling FK1-FK4' in data.get('authority','')

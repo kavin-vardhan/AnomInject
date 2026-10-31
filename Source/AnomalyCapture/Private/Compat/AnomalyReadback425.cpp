@@ -1,6 +1,6 @@
 #include "AnomalyReadback425.h"
 #if ANOMALY_ENGINE_425 && ANOMALY_CAPTURE
-void FAnomalyReadback425::EnqueueCopy(FRHICommandList& Cmd, FRHITexture* Source, const FResolveRect& Rect)
+void FAnomalyReadback425::EnqueueCopy(FRHICommandList& Cmd, FRHITexture* Source, FResolveRect Rect)
 {
     Fence->Clear();
     FRHITexture2D* Texture = Source->GetTexture2D();

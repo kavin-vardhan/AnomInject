@@ -22,7 +22,7 @@ class FAnomalyReadback425 : public FRHIGPUMemoryReadback
 {
 public:
     explicit FAnomalyReadback425(FName Name) : FRHIGPUMemoryReadback(Name) {}
-    void EnqueueCopy(FRHICommandList& Cmd, FRHITexture* Source, const FResolveRect& Rect = FResolveRect()) override;
+    void EnqueueCopy(FRHICommandList& Cmd, FRHITexture* Source, FResolveRect Rect = FResolveRect()) override;
     void* Lock(uint32 NumBytes) override;
     void* Lock(int32& Pitch, int32* Height);
     void Unlock() override;

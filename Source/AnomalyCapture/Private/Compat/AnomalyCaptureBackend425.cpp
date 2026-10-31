@@ -5,6 +5,9 @@
 #include "Widgets/SWindow.h"
 #include "Widgets/SViewport.h"
 #include "Slate/SceneViewport.h"
+#include "Layout/WidgetPath.h"
+#include "Layout/ArrangedWidget.h"
+#include "Layout/ArrangedChildren.h"
 #include "RenderingThread.h"
 bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
 {
@@ -25,10 +28,15 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
     if (!Window || !Client->Viewport || Client->Viewport->GetSizeXY() != FIntPoint(1280, 720)) { return false; }
     FIntRect ViewRect; int32 AA = -1; uint32 Frame = 0;
     if (!View->Read(ViewRect, AA, Frame) || ViewRect.Size() != FIntPoint(1280, 720)) { return false; }
-    const FGeometry& Geometry = Widget->GetCachedGeometry();
-    FVector2D Origin = Geometry.LocalToAbsolute(FVector2D::ZeroVector) - Window->GetPositionInScreen();
-    FIntRect Rect(FIntPoint(FMath::RoundToInt(Origin.X), FMath::RoundToInt(Origin.Y)),
-        FIntPoint(FMath::RoundToInt(Origin.X) + 1280, FMath::RoundToInt(Origin.Y) + 720));
+    FArrangedChildren Children(EVisibility::Visible);
+    Children.AddWidget(FArrangedWidget(Window.ToSharedRef(), Window->GetWindowGeometryInWindow()));
+    FWidgetPath Path(Window.ToSharedRef(), Children);
+    if (!Path.ExtendPathTo(FWidgetMatcher(Widget.ToSharedRef()), EVisibility::Visible)) { return false; }
+    const FArrangedWidget Arranged = Path.FindArrangedWidget(Widget.ToSharedRef()).Get(FArrangedWidget::GetNullWidget());
+    const FVector2D Origin = Arranged.Geometry.GetAbsolutePosition();
+    const FVector2D Size = Arranged.Geometry.GetAbsoluteSize();
+    FIntRect Rect(FMath::RoundToInt(Origin.X), FMath::RoundToInt(Origin.Y), FMath::RoundToInt(Origin.X + Size.X), FMath::RoundToInt(Origin.Y + Size.Y));
+    if (Rect.Size() != FIntPoint(1280, 720)) { return false; }
     PendingAA.Add(Id, AA);
     Capturer->ArmForCapture(Id, Window.Get(), Rect);
     return true;
