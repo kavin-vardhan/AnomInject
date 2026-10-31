@@ -94,11 +94,6 @@ def run(only=None,number=1):
     os.environ['EUROPA_JOB_CONFIG']=str(JOB/'capture-job-config.json')
     import write_ledger as ledger
     from runtime_lean_gate import wait
-    import idle_gate
-    def reading():
-        row=idle_gate.collect()
-        if isinstance(row.get('idle_seconds'),(int,float)) and row['idle_seconds']<300:row['idle_seconds']=0
-        return row
     result=dict(result='RUNNING',legs=[],crash_count=0,started_utc=stamp())
     old=[json.loads(p.read_text()) for p in (JOB/'capture-attempts').glob('*/*/result.json')]
     result['crash_count']=sum(bool(r.get('crashed')) for r in old)
@@ -115,7 +110,7 @@ def run(only=None,number=1):
             argv=command(leg,root)
             create_json(root/'prepared.json',dict(leg=leg,argv=argv))
             print(leg+': waiting for one FJ1/FK1 reading (5 idle minutes, 4/8 GiB).',flush=True)
-            gate=wait(root/'gate.jsonl',DEADLINE,collector=reading)
+            gate=wait(root/'gate.jsonl',DEADLINE,idle_seconds=300)
             if gate['status']!='CLEAR':result['result']='WINDOW_ENDED';break
             validate(config)
             create_json(root/'protection-before.json',dict(result='PASS',snapshot=protection_snapshot()))
