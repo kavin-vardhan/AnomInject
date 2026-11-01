@@ -743,13 +743,6 @@
       "text": "\t\tFunction = TFunction<Signature>();",
       "decision": "retained API/compiled surface",
       "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
-    },
-    {
-      "file": "Source/AnomalyInjector/Public/Compat/AnomalyEngineVersion.h",
-      "line": 9,
-      "text": "#error AnomalyInjector supports exactly Unreal Engine 4.25 and 5.1.",
-      "decision": "retained API/compiled surface",
-      "reason": "Compile-version detection and feature selection, not anomaly behavior."
     }
   ],
   "compat_calls": [
