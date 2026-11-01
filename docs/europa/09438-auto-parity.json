@@ -11,7 +11,10 @@
     "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingObject.cpp",
     "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingObject.h",
     "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+    "Source/AnomalyInjector/Private/AnomalyCensusProvider.cpp",
+    "Source/AnomalyInjector/Private/AnomalyDefaults.cpp",
     "Source/AnomalyInjector/Private/AnomalyHiddenClass.cpp",
+    "Source/AnomalyInjector/Private/AnomalyInjectorModule.cpp",
     "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
     "Source/AnomalyInjector/Private/AnomalyLod.cpp",
     "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
@@ -22,11 +25,14 @@
     "Source/AnomalyInjector/Private/Compat/AnomalyTickableWorldSubsystem.cpp",
     "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
     "Source/AnomalyInjector/Public/AnomalyAutoInjectorSubsystem.h",
+    "Source/AnomalyInjector/Public/AnomalyCensusProvider.h",
+    "Source/AnomalyInjector/Public/AnomalyDefaults.h",
     "Source/AnomalyInjector/Public/AnomalyHiddenClass.h",
     "Source/AnomalyInjector/Public/AnomalyInjectorSubsystem.h",
     "Source/AnomalyInjector/Public/AnomalyLod.h",
     "Source/AnomalyInjector/Public/AnomalySelectorSubsystem.h",
     "Source/AnomalyInjector/Public/AnomalyTargeting.h",
+    "Source/AnomalyInjector/Public/AnomalyTargetPolicy.h",
     "Source/AnomalyInjector/Public/AnomalyViewport.h",
     "Source/AnomalyInjector/Public/Compat/AnomalyCapabilities.h",
     "Source/AnomalyInjector/Public/Compat/AnomalyEngineCompat.h",
@@ -127,6 +133,27 @@
       "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }",
       "decision": "retained API/compiled surface",
       "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorModule.cpp",
+      "line": 17,
+      "text": "\t\tAnomalyViewport::SetNaniteComponentProbe([](const UPrimitiveComponent*) { return false; });",
+      "decision": "retained API/compiled surface",
+      "reason": "Stock 4.25 has no Nanite component API. The explicit false probe is installed/removed at module lifetime so shared target policy can admit non-Nanite geometry; startup text lists the actual supported surface. PHASE0 measured Nanite rows."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorModule.cpp",
+      "line": 18,
+      "text": "\t\tUE_LOG(LogAnomaly, Display, TEXT(\"Europa 4.25: stock-no-Nanite component probe; missing_object, blinking, lighting_mismatch, lod_corruption; texture/control backends unavailable.\"));",
+      "decision": "retained API/compiled surface",
+      "reason": "Stock 4.25 has no Nanite component API. The explicit false probe is installed/removed at module lifetime so shared target policy can admit non-Nanite geometry; startup text lists the actual supported surface. PHASE0 measured Nanite rows."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorModule.cpp",
+      "line": 29,
+      "text": "\t\tAnomalyViewport::SetNaniteComponentProbe(nullptr);",
+      "decision": "retained API/compiled surface",
+      "reason": "Stock 4.25 has no Nanite component API. The explicit false probe is installed/removed at module lifetime so shared target policy can admit non-Nanite geometry; startup text lists the actual supported surface. PHASE0 measured Nanite rows."
     },
     {
       "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
