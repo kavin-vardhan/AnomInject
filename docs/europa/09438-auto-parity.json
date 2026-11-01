@@ -1069,5 +1069,11 @@
       "source": "AnomalyCaptureLabels425.cpp:47,74-76",
       "comparison": "Accepted C4 capture design; differs from 5.1 per-burst firing."
     }
-  ]
+  ],
+  "09439_fallback_retry": {
+    "choice": "Process-local IAI.SetMinScreenCoverage 0.5, fallback-only",
+    "reason": "First fallback produced 2352 paired frames but only 12 lighting events. In clean frame309, EA_LOD is 2.8049% drawn (pixel bbox2.8974%) and EA_HideCube is 1.8502% (bbox1.9922%). Both have census owners and are absent from bounds-visible; floor/pawn are the only bounds-visible entries. AnomalyViewport.cpp:57 defaults to6%, :572 rejects below that bounds filter. Auto.Yield reports only single_lod candidates or census exclusions. This is the fallback launch preset, not the >=2-LOD guard.",
+    "census": "Existing0.5%-25% band unchanged",
+    "source": "AnomalyViewport.cpp:57,553-577,1870-1887; AnomalyCensusPolicy425.h:5-6"
+  }
 }

@@ -10408,3 +10408,8 @@ FW2 retains lighting_mismatch and lod_corruption as shared default-off opt-ins o
 ## G507 - A UI proof must overlap the exact capture (2026-11-02, 094-39)
 
 FW4 replaces timing overlap with request/sample-frame keys. The first eight capture requests register their game-thread frame; that exact frame's canvas callback draws the marker. A render-queue breadcrumb carries request/sample frame into its post-UI backbuffer control. The resolved pre-UI frame has the same sample frame because BeginRenderViewFamily rejects a request from another GFrameCounter and records FamilyFrame. The reader joins draw, positive post-UI control, native observation and PNG by request/sample frame, verifies FamilyFrame against labels, and rejects shifted/missing pairs or marker leakage. tick and tick_type are labelled build_constant; tick_calls and engine timing flags remain live reads. No exposure, UI or machine setting is saved.
+
+
+## G508 - Fallback bounds admission must reach the measured census (2026-11-02, 094-39)
+
+The player-view fallback smoke left the shared bounds prefilter at its default6%, excluding the visible multi-LOD target (2.80% drawn) and hide target (1.85%). Only the oversized floor and custom-depth-reserved pawn reached auto admission; the four-event gate correctly failed. The fallback kit now sets the process-local bounds prefilter to0.5%, matching the existing measured-census floor, and echoes it. The measured0.5%-25% band, target guard and reader gates are unchanged; street launches and production defaults are unchanged. Source: AnomalyViewport.cpp:57,553-577,1870-1887 and AnomalyCensusPolicy425.h:5-6. No map/config save or native patch.

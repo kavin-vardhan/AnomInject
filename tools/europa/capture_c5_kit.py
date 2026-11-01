@@ -33,6 +33,7 @@ def select_map(argv,profile):
     if profile not in ('street','fallback'):raise ValueError('Unknown map profile')
     if profile=='fallback':
         argv[:]=[a.replace('/Game/ParisStreet/Levels/SampleMap','/Game/EuropaPhaseA/EA_Core') for a in argv]+['-IAICaptureFallback']
+        argv[:]=[a.replace('-ExecCmds=','-ExecCmds=IAI.SetMinScreenCoverage 0.5,IAI.SetMinScreenCoverage,') for a in argv]
     return argv
 
 def command(leg,root):
