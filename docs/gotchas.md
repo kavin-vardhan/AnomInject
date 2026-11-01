@@ -10328,3 +10328,10 @@ Do not equate IoU 1 with complete anomaly coverage. In kept frame 63, 344,769 of
 FRDGBufferDesc::CreateBufferDesc provides shader read/UAV usage but not BUF_SourceCopy. FRHIGPUBufferReadback::EnqueueCopy calls CopyToStagingBuffer (RHIGPUReadback.cpp:71); D3D11Commands.cpp:2320 ensures SourceCopy is set. Slot 01 copied correct data but emitted this handled ensure. Add BUF_SourceCopy to the reduction descriptor before creation; test the absent flag independently. A successful copy and normal exit do not prove the resource contract is clean.
 
 09433b retry result for G492: 4.25 EBufferUsageFlags also needs an explicit cast when combining flags (no |= overload). Editor 3/Game 2 compiled the correction; C3 slot 02 exited normally with all 240 masks and no ensure. This repairs the resource contract, while G491's independent lighting/LOD coverage failures remain.
+
+
+## G493 - Precision and spill cannot reject a subset of affected receivers (2026-11-01, 094-33c)
+
+With exposure locked, every positive FQ2 mask passes. Yet the lighting wrong-target mutant, containing only the hide cube, also has precision 1 and spill 0: it is a subset of changed pixels on valid receiver actors. Precision constrains false positives, not completeness or semantic membership of the full output. Removing coverage without an independent receiver identity/completeness rule leaves this counterexample admissible. Do not add an unruled IoU threshold or choose a different negative after seeing the result. Report the escape; the frozen metrics require a decision. See [09433c receipts](europa/09433c-mask-precision-receipts.json).
+
+The exposure lock also invalidates previously hash-bound colour references even when geometry is unchanged. Keep the initial ambiguity FAIL, bind directly inspected exposure-matched references, and re-run the unchanged reader and its shift negatives against the retained raw files. This job's re-read has zero C2 mismatches, while the original reader receipt remains FAIL.

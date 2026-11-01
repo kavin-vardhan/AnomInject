@@ -69,7 +69,7 @@ def arm(retry=False):
         p=Path(row['path']);row.update(size=p.stat().st_size,mtime_ns=p.stat().st_mtime_ns,sha256=sha(p))
     manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09433c FQ2-FQ3 C3 build pair')
     manifest_path=J/('c3-425-binaries-'+revision+'.json');create_json(manifest_path,manifest)
-    refs=json.loads((c1.ROOT/'Receipts/09433/c2-reference-plan.json').read_text())
+    refs=json.loads((J/'c2-reference-plan.json').read_text())
     config=dict(arming_job='09433c',stage='C3',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),protected=current,
         engine_files=prior['engine_files'],tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
