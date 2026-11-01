@@ -33,7 +33,7 @@ private:
     TWeakObjectPtr<UWorld> Owner;
     TWeakObjectPtr<AActor> Target;
     TMap<TWeakObjectPtr<UPrimitiveComponent>,FPrior> Before,Original;
-    FRotator Base,TargetRotation;
+    FRotator Base,TargetRotation,OriginalViewRotation;
     FVector Position;
     bool IgnoreMove=false,IgnoreLook=false,Frozen=false;
     FString Directory;

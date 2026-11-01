@@ -35,7 +35,7 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     PC->GetPlayerViewPoint(Position,Base); Target=PC->GetViewTarget(); TargetRotation=Target.IsValid()?Target->GetActorRotation():Base;
     IgnoreMove=PC->IsMoveInputIgnored(); IgnoreLook=PC->IsLookInputIgnored();
     PC->SetIgnoreMoveInput(true); PC->SetIgnoreLookInput(true);
-    Base.Pitch=-12.0f;
+    OriginalViewRotation=Base; Base.Pitch=-12.0f;
     auto Candidates=AnomalyViewport::GetCensusPrefilterActors(World);
     Candidates.Sort([](const TWeakObjectPtr<AActor>& A,const TWeakObjectPtr<AActor>& B) { return GetNameSafe(A.Get())<GetNameSafe(B.Get()); });
     int32 N=0;
@@ -90,7 +90,7 @@ void FAnomalyStreetBench425::Prepare(int32 Index)
     auto D=Describe(Index); const int32 P=int32(D->GetNumberField(TEXT("pose"))),Step=int32(D->GetNumberField(TEXT("step")));
     const bool Clean=Index<PreFrames;
     FAnomalyMasks425::SetBenchCensus(!Clean || Step>=Turn+Settle+CleanHold);
-    const float To=Base.Yaw+60.0f*P; const float From=Base.Yaw+60.0f*((P+Poses-1)%Poses);
+    const float To=Base.Yaw+60.0f*P; const float From=P==0 ? To : Base.Yaw+60.0f*(P-1);
     FRotator R=Base; R.Yaw=Step<Turn ? From+FMath::FindDeltaAngleDegrees(From,To)*float(Step+1)/Turn : To;
     PC->SetControlRotation(R);
     if (Target.IsValid() && Target.Get()!=PC->GetPawn()) { Target->SetActorRotation(R); }
@@ -244,7 +244,7 @@ bool FAnomalyStreetBench425::Stop()
     auto After=DepthSample(true); const bool Good=After->GetNumberField(TEXT("unexpected"))==0 && After->GetNumberField(TEXT("tagged_components"))==0;
     JsonStreet425(After,Directory/TEXT("depth-after.json"));
     for (const auto& Pair:Original) { if (Pair.Key.IsValid()) { Pair.Key->SetCustomDepthStencilValue(Pair.Value.Value); Pair.Key->SetCustomDepthStencilWriteMask(Pair.Value.Mask); Pair.Key->SetRenderCustomDepth(Pair.Value.On); } }
-    if (Owner.IsValid()) { if (APlayerController* PC=Owner->GetFirstPlayerController()) { PC->SetControlRotation(Base); PC->SetIgnoreMoveInput(false); PC->SetIgnoreLookInput(false); } }
+    if (Owner.IsValid()) { if (APlayerController* PC=Owner->GetFirstPlayerController()) { PC->SetControlRotation(OriginalViewRotation); PC->SetIgnoreMoveInput(false); PC->SetIgnoreLookInput(false); } }
     if (Target.IsValid() && Owner.IsValid() && Target.Get()!=Owner->GetFirstPlayerController()->GetPawn()) { Target->SetActorRotation(TargetRotation); }
     return Good;
 }
