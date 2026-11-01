@@ -34,6 +34,16 @@ def select_reference(rows,event):
     need(bool(candidates),'No pre-apply reference')
     return candidates[-1]
 
+def wrong_target(data,tags,target_tags):
+    candidates=[(tag,silhouette(data,[tag])) for tag in sorted(set(tags)-set(target_tags))]
+    candidates=[pair for pair in candidates if pair[1].any()]
+    if not candidates:
+        candidates=[(tag,silhouette(data,[tag])) for tag in sorted(target_tags)]
+        candidates=[pair for pair in candidates if pair[1].any()]
+        candidates.sort(key=lambda pair:(-int(pair[1].sum()),pair[0]))
+    need(bool(candidates),'No nonempty wrong-target control')
+    return candidates[0]
+
 def table(data):
     result=np.zeros((256,6),dtype='<u4');m=data[:,:,3]&255;d=(data[:,:,3]>>8)&255
     for tag in np.unique(m):
@@ -101,11 +111,7 @@ def read(root):
             shifted=previous_mask if previous_mask is not None else np.zeros_like(mask)
             shifted_result=metrics(shifted,ref,changed,route)
             if shifted_result['result']=='FAIL':negatives['shift'][route].append(i)
-            others=sorted(set(tagmap)-set(e['target_tags']))
-            if others:wrong=silhouette(base['data'],[others[0]])
-            else:
-                candidates=[silhouette(base['data'],[t]) for t in e['target_tags']]
-                wrong=max(candidates,key=lambda x:int(x.sum()))
+            wrong_tag,wrong=wrong_target(base['data'],tagmap,e['target_tags'])
             if metrics(wrong,ref,changed,route)['result']=='FAIL':negatives['wrong_target'][route].append(i)
         else:
             clean.append(dict(index=i,pixels=int(mask.sum()),anomaly=route))

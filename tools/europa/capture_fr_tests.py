@@ -51,6 +51,12 @@ def run():
     assert reader.classify(a,a)[0] is True
     assert metrics(a,a|other,a|other,'lighting_mismatch')['result']=='FAIL'
     assert metrics(a|other,a|other,a|other,'lighting_mismatch')['result']=='PASS'
+    data=np.zeros((64,96,4),dtype='<u4');data[:,:,1]=np.float32(1).view('u4');data[:,:,2]=np.float32(1).view('u4')
+    data[:,:,0][a]=201;data[:,:,0][other]=202
+    wrong_tag,wrong=reader.wrong_target(data,[200,201,202],[201])
+    assert wrong_tag==202 and wrong.any()
+    assert all(metrics(wrong,a,a,route)['result']=='FAIL' for route in reader.ROUTES)
+    assert metrics(reader.wrong_target(data,[200,201,202],[201,202])[1],a|other,a|other,'lighting_mismatch')['result']=='FAIL'
     metric=metric_tests()
     commands=[]
     for leg,res in (('C4_720',(1280,720)),('C4_900',(1600,900))):

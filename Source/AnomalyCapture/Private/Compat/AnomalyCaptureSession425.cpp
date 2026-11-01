@@ -3,6 +3,7 @@
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyCaptureLog.h"
 #include "AnomalyPixel425.h"
+#include "AnomalyWriteQueue425.h"
 #include "Camera/PlayerCameraManager.h"
 #include "AnomalyPreviewCapture.h"
 #include "Async/Async.h"
@@ -39,6 +40,7 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     }
     Output = Directory; Count = InCount; Requested = Completed = Failures = 0; NextId = 1;
     Writes.Empty(); Rows.Empty(); Running = true; Started = FPlatformTime::Seconds();
+    PeakPendingWrites = WriterDrains = 0;
     RHI = GDynamicRHI ? GDynamicRHI->GetName() : TEXT("unknown");
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: start RHI=%s frames=%d native=viewport labels=paired_when_enabled masks=live_targets_when_enabled"), *RHI, Count);
     return true;
@@ -63,6 +65,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         if (Labels && !Labels->Pair(Frame.LabelKey425, Name)) { ++Failures; continue; }
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
+        WriterDrains += AnomalyWriteQueue425::MakeRoom(Writes,[this](bool Good) { if (Good) { ++Completed; } else { ++Failures; } });
         Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path, MaskOutput]()
         {
             if (!MaskOutput.IsEmpty() && !FAnomalyMasks425::Save(Frame,MaskOutput)) { return false; }
@@ -77,6 +80,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
             TArray<uint8> Png;
             return AnomalyPreview::EncodePixels(AnomalyPreview::EImageFormat::PNG, Pixels, Frame.Width, Frame.Height, Png, 0) && FFileHelper::SaveArrayToFile(Png, *Path);
         }));
+        PeakPendingWrites = FMath::Max(PeakPendingWrites,Writes.Num());
     }
     for (int32 I = Writes.Num() - 1; I >= 0; --I)
     {
@@ -118,11 +122,12 @@ void FAnomalyCaptureSession425::Stop()
     }
     FString Json = FString::Printf(TEXT("{\"rhi\":\"%s\",\"backbuffer_format\":%d,\"requested\":%d,\"written\":%d,\"dropped\":%d,\"pitch\":%d,\"mapped_height\":%d,\"elapsed_seconds\":%.6f,\"labels\":\"unqualified\",\"masks\":\"unavailable\",\"frames\":["),
         *RHI, Layout.Format, Count, Completed, Dropped, Layout.RowPitchInPixels, Layout.BufferHeight, FPlatformTime::Seconds() - Started);
-    Json += FString::Join(Rows, TEXT(",")) + TEXT("]}");
+    Json += FString::Join(Rows, TEXT(",")) + FString::Printf(TEXT("],\"peak_pending_writes\":%d,\"writer_drains\":%d,\"writer_limit\":%d}"),PeakPendingWrites,WriterDrains,AnomalyWriteQueue425::MaxPending);
     if (AnomalyCaptureC2::Masks()) { Json.ReplaceInline(TEXT("\"masks\":\"unavailable\""),TEXT("\"masks\":\"stencil-depth-rdg425\"")); }
 
     const bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: finish RHI=%s written=%d requested=%d dropped=%d receipt=%d"), *RHI, Completed, Count, Dropped, Saved ? 1 : 0);
+    UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: writer peak=%d limit=%d drains=%d"),PeakPendingWrites,AnomalyWriteQueue425::MaxPending,WriterDrains);
     Backend.Reset();
     if (HadLabels) { AnomalyCaptureC2::Finished(SessionWorld.Get(), LabelsPassed && Saved); }
     else if (FParse::Param(FCommandLine::Get(), TEXT("IAICaptureExit"))) { FPlatformMisc::RequestExit(false); }

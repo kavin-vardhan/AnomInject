@@ -26,6 +26,8 @@ private:
     int32 Completed = 0;
     int32 Count = 0;
     int32 Failures = 0;
+    int32 PeakPendingWrites = 0;
+    int32 WriterDrains = 0;
     bool Running = false;
     double Started = 0;
 };
