@@ -61,7 +61,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         const FString Name = FString::Printf(TEXT("frame-%06llu.png"), Frame.RequestId - 1);
         const FString Path = Output / Name;
         const FString MaskOutput = AnomalyCaptureC2::Masks() ? Output : FString();
-        if (Labels) { FAnomalyMasks425::Observe(Frame); }
+        if (Labels) { FAnomalyMasks425::Observe(Frame); if (!Labels->Observe(Frame)) { ++Failures; continue; } }
         if (Labels && !Labels->Pair(Frame.LabelKey425, Name)) { ++Failures; continue; }
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
@@ -90,11 +90,11 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
             Writes.RemoveAt(I);
         }
     }
-    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (Labels ? 480.0 : 80.0))
+    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (AnomalyCaptureC2::Street() ? 1100.0 : Labels ? 480.0 : 80.0))
     {
         Stop(); return;
     }
-    if (Requested < Count && Backend->RequestFrame(World, NextId))
+    if (Requested < Count && (!Labels || Labels->Ready()) && Backend->RequestFrame(World, NextId))
     {
         if (Labels && !Labels->Snapshot(World, NextId)) { ++Failures; }
         ++NextId; ++Requested;
@@ -139,9 +139,10 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureFrames425(TEXT("IAI.Capture.C1
         if (!World || Args.Num() != 2) { return; }
         APlayerController* PC = World->GetFirstPlayerController();
         if (!PC) { return; }
-        for (TActorIterator<ACameraActor> It(World); It; ++It)
+        const IConsoleVariable* BenchCamera=IConsoleManager::Get().FindConsoleVariable(TEXT("IAI.Capture.BenchCamera"));
+        if (FParse::Param(FCommandLine::Get(),TEXT("IAIBench")) && BenchCamera && BenchCamera->GetInt())
         {
-            PC->SetViewTarget(*It); break;
+            for (TActorIterator<ACameraActor> It(World);It;++It) { PC->SetViewTarget(*It); break; }
         }
         PC->bShowMouseCursor = false;
         UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: view target=%s location=%s rotation=%s"), *GetNameSafe(PC->GetViewTarget()),

@@ -15,6 +15,10 @@ struct FAnomalyLabelKey425
     bool Masks = false;
     uint32 MaskTarget = 0;
     uint64 MaskBits = 0;
+    FVector PlayerLocation=FVector::ZeroVector,ViewLocation=FVector::ZeroVector;
+    FRotator PlayerRotation=FRotator::ZeroRotator,ViewRotation=FRotator::ZeroRotator;
+    float PlayerFov=0,ViewFov=0;
+    FString PlayerTarget;
 };
 
 namespace AnomalyLabelKey425

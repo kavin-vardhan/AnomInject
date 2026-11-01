@@ -35,7 +35,7 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
     Key.Epoch = LabelEpoch; Key.Owner = World->GetUniqueID(); Key.Request = Id;
     Key.SampleFrame = GFrameCounter; Key.SessionIndex = int32(Id - 1);
     Key.Masks = AnomalyCaptureC2::Masks();
-    Key.MaskBits = Key.Masks ? FAnomalyMasks425::Selection(World) : 0;
+    Key.MaskBits = Key.Masks ? FAnomalyMasks425::Selection(World,Id) : 0;
     Key.MaskTarget = Key.MaskBits ? 1 : 0;
     if (!View->Queue(Key, Window.Get(), ViewRect, Capturer)) { return false; }
     PendingAA.Add(Id, AA);

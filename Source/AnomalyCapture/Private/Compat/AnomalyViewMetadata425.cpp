@@ -6,6 +6,8 @@
 #include "CoreGlobals.h"
 #include "UnrealClient.h"
 #include "AnomalyMasks425.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 FAnomalyViewMetadata425::FAnomalyViewMetadata425(const FAutoRegister& Register, UWorld* World)
     : FSceneViewExtensionBase(Register), Owner(World) {}
 bool FAnomalyViewMetadata425::IsActiveThisFrame(FViewport* Viewport) const
@@ -35,6 +37,13 @@ void FAnomalyViewMetadata425::BeginRenderViewFamily(FSceneViewFamily& Family)
         }
         Ticket.Key.FamilyFrame = Family.FrameNumber;
         Ticket.Key.AA = LastAA;
+        if (APlayerController* PC=World->GetFirstPlayerController())
+        {
+            PC->GetPlayerViewPoint(Ticket.Key.PlayerLocation,Ticket.Key.PlayerRotation);
+            Ticket.Key.PlayerTarget=GetPathNameSafe(PC->GetViewTarget());
+            Ticket.Key.PlayerFov=PC->PlayerCameraManager ? PC->PlayerCameraManager->GetFOVAngle() : 0;
+        }
+        Ticket.Key.ViewLocation=Family.Views[0]->ViewLocation; Ticket.Key.ViewRotation=Family.Views[0]->ViewRotation; Ticket.Key.ViewFov=Family.Views[0]->FOV;
         Ticket.Accepted = true;
     }
 }

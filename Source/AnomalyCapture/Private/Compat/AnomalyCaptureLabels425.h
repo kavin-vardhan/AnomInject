@@ -6,6 +6,8 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "AnomalyMasks425.h"
+#include "AnomalyStreetBench425.h"
+#include "AnomalyAnnotation425.h"
 
 class FAnomalyCaptureLabels425
 {
@@ -13,6 +15,8 @@ public:
     bool Start(UWorld* World, const FString& Directory, bool Boundary);
     void SetNext(int32 Index) { Next = Index; }
     bool Snapshot(UWorld* World, uint64 Request);
+    bool Observe(const FAnomalyCapturedFrame& Frame);
+    bool Ready() const { return !Street || Street->Ready(Next); }
     bool Pair(const FAnomalyLabelKey425& Key, const FString& File);
     void Stop(int32 Written, int32 Dropped);
     uint64 Epoch() const { return RunEpoch; }
@@ -20,6 +24,8 @@ public:
 private:
     void Prepare(UWorld* World, ELevelTick TickType, float Delta);
     TUniquePtr<FAnomalyMasks425> MaskOwner;
+    TUniquePtr<FAnomalyStreetBench425> Street;
+    TMap<FString,AnomalyAnnotation425::FSessionEvent> AnnotationEvents;
     TWeakObjectPtr<UWorld> Owner;
     FDelegateHandle PrepareHandle;
     FString Output;
@@ -51,6 +57,7 @@ private:
 namespace AnomalyCaptureC2
 {
     bool Enabled();
+    bool Street();
     bool Boundary();
     bool Masks();
     void Finished(UWorld* World, bool Success);

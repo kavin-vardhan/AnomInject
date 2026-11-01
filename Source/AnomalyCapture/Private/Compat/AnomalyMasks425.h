@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Components/PrimitiveComponent.h"
 #include "AnomalyFrameCapturer.h"
+#include "Dom/JsonObject.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 class UWorld;
@@ -16,7 +17,9 @@ public:
     TArray<uint8> TagsFor(const FAutoLiveFireInfo& Fire) const;
     const TMap<TWeakObjectPtr<AActor>,uint8>& Assignments() const { return Tags; }
     static bool Labelled(UWorld* World,const FAutoLiveFireInfo& Fire);
-    static uint64 Selection(UWorld* World);
+    static uint64 Selection(UWorld* World,uint64 Request);
+    TSharedPtr<FJsonObject> State() const;
+    TArray<TWeakObjectPtr<AActor>> Receivers(const FAutoLiveFireInfo& Fire) const;
     static void Observe(const FAnomalyCapturedFrame& Frame);
     static bool Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family, uint64 Request, uint64 Selected,
         FAnomalyFrameCapturer& Capturer);
@@ -27,8 +30,17 @@ private:
     TMap<TWeakObjectPtr<AActor>,uint8> Tags;
     TMap<TWeakObjectPtr<UPrimitiveComponent>,ERendererStencilMask> WriteMasks;
     bool Started = false;
-    uint32 VisiblePixels[256] = {};
-    uint64 CensusFrame = 0;
-    int32 CensusArea = 0;
+    struct FCensusValue { int32 Pixels=0,Area=0; uint64 Tick=0; bool Translucent=false; };
+    TMap<TWeakObjectPtr<AActor>,FCensusValue> Verdicts;
+    TMap<uint64,TMap<TWeakObjectPtr<AActor>,uint8>> Batches;
+    TMap<FName,uint8> EventTags;
+    TArray<TWeakObjectPtr<AActor>> Queue,Visible;
+    TSet<FString> InitialVisible;
+    int32 Cursor=0,Cycles=0,LastCycleTicks=0,PeakVisible=0,Exhausted=0;
+    uint64 CycleStarted=0;
+    void Advance(uint64 Request);
+    void Release();
+    int32 Tag(AActor* Actor,uint8 Value);
+    uint8 FreeTag() const;
 };
 #endif
