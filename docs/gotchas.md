@@ -10346,3 +10346,9 @@ At 1600 by 900, a queued colour plus uint4 mask-evidence frame owns 28.8 MB befo
 ## G496 - A fixture-sized census does not establish real-scene admission (2026-11-01, 094-35)
 
 09434's one-time tagging had only 55 free values and treated any drawn pixel as eligible. C5 ports the rotating 5.1 census policy: measured floor and ceiling, per-batch restoration, new actor discovery and bounded ledger use. The coverage band is upstream admission, not proof that an anomaly visibly changed the target. On-screen affected membership is measured separately from the injected active subset, and the independent RGB check remains the qualification gate.
+
+## G497 - A rejected clean sweep cannot qualify labels with an empty comparison (2026-11-01, 094-35)
+
+All six street-map poses exceeded the predeclared 5% unstable-pixel limit (26.20%-41.53%). Keeping injection off correctly produced zero events, but a reader checking only mismatches returned a vacuous C2 PASS. Require scored coverage and three complete events per anomaly as well as zero mismatches. Preserve the original overall FAIL and re-read separately. Animated foliage, shadows and particles are visible in the clean differences; a higher noise threshold or a conveniently chosen pose after seeing results would not establish the requested gate.
+
+GetVisibleRenderableActors uses the legacy 6% bounds-coverage filter. Its peak of 20 is not the uncapped drawn census: first clean stencil samples at the starting held view measure 167 drawn actors from 199 candidates. Derive the initial-visible set and held-pose counts from those independent samples. Report that rotating measurement scope, and do not claim a late-target event when none fired. See [09435 receipts](europa/09435-street-capture-receipts.json).

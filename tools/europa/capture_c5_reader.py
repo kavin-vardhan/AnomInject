@@ -20,6 +20,15 @@ def stable_map(images):
 def frame_set(indices):
     return dict(start_frame=indices[0] if indices else 0,end_frame=indices[-1] if indices else 0,frame_count=len(indices),span_frame_count=indices[-1]-indices[0]+1 if indices else 0,frame_indices=indices)
 
+def drawn_names(bank):
+    return sorted(name for name,packed in bank.items() if np.any(packed))
+
+def c2_result(rows,events,mismatches,ambiguity):
+    frames=sum(bool(r['sweep']['score']) for r in rows)
+    counts={route:sum(e['scored'] for e in events if e['anomaly']==route) for route in ROUTES}
+    covered=frames>0 and all(n>=3 for n in counts.values())
+    return dict(result='PASS' if covered and not mismatches and not ambiguity else 'FAIL',scored_frames=frames,scored_events=counts,coverage='PASS' if covered else 'FAIL',mismatches=mismatches,ambiguous=ambiguity)
+
 def annotation_check(annotation,rows,events):
     issues=[]
     if set(annotation)!=ROOT_KEYS or annotation.get('label_schema')!=2 or annotation.get('label_schema_minor')!=1:issues.append('root schema')
@@ -82,14 +91,14 @@ def read(root):
                 bank[owner['actor']]=np.packbits(silhouette(data,[owner['tag']]))
                 sources[owner['actor']]=dict(index=sample['index'],tag=owner['tag'])
         pose_data[pose]=dict(rgb=ref.astype(np.int16),unstable=unstable,keep=keep,bank=bank,sources=sources)
-        prepass.append(dict(pose=pose,kept=keep,unstable_share=float(unstable.mean()),reference_index=p['reference_index'],census_actors=len(bank),result='PASS' if valid else 'FAIL'))
+        prepass.append(dict(pose=pose,kept=keep,unstable_share=float(unstable.mean()),reference_index=p['reference_index'],census_actors=len(bank),drawn_actors=len(drawn_names(bank)),result='PASS' if valid else 'FAIL'))
         del images
         print('C5 reader: frozen pose %d keep=%s unstable=%.6f actors=%d'%(pose,keep,float(unstable.mean()),len(bank)),flush=True)
     shape=(rows[0]['height'],rows[0]['width'])
     def actor_ref(pose,name):
         packed=pose_data[pose]['bank'].get(name)
         return None if packed is None else np.unpackbits(packed,count=shape[0]*shape[1]).reshape(shape).astype(bool)
-    events=receipt['events'];by_index={};event_out=[];initial=set(rows[0]['census']['initial_visible'])
+    events=receipt['events'];by_index={};event_out=[];initial=set(drawn_names(pose_data[0]['bank']))
     for e in events:
         first=e['first_index'];end=e.get('end_index',len(rows)-1)
         for index in range(max(0,first-1),min(len(rows),end+2)):
@@ -162,10 +171,10 @@ def read(root):
     negative_results=[dict(kind=k,result='PASS' if all(v[a] for a in ROUTES) else 'FAIL',failed_frames_by_anomaly=v) for k,v in negatives.items()]
     annotation=annotation_check(json.loads((root/'annotation.json').read_text()),rows,events)
     depth=depth_check(json.loads((root/'depth-before.json').read_text()),json.loads((root/'depth-after.json').read_text()),rows)
-    census=dict(peak_visible=max(r['census']['visible_count'] for r in rows),exhaustion=max(r['census']['ledger_exhausted'] for r in rows),late_scored_targets=sorted({e['target'] for e in event_out if e['scored'] and e['late_target']}))
+    census=dict(peak_visible=max(p['drawn_actors'] for p in prepass),legacy_bounds_peak=max(r['census']['visible_count'] for r in rows),basis='First clean census sample per actor during each held pose; drawn custom-depth pixels, before coverage admission. Initial visibility is pose 0 at the starting player view.',initial_visible=sorted(initial),exhaustion=max(r['census']['ledger_exhausted'] for r in rows),late_scored_targets=sorted({e['target'] for e in event_out if e['scored'] and e['late_target']}))
     census['result']='PASS' if census['peak_visible']>55 and not census['exhaustion'] and census['late_scored_targets'] else 'FAIL'
     good=chronology and all(p['result']=='PASS' for p in prepass) and all(p['result']=='PASS' for p in per) and not mismatches and not ambiguity and not issues and not clean_dirty and not view_bad and all(n['result']=='PASS' for n in negative_results) and all(x['result']=='PASS' for x in (annotation,depth,census))
-    return dict(result='PASS' if good else 'FAIL',reference_rule=REFERENCE_RULE,frames=len(rows),prepass=prepass,references_frozen_before_scoring=chronology,per_anomaly=per,per_frame=scores,events=event_out,mask_negatives=negative_results,c2=dict(result='PASS' if not mismatches and not ambiguity else 'FAIL',mismatches=mismatches,ambiguous=ambiguity),reference_issues=issues,clean_mask_pixels=sum(x['pixels'] for x in clean_dirty),dirty_clean_frames=clean_dirty,view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad),annotation=annotation,custom_depth=depth,census=census,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
+    return dict(result='PASS' if good else 'FAIL',reference_rule=REFERENCE_RULE,frames=len(rows),prepass=prepass,references_frozen_before_scoring=chronology,per_anomaly=per,per_frame=scores,events=event_out,mask_negatives=negative_results,c2=c2_result(rows,event_out,mismatches,ambiguity),reference_issues=issues,clean_mask_pixels=sum(x['pixels'] for x in clean_dirty),dirty_clean_frames=clean_dirty,view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad),annotation=annotation,custom_depth=depth,census=census,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
 
 if __name__=='__main__':
     import sys
