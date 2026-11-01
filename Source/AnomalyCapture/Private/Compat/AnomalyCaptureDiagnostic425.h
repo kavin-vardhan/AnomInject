@@ -26,6 +26,7 @@ private:
     FString Output;
     FDelegateHandle DrawHandle,BackbufferHandle;
     FThreadSafeCounter Draws,Checked,Hits,Positive,Controls;
+    FThreadSafeCounter BackbufferFormat;
     FCriticalSection Guard;
     TArray<TArray<FColor>> ControlPixels;
     TArray<TSharedPtr<FJsonValue>> Rows;

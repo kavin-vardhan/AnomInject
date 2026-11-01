@@ -40,6 +40,7 @@ def self_checks(log):
         for item,stage,frames in zip(parsed,('start','300'),('1','300')):
             good &= item.get('stage')==stage and item.get('frames')==frames and item.get('size')=='1280x720'
             good &= item.get('format') in ('2','18','37') and item.get('RHI') not in (None,'unknown')
+            good &= item.get('backbuffer_format') in ('2','18','37') and item.get('viewport_size')==item.get('size')
             good &= int(item.get('PostRenderViewFamily','0'))>0 and item.get('pre_ui')=='1'
             good &= item.get('tick')=='OnWorldPostActorTick425' and item.get('tick_type')=='2' and int(item.get('tick_calls','0'))>0
             good &= item.get('census') in ('on','bench_off')

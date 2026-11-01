@@ -14,10 +14,10 @@ J=Path('D:/IA_Europa/Receipts/09438')
 
 def run():
     tests=[]
-    line='Capture425 SELF_CHECK stage={stage} frames={frames} viewport=SceneViewport client=GameViewportClient slate=1 pie=0 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily={frames} pre_ui=1 tick=OnWorldPostActorTick425 tick_type=2 tick_calls={frames} fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30 smoothing=0 ui_draws=8 ui_controls=3 ui_positive=3 ui_checked={frames} ui_hits=0 synth=0 census=on batches=1 lost=0 no_pass=0 polluted=0'
+    line='Capture425 SELF_CHECK stage={stage} frames={frames} viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily={frames} pre_ui=1 tick=OnWorldPostActorTick425 tick_type=2 tick_calls={frames} fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30 smoothing=0 ui_draws=8 ui_controls=3 ui_positive=3 ui_checked={frames} ui_hits=0 synth=0 census=on batches=1 lost=0 no_pass=0 polluted=0'
     log='\n'.join(line.format(stage=s,frames=n) for s,n in [('start',1),('300',300)])
     assert r.self_checks(log)['result']=='PASS'
-    for bad in (log.replace('pre_ui=1','pre_ui=0'),log.replace('lost=0','lost=1'),log.splitlines()[0]):assert r.self_checks(bad)['result']=='FAIL'
+    for bad in (log.replace('pre_ui=1','pre_ui=0'),log.replace('backbuffer_format=18','backbuffer_format=0'),log.replace('viewport_size=1280x720','viewport_size=1x1'),log.replace('lost=0','lost=1'),log.splitlines()[0]):assert r.self_checks(bad)['result']=='FAIL'
     tests.append(dict(fix='self-check',result='PASS',negative='missing 300-frame line, post-UI or lost readback refused'))
     import datetime
     from runtime_lean_gate import reasons

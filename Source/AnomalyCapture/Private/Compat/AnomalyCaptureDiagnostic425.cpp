@@ -52,6 +52,7 @@ void FAnomalyCaptureDiagnostic425::Draw(UCanvas* Canvas,APlayerController*)
 void FAnomalyCaptureDiagnostic425::Backbuffer(SWindow& InWindow,const FTexture2DRHIRef& Buffer)
 {
     if (Window.Pin().Get()!=&InWindow || Draws.GetValue()<1 || Controls.GetValue()>=3 || !Buffer.IsValid()) { return; }
+    BackbufferFormat.Set(int32(Buffer->GetFormat()));
     using namespace AnomalyUiMarker425;
     TArray<FColor> Pixels;
     FRHICommandListExecutor::GetImmediateCommandList().ReadSurfaceData(Buffer,FIntRect(X,Y,X+Width,Y+Height),Pixels,FReadSurfaceDataFlags(RCM_UNorm));
@@ -91,9 +92,10 @@ FString FAnomalyCaptureDiagnostic425::Line() const
     UWorld* World=Owner.Get(); UGameViewportClient* Client=World?World->GetGameViewport():nullptr;
     FViewport* Viewport=Client?Client->Viewport:nullptr;
     const FString Type=Viewport?Viewport->GetViewportType().ToString():TEXT("none");
+    const FIntPoint Size=Viewport?Viewport->GetSizeXY():FIntPoint::ZeroValue;
     const int32 PreUi=Positive.GetValue()>0 && Checked.GetValue()>0 && Hits.GetValue()==0 ? 1 : 0;
-    return FString::Printf(TEXT("viewport=%s client=%s slate=%d pie=%d pre_ui=%d ui_draws=%d ui_controls=%d ui_positive=%d ui_checked=%d ui_hits=%d tick=%s tick_type=%d tick_calls=%d fixed_step=%d fixed_dt=%.9f fixed_rate=%d fixed_fps=%.6f smoothing=%d"),
-        *Type,Client?*Client->GetClass()->GetName():TEXT("none"),Viewport && Viewport->IsSlateViewport()?1:0,Viewport && Viewport->IsPlayInEditorViewport()?1:0,
+    return FString::Printf(TEXT("viewport=%s client=%s viewport_size=%dx%d backbuffer_format=%d slate=%d pie=%d pre_ui=%d ui_draws=%d ui_controls=%d ui_positive=%d ui_checked=%d ui_hits=%d tick=%s tick_type=%d tick_calls=%d fixed_step=%d fixed_dt=%.9f fixed_rate=%d fixed_fps=%.6f smoothing=%d"),
+        *Type,Client?*Client->GetClass()->GetName():TEXT("none"),Size.X,Size.Y,BackbufferFormat.GetValue(),Viewport && Viewport->IsSlateViewport()?1:0,Viewport && Viewport->IsPlayInEditorViewport()?1:0,
         PreUi,Draws.GetValue(),Controls.GetValue(),Positive.GetValue(),Checked.GetValue(),Hits.GetValue(),*ObservedHook.ToString(),TickType,HookTicks,
         FApp::UseFixedTimeStep()?1:0,FApp::GetFixedDeltaTime(),GEngine && GEngine->bUseFixedFrameRate?1:0,GEngine?GEngine->FixedFrameRate:0.0f,GEngine && GEngine->bSmoothFrameRate?1:0);
 }
