@@ -10,12 +10,12 @@ namespace AnomalyReadback425
     {
         return HasData && W > 0 && H > 0 && Pitch == W && MappedH == H;
     }
-    static_assert(Accept(true, 1280, 720, 1280, 720), "Exact map must pass");
-    static_assert(!Accept(true, 1280, 720, 1344, 720), "Padded map must fail");
-    static_assert(!Accept(true, 1280, 720, 1279, 720), "Short pitch must fail");
-    static_assert(!Accept(true, 1280, 720, 1280, 719), "Short height must fail");
-    static_assert(!Accept(true, 1280, 720, 0, 0), "Zero map must fail");
-    static_assert(!Accept(false, 1280, 720, 1280, 720), "Null map must fail");
+    static_assert(Accept(true, 64, 48, 64, 48), "Exact map must pass");
+    static_assert(!Accept(true, 64, 48, 80, 48), "Padded map must fail");
+    static_assert(!Accept(true, 64, 48, 63, 48), "Short pitch must fail");
+    static_assert(!Accept(true, 64, 48, 64, 47), "Short height must fail");
+    static_assert(!Accept(true, 64, 48, 0, 0), "Zero map must fail");
+    static_assert(!Accept(false, 64, 48, 64, 48), "Null map must fail");
 }
 
 class FAnomalyReadback425 : public FRHIGPUMemoryReadback

@@ -17,7 +17,9 @@ public:
         SHADER_PARAMETER(FIntPoint, OutputSize)
         SHADER_PARAMETER(FIntPoint, InternalMin)
         SHADER_PARAMETER(FIntPoint, InternalSize)
-        SHADER_PARAMETER(uint32, TargetTag)
+        SHADER_PARAMETER(uint32, SelectedLo)
+        SHADER_PARAMETER(uint32, SelectedHi)
+        SHADER_PARAMETER(uint32, BaseTag)
         SHADER_PARAMETER(float, DepthBias)
     END_SHADER_PARAMETER_STRUCT()
     static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters&) { return true; }

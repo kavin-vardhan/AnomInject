@@ -71,7 +71,7 @@ void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListI
                 Rejections.Increment();
                 continue;
             }
-            if (Ticket.Key.Masks && !FAnomalyMasks425::Render(Cmd,Family,Ticket.Key.Request,Ticket.Key.MaskTarget,*Capturer))
+            if (Ticket.Key.Masks && !FAnomalyMasks425::Render(Cmd,Family,Ticket.Key.Request,Ticket.Key.MaskBits,*Capturer))
             {
                 Rejections.Increment(); continue;
             }

@@ -9,7 +9,7 @@ ROUTES=('blinking','lighting_mismatch','lod_corruption','missing_object')
 TAGS={'blinking':128,'lighting_mismatch':255,'lod_corruption':129,'missing_object':130}
 DEPTH_BIAS=1e-6
 CHANGE_LEVEL=1
-THRESHOLDS=dict(iou=0.90,spill=0.01,precision=dict(blinking=0.90,missing_object=0.90,lod_corruption=0.80,lighting_mismatch=0.80))
+THRESHOLDS=dict(iou=0.90,spill=0.01,completeness=0.95,precision=dict(blinking=0.90,missing_object=0.90,lod_corruption=0.80,lighting_mismatch=0.80))
 
 def need(ok,reason):
     if not ok:raise ValueError(reason)
@@ -33,6 +33,8 @@ def metrics(mask,reference,changed,anomaly='blinking'):
                 spill=float(np.count_nonzero(mask&~dilate(reference)))/n if n else 1.)
     ok=n>0 and r>0 and result['spill']<=THRESHOLDS['spill']
     if anomaly!='lighting_mismatch':ok &= result['iou']>=THRESHOLDS['iou']
+    result['completeness']=float(inside)/r if r else 0.
+    if anomaly=='lighting_mismatch':ok &= result['completeness']>=THRESHOLDS['completeness']
     count=int(np.count_nonzero(changed&mask))
     result.update(changed_mask_pixels=count,precision=float(count)/n if n else 0.)
     ok &= result['precision']>=THRESHOLDS['precision'][anomaly]

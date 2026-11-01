@@ -1,7 +1,7 @@
 #include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyStencilTag.h"
 
-#if ANOMALY_CAPTURE_ADVANCED
+#if ANOMALY_CAPTURE_ADVANCED || ANOMALY_CAPTURE_FRAMES425
 
 #include "AnomalyViewport.h"
 #include "AnomalyLabelSync.h"

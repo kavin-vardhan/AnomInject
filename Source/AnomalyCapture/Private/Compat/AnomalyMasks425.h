@@ -4,6 +4,8 @@
 #include "CoreMinimal.h"
 #include "Components/PrimitiveComponent.h"
 #include "AnomalyFrameCapturer.h"
+#include "AnomalyStencilTag.h"
+#include "AnomalyAutoInjectorSubsystem.h"
 class UWorld;
 class FSceneViewFamily;
 class FAnomalyMasks425
@@ -11,19 +13,18 @@ class FAnomalyMasks425
 public:
     bool Start(UWorld* World);
     bool Restore();
-    static uint32 Selection(UWorld* World);
-    static bool Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family, uint64 Request, uint32 Target,
+    TArray<uint8> TagsFor(const FAutoLiveFireInfo& Fire) const;
+    const TMap<TWeakObjectPtr<AActor>,uint8>& Assignments() const { return Tags; }
+    static bool Labelled(UWorld* World,const FAutoLiveFireInfo& Fire);
+    static uint64 Selection(UWorld* World);
+    static bool Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family, uint64 Request, uint64 Selected,
         FAnomalyFrameCapturer& Capturer);
     static bool Save(const FAnomalyCapturedFrame& Frame, const FString& Output);
 private:
-    struct FSaved
-    {
-        TWeakObjectPtr<UPrimitiveComponent> Component;
-        bool Depth = false;
-        int32 Tag = 0;
-        ERendererStencilMask WriteMask = ERendererStencilMask::ERSM_Default;
-    };
-    TArray<FSaved> Saved;
-    int32 PriorCustomDepth = -1;
+    FAnomalyStencilTagLedger Ledger;
+    TWeakObjectPtr<UWorld> Owner;
+    TMap<TWeakObjectPtr<AActor>,uint8> Tags;
+    TMap<TWeakObjectPtr<UPrimitiveComponent>,ERendererStencilMask> WriteMasks;
+    bool Started = false;
 };
 #endif

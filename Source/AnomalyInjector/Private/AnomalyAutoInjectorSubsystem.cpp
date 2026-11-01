@@ -19,6 +19,12 @@
 #include "Anomalies/TexCorruptPure.h"
 #include "AnomalyTargetPolicy.h"
 #include "AnomalyDefaults.h"
+#if ANOMALY_ENGINE_425
+#include "AnomalyLod.h"
+#include "Components/LightComponent.h"
+#include "Components/MeshComponent.h"
+#include "EngineUtils.h"
+#endif
 
 #include "Misc/Crc.h"
 #include "Engine/Engine.h"
@@ -38,8 +44,13 @@ namespace
 	{
 		FName(TEXT("missing_object")),
 		FName(TEXT("blinking")),
+#if ANOMALY_ENGINE_425
+		FName(TEXT("lighting_mismatch")),
+		FName(TEXT("lod_corruption")),
+#else
 		FName(TEXT("missing_texture")),
 		FName(TEXT("corrupted_texture")),
+#endif
 		FName(TEXT("lod_popping")),
 		FName(TEXT("camera_clipping")),
 		FName(TEXT("stuck_low_mip")),
@@ -52,8 +63,13 @@ namespace
 	const FName GAutoPoolDefaultEnabled[] =
 	{
 		FName(TEXT("blinking")),
+#if ANOMALY_ENGINE_425
+		FName(TEXT("lighting_mismatch")),
+		FName(TEXT("lod_corruption")),
+#else
 		FName(TEXT("missing_texture")),
 		FName(TEXT("corrupted_texture")),
+#endif
 		FName(TEXT("lod_popping")),
 	};
 
@@ -407,6 +423,30 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	{
 		const FName DrawnId = Eligible.IsValidIndex(IdIndex) ? Eligible[IdIndex] : NAME_None;
 		const bool bTexCorruptId = AnomalyTexCorrupt::IsTexCorruptId(DrawnId);
+#if ANOMALY_ENGINE_425
+        if (DrawnId == FName(TEXT("lighting_mismatch")))
+        {
+            for (TActorIterator<AActor> It(World); It; ++It)
+            {
+                TInlineComponentArray<ULightComponent*> Lights(*It);
+                bool AffectsVisible = false;
+                for (ULightComponent* Light : Lights)
+                {
+                    if (!Light->GetVisibleFlag() || Light->Intensity <= 0) { continue; }
+                    for (const auto& Weak : Visible)
+                    {
+                        if (!Weak.IsValid()) { continue; }
+                        TInlineComponentArray<UPrimitiveComponent*> Prims(Weak.Get());
+                        for (UPrimitiveComponent* Prim : Prims) { AffectsVisible |= AnomalyViewport::IsRenderableComponent(Prim) && Light->AffectsPrimitive(Prim); }
+                    }
+                }
+                if (AffectsVisible && !IsActorLive(*It)) { Candidates.Add(*It); }
+            }
+            Candidates.Sort([](const AActor& A,const AActor& B) { return A.GetName() < B.GetName(); });
+            return Candidates.Num();
+        }
+#endif
+
 		for (const TWeakObjectPtr<AActor>& Weak : Visible)
 		{
 			AActor* Actor = Weak.Get();
@@ -471,6 +511,15 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 				}
 			}
 
+#if ANOMALY_ENGINE_425
+            if (DrawnId == FName(TEXT("lod_corruption")))
+            {
+                TInlineComponentArray<UMeshComponent*> Meshes(Actor);
+                bool Alternate = false;
+                for (UMeshComponent* Mesh : Meshes) { Alternate |= AnomalyLod::GetWorstLod(Mesh) > 1; }
+                if (!Alternate) { continue; }
+            }
+#endif
 			Candidates.Add(Actor);
 		}
 
@@ -578,6 +627,16 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	const FString Token = FString(TEXT("=")) + TargetName;
 	TArray<FString> ApplyArgs;
 	ApplyArgs.Add(Token);
+#if ANOMALY_ENGINE_425
+    if (Id == FName(TEXT("lod_corruption")))
+    {
+        TInlineComponentArray<UMeshComponent*> Meshes(Target);
+        int32 Alternate = 1;
+        for (UMeshComponent* Mesh : Meshes) { if (AnomalyLod::GetWorstLod(Mesh) > 1 && AnomalyLod::GetForcedLod(Mesh) == 1) { Alternate = AnomalyLod::GetWorstLod(Mesh); break; } }
+        ApplyArgs.Add(FString::FromInt(Alternate));
+    }
+#endif
+
 	FString ModeLog = Dash;
 	if (Draw.bModeDrawn)
 	{

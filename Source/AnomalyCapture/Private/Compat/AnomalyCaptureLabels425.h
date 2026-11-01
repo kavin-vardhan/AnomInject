@@ -35,6 +35,17 @@ private:
     TMap<uint64, TSharedPtr<FJsonObject>> Pending;
     TMap<int32, TSharedPtr<FJsonObject>> Frames;
     TArray<TSharedPtr<FJsonValue>> Commands;
+    TMap<FString,TSharedPtr<FJsonObject>> Events;
+    TSet<FString> PreviousFires;
+    FIntPoint Size = FIntPoint::ZeroValue;
+    bool AutoStarted = false;
+    bool SavedEnabled = false;
+    bool SavedRunning = false;
+    bool SavedPersist = false;
+    int32 SavedSeed = 0;
+    int32 SavedMax = 1;
+    float SavedIntervalMin = 0, SavedIntervalMax = 0, SavedHoldMin = 0, SavedHoldMax = 0;
+    TArray<FString> SavedIds;
 };
 
 namespace AnomalyCaptureC2

@@ -14,6 +14,7 @@ struct FAnomalyLabelKey425
     int32 AA = -1;
     bool Masks = false;
     uint32 MaskTarget = 0;
+    uint64 MaskBits = 0;
 };
 
 namespace AnomalyLabelKey425

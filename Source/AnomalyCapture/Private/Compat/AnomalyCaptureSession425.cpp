@@ -26,7 +26,7 @@
 
 bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, int32 InCount)
 {
-    if (Running || !World || !World->IsGameWorld() || InCount < 1 || InCount > 512 || FPaths::IsRelative(Directory) || IFileManager::Get().DirectoryExists(*Directory)) { return false; }
+    if (Running || !World || !World->IsGameWorld() || InCount < 1 || InCount > 8192 || FPaths::IsRelative(Directory) || IFileManager::Get().DirectoryExists(*Directory)) { return false; }
     if (!IFileManager::Get().MakeDirectory(*Directory, true)) { return false; }
     FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     Backend = AnomalyCompat::CreateCaptureBackend425();
@@ -40,7 +40,7 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     Output = Directory; Count = InCount; Requested = Completed = Failures = 0; NextId = 1;
     Writes.Empty(); Rows.Empty(); Running = true; Started = FPlatformTime::Seconds();
     RHI = GDynamicRHI ? GDynamicRHI->GetName() : TEXT("unknown");
-    UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: start RHI=%s frames=%d native=1280x720 labels=unqualified masks=unavailable"), *RHI, Count);
+    UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: start RHI=%s frames=%d native=viewport labels=paired_when_enabled masks=live_targets_when_enabled"), *RHI, Count);
     return true;
 }
 
@@ -51,8 +51,8 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
     FAnomalyCapturedFrame Frame;
     while (Backend->PollFrame(Frame))
     {
-        if (Frame.RequestId < 1 || Frame.RequestId > uint64(Count) || Frame.Width != 1280 || Frame.Height != 720 ||
-            Frame.BytesPerPixel != 4 || !AnomalyPixel425::Accept(Frame.Format) || Frame.RawBytes.Num() != 1280 * 720 * 4)
+        if (Frame.RequestId < 1 || Frame.RequestId > uint64(Count) || Frame.Width <= 0 || Frame.Height <= 0 ||
+            Frame.BytesPerPixel != 4 || !AnomalyPixel425::Accept(Frame.Format) || Frame.RawBytes.Num() != Frame.Width * Frame.Height * 4)
         {
             ++Failures; continue;
         }
@@ -85,7 +85,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
             Writes.RemoveAt(I);
         }
     }
-    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (Labels ? 150.0 : 80.0))
+    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (Labels ? 480.0 : 80.0))
     {
         Stop(); return;
     }
@@ -135,7 +135,7 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureFrames425(TEXT("IAI.Capture.C1
         if (!PC) { return; }
         for (TActorIterator<ACameraActor> It(World); It; ++It)
         {
-            if (It->ActorHasTag(TEXT("EA_Camera"))) { PC->SetViewTarget(*It); break; }
+            PC->SetViewTarget(*It); break;
         }
         PC->bShowMouseCursor = false;
         UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: view target=%s location=%s rotation=%s"), *GetNameSafe(PC->GetViewTarget()),

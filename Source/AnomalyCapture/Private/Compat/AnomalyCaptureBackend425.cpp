@@ -28,14 +28,15 @@ bool FAnomalyCaptureBackend425::RequestFrame(UWorld* World, uint64 Id)
     TSharedPtr<SViewport> Widget = Client->GetGameViewportWidget();
     if (!Widget) { return false; }
     TSharedPtr<SWindow> Window = FSlateApplication::Get().FindWidgetWindow(Widget.ToSharedRef());
-    if (!Window || !Client->Viewport || Client->Viewport->GetSizeXY() != FIntPoint(1280, 720)) { return false; }
+    if (!Window || !Client->Viewport || Client->Viewport->GetSizeXY().X <= 0 || Client->Viewport->GetSizeXY().Y <= 0) { return false; }
     FIntRect ViewRect; int32 AA = -1; uint32 Frame = 0;
-    if (!View->Read(ViewRect, AA, Frame) || ViewRect.Size() != FIntPoint(1280, 720)) { return false; }
+    if (!View->Read(ViewRect, AA, Frame) || ViewRect.Size() != Client->Viewport->GetSizeXY()) { return false; }
     FAnomalyLabelKey425 Key;
     Key.Epoch = LabelEpoch; Key.Owner = World->GetUniqueID(); Key.Request = Id;
     Key.SampleFrame = GFrameCounter; Key.SessionIndex = int32(Id - 1);
     Key.Masks = AnomalyCaptureC2::Masks();
-    Key.MaskTarget = Key.Masks ? FAnomalyMasks425::Selection(World) : 0;
+    Key.MaskBits = Key.Masks ? FAnomalyMasks425::Selection(World) : 0;
+    Key.MaskTarget = Key.MaskBits ? 1 : 0;
     if (!View->Queue(Key, Window.Get(), ViewRect, Capturer)) { return false; }
     PendingAA.Add(Id, AA);
     return true;
