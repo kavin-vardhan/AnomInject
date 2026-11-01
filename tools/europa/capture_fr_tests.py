@@ -31,6 +31,15 @@ def run():
     for token in ('Ledger.IsFree','SnapshotHostReservedValues','Ledger.CensusClaimed','Ledger.EventClaimed','AnomalyStencilTag::TagActor','Fire.TargetActor','Light->AffectsPrimitive','Frame.Width * Frame.Height * 16'):
         assert token in masks,token
     assert 'AnomalyHiddenClass::IsLogicallyHidden(Fire.TargetActor.Get())' in masks
+    assert 'Auto->SetCensusProvider' in masks and 'EAnomalyCensusDecision::ExcludedZero' in masks
+    assert 'zero_stencil_depth_pixels' in masks and 'Frame.LabelKey425.Owner != Self->Owner->GetUniqueID()' in masks
+    kept=Path('D:/IA_Europa/Receipts/09434/c4-attempts/C4_720/01/plugin-frames/epoch01')
+    if kept.exists():
+        first=json.loads((kept/'labels.jsonl').read_text().splitlines()[0])
+        data=reader.raw(kept,first)
+        owners=json.loads((kept/'labels-receipt.json').read_text())['stencil_owners']
+        counts={o['actor']:int(reader.silhouette(data,[o['tag']]).sum()) for o in owners}
+        assert counts['DefaultPawn_0']==0 and sum(v>0 for v in counts.values())==4
     rows=[dict(frame_index=i,sample_frame=100+i,anomalies=['deliberately wrong']) for i in range(10)]
     assert reader.select_reference(rows,dict(start_frame=105))['frame_index']==4
     try:reader.select_reference(rows,dict(start_frame=100))

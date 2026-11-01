@@ -26,6 +26,8 @@ namespace { FAnomalyMasks425* ActiveMasks425 = nullptr; }
 bool FAnomalyMasks425::Start(UWorld* World)
 {
     if (!World || ActiveMasks425 || Started || AnomalyStencilTag::IsAnyTagged()) { return false; }
+    UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
+    if (!Auto || Auto->HasCensusProvider()) { return false; }
     Owner = World; Ledger.Reset(); Ledger.HostReserved = AnomalyStencilTag::SnapshotHostReservedValues(World);
     AnomalyStencilTag::SetRestoreWatch(&Ledger);
     AnomalyStencilTag::EnableCustomStencil(); Started = true; ActiveMasks425 = this;
@@ -47,10 +49,42 @@ bool FAnomalyMasks425::Start(UWorld* World)
         if (AnomalyStencilTag::TagActor(Actor,Value) > 0) { Tags.Add(Actor,Value); Ledger.CensusClaimed.Add(Value); }
     }
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 C4: ledger owners=%d host_reserved=%d"),Tags.Num(),Ledger.HostReserved.Num());
+    Auto->SetCensusProvider([this](const AActor* Actor)
+    {
+        FAnomalyCensusOpinion Opinion;
+        const uint8* Tag = Tags.Find(const_cast<AActor*>(Actor));
+        if (!Tag || !CensusFrame) { Opinion.Decision = EAnomalyCensusDecision::ExcludedZero; Opinion.Reason = TEXT("no_stencil_sample"); return Opinion; }
+        Opinion.AgeTicks = int32(GFrameCounter-CensusFrame); Opinion.WindowTicks = MAX_int32;
+        Opinion.DrawnPct = 100.0f * VisiblePixels[*Tag] / FMath::Max(1,CensusArea);
+        Opinion.Decision = VisiblePixels[*Tag] ? EAnomalyCensusDecision::Eligible : EAnomalyCensusDecision::ExcludedZero;
+        Opinion.Reason = VisiblePixels[*Tag] ? TEXT("stencil_depth_visible") : TEXT("zero_stencil_depth_pixels");
+        return Opinion;
+    },[this]() { return CensusFrame != 0; },FAnomalyCensusFireReportFn(),12);
     return Tags.Num() > 0;
+}
+void FAnomalyMasks425::Observe(const FAnomalyCapturedFrame& Frame)
+{
+    FAnomalyMasks425* Self = ActiveMasks425;
+    if (!Self || !Self->Owner.IsValid() || Frame.LabelKey425.Owner != Self->Owner->GetUniqueID() || Frame.MaskData425.Num() != Frame.Width*Frame.Height*16) { return; }
+    FMemory::Memzero(Self->VisiblePixels,sizeof(Self->VisiblePixels));
+    const uint32* Data = reinterpret_cast<const uint32*>(Frame.MaskData425.GetData());
+    for (int32 I = 0; I < Frame.Width*Frame.Height; ++I)
+    {
+        const uint32 Tag = Data[I*4]; float Custom,Scene;
+        FMemory::Memcpy(&Custom,Data+I*4+1,4); FMemory::Memcpy(&Scene,Data+I*4+2,4);
+        if (Tag < 256 && Custom > 0 && Custom >= Scene-0.000001f) { ++Self->VisiblePixels[Tag]; }
+    }
+    Self->CensusArea = Frame.Width*Frame.Height;
+    if (!Self->CensusFrame)
+    {
+        for (const auto& Pair : Self->Tags) { UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 C4: census actor=%s tag=%d visible_pixels=%u"),*GetNameSafe(Pair.Key.Get()),Pair.Value,Self->VisiblePixels[Pair.Value]); }
+    }
+    Self->CensusFrame = Frame.LabelKey425.SampleFrame;
 }
 bool FAnomalyMasks425::Restore()
 {
+    if (!Started) { return true; }
+    if (Started && Owner.IsValid()) { if (UAnomalyAutoInjectorSubsystem* Auto = Owner->GetSubsystem<UAnomalyAutoInjectorSubsystem>()) { Auto->ClearCensusProvider(); } }
     FlushRenderingCommands();
     AnomalyStencilTag::RestoreAll();
     for (const auto& Pair : WriteMasks) { if (Pair.Key.IsValid()) { Pair.Key->SetCustomDepthStencilWriteMask(Pair.Value); } }

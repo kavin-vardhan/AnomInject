@@ -59,6 +59,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         const FString Name = FString::Printf(TEXT("frame-%06llu.png"), Frame.RequestId - 1);
         const FString Path = Output / Name;
         const FString MaskOutput = AnomalyCaptureC2::Masks() ? Output : FString();
+        if (Labels) { FAnomalyMasks425::Observe(Frame); }
         if (Labels && !Labels->Pair(Frame.LabelKey425, Name)) { ++Failures; continue; }
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));

@@ -17,6 +17,7 @@ public:
     const TMap<TWeakObjectPtr<AActor>,uint8>& Assignments() const { return Tags; }
     static bool Labelled(UWorld* World,const FAutoLiveFireInfo& Fire);
     static uint64 Selection(UWorld* World);
+    static void Observe(const FAnomalyCapturedFrame& Frame);
     static bool Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family, uint64 Request, uint64 Selected,
         FAnomalyFrameCapturer& Capturer);
     static bool Save(const FAnomalyCapturedFrame& Frame, const FString& Output);
@@ -26,5 +27,8 @@ private:
     TMap<TWeakObjectPtr<AActor>,uint8> Tags;
     TMap<TWeakObjectPtr<UPrimitiveComponent>,ERendererStencilMask> WriteMasks;
     bool Started = false;
+    uint32 VisiblePixels[256] = {};
+    uint64 CensusFrame = 0;
+    int32 CensusArea = 0;
 };
 #endif
