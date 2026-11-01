@@ -17,7 +17,7 @@ public:
     void Prepare(int32 Index);
     bool Observe(const FAnomalyCapturedFrame& Frame,const TSharedPtr<FJsonObject>& Row);
     TSharedPtr<FJsonObject> Describe(int32 Index) const;
-    TSharedPtr<FJsonObject> DepthSample() const;
+    TSharedPtr<FJsonObject> DepthSample(bool Full=false) const;
     bool Ready(int32 Index) const { return Index<PreFrames || Frozen; }
     bool AutoOn(int32 Index) const;
     bool Stop();

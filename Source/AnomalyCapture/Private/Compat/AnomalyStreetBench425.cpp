@@ -67,7 +67,7 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     Protocol->SetStringField(TEXT("view_target"),GetNameSafe(Target.Get())); Protocol->SetNumberField(TEXT("grain_levels"),1); Protocol->SetNumberField(TEXT("drop_above_unstable_share"),0.05);
     Protocol->SetStringField(TEXT("reference_rule"),TEXT("First settled clean-hold frame per pose; unstable iff channel max-min exceeds one over all clean-hold frames; drop above 5 percent; freeze all before scored pass."));
     Protocol->SetNumberField(TEXT("setup_components"),Original.Num());
-    return N==3 && JsonStreet425(Protocol,Directory/TEXT("c5-protocol.json")) && JsonStreet425(DepthSample(),Directory/TEXT("depth-before.json"));
+    return N==3 && JsonStreet425(Protocol,Directory/TEXT("c5-protocol.json")) && JsonStreet425(DepthSample(true),Directory/TEXT("depth-before.json"));
 }
 TSharedPtr<FJsonObject> FAnomalyStreetBench425::Describe(int32 Index) const
 {
@@ -93,7 +93,7 @@ bool FAnomalyStreetBench425::AutoOn(int32 Index) const
     auto D=Describe(Index); const int32 Step=int32(D->GetNumberField(TEXT("step")));
     return D->GetBoolField(TEXT("score")) && Step<Turn+Settle+ScoreHold-30;
 }
-TSharedPtr<FJsonObject> FAnomalyStreetBench425::DepthSample() const
+TSharedPtr<FJsonObject> FAnomalyStreetBench425::DepthSample(bool Full) const
 {
     auto R=MakeShared<FJsonObject>(); TArray<TSharedPtr<FJsonValue>> Values; int32 Diff=0,On=0;
     TSet<TWeakObjectPtr<UPrimitiveComponent>> Tagged; AnomalyStencilTag::GetTaggedComponents(Tagged);
@@ -104,7 +104,7 @@ TSharedPtr<FJsonObject> FAnomalyStreetBench425::DepthSample() const
         const bool IsTagged=Tagged.Contains(Pair.Key);
         if ((bool(Prim->bRenderCustomDepth)!=(IsTagged||Pair.Value.On)) || (!IsTagged && Changed)) { ++Diff; }
         On+=Prim->bRenderCustomDepth ? 1 : 0;
-        if (Prim->bRenderCustomDepth || Changed || Original.Contains(Pair.Key))
+        if (Full || Prim->bRenderCustomDepth || Changed || Original.Contains(Pair.Key))
         {
             auto V=MakeShared<FJsonObject>(); V->SetStringField(TEXT("component"),Prim->GetPathName());
             V->SetBoolField(TEXT("on"),Prim->bRenderCustomDepth); V->SetNumberField(TEXT("value"),Prim->CustomDepthStencilValue); V->SetNumberField(TEXT("write_mask"),int32(Prim->CustomDepthStencilWriteMask));
@@ -164,7 +164,7 @@ bool FAnomalyStreetBench425::Freeze(int32 Width,int32 Height)
 }
 bool FAnomalyStreetBench425::Stop()
 {
-    auto After=DepthSample(); const bool Good=After->GetNumberField(TEXT("unexpected"))==0 && After->GetNumberField(TEXT("tagged_components"))==0;
+    auto After=DepthSample(true); const bool Good=After->GetNumberField(TEXT("unexpected"))==0 && After->GetNumberField(TEXT("tagged_components"))==0;
     JsonStreet425(After,Directory/TEXT("depth-after.json"));
     for (const auto& Pair:Original) { if (Pair.Key.IsValid()) { Pair.Key->SetCustomDepthStencilValue(Pair.Value.Value); Pair.Key->SetCustomDepthStencilWriteMask(Pair.Value.Mask); Pair.Key->SetRenderCustomDepth(Pair.Value.On); } }
     if (Owner.IsValid()) { if (APlayerController* PC=Owner->GetFirstPlayerController()) { PC->SetControlRotation(Base); PC->SetIgnoreMoveInput(false); PC->SetIgnoreLookInput(false); } }

@@ -32,6 +32,7 @@ bool FAnomalyMasks425::Start(UWorld* World)
     Owner=World; Ledger.Reset(); Ledger.HostReserved=AnomalyStencilTag::SnapshotHostReservedValues(World);
     AnomalyStencilTag::SetRestoreWatch(&Ledger); AnomalyStencilTag::EnableCustomStencil();
     Started=true; ActiveMasks425=this; CycleStarted=GFrameCounter;
+    for (const auto& A:AnomalyViewport::GetVisibleRenderableActors(World)) { InitialVisible.Add(GetNameSafe(A.Get())); }
     Auto->SetCensusProvider([this](const AActor* Actor)
     {
         FAnomalyCensusOpinion O; O.WindowTicks=AnomalyCensusPolicy425::Window(LastCycleTicks);
@@ -96,7 +97,6 @@ void FAnomalyMasks425::Advance(uint64 Request)
     FlushRenderingCommands(); Release();
     UWorld* World=Owner.Get(); if (!World) { return; }
     Visible=AnomalyViewport::GetVisibleRenderableActors(World);
-    if (InitialVisible.Num()==0) { for (const auto& A:Visible) { InitialVisible.Add(GetNameSafe(A.Get())); } }
     PeakVisible=FMath::Max(PeakVisible,Visible.Num());
     auto* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
     if (Auto)
