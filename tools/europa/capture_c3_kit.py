@@ -15,9 +15,10 @@ from runtime_evidence import freeze,outcome,ensure_frozen
 from fixture_uploads import check as uploads
 import capture_c3_reader as reader
 
-J=c1.ROOT/'Receipts/09433b'
-AUTHORITY='094-33b FP1-FP3 FO3 FN2 FM1 FJ1 FK1'
+J=c1.ROOT/'Receipts/09433c'
+AUTHORITY='094-33c FQ1-FQ4 FN2 FM1 FJ1 FK1'
 INSTALLED=c1.INSTALLED
+DEADLINE="2026-11-01T18:29:00+00:00"
 
 def command(leg,root):
     if leg=='Smoke':return c1.command('Smoke',root)
@@ -25,11 +26,12 @@ def command(leg,root):
     argv=c1.command('C1Game',root)
     argv=[a.replace('/Game/EuropaPhaseA/EA_Travel','/Game/EuropaPhaseA/EA_Core') for a in argv if not a.startswith('-IAICaptureDiagnostics=')]
     argv=[a.replace('IAI.Capture.C1 '+(root/'plugin-frames').as_posix()+' 60','IAI.Capture.C3 '+(root/'plugin-frames').as_posix()) for a in argv]
+    argv=[a.replace('-ExecCmds=','-ExecCmds=r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,') for a in argv]
     c1.require_frame_format(argv)
     return argv
 
 def validate(config):
-    if config.get('arming_job')!='09433b' or config.get('stage')!='C3' or config['deadline']!=c1.DEADLINE:raise RuntimeError('Wrong C3 arming')
+    if config.get('arming_job')!='09433c' or config.get('stage')!='C3' or config['deadline']!=DEADLINE:raise RuntimeError('Wrong C3 arming')
     if config.get('metrics')!=reader.THRESHOLDS or config.get('limits')!={'C3':180}:raise RuntimeError('C3 thresholds or limit changed')
     verify_files(config['engine_files']);verify_files(config['tooling_files']);verify_protection(config['protected'])
     if sha(config['manifest']['path'])!=config['manifest']['sha256']:raise RuntimeError('Manifest changed')
@@ -52,9 +54,9 @@ def arm(retry=False):
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before C3 arming')
     prior=json.loads(INSTALLED.read_text())
     if retry:
-        if prior.get('arming_job')!='09433b':raise RuntimeError('No first 09433b arming')
+        if prior.get('arming_job')!='09433c':raise RuntimeError('No first 09433c arming')
         retry_admitted(prior)
-    elif prior.get('arming_job')=='09433b':raise RuntimeError('C3 already armed; use the qualified retry route')
+    elif prior.get('arming_job')=='09433c':raise RuntimeError('C3 already armed; use the qualified retry route')
     revision='02' if retry else '01'
     built=[json.loads(p.read_text()) for p in (J/'builds').glob('*/result.json')]
     good=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and c1.native_source_equal(r['commit'])]
@@ -65,10 +67,10 @@ def arm(retry=False):
     manifest=json.loads(Path(prior['manifest']['path']).read_text())
     for row in manifest['files']:
         p=Path(row['path']);row.update(size=p.stat().st_size,mtime_ns=p.stat().st_mtime_ns,sha256=sha(p))
-    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09433b FP3 C3 build pair')
+    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09433c FQ2-FQ3 C3 build pair')
     manifest_path=J/('c3-425-binaries-'+revision+'.json');create_json(manifest_path,manifest)
     refs=json.loads((c1.ROOT/'Receipts/09433/c2-reference-plan.json').read_text())
-    config=dict(arming_job='09433b',stage='C3',authority=AUTHORITY,source_commit=head,deadline=c1.DEADLINE,
+    config=dict(arming_job='09433c',stage='C3',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),protected=current,
         engine_files=prior['engine_files'],tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
         reference_files=refs['files'],references=refs['references'],metrics=reader.THRESHOLDS,
@@ -87,7 +89,7 @@ def run(leg,number):
     if number=='02':
         if not config.get('retry_authorized'):raise RuntimeError('Retry not qualified/re-armed')
         retry_admitted(config)
-    root=Path(config['slots'][number]);temp=c1.ROOT/'Temp/09433b/c3'/number
+    root=Path(config['slots'][number]);temp=c1.ROOT/'Temp/09433c/c3'/number
     os.environ['EUROPA_JOB_CONFIG']=str(J/'c3-job-config.json')
     import write_ledger as ledger
     from runtime_lean_gate import wait
@@ -95,7 +97,7 @@ def run(leg,number):
         guard.check_unused_launch();root.mkdir(parents=True,exist_ok=False);temp.mkdir(parents=True,exist_ok=False);(root/'session').mkdir()
         argv=command(leg,root);create_json(root/'prepared.json',dict(argv=argv,leg=leg))
         print(leg+': waiting for FJ1/FK1 gate.',flush=True)
-        gate=wait(root/'gate.jsonl',c1.DEADLINE,idle_seconds=300)
+        gate=wait(root/'gate.jsonl',DEADLINE,idle_seconds=300)
         if gate['status']!='CLEAR':raise RuntimeError('Window ended')
         validate(config);create_json(root/'protection-before.json',dict(result='PASS',snapshot=protection_snapshot()))
         create_json(root/'managed-before.json',managed_snapshot())
@@ -121,7 +123,7 @@ def run(leg,number):
             for mutant in ('shift','wrong_target'):
                 negative=reader.read(root/'plugin-frames/epoch01',config['references'],mutant=mutant)
                 create_json(root/('mask-negative-'+mutant+'.json'),negative)
-                negatives.append(dict(kind=mutant,result='PASS' if negative['result']=='FAIL' else 'FAIL',reader_result=negative['result']))
+                negatives.append(dict(kind=mutant,result='PASS' if all(r['result']=='FAIL' for r in negative['per_anomaly']) else 'FAIL',reader_result=negative['result'],per_anomaly=[dict(anomaly=r['anomaly'],result=r['result'],failed_frames=r['failed_frames'],dirty_clean_frames=r['dirty_clean_frames']) for r in negative['per_anomaly']]))
             result['mask_negatives']=negatives
             result['c2']=dict(result=labels['result'],mismatches=labels['mismatches'],ambiguous=labels['ambiguous'])
             if labels['result']!='PASS' or any(n['result']!='PASS' for n in negatives):result['result']='FAIL'
@@ -137,7 +139,7 @@ def run(leg,number):
             row.update(crashed=True,result='FAIL',shader_compile_failure=True)
         prior_crashes=sum(bool(json.loads(p.read_text()).get('crashed')) for p in (J/'c3-attempts').glob('*/*/result.json'))
         row=crash_policy(row,prior_crashes);create_json(root/'result.json',row)
-        print(leg+': '+row['result']+' '+json.dumps({k:v for k,v in result.items() if k not in ('pixel_measurements','events','per_frame','ui_free','clean_noise')}),flush=True)
+        print(leg+': '+row['result']+' '+json.dumps({k:v for k,v in result.items() if k not in ('pixel_measurements','events','per_frame','ui_free','clean_noise','clean_frames')}),flush=True)
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('action',choices=['arm','run']);p.add_argument('--leg',choices=['C3']);p.add_argument('--number',choices=['01','02'],default='01');p.add_argument('--retry',action='store_true')

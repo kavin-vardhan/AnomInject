@@ -2,6 +2,8 @@
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureLog.h"
 #include "AnomalyInjectorSubsystem.h"
+#include "AnomalyHiddenClass.h"
+#include "AnomalyInstallState.h"
 #include "AnomalyMask425Shader.h"
 #include "AnomalyMaskReduceShader.h"
 #include "AnomalyPreviewCapture.h"
@@ -79,7 +81,14 @@ uint32 FAnomalyMasks425::Selection(UWorld* World)
     uint32 Result = 0;
     for (const FActiveAnomalyInfo& Active : Injector->GetActiveAnomalies())
     {
-        if (Active.Id == TEXT("blinking")) { Result = 128; }
+        if (Active.Id == TEXT("blinking"))
+        {
+            for (TActorIterator<AActor> It(World); It; ++It)
+            {
+                if (It->ActorHasTag(TEXT("EA_BlinkCube")) && AnomalyHiddenClass::IsLogicallyHidden(*It) &&
+                    AnomalyInstall::IsInstalledByte(Injector->GetAnomalyVisualConditionState(Active.Id))) { Result = 128; }
+            }
+        }
         else if (Active.Id == TEXT("lod_corruption")) { Result = 129; }
         else if (Active.Id == TEXT("missing_object")) { Result = 130; }
         else if (Active.Id == TEXT("lighting_mismatch")) { Result = 255; }
@@ -148,9 +157,15 @@ bool FAnomalyMasks425::Save(const FAnomalyCapturedFrame& Frame, const FString& O
     }
     if (FMemory::Memcmp(Cpu, Frame.MaskTable425.GetData(), sizeof(Cpu)) != 0) { return false; }
     const FString Stem = FString::Printf(TEXT("%06llu"),Frame.RequestId-1);
-    TArray<uint8> Png;
-    if (!AnomalyPreview::EncodePixels(AnomalyPreview::EImageFormat::PNG,Pixels,1280,720,Png,0) ||
-        !FFileHelper::SaveArrayToFile(Png,*(Output/(TEXT("mask-")+Stem+TEXT(".png"))))) { return false; }
+    uint32 MaskPixels = 0;
+    for (int32 Tag = 128; Tag <= 131; ++Tag) { MaskPixels += Cpu[Tag*6]; }
+    if ((Frame.LabelKey425.MaskTarget != 0) != (MaskPixels != 0)) { return false; }
+    if (MaskPixels)
+    {
+        TArray<uint8> Png;
+        if (!AnomalyPreview::EncodePixels(AnomalyPreview::EImageFormat::PNG,Pixels,1280,720,Png,0) ||
+            !FFileHelper::SaveArrayToFile(Png,*(Output/(TEXT("mask-")+Stem+TEXT(".png"))))) { return false; }
+    }
     int32 Size = FCompression::CompressMemoryBound(NAME_Zlib,Frame.MaskData425.Num());
     TArray<uint8> Packed; Packed.SetNumUninitialized(Size);
     if (!FCompression::CompressMemory(NAME_Zlib,Packed.GetData(),Size,Frame.MaskData425.GetData(),Frame.MaskData425.Num())) { return false; }

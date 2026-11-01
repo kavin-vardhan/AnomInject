@@ -213,7 +213,18 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
     if (MaskOwner)
     {
         if (!Key.Masks) { Failure = TEXT("Mask family not paired"); return false; }
-        Row->SetStringField(TEXT("mask"),FString::Printf(TEXT("mask-%06d.png"),Key.SessionIndex));
+        const IConsoleVariable* EyeAdaptation = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptationQuality"));
+        Row->SetNumberField(TEXT("eye_adaptation_quality"),EyeAdaptation ? EyeAdaptation->GetInt() : -1);
+        if (Key.MaskTarget)
+        {
+            Row->SetStringField(TEXT("mask"),FString::Printf(TEXT("mask-%06d.png"),Key.SessionIndex));
+            Row->SetStringField(TEXT("mask_state"),TEXT("present"));
+        }
+        else
+        {
+            Row->SetField(TEXT("mask"),MakeShared<FJsonValueNull>());
+            Row->SetStringField(TEXT("mask_state"),TEXT("empty"));
+        }
         Row->SetStringField(TEXT("mask_evidence"),FString::Printf(TEXT("evidence-%06d.u32x4.zlib"),Key.SessionIndex));
         Row->SetNumberField(TEXT("mask_target_tag"),Key.MaskTarget);
     }
