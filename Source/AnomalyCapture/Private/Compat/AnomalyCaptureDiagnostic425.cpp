@@ -114,7 +114,7 @@ bool FAnomalyCaptureDiagnostic425::Stop()
     }
     auto O=MakeShared<FJsonObject>(); O->SetArrayField(TEXT("frames"),Rows); O->SetNumberField(TEXT("draws"),Draws.GetValue()); O->SetNumberField(TEXT("controls"),Controls.GetValue());
     O->SetNumberField(TEXT("positive_controls"),Positive.GetValue()); O->SetNumberField(TEXT("checked"),Checked.GetValue()); O->SetNumberField(TEXT("hits"),Hits.GetValue()); O->SetStringField(TEXT("last_state"),Line());
-    FString Text; auto Writer=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(O.ToSharedRef(),Writer);
+    FString Text; auto Writer=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(O,Writer);
     return FFileHelper::SaveStringToFile(Text,*(Output/TEXT("ui-check.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM) && Saved;
 }
 #endif
