@@ -41,7 +41,8 @@ def run():
     for i,c in enumerate(r.MARKER):a[(i//4)*16:(i//4+1)*16,(i%4)*16:(i%4+1)*16]=c
     assert r.marker_cells(a,(0,0))==8
     a[:]=80;assert r.marker_cells(a,(0,0))<7
-    ui=J/'tests'/('ui-pixels-%02d'%len(list((J/'tests').glob('ui-pixels*'))));ui.mkdir(exist_ok=False)
+    import time
+    ui=J/'tests'/('ui-pixels-'+str(time.time_ns()));ui.mkdir(exist_ok=False)
     from PIL import Image
     control=np.zeros((32,64,3),np.uint8)
     for i,c in enumerate(r.MARKER):control[(i//4)*16:(i//4+1)*16,(i%4)*16:(i%4+1)*16]=c
