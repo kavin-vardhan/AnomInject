@@ -7,6 +7,7 @@
 #include "UnrealClient.h"
 #include "AnomalyMasks425.h"
 #include "SceneRendering.h"
+#include "ScenePrivate.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 FAnomalyViewMetadata425::FAnomalyViewMetadata425(const FAutoRegister& Register, UWorld* World)
