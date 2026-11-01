@@ -10352,3 +10352,14 @@ At 1600 by 900, a queued colour plus uint4 mask-evidence frame owns 28.8 MB befo
 All six street-map poses exceeded the predeclared 5% unstable-pixel limit (26.20%-41.53%). Keeping injection off correctly produced zero events, but a reader checking only mismatches returned a vacuous C2 PASS. Require scored coverage and three complete events per anomaly as well as zero mismatches. Preserve the original overall FAIL and re-read separately. Animated foliage, shadows and particles are visible in the clean differences; a higher noise threshold or a conveniently chosen pose after seeing results would not establish the requested gate.
 
 GetVisibleRenderableActors uses the legacy 6% bounds-coverage filter. Its peak of 20 is not the uncapped drawn census: first clean stencil samples at the starting held view measure 167 drawn actors from 199 candidates. Derive the initial-visible set and held-pose counts from those independent samples. Report that rotating measurement scope, and do not claim a late-target event when none fired. See [09435 receipts](europa/09435-street-capture-receipts.json).
+
+
+## G498 - Host custom depth is not available to the census (2026-11-01, 094-36)
+
+An actor already using custom depth must be excluded from both census tagging and anomaly targeting, even if its stencil value is outside the ledger range. Restoring it afterward does not prevent interference while tagged. The 4.25 path now leaves its flag, value and write mask untouched for the whole session. This is an intentional divergence from current 5.1; follow-up: apply the same admission and tagging exclusion to 5.1 before claiming no interference there.
+
+## G499 - Stock 4.25 remaps the grain-off CVar back on (2026-11-01, 094-36)
+
+The desktop tonemapper reads r.Tonemapper.GrainQuantization, but its permutation remapper forces quantization for normal display output. GetFrameIndex(8) computes modulo seven in this engine. FT3's phase-matched fallback therefore records the actual render-thread phase and freezes seven references per pose; it does not assume frame-index modulo seven when render/capture pacing differs. Wind, fog and other movement still enter the independently measured unstable map. No pixels are excluded merely because the census changes them.
+
+FT4 follow-up for 5.1: annotation export still uses GAnomalyDefaultFarPlane rather than the anchor view's projection. The 4.25 output now derives its clip planes from that view and encodes infinite far as zero, retaining the numeric schema.

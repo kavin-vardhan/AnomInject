@@ -17,7 +17,8 @@ struct FAnomalyLabelKey425
     uint64 MaskBits = 0;
     FVector PlayerLocation=FVector::ZeroVector,ViewLocation=FVector::ZeroVector;
     FRotator PlayerRotation=FRotator::ZeroRotator,ViewRotation=FRotator::ZeroRotator;
-    float PlayerFov=0,ViewFov=0;
+    float PlayerFov=0,ViewFov=0,ViewNear=0,ViewFar=0;
+    int32 GrainPhase=0;
     FString PlayerTarget;
 };
 

@@ -5,6 +5,8 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
+#include "AnomalyViewport.h"
+#include "AnomalyFrozenGeometry.h"
 #include "Camera/CameraActor.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/StaticMeshComponent.h"
@@ -139,6 +141,15 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
         TArray<TSharedPtr<FJsonValue>> Values;
         for (uint8 Tag : Tags) { Values.Add(MakeShared<FJsonValueNumber>(Tag)); }
         State->SetArrayField(TEXT("target_tags"),Values);
+        FAnomalyViewInfo View; AnomalyViewport::GetActiveViewInfo(World,View);
+        FBox Box(ForceInit); const AActor* Actor=Fire.TargetActor.Get();
+        const bool FoundBox=Actor && AnomalyViewport::GetActorLabelBounds(Actor,Box);
+        const auto Geometry=AnomalyFrozenGeometry::Freeze(Fire.bWholeFrameExtent,Actor!=nullptr,!Fire.Target.IsEmpty(),FoundBox,Box);
+        FVector2D Min,Max;
+        AnomalyFrozenGeometry::Resolve(Geometry,View,[](const FAnomalyViewInfo& V,const FBox& B,FVector2D& A,FVector2D& Z)
+        { return AnomalyViewport::ProjectBoxToScreenRect(V,B,A,Z); },Min,Max);
+        const double Coverage=FMath::Max(0.0,double(FMath::Clamp(Max.X,0.0f,1.0f)-FMath::Clamp(Min.X,0.0f,1.0f)))*FMath::Max(0.0,double(FMath::Clamp(Max.Y,0.0f,1.0f)-FMath::Clamp(Min.Y,0.0f,1.0f)));
+        State->SetNumberField(TEXT("projected_screen_share"),Coverage);
         States.Add(MakeShared<FJsonValueObject>(State));
         if (Labelled) { Anomalies.Add(MakeShared<FJsonValueObject>(State)); }
         if (!Events.Contains(Key))
@@ -148,7 +159,7 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
             auto& E=AnnotationEvents.FindOrAdd(Key); E.EventId=Key+TEXT("|")+Fire.Target;
             E.AnomalyType=Fire.Id==FName(TEXT("blinking"))?TEXT("blink"):Fire.Id.ToString(); E.AnomalySubtype=Fire.Id==FName(TEXT("blinking"))?TEXT("disappear_reappear"):Fire.Id.ToString();
             E.EngineName=TEXT("UnrealEngine"); E.EngineVersion=FEngineVersion::Current().ToString(); E.EngineProject=FApp::GetProjectName(); E.TicksMsec=int64(World->GetTimeSeconds()*1000.0);
-            E.BboxSource=TEXT("drawn"); E.CamNear=GNearClippingPlane; E.CamFar=100000.0f;
+            E.BboxSource=TEXT("projected");
             for (const auto& Weak:MaskOwner->Receivers(Fire))
             {
                 AActor* A=Weak.Get(); if (!A) { continue; }
@@ -187,16 +198,18 @@ bool FAnomalyCaptureLabels425::Observe(const FAnomalyCapturedFrame& Frame)
     TArray<TSharedPtr<FJsonValue>> Affected;
     for (const auto& Value:Row->GetArrayField(TEXT("sampled_states")))
     {
-        auto State=Value->AsObject(); uint32 Pixels=0;
-        for (const auto& Tag:State->GetArrayField(TEXT("target_tags"))) { Pixels+=Counts[int32(Tag->AsNumber())]; }
+        auto State=Value->AsObject(); uint32 Pixels=0,Drawn=0;
+        for (const auto& Tag:State->GetArrayField(TEXT("target_tags"))) { Pixels+=Counts[int32(Tag->AsNumber())]; Drawn+=Frame.MaskTable425[int32(Tag->AsNumber())*6+5]; }
         const bool Injected=State->GetBoolField(TEXT("injected")),Visible=Injected && Pixels>0;
-        State->SetBoolField(TEXT("labelled"),Visible); State->SetBoolField(TEXT("affected"),Visible); State->SetNumberField(TEXT("mask_pixels"),Pixels);
+        State->SetBoolField(TEXT("labelled"),Visible); State->SetBoolField(TEXT("affected"),Visible); State->SetNumberField(TEXT("mask_pixels"),Pixels); State->SetNumberField(TEXT("drawn_pixels"),Drawn);
+        if (Drawn) { AnnotationEvents[State->GetStringField(TEXT("event_id"))].BboxSource=TEXT("drawn"); }
         auto& E=AnnotationEvents[State->GetStringField(TEXT("event_id"))];
         if (Injected) { E.InjectedFrameIndices.Add(int32(Frame.RequestId-1)); }
-        if (Visible) { E.FrameIndices.Add(int32(Frame.RequestId-1)); ++E.ObservableFrameCount; E.bMaskProvided=true; Affected.Add(Value); }
+        if (Visible) { CoverageSum.FindOrAdd(State->GetStringField(TEXT("event_id")))+=State->GetNumberField(TEXT("projected_screen_share")); ++CoverageCount.FindOrAdd(State->GetStringField(TEXT("event_id"))); E.FrameIndices.Add(int32(Frame.RequestId-1)); ++E.ObservableFrameCount; E.bMaskProvided=true; Affected.Add(Value); }
     }
     Row->SetArrayField(TEXT("anomalies"),Affected); Row->SetBoolField(TEXT("anomaly_present"),Affected.Num()!=0);
     Row->SetBoolField(TEXT("mask_nonempty"),Counts[0]!=uint32(Frame.Width*Frame.Height));
+    Row->SetNumberField(TEXT("grain_phase"),Frame.LabelKey425.GrainPhase);
     return !Street || Street->Observe(Frame,Row);
 }
 
@@ -235,11 +248,13 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
     Camera->SetArrayField(TEXT("player_rotation"),Vector(FVector(Key.PlayerRotation.Pitch,Key.PlayerRotation.Yaw,Key.PlayerRotation.Roll)));
     Camera->SetArrayField(TEXT("view_rotation"),Vector(FVector(Key.ViewRotation.Pitch,Key.ViewRotation.Yaw,Key.ViewRotation.Roll)));
     Camera->SetNumberField(TEXT("player_fov"),Key.PlayerFov); Camera->SetNumberField(TEXT("view_fov"),Key.ViewFov); Camera->SetStringField(TEXT("target"),Key.PlayerTarget);
+    Camera->SetNumberField(TEXT("near"),Key.ViewNear); Camera->SetNumberField(TEXT("far"),Key.ViewFar);
+    Camera->SetBoolField(TEXT("far_infinite"),Key.ViewFar==0); Row->SetNumberField(TEXT("grain_phase"),Key.GrainPhase);
     Row->SetObjectField(TEXT("camera"),Camera);
     for (const auto& S:Row->GetArrayField(TEXT("sampled_states")))
     {
         auto& E=AnnotationEvents[S->AsObject()->GetStringField(TEXT("event_id"))];
-        if (E.CamPath.IsEmpty()) { E.CamPath=Key.PlayerTarget; E.CamPosition=Key.PlayerLocation; E.CamRotation=Key.PlayerRotation; E.CamFovDeg=Key.PlayerFov; E.CamAspect=float(Size.X)/Size.Y; }
+        if (E.CamPath.IsEmpty()) { E.CamPath=Key.PlayerTarget; E.CamPosition=Key.PlayerLocation; E.CamRotation=Key.PlayerRotation; E.CamFovDeg=Key.PlayerFov; E.CamAspect=float(Size.X)/Size.Y; E.CamNear=Key.ViewNear; E.CamFar=Key.ViewFar; }
     }
     Frames.Add(Key.SessionIndex, Row); Pending.Remove(Key.Request);
     return true;
@@ -285,7 +300,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
     for (const auto& Event:SortedEvents)
     {
         auto E=AnnotationEvents[Event->GetStringField(TEXT("event_id"))]; E.FrameIndices.Sort(); E.InjectedFrameIndices.Sort();
-        E.bManifested=E.InjectedFrameIndices.Num()>0; E.CoverageRatio=double(E.FrameIndices.Num())/FMath::Max(1,E.InjectedFrameIndices.Num());
+        E.bManifested=E.InjectedFrameIndices.Num()>0; E.CoverageRatio=CoverageSum.FindRef(Event->GetStringField(TEXT("event_id")))/FMath::Max(1,CoverageCount.FindRef(Event->GetStringField(TEXT("event_id"))));
         Annotation.Events.Add(E);
     }
     auto Result = MakeShared<FJsonObject>();

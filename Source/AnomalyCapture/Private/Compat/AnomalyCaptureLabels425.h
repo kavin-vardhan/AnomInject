@@ -26,6 +26,8 @@ private:
     TUniquePtr<FAnomalyMasks425> MaskOwner;
     TUniquePtr<FAnomalyStreetBench425> Street;
     TMap<FString,AnomalyAnnotation425::FSessionEvent> AnnotationEvents;
+    TMap<FString,double> CoverageSum;
+    TMap<FString,int32> CoverageCount;
     TWeakObjectPtr<UWorld> Owner;
     FDelegateHandle PrepareHandle;
     FString Output;

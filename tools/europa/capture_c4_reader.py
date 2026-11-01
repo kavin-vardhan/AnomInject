@@ -11,7 +11,10 @@ CLASSIFIER=dict(change_level=1,clean_fraction_max=0.001,active_fraction_min=0.05
 
 def raw(root,row):
     size=(row['height'],row['width'],4)
-    data=zlib.decompress((root/row['mask_evidence']).read_bytes())
+    packed=(root/row['mask_evidence']).read_bytes()
+    planar=packed[:4]==b'ASP1'
+    data=zlib.decompress(packed[4:] if planar else packed)
+    if planar:data=np.frombuffer(data,dtype=np.uint8).reshape(16,-1).T.copy().tobytes()
     need(len(data)==int(np.prod(size))*4,'Raw extent differs')
     return np.frombuffer(data,dtype='<u4').reshape(size)
 

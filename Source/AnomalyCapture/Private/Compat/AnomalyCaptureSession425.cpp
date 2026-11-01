@@ -90,7 +90,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
             Writes.RemoveAt(I);
         }
     }
-    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (AnomalyCaptureC2::Street() ? 1100.0 : Labels ? 480.0 : 80.0))
+    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (AnomalyCaptureC2::Street() ? 2000.0 : Labels ? 480.0 : 80.0))
     {
         Stop(); return;
     }

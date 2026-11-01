@@ -1,6 +1,7 @@
 #include "AnomalyMasks425.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureLog.h"
+#include "AnomalyCaptureLabels425.h"
 #include "AnomalyCensusPolicy425.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyHiddenClass.h"
@@ -17,13 +18,32 @@
 #include "Misc/Compression.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "PostProcess/SceneRenderTargets.h"
 #include "SceneRendering.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "RenderingThread.h"
 
-namespace { FAnomalyMasks425* ActiveMasks425 = nullptr; }
+namespace
+{
+    FAnomalyMasks425* ActiveMasks425 = nullptr;
+    int32 CensusOff425=0;
+    FAutoConsoleVariableRef CensusOffVariable425(TEXT("IAI.Capture.BenchCensusOff"),CensusOff425,TEXT("Bench-only census bypass; zero is normal census"));
+}
+void FAnomalyMasks425::SetBenchCensus(bool Enabled)
+{
+    if (FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { CensusOff425=Enabled?0:1; }
+}
+bool FAnomalyMasks425::HostDepth(const AActor* Actor) const
+{
+    if (!Actor || HostActors.Contains(const_cast<AActor*>(Actor))) { return true; }
+    if (Tags.Contains(const_cast<AActor*>(Actor))) { return false; }
+    TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
+    for (const UPrimitiveComponent* Prim:Prims) { if (Prim->bRenderCustomDepth) { return true; } }
+    return false;
+}
 bool FAnomalyMasks425::Start(UWorld* World)
 {
     if (!World || ActiveMasks425 || Started || AnomalyStencilTag::IsAnyTagged()) { return false; }
@@ -31,11 +51,13 @@ bool FAnomalyMasks425::Start(UWorld* World)
     if (!Auto || Auto->HasCensusProvider()) { return false; }
     Owner=World; Ledger.Reset(); Ledger.HostReserved=AnomalyStencilTag::SnapshotHostReservedValues(World);
     AnomalyStencilTag::SetRestoreWatch(&Ledger); AnomalyStencilTag::EnableCustomStencil();
+    for (TActorIterator<AActor> It(World);It;++It) { if (HostDepth(*It)) { HostActors.Add(*It); } }
     Started=true; ActiveMasks425=this; CycleStarted=GFrameCounter;
     for (const auto& A:AnomalyViewport::GetVisibleRenderableActors(World)) { InitialVisible.Add(GetNameSafe(A.Get())); }
     Auto->SetCensusProvider([this](const AActor* Actor)
     {
         FAnomalyCensusOpinion O; O.WindowTicks=AnomalyCensusPolicy425::Window(LastCycleTicks);
+        if (HostDepth(Actor)) { O.Decision=EAnomalyCensusDecision::ExcludedZero; O.Reason=TEXT("host_custom_depth_untouched"); return O; }
         const FCensusValue* V=Verdicts.Find(const_cast<AActor*>(Actor));
         if (!V) { O.Decision=EAnomalyCensusDecision::FallbackBounds; O.Reason=TEXT("unseen"); O.bUnseen=true; return O; }
         if (V->Translucent) { O.Decision=EAnomalyCensusDecision::ExcludedTranslucent; O.Reason=TEXT("translucent"); return O; }
@@ -55,7 +77,8 @@ void FAnomalyMasks425::Release()
 }
 int32 FAnomalyMasks425::Tag(AActor* Actor,uint8 Value)
 {
-    if (!Actor || !Value) { return 0; }
+    if (!Actor || !Value || HostDepth(Actor)) { return 0; }
+    if (Tags.Contains(Actor)) { return 1; }
     TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
     for (UPrimitiveComponent* Prim:Prims)
     {
@@ -90,24 +113,73 @@ TArray<TWeakObjectPtr<AActor>> FAnomalyMasks425::Receivers(const FAutoLiveFireIn
 TArray<uint8> FAnomalyMasks425::TagsFor(const FAutoLiveFireInfo& Fire) const
 {
     TArray<uint8> Result;
-    if (const uint8* Tag=EventTags.Find(Fire.Id)) { Result.Add(*Tag); } return Result;
+    if (const FEventBinding* Binding=EventTags.Find(Fire.Id)) { Result=Binding->Values; } return Result;
+}
+void FAnomalyMasks425::ReleaseActor(AActor* Actor)
+{
+    if (!Actor) { return; }
+    AnomalyStencilTag::RestoreActor(Actor);
+    TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
+    for (UPrimitiveComponent* Prim:Prims)
+    {
+        if (auto* Mask=WriteMasks.Find(Prim)) { Prim->SetCustomDepthStencilWriteMask(*Mask); WriteMasks.Remove(Prim); }
+    }
+    Tags.Remove(Actor);
+}
+void FAnomalyMasks425::ReleaseUnused()
+{
+    Ledger.EventClaimed.Reset(); Ledger.CensusClaimed.Reset();
+    TSet<TWeakObjectPtr<AActor>> Held;
+    for (const auto& Event:EventTags)
+    {
+        for (const auto& A:Event.Value.Actors) { Held.Add(A); }
+        for (uint8 Value:Event.Value.Values) { Ledger.EventClaimed.Add(Value); }
+    }
+    for (const auto& Batch:Batches)
+    {
+        for (const auto& Pair:Batch.Value) { Held.Add(Pair.Key); Ledger.CensusClaimed.Add(Pair.Value); }
+    }
+    TArray<TWeakObjectPtr<AActor>> Retired;
+    for (const auto& Pair:Tags) { if (!Held.Contains(Pair.Key)) { Retired.Add(Pair.Key); } }
+    for (const auto& A:Retired) { ReleaseActor(A.Get()); }
 }
 void FAnomalyMasks425::Advance(uint64 Request)
 {
-    FlushRenderingCommands(); Release();
     UWorld* World=Owner.Get(); if (!World) { return; }
     Visible=AnomalyViewport::GetVisibleRenderableActors(World);
     PeakVisible=FMath::Max(PeakVisible,Visible.Num());
     auto* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
-    if (Auto)
+    const auto Fires=Auto ? Auto->GetLiveFires() : TArray<FAutoLiveFireInfo>();
+    TArray<FName> Retired;
+    for (const auto& Pair:EventTags)
     {
-        for (const auto& Fire:Auto->GetLiveFires())
-        {
-            const uint8 Value=FreeTag(); if (!Value) { ++Exhausted; continue; }
-            for (const auto& A:Receivers(Fire)) { Tag(A.Get(),Value); }
-            Ledger.EventClaimed.Add(Value); EventTags.Add(Fire.Id,Value);
-        }
+        bool Live=false;
+        for (const auto& Fire:Fires) { Live|=Fire.Id==Pair.Key && Fire.StartFrame==Pair.Value.Start; }
+        if (!Live) { Retired.Add(Pair.Key); }
     }
+    for (FName Id:Retired) { EventTags.Remove(Id); }
+    ReleaseUnused();
+    for (const auto& Fire:Fires)
+    {
+        if (EventTags.Contains(Fire.Id)) { continue; }
+        FEventBinding Binding; Binding.Start=Fire.StartFrame;
+        uint8 Group=0;
+        for (const auto& A:Receivers(Fire))
+        {
+            if (!A.IsValid() || HostDepth(A.Get())) { continue; }
+            const uint8* Existing=Tags.Find(A);
+            const uint8 Value=Existing ? *Existing : (Group ? Group : FreeTag());
+            if (!Value) { ++Exhausted; continue; }
+            if (Tag(A.Get(),Value))
+            {
+                Binding.Actors.Add(A); Binding.Values.AddUnique(Value); Ledger.EventClaimed.Add(Value);
+                if (!Existing) { Group=Value; }
+            }
+        }
+        EventTags.Add(Fire.Id,Binding);
+    }
+    if (CensusOff425 && FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+    if (Batches.Num()>=2) { return; }
     if (Cursor>=Queue.Num())
     {
         if (Queue.Num()) { LastCycleTicks=int32(GFrameCounter-CycleStarted); ++Cycles; }
@@ -119,14 +191,14 @@ void FAnomalyMasks425::Advance(uint64 Request)
     const int32 Cap=AnomalyCensusPolicy425::Batch(Ledger.NumFree());
     while (Cursor<Queue.Num() && Batch.Num()<Cap)
     {
-        AActor* A=Queue[Cursor++].Get(); if (!A || Tags.Contains(A) || A->IsHidden() || AnomalyHiddenClass::IsLogicallyHidden(A)) { continue; }
+        AActor* A=Queue[Cursor++].Get(); if (!A || HostDepth(A) || Tags.Contains(A) || A->IsHidden() || AnomalyHiddenClass::IsLogicallyHidden(A)) { continue; }
         TInlineComponentArray<UPrimitiveComponent*> Prims(A); int32 Renderable=0,Translucent=0;
         for (UPrimitiveComponent* Prim:Prims) { if (AnomalyViewport::IsRenderableComponent(Prim)) { ++Renderable; Translucent+=AnomalyViewport::IsTranslucentOnlyComponent(Prim,false) ? 1 : 0; } }
         if (Renderable && Renderable==Translucent) { FCensusValue V; V.Translucent=true; Verdicts.Add(A,V); continue; }
         const uint8 Value=FreeTag(); if (!Value) { break; }
         if (Tag(A,Value)) { Ledger.CensusClaimed.Add(Value); Batch.Add(A,Value); }
     }
-    Batches.Add(Request,Batch);
+    if (Batch.Num()) { Batches.Add(Request,Batch); }
 }
 void FAnomalyMasks425::Observe(const FAnomalyCapturedFrame& Frame)
 {
@@ -147,6 +219,7 @@ void FAnomalyMasks425::Observe(const FAnomalyCapturedFrame& Frame)
             Self->Verdicts.Add(Pair.Key,V);
         }
         Self->Batches.Remove(Frame.RequestId);
+        Self->ReleaseUnused();
     }
 }
 TSharedPtr<FJsonObject> FAnomalyMasks425::State() const
@@ -161,6 +234,8 @@ TSharedPtr<FJsonObject> FAnomalyMasks425::State() const
     for (uint8 V:Ledger.HostReserved) { Reserved.Add(MakeShared<FJsonValueNumber>(V)); }
     for (const FString& N:InitialVisible) { Initial.Add(MakeShared<FJsonValueString>(N)); }
     R->SetArrayField(TEXT("owners"),Owners); R->SetArrayField(TEXT("visible"),VisibleNames); R->SetArrayField(TEXT("host_reserved"),Reserved); R->SetArrayField(TEXT("initial_visible"),Initial);
+    R->SetNumberField(TEXT("in_flight_batches"),Batches.Num()); R->SetBoolField(TEXT("enabled"),!CensusOff425);
+    R->SetNumberField(TEXT("host_actors_excluded"),HostActors.Num());
     R->SetNumberField(TEXT("visible_count"),Visible.Num()); R->SetNumberField(TEXT("peak_visible"),PeakVisible); R->SetNumberField(TEXT("cycles"),Cycles);
     R->SetNumberField(TEXT("ledger_exhausted"),Exhausted); R->SetNumberField(TEXT("floor_pct"),AnomalyCensusPolicy425::Floor); R->SetNumberField(TEXT("ceiling_pct"),AnomalyCensusPolicy425::Ceiling);
     return R;
@@ -172,6 +247,7 @@ bool FAnomalyMasks425::Restore()
     FlushRenderingCommands(); Release(); const bool Good=!AnomalyStencilTag::IsAnyTagged();
     AnomalyStencilTag::SetRestoreWatch(nullptr); AnomalyStencilTag::DisableCustomStencil();
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 C5: stencil_restore=%d peak_visible=%d cycles=%d exhausted=%d"),Good?1:0,PeakVisible,Cycles,Exhausted);
+    CensusOff425=0;
     if (ActiveMasks425==this) { ActiveMasks425=nullptr; } Started=false; Ledger.Reset(); return Good;
 }
 bool FAnomalyMasks425::Labelled(UWorld* World,const FAutoLiveFireInfo& Fire)
@@ -265,10 +341,21 @@ bool FAnomalyMasks425::Save(const FAnomalyCapturedFrame& Frame, const FString& O
         if (!AnomalyPreview::EncodePixels(AnomalyPreview::EImageFormat::PNG,Pixels,Frame.Width,Frame.Height,Png,0) ||
             !FFileHelper::SaveArrayToFile(Png,*(Output/(TEXT("mask-")+Stem+TEXT(".png"))))) { return false; }
     }
+    TArray<uint8> Planes;
+    const uint8* Bytes=Frame.MaskData425.GetData();
+    const bool Planar=AnomalyCaptureC2::Street();
+    if (Planar)
+    {
+        Planes.SetNumUninitialized(Frame.MaskData425.Num());
+        const int32 N=Frame.Width*Frame.Height;
+        for (int32 B=0;B<16;++B) { for (int32 I=0;I<N;++I) { Planes[B*N+I]=Bytes[I*16+B]; } }
+        Bytes=Planes.GetData();
+    }
     int32 Size = FCompression::CompressMemoryBound(NAME_Zlib,Frame.MaskData425.Num());
     TArray<uint8> Packed; Packed.SetNumUninitialized(Size);
-    if (!FCompression::CompressMemory(NAME_Zlib,Packed.GetData(),Size,Frame.MaskData425.GetData(),Frame.MaskData425.Num())) { return false; }
+    if (!FCompression::CompressMemory(NAME_Zlib,Packed.GetData(),Size,Bytes,Frame.MaskData425.Num())) { return false; }
     Packed.SetNum(Size,false);
+    if (Planar) { const uint8 Magic[4]={65,83,80,49}; Packed.Insert(Magic,4,0); }
     TArray<uint8> TableBytes; TableBytes.Append(reinterpret_cast<const uint8*>(Cpu),sizeof(Cpu));
     return FFileHelper::SaveArrayToFile(Packed,*(Output/(TEXT("evidence-")+Stem+TEXT(".u32x4.zlib")))) &&
         FFileHelper::SaveArrayToFile(TableBytes,*(Output/(TEXT("reduce-")+Stem+TEXT(".u32"))));

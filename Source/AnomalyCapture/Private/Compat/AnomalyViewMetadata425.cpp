@@ -6,6 +6,7 @@
 #include "CoreGlobals.h"
 #include "UnrealClient.h"
 #include "AnomalyMasks425.h"
+#include "SceneRendering.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 FAnomalyViewMetadata425::FAnomalyViewMetadata425(const FAutoRegister& Register, UWorld* World)
@@ -44,6 +45,9 @@ void FAnomalyViewMetadata425::BeginRenderViewFamily(FSceneViewFamily& Family)
             Ticket.Key.PlayerFov=PC->PlayerCameraManager ? PC->PlayerCameraManager->GetFOVAngle() : 0;
         }
         Ticket.Key.ViewLocation=Family.Views[0]->ViewLocation; Ticket.Key.ViewRotation=Family.Views[0]->ViewRotation; Ticket.Key.ViewFov=Family.Views[0]->FOV;
+        const FMatrix& Projection=Family.Views[0]->ViewMatrices.GetProjectionMatrix();
+        const double A=Projection.M[2][2],B=Projection.M[3][2];
+        Ticket.Key.ViewNear=float(B/(1.0-A)); Ticket.Key.ViewFar=FMath::Abs(A)>1.e-12 ? float(-B/A) : 0;
         Ticket.Accepted = true;
     }
 }
@@ -71,6 +75,8 @@ void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListI
         FTicket& Ticket = Pair.Value;
         if (!Ticket.Accepted || Ticket.Rendered || Ticket.Key.FamilyFrame != Family.FrameNumber) { continue; }
         Ticket.Rendered = true;
+        const FViewInfo& View=static_cast<const FViewInfo&>(*Family.Views[0]);
+        Ticket.Key.GrainPhase=View.ViewState ? int32(View.ViewState->GetFrameIndex(8)) : 0;
         if (TSharedPtr<FAnomalyFrameCapturer, ESPMode::ThreadSafe> Capturer = Ticket.Capturer.Pin())
         {
             const FTexture2DRHIRef Source = Family.RenderTarget ? Family.RenderTarget->GetRenderTargetTexture() : FTexture2DRHIRef();

@@ -6,16 +6,48 @@ from PIL import Image
 from capture_c4_reader import raw,rgb,silhouette,table,classify,ROUTES,CLASSIFIER
 from capture_c3_reader import need,metrics,distribution,THRESHOLDS
 
-REFERENCE_RULE='First settled clean-hold frame per pose. Unstable iff any channel max-min > 1 over all 90 clean hold frames. Drop pose iff share > 0.05, before scoring. Actor silhouette is its first settled clean census sample at that pose.'
+REFERENCE_RULE='FT3: six fixed poses, pitch -12, yaw step 60; turn 18, settle 30, census-off 240 then census-on 240; score hold 480. First off-hold reference per renderer grain phase (4.25 GetFrameIndex(8) modulo 7). Per-phase range >1, union dilated 2px. First 120 build self-map, second 120 must be C2-clean. Keep >=50% stable and clean census-on. Freeze before first scored-pass image write. First clean held census sample per actor defines its pose silhouette. Event requires both edges in scored holds and >=50% stable target pixels. No after-run reference selection.'
+
 ROOT_KEYS={'label_schema','label_schema_minor','session_id','transition_frame_count','video','anomalies'}
 EVENT_KEYS={'event_id','transition_frames','transition_reasons','anomaly_type','anomaly_subtype','affected_frames','injected_frames','bbox_source','observable_frame_count','unmeasured_frame_count','observability_measured','manifested','coverage_ratio','coverage_pct','affected_objects','camera','engine','mask','depth'}
 SET_KEYS={'start_frame','end_frame','frame_count','span_frame_count','frame_indices'}
 
+def dilate(mask,radius=2):
+    h,w=mask.shape;out=np.zeros_like(mask);pad=np.pad(mask,radius)
+    for y in range(2*radius+1):
+        for x in range(2*radius+1):out|=pad[y:y+h,x:x+w]
+    return out
+
 def stable_map(images):
     low=images[0].copy();high=low.copy()
     for a in images[1:]:np.minimum(low,a,out=low);np.maximum(high,a,out=high)
-    unstable=np.max(high.astype(np.int16)-low.astype(np.int16),axis=2)>1
-    return unstable,float(unstable.mean())<=0.05
+    unstable=dilate(np.max(high.astype(np.int16)-low.astype(np.int16),axis=2)>1)
+    return unstable,float(unstable.mean())<=0.5
+
+def changed_stats(image,reference,unstable):
+    stable=~unstable;changed=(np.max(np.abs(image.astype(np.int16)-reference.astype(np.int16)),axis=2)>1)&stable
+    count=int(changed.sum());n=int(stable.sum())
+    return dict(changed_stable_pixels=count,stable_pixels=n,fraction=count/max(1,n))
+
+def phase_prepass(samples,load):
+    need(len(samples)>=240 and len(samples)%2==0,'Off hold shorter than 240 or uneven')
+    refs={};low={};high={};half=len(samples)//2;self_frames=[]
+    def map_now():
+        need(set(refs)==set(range(7)),'Missing renderer grain phase')
+        bad=np.zeros(next(iter(refs.values())).shape[:2],bool)
+        for phase in refs:bad|=np.max(high[phase].astype(np.int16)-low[phase].astype(np.int16),axis=2)>1
+        return dilate(bad)
+    for n,sample in enumerate(samples):
+        phase=sample['phase'];image=load(sample['index'])
+        if phase not in refs:refs[phase]=image.copy();low[phase]=image.copy();high[phase]=image.copy()
+        if n==half:halfmap=map_now()
+        if n>=half:self_frames.append(dict(index=sample['index'],**changed_stats(image,refs[phase],halfmap)))
+        np.minimum(low[phase],image,out=low[phase]);np.maximum(high[phase],image,out=high[phase])
+    return refs,map_now(),self_frames
+
+def freeze_before_frame(frozen,files,first_frame):
+    epoch=Path(first_frame).stat().st_mtime
+    return datetime.datetime.fromisoformat(frozen['frozen_utc'].replace('Z','+00:00')).timestamp()<=epoch and all(Path(p).stat().st_mtime<=epoch for p in files)
 
 def frame_set(indices):
     return dict(start_frame=indices[0] if indices else 0,end_frame=indices[-1] if indices else 0,frame_count=len(indices),span_frame_count=indices[-1]-indices[0]+1 if indices else 0,frame_indices=indices)
@@ -41,6 +73,12 @@ def annotation_check(annotation,rows,events):
         for name,field in (('affected_frames','affected'),('injected_frames','injected')):
             indices=[r['frame_index'] for r in rows if any(s['event_id']==key and s[field] for s in r['sampled_states'])]
             if e[name]!=frame_set(indices):issues.append(key+' '+name)
+        matching=[(r,s) for r in rows for s in r['sampled_states'] if s['event_id']==key]
+        visible=[s for r,s in matching if s['affected']]
+        coverage=sum(s['projected_screen_share'] for s in visible)/max(1,len(visible))
+        if abs(e['coverage_ratio']-coverage)>1e-8 or abs(e['coverage_pct']-100*coverage)>1e-6:issues.append(key+' coverage screen share')
+        if e['bbox_source']!=('drawn' if any(s['drawn_pixels'] for _,s in matching) else 'projected'):issues.append(key+' bbox source')
+        if matching and (abs(e['camera']['far']-matching[0][0]['camera']['far'])>0.01 or abs(e['camera']['near']-matching[0][0]['camera']['near'])>0.01):issues.append(key+' view clip planes')
         if set(e['camera'])!={'path','global_position','near','far','rotation','fov_deg','aspect'}:issues.append(key+' camera schema')
         if set(e['engine'])!={'ticks_msec','name','version','project'}:issues.append(key+' engine schema')
         if set(e['affected_objects'])!={'count','primary_index','nodes'}:issues.append(key+' objects schema')
@@ -56,9 +94,10 @@ def depth_check(before,after,rows):
     def states(v):return {c['component']:(c['on'],c['value'],c['write_mask']) for c in v['components']}
     b=states(before);a=states(after);diff=sorted(k for k in set(a)|set(b) if a.get(k)!=b.get(k))
     mids=[r['frame_index'] for r in rows if r['custom_depth']['unexpected'] or any(c['on']!=(c['prior_on'] or c['tagged']) for c in r['custom_depth']['components'])]
+    untouched=[dict(index=r['frame_index'],component=c['component']) for r in rows for c in r['custom_depth']['components'] if c['prior_on'] and (c['tagged'] or (c['on'],c['value'],c['write_mask'])!=(c['prior_on'],c['prior_value'],c['prior_write_mask']))]
     reserved={c['value'] for c in before['components'] if c['on'] and 200<=c['value']<=254}
     assigned={o['tag'] for r in rows for o in r['census']['owners']}
-    return dict(result='PASS' if not diff and not mids and reserved and not(reserved&assigned) else 'FAIL',candidates=len(b),after_candidates=len(a),differences=diff,mid_failures=mids,reserved=sorted(reserved),assigned_reserved=sorted(reserved&assigned),setup=[c for c in before['components'] if c['bench_setup']],mid_samples=len(rows))
+    return dict(result='PASS' if not diff and not mids and not untouched and reserved and not(reserved&assigned) else 'FAIL',candidates=len(b),after_candidates=len(a),differences=diff,mid_failures=mids,host_custom_depth_changes=untouched,reserved=sorted(reserved),assigned_reserved=sorted(reserved&assigned),setup=[c for c in before['components'] if c['bench_setup']],mid_samples=len(rows))
 
 def read(root):
     root=Path(root);rows=[json.loads(s) for s in (root/'labels.jsonl').read_text().splitlines() if s]
@@ -68,20 +107,28 @@ def read(root):
     need([r['frame_index'] for r in rows]==list(range(len(rows))),'Missing or duplicate index')
     need(capture['dropped']==receipt['unmatched_dropped']==0,'Dropped/unpaired frame')
     need(receipt['result']=='PASS' and receipt['mask_state_restored'] and receipt['pacing_restored'],'Native pairing/restore failed')
-    start=json.loads((root/'scored-start.json').read_text()) if (root/'scored-start.json').exists() else None
-    chronology=bool(start) and datetime.datetime.fromisoformat(frozen['frozen_utc'].replace('Z','+00:00'))<datetime.datetime.fromisoformat(start['utc'].replace('Z','+00:00'))
+    scored_first=next(r for r in rows if r['sweep']['phase']=='scored')
+    frozen_files=[root/'prepass-frozen.json',root/'c5-protocol.json']
     pose_data={};prepass=[]
     for p in frozen['poses']:
-        pose=p['pose'];samples=p['silhouette_samples'];indices=[s['index'] for s in samples]
-        need(len(indices)==protocol['clean_hold'] and indices[0]==p['reference_index'],'Pre-pass chronology differs')
-        images=[np.asarray(Image.open(root/rows[i]['image']).convert('RGB')) for i in indices]
-        unstable,keep=stable_map(images)
-        ref=np.asarray(Image.open(root/p['reference']).convert('RGB'))
-        saved_unstable=np.asarray(Image.open(root/p['unstable']).convert('L'))>0
-        valid=np.array_equal(ref,images[0]) and np.array_equal(unstable,saved_unstable) and abs(float(unstable.mean())-p['unstable_share'])<1e-9 and keep==p['kept']
-        if start:
-            epoch=datetime.datetime.fromisoformat(start['utc'].replace('Z','+00:00')).timestamp()
-            chronology &= (root/p['reference']).stat().st_mtime<=epoch and (root/p['unstable']).stat().st_mtime<=epoch and (root/'prepass-frozen.json').stat().st_mtime<=epoch
+        pose=p['pose'];samples=p['silhouette_samples'];off=p['off_samples']
+        need(len(samples)==len(off)==protocol['clean_hold'] and len(off)>=240,'FT3 hold count differs')
+        need(max(s['index'] for s in off)<min(s['index'] for s in samples),'Census-on precedes census-off')
+        need(all(not rows[s['index']]['census']['enabled'] for s in off),'Census enabled in off hold')
+        need(all(rows[s['index']]['census']['enabled'] for s in samples),'Census disabled in on hold')
+        load=lambda i:np.asarray(Image.open(root/rows[i]['image']).convert('RGB'))
+        refs,unstable,self_frames=phase_prepass(off,load)
+        valid=True
+        for ref in p['references']:
+            phase=ref['phase'];frozen_files.append(root/ref['file'])
+            valid &= ref['index']==next(s['index'] for s in off if s['phase']==phase)
+            valid &= np.array_equal(refs[phase],np.asarray(Image.open(root/ref['file']).convert('RGB')))
+        frozen_files.append(root/p['unstable'])
+        valid &= np.array_equal(unstable,np.asarray(Image.open(root/p['unstable']).convert('L'))>0)
+        interference=[dict(index=s['index'],**changed_stats(load(s['index']),refs[rows[s['index']]['grain_phase']],unstable)) for s in samples]
+        self_max=max(s['fraction'] for s in self_frames);interference_max=max(s['fraction'] for s in interference)
+        stable_share=1-float(unstable.mean());keep=stable_share>=0.5 and self_max<=CLASSIFIER['clean_fraction_max'] and interference_max<=CLASSIFIER['clean_fraction_max']
+        valid &= abs(float(unstable.mean())-p['unstable_share'])<1e-9 and keep==p['kept'] and self_frames==p['self_frames'] and interference==p['interference_frames']
         bank={};sources={}
         for sample in samples:
             owners=sample['census']['owners'];pending=[o for o in owners if o['actor'] not in bank]
@@ -90,10 +137,10 @@ def read(root):
             for owner in pending:
                 bank[owner['actor']]=np.packbits(silhouette(data,[owner['tag']]))
                 sources[owner['actor']]=dict(index=sample['index'],tag=owner['tag'])
-        pose_data[pose]=dict(rgb=ref.astype(np.int16),unstable=unstable,keep=keep,bank=bank,sources=sources)
-        prepass.append(dict(pose=pose,kept=keep,unstable_share=float(unstable.mean()),reference_index=p['reference_index'],census_actors=len(bank),drawn_actors=len(drawn_names(bank)),result='PASS' if valid else 'FAIL'))
-        del images
-        print('C5 reader: frozen pose %d keep=%s unstable=%.6f actors=%d'%(pose,keep,float(unstable.mean()),len(bank)),flush=True)
+        pose_data[pose]=dict(refs={k:v.astype(np.int16) for k,v in refs.items()},unstable=unstable,keep=keep,bank=bank,sources=sources)
+        prepass.append(dict(pose=pose,kept=keep,stable_share=stable_share,unstable_share=1-stable_share,census_actors=len(bank),drawn_actors=len(drawn_names(bank)),self_check='PASS' if self_max<=CLASSIFIER['clean_fraction_max'] else 'FAIL',self_max=self_max,interference='PASS' if interference_max<=CLASSIFIER['clean_fraction_max'] else 'FAIL',interference_max_fraction=interference_max,interference_max_pixels=max(x['changed_stable_pixels'] for x in interference),interference_frames=interference,result='PASS' if valid else 'FAIL'))
+        print('C5 reader: pose %d stable=%.6f self=%.6f interference=%.6f kept=%s'%(pose,stable_share,self_max,interference_max,keep),flush=True)
+    chronology=freeze_before_frame(frozen,frozen_files,root/scored_first['image'])
     shape=(rows[0]['height'],rows[0]['width'])
     def actor_ref(pose,name):
         packed=pose_data[pose]['bank'].get(name)
@@ -116,7 +163,7 @@ def read(root):
         if not row['sweep']['score']:
             previous=mask;continue
         pose=row['sweep']['pose'];p=pose_data[pose];stable=~p['unstable'];image=rgb(root,row)
-        changed=(np.max(np.abs(image-p['rgb']),axis=2)>1)&stable
+        changed=(np.max(np.abs(image-p['refs'][row['grain_phase']]),axis=2)>1)&stable
         need(row['aa']==0 and row['eye_adaptation_quality']==0,'Scoring AA/exposure differs')
         need(image.max()>0,'Black frame')
         e=by_index.get(i);claimed=bool(row['anomalies'])
@@ -131,10 +178,12 @@ def read(root):
                 silhouette0=actor_ref(pose,name)
                 if silhouette0 is None:missing.append(name)
                 else:ref |= silhouette0
-            references[key]=dict(ref=ref&stable,missing=missing,names=names)
+            references[key]=dict(ref=ref&stable,missing=missing,names=names,stable_share=float((ref&stable).sum())/max(1,int(ref.sum())))
         reference=references[key];region=reference['ref']
         if reference['missing'] or not region.any():
             issues.append(dict(index=i,anomaly=route,reason='clean silhouette missing or empty',missing=reference['missing']))
+        if reference['stable_share']<0.5:
+            previous=mask;continue
         state,fraction=classify(changed,region) if region.any() else (None,0.)
         states[e['event_id']].append(dict(index=i,state=state,fraction=fraction,pose=pose))
         if state is None:ambiguity.append(dict(index=i,anomaly=route,fraction=fraction))
@@ -171,9 +220,9 @@ def read(root):
     negative_results=[dict(kind=k,result='PASS' if all(v[a] for a in ROUTES) else 'FAIL',failed_frames_by_anomaly=v) for k,v in negatives.items()]
     annotation=annotation_check(json.loads((root/'annotation.json').read_text()),rows,events)
     depth=depth_check(json.loads((root/'depth-before.json').read_text()),json.loads((root/'depth-after.json').read_text()),rows)
-    census=dict(peak_visible=max(p['drawn_actors'] for p in prepass),legacy_bounds_peak=max(r['census']['visible_count'] for r in rows),basis='First clean census sample per actor during each held pose; drawn custom-depth pixels, before coverage admission. Initial visibility is pose 0 at the starting player view.',initial_visible=sorted(initial),exhaustion=max(r['census']['ledger_exhausted'] for r in rows),late_scored_targets=sorted({e['target'] for e in event_out if e['scored'] and e['late_target']}))
+    census=dict(peak_visible=max(p['drawn_actors'] for p in prepass),legacy_bounds_peak=max(r['census']['visible_count'] for r in rows),basis='First clean held census sample per actor; drawn pixels before coverage admission. First scored hold has the same fixed pose 0 player view.',initial_visible=sorted(initial),exhaustion=max(r['census']['ledger_exhausted'] for r in rows),late_scored_targets=sorted({e['target'] for e in event_out if e['scored'] and e['late_target']}))
     census['result']='PASS' if census['peak_visible']>55 and not census['exhaustion'] and census['late_scored_targets'] else 'FAIL'
-    good=chronology and all(p['result']=='PASS' for p in prepass) and all(p['result']=='PASS' for p in per) and not mismatches and not ambiguity and not issues and not clean_dirty and not view_bad and all(n['result']=='PASS' for n in negative_results) and all(x['result']=='PASS' for x in (annotation,depth,census))
+    good=chronology and all(p['result']=='PASS' and p['interference']=='PASS' for p in prepass) and all(p['result']=='PASS' for p in per) and not mismatches and not ambiguity and not issues and not clean_dirty and not view_bad and all(n['result']=='PASS' for n in negative_results) and all(x['result']=='PASS' for x in (annotation,depth,census))
     return dict(result='PASS' if good else 'FAIL',reference_rule=REFERENCE_RULE,frames=len(rows),prepass=prepass,references_frozen_before_scoring=chronology,per_anomaly=per,per_frame=scores,events=event_out,mask_negatives=negative_results,c2=c2_result(rows,event_out,mismatches,ambiguity),reference_issues=issues,clean_mask_pixels=sum(x['pixels'] for x in clean_dirty),dirty_clean_frames=clean_dirty,view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad),annotation=annotation,custom_depth=depth,census=census,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
 
 if __name__=='__main__':
