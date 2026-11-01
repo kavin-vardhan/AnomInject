@@ -16,7 +16,7 @@ public:
     void SetNext(int32 Index) { Next = Index; }
     bool Snapshot(UWorld* World, uint64 Request);
     bool Observe(const FAnomalyCapturedFrame& Frame);
-    bool Ready() const { return !Street || Street->Ready(Next); }
+    bool Ready() const { return Prepared == Next && (!Street || Street->Ready(Next)); }
     bool Pair(const FAnomalyLabelKey425& Key, const FString& File);
     void Stop(int32 Written, int32 Dropped);
     uint64 Epoch() const { return RunEpoch; }

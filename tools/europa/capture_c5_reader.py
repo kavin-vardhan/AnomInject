@@ -49,6 +49,11 @@ def freeze_before_frame(frozen,files,first_frame):
     epoch=Path(first_frame).stat().st_mtime
     return datetime.datetime.fromisoformat(frozen['frozen_utc'].replace('Z','+00:00')).timestamp()<=epoch and all(Path(p).stat().st_mtime<=epoch for p in files)
 
+def census_protocol(rows,off,on):
+    bad_off=[s['index'] for s in off if rows[s['index']]['census']['enabled']]
+    bad_on=[s['index'] for s in on if not rows[s['index']]['census']['enabled']]
+    return dict(result='FAIL' if bad_off or bad_on else 'PASS',enabled_in_off=bad_off,disabled_in_on=bad_on)
+
 def frame_set(indices):
     return dict(start_frame=indices[0] if indices else 0,end_frame=indices[-1] if indices else 0,frame_count=len(indices),span_frame_count=indices[-1]-indices[0]+1 if indices else 0,frame_indices=indices)
 
@@ -90,6 +95,18 @@ def view_matches(camera):
     rotation=(np.asarray(camera['player_rotation'])-np.asarray(camera['view_rotation'])+180)%360-180
     return max(abs(rotation))<=0.01 and max(abs(np.asarray(camera['player_location'])-np.asarray(camera['view_location'])))<=0.01 and abs(camera['player_fov']-camera['view_fov'])<=0.01
 
+def initial_view_check(first,declared):
+    camera=dict(player_rotation=first['player_rotation'],view_rotation=declared['player_rotation'],player_location=first['player_location'],view_location=declared['player_location'],player_fov=first['player_fov'],view_fov=declared['player_fov'])
+    return dict(result='PASS' if view_matches(camera) else 'FAIL',actual=first,declared=declared)
+
+def enforce_initial_view(census,check):
+    census['initial_view']=check
+    if check['result']!='PASS':
+        census['late_candidates_against_declared_pose']=census['late_scored_targets']
+        census['late_scored_targets']=[]
+        census['result']='FAIL'
+    return census
+
 def depth_check(before,after,rows):
     def states(v):return {c['component']:(c['on'],c['value'],c['write_mask']) for c in v['components']}
     b=states(before);a=states(after);diff=sorted(k for k in set(a)|set(b) if a.get(k)!=b.get(k))
@@ -114,8 +131,7 @@ def read(root):
         pose=p['pose'];samples=p['silhouette_samples'];off=p['off_samples']
         need(len(samples)==len(off)==protocol['clean_hold'] and len(off)>=240,'FT3 hold count differs')
         need(max(s['index'] for s in off)<min(s['index'] for s in samples),'Census-on precedes census-off')
-        need(all(not rows[s['index']]['census']['enabled'] for s in off),'Census enabled in off hold')
-        need(all(rows[s['index']]['census']['enabled'] for s in samples),'Census disabled in on hold')
+        protocol_check=census_protocol(rows,off,samples)
         load=lambda i:np.asarray(Image.open(root/rows[i]['image']).convert('RGB'))
         refs,unstable,self_frames=phase_prepass(off,load)
         valid=True
@@ -138,7 +154,7 @@ def read(root):
                 bank[owner['actor']]=np.packbits(silhouette(data,[owner['tag']]))
                 sources[owner['actor']]=dict(index=sample['index'],tag=owner['tag'])
         pose_data[pose]=dict(refs={k:v.astype(np.int16) for k,v in refs.items()},unstable=unstable,keep=keep,bank=bank,sources=sources)
-        prepass.append(dict(pose=pose,kept=keep,stable_share=stable_share,unstable_share=1-stable_share,census_actors=len(bank),drawn_actors=len(drawn_names(bank)),self_check='PASS' if self_max<=CLASSIFIER['clean_fraction_max'] else 'FAIL',self_max=self_max,interference='PASS' if interference_max<=CLASSIFIER['clean_fraction_max'] else 'FAIL',interference_max_fraction=interference_max,interference_max_pixels=max(x['changed_stable_pixels'] for x in interference),interference_frames=interference,result='PASS' if valid else 'FAIL'))
+        prepass.append(dict(pose=pose,kept=keep,stable_share=stable_share,unstable_share=1-stable_share,census_actors=len(bank),drawn_actors=len(drawn_names(bank)),self_check='PASS' if self_max<=CLASSIFIER['clean_fraction_max'] else 'FAIL',self_max=self_max,interference='PASS' if interference_max<=CLASSIFIER['clean_fraction_max'] else 'FAIL',interference_max_fraction=interference_max,interference_max_pixels=max(x['changed_stable_pixels'] for x in interference),interference_frames=interference,protocol=protocol_check,result='PASS' if valid and protocol_check['result']=='PASS' else 'FAIL'))
         print('C5 reader: pose %d stable=%.6f self=%.6f interference=%.6f kept=%s'%(pose,stable_share,self_max,interference_max,keep),flush=True)
     chronology=freeze_before_frame(frozen,frozen_files,root/scored_first['image'])
     shape=(rows[0]['height'],rows[0]['width'])
@@ -222,6 +238,8 @@ def read(root):
     depth=depth_check(json.loads((root/'depth-before.json').read_text()),json.loads((root/'depth-after.json').read_text()),rows)
     census=dict(peak_visible=max(p['drawn_actors'] for p in prepass),legacy_bounds_peak=max(r['census']['visible_count'] for r in rows),basis='First clean held census sample per actor; drawn pixels before coverage admission. First scored hold has the same fixed pose 0 player view.',initial_visible=sorted(initial),exhaustion=max(r['census']['ledger_exhausted'] for r in rows),late_scored_targets=sorted({e['target'] for e in event_out if e['scored'] and e['late_target']}))
     census['result']='PASS' if census['peak_visible']>55 and not census['exhaustion'] and census['late_scored_targets'] else 'FAIL'
+    initial_pose=next(p for p in frozen['poses'] if p['pose']==0)
+    census=enforce_initial_view(census,initial_view_check(scored_first['camera'],rows[initial_pose['off_samples'][0]['index']]['camera']))
     good=chronology and all(p['result']=='PASS' and p['interference']=='PASS' for p in prepass) and all(p['result']=='PASS' for p in per) and not mismatches and not ambiguity and not issues and not clean_dirty and not view_bad and all(n['result']=='PASS' for n in negative_results) and all(x['result']=='PASS' for x in (annotation,depth,census))
     return dict(result='PASS' if good else 'FAIL',reference_rule=REFERENCE_RULE,frames=len(rows),prepass=prepass,references_frozen_before_scoring=chronology,per_anomaly=per,per_frame=scores,events=event_out,mask_negatives=negative_results,c2=c2_result(rows,event_out,mismatches,ambiguity),reference_issues=issues,clean_mask_pixels=sum(x['pixels'] for x in clean_dirty),dirty_clean_frames=clean_dirty,view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad),annotation=annotation,custom_depth=depth,census=census,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
 
