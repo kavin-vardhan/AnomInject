@@ -1,3 +1,5 @@
+> **094-40, 2026-11-02 - IN PROGRESS:** FX2 session-wide bench seeding and FX3 drawn-LOD prediction are implemented and focused tests pass. Both targets must rebuild before the EA_Core smoke. Fresh FM1 budget; no push/tags. See docs/sessions/2026-11-02-094-40-office-capture.md.
+
 > **094-39, 2026-11-02 - NEEDS-DECISION:** Both Development targets built (Editor3, Game1); 27/27 rebound files match. EA_Core fallback ran twice with normal exit. The launch-only bounds preset repairs the first run's empty candidates; retry fires blinking30, lighting6, LOD12, missing0. FW3 coarsest multi-LOD guard, eight exact pre-UI pairs, all414 affected masks,1938 clean frames with no mask, schema/values, census, restore and player view pass. Six identical short seeded holds never draw missing_object. Both slots and the Editor build budget are spent; no FV6, push or tags. See docs/europa/09439-office-capture-receipts.json and docs/sessions/2026-11-02-094-39-office-capture.md.
 
 ### 094-21 closeout (2026-10-28)

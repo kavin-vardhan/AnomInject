@@ -6,6 +6,9 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "Components/MeshComponent.h"
+#if ANOMALY_ENGINE_425
+#include "Compat/AnomalyAutoLod425.h"
+#endif
 
 bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 {
@@ -56,7 +59,16 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 
         if (UAnomalyInjectorSubsystem::IsAutoPoolSelection(World) && !AnomalyLod::HasMultipleLods(Mesh)) { continue; }
 		const int32 NumLODs = AnomalyLod::GetWorstLod(Mesh);
-		const int32 Target = AnomalyLod::ResolveTargetLod(Mesh, RequestedIndex);
+		int32 Target = AnomalyLod::ResolveTargetLod(Mesh, RequestedIndex);
+#if ANOMALY_ENGINE_425
+        if (UAnomalyInjectorSubsystem::IsAutoPoolSelection(World) && !bHasExplicitIndex)
+        {
+            const auto Drawn = AnomalyLod::PredictDrawnLod425(World, Mesh);
+            Target = Drawn.bKnown ? AnomalyAutoLod425::ForcedModel(NumLODs, Drawn.Level) : 0;
+            UE_LOG(LogAnomaly, Log, TEXT("Auto.LodChoice component=%s drawn=%d count=%d forced=%d screen=%.9f source=%s"), *Mesh->GetName(), Drawn.Level, NumLODs, Target, Drawn.ScreenSize, Drawn.Source);
+            if (Target == 0) { continue; }
+        }
+#endif
 
 		FCapturedLod Record;
 		Record.Mesh = Mesh;

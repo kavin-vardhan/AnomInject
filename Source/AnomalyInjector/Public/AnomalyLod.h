@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Compat/AnomalyEngineVersion.h"
 
 class UWorld;
 class UMeshComponent;
@@ -30,4 +31,7 @@ namespace AnomalyLod
 	};
 
 	ANOMALYINJECTOR_API FCurrentLod GetCurrentLod(UWorld* World, const UMeshComponent* Component);
+#if ANOMALY_ENGINE_425
+    ANOMALYINJECTOR_API FCurrentLod PredictDrawnLod425(UWorld* World, const UMeshComponent* Component);
+#endif
 }

@@ -1075,5 +1075,19 @@
     "reason": "First fallback produced 2352 paired frames but only 12 lighting events. In clean frame309, EA_LOD is 2.8049% drawn (pixel bbox2.8974%) and EA_HideCube is 1.8502% (bbox1.9922%). Both have census owners and are absent from bounds-visible; floor/pawn are the only bounds-visible entries. AnomalyViewport.cpp:57 defaults to6%, :572 rejects below that bounds filter. Auto.Yield reports only single_lod candidates or census exclusions. This is the fallback launch preset, not the >=2-LOD guard.",
     "census": "Existing0.5%-25% band unchanged",
     "source": "AnomalyViewport.cpp:57,553-577,1870-1887; AnomalyCensusPolicy425.h:5-6"
-  }
+  },
+  "09440_amendments": [
+    {
+      "rule": "FX2",
+      "decision": "Bench starts/seeds once per session, not per hold; retains shared 5.1 reset-on-start semantics. Continuous through scored holds/turns; stop24 frames before end."
+    },
+    {
+      "rule": "FX3",
+      "decision": "Deliberate 4.25 auto addition: >=2 LODs; game-thread player-view engine screen-size prediction; coarsest unless already drawn, then LOD0. Manual/5.1 paths unchanged."
+    },
+    {
+      "rule": "FX4",
+      "decision": "Default bounds selection floor6%; EA_Core bench-only override0.5%. Existing measured census band0.5%-25% unchanged."
+    }
+  ]
 }

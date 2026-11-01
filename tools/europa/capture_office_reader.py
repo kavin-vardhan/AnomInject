@@ -9,8 +9,8 @@ from capture_c4_reader import raw,ROUTES
 from capture_c5_reader import annotation_check,depth_check,view_matches,census_protocol
 from capture_c3_reader import need
 
-REFERENCE_RULE='FV5/FU5: six poses, pitch -12, street yaw steps 60 or fallback stationary player view; turn 18, settle 30, clean off/on holds 28 each, auto hold 240. No label-free grading. Street wall pose 3 rows 686..719: on-frame RGB within grain-phase off-hold channel range +/-1. Fallback waives only wall strip and census over 55.'
-THRESHOLDS=dict(events_each=3,drawn_actors_exclusive_min=55,wall_changed_pixels=0,clean_mask_pixels=0,lost_batches=0)
+REFERENCE_RULE='FV5/FU5: six poses, pitch -12, street yaw steps 60 or fallback stationary player view; turn 18, settle 30, clean off/on holds 28 each, auto hold 240; seed/start once at first scored hold, continue through all holds/turns, stop 24 frames before end. FX3: each LOD event must change at least one current-target mask pixel by more than 2 RGB levels against the preceding captured frame. No label-free grading. Street wall pose 3 rows 686..719: on-frame RGB within grain-phase off-hold channel range +/-1. Fallback waives only wall strip and census over 55.'
+THRESHOLDS=dict(events_each=3,drawn_actors_exclusive_min=55,wall_changed_pixels=0,clean_mask_pixels=0,lost_batches=0,lod_changed_pixels_min=1,lod_rgb_tolerance=2)
 
 def annotation_values(annotation,rows,events):
     normal=[]
@@ -114,12 +114,14 @@ def ui_pixels(root,rows):
 def lod_guard(log,events):
     selections=[dict(target=name,eligible_components=int(count),min_lods=int(lods)) for name,count,lods in re.findall(r'Auto.LodTarget target=(\S+) eligible_components=(\d+) min_lods=(\d+)',log)]
     applied=[dict(component=name,chosen=int(chosen),lods=int(lods)) for name,chosen,lods in re.findall(r"lod_corruption: '([^']+)' forced LOD (\d+) of (\d+)",log)]
+    choices=[dict(component=name,drawn=int(drawn),count=int(count),forced=int(forced)) for name,drawn,count,forced in re.findall(r'Auto.LodChoice component=(\S+) drawn=(-?\d+) count=(\d+) forced=(\d+)',log)]
     expected=[e for e in events if e['id']=='lod_corruption']
     by_name={e['target_name']:sum(s['target']==e['target_name'] for s in selections) for e in expected}
     good=(bool(expected) and len(applied)>=len(expected) and all(s['eligible_components']>0 and s['min_lods']>=2 for s in selections)
-          and all(a['lods']>=2 and a['chosen']==a['lods'] for a in applied)
+          and len(choices)==len(applied) and all(c['count']>=2 and 0<=c['drawn']<c['count'] and c['forced']==(1 if c['drawn']==c['count']-1 else c['count']) and c['forced']-1!=c['drawn'] for c in choices)
+          and all(a['component']==c['component'] and a['lods']==c['count'] and a['chosen']==c['forced'] for a,c in zip(applied,choices))
           and all(by_name[e['target_name']]>=sum(x['target_name']==e['target_name'] for x in expected) for e in expected))
-    return dict(result='PASS' if good else 'FAIL',events=len(expected),selections=selections,applied_components=applied)
+    return dict(result='PASS' if good else 'FAIL',events=len(expected),selections=selections,applied_components=applied,predictions=choices)
 
 
 def lod_changes(root,rows,events):
@@ -135,9 +137,9 @@ def lod_changes(root,rows,events):
             mask=raw(root,row)[:,:,3]&255
             target=np.isin(mask,states[0]['target_tags']);pixels=int(target.sum())
             frame=np.asarray(Image.open(root/row['image']).convert('RGB')).astype(np.int16)
-            changed=int((np.any(np.abs(frame-reference)>1,axis=2)&target).sum())
+            changed=int((np.any(np.abs(frame-reference)>THRESHOLDS['lod_rgb_tolerance'],axis=2)&target).sum())
             samples.append(dict(index=row['frame_index'],target_pixels=pixels,changed_pixels=changed,changed_fraction=changed/max(1,pixels)))
-        output.append(dict(event=event['event_id'],target=event['target_name'],reference=before,frames=samples,max_changed_fraction=max((s['changed_fraction'] for s in samples),default=None),information_only=True,rule='RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate'))
+        output.append(dict(event=event['event_id'],target=event['target_name'],reference=before,frames=samples,max_changed_fraction=max((s['changed_fraction'] for s in samples),default=None),result='PASS' if any(s['changed_pixels']>=THRESHOLDS['lod_changed_pixels_min'] for s in samples) else 'FAIL',rule='FX3: RGB difference >2 on current target mask versus preceding captured frame; each event needs changed pixels'))
     return output
 
 def read(root,log,fallback=False):
@@ -194,6 +196,9 @@ def read(root,log,fallback=False):
     ui=ui_pixels(root,rows)
     lod=lod_changes(root,rows,events)
     guard=lod_guard(log,events)
+    starts=re.findall(r'IAI.Auto.Run -> ON \(seed (\d+),',log)
+    floors=[float(v) for v in re.findall(r'IAI.SetMinScreenCoverage -> ([0-9.]+)%',log)]
+    single_start=dict(result='PASS' if starts==['4242'] and floors==[0.5] else 'FAIL',seeds=starts,selection_floor_pct=floors,shipped_floor_pct=6.0)
     view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad)
-    good=all(c['result']=='PASS' for c in counts.values()) and not bad_masks and all(c['result']=='PASS' for c in (wall,census,depth,annotation,checks,view,ui,guard))
-    return dict(result='PASS' if good else 'FAIL',profile='FV5/FU5; no label-free grading',fallback=fallback,frames=len(rows),per_anomaly=list(counts.values()),lod_visible_change=lod,lod_guard=guard,mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,ui_pixels=ui,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
+    good=all(c['result']=='PASS' for c in counts.values()) and not bad_masks and all(c['result']=='PASS' for c in (wall,census,depth,annotation,checks,view,ui,guard,single_start)) and bool(lod) and all(e['result']=='PASS' for e in lod)
+    return dict(result='PASS' if good else 'FAIL',profile='FV5/FU5; no label-free grading',fallback=fallback,frames=len(rows),per_anomaly=list(counts.values()),lod_visible_change=lod,lod_guard=guard,session_start=single_start,mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,ui_pixels=ui,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])

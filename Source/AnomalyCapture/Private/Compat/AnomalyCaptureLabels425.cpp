@@ -3,6 +3,7 @@
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyCaptureLog.h"
 #include "AnomalyCensusBatch425.h"
+#include "AnomalySessionRun425.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
@@ -89,7 +90,7 @@ void FAnomalyCaptureLabels425::Prepare(UWorld* World,ELevelTick TickType,float D
     if (!Auto) { Failure = TEXT("Auto injector missing"); return; }
     if (Street)
     {
-        const bool Wanted=Street->AutoOn(Next);
+        const bool Wanted=AnomalySessionRun425::Wanted(AutoStarted,Street->AutoOn(Next),Next>=FAnomalyStreetBench425::TotalFrames-24);
         if (Wanted!=Auto->IsRunning())
         {
             if (Wanted && !AutoStarted)

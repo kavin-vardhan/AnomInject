@@ -8,6 +8,16 @@
 #include "Components/SkinnedMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "StaticMeshResources.h"
+#if ANOMALY_ENGINE_425
+#include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
+#include "SceneManagement.h"
+#include "SceneView.h"
+#include "UnrealClient.h"
+#endif
 
 TArray<TWeakObjectPtr<UMeshComponent>> AnomalyLod::ResolveLodComponents(UWorld* World, const FString& Substring)
 {
@@ -150,3 +160,45 @@ int32 AnomalyLod::ResolveTargetLod(const UMeshComponent* Component, int32 Reques
 	}
 	return FMath::Clamp(RequestedOrSentinel, 1, FMath::Max(Worst, 1));
 }
+
+#if ANOMALY_ENGINE_425
+AnomalyLod::FCurrentLod AnomalyLod::PredictDrawnLod425(UWorld* World, const UMeshComponent* Component)
+{
+    const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component);
+    if (!Static) { return GetCurrentLod(World, Component); }
+    FCurrentLod Out;
+    const UStaticMesh* Mesh = Static->GetStaticMesh();
+    const FStaticMeshRenderData* Data = AnomalyCompat::StaticRenderData(Mesh);
+    APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+    ULocalPlayer* Player = PC ? PC->GetLocalPlayer() : nullptr;
+    UGameViewportClient* Client = World ? World->GetGameViewport() : nullptr;
+    if (!Data || Data->LODResources.Num() < 2 || !Player || !Client || !Client->Viewport) { return Out; }
+    FSceneViewFamilyContext Family(FSceneViewFamily::ConstructionValues(Client->Viewport, World->Scene, Client->EngineShowFlags).SetRealtimeUpdate(true));
+    FVector Location;
+    FRotator Rotation;
+    FSceneView* View = Player->CalcSceneView(&Family, Location, Rotation, Client->Viewport);
+    if (!View) { return Out; }
+    const int32 MeshMin = Mesh->MinLOD.GetValueForFeatureLevel(View->GetFeatureLevel());
+    int32 Min = Static->bOverrideMinLOD ? Static->MinLOD : MeshMin;
+#if WITH_EDITOR
+    const IConsoleVariable* Strip = IConsoleManager::Get().FindConsoleVariable(TEXT("r.StaticMesh.StripMinLodDataDuringCooking"));
+    if (Strip && Strip->GetInt()) { Min = FMath::Max(Min, MeshMin); }
+#endif
+    Min = Data->GetCurrentFirstLODIdx(FMath::Clamp(Min, 0, Data->LODResources.Num()-1));
+    const IConsoleVariable* Force = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ForceLOD"));
+    const IConsoleVariable* Scale = IConsoleManager::Get().FindConsoleVariable(TEXT("r.StaticMeshLODDistanceScale"));
+    const float DistanceScale = Scale ? Scale->GetFloat() : 1.0f;
+    const FBoxSphereBounds& Bounds = Static->Bounds;
+    Out.Level = ComputeStaticMeshLOD(Data, Bounds.Origin, Bounds.SphereRadius, *View, Min, DistanceScale != 0 ? 1.0f/DistanceScale : 1.0f);
+    if (Static->ForcedLodModel > 0) { Out.Level = FMath::Clamp(Static->ForcedLodModel, Min+1, Data->LODResources.Num())-1; }
+    if (Force && Force->GetInt() >= 0) { Out.Level = FMath::Clamp(Force->GetInt(), Min, Data->LODResources.Num()-1); }
+#if WITH_EDITOR
+    if (!Client->EngineShowFlags.LOD && !(Force && Force->GetInt() >= 0) && Static->ForcedLodModel <= 0) { Out.Level = 0; }
+#endif
+    Out.Level = FMath::Clamp(Out.Level, Min, Data->LODResources.Num()-1);
+    Out.ScreenSize = ComputeBoundsScreenSize(Bounds.Origin, Bounds.SphereRadius, *View);
+    Out.Source = TEXT("engine-screen-size-game-thread");
+    Out.bKnown = true;
+    return Out;
+}
+#endif

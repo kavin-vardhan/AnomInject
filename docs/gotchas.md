@@ -10418,3 +10418,12 @@ The player-view fallback smoke left the shared bounds prefilter at its default6%
 ## G509 - Short seeded holds can repeat incomplete coverage (2026-11-02, 094-39)
 
 The fallback retry keeps seed 4242, 0.8 s interval, 0.4 s hold and one concurrent fire. Each 240-frame scored pose restarts the shared auto-injector; SetRunning(true) reinitializes its stream (AnomalyAutoInjectorSubsystem.cpp:239). AnomalyCaptureLabels425.cpp:92-100 plus AnomalyStreetBench425.cpp:103-106 therefore repeat the same eight draws six times: LOD, lighting, blink, blink, blink, LOD, blink, blink. All 48 fires succeed, but missing_object is never drawn. The office event-coverage gate correctly fails. A longer or continuous scored hold must be qualified before another authorized session; keep the shared 5.1 RNG semantics and accepted firing parameters. No such native change is built or claimed in 094-39. Both authorized slots and all three Editor build attempts are spent.
+
+
+## G510 - Auto LOD corruption must select a different drawn model (2026-11-02, 094-40)
+
+FX3 deliberately extends the 4.25 auto path: retain FW3's two-LOD guard, predict the drawn model on the game thread using the player's scene view and stock ComputeStaticMeshLOD, then force the coarsest unless it is already drawn, in which case force LOD0. Keep explicit/manual and 5.1 paths intact. SceneManagement.cpp:543-568 and StaticMeshRender.cpp:2081-2150 define the stock screen-size selection and distance factor. The native policy test covers every current LOD in meshes with2..8 LODs, unknown/single-LOD refusals, and rejects the former unchanged-coarsest choice. Each real event must also change target pixels beyond grain. This addition is not claimed as 5.1 auto-pool parity.
+
+## G511 - A seeded capture run must not restart at every pose (2026-11-02, 094-40)
+
+FX2 corrects G509 in the bench driver, retaining shared 5.1 SetRunning(true)'s seed reset (d7eee97 AnomalyAutoInjectorSubsystem.cpp:231). The injector starts once after the clean pre-pass, keeps running through all scored poses/turns, and stops24 frames before the end. The six-pose test requires one start and one stop; the previous policy starts six times. FX4 limits IAI.SetMinScreenCoverage0.5 to EA_Core bench argv; the shipped bounds floor remains6%. The office card must use that default. The0.8s/0.4s/one-concurrent bench schedule is unchanged.
