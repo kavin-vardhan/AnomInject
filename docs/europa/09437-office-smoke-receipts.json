@@ -1,0 +1,199 @@
+{
+  "job": "09437",
+  "verdict": "NEEDS-DECISION",
+  "reason": "Both authorized street-map attempts hit the 4 GiB in-session commit floor; FU5 incomplete.",
+  "build_source": "cedb5054701039fd79503b0395c9a05e909744e4",
+  "tooling_source": "0284a0da77c7af22697faf3f94df96b0914191c0",
+  "builds": {
+    "attempts": [
+      {
+        "attempt": "editor-01",
+        "target": "StylizedParisStreetEditor",
+        "commit": "cedb5054701039fd79503b0395c9a05e909744e4",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-11-01T13:33:15.005237+00:00",
+        "ended_utc": "2026-11-01T13:34:17.665388+00:00",
+        "duration_seconds": 62.6578998999903,
+        "pid": 12316,
+        "start_free_commit_GiB": 8.158885955810547,
+        "minimum_free_commit_GiB": 4.906093597412109,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreetEditor",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09437\\builds\\editor-01\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09437\\builds\\editor-01\\UBT.log"
+      },
+      {
+        "attempt": "game-01",
+        "target": "StylizedParisStreet",
+        "commit": "cedb5054701039fd79503b0395c9a05e909744e4",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-11-01T13:34:22.841155+00:00",
+        "ended_utc": "2026-11-01T13:35:49.521715+00:00",
+        "duration_seconds": 86.67879249999532,
+        "pid": 43828,
+        "start_free_commit_GiB": 8.351306915283203,
+        "minimum_free_commit_GiB": 6.052520751953125,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreet",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09437\\builds\\game-01\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09437\\builds\\game-01\\UBT.log"
+      }
+    ],
+    "admission_only": [],
+    "priority": "BELOW_NORMAL_PRIORITY_CLASS on UBT creation",
+    "max_parallel_actions": 2
+  },
+  "cleanup": {
+    "result": "PASS",
+    "authority": "094-37 FU4",
+    "removed_files": 3008,
+    "removed_bytes": 9011502233,
+    "free_D_before": 25367023616,
+    "free_D_after": 34385014784,
+    "kept_files": 39466,
+    "directories_removed": 0,
+    "outside_scope_removed": 0
+  },
+  "sessions": [
+    {
+      "slot": "01",
+      "exit": 125,
+      "reason": "FH7 free commit below 4 GiB",
+      "pngs": 0,
+      "raw_evidence_files": 9,
+      "raw_unchanged": true,
+      "crashed": false,
+      "minimum_commit_GiB": 1.0450210571289062,
+      "self_checks": [],
+      "missing_final_files": [
+        "labels.jsonl",
+        "labels-receipt.json",
+        "capture.json",
+        "annotation.json",
+        "depth-after.json",
+        "prepass-frozen.json"
+      ]
+    },
+    {
+      "slot": "02",
+      "exit": 125,
+      "reason": "FH7 free commit below 4 GiB",
+      "pngs": 24,
+      "raw_evidence_files": 91,
+      "raw_unchanged": true,
+      "crashed": false,
+      "minimum_commit_GiB": 3.6722679138183594,
+      "self_checks": [
+        "[2026.11.01-16.10.51:263][469]LogAnomalyCapture: Capture425 SELF_CHECK stage=start frames=1 viewport=GameViewportClient/FSceneViewport size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=4 pre_ui=1 tick=OnWorldPostActorTick/LEVELTICK_All synth=0 fixed=1 census=bench_off batches=0 lost=0 no_pass=0 polluted=0"
+      ],
+      "missing_final_files": [
+        "labels.jsonl",
+        "labels-receipt.json",
+        "capture.json",
+        "annotation.json",
+        "depth-after.json",
+        "prepass-frozen.json"
+      ]
+    }
+  ],
+  "per_anomaly": [
+    {
+      "anomaly": "blinking",
+      "recorded_fires": 0,
+      "mask_pngs": 0,
+      "gate": "NOT_REACHED"
+    },
+    {
+      "anomaly": "lighting_mismatch",
+      "recorded_fires": 0,
+      "mask_pngs": 0,
+      "gate": "NOT_REACHED"
+    },
+    {
+      "anomaly": "lod_corruption",
+      "recorded_fires": 0,
+      "mask_pngs": 0,
+      "gate": "NOT_REACHED"
+    },
+    {
+      "anomaly": "missing_object",
+      "recorded_fires": 0,
+      "mask_pngs": 0,
+      "gate": "NOT_REACHED"
+    }
+  ],
+  "fu5": {
+    "three_events_each": "FAIL: scored sweep not reached",
+    "affected_mask_and_clean_absence": "UNPROVEN: no paired labels; 27 partial raw buffers have zero mask pixels",
+    "annotation": "NOT_WRITTEN",
+    "census_scale_and_recovery": "NOT_REACHED; native timeout policy test PASS",
+    "custom_depth_restore": "UNPROVEN: before only; no after or mid rows",
+    "wall_strip": "NOT_REACHED",
+    "player_view": "UNPROVEN: per-frame camera rows not written",
+    "self_check": "PARTIAL: start only; no frame 300",
+    "normal_exit": "FAIL: controlled owned stops",
+    "crash": "NONE",
+    "upload": "No signs; first Runtime.log absent, second both logs PASS",
+    "protected_state": "PASS"
+  },
+  "exit": {
+    "path": "D:\\IA_Europa\\Receipts\\09437\\exit.json",
+    "result": "PASS",
+    "manifest": {
+      "path": "D:\\IA_Europa\\Receipts\\09437\\c5-425-binaries-02-C5.json",
+      "result": "PASS",
+      "sha256": "c9a7a5ba39aeb950877082b221f46e135d00b1267eabf27e0f198dd701eb958f",
+      "files": 27
+    },
+    "root_changes": {
+      "C:": {
+        "added": [],
+        "removed": []
+      },
+      "D:": {
+        "added": [],
+        "removed": []
+      },
+      "E:": {
+        "added": [],
+        "removed": []
+      }
+    }
+  },
+  "evidence": "D:\\IA_Europa\\Receipts\\09437\\closeout-evidence.json",
+  "archives_created": [],
+  "pushed": [],
+  "tags_created": []
+}
