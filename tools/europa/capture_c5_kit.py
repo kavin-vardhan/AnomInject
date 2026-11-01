@@ -1,5 +1,6 @@
 import argparse
 import copy
+import datetime
 import json
 import os
 from pathlib import Path
@@ -15,10 +16,24 @@ from runtime_evidence import freeze,outcome,ensure_frozen
 from fixture_uploads import check as uploads
 import capture_office_reader as reader
 
-J=c1.ROOT/'Receipts/09437'
-AUTHORITY='094-37 FU1-FU6 FN2 FM1 FJ1 FK1'
+J=c1.ROOT/'Receipts/09438'
+AUTHORITY='094-38 FV1-FV6 FN2 FM1 FJ1 FK1'
 INSTALLED=c1.INSTALLED
 DEADLINE="2026-11-02T01:30:00+00:00"
+FALLBACK="2026-11-01T21:30:00+00:00"
+
+def admission_profile(wait,root,prior=None,now=None):
+    now=now or datetime.datetime.now(datetime.timezone.utc)
+    if prior=='street' or prior is None and now<datetime.datetime.fromisoformat(FALLBACK):
+        gate=wait(root/'gate-street.jsonl',DEADLINE if prior else FALLBACK,idle_seconds=300,memory=(12,6))
+        if gate['status']=='CLEAR' or prior:return gate,'street'
+    return wait(root/'gate-fallback.jsonl',DEADLINE,idle_seconds=300,memory=(8,4)),'fallback'
+
+def select_map(argv,profile):
+    if profile not in ('street','fallback'):raise ValueError('Unknown map profile')
+    if profile=='fallback':
+        argv[:]=[a.replace('/Game/ParisStreet/Levels/SampleMap','/Game/EuropaPhaseA/EA_Core') for a in argv]+['-IAICaptureFallback']
+    return argv
 
 def command(leg,root):
     if leg=='Smoke':return c1.command('Smoke',root)
@@ -33,7 +48,8 @@ def command(leg,root):
     return argv
 
 def validate(config):
-    if config.get('arming_job')!='09437' or config.get('stage')!='OfficeSmoke' or config['deadline']!=DEADLINE:raise RuntimeError('Wrong office-smoke arming')
+    if config.get('arming_job')!='09438' or config.get('stage')!='OfficeSmoke' or config['deadline']!=DEADLINE:raise RuntimeError('Wrong office-smoke arming')
+    if config.get('fallback')!=FALLBACK:raise RuntimeError('Fallback time changed')
     if config.get('metrics')!=reader.THRESHOLDS or config.get('limits')!={'C5':900}:raise RuntimeError('FU5 gates or limit changed')
     verify_files(config['engine_files']);verify_files(config['tooling_files']);verify_protection(config['protected'])
     if sha(config['manifest']['path'])!=config['manifest']['sha256']:raise RuntimeError('Manifest changed')
@@ -56,9 +72,9 @@ def arm(retry=False,leg=None):
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before C3 arming')
     prior=json.loads(INSTALLED.read_text())
     if retry:
-        if prior.get('arming_job')!='09437':raise RuntimeError('No first 09437 arming')
+        if prior.get('arming_job')!='09438':raise RuntimeError('No first 09438 arming')
         retry_admitted(prior,leg)
-    elif prior.get('arming_job')=='09437':raise RuntimeError('Office smoke already armed; use the qualified retry route')
+    elif prior.get('arming_job')=='09438':raise RuntimeError('Office smoke already armed; use the qualified retry route')
     revision=('02-'+leg) if retry else '01'
     built=[json.loads(p.read_text()) for p in (J/'builds').glob('*/result.json')]
     good=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and c1.native_source_equal(r['commit'])]
@@ -69,11 +85,11 @@ def arm(retry=False,leg=None):
     manifest=json.loads(Path(prior['manifest']['path']).read_text())
     for row in manifest['files']:
         p=Path(row['path']);row.update(size=p.stat().st_size,mtime_ns=p.stat().st_mtime_ns,sha256=sha(p))
-    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09437 FU5 office smoke build pair')
+    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09438 FV5 office smoke build pair')
     manifest_path=J/('c5-425-binaries-'+revision+'.json');create_json(manifest_path,manifest)
-    reference=TOOLS.parent.parent/'docs/sessions/2026-11-01-094-37-office-smoke.md'
+    reference=TOOLS.parent.parent/'docs/sessions/2026-11-01-094-38-office-capture.md'
     refs=dict(files=[dict(path=str(reference),size=reference.stat().st_size,sha256=sha(reference))])
-    config=dict(arming_job='09437',stage='OfficeSmoke',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,
+    config=dict(arming_job='09438',stage='OfficeSmoke',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,fallback=FALLBACK,
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),protected=current,
         engine_files=prior['engine_files'],tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
         reference_files=refs['files'],reference_rule=reader.REFERENCE_RULE,metrics=reader.THRESHOLDS,
@@ -93,7 +109,7 @@ def run(leg,number):
     if number=='02':
         if config.get('retry_authorized')!=leg:raise RuntimeError('Retry not qualified/re-armed')
         retry_admitted(config,leg)
-    root=Path(config['slots'][leg][number]);temp=c1.ROOT/'Temp/09437/c5'/leg/number
+    root=Path(config['slots'][leg][number]);temp=c1.ROOT/'Temp/09438/c5'/leg/number
     os.environ['EUROPA_JOB_CONFIG']=str(J/'c5-job-config.json')
     import write_ledger as ledger
     from runtime_lean_gate import wait
@@ -104,9 +120,12 @@ def run(leg,number):
         create_json(root/'managed-before.json',managed_snapshot())
         process=root/'process';process.mkdir();os.environ['EUROPA_OPERATION_DIR']=str(process)
         def admit():
-            print(leg+': setup complete; waiting for FJ1/FK1 gate.',flush=True)
-            gate=wait(root/'gate.jsonl',DEADLINE,idle_seconds=300)
+            print(leg+': setup complete; waiting for FV5 map admission.',flush=True)
+            prior=json.loads((Path(config['slots'][leg]['01'])/'admitted.json').read_text())['profile'] if number=='02' else None
+            gate,profile=admission_profile(wait,root,prior)
             if gate['status']!='CLEAR':raise RuntimeError('Window ended before process creation')
+            select_map(argv,profile)
+            create_json(root/'admitted.json',dict(profile=profile,argv=argv,gate=gate))
             guard.reserve_launch(dict(number=1));print(leg+': launching bounded session.',flush=True)
             return dict(utc=gate['utc'],status=gate['status'],idle_seconds=gate['sample']['idle_seconds'],free_commit_bytes=gate['sample']['free_commit_bytes'],free_memory_bytes=gate['sample']['free_memory_bytes'],volumes=gate['sample']['volumes'])
         row=execute(leg,root,temp,HOST,config['protected'],argv,ledger,config['limits'][leg],admit=admit)
@@ -121,7 +140,7 @@ def run(leg,number):
             reader.need(row.get('exit_code')==0 and 'LogExit: Exiting.' in log,'Normal exit missing')
             reader.need('Capture425 C3: shaders_loaded=visible425,reduce' in log,'Mask shaders did not load/dispatch')
             reader.need('Capture425 C5: stencil_restore=1' in log,'Stencil restoration missing')
-            result=reader.read(root/'plugin-frames/epoch01',log)
+            result=reader.read(root/'plugin-frames/epoch01',log,fallback='-IAICaptureFallback' in argv)
 
         except Exception as error:result=dict(result='FAIL',reason=str(error))
         create_json(root/'reader.json',result)

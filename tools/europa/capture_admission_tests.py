@@ -62,7 +62,7 @@ def run(output):
     tree=ast.parse(Path(__file__).with_name('capture_c5_kit.py').read_text())
     fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='run')
     nested=next(n for n in ast.walk(fn) if isinstance(n,ast.FunctionDef) and n.name=='admit')
-    waits=[n for n in ast.walk(fn) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='wait']
+    waits=[n for n in ast.walk(fn) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='admission_profile']
     assert len(waits)==1 and waits[0] in list(ast.walk(nested))
     execution=next(n for n in ast.walk(fn) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='execute')
     assert any(k.arg=='admit' and isinstance(k.value,ast.Name) and k.value.id=='admit' for k in execution.keywords)

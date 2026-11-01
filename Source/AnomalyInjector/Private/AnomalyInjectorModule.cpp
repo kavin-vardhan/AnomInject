@@ -15,7 +15,7 @@ public:
 		UE_LOG(LogAnomaly, Log, TEXT("AnomalyInjector module started."));
 #if ANOMALY_ENGINE_425
 		AnomalyViewport::SetNaniteComponentProbe([](const UPrimitiveComponent*) { return false; });
-		UE_LOG(LogAnomaly, Display, TEXT("Europa Phase A: stock-no-Nanite component probe; blinking, lighting_mismatch, lod_corruption; missing_object bench-only; texture/capture/control backends unavailable."));
+		UE_LOG(LogAnomaly, Display, TEXT("Europa 4.25: stock-no-Nanite component probe; missing_object, blinking, lighting_mismatch, lod_corruption; texture/control backends unavailable."));
 #endif
 		PostEngineInitHandle = FCoreDelegates::OnPostEngineInit.AddLambda([]()
 		{

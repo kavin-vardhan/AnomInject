@@ -12,6 +12,8 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/DateTime.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
@@ -30,6 +32,7 @@ namespace
 bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
 {
     Owner=World; Directory=Output;
+    Fallback=FParse::Param(FCommandLine::Get(),TEXT("IAICaptureFallback"));
     APlayerController* PC=World ? World->GetFirstPlayerController() : nullptr;
     if (!PC || !PC->PlayerCameraManager) { return false; }
     PC->GetPlayerViewPoint(Position,Base); Target=PC->GetViewTarget(); TargetRotation=Target.IsValid()?Target->GetActorRotation():Base;
@@ -62,7 +65,8 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
         }
     }
     auto Protocol=MakeShared<FJsonObject>(); Protocol->SetStringField(TEXT("utc"),FDateTime::UtcNow().ToIso8601());
-    Protocol->SetNumberField(TEXT("poses"),Poses); Protocol->SetNumberField(TEXT("yaw_step"),60);
+    Protocol->SetNumberField(TEXT("poses"),Poses); Protocol->SetNumberField(TEXT("yaw_step"),Fallback?0:60);
+    Protocol->SetBoolField(TEXT("fallback"),Fallback);
     Protocol->SetNumberField(TEXT("turn"),Turn); Protocol->SetNumberField(TEXT("settle"),Settle); Protocol->SetNumberField(TEXT("clean_hold"),CleanHold); Protocol->SetNumberField(TEXT("score_hold"),ScoreHold);
     Protocol->SetNumberField(TEXT("pre_frames"),PreFrames); Protocol->SetNumberField(TEXT("total_frames"),TotalFrames);
     Protocol->SetArrayField(TEXT("base_position"),XYZ425(Position)); Protocol->SetArrayField(TEXT("base_rotation"),XYZ425(FVector(Base.Pitch,Base.Yaw,Base.Roll)));
@@ -90,7 +94,8 @@ void FAnomalyStreetBench425::Prepare(int32 Index)
     auto D=Describe(Index); const int32 P=int32(D->GetNumberField(TEXT("pose"))),Step=int32(D->GetNumberField(TEXT("step")));
     const bool Clean=Index<PreFrames;
     FAnomalyMasks425::SetBenchCensus(!Clean || Step>=Turn+Settle+CleanHold);
-    const float To=Base.Yaw+60.0f*P; const float From=P==0 ? To : Base.Yaw+60.0f*(P-1);
+    const float StepYaw=Fallback?0.0f:60.0f;
+    const float To=Base.Yaw+StepYaw*P; const float From=P==0 ? To : Base.Yaw+StepYaw*(P-1);
     FRotator R=Base; R.Yaw=Step<Turn ? From+FMath::FindDeltaAngleDegrees(From,To)*float(Step+1)/Turn : To;
     PC->SetControlRotation(R);
     if (Target.IsValid() && Target.Get()!=PC->GetPawn()) { Target->SetActorRotation(R); }

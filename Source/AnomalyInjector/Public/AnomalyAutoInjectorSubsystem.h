@@ -47,7 +47,7 @@ class ANOMALYINJECTOR_API UAnomalyAutoInjectorSubsystem : public UAnomalyTickabl
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 NumPoolKeys = 9;
+	static constexpr int32 NumPoolKeys = 11;
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;

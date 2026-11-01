@@ -35,7 +35,7 @@ private:
     TMap<TWeakObjectPtr<UPrimitiveComponent>,FPrior> Before,Original;
     FRotator Base,TargetRotation,OriginalViewRotation;
     FVector Position;
-    bool IgnoreMove=false,IgnoreLook=false,Frozen=false;
+    bool IgnoreMove=false,IgnoreLook=false,Frozen=false,Fallback=false;
     FString Directory;
     FPose Pose[Poses];
     bool Freeze(int32 Width,int32 Height);

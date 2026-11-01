@@ -45,13 +45,15 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     Writes.Empty(); Rows.Empty(); Running = true; Started = FPlatformTime::Seconds();
     PeakPendingWrites = WriterDrains = 0;
     RHI = GDynamicRHI ? GDynamicRHI->GetName() : TEXT("unknown");
+    Diagnostic=MakeUnique<FAnomalyCaptureDiagnostic425>(); Diagnostic->Start(World,Output);
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: start RHI=%s frames=%d native=viewport labels=paired_when_enabled masks=live_targets_when_enabled"), *RHI, Count);
     return true;
 }
 
-void FAnomalyCaptureSession425::Tick(UWorld* World)
+void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hook)
 {
     if (!Running) { return; }
+    Diagnostic->Tick(TickType,Hook);
     if (FPlatformTime::Seconds() - Started < 3.0) { return; }
     FAnomalyCapturedFrame Frame;
     while (Backend->PollFrame(Frame))
@@ -66,13 +68,14 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         const FString MaskOutput = AnomalyCaptureC2::Masks() ? Output : FString();
         if (Labels) { FAnomalyMasks425::Observe(Frame); if (!Labels->Observe(Frame)) { ++Failures; continue; } }
         if (Labels && !Labels->Pair(Frame.LabelKey425, Name)) { ++Failures; continue; }
+        Diagnostic->Observe(Frame);
         if (Frame.RequestId==1 || Frame.RequestId==300)
         {
             const int32 Hooks=static_cast<FAnomalyCaptureBackend425*>(Backend.Get())->PostRenderCount();
-            UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 SELF_CHECK stage=%s frames=%llu viewport=%s/FSceneViewport size=%dx%d format=%d RHI=%s PostRenderViewFamily=%d pre_ui=%d tick=OnWorldPostActorTick/LEVELTICK_All synth=%d fixed=%d %s"),
+            UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 SELF_CHECK stage=%s frames=%llu size=%dx%d format=%d RHI=%s PostRenderViewFamily=%d synth=%d %s %s"),
                 Frame.RequestId==1?TEXT("start"):TEXT("300"),Frame.RequestId,
-                World && World->GetGameViewport()?*World->GetGameViewport()->GetClass()->GetName():TEXT("none"),Frame.Width,Frame.Height,int32(Frame.Format),*RHI,
-                Hooks,Hooks>0?1:0,UAnomalyInjectorSubsystem::IsSynthTickOrderEnabled(World)?1:0,FApp::UseFixedTimeStep()?1:0,*FAnomalyMasks425::Diagnostic(World));
+                Frame.Width,Frame.Height,int32(Frame.Format),*RHI,
+                Hooks,UAnomalyInjectorSubsystem::IsSynthTickOrderEnabled(World)?1:0,*Diagnostic->Line(),*FAnomalyMasks425::Diagnostic(World));
         }
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
@@ -119,6 +122,8 @@ void FAnomalyCaptureSession425::Stop()
     if (!Running) { return; }
     Running = false;
     Backend->Stop();
+    if (!Diagnostic->Stop()) { ++Failures; }
+    Diagnostic.Reset();
     for (TFuture<bool>& Write : Writes) { if (Write.Get()) { ++Completed; } else { ++Failures; } }
     Writes.Empty();
     FAnomalyCaptureBackend425* Concrete = static_cast<FAnomalyCaptureBackend425*>(Backend.Get());

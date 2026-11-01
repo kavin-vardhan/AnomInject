@@ -1049,7 +1049,7 @@ void UAnomalyCaptureSubsystem::OnWorldPostActorTick425(UWorld* World, ELevelTick
 {
 #if ANOMALY_CAPTURE_FRAMES425
     if (bDeinitializing || World != GetWorld() || TickType != LEVELTICK_All) { return; }
-    Frames425->Tick(World);
+    Frames425->Tick(World,TickType,GET_FUNCTION_NAME_CHECKED(UAnomalyCaptureSubsystem,OnWorldPostActorTick425));
     bRunning = Frames425->IsRunning();
     FramesWritten = Frames425->Written();
 #endif

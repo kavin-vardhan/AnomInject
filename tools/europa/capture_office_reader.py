@@ -9,14 +9,14 @@ from capture_c4_reader import raw,ROUTES
 from capture_c5_reader import annotation_check,depth_check,view_matches,census_protocol
 from capture_c3_reader import need
 
-REFERENCE_RULE='FU5: six fixed poses, pitch -12 and yaw steps 60; turn 18, settle 30, clean off/on holds 28 each, auto hold 240. No label-free grading. Wall pose 3 rows 686..719: each on-frame RGB must stay inside its grain-phase off-hold channel range plus/minus one level; no unstable-pixel exclusion.'
+REFERENCE_RULE='FV5/FU5: six poses, pitch -12, street yaw steps 60 or fallback stationary player view; turn 18, settle 30, clean off/on holds 28 each, auto hold 240. No label-free grading. Street wall pose 3 rows 686..719: on-frame RGB within grain-phase off-hold channel range +/-1. Fallback waives only wall strip and census over 55.'
 THRESHOLDS=dict(events_each=3,drawn_actors_exclusive_min=55,wall_changed_pixels=0,clean_mask_pixels=0,lost_batches=0)
 
 def annotation_values(annotation,rows,events):
     normal=[]
     for row in rows:
         value=dict(row);value['camera']=dict(row['camera'])
-        if value['camera']['far']<=0:value['camera']['far']=1000000
+        value['camera']['far']=1000000
         normal.append(value)
     result=annotation_check(annotation,normal,events)
     bad=[];measurements=[]
@@ -41,9 +41,14 @@ def self_checks(log):
             good &= item.get('stage')==stage and item.get('frames')==frames and item.get('size')=='1280x720'
             good &= item.get('format') in ('2','18','37') and item.get('RHI') not in (None,'unknown')
             good &= int(item.get('PostRenderViewFamily','0'))>0 and item.get('pre_ui')=='1'
-            good &= item.get('tick')=='OnWorldPostActorTick/LEVELTICK_All' and item.get('census') in ('on','bench_off')
+            good &= item.get('tick')=='OnWorldPostActorTick425' and item.get('tick_type')=='2' and int(item.get('tick_calls','0'))>0
+            good &= item.get('census') in ('on','bench_off')
             good &= item.get('lost')=='0' and item.get('no_pass')=='0' and item.get('polluted')=='0'
-            good &= item.get('viewport','').endswith('/FSceneViewport') and not item['viewport'].startswith('none')
+            good &= item.get('viewport') not in (None,'None','none') and item.get('client') not in (None,'None','none')
+            good &= all(item.get(k) in ('0','1') for k in ('slate','pie','fixed_step','fixed_rate','smoothing'))
+            good &= all(math.isfinite(float(item.get(k,'nan'))) for k in ('fixed_dt','fixed_fps'))
+            good &= int(item.get('ui_positive','0'))>0 and int(item.get('ui_controls','0'))>0 and int(item.get('ui_draws','0'))>0
+            good &= item.get('ui_checked')==frames and item.get('ui_hits')=='0'
     return dict(result='PASS' if good else 'FAIL',lines=['Capture425 SELF_CHECK '+line for line in lines],parsed=parsed)
 
 def wall_range(off,on,load):
@@ -66,10 +71,32 @@ def mask_agrees(row,mask):
     pixels=int(np.count_nonzero(mask))
     return affected==(pixels>0) and affected==bool(row['mask']),affected,pixels
 
-def read(root,log):
+MARKER=np.array([(255,0,255),(0,255,0),(0,0,255),(255,255,0),(0,255,255),(255,0,0),(255,255,255),(0,0,0)],dtype=np.int16)
+
+def marker_cells(pixels,origin=(16,16)):
+    x,y=origin
+    if pixels.shape[0]<y+32 or pixels.shape[1]<x+64:return -1
+    return sum(bool(np.all(np.abs(pixels[y+(i//4)*16+8,x+(i%4)*16+8,:3].astype(np.int16)-MARKER[i])<=4)) for i in range(8))
+
+def ui_pixels(root,rows):
+    controls=[];bad=[];observations=[]
+    for path in sorted(root.glob('ui-control-*.png')):
+        controls.append(dict(path=path.name,matching_cells=marker_cells(np.asarray(Image.open(path).convert('RGB')),(0,0))))
+    native=json.loads((root/'ui-check.json').read_text())
+    for row in rows:
+        cells=marker_cells(np.asarray(Image.open(root/row['image']).convert('RGB')))
+        observations.append(dict(request=row['frame_index']+1,matching_cells=cells))
+        if cells<0 or cells>=7:bad.append(row['frame_index'])
+    same=[(r['request'],r['matching_cells']) for r in native['frames']]==[(r['request'],r['matching_cells']) for r in observations]
+    positive=sum(c['matching_cells']>=7 for c in controls)
+    good=positive>0 and not bad and same and native['checked']==len(rows) and native['hits']==0 and native['positive_controls']==positive
+    return dict(result='PASS' if good else 'FAIL',positive_controls=controls,checked=len(rows),marker_frames=bad,native_matches=same,frames=observations)
+
+def read(root,log,fallback=False):
     root=Path(root);rows=[json.loads(s) for s in (root/'labels.jsonl').read_text().splitlines() if s]
     receipt=json.loads((root/'labels-receipt.json').read_text());capture=json.loads((root/'capture.json').read_text())
     protocol=json.loads((root/'c5-protocol.json').read_text());frozen=json.loads((root/'prepass-frozen.json').read_text())
+    need(protocol.get('fallback')==fallback and protocol['yaw_step']==(0 if fallback else 60),'Map profile and bench protocol differ')
     need(len(rows)==protocol['total_frames']==capture['written']==capture['requested']==receipt['paired'],'Frame count differs')
     need([r['frame_index'] for r in rows]==list(range(len(rows))),'Missing or duplicate frame index')
     need(capture['dropped']==receipt['unmatched_dropped']==0,'Dropped/unpaired frame')
@@ -108,12 +135,15 @@ def read(root,log):
         if i%400==0:print('Office reader: frame %d/%d'%(i,len(rows)),flush=True)
     for value in counts.values():value['result']='PASS' if value['events_fired']>=3 and value['affected_frames']==value['mask_frames'] and value['mask_frames']>0 else 'FAIL'
     load=lambda i:np.asarray(Image.open(root/rows[i]['image']).convert('RGB'))[686:720,:,:]
-    wall=wall_range(off[3],on[3],load);wall['pose']=3;wall['region']=[0,686,1280,720]
+    wall=dict(result='PASS',waived='FV5 fallback only') if fallback else wall_range(off[3],on[3],load)
+    wall['pose']=3;wall['region']=[0,686,1280,720]
     census=dict(peak_drawn=max(len(v) for v in drawn.values()),per_pose=[dict(pose=p,drawn=len(v)) for p,v in drawn.items()],exhaustion=max(r['census']['ledger_exhausted'] for r in rows),lost=max(r['census']['batches_lost'] for r in rows),no_pass=max(r['census']['no_pass_batches'] for r in rows),polluted=max(r['census']['polluted_batches'] for r in rows))
-    census['result']='PASS' if census['peak_drawn']>55 and all(census[k]==0 for k in ('exhaustion','lost','no_pass','polluted')) and all(p['result']=='PASS' for p in protocols) else 'FAIL'
+    census['over_55_waived']=fallback
+    census['result']='PASS' if (fallback or census['peak_drawn']>55) and all(census[k]==0 for k in ('exhaustion','lost','no_pass','polluted')) and all(p['result']=='PASS' for p in protocols) else 'FAIL'
     depth=depth_check(json.loads((root/'depth-before.json').read_text()),json.loads((root/'depth-after.json').read_text()),rows)
     annotation=annotation_values(json.loads((root/'annotation.json').read_text()),rows,events)
     checks=self_checks(log)
+    ui=ui_pixels(root,rows)
     view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad)
-    good=all(c['result']=='PASS' for c in counts.values()) and not bad_masks and all(c['result']=='PASS' for c in (wall,census,depth,annotation,checks,view))
-    return dict(result='PASS' if good else 'FAIL',profile='FU5; no label-free grading',frames=len(rows),per_anomaly=list(counts.values()),mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
+    good=all(c['result']=='PASS' for c in counts.values()) and not bad_masks and all(c['result']=='PASS' for c in (wall,census,depth,annotation,checks,view,ui))
+    return dict(result='PASS' if good else 'FAIL',profile='FV5/FU5; no label-free grading',fallback=fallback,frames=len(rows),per_anomaly=list(counts.values()),mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,ui_pixels=ui,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])

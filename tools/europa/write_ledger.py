@@ -37,7 +37,7 @@ def floors(start=False):
             and SCOPE.get('runtime_scope', {}).get('kind') == 'fixture-authoring'):
         start = False
     limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (15, 12, 10)}
-    if JOB in (ROOT/'Receipts/09431', ROOT/'Receipts/09431b', ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437'):
+    if JOB in (ROOT/'Receipts/09431', ROOT/'Receipts/09431b', ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437',ROOT/'Receipts/09438'):
         limits['D'] = (25, 25, 15)
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
         'start': v[0] * GIB, 'warning': v[1] * GIB, 'floor': v[2] * GIB} for d, v in limits.items()}
@@ -458,7 +458,7 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     start = time.monotonic()
     if before_create is not None:
         before_create()
-    if memory_guard and JOB in (ROOT/'Receipts/09431', ROOT/'Receipts/09431b', ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437'):
+    if memory_guard and JOB in (ROOT/'Receipts/09431', ROOT/'Receipts/09431b', ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437',ROOT/'Receipts/09438'):
         floors(start=True)
     try:
         proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

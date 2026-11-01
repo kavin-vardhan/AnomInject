@@ -1,0 +1,1036 @@
+{
+  "authority": "FV2",
+  "baseline": "same branch ANOMALY_ENGINE_51 path; default pool compared to 07c853e",
+  "files": [
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_Blinking.cpp",
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_Blinking.h",
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_LightingMismatch.cpp",
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_LightingMismatch.h",
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_LodCorruption.cpp",
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_LodCorruption.h",
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingObject.cpp",
+    "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingObject.h",
+    "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+    "Source/AnomalyInjector/Private/AnomalyHiddenClass.cpp",
+    "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+    "Source/AnomalyInjector/Private/AnomalyLod.cpp",
+    "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+    "Source/AnomalyInjector/Private/AnomalyTargeting.cpp",
+    "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+    "Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp",
+    "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+    "Source/AnomalyInjector/Private/Compat/AnomalyTickableWorldSubsystem.cpp",
+    "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+    "Source/AnomalyInjector/Public/AnomalyAutoInjectorSubsystem.h",
+    "Source/AnomalyInjector/Public/AnomalyHiddenClass.h",
+    "Source/AnomalyInjector/Public/AnomalyInjectorSubsystem.h",
+    "Source/AnomalyInjector/Public/AnomalyLod.h",
+    "Source/AnomalyInjector/Public/AnomalySelectorSubsystem.h",
+    "Source/AnomalyInjector/Public/AnomalyTargeting.h",
+    "Source/AnomalyInjector/Public/AnomalyViewport.h",
+    "Source/AnomalyInjector/Public/Compat/AnomalyCapabilities.h",
+    "Source/AnomalyInjector/Public/Compat/AnomalyEngineCompat.h",
+    "Source/AnomalyInjector/Public/Compat/AnomalyEngineVersion.h",
+    "Source/AnomalyInjector/Public/Compat/AnomalySharedPointerIncludes.h",
+    "Source/AnomalyInjector/Public/Compat/AnomalyStatsIncludes.h",
+    "Source/AnomalyInjector/Public/Compat/AnomalyTextureAdapter.h",
+    "Source/AnomalyInjector/Public/Compat/AnomalyTickableWorldSubsystem.h"
+  ],
+  "only_425_lines": [
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 135,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 310,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 736,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(Id))",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 737,
+      "text": "\t{",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 738,
+      "text": "\t\tUE_LOG(LogAnomaly, Warning, TEXT(\"Auto admission %s: %s\"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 739,
+      "text": "\t\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 740,
+      "text": "\t}",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 886,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(Id))",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 887,
+      "text": "\t{",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 888,
+      "text": "\t\tUE_LOG(LogAnomaly, Warning, TEXT(\"Auto admission %s: %s\"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 889,
+      "text": "\t\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 890,
+      "text": "\t}",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 925,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Retained capability checks refuse backend APIs not ported/registered on 4.25; shared pool, selection, RNG, target token and default LOD otherwise used. TFunction reset uses empty assignment because 4.25 Function.h:962 has assignment, not Reset."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 271,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { return; }",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 847,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(Id))",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 848,
+      "text": "\t{",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 849,
+      "text": "\t\tUE_LOG(LogAnomaly, Warning, TEXT(\"ApplyAnomaly %s: %s\"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 850,
+      "text": "\t\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 851,
+      "text": "\t}",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 1007,
+      "text": "\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 1022,
+      "text": "\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 1236,
+      "text": "\tOutSlab = FAnomalyNearClipSlabResult();",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 1237,
+      "text": "\tbOutSphereProxy = false;",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 1238,
+      "text": "\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 registry omits unavailable texture/global backends; capture/control module calls remain compile-feature guarded. Missing object now has shared registration without a bench-only restriction."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 46,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex]))",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 47,
+      "text": "\t{",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 48,
+      "text": "\t\tCycleAnomalyChoice();",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 49,
+      "text": "\t}",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 172,
+      "text": "\tfor (int32 Step = 0; Step < GNumAnomalyChoices; ++Step)",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 173,
+      "text": "\t{",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 174,
+      "text": "\t\tAnomalyChoiceIndex = (AnomalyChoiceIndex + 1) % GNumAnomalyChoices;",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 175,
+      "text": "\t\tif (AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex])) { break; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 176,
+      "text": "\t}",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 271,
+      "text": "\tconst FName Id = GAnomalyChoices[AnomalyChoiceIndex];",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 272,
+      "text": "\treturn AnomalyCompat::SupportsAnomaly(Id) ? Id : NAME_None;",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 448,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[i])) { continue; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Capability filtering keeps selector choices within the 4.25 registered surface; no candidate ordering, visibility or selected-target substitution."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp",
+      "line": 6,
+      "text": "\treturn Id == FName(TEXT(\"missing_object\")) || Id == FName(TEXT(\"blinking\")) || Id == FName(TEXT(\"lighting_mismatch\")) || Id == FName(TEXT(\"lod_corruption\"));",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 API/backend surface is four smoke implementations. Unsupported texture/global backends are deliberately not registered. missing_object now matches shared 5.1 admission."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp",
+      "line": 15,
+      "text": "\treturn TEXT(\"unsupported_engine_phase_a\");",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 API/backend surface is four smoke implementations. Unsupported texture/global backends are deliberately not registered. missing_object now matches shared 5.1 admission."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 21,
+      "text": "\treturn Component ? Component->SkeletalMesh : nullptr;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 30,
+      "text": "\treturn Mesh ? Mesh->RenderData.Get() : nullptr;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 39,
+      "text": "\treturn Camera->GetCameraCachePOV();",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 48,
+      "text": "\treturn GNearClippingPlane;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 57,
+      "text": "\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 66,
+      "text": "\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 82,
+      "text": "\treturn Setup && Setup->CollisionTraceFlag != CTF_UseSimpleAsComplex && Setup->TriMeshes.Num() > 0;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 91,
+      "text": "\treturn Data->ScreenSize[LodIndex].Default;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 100,
+      "text": "\treturn Component->PredictedLODLevel;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 109,
+      "text": "\tOut.Planes.Empty(6);",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 110,
+      "text": "\tFPlane Plane;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 111,
+      "text": "\tif (ViewProjection.GetFrustumNearPlane(Plane)) { Out.Planes.Add(Plane); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 112,
+      "text": "\tif (ViewProjection.GetFrustumLeftPlane(Plane)) { Out.Planes.Add(Plane); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 113,
+      "text": "\tif (ViewProjection.GetFrustumRightPlane(Plane)) { Out.Planes.Add(Plane); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 114,
+      "text": "\tif (ViewProjection.GetFrustumTopPlane(Plane)) { Out.Planes.Add(Plane); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 115,
+      "text": "\tif (ViewProjection.GetFrustumBottomPlane(Plane)) { Out.Planes.Add(Plane); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 116,
+      "text": "\tOut.Init();",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 125,
+      "text": "\treturn Axis == 0 ? FVector(1.0f, 0.0f, 0.0f) : (Axis == 1 ? FVector(0.0f, 1.0f, 0.0f) : FVector(0.0f, 0.0f, 1.0f));",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 134,
+      "text": "\treturn false;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyTickableWorldSubsystem.cpp",
+      "line": 38,
+      "text": "\treturn !IsTemplate() && bInitialized;",
+      "decision": "retained API/compiled surface",
+      "reason": "4.25 lacks UTickableWorldSubsystem and its IsAllowedToTick dispatch; gate IsTickable on initialized/non-template. PHASE0 measured row, WorldSubsystem.h:24 and Tickable.h."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 3,
+      "text": "#include \"AnomalyTexCorrupt.h\"",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 4,
+      "text": "#include \"AnomalyStuckMipStats.h\"",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 5,
+      "text": "#include \"UObject/WeakObjectPtr.h\"",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 7,
+      "text": "namespace AnomalyTexCorrupt",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 8,
+      "text": "{",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 9,
+      "text": "\tvoid ResetRunStats() {}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 10,
+      "text": "\tFRunStats GetRunStats() { return FRunStats(); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 11,
+      "text": "\tconst TArray<FString>& AllFinalReasons() { static const TArray<FString> Values = { TEXT(\"unsupported_engine_phase_a\") }; return Values; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 12,
+      "text": "\tconst TArray<FString>& AllRollbackSteps() { static const TArray<FString> Values; return Values; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 13,
+      "text": "\tbool IsTexCorruptId(FName Id) { return Id == FName(TEXT(\"uv_corruption\")) || Id == FName(TEXT(\"normal_corruption\")); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 14,
+      "text": "\tbool IsEligibleTarget(UWorld*, FName, AActor*, FString& OutReason) { OutReason = TEXT(\"unsupported_engine_phase_a\"); return false; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 15,
+      "text": "\tTArray<FString> GetAutoDrawModes(FName) { return TArray<FString>(); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 16,
+      "text": "\tFString TargetedNoModeBenchLever(FName) { return FString(); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 17,
+      "text": "\tbool IsRevertSettling(UWorld*) { return false; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 18,
+      "text": "\tvoid GatherCorruptorMaterials(UWorld*, TArray<UMaterialInterface*>& Out) { Out.Reset(); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 19,
+      "text": "\tint32 BeginWarmDraw(UWorld*) { return -1; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 20,
+      "text": "\tvoid EndWarmDraw() {}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 21,
+      "text": "\tint32 KickUniformMeasurements(UWorld*, const FString&) { return 0; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 22,
+      "text": "\tint32 NumUniformMeasurementsPending() { return 0; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 23,
+      "text": "\tFString DescribeUniformMeasurements() { return TEXT(\"unsupported_engine_phase_a\"); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 24,
+      "text": "\tvoid RestoreBenchAssetSlotMid(const TCHAR*) {}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 25,
+      "text": "}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 27,
+      "text": "namespace AnomalyStuckMip",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 28,
+      "text": "{",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 29,
+      "text": "\tvoid ResetRunStats() {}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 30,
+      "text": "\tFRunStats GetRunStats() { return FRunStats(); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 31,
+      "text": "\tvoid GatherPurityActors(UWorld*, TArray<TWeakObjectPtr<AActor>>& Out) { Out.Reset(); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 32,
+      "text": "\tvoid CountActorTextureUsers(AActor*, TMap<UTexture2D*, int32>& Out) { Out.Reset(); }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 33,
+      "text": "\tvoid InspectHold(AActor*, const TMap<UTexture2D*, int32>&, bool& bOutShared, bool& bOutEligible, TArray<FString>& OutReasons)",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 34,
+      "text": "\t{",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 35,
+      "text": "\t\tbOutShared = false;",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 36,
+      "text": "\t\tbOutEligible = false;",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 37,
+      "text": "\t\tOutReasons.Reset();",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 38,
+      "text": "\t\tOutReasons.Add(TEXT(\"unsupported_engine_phase_a\"));",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 39,
+      "text": "\t}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 40,
+      "text": "\tbool IsNoHoldLeverOn() { return false; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 41,
+      "text": "\tbool IsUnlinkLockOn() { return false; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 42,
+      "text": "\tbool IsTextureHeldOrRestoring(const UTexture2D*) { return false; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 44,
+      "text": "\tvoid SetLegacyPurityLever(bool) {}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 45,
+      "text": "\tbool IsLegacyPurityLeverOn() { return false; }",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyUnsupportedTexture.cpp",
+      "line": 47,
+      "text": "}",
+      "decision": "retained API/compiled surface",
+      "reason": "Disabled texture backend links only API stubs; no smoke ID uses it."
+    },
+    {
+      "file": "Source/AnomalyInjector/Public/Compat/AnomalyEngineCompat.h",
+      "line": 34,
+      "text": "\t\treturn KINDA_SMALL_NUMBER;",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Public/Compat/AnomalyEngineCompat.h",
+      "line": 43,
+      "text": "\t\tFunction = TFunction<Signature>();",
+      "decision": "retained API/compiled surface",
+      "reason": "Measured API adapters: SkinnedMeshComponent.h:210,421 (SkeletalMesh/PredictedLODLevel); PlayerCameraManager.h:313 (cache POV); BodySetup.h:271 (PhysX TriMeshes); StaticMeshResources.h:604 (per-platform screen size); ConvexVolume.h:129 (no far-plane bool overload); Function.h:962; UnrealMathUtility.h:49. PHASE0 measured rows cover absent near override/contact-shadow/scene-capture-only fields and 4.25 float axes."
+    },
+    {
+      "file": "Source/AnomalyInjector/Public/Compat/AnomalyEngineVersion.h",
+      "line": 9,
+      "text": "#error AnomalyInjector supports exactly Unreal Engine 4.25 and 5.1.",
+      "decision": "retained API/compiled surface",
+      "reason": "Compile-version detection and feature selection, not anomaly behavior."
+    }
+  ],
+  "compat_calls": [
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 135,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 310,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 720,
+      "text": "\tAnomalyCompat::ResetFunction(CensusQuery);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 721,
+      "text": "\tAnomalyCompat::ResetFunction(CensusReady);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 722,
+      "text": "\tAnomalyCompat::ResetFunction(CensusFireReport);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 736,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(Id))"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 738,
+      "text": "\t\tUE_LOG(LogAnomaly, Warning, TEXT(\"Auto admission %s: %s\"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 886,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(Id))"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 888,
+      "text": "\t\tUE_LOG(LogAnomaly, Warning, TEXT(\"Auto admission %s: %s\"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+      "line": 925,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyHiddenClass.cpp",
+      "line": 107,
+      "text": "\t\t\tS.bCastContactShadow = AnomalyCompat::CastsContactShadow(Prim) ? 1 : 0;"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyHiddenClass.cpp",
+      "line": 122,
+      "text": "\t\t\t\tAnomalyCompat::SetCastsContactShadow(Prim, false);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyHiddenClass.cpp",
+      "line": 167,
+      "text": "\t\t\tAnomalyCompat::SetCastsContactShadow(Prim, S.bCastContactShadow != 0);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 271,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(Id)) { return; }"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 364,
+      "text": "\tAnomalyCompat::ResetFunction(TrailProvider);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 847,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(Id))"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 849,
+      "text": "\t\tUE_LOG(LogAnomaly, Warning, TEXT(\"ApplyAnomaly %s: %s\"), *Id.ToString(), AnomalyCompat::UnsupportedAnomalyReason());"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp",
+      "line": 1156,
+      "text": "\tAnomalyCompat::ResetFunction(TrailProvider);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyLod.cpp",
+      "line": 96,
+      "text": "\t\tconst FStaticMeshRenderData* RenderData = AnomalyCompat::StaticRenderData(Mesh);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyLod.cpp",
+      "line": 117,
+      "text": "\t\t\tif (AnomalyCompat::StaticLodScreenSize(RenderData, LodIndex) > ScreenSize)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyLod.cpp",
+      "line": 135,
+      "text": "\t\tOut.Level = AnomalyCompat::PredictedLod(Skinned);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 46,
+      "text": "\tif (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex]))"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 175,
+      "text": "\t\tif (AnomalyCompat::SupportsAnomaly(GAnomalyChoices[AnomalyChoiceIndex])) { break; }"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 272,
+      "text": "\treturn AnomalyCompat::SupportsAnomaly(Id) ? Id : NAME_None;"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalySelectorSubsystem.cpp",
+      "line": 448,
+      "text": "\t\tif (!AnomalyCompat::SupportsAnomaly(GAnomalyChoices[i])) { continue; }"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 96,
+      "text": "\t\t\tif (const UObject* Asset = AnomalyCompat::SkinnedAssetIdentity(SKC))"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 227,
+      "text": "\t\tAnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, BuildViewProjectionMatrix(View));"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 608,
+      "text": "\t\tB.Axis[0] = ToSlabV3(Rotation.RotateVector(AnomalyCompat::AxisVector(0)));"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 609,
+      "text": "\t\tB.Axis[1] = ToSlabV3(Rotation.RotateVector(AnomalyCompat::AxisVector(1)));"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 610,
+      "text": "\t\tB.Axis[2] = ToSlabV3(Rotation.RotateVector(AnomalyCompat::AxisVector(2)));"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 659,
+      "text": "\t\t\tF.bHasComplex = AnomalyCompat::HasComplexCollision(Setup);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1051,
+      "text": "\t\t\tPov = AnomalyCompat::CameraCachePOV(PC->PlayerCameraManager);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1066,
+      "text": "\t\tOut.EffectiveNear = AnomalyCompat::EffectiveNearClip(Pov);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1079,
+      "text": "\t\tif (AnomalyCompat::HasNearClipOverride(Pov))"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1166,
+      "text": "\t\t\tFlags.bSceneCaptureOnly = AnomalyCompat::IsSceneCaptureOnly(P);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1238,
+      "text": "\t\t\t\t\tif (Box.Half[0] + Box.Half[1] + Box.Half[2] <= AnomalyCompat::NearClipSmallNumber())"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1580,
+      "text": "\t\tAnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, ViewProj);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1657,
+      "text": "\t\tAnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, ViewProj);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/AnomalyViewport.cpp",
+      "line": 1906,
+      "text": "\t\t\tAnomalyCompat::ViewFrustumWithoutFarPlane(Frustum, ViewProj);"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp",
+      "line": 3,
+      "text": "bool AnomalyCompat::SupportsAnomaly(FName Id)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp",
+      "line": 12,
+      "text": "const TCHAR* AnomalyCompat::UnsupportedAnomalyReason()"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 18,
+      "text": "const UObject* AnomalyCompat::SkinnedAssetIdentity(const USkinnedMeshComponent* Component)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 27,
+      "text": "const FStaticMeshRenderData* AnomalyCompat::StaticRenderData(const UStaticMesh* Mesh)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 36,
+      "text": "FMinimalViewInfo AnomalyCompat::CameraCachePOV(const APlayerCameraManager* Camera)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 45,
+      "text": "float AnomalyCompat::EffectiveNearClip(const FMinimalViewInfo& View)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 54,
+      "text": "bool AnomalyCompat::HasNearClipOverride(const FMinimalViewInfo& View)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 63,
+      "text": "bool AnomalyCompat::CastsContactShadow(const UPrimitiveComponent* Component)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 72,
+      "text": "void AnomalyCompat::SetCastsContactShadow(UPrimitiveComponent* Component, bool bEnabled)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 79,
+      "text": "bool AnomalyCompat::HasComplexCollision(const UBodySetup* Setup)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 88,
+      "text": "float AnomalyCompat::StaticLodScreenSize(const FStaticMeshRenderData* Data, int32 LodIndex)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 97,
+      "text": "int32 AnomalyCompat::PredictedLod(const USkinnedMeshComponent* Component)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 106,
+      "text": "void AnomalyCompat::ViewFrustumWithoutFarPlane(FConvexVolume& Out, const FMatrix& ViewProjection)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 122,
+      "text": "FVector AnomalyCompat::AxisVector(int32 Axis)"
+    },
+    {
+      "file": "Source/AnomalyInjector/Private/Compat/AnomalyEngineCompat.cpp",
+      "line": 131,
+      "text": "bool AnomalyCompat::IsSceneCaptureOnly(const UPrimitiveComponent* Component)"
+    }
+  ],
+  "removed": [
+    "4.25 GAutoPool replacement of missing_texture/corrupted_texture with lighting/LOD: removed; original first nine IDs unchanged, two explicit default-off IDs shared.",
+    "4.25 default-enabled pool replacement: removed; original four defaults retained, unsupported IDs filtered.",
+    "4.25-only lighting candidate gather: common opt-in path, same logic and Light::AffectsPrimitive on both engines; necessary explicit extension for the requested four-ID smoke, no default-enabled 5.1 change.",
+    "4.25-only LOD candidate GetWorstLod>1 filter: removed.",
+    "4.25-only ApplyArgs.Add(1) finest LOD override: removed; only target token passed.",
+    "4.25-only missing_object bench admission: removed; implementation is shared and has no API reason for the restriction."
+  ],
+  "shared_extension": "Lighting/LOD explicit opt-ins are added to both source paths; original 5.1 default enabled IDs and first nine pool positions stay unchanged. No 5.1 build or engine write authorized."
+}

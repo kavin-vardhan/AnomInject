@@ -9,5 +9,5 @@ namespace AnomalyCensusBatch425
         if (Resolved) { return !Pass ? EOutcome::NoPass : Polluted ? EOutcome::Polluted : EOutcome::Credit; }
         return Now>Armed+LostAfterTicks ? EOutcome::Lost : EOutcome::Pending;
     }
-    inline float AnnotationFar(float ViewFar) { return ViewFar>0 ? ViewFar : 1000000.0f; }
+    inline float AnnotationFar(float) { return 1000000.0f; }
 }

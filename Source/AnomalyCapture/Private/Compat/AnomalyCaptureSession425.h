@@ -5,17 +5,19 @@
 #include "AnomalyCaptureBackend425.h"
 #include "Async/Future.h"
 #include "AnomalyCaptureLabels425.h"
+#include "AnomalyCaptureDiagnostic425.h"
 class FAnomalyCaptureSession425
 {
 public:
     bool Start(UWorld* World, const FString& Directory, int32 Count);
-    void Tick(UWorld* World);
+    void Tick(UWorld* World,ELevelTick TickType,FName Hook);
     void Stop();
     bool IsRunning() const { return Running; }
     int32 Written() const { return Completed; }
 private:
     TUniquePtr<IAnomalyCaptureBackend> Backend;
     TUniquePtr<FAnomalyCaptureLabels425> Labels;
+    TUniquePtr<FAnomalyCaptureDiagnostic425> Diagnostic;
     TWeakObjectPtr<UWorld> SessionWorld;
     TArray<TFuture<bool>> Writes;
     TArray<FString> Rows;
