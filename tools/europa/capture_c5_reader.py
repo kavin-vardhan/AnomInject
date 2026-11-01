@@ -60,6 +60,12 @@ def frame_set(indices):
 def drawn_names(bank):
     return sorted(name for name,packed in bank.items() if np.any(packed))
 
+def event_scoring(event,values):
+    eligible=bool(values) and values[0]['index']==event['first_index']-1 and values[-1]['index']>=event['end_index'] and len({v['pose'] for v in values})==1
+    bits=[v['state'] for v in values]
+    complete=eligible and bits[0] is False and bits[-1] is False and True in bits and None not in bits
+    return dict(scored=eligible,passed_edges=complete)
+
 def c2_result(rows,events,mismatches,ambiguity):
     frames=sum(bool(r['sweep']['score']) for r in rows)
     counts={route:sum(e['scored'] for e in events if e['anomaly']==route) for route in ROUTES}
@@ -68,6 +74,7 @@ def c2_result(rows,events,mismatches,ambiguity):
 
 def annotation_check(annotation,rows,events):
     issues=[]
+    values={name:[] for name in ('coverage_ratio','coverage_pct','bbox_source','camera_planes')}
     if set(annotation)!=ROOT_KEYS or annotation.get('label_schema')!=2 or annotation.get('label_schema_minor')!=1:issues.append('root schema')
     if set(annotation.get('video',{}))!={'path','frames_dir','resolution','fps','target_fps','total_frames'}:issues.append('video schema')
     wanted={e['event_id']+'|'+e['target_name']:e for e in events}
@@ -81,15 +88,20 @@ def annotation_check(annotation,rows,events):
         matching=[(r,s) for r in rows for s in r['sampled_states'] if s['event_id']==key]
         visible=[s for r,s in matching if s['affected']]
         coverage=sum(s['projected_screen_share'] for s in visible)/max(1,len(visible))
-        if abs(e['coverage_ratio']-coverage)>1e-8 or abs(e['coverage_pct']-100*coverage)>1e-6:issues.append(key+' coverage screen share')
-        if e['bbox_source']!=('drawn' if any(s['drawn_pixels'] for _,s in matching) else 'projected'):issues.append(key+' bbox source')
-        if matching and (abs(e['camera']['far']-matching[0][0]['camera']['far'])>0.01 or abs(e['camera']['near']-matching[0][0]['camera']['near'])>0.01):issues.append(key+' view clip planes')
+        if abs(e['coverage_ratio']-coverage)>1e-8:values['coverage_ratio'].append(key+' coverage screen share')
+        provenance=wanted.get(e['event_id'],{}).get('selection_provenance')
+        if provenance is None:values['coverage_pct'].append(key+' selection provenance unrecorded')
+        elif abs(e['coverage_pct']-provenance['coverage_pct'])>1e-6:values['coverage_pct'].append(key+' selection provenance differs')
+        if e['bbox_source']!=('drawn' if any(s['drawn_pixels'] for _,s in matching) else 'projected'):values['bbox_source'].append(key+' bbox source')
+        if matching and (abs(e['camera']['far']-matching[0][0]['camera']['far'])>0.01 or abs(e['camera']['near']-matching[0][0]['camera']['near'])>0.01):values['camera_planes'].append(key+' view clip planes')
         if set(e['camera'])!={'path','global_position','near','far','rotation','fov_deg','aspect'}:issues.append(key+' camera schema')
         if set(e['engine'])!={'ticks_msec','name','version','project'}:issues.append(key+' engine schema')
         if set(e['affected_objects'])!={'count','primary_index','nodes'}:issues.append(key+' objects schema')
         for node in e['affected_objects']['nodes']:
             if set(node)!={'name','path','global_position','asset_name','component_class','bounds'} or set(node['bounds'])!={'origin','extent'}:issues.append(key+' node schema')
-    return dict(result='FAIL' if issues else 'PASS',issues=issues,events=len(wanted),schema='5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1')
+    schema='FAIL' if issues else 'PASS'
+    for errors in values.values():issues.extend(errors)
+    return dict(result='FAIL' if issues else 'PASS',issues=issues,events=len(wanted),schema='5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1',schema_and_sets=schema,values={name:dict(result='FAIL' if errors else 'PASS',issues=errors) for name,errors in values.items()})
 
 def view_matches(camera):
     rotation=(np.asarray(camera['player_rotation'])-np.asarray(camera['view_rotation'])+180)%360-180
@@ -225,18 +237,17 @@ def read(root):
         previous=mask
         if i%200==0:print('C5 reader: frame %d/%d'%(i,len(rows)),flush=True)
     for e in events:
-        values=states[e['event_id']];bits=[v['state'] for v in values]
-        complete=bool(bits) and values[0]['index']==e['first_index']-1 and values[-1]['index']>=e.get('end_index',len(rows)) and bits[0] is False and bits[-1] is False and True in bits and None not in bits
-        event_out.append(dict(event=e['event_id'],anomaly=e['id'],target=e['target_name'],scored=complete,late_target=e['target_name'] not in initial,pixel_states=values,edge_in_turn=not rows[e['first_index']]['sweep']['score'] or not rows[e.get('end_index',len(rows)-1)]['sweep']['score']))
+        values=states[e['event_id']]
+        event_out.append(dict(event=e['event_id'],anomaly=e['id'],target=e['target_name'],late_target=e['target_name'] not in initial,pixel_states=values,edge_in_turn=not rows[e['first_index']]['sweep']['score'] or not rows[e.get('end_index',len(rows)-1)]['sweep']['score'],**event_scoring(e,values)))
     per=[]
     for route in ROUTES:
         s=[x for x in scores if x['anomaly']==route];ev=[x for x in event_out if x['anomaly']==route]
         bad=sum(x['result']!='PASS' for x in s);mm=sum(x.get('anomaly')==route for x in mismatches);amb=sum(x['anomaly']==route for x in ambiguity)
-        per.append(dict(anomaly=route,events_fired=len(ev),scored_events=sum(x['scored'] for x in ev),turn_edges=sum(x['edge_in_turn'] for x in ev),frames=len(s),failed_frames=bad,c2_mismatches=mm,ambiguous=amb,result='PASS' if sum(x['scored'] for x in ev)>=3 and s and not bad and not mm and not amb else 'FAIL',**{k:distribution([x[k] for x in s]) for k in ('iou','precision','spill','completeness')}))
+        per.append(dict(anomaly=route,events_fired=len(ev),scored_events=sum(x['scored'] for x in ev),complete_events=sum(x['passed_edges'] for x in ev),turn_edges=sum(x['edge_in_turn'] for x in ev),frames=len(s),failed_frames=bad,c2_mismatches=mm,ambiguous=amb,result='PASS' if sum(x['scored'] for x in ev)>=3 and s and not bad and not mm and not amb else 'FAIL',**{k:distribution([x[k] for x in s]) for k in ('iou','precision','spill','completeness')}))
     negative_results=[dict(kind=k,result='PASS' if all(v[a] for a in ROUTES) else 'FAIL',failed_frames_by_anomaly=v) for k,v in negatives.items()]
     annotation=annotation_check(json.loads((root/'annotation.json').read_text()),rows,events)
     depth=depth_check(json.loads((root/'depth-before.json').read_text()),json.loads((root/'depth-after.json').read_text()),rows)
-    census=dict(peak_visible=max(p['drawn_actors'] for p in prepass),legacy_bounds_peak=max(r['census']['visible_count'] for r in rows),basis='First clean held census sample per actor; drawn pixels before coverage admission. First scored hold has the same fixed pose 0 player view.',initial_visible=sorted(initial),exhaustion=max(r['census']['ledger_exhausted'] for r in rows),late_scored_targets=sorted({e['target'] for e in event_out if e['scored'] and e['late_target']}))
+    census=dict(peak_visible=max(p['drawn_actors'] for p in prepass),legacy_bounds_peak=max(r['census']['visible_count'] for r in rows),basis='First clean held census sample per actor; drawn pixels before coverage admission. Late-target qualification requires the first scored view to match the declared pose-zero bank.',initial_visible=sorted(initial),exhaustion=max(r['census']['ledger_exhausted'] for r in rows),late_scored_targets=sorted({e['target'] for e in event_out if e['scored'] and e['late_target']}))
     census['result']='PASS' if census['peak_visible']>55 and not census['exhaustion'] and census['late_scored_targets'] else 'FAIL'
     initial_pose=next(p for p in frozen['poses'] if p['pose']==0)
     census=enforce_initial_view(census,initial_view_check(scored_first['camera'],rows[initial_pose['off_samples'][0]['index']]['camera']))

@@ -13,6 +13,7 @@ sys.path.insert(0,str(T))
 import capture_c5_reader as r
 import capture_c5_kit as kit
 import capture_c5_coverage_tests as coverage
+from capture_annotation_tests import run as annotation_tests
 import job_scope
 from rotator_contract import check_all
 from capture_fr_tests import violations
@@ -49,22 +50,7 @@ def run():
     before=dict(components=[copy.deepcopy(c)]);assert r.depth_check(before,before,rows)['result']=='PASS'
     c['value']=200;c['tagged']=True;assert r.depth_check(before,before,rows)['result']=='FAIL'
     out.append(dict(fix='FT2',result='PASS',negative='per-frame reset, wrong batch, event retag, host tag mutants refused; changed host state refused despite exact end restoration'))
-    event={k:None for k in r.EVENT_KEYS}
-    event.update(event_id='blinking@10|actor',affected_frames=r.frame_set([1]),injected_frames=r.frame_set([1,2]),coverage_ratio=0.2,coverage_pct=20,bbox_source='projected',camera={k:None for k in ('path','global_position','near','far','rotation','fov_deg','aspect')},engine={k:None for k in ('ticks_msec','name','version','project')},affected_objects=dict(count=0,primary_index=0,nodes=[]))
-    event['camera'].update(near=10,far=0)
-    annotation={k:None for k in r.ROOT_KEYS}
-    annotation.update(label_schema=2,label_schema_minor=1,anomalies=[event],video={k:None for k in ('path','frames_dir','resolution','fps','target_fps','total_frames')})
-    labels=[dict(frame_index=i,camera=dict(near=10,far=0),sampled_states=[dict(event_id='blinking@10',injected=i in (1,2),affected=i==1,projected_screen_share=0.2,drawn_pixels=0)]) for i in range(4)]
-    events=[dict(event_id='blinking@10',target_name='actor')]
-    assert r.annotation_check(annotation,labels,events)['result']=='PASS'
-    for key,value in [('coverage_ratio',0.5),('bbox_source','drawn')]:
-        mutant=copy.deepcopy(annotation);mutant['anomalies'][0][key]=value
-        assert r.annotation_check(mutant,labels,events)['result']=='FAIL'
-    mutant=copy.deepcopy(annotation);mutant['anomalies'][0]['camera']['far']=100000
-    assert r.annotation_check(mutant,labels,events)['result']=='FAIL'
-    labels[1]['sampled_states'][0]['drawn_pixels']=100;event['bbox_source']='drawn'
-    assert r.annotation_check(annotation,labels,events)['result']=='PASS'
-    out.append(dict(fix='FT4',result='PASS',negatives=['frame-ratio coverage refused','unmeasured drawn source refused','constant far plane refused'],positive='projected and measured-drawn paths; infinite view far'))
+    out.append(annotation_tests())
     for filename in ('build-job-config.json','c5-job-config.json'):job_scope.load(J/filename)
     assert kit.J==J and kit.AUTHORITY.startswith('094-36')
     for old in ('09435','09434'):

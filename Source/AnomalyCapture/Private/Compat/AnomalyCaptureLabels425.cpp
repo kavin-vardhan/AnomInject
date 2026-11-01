@@ -157,6 +157,16 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
             auto Event = MakeShared<FJsonObject>(*State); Event->SetNumberField(TEXT("first_index"),double(Request-1));
             Events.Add(Key,Event);
             auto& E=AnnotationEvents.FindOrAdd(Key); E.EventId=Key+TEXT("|")+Fire.Target;
+            FSelectionProvenance Selection;
+            AnomalyViewport::EvaluateSelectionProvenance(World,Actor,Selection);
+            E.CoveragePct=Selection.CoveragePct;
+            auto Provenance=MakeShared<FJsonObject>();
+            Provenance->SetNumberField(TEXT("coverage_pct"),Selection.CoveragePct);
+            Provenance->SetBoolField(TEXT("valid"),Selection.bValid);
+            Provenance->SetNumberField(TEXT("occlusion_samples_passed"),Selection.OcclusionSamplesPassed);
+            Provenance->SetNumberField(TEXT("occlusion_samples_total"),Selection.OcclusionSamplesTotal);
+            Provenance->SetNumberField(TEXT("poll_distance"),Selection.PollDistance);
+            Event->SetObjectField(TEXT("selection_provenance"),Provenance);
             E.AnomalyType=Fire.Id==FName(TEXT("blinking"))?TEXT("blink"):Fire.Id.ToString(); E.AnomalySubtype=Fire.Id==FName(TEXT("blinking"))?TEXT("disappear_reappear"):Fire.Id.ToString();
             E.EngineName=TEXT("UnrealEngine"); E.EngineVersion=FEngineVersion::Current().ToString(); E.EngineProject=FApp::GetProjectName(); E.TicksMsec=int64(World->GetTimeSeconds()*1000.0);
             E.BboxSource=TEXT("projected");

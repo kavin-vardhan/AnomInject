@@ -32,7 +32,13 @@ def run():
     check=reader.initial_view_check(first,declared)
     census=reader.enforce_initial_view(dict(result='PASS',late_scored_targets=['candidate']),check)
     assert census['result']=='FAIL' and census['late_scored_targets']==[]
-    return dict(result='PASS',production_expression=True,multi_tick_boundaries=boundaries,negatives=['old getter admits unprepared capture after readback','census-off frame cannot satisfy census-on hold','wrong first scored view cannot qualify late targets'],native_fix='Production getter tested against a delayed readback; runtime qualification is separate',reader='Protocol FAIL preserved while other measurements are collected')
+    event=dict(first_index=1,end_index=3)
+    values=[dict(index=i,pose=2,state=v) for i,v in enumerate((False,True,None,False))]
+    assert reader.event_scoring(event,values)==dict(scored=True,passed_edges=False)
+    assert not reader.event_scoring(event,values[1:])['scored']
+    eligible=[dict(anomaly=a,scored=True) for a in reader.ROUTES for unused in range(3)]
+    assert reader.c2_result([dict(sweep=dict(score=True))],eligible,[],[dict(index=2)])['result']=='FAIL'
+    return dict(result='PASS',production_expression=True,multi_tick_boundaries=boundaries,negatives=['old getter admits unprepared capture after readback','census-off frame cannot satisfy census-on hold','wrong first scored view cannot qualify late targets','ambiguous eligible events remain scored and fail C2'],native_fix='Production getter tested against a delayed readback; runtime qualification is separate',reader='Protocol FAIL preserved while other measurements are collected')
 
 if __name__=='__main__':
     result=run()
