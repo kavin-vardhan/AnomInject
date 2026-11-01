@@ -41,7 +41,7 @@ def run():
     for i,c in enumerate(r.MARKER):a[(i//4)*16:(i//4+1)*16,(i%4)*16:(i%4+1)*16]=c
     assert r.marker_cells(a,(0,0))==8
     a[:]=80;assert r.marker_cells(a,(0,0))<7
-    ui=J/'tests/ui-pixels-02';ui.mkdir(exist_ok=False)
+    ui=J/'tests'/('ui-pixels-%02d'%len(list((J/'tests').glob('ui-pixels*'))));ui.mkdir(exist_ok=False)
     from PIL import Image
     control=np.zeros((32,64,3),np.uint8)
     for i,c in enumerate(r.MARKER):control[(i//4)*16:(i//4+1)*16,(i%4)*16:(i%4+1)*16]=c
@@ -105,6 +105,15 @@ def run():
     defaults=auto.split('GAutoPoolDefaultEnabled[]')[1].split('};')[0]
     assert 'lighting_mismatch' not in defaults and 'lod_corruption' not in defaults
     tests.append(dict(fix='auto-injector parity',result='PASS',negative='finest-LOD override rejected; no port-only LOD filter or missing-object bench admission; original default pool retained'))
+    before=np.full((4,4,3),80,np.uint8);after=before.copy();after[1:3,1:3]=130
+    Image.fromarray(before).save(ui/'before.png');Image.fromarray(after).save(ui/'active.png')
+    pair=[dict(frame_index=0,image='before.png',sampled_states=[]),dict(frame_index=1,image='active.png',sampled_states=[dict(event_id='lod@1',affected=True,target_tags=[200])])]
+    data=np.zeros((4,4,4),np.uint32);data[1:3,1:3,3]=200
+    from unittest.mock import patch
+    with patch.object(r,'raw',return_value=data):
+        values=r.lod_changes(ui,pair,[dict(id='lod_corruption',event_id='lod@1',target_name='unit',first_index=1,end_index=1)])
+    assert values[0]['max_changed_fraction']==1 and values[0]['frames'][0]['changed_pixels']==4
+    tests.append(dict(fix='LOD visible-change information',result='PASS',measurement='four known changed target pixels counted; informational only'))
     for name in ('build-job-config.json','c5-job-config.json'):job_scope.load(J/name)
     assert kit.J==J and kit.AUTHORITY.startswith('094-38')
     for old in ('09437','09436','09435'):

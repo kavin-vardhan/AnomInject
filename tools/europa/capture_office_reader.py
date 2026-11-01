@@ -92,6 +92,24 @@ def ui_pixels(root,rows):
     good=positive>0 and not bad and same and native['checked']==len(rows) and native['hits']==0 and native['positive_controls']==positive
     return dict(result='PASS' if good else 'FAIL',positive_controls=controls,checked=len(rows),marker_frames=bad,native_matches=same,frames=observations)
 
+def lod_changes(root,rows,events):
+    output=[]
+    for event in events:
+        if event['id']!='lod_corruption':continue
+        first=event['first_index'];samples=[]
+        before=max(0,first-1)
+        reference=np.asarray(Image.open(root/rows[before]['image']).convert('RGB')).astype(np.int16)
+        for row in rows[first:event.get('end_index',first+1)+1]:
+            states=[s for s in row['sampled_states'] if s['event_id']==event['event_id'] and s['affected']]
+            if not states:continue
+            mask=raw(root,row)[:,:,3]&255
+            target=np.isin(mask,states[0]['target_tags']);pixels=int(target.sum())
+            frame=np.asarray(Image.open(root/row['image']).convert('RGB')).astype(np.int16)
+            changed=int((np.any(np.abs(frame-reference)>1,axis=2)&target).sum())
+            samples.append(dict(index=row['frame_index'],target_pixels=pixels,changed_pixels=changed,changed_fraction=changed/max(1,pixels)))
+        output.append(dict(event=event['event_id'],target=event['target_name'],reference=before,frames=samples,max_changed_fraction=max((s['changed_fraction'] for s in samples),default=None),information_only=True,rule='RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate'))
+    return output
+
 def read(root,log,fallback=False):
     root=Path(root);rows=[json.loads(s) for s in (root/'labels.jsonl').read_text().splitlines() if s]
     receipt=json.loads((root/'labels-receipt.json').read_text());capture=json.loads((root/'capture.json').read_text())
@@ -144,6 +162,7 @@ def read(root,log,fallback=False):
     annotation=annotation_values(json.loads((root/'annotation.json').read_text()),rows,events)
     checks=self_checks(log)
     ui=ui_pixels(root,rows)
+    lod=lod_changes(root,rows,events)
     view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad)
     good=all(c['result']=='PASS' for c in counts.values()) and not bad_masks and all(c['result']=='PASS' for c in (wall,census,depth,annotation,checks,view,ui))
-    return dict(result='PASS' if good else 'FAIL',profile='FV5/FU5; no label-free grading',fallback=fallback,frames=len(rows),per_anomaly=list(counts.values()),mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,ui_pixels=ui,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
+    return dict(result='PASS' if good else 'FAIL',profile='FV5/FU5; no label-free grading',fallback=fallback,frames=len(rows),per_anomaly=list(counts.values()),lod_visible_change=lod,mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,ui_pixels=ui,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
