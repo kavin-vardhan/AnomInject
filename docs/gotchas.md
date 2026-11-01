@@ -10343,3 +10343,6 @@ The real auto path admitted a default pawn whose bounds intersected the viewport
 ## G495 - Pending async writes retain full frame payloads (2026-11-01, 094-34)
 
 At 1600 by 900, a queued colour plus uint4 mask-evidence frame owns 28.8 MB before conversion and compression temporaries. An unbounded future array accumulated a 99-frame submission/write gap before the memory guard stopped the session. Consume the oldest future before enqueuing beyond four pending writes. Waiting must preserve indices and fixed-step event timing. The compiled delayed-writer test completes 32 ordered outputs with peak four; removing the drain produces peak 32. The real retry writes all 1,440 frames with zero drops, peak four and 7.109 GiB minimum free commit. No paging or machine setting change is needed.
+## G496 - A fixture-sized census does not establish real-scene admission (2026-11-01, 094-35)
+
+09434's one-time tagging had only 55 free values and treated any drawn pixel as eligible. C5 ports the rotating 5.1 census policy: measured floor and ceiling, per-batch restoration, new actor discovery and bounded ledger use. The coverage band is upstream admission, not proof that an anomaly visibly changed the target. On-screen affected membership is measured separately from the injected active subset, and the independent RGB check remains the qualification gate.
