@@ -10413,3 +10413,8 @@ FW4 replaces timing overlap with request/sample-frame keys. The first eight capt
 ## G508 - Fallback bounds admission must reach the measured census (2026-11-02, 094-39)
 
 The player-view fallback smoke left the shared bounds prefilter at its default6%, excluding the visible multi-LOD target (2.80% drawn) and hide target (1.85%). Only the oversized floor and custom-depth-reserved pawn reached auto admission; the four-event gate correctly failed. The fallback kit now sets the process-local bounds prefilter to0.5%, matching the existing measured-census floor, and echoes it. The measured0.5%-25% band, target guard and reader gates are unchanged; street launches and production defaults are unchanged. Source: AnomalyViewport.cpp:57,553-577,1870-1887 and AnomalyCensusPolicy425.h:5-6. No map/config save or native patch.
+
+
+## G509 - Short seeded holds can repeat incomplete coverage (2026-11-02, 094-39)
+
+The fallback retry keeps seed 4242, 0.8 s interval, 0.4 s hold and one concurrent fire. Each 240-frame scored pose restarts the shared auto-injector; SetRunning(true) reinitializes its stream (AnomalyAutoInjectorSubsystem.cpp:239). AnomalyCaptureLabels425.cpp:92-100 plus AnomalyStreetBench425.cpp:103-106 therefore repeat the same eight draws six times: LOD, lighting, blink, blink, blink, LOD, blink, blink. All 48 fires succeed, but missing_object is never drawn. The office event-coverage gate correctly fails. A longer or continuous scored hold must be qualified before another authorized session; keep the shared 5.1 RNG semantics and accepted firing parameters. No such native change is built or claimed in 094-39. Both authorized slots and all three Editor build attempts are spent.

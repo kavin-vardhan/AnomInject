@@ -1,0 +1,3502 @@
+{
+  "job": "09439",
+  "entry": {
+    "utc": "2026-11-01T19:40:09.461251+00:00",
+    "feature": {
+      "head": "8bdcb4bf54098c22c458eaa118ec97ee0101be16",
+      "branch": "feat/europa-port",
+      "status": ""
+    },
+    "free_GiB": {
+      "C:": 26.115570068359375,
+      "D:": 38.310482025146484,
+      "E:": 173.79372787475586
+    },
+    "protected_result": "PASS"
+  },
+  "tests": {
+    "tests\\fv-summary.json": {
+      "result": "PASS",
+      "tests": [
+        {
+          "fix": "self-check",
+          "result": "PASS",
+          "negative": "missing 300-frame line, post-UI or lost readback refused"
+        },
+        {
+          "fix": "FV5 admission",
+          "result": "PASS",
+          "negative": "12/6 street boundaries; fallback only after cutoff; failed street retry cannot silently change maps"
+        },
+        {
+          "fix": "measured pre-UI",
+          "result": "PASS",
+          "negative": "marker leakage and absent post-UI positive control both fail independent PNG test"
+        },
+        {
+          "fix": "far plane and provenance",
+          "result": "PASS",
+          "negative": "zero infinite far, nonfinite or substituted coverage refused"
+        },
+        {
+          "fix": "FU5 reader",
+          "result": "PASS",
+          "negative": "four changed wall pixels, clean-frame mask and missing affected mask refused"
+        },
+        {
+          "fix": "census integration",
+          "result": "PASS",
+          "contract": "completed readbacks before expiry; discard returns before credit; release requeues and preserves event ownership"
+        },
+        {
+          "fix": "auto-injector parity",
+          "result": "PASS",
+          "negative": "finest-LOD override rejected; FW3 multi-LOD filter and no missing-object bench admission; original default pool retained"
+        },
+        {
+          "fix": "LOD visible-change information",
+          "result": "PASS",
+          "measurement": "four known changed target pixels counted; informational only"
+        }
+      ],
+      "rotators": [
+        {
+          "file": "author_425_fixture.py",
+          "result": "PASS"
+        },
+        {
+          "file": "fixture_smoke_425.py",
+          "result": "PASS"
+        },
+        {
+          "file": "fixture_launcher.py",
+          "result": "PASS"
+        },
+        {
+          "file": "runtime_editor_425.py",
+          "result": "PASS"
+        },
+        {
+          "file": "runtime_scripts.py",
+          "result": "PASS"
+        }
+      ],
+      "fixture_scan": [],
+      "python27": "N/A: no in-editor Python changed; native driver only"
+    },
+    "tests\\fw-summary.json": {
+      "result": "PASS",
+      "tests": [
+        {
+          "fix": "FW4",
+          "result": "PASS",
+          "negative": "wrong draw/control frame, wrong request, missing draw/control/pair refused"
+        },
+        {
+          "fix": "FW3",
+          "result": "PASS",
+          "negative": "single-LOD or wrong target and finest-LOD substitution refused"
+        },
+        {
+          "fix": "FW6",
+          "result": "PASS",
+          "negative": "build-finish cutoff overrides later 03:00 deadline; no street wait after cutoff"
+        }
+      ],
+      "carried_suite": "fv-summary.json",
+      "python27": "N/A: native changes and external Python only"
+    },
+    "tests\\admission\\summary.json": {
+      "result": "PASS",
+      "cases": [
+        {
+          "case": "setup-before-admission",
+          "result": "PASS",
+          "calls": [
+            "monitor_setup",
+            "admit",
+            "watch",
+            "create",
+            "started",
+            "closed"
+          ],
+          "launches": 1
+        },
+        {
+          "case": "setup-memory-drop-refuses-launch",
+          "result": "PASS",
+          "calls": [
+            "monitor_setup",
+            "admit",
+            "closed"
+          ],
+          "launches": 0
+        },
+        {
+          "case": "old-order-mutant",
+          "result": "EXPECTED_FAIL"
+        },
+        {
+          "case": "protected-change-during-wait",
+          "result": "PASS",
+          "calls": [
+            "monitor_setup",
+            "admit",
+            "watch",
+            "closed"
+          ],
+          "launches": 0
+        },
+        {
+          "case": "binary-change-during-wait",
+          "result": "PASS",
+          "calls": [
+            "monitor_setup",
+            "admit",
+            "watch",
+            "closed"
+          ],
+          "launches": 0
+        },
+        {
+          "case": "legacy-callers-unchanged",
+          "result": "PASS",
+          "calls": [
+            "monitor_setup",
+            "create",
+            "started",
+            "closed"
+          ],
+          "launches": 1
+        },
+        {
+          "case": "C5-uses-creation-admission",
+          "result": "PASS"
+        }
+      ],
+      "unreal_launches": 0
+    },
+    "tests\\fallback-summary.json": {
+      "result": "PASS",
+      "source_frame": 309,
+      "measurements": [
+        {
+          "actor": "EA_LOD",
+          "pixels": 25850,
+          "drawn_pct": 2.804904513888889,
+          "pixel_bbox_pct": 2.8973524305555554,
+          "in_bounds_prefilter": false
+        },
+        {
+          "actor": "EA_HideCube",
+          "pixels": 17051,
+          "drawn_pct": 1.8501519097222223,
+          "pixel_bbox_pct": 1.9921875,
+          "in_bounds_prefilter": false
+        },
+        {
+          "actor": "EA_Floor",
+          "pixels": 330871,
+          "drawn_pct": 35.90180121527778,
+          "pixel_bbox_pct": 48.333333333333336,
+          "in_bounds_prefilter": true
+        }
+      ],
+      "negative": "Original fallback command has no bounds preset; missing, zero/disabled, 6 and 26 percent presets refused",
+      "positive": "Fallback alone sets the bounds prefilter to the existing measured-census floor; street unchanged",
+      "census_floor": 0.5,
+      "census_ceiling": 25,
+      "native_change": false,
+      "python27": "N/A: external Python launch tooling only"
+    }
+  },
+  "build": {
+    "attempts": [
+      {
+        "attempt": "editor-01",
+        "target": "StylizedParisStreetEditor",
+        "commit": "d25b8eb38ac819f42ed87732a5284e1117124aa4",
+        "gate_result": "FAIL",
+        "exit_code": null,
+        "started_utc": "2026-11-01T19:46:14.471326+00:00",
+        "ended_utc": "2026-11-01T19:47:27.697105+00:00",
+        "duration_seconds": 73.22375639999518,
+        "pid": 18184,
+        "start_free_commit_GiB": 8.570014953613281,
+        "minimum_free_commit_GiB": 1.2156600952148438,
+        "memory_stops": [
+          {
+            "event": "stopped_owned_tree",
+            "reading": {
+              "free_physical": 6893039616,
+              "free_commit": 1305305088,
+              "load": 72,
+              "total_physical": 25372119040,
+              "total_commit": 58516398080
+            },
+            "processes": [
+              {
+                "pid": 18184,
+                "parent_pid": null,
+                "depth": 0,
+                "created_filetime": 134380359750122542,
+                "image": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe"
+              },
+              {
+                "pid": 29456,
+                "parent_pid": 18184,
+                "depth": 1,
+                "created_filetime": 134380359834050103,
+                "image": "E:\\EpicGames\\UE_4.25\\Engine\\Build\\Windows\\cl-filter\\cl-filter.exe"
+              },
+              {
+                "pid": 39756,
+                "parent_pid": 18184,
+                "depth": 1,
+                "created_filetime": 134380359834143714,
+                "image": "E:\\EpicGames\\UE_4.25\\Engine\\Build\\Windows\\cl-filter\\cl-filter.exe"
+              },
+              {
+                "pid": 33280,
+                "parent_pid": 29456,
+                "depth": 2,
+                "created_filetime": 134380359834254331,
+                "image": "C:\\Windows\\System32\\conhost.exe"
+              },
+              {
+                "pid": 9260,
+                "parent_pid": 39756,
+                "depth": 2,
+                "created_filetime": 134380359834254473,
+                "image": "C:\\Windows\\System32\\conhost.exe"
+              },
+              {
+                "pid": 31932,
+                "parent_pid": 39756,
+                "depth": 2,
+                "created_filetime": 134380359834451203,
+                "image": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\BuildTools\\VC\\Tools\\MSVC\\14.16.27023\\bin\\Hostx64\\x64\\cl.exe"
+              },
+              {
+                "pid": 45760,
+                "parent_pid": 29456,
+                "depth": 2,
+                "created_filetime": 134380359834451270,
+                "image": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\BuildTools\\VC\\Tools\\MSVC\\14.16.27023\\bin\\Hostx64\\x64\\cl.exe"
+              },
+              {
+                "pid": 28712,
+                "parent_pid": 31932,
+                "depth": 3,
+                "created_filetime": 134380360146795775,
+                "image": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\BuildTools\\VC\\Tools\\MSVC\\14.16.27023\\bin\\Hostx64\\x64\\vctip.exe"
+              }
+            ],
+            "time_utc": "2026-11-01T19:47:27.681205+00:00"
+          }
+        ],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreetEditor",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09439\\builds\\editor-01\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09439\\builds\\editor-01\\UBT.log"
+      },
+      {
+        "attempt": "editor-02",
+        "target": "StylizedParisStreetEditor",
+        "commit": "d25b8eb38ac819f42ed87732a5284e1117124aa4",
+        "gate_result": "FAIL",
+        "exit_code": null,
+        "started_utc": "2026-11-01T19:47:52.233225+00:00",
+        "ended_utc": "2026-11-01T19:48:28.035653+00:00",
+        "duration_seconds": 35.80015269998694,
+        "pid": 24584,
+        "start_free_commit_GiB": 10.746097564697266,
+        "minimum_free_commit_GiB": 2.898296356201172,
+        "memory_stops": [
+          {
+            "event": "stopped_owned_tree",
+            "reading": {
+              "free_physical": 6043992064,
+              "free_commit": 3112022016,
+              "load": 76,
+              "total_physical": 25372119040,
+              "total_commit": 56870891520
+            },
+            "processes": [
+              {
+                "pid": 24584,
+                "parent_pid": null,
+                "depth": 0,
+                "created_filetime": 134380360722375783,
+                "image": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe"
+              },
+              {
+                "pid": 28500,
+                "parent_pid": 24584,
+                "depth": 1,
+                "created_filetime": 134380360737567420,
+                "image": "E:\\EpicGames\\UE_4.25\\Engine\\Build\\Windows\\cl-filter\\cl-filter.exe"
+              },
+              {
+                "pid": 24976,
+                "parent_pid": 24584,
+                "depth": 1,
+                "created_filetime": 134380360737670024,
+                "image": "E:\\EpicGames\\UE_4.25\\Engine\\Build\\Windows\\cl-filter\\cl-filter.exe"
+              },
+              {
+                "pid": 37360,
+                "parent_pid": 24976,
+                "depth": 2,
+                "created_filetime": 134380360737766627,
+                "image": "C:\\Windows\\System32\\conhost.exe"
+              },
+              {
+                "pid": 6420,
+                "parent_pid": 24976,
+                "depth": 2,
+                "created_filetime": 134380360737930368,
+                "image": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\BuildTools\\VC\\Tools\\MSVC\\14.16.27023\\bin\\Hostx64\\x64\\cl.exe"
+              },
+              {
+                "pid": 39108,
+                "parent_pid": 28500,
+                "depth": 2,
+                "created_filetime": 134380360737933415,
+                "image": "C:\\Windows\\System32\\conhost.exe"
+              },
+              {
+                "pid": 21160,
+                "parent_pid": 28500,
+                "depth": 2,
+                "created_filetime": 134380360738079810,
+                "image": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\BuildTools\\VC\\Tools\\MSVC\\14.16.27023\\bin\\Hostx64\\x64\\cl.exe"
+              }
+            ],
+            "time_utc": "2026-11-01T19:48:28.018638+00:00"
+          }
+        ],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreetEditor",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09439\\builds\\editor-02\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09439\\builds\\editor-02\\UBT.log"
+      },
+      {
+        "attempt": "editor-03",
+        "target": "StylizedParisStreetEditor",
+        "commit": "d25b8eb38ac819f42ed87732a5284e1117124aa4",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-11-01T19:49:12.695839+00:00",
+        "ended_utc": "2026-11-01T19:52:14.604379+00:00",
+        "duration_seconds": 181.9063266000012,
+        "pid": 31500,
+        "start_free_commit_GiB": 9.78744125366211,
+        "minimum_free_commit_GiB": 3.056255340576172,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreetEditor",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09439\\builds\\editor-03\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09439\\builds\\editor-03\\UBT.log"
+      },
+      {
+        "attempt": "game-01",
+        "target": "StylizedParisStreet",
+        "commit": "d25b8eb38ac819f42ed87732a5284e1117124aa4",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-11-01T19:52:28.987262+00:00",
+        "ended_utc": "2026-11-01T19:55:09.632639+00:00",
+        "duration_seconds": 160.6429547999869,
+        "pid": 37108,
+        "start_free_commit_GiB": 10.576671600341797,
+        "minimum_free_commit_GiB": 4.424263000488281,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreet",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09439\\builds\\game-01\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09439\\builds\\game-01\\UBT.log"
+      }
+    ],
+    "admission_only": [],
+    "priority": "BELOW_NORMAL_PRIORITY_CLASS on UBT creation",
+    "max_parallel_actions": 2
+  },
+  "armings": [
+    {
+      "arming_job": "09439",
+      "stage": "OfficeSmoke",
+      "source_commit": "d25b8eb38ac819f42ed87732a5284e1117124aa4",
+      "deadline": "2026-11-02T01:30:00+00:00",
+      "fallback": "2026-11-01T20:40:10.346492+00:00",
+      "build_finished_utc": "2026-11-01T19:55:10.346492+00:00",
+      "manifest": {
+        "path": "D:\\IA_Europa\\Receipts\\09439\\c5-425-binaries-01.json",
+        "sha256": "8a3581b2be7544deaddaf52de3297e0ded6fd3ceb11996cc9ca9487cd0437268"
+      },
+      "reference_rule": "FV5/FU5: six poses, pitch -12, street yaw steps 60 or fallback stationary player view; turn 18, settle 30, clean off/on holds 28 each, auto hold 240. No label-free grading. Street wall pose 3 rows 686..719: on-frame RGB within grain-phase off-hold channel range +/-1. Fallback waives only wall strip and census over 55.",
+      "metrics": {
+        "events_each": 3,
+        "drawn_actors_exclusive_min": 55,
+        "wall_changed_pixels": 0,
+        "clean_mask_pixels": 0,
+        "lost_batches": 0
+      },
+      "slots": {
+        "C5": {
+          "01": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01",
+          "02": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02"
+        }
+      },
+      "limits": {
+        "C5": 900
+      },
+      "retry_authorized": null
+    },
+    {
+      "arming_job": "09439",
+      "stage": "OfficeSmoke",
+      "source_commit": "d8f6ebf89cc0ce5467a8e4dd60e629f87d8050ef",
+      "deadline": "2026-11-02T01:30:00+00:00",
+      "fallback": "2026-11-01T20:40:10.346492+00:00",
+      "build_finished_utc": "2026-11-01T19:55:10.346492+00:00",
+      "manifest": {
+        "path": "D:\\IA_Europa\\Receipts\\09439\\c5-425-binaries-02-C5.json",
+        "sha256": "89d505887021afa1446ab1d741addd94c3f3dded6b46c022dd344ea1651ae5b4"
+      },
+      "reference_rule": "FV5/FU5: six poses, pitch -12, street yaw steps 60 or fallback stationary player view; turn 18, settle 30, clean off/on holds 28 each, auto hold 240. No label-free grading. Street wall pose 3 rows 686..719: on-frame RGB within grain-phase off-hold channel range +/-1. Fallback waives only wall strip and census over 55.",
+      "metrics": {
+        "events_each": 3,
+        "drawn_actors_exclusive_min": 55,
+        "wall_changed_pixels": 0,
+        "clean_mask_pixels": 0,
+        "lost_batches": 0
+      },
+      "slots": {
+        "C5": {
+          "01": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01",
+          "02": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02"
+        }
+      },
+      "limits": {
+        "C5": 900
+      },
+      "retry_authorized": "C5"
+    }
+  ],
+  "sessions": [
+    {
+      "root": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01",
+      "result": {
+        "leg": "C5",
+        "started_utc": "2026-11-01T20:40:15.325816+00:00",
+        "root_ended_utc": "2026-11-01T20:42:43.125389+00:00",
+        "ended_utc": "2026-11-01T20:42:43.863912+00:00",
+        "pid": 22152,
+        "exit_code": 0,
+        "result": "FAIL",
+        "launches": 1,
+        "hard_stop": false,
+        "end_run": false,
+        "run_stop_reasons": [],
+        "leg_failure_reasons": [
+          "reader FAIL: incomplete"
+        ],
+        "stopped_owned_processes": [],
+        "post_crash_owned_stop": [],
+        "new_crash_report_folders": [],
+        "deliberate_owned_stop": false,
+        "crashed": false,
+        "crash_count": 0,
+        "adopted_monitors": [
+          {
+            "pid": 12968,
+            "parent_pid": 42956,
+            "monitor_of": 22152,
+            "command_line": "\"E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClientEditor.exe\" \"../../../Engine/Binaries/Win64/CrashReportClientEditor.exe\"  -READ=504 -WRITE=516 -MONITOR=22152 -abslog=D:/IA_Europa/Receipts/09439/c5-attempts/C5/01/session/CrashClient.log -ConcertServer=\"BB2C953A48679E2A2FBDCDA15E0456B5\" -RespawnedInstance",
+            "started_utc": "2026-11-01T20:40:16.989611+00:00",
+            "adopted_utc": "2026-11-01T20:40:17.392313+00:00",
+            "authority": "FH5 exact -MONITOR PID match"
+          }
+        ]
+      },
+      "reader": {
+        "result": "FAIL",
+        "profile": "FV5/FU5; no label-free grading",
+        "fallback": true,
+        "per_anomaly": [
+          {
+            "anomaly": "blinking",
+            "events_fired": 0,
+            "affected_frames": 0,
+            "mask_frames": 0,
+            "mask_pixels": 0,
+            "result": "FAIL"
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "events_fired": 12,
+            "affected_frames": 156,
+            "mask_frames": 156,
+            "mask_pixels": 58308432,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lod_corruption",
+            "events_fired": 0,
+            "affected_frames": 0,
+            "mask_frames": 0,
+            "mask_pixels": 0,
+            "result": "FAIL"
+          },
+          {
+            "anomaly": "missing_object",
+            "events_fired": 0,
+            "affected_frames": 0,
+            "mask_frames": 0,
+            "mask_pixels": 0,
+            "result": "FAIL"
+          }
+        ],
+        "lod_visible_change": [],
+        "lod_guard": {
+          "result": "FAIL",
+          "events": 0,
+          "selections": [],
+          "applied_components": []
+        },
+        "mask_check": {
+          "result": "PASS",
+          "affected_frames": 156,
+          "clean_frames": 2196,
+          "clean_mask_pixels": 0,
+          "failures": []
+        },
+        "wall_strip": {
+          "result": "PASS",
+          "waived": "FV5 fallback only",
+          "pose": 3,
+          "region": [
+            0,
+            686,
+            1280,
+            720
+          ]
+        },
+        "census": {
+          "peak_drawn": 3,
+          "per_pose": [
+            {
+              "pose": 0,
+              "drawn": 3
+            },
+            {
+              "pose": 1,
+              "drawn": 3
+            },
+            {
+              "pose": 2,
+              "drawn": 3
+            },
+            {
+              "pose": 3,
+              "drawn": 3
+            },
+            {
+              "pose": 4,
+              "drawn": 3
+            },
+            {
+              "pose": 5,
+              "drawn": 3
+            }
+          ],
+          "exhaustion": 0,
+          "lost": 0,
+          "no_pass": 0,
+          "polluted": 0,
+          "over_55_waived": true,
+          "result": "PASS"
+        },
+        "custom_depth": {
+          "result": "PASS",
+          "candidates": 14,
+          "after_candidates": 14,
+          "differences": [],
+          "mid_failures": [],
+          "host_custom_depth_changes": [],
+          "reserved": [
+            203
+          ],
+          "assigned_reserved": [],
+          "setup": [
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "on": false,
+              "value": 19,
+              "write_mask": 0,
+              "prior_on": false,
+              "prior_value": 19,
+              "prior_write_mask": 0,
+              "tagged": false,
+              "bench_setup": true
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "on": true,
+              "value": 18,
+              "write_mask": 2,
+              "prior_on": true,
+              "prior_value": 18,
+              "prior_write_mask": 2,
+              "tagged": false,
+              "bench_setup": true
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.DefaultPawn_0.MeshComponent0",
+              "on": true,
+              "value": 203,
+              "write_mask": 0,
+              "prior_on": true,
+              "prior_value": 203,
+              "prior_write_mask": 0,
+              "tagged": false,
+              "bench_setup": true
+            }
+          ],
+          "mid_samples": 2352
+        },
+        "annotation": {
+          "result": "PASS",
+          "issues": [],
+          "events": 12,
+          "schema": "5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1",
+          "schema_and_sets": "PASS",
+          "values": {
+            "coverage_ratio": {
+              "result": "PASS",
+              "issues": []
+            },
+            "coverage_pct": {
+              "result": "PASS",
+              "issues": []
+            },
+            "bbox_source": {
+              "result": "PASS",
+              "issues": []
+            },
+            "camera_planes": {
+              "result": "PASS",
+              "issues": []
+            }
+          },
+          "coverage_provenance": [
+            {
+              "event": "lighting_mismatch@2329",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2353",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2617",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2641",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2905",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2929",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3193",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3217",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3481",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3505",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3769",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3793",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            }
+          ],
+          "coverage_measured": 0,
+          "coverage_unmeasurable": 12,
+          "coverage_value_errors": []
+        },
+        "self_check": {
+          "result": "PASS",
+          "lines": [
+            "Capture425 SELF_CHECK stage=start frames=1 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=5 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=4 ui_controls=4 ui_positive=4 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1223 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+            "Capture425 SELF_CHECK stage=300 frames=300 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=315 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1533 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=1 lost=0 no_pass=0 polluted=0"
+          ],
+          "parsed": [
+            {
+              "stage": "start",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "5",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "4",
+              "ui_controls": "4",
+              "ui_positive": "4",
+              "ui_checked": "1",
+              "ui_hits": "0",
+              "ui_paired": "1",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1223",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "bench_off",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            },
+            {
+              "stage": "300",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "315",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "8",
+              "ui_controls": "8",
+              "ui_positive": "8",
+              "ui_checked": "300",
+              "ui_hits": "0",
+              "ui_paired": "8",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1533",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "on",
+              "batches": "1",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            }
+          ]
+        },
+        "ui_pixels": {
+          "result": "PASS",
+          "positive_controls": [
+            {
+              "request": 1,
+              "sample_frame": 1580,
+              "matching_cells": 8,
+              "image": "ui-control-00.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 2,
+              "sample_frame": 1581,
+              "matching_cells": 8,
+              "image": "ui-control-01.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 3,
+              "sample_frame": 1582,
+              "matching_cells": 8,
+              "image": "ui-control-02.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 4,
+              "sample_frame": 1583,
+              "matching_cells": 8,
+              "image": "ui-control-03.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 5,
+              "sample_frame": 1584,
+              "matching_cells": 8,
+              "image": "ui-control-04.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 6,
+              "sample_frame": 1585,
+              "matching_cells": 8,
+              "image": "ui-control-05.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 7,
+              "sample_frame": 1586,
+              "matching_cells": 8,
+              "image": "ui-control-06.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 8,
+              "sample_frame": 1587,
+              "matching_cells": 8,
+              "image": "ui-control-07.png",
+              "observed_cells": 8
+            }
+          ],
+          "checked": 2352,
+          "marker_frames": [],
+          "native_matches": true,
+          "per_frame_pairs": [
+            {
+              "request": 1,
+              "sample_frame": 1580,
+              "result": "PASS",
+              "capture": {
+                "request": 1,
+                "sample_frame": 1580,
+                "family_frame": 1582,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 1,
+                  "sample_frame": 1580,
+                  "matching_cells": 8,
+                  "image": "ui-control-00.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 2,
+              "sample_frame": 1581,
+              "result": "PASS",
+              "capture": {
+                "request": 2,
+                "sample_frame": 1581,
+                "family_frame": 1583,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 2,
+                  "sample_frame": 1581,
+                  "matching_cells": 8,
+                  "image": "ui-control-01.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 3,
+              "sample_frame": 1582,
+              "result": "PASS",
+              "capture": {
+                "request": 3,
+                "sample_frame": 1582,
+                "family_frame": 1584,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 3,
+                  "sample_frame": 1582,
+                  "matching_cells": 8,
+                  "image": "ui-control-02.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 4,
+              "sample_frame": 1583,
+              "result": "PASS",
+              "capture": {
+                "request": 4,
+                "sample_frame": 1583,
+                "family_frame": 1585,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 4,
+                  "sample_frame": 1583,
+                  "matching_cells": 8,
+                  "image": "ui-control-03.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 5,
+              "sample_frame": 1584,
+              "result": "PASS",
+              "capture": {
+                "request": 5,
+                "sample_frame": 1584,
+                "family_frame": 1586,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 5,
+                  "sample_frame": 1584,
+                  "matching_cells": 8,
+                  "image": "ui-control-04.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 6,
+              "sample_frame": 1585,
+              "result": "PASS",
+              "capture": {
+                "request": 6,
+                "sample_frame": 1585,
+                "family_frame": 1587,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 6,
+                  "sample_frame": 1585,
+                  "matching_cells": 8,
+                  "image": "ui-control-05.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 7,
+              "sample_frame": 1586,
+              "result": "PASS",
+              "capture": {
+                "request": 7,
+                "sample_frame": 1586,
+                "family_frame": 1588,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 7,
+                  "sample_frame": 1586,
+                  "matching_cells": 8,
+                  "image": "ui-control-06.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 8,
+              "sample_frame": 1587,
+              "result": "PASS",
+              "capture": {
+                "request": 8,
+                "sample_frame": 1587,
+                "family_frame": 1589,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 8,
+                  "sample_frame": 1587,
+                  "matching_cells": 8,
+                  "image": "ui-control-07.png",
+                  "observed_cells": 8
+                }
+              ]
+            }
+          ]
+        },
+        "view": {
+          "result": "PASS",
+          "bad_frames": []
+        },
+        "rhi": "D3D11",
+        "format": 18,
+        "dropped": 0,
+        "frames": 2352,
+        "ui_pairs": [
+          {
+            "request": 1,
+            "sample_frame": 1580,
+            "result": "PASS",
+            "capture": {
+              "request": 1,
+              "sample_frame": 1580,
+              "family_frame": 1582,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 1,
+                "sample_frame": 1580,
+                "matching_cells": 8,
+                "image": "ui-control-00.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 2,
+            "sample_frame": 1581,
+            "result": "PASS",
+            "capture": {
+              "request": 2,
+              "sample_frame": 1581,
+              "family_frame": 1583,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 2,
+                "sample_frame": 1581,
+                "matching_cells": 8,
+                "image": "ui-control-01.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 3,
+            "sample_frame": 1582,
+            "result": "PASS",
+            "capture": {
+              "request": 3,
+              "sample_frame": 1582,
+              "family_frame": 1584,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 3,
+                "sample_frame": 1582,
+                "matching_cells": 8,
+                "image": "ui-control-02.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 4,
+            "sample_frame": 1583,
+            "result": "PASS",
+            "capture": {
+              "request": 4,
+              "sample_frame": 1583,
+              "family_frame": 1585,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 4,
+                "sample_frame": 1583,
+                "matching_cells": 8,
+                "image": "ui-control-03.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 5,
+            "sample_frame": 1584,
+            "result": "PASS",
+            "capture": {
+              "request": 5,
+              "sample_frame": 1584,
+              "family_frame": 1586,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 5,
+                "sample_frame": 1584,
+                "matching_cells": 8,
+                "image": "ui-control-04.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 6,
+            "sample_frame": 1585,
+            "result": "PASS",
+            "capture": {
+              "request": 6,
+              "sample_frame": 1585,
+              "family_frame": 1587,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 6,
+                "sample_frame": 1585,
+                "matching_cells": 8,
+                "image": "ui-control-05.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 7,
+            "sample_frame": 1586,
+            "result": "PASS",
+            "capture": {
+              "request": 7,
+              "sample_frame": 1586,
+              "family_frame": 1588,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 7,
+                "sample_frame": 1586,
+                "matching_cells": 8,
+                "image": "ui-control-06.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 8,
+            "sample_frame": 1587,
+            "result": "PASS",
+            "capture": {
+              "request": 8,
+              "sample_frame": 1587,
+              "family_frame": 1589,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 8,
+                "sample_frame": 1587,
+                "matching_cells": 8,
+                "image": "ui-control-07.png",
+                "observed_cells": 8
+              }
+            ]
+          }
+        ]
+      },
+      "admission": {
+        "profile": "fallback",
+        "utc": "2026-11-01T20:40:14.246059+00:00",
+        "idle_seconds": 358.86,
+        "commit_GiB": 10.175521850585938,
+        "physical_GiB": 10.153949737548828
+      },
+      "argv": [
+        "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+        "D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+        "/Game/EuropaPhaseA/EA_Core",
+        "-UserDir=D:/IA_Europa/StylizedParisStreet/",
+        "-ShaderWorkingDir=D:/IA_Europa/Caches/425/ShaderWorking/",
+        "-DDC=Europa425DDC",
+        "-abslog=D:/IA_Europa/Receipts/09439/c5-attempts/C5/01/session/Runtime.log",
+        "-AbsCrashReportClientLog=D:/IA_Europa/Receipts/09439/c5-attempts/C5/01/session/CrashClient.log",
+        "-NoLiveCoding",
+        "-NoHotReload",
+        "-windowed",
+        "-ResX=1280",
+        "-ResY=720",
+        "-IAIBench",
+        "-EuropaPhaseA",
+        "-EuropaProbeOut=D:/IA_Europa/Receipts/09439/c5-attempts/C5/01/session/probe",
+        "-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False",
+        "-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False",
+        "-nowrite",
+        "-SkipCompile",
+        "-stdout",
+        "-unattended",
+        "-NoSplash",
+        "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False",
+        "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False",
+        "-game",
+        "-IAICaptureExit",
+        "-ExecCmds=r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,r.PostProcessAAQuality 0,r.ScreenPercentage 100,r.DynamicRes.OperationMode 0,r.MotionBlurQuality 0,t.MaxFPS 30,IAI.Capture.C5 D:/IA_Europa/Receipts/09439/c5-attempts/C5/01/plugin-frames 4242",
+        "-IAICaptureFallback"
+      ],
+      "gates": [
+        {
+          "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01\\gate-fallback.jsonl",
+          "readings": 1,
+          "first_utc": "2026-11-01T20:40:14.246059+00:00",
+          "last_utc": "2026-11-01T20:40:14.246059+00:00",
+          "last_status": "CLEAR",
+          "last_reasons": []
+        },
+        {
+          "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01\\gate-street.jsonl",
+          "readings": 69,
+          "first_utc": "2026-11-01T19:59:05.360846+00:00",
+          "last_utc": "2026-11-01T20:40:10.346993+00:00",
+          "last_status": "WINDOW_ENDED",
+          "last_reasons": []
+        }
+      ],
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 479328,
+            "sha256": "e35cb2f6235f651db3bb76770706d57ecdb4be33b9bf1ab1af4d581056c1543f",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6636,
+            "sha256": "539182cbff1125793f55088cadba68f1ce5bde6848210e838c8ce9dec7954b7f",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "protected": {
+        "result": "PASS"
+      },
+      "raw_evidence": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01\\raw-evidence.json"
+    },
+    {
+      "root": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02",
+      "result": {
+        "leg": "C5",
+        "started_utc": "2026-11-01T20:49:40.264838+00:00",
+        "root_ended_utc": "2026-11-01T20:51:44.567271+00:00",
+        "ended_utc": "2026-11-01T20:51:47.452617+00:00",
+        "pid": 44440,
+        "exit_code": 0,
+        "result": "FAIL",
+        "launches": 1,
+        "hard_stop": false,
+        "end_run": false,
+        "run_stop_reasons": [],
+        "leg_failure_reasons": [
+          "reader FAIL: incomplete"
+        ],
+        "stopped_owned_processes": [],
+        "post_crash_owned_stop": [],
+        "new_crash_report_folders": [],
+        "deliberate_owned_stop": false,
+        "crashed": false,
+        "crash_count": 0,
+        "adopted_monitors": [
+          {
+            "pid": 50908,
+            "parent_pid": 5564,
+            "monitor_of": 44440,
+            "command_line": "\"E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClientEditor.exe\" \"../../../Engine/Binaries/Win64/CrashReportClientEditor.exe\"  -READ=504 -WRITE=516 -MONITOR=44440 -abslog=D:/IA_Europa/Receipts/09439/c5-attempts/C5/02/session/CrashClient.log -ConcertServer=\"2BFF3F7D4B43C8B58748C7B9819699BF\" -RespawnedInstance",
+            "started_utc": "2026-11-01T20:49:40.604793+00:00",
+            "adopted_utc": "2026-11-01T20:49:41.778767+00:00",
+            "authority": "FH5 exact -MONITOR PID match"
+          }
+        ]
+      },
+      "reader": {
+        "result": "FAIL",
+        "profile": "FV5/FU5; no label-free grading",
+        "fallback": true,
+        "per_anomaly": [
+          {
+            "anomaly": "blinking",
+            "events_fired": 30,
+            "affected_frames": 180,
+            "mask_frames": 180,
+            "mask_pixels": 3702708,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "events_fired": 6,
+            "affected_frames": 78,
+            "mask_frames": 78,
+            "mask_pixels": 27824238,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lod_corruption",
+            "events_fired": 12,
+            "affected_frames": 156,
+            "mask_frames": 156,
+            "mask_pixels": 4032600,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "missing_object",
+            "events_fired": 0,
+            "affected_frames": 0,
+            "mask_frames": 0,
+            "mask_pixels": 0,
+            "result": "FAIL"
+          }
+        ],
+        "lod_visible_change": [
+          {
+            "event": "lod_corruption@2439",
+            "target": "EA_LOD",
+            "reference": 694,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@2559",
+            "target": "EA_LOD",
+            "reference": 814,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@2727",
+            "target": "EA_LOD",
+            "reference": 982,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@2847",
+            "target": "EA_LOD",
+            "reference": 1102,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3015",
+            "target": "EA_LOD",
+            "reference": 1270,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3135",
+            "target": "EA_LOD",
+            "reference": 1390,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3303",
+            "target": "EA_LOD",
+            "reference": 1558,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3423",
+            "target": "EA_LOD",
+            "reference": 1678,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3591",
+            "target": "EA_LOD",
+            "reference": 1846,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3711",
+            "target": "EA_LOD",
+            "reference": 1966,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3879",
+            "target": "EA_LOD",
+            "reference": 2134,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          },
+          {
+            "event": "lod_corruption@3999",
+            "target": "EA_LOD",
+            "reference": 2254,
+            "max_changed_fraction": 0.0,
+            "information_only": true,
+            "rule": "RGB difference >1 on current event mask versus preceding captured frame; grain/scene motion retained, no visibility gate",
+            "measured_frames": 13,
+            "changed_pixels_max": 0
+          }
+        ],
+        "lod_guard": {
+          "result": "PASS",
+          "events": 12,
+          "selections": [
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            }
+          ],
+          "applied_components": [
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 2,
+              "lods": 2
+            }
+          ]
+        },
+        "mask_check": {
+          "result": "PASS",
+          "affected_frames": 414,
+          "clean_frames": 1938,
+          "clean_mask_pixels": 0,
+          "failures": []
+        },
+        "wall_strip": {
+          "result": "PASS",
+          "waived": "FV5 fallback only",
+          "pose": 3,
+          "region": [
+            0,
+            686,
+            1280,
+            720
+          ]
+        },
+        "census": {
+          "peak_drawn": 3,
+          "per_pose": [
+            {
+              "pose": 0,
+              "drawn": 3
+            },
+            {
+              "pose": 1,
+              "drawn": 3
+            },
+            {
+              "pose": 2,
+              "drawn": 3
+            },
+            {
+              "pose": 3,
+              "drawn": 3
+            },
+            {
+              "pose": 4,
+              "drawn": 3
+            },
+            {
+              "pose": 5,
+              "drawn": 3
+            }
+          ],
+          "exhaustion": 0,
+          "lost": 0,
+          "no_pass": 0,
+          "polluted": 0,
+          "over_55_waived": true,
+          "result": "PASS"
+        },
+        "custom_depth": {
+          "result": "PASS",
+          "candidates": 14,
+          "after_candidates": 14,
+          "differences": [],
+          "mid_failures": [],
+          "host_custom_depth_changes": [],
+          "reserved": [
+            203
+          ],
+          "assigned_reserved": [],
+          "setup": [
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "on": false,
+              "value": 19,
+              "write_mask": 0,
+              "prior_on": false,
+              "prior_value": 19,
+              "prior_write_mask": 0,
+              "tagged": false,
+              "bench_setup": true
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "on": true,
+              "value": 18,
+              "write_mask": 2,
+              "prior_on": true,
+              "prior_value": 18,
+              "prior_write_mask": 2,
+              "tagged": false,
+              "bench_setup": true
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.DefaultPawn_0.MeshComponent0",
+              "on": true,
+              "value": 203,
+              "write_mask": 0,
+              "prior_on": true,
+              "prior_value": 203,
+              "prior_write_mask": 0,
+              "tagged": false,
+              "bench_setup": true
+            }
+          ],
+          "mid_samples": 2352
+        },
+        "annotation": {
+          "result": "PASS",
+          "issues": [],
+          "events": 48,
+          "schema": "5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1",
+          "schema_and_sets": "PASS",
+          "values": {
+            "coverage_ratio": {
+              "result": "PASS",
+              "issues": []
+            },
+            "coverage_pct": {
+              "result": "PASS",
+              "issues": []
+            },
+            "bbox_source": {
+              "result": "PASS",
+              "issues": []
+            },
+            "camera_planes": {
+              "result": "PASS",
+              "issues": []
+            }
+          },
+          "coverage_provenance": [
+            {
+              "event": "lod_corruption@2439",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2463",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@2487",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2511",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2535",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2559",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2583",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2607",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2727",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2751",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@2775",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2799",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2823",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2847",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2871",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2895",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3015",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3039",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3063",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3087",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3111",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3135",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3159",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3183",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3303",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3327",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3351",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3375",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3399",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3423",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3447",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3471",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3591",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3615",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3639",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3663",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3687",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3711",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3735",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3759",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3879",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3903",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3927",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3951",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3975",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3999",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4023",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4047",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            }
+          ],
+          "coverage_measured": 42,
+          "coverage_unmeasurable": 6,
+          "coverage_value_errors": []
+        },
+        "self_check": {
+          "result": "PASS",
+          "lines": [
+            "Capture425 SELF_CHECK stage=start frames=1 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=5 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=4 ui_controls=4 ui_positive=4 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1354 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+            "Capture425 SELF_CHECK stage=300 frames=300 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=315 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1664 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=0 lost=0 no_pass=0 polluted=0"
+          ],
+          "parsed": [
+            {
+              "stage": "start",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "5",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "4",
+              "ui_controls": "4",
+              "ui_positive": "4",
+              "ui_checked": "1",
+              "ui_hits": "0",
+              "ui_paired": "1",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1354",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "bench_off",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            },
+            {
+              "stage": "300",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "315",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "8",
+              "ui_controls": "8",
+              "ui_positive": "8",
+              "ui_checked": "300",
+              "ui_hits": "0",
+              "ui_paired": "8",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1664",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "on",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            }
+          ]
+        },
+        "ui_pixels": {
+          "result": "PASS",
+          "positive_controls": [
+            {
+              "request": 1,
+              "sample_frame": 1712,
+              "matching_cells": 8,
+              "image": "ui-control-00.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 2,
+              "sample_frame": 1713,
+              "matching_cells": 8,
+              "image": "ui-control-01.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 3,
+              "sample_frame": 1714,
+              "matching_cells": 8,
+              "image": "ui-control-02.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 4,
+              "sample_frame": 1715,
+              "matching_cells": 8,
+              "image": "ui-control-03.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 5,
+              "sample_frame": 1716,
+              "matching_cells": 8,
+              "image": "ui-control-04.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 6,
+              "sample_frame": 1717,
+              "matching_cells": 8,
+              "image": "ui-control-05.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 7,
+              "sample_frame": 1718,
+              "matching_cells": 8,
+              "image": "ui-control-06.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 8,
+              "sample_frame": 1719,
+              "matching_cells": 8,
+              "image": "ui-control-07.png",
+              "observed_cells": 8
+            }
+          ],
+          "checked": 2352,
+          "marker_frames": [],
+          "native_matches": true,
+          "per_frame_pairs": [
+            {
+              "request": 1,
+              "sample_frame": 1712,
+              "result": "PASS",
+              "capture": {
+                "request": 1,
+                "sample_frame": 1712,
+                "family_frame": 1714,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 1,
+                  "sample_frame": 1712,
+                  "matching_cells": 8,
+                  "image": "ui-control-00.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 2,
+              "sample_frame": 1713,
+              "result": "PASS",
+              "capture": {
+                "request": 2,
+                "sample_frame": 1713,
+                "family_frame": 1715,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 2,
+                  "sample_frame": 1713,
+                  "matching_cells": 8,
+                  "image": "ui-control-01.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 3,
+              "sample_frame": 1714,
+              "result": "PASS",
+              "capture": {
+                "request": 3,
+                "sample_frame": 1714,
+                "family_frame": 1716,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 3,
+                  "sample_frame": 1714,
+                  "matching_cells": 8,
+                  "image": "ui-control-02.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 4,
+              "sample_frame": 1715,
+              "result": "PASS",
+              "capture": {
+                "request": 4,
+                "sample_frame": 1715,
+                "family_frame": 1717,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 4,
+                  "sample_frame": 1715,
+                  "matching_cells": 8,
+                  "image": "ui-control-03.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 5,
+              "sample_frame": 1716,
+              "result": "PASS",
+              "capture": {
+                "request": 5,
+                "sample_frame": 1716,
+                "family_frame": 1718,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 5,
+                  "sample_frame": 1716,
+                  "matching_cells": 8,
+                  "image": "ui-control-04.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 6,
+              "sample_frame": 1717,
+              "result": "PASS",
+              "capture": {
+                "request": 6,
+                "sample_frame": 1717,
+                "family_frame": 1719,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 6,
+                  "sample_frame": 1717,
+                  "matching_cells": 8,
+                  "image": "ui-control-05.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 7,
+              "sample_frame": 1718,
+              "result": "PASS",
+              "capture": {
+                "request": 7,
+                "sample_frame": 1718,
+                "family_frame": 1720,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 7,
+                  "sample_frame": 1718,
+                  "matching_cells": 8,
+                  "image": "ui-control-06.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 8,
+              "sample_frame": 1719,
+              "result": "PASS",
+              "capture": {
+                "request": 8,
+                "sample_frame": 1719,
+                "family_frame": 1721,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 8,
+                  "sample_frame": 1719,
+                  "matching_cells": 8,
+                  "image": "ui-control-07.png",
+                  "observed_cells": 8
+                }
+              ]
+            }
+          ]
+        },
+        "view": {
+          "result": "PASS",
+          "bad_frames": []
+        },
+        "rhi": "D3D11",
+        "format": 18,
+        "dropped": 0,
+        "frames": 2352,
+        "ui_pairs": [
+          {
+            "request": 1,
+            "sample_frame": 1712,
+            "result": "PASS",
+            "capture": {
+              "request": 1,
+              "sample_frame": 1712,
+              "family_frame": 1714,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 1,
+                "sample_frame": 1712,
+                "matching_cells": 8,
+                "image": "ui-control-00.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 2,
+            "sample_frame": 1713,
+            "result": "PASS",
+            "capture": {
+              "request": 2,
+              "sample_frame": 1713,
+              "family_frame": 1715,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 2,
+                "sample_frame": 1713,
+                "matching_cells": 8,
+                "image": "ui-control-01.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 3,
+            "sample_frame": 1714,
+            "result": "PASS",
+            "capture": {
+              "request": 3,
+              "sample_frame": 1714,
+              "family_frame": 1716,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 3,
+                "sample_frame": 1714,
+                "matching_cells": 8,
+                "image": "ui-control-02.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 4,
+            "sample_frame": 1715,
+            "result": "PASS",
+            "capture": {
+              "request": 4,
+              "sample_frame": 1715,
+              "family_frame": 1717,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 4,
+                "sample_frame": 1715,
+                "matching_cells": 8,
+                "image": "ui-control-03.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 5,
+            "sample_frame": 1716,
+            "result": "PASS",
+            "capture": {
+              "request": 5,
+              "sample_frame": 1716,
+              "family_frame": 1718,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 5,
+                "sample_frame": 1716,
+                "matching_cells": 8,
+                "image": "ui-control-04.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 6,
+            "sample_frame": 1717,
+            "result": "PASS",
+            "capture": {
+              "request": 6,
+              "sample_frame": 1717,
+              "family_frame": 1719,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 6,
+                "sample_frame": 1717,
+                "matching_cells": 8,
+                "image": "ui-control-05.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 7,
+            "sample_frame": 1718,
+            "result": "PASS",
+            "capture": {
+              "request": 7,
+              "sample_frame": 1718,
+              "family_frame": 1720,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 7,
+                "sample_frame": 1718,
+                "matching_cells": 8,
+                "image": "ui-control-06.png",
+                "observed_cells": 8
+              }
+            ]
+          },
+          {
+            "request": 8,
+            "sample_frame": 1719,
+            "result": "PASS",
+            "capture": {
+              "request": 8,
+              "sample_frame": 1719,
+              "family_frame": 1721,
+              "matching_cells": 1
+            },
+            "controls": [
+              {
+                "request": 8,
+                "sample_frame": 1719,
+                "matching_cells": 8,
+                "image": "ui-control-07.png",
+                "observed_cells": 8
+              }
+            ]
+          }
+        ]
+      },
+      "admission": {
+        "profile": "fallback",
+        "utc": "2026-11-01T20:49:39.068318+00:00",
+        "idle_seconds": 413.125,
+        "commit_GiB": 9.611297607421875,
+        "physical_GiB": 9.985015869140625
+      },
+      "argv": [
+        "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+        "D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+        "/Game/EuropaPhaseA/EA_Core",
+        "-UserDir=D:/IA_Europa/StylizedParisStreet/",
+        "-ShaderWorkingDir=D:/IA_Europa/Caches/425/ShaderWorking/",
+        "-DDC=Europa425DDC",
+        "-abslog=D:/IA_Europa/Receipts/09439/c5-attempts/C5/02/session/Runtime.log",
+        "-AbsCrashReportClientLog=D:/IA_Europa/Receipts/09439/c5-attempts/C5/02/session/CrashClient.log",
+        "-NoLiveCoding",
+        "-NoHotReload",
+        "-windowed",
+        "-ResX=1280",
+        "-ResY=720",
+        "-IAIBench",
+        "-EuropaPhaseA",
+        "-EuropaProbeOut=D:/IA_Europa/Receipts/09439/c5-attempts/C5/02/session/probe",
+        "-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False",
+        "-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False",
+        "-nowrite",
+        "-SkipCompile",
+        "-stdout",
+        "-unattended",
+        "-NoSplash",
+        "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False",
+        "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False",
+        "-game",
+        "-IAICaptureExit",
+        "-ExecCmds=IAI.SetMinScreenCoverage 0.5,IAI.SetMinScreenCoverage,r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,r.PostProcessAAQuality 0,r.ScreenPercentage 100,r.DynamicRes.OperationMode 0,r.MotionBlurQuality 0,t.MaxFPS 30,IAI.Capture.C5 D:/IA_Europa/Receipts/09439/c5-attempts/C5/02/plugin-frames 4242",
+        "-IAICaptureFallback"
+      ],
+      "gates": [
+        {
+          "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02\\gate-fallback.jsonl",
+          "readings": 1,
+          "first_utc": "2026-11-01T20:49:39.068318+00:00",
+          "last_utc": "2026-11-01T20:49:39.068318+00:00",
+          "last_status": "CLEAR",
+          "last_reasons": []
+        }
+      ],
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02\\session\\Runtime.log",
+            "exists": true,
+            "size": 494878,
+            "sha256": "efca3b7c07fdba8c88051c1eee170167d5c82d092c21d6689b2b11a563430c17",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6636,
+            "sha256": "5b6723723a2de7f5a4e8afb4ed2d6227d5736cd7e6f4d8e2732b04c22e8cd1f6",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "protected": {
+        "result": "PASS"
+      },
+      "raw_evidence": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02\\raw-evidence.json"
+    }
+  ],
+  "exit": {
+    "utc": "2026-11-01T20:55:17.358908+00:00",
+    "protected_result": "PASS",
+    "manifest": {
+      "path": "D:\\IA_Europa\\Receipts\\09439\\c5-425-binaries-02-C5.json",
+      "sha256": "89d505887021afa1446ab1d741addd94c3f3dded6b46c022dd344ea1651ae5b4",
+      "rebound": true,
+      "files": 27,
+      "equal": 27
+    },
+    "free_GiB": {
+      "C:": 26.22873306274414,
+      "D:": 35.02581787109375,
+      "E:": 173.7809295654297
+    },
+    "drive_roots": {
+      "C:": {
+        "count": 60,
+        "sha256": "992c835653f2debc54836df3bb979ab01adbecabea7c19e6cd47a3f7a06c0407"
+      },
+      "D:": {
+        "count": 113,
+        "sha256": "46f74bf1790bee78be03db1765fc304a47b56f4262fd9ba5d6267713dd299801"
+      },
+      "E:": {
+        "count": 71,
+        "sha256": "849b2156fac30b8677b30dfb51de0150b01f7e0b0ecaa0ff89a2082573720270"
+      }
+    },
+    "drive_root_changes": {
+      "C:": {
+        "added": 0,
+        "removed": 0
+      },
+      "D:": {
+        "added": 0,
+        "removed": 0
+      },
+      "E:": {
+        "added": 0,
+        "removed": 0
+      }
+    }
+  },
+  "binaries": {
+    "installed_manifest": "D:\\IA_Europa\\Receipts\\09439\\c5-425-binaries-02-C5.json",
+    "rebound": true,
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "exists": true,
+        "expected_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+        "size": 67891200,
+        "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+        "exists": true,
+        "expected_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+        "size": 44176,
+        "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+        "exists": true,
+        "expected_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+        "size": 81852,
+        "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+        "exists": true,
+        "expected_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+        "size": 100036608,
+        "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+        "exists": true,
+        "expected_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+        "size": 43520,
+        "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "exists": true,
+        "expected_sha256": "b3bb9b6dec5f01a1a7d06a49d14c0448f84bd4768ee80e52b68e0163ac49359b",
+        "size": 139337728,
+        "sha256": "b3bb9b6dec5f01a1a7d06a49d14c0448f84bd4768ee80e52b68e0163ac49359b",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+        "exists": true,
+        "expected_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+        "size": 44147,
+        "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+        "exists": true,
+        "expected_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+        "size": 77016,
+        "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+        "exists": true,
+        "expected_sha256": "e0b731afa04b2dafc6dce8d1923380bf9b484c4ba04d25d82800734cd06fd0e2",
+        "size": 186503168,
+        "sha256": "e0b731afa04b2dafc6dce8d1923380bf9b484c4ba04d25d82800734cd06fd0e2",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+        "exists": true,
+        "expected_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+        "size": 43738,
+        "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+        "exists": true,
+        "expected_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+        "size": 163036,
+        "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "exists": true,
+        "expected_sha256": "f3b52d42a09992d10633c1198d2382fb53c781d9897b2640aff5c778a3af0653",
+        "size": 369152,
+        "sha256": "f3b52d42a09992d10633c1198d2382fb53c781d9897b2640aff5c778a3af0653",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+        "exists": true,
+        "expected_sha256": "f84486d980cc519c28847df587a0e4a322b85a20763b558bc145092ada5d77c0",
+        "size": 23801856,
+        "sha256": "f84486d980cc519c28847df587a0e4a322b85a20763b558bc145092ada5d77c0",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "exists": true,
+        "expected_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+        "size": 91648,
+        "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+        "exists": true,
+        "expected_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+        "size": 34131968,
+        "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+        "exists": true,
+        "expected_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+        "size": 172,
+        "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "exists": true,
+        "expected_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+        "size": 124416,
+        "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+        "exists": true,
+        "expected_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+        "size": 6082560,
+        "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "exists": true,
+        "expected_sha256": "f840b2b04007ae321c61bc68facd15957e4e07d33fd9150cf42201a2f706764c",
+        "size": 911872,
+        "sha256": "f840b2b04007ae321c61bc68facd15957e4e07d33fd9150cf42201a2f706764c",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+        "exists": true,
+        "expected_sha256": "5c1ea488d9d4e1b3bd0b01dccfc1338dbffb7dad83ce07cac3ffc34064be53cd",
+        "size": 35901440,
+        "sha256": "5c1ea488d9d4e1b3bd0b01dccfc1338dbffb7dad83ce07cac3ffc34064be53cd",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "exists": true,
+        "expected_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+        "size": 126464,
+        "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+        "exists": true,
+        "expected_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+        "size": 13881344,
+        "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "exists": true,
+        "expected_sha256": "4a75ad87f1570d77cb89961efb617b134948397412070824fcda6538fa3760de",
+        "size": 939008,
+        "sha256": "4a75ad87f1570d77cb89961efb617b134948397412070824fcda6538fa3760de",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+        "exists": true,
+        "expected_sha256": "38cd33f7ba3c0e5ecbef173226d762a3eeb484be4e422e5c2811000c376a6f53",
+        "size": 29749248,
+        "sha256": "38cd33f7ba3c0e5ecbef173226d762a3eeb484be4e422e5c2811000c376a6f53",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "exists": true,
+        "expected_sha256": "b5b767d343422d7360a8b78ec29c7ce0da0090f056d13c5f9fd11b574240e6ad",
+        "size": 111104,
+        "sha256": "b5b767d343422d7360a8b78ec29c7ce0da0090f056d13c5f9fd11b574240e6ad",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+        "exists": true,
+        "expected_sha256": "a612421b4456a2d38d6c5685b3f3c8cd3bd789fb01a5ca1576af64e53fe5b4c4",
+        "size": 8777728,
+        "sha256": "a612421b4456a2d38d6c5685b3f3c8cd3bd789fb01a5ca1576af64e53fe5b4c4",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+        "exists": true,
+        "expected_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+        "size": 325,
+        "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+        "bound_equal": true
+      }
+    ],
+    "archives_created": []
+  },
+  "history": {
+    "result": "NOT_RUN",
+    "reason": "FV6 requires passing smoke"
+  },
+  "feature_head": "d8f6ebf89cc0ce5467a8e4dd60e629f87d8050ef",
+  "no_push": true,
+  "no_tags": true,
+  "verdict": "NEEDS-DECISION",
+  "summary": "Both 4.25 targets build and the FW3/FW4 checks pass in the retry, but the office smoke remains incomplete: missing_object never fires. Both authorized slots are spent. FV6 is skipped because it requires a passing smoke.",
+  "retry_qualification": {
+    "result": "PASS",
+    "diagnosis": "First fallback produced 2352 paired frames but only 12 lighting events. In clean frame309, EA_LOD is 2.8049% drawn (pixel bbox2.8974%) and EA_HideCube is 1.8502% (bbox1.9922%). Both have census owners and are absent from bounds-visible; floor/pawn are the only bounds-visible entries. AnomalyViewport.cpp:57 defaults to6%, :572 rejects below that bounds filter. Auto.Yield reports only single_lod candidates or census exclusions. This is the fallback launch preset, not the >=2-LOD guard.",
+    "quick_testable_fix": "Fallback launch only: IAI.SetMinScreenCoverage 0.5 and echo it before capture. This matches the already frozen census floor; the measured census floor0.5/ceiling25, coarsest LOD apply, player view, masks, labels and every reader threshold remain unchanged. The process-local setting ends with the process. Street argv is unchanged. No native or package change; no rebuild.",
+    "tests": [
+      {
+        "path": "D:\\IA_Europa\\Receipts\\09439\\tests\\fallback-summary.json",
+        "size": 1001,
+        "sha256": "27996396385175344ad852b12bfda1bc89b69631d239f3edd81097e4c38882ab"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\capture_fallback_tests.py",
+        "size": 2609,
+        "sha256": "2ac457f03f618402a624330792c6fca95da1742dd899eb93bd4f372e431a4d72"
+      }
+    ],
+    "source": "AnomalyViewport.cpp:57,553-577,1870-1887; AnomalyCensusPolicy425.h:5-6",
+    "first_raw_evidence": {
+      "path": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\01\\raw-evidence.json",
+      "size": 1724707,
+      "sha256": "de4b6c84ea569d8a64092de984220bd7201109fa91d13544fd283d478277f39d"
+    }
+  },
+  "retry_sequence_diagnosis": {
+    "cause": "Confirmed driver coverage failure: SetRunning(true) resets Seed4242 for each short scored hold, repeating the same eight draws six times. missing_object is never drawn.",
+    "blocks": [
+      [
+        {
+          "line": 1359,
+          "attempt": 1,
+          "seed_before": 448666021,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 2814325382,
+          "result": "applied"
+        },
+        {
+          "line": 1389,
+          "attempt": 2,
+          "seed_before": 2624450857,
+          "id": "lighting_mismatch",
+          "target": "EA_Light",
+          "seed_after": 2796169786,
+          "result": "applied"
+        },
+        {
+          "line": 1421,
+          "attempt": 3,
+          "seed_before": 2041055597,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 1146063790,
+          "result": "applied"
+        },
+        {
+          "line": 1452,
+          "attempt": 4,
+          "seed_before": 2202076785,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 3526470370,
+          "result": "applied"
+        },
+        {
+          "line": 1483,
+          "attempt": 5,
+          "seed_before": 2290371637,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 872061910,
+          "result": "applied"
+        },
+        {
+          "line": 1516,
+          "attempt": 6,
+          "seed_before": 1509424825,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 3916444298,
+          "result": "applied"
+        },
+        {
+          "line": 1548,
+          "attempt": 7,
+          "seed_before": 2833318397,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 1848115966,
+          "result": "applied"
+        },
+        {
+          "line": 1578,
+          "attempt": 8,
+          "seed_before": 2810640897,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 2197512498,
+          "result": "applied"
+        }
+      ],
+      [
+        {
+          "line": 1709,
+          "attempt": 1,
+          "seed_before": 448666021,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 2814325382,
+          "result": "applied"
+        },
+        {
+          "line": 1740,
+          "attempt": 2,
+          "seed_before": 2624450857,
+          "id": "lighting_mismatch",
+          "target": "EA_Light",
+          "seed_after": 2796169786,
+          "result": "applied"
+        },
+        {
+          "line": 1771,
+          "attempt": 3,
+          "seed_before": 2041055597,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 1146063790,
+          "result": "applied"
+        },
+        {
+          "line": 1802,
+          "attempt": 4,
+          "seed_before": 2202076785,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 3526470370,
+          "result": "applied"
+        },
+        {
+          "line": 1833,
+          "attempt": 5,
+          "seed_before": 2290371637,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 872061910,
+          "result": "applied"
+        },
+        {
+          "line": 1866,
+          "attempt": 6,
+          "seed_before": 1509424825,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 3916444298,
+          "result": "applied"
+        },
+        {
+          "line": 1897,
+          "attempt": 7,
+          "seed_before": 2833318397,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 1848115966,
+          "result": "applied"
+        },
+        {
+          "line": 1928,
+          "attempt": 8,
+          "seed_before": 2810640897,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 2197512498,
+          "result": "applied"
+        }
+      ],
+      [
+        {
+          "line": 2059,
+          "attempt": 1,
+          "seed_before": 448666021,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 2814325382,
+          "result": "applied"
+        },
+        {
+          "line": 2089,
+          "attempt": 2,
+          "seed_before": 2624450857,
+          "id": "lighting_mismatch",
+          "target": "EA_Light",
+          "seed_after": 2796169786,
+          "result": "applied"
+        },
+        {
+          "line": 2119,
+          "attempt": 3,
+          "seed_before": 2041055597,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 1146063790,
+          "result": "applied"
+        },
+        {
+          "line": 2151,
+          "attempt": 4,
+          "seed_before": 2202076785,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 3526470370,
+          "result": "applied"
+        },
+        {
+          "line": 2182,
+          "attempt": 5,
+          "seed_before": 2290371637,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 872061910,
+          "result": "applied"
+        },
+        {
+          "line": 2215,
+          "attempt": 6,
+          "seed_before": 1509424825,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 3916444298,
+          "result": "applied"
+        },
+        {
+          "line": 2246,
+          "attempt": 7,
+          "seed_before": 2833318397,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 1848115966,
+          "result": "applied"
+        },
+        {
+          "line": 2276,
+          "attempt": 8,
+          "seed_before": 2810640897,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 2197512498,
+          "result": "applied"
+        }
+      ],
+      [
+        {
+          "line": 2408,
+          "attempt": 1,
+          "seed_before": 448666021,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 2814325382,
+          "result": "applied"
+        },
+        {
+          "line": 2437,
+          "attempt": 2,
+          "seed_before": 2624450857,
+          "id": "lighting_mismatch",
+          "target": "EA_Light",
+          "seed_after": 2796169786,
+          "result": "applied"
+        },
+        {
+          "line": 2468,
+          "attempt": 3,
+          "seed_before": 2041055597,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 1146063790,
+          "result": "applied"
+        },
+        {
+          "line": 2500,
+          "attempt": 4,
+          "seed_before": 2202076785,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 3526470370,
+          "result": "applied"
+        },
+        {
+          "line": 2530,
+          "attempt": 5,
+          "seed_before": 2290371637,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 872061910,
+          "result": "applied"
+        },
+        {
+          "line": 2563,
+          "attempt": 6,
+          "seed_before": 1509424825,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 3916444298,
+          "result": "applied"
+        },
+        {
+          "line": 2595,
+          "attempt": 7,
+          "seed_before": 2833318397,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 1848115966,
+          "result": "applied"
+        },
+        {
+          "line": 2626,
+          "attempt": 8,
+          "seed_before": 2810640897,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 2197512498,
+          "result": "applied"
+        }
+      ],
+      [
+        {
+          "line": 2757,
+          "attempt": 1,
+          "seed_before": 448666021,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 2814325382,
+          "result": "applied"
+        },
+        {
+          "line": 2787,
+          "attempt": 2,
+          "seed_before": 2624450857,
+          "id": "lighting_mismatch",
+          "target": "EA_Light",
+          "seed_after": 2796169786,
+          "result": "applied"
+        },
+        {
+          "line": 2818,
+          "attempt": 3,
+          "seed_before": 2041055597,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 1146063790,
+          "result": "applied"
+        },
+        {
+          "line": 2849,
+          "attempt": 4,
+          "seed_before": 2202076785,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 3526470370,
+          "result": "applied"
+        },
+        {
+          "line": 2880,
+          "attempt": 5,
+          "seed_before": 2290371637,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 872061910,
+          "result": "applied"
+        },
+        {
+          "line": 2912,
+          "attempt": 6,
+          "seed_before": 1509424825,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 3916444298,
+          "result": "applied"
+        },
+        {
+          "line": 2944,
+          "attempt": 7,
+          "seed_before": 2833318397,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 1848115966,
+          "result": "applied"
+        },
+        {
+          "line": 2975,
+          "attempt": 8,
+          "seed_before": 2810640897,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 2197512498,
+          "result": "applied"
+        }
+      ],
+      [
+        {
+          "line": 3106,
+          "attempt": 1,
+          "seed_before": 448666021,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 2814325382,
+          "result": "applied"
+        },
+        {
+          "line": 3136,
+          "attempt": 2,
+          "seed_before": 2624450857,
+          "id": "lighting_mismatch",
+          "target": "EA_Light",
+          "seed_after": 2796169786,
+          "result": "applied"
+        },
+        {
+          "line": 3167,
+          "attempt": 3,
+          "seed_before": 2041055597,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 1146063790,
+          "result": "applied"
+        },
+        {
+          "line": 3198,
+          "attempt": 4,
+          "seed_before": 2202076785,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 3526470370,
+          "result": "applied"
+        },
+        {
+          "line": 3229,
+          "attempt": 5,
+          "seed_before": 2290371637,
+          "id": "blinking",
+          "target": "EA_HideCube",
+          "seed_after": 872061910,
+          "result": "applied"
+        },
+        {
+          "line": 3262,
+          "attempt": 6,
+          "seed_before": 1509424825,
+          "id": "lod_corruption",
+          "target": "EA_LOD",
+          "seed_after": 3916444298,
+          "result": "applied"
+        },
+        {
+          "line": 3293,
+          "attempt": 7,
+          "seed_before": 2833318397,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 1848115966,
+          "result": "applied"
+        },
+        {
+          "line": 3324,
+          "attempt": 8,
+          "seed_before": 2810640897,
+          "id": "blinking",
+          "target": "EA_LOD",
+          "seed_after": 2197512498,
+          "result": "applied"
+        }
+      ]
+    ],
+    "identical_blocks": true,
+    "missing_object_draws": 0,
+    "citations": [
+      "AnomalyAutoInjectorSubsystem.cpp:239 (Stream.Initialize(Seed))",
+      "AnomalyCaptureLabels425.cpp:92-100 (SetRunning(Wanted) per hold)",
+      "AnomalyStreetBench425.cpp:103-106 (per-pose auto window)",
+      "AnomalyStreetBench425.h:13 (ScoreHold 240)"
+    ],
+    "next_work": "A longer or continuous scored hold must preserve seed4242 and the accepted0.8/0.4/one-concurrent schedule; qualify its event coverage before another authorized slot. No third slot or fourth Editor build is authorized in09439.",
+    "source_log": "D:\\IA_Europa\\Receipts\\09439\\c5-attempts\\C5\\02\\session\\Runtime.log",
+    "log_line_span": [
+      1359,
+      3324
+    ]
+  }
+}
