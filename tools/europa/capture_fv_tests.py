@@ -10,11 +10,11 @@ from rotator_contract import check_all
 import job_scope
 
 P=Path(__file__).resolve().parents[2]
-J=Path('D:/IA_Europa/Receipts/09438')
+J=kit.J
 
 def run():
     tests=[]
-    line='Capture425 SELF_CHECK stage={stage} frames={frames} viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily={frames} pre_ui=1 tick=OnWorldPostActorTick425 tick_type=2 tick_calls={frames} fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30 smoothing=0 ui_draws=8 ui_controls=3 ui_positive=3 ui_checked={frames} ui_hits=0 synth=0 census=on batches=1 lost=0 no_pass=0 polluted=0'
+    line='Capture425 SELF_CHECK stage={stage} frames={frames} viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily={frames} pre_ui=1 tick=OnWorldPostActorTick425 tick_type=2 tick_source=build_constant tick_type_source=build_constant ui_paired=1 tick_calls={frames} fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30 smoothing=0 ui_draws=8 ui_controls=3 ui_positive=3 ui_checked={frames} ui_hits=0 synth=0 census=on batches=1 lost=0 no_pass=0 polluted=0'
     log='\n'.join(line.format(stage=s,frames=n) for s,n in [('start',1),('300',300)])
     assert r.self_checks(log)['result']=='PASS'
     for bad in (log.replace('pre_ui=1','pre_ui=0'),log.replace('backbuffer_format=18','backbuffer_format=0'),log.replace('viewport_size=1280x720','viewport_size=1x1'),log.replace('lost=0','lost=1'),log.splitlines()[0]):assert r.self_checks(bad)['result']=='FAIL'
@@ -48,9 +48,9 @@ def run():
     for i,c in enumerate(r.MARKER):control[(i//4)*16:(i//4+1)*16,(i%4)*16:(i%4+1)*16]=c
     Image.fromarray(control).save(ui/'ui-control-00.png')
     frame=np.full((80,100,3),80,np.uint8);Image.fromarray(frame).save(ui/'frame.png')
-    native=dict(checked=1,hits=0,positive_controls=1,frames=[dict(request=1,matching_cells=0)])
+    native=dict(checked=1,hits=0,positive_controls=1,paired=1,draws=1,controls=1,drawn_frames=[dict(request=1,sample_frame=101)],control_frames=[dict(request=1,sample_frame=101,matching_cells=8,image='ui-control-00.png')],frames=[dict(request=1,sample_frame=101,family_frame=33,drawn=True,control_positive=True,matching_cells=0)])
     (ui/'ui-check.json').write_text(json.dumps(native))
-    rr=[dict(frame_index=0,image='frame.png')];assert r.ui_pixels(ui,rr)['result']=='PASS'
+    rr=[dict(frame_index=0,image='frame.png',sample_frame=101,family_frame=33)];assert r.ui_pixels(ui,rr)['result']=='PASS'
     frame[16:48,16:80]=control;Image.fromarray(frame).save(ui/'frame.png')
     assert r.ui_pixels(ui,rr)['result']=='FAIL'
     frame[:]=80;Image.fromarray(frame).save(ui/'frame.png');control[:]=80;Image.fromarray(control).save(ui/'ui-control-00.png')
@@ -99,13 +99,13 @@ def run():
     tests.append(dict(fix='census integration',result='PASS',contract='completed readbacks before expiry; discard returns before credit; release requeues and preserves event ownership'))
     auto=(P/'Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp').read_text(encoding='utf-8')
     args=auto.split('TArray<FString> ApplyArgs;',1)[1].split('const uint64 FireFrame',1)[0]
-    assert 'GetWorstLod' not in auto and 'ApplyArgs.Add(TEXT("1"))' not in auto
+    assert 'HasMultipleLods(Mesh)' in auto and 'ApplyArgs.Add(TEXT("1"))' not in auto
     assert 'ApplyArgs.Add(Token)' in args
     caps=(P/'Source/AnomalyInjector/Private/Compat/AnomalyCapabilities.cpp').read_text()
     assert 'AnomalyBenchGate' not in caps
     defaults=auto.split('GAutoPoolDefaultEnabled[]')[1].split('};')[0]
     assert 'lighting_mismatch' not in defaults and 'lod_corruption' not in defaults
-    tests.append(dict(fix='auto-injector parity',result='PASS',negative='finest-LOD override rejected; no port-only LOD filter or missing-object bench admission; original default pool retained'))
+    tests.append(dict(fix='auto-injector parity',result='PASS',negative='finest-LOD override rejected; FW3 multi-LOD filter and no missing-object bench admission; original default pool retained'))
     before=np.full((4,4,3),80,np.uint8);after=before.copy();after[1:3,1:3]=130
     Image.fromarray(before).save(ui/'before.png');Image.fromarray(after).save(ui/'active.png')
     pair=[dict(frame_index=0,image='before.png',sampled_states=[]),dict(frame_index=1,image='active.png',sampled_states=[dict(event_id='lod@1',affected=True,target_tags=[200])])]
@@ -116,8 +116,8 @@ def run():
     assert values[0]['max_changed_fraction']==1 and values[0]['frames'][0]['changed_pixels']==4
     tests.append(dict(fix='LOD visible-change information',result='PASS',measurement='four known changed target pixels counted; informational only'))
     for name in ('build-job-config.json','c5-job-config.json'):job_scope.load(J/name)
-    assert kit.J==J and kit.AUTHORITY.startswith('094-38')
-    for old in ('09437','09436','09435'):
+    assert kit.J==J and kit.AUTHORITY.startswith('094-39')
+    for old in ('09438','09437','09436','09435'):
         try:kit.validate(dict(arming_job=old))
         except RuntimeError:pass
         else:raise AssertionError('Spent kit accepted')

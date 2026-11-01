@@ -15,6 +15,7 @@ class FAnomalyCaptureDiagnostic425
 public:
     void Start(UWorld* World,const FString& Directory);
     void Tick(ELevelTick Type,FName Hook);
+    void Requested(uint64 Request,uint64 SampleFrame);
     void Observe(const FAnomalyCapturedFrame& Frame);
     FString Line() const;
     bool Stop();
@@ -25,11 +26,14 @@ private:
     TWeakPtr<SWindow> Window;
     FString Output;
     FDelegateHandle DrawHandle,BackbufferHandle;
-    FThreadSafeCounter Draws,Checked,Hits,Positive,Controls;
+    FThreadSafeCounter Draws,Checked,Hits,Positive,Controls,Paired;
     FThreadSafeCounter BackbufferFormat;
     FCriticalSection Guard;
     TArray<TArray<FColor>> ControlPixels;
-    TArray<TSharedPtr<FJsonValue>> Rows;
+    TArray<TSharedPtr<FJsonValue>> Rows,DrawRows,ControlRows;
+    TMap<uint64,uint64> RequestByFrame;
+    TSet<uint64> DrawnRequests,ControlledRequests;
+    uint64 PresentedRequest=0,PresentedFrame=0;
     FName ObservedHook;
     int32 TickType=-1,HookTicks=0;
     double Started=0;

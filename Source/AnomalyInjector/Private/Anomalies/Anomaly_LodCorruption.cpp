@@ -54,6 +54,7 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 			continue;
 		}
 
+        if (UAnomalyInjectorSubsystem::IsAutoPoolSelection(World) && !AnomalyLod::HasMultipleLods(Mesh)) { continue; }
 		const int32 NumLODs = AnomalyLod::GetWorstLod(Mesh);
 		const int32 Target = AnomalyLod::ResolveTargetLod(Mesh, RequestedIndex);
 

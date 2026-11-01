@@ -1,3 +1,5 @@
+> **094-39, 2026-11-02 - IN PROGRESS:** FW3 multi-LOD auto guard; FW4 per-frame UI proof and labelled constants; FW5 schedule inventory. Fresh FM1 build pair, smoke with 45-minute/03:00 fallback, conditional FV6. No push/tags. See docs/sessions/2026-11-02-094-39-office-capture.md.
+
 ### 094-21 closeout (2026-10-28)
 
 EV5 probe source 40a8eaf983518fe1992e172434aa8caf347654f1 compiled in all six targets, including d7eee97. EI4 is clear; 27/39/44 artifacts are rebound in Receipts/09421/qualification. Static check 25/25, entry/exit P9 and EA11 passed. Runtime exit confirmation and owner-kit arming remain EV7 work. No push or tags.

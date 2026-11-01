@@ -43,6 +43,7 @@ def self_checks(log):
             good &= item.get('backbuffer_format') in ('2','18','37') and item.get('viewport_size')==item.get('size')
             good &= int(item.get('PostRenderViewFamily','0'))>0 and item.get('pre_ui')=='1'
             good &= item.get('tick')=='OnWorldPostActorTick425' and item.get('tick_type')=='2' and int(item.get('tick_calls','0'))>0
+            good &= item.get('tick_source')=='build_constant' and item.get('tick_type_source')=='build_constant' and int(item.get('ui_paired','0'))>0
             good &= item.get('census') in ('on','bench_off')
             good &= item.get('lost')=='0' and item.get('no_pass')=='0' and item.get('polluted')=='0'
             good &= item.get('viewport') not in (None,'None','none') and item.get('client') not in (None,'None','none')
@@ -80,18 +81,46 @@ def marker_cells(pixels,origin=(16,16)):
     return sum(bool(np.all(np.abs(pixels[y+(i//4)*16+8,x+(i%4)*16+8,:3].astype(np.int16)-MARKER[i])<=4)) for i in range(8))
 
 def ui_pixels(root,rows):
-    controls=[];bad=[];observations=[]
-    for path in sorted(root.glob('ui-control-*.png')):
-        controls.append(dict(path=path.name,matching_cells=marker_cells(np.asarray(Image.open(path).convert('RGB')),(0,0))))
     native=json.loads((root/'ui-check.json').read_text())
+    controls=[];bad=[];observations=[];pairs=[]
+    for control in native.get('control_frames',[]):
+        path=root/control['image']
+        cells=marker_cells(np.asarray(Image.open(path).convert('RGB')),(0,0)) if path.is_file() else -1
+        controls.append(dict(control,observed_cells=cells))
     for row in rows:
         cells=marker_cells(np.asarray(Image.open(root/row['image']).convert('RGB')))
-        observations.append(dict(request=row['frame_index']+1,matching_cells=cells))
+        observations.append(dict(request=row['frame_index']+1,sample_frame=row['sample_frame'],family_frame=row['family_frame'],matching_cells=cells))
         if cells<0 or cells>=7:bad.append(row['frame_index'])
-    same=[(r['request'],r['matching_cells']) for r in native['frames']]==[(r['request'],r['matching_cells']) for r in observations]
-    positive=sum(c['matching_cells']>=7 for c in controls)
-    good=positive>0 and not bad and same and native['checked']==len(rows) and native['hits']==0 and native['positive_controls']==positive
-    return dict(result='PASS' if good else 'FAIL',positive_controls=controls,checked=len(rows),marker_frames=bad,native_matches=same,frames=observations)
+    fields=('request','sample_frame','family_frame','matching_cells')
+    same=[tuple(r.get(k) for k in fields) for r in native['frames']]==[tuple(r[k] for k in fields) for r in observations]
+    by_request={r['request']:r for r in observations}
+    native_by_request={r['request']:r for r in native['frames']}
+    drawn=native.get('drawn_frames',[])
+    for draw in drawn:
+        n=native_by_request.get(draw['request'],{});frame=by_request.get(draw['request'],{})
+        exact=[c for c in controls if c['request']==draw['request'] and c['sample_frame']==draw['sample_frame']]
+        good=(len(exact)==1 and exact[0]['observed_cells']>=7 and exact[0]['observed_cells']==exact[0]['matching_cells']
+              and frame.get('sample_frame')==draw['sample_frame'] and 0<=frame.get('matching_cells',-1)<7
+              and n.get('drawn') is True and n.get('control_positive') is True)
+        pairs.append(dict(draw,result='PASS' if good else 'FAIL',capture=frame,controls=exact))
+    keys=[d['request'] for d in drawn]
+    positive=sum(c['observed_cells']>=7 for c in controls)
+    exact_keys=set(keys)=={r['request'] for r in native['frames'] if r.get('drawn')}=={c['request'] for c in controls}
+    good=(bool(pairs) and len(keys)==len(set(keys)) and exact_keys and all(p['result']=='PASS' for p in pairs)
+          and native.get('paired')==len(pairs)==native.get('draws')==native.get('controls')
+          and not bad and same and native['checked']==len(rows) and native['hits']==0 and native['positive_controls']==positive)
+    return dict(result='PASS' if good else 'FAIL',positive_controls=controls,checked=len(rows),marker_frames=bad,native_matches=same,per_frame_pairs=pairs,frames=observations)
+
+def lod_guard(log,events):
+    selections=[dict(target=name,eligible_components=int(count),min_lods=int(lods)) for name,count,lods in re.findall(r'Auto.LodTarget target=(\S+) eligible_components=(\d+) min_lods=(\d+)',log)]
+    applied=[dict(component=name,chosen=int(chosen),lods=int(lods)) for name,chosen,lods in re.findall(r"lod_corruption: '([^']+)' forced LOD (\d+) of (\d+)",log)]
+    expected=[e for e in events if e['id']=='lod_corruption']
+    by_name={e['target_name']:sum(s['target']==e['target_name'] for s in selections) for e in expected}
+    good=(bool(expected) and len(applied)>=len(expected) and all(s['eligible_components']>0 and s['min_lods']>=2 for s in selections)
+          and all(a['lods']>=2 and a['chosen']==a['lods'] for a in applied)
+          and all(by_name[e['target_name']]>=sum(x['target_name']==e['target_name'] for x in expected) for e in expected))
+    return dict(result='PASS' if good else 'FAIL',events=len(expected),selections=selections,applied_components=applied)
+
 
 def lod_changes(root,rows,events):
     output=[]
@@ -164,6 +193,7 @@ def read(root,log,fallback=False):
     checks=self_checks(log)
     ui=ui_pixels(root,rows)
     lod=lod_changes(root,rows,events)
+    guard=lod_guard(log,events)
     view=dict(result='PASS' if not view_bad else 'FAIL',frames=len(rows),bad_frames=view_bad)
-    good=all(c['result']=='PASS' for c in counts.values()) and not bad_masks and all(c['result']=='PASS' for c in (wall,census,depth,annotation,checks,view,ui))
-    return dict(result='PASS' if good else 'FAIL',profile='FV5/FU5; no label-free grading',fallback=fallback,frames=len(rows),per_anomaly=list(counts.values()),lod_visible_change=lod,mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,ui_pixels=ui,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])
+    good=all(c['result']=='PASS' for c in counts.values()) and not bad_masks and all(c['result']=='PASS' for c in (wall,census,depth,annotation,checks,view,ui,guard))
+    return dict(result='PASS' if good else 'FAIL',profile='FV5/FU5; no label-free grading',fallback=fallback,frames=len(rows),per_anomaly=list(counts.values()),lod_visible_change=lod,lod_guard=guard,mask_check=dict(result='PASS' if not bad_masks else 'FAIL',affected_frames=affected_total,clean_frames=clean_total,clean_mask_pixels=clean_pixels,failures=bad_masks),wall_strip=wall,census=census,custom_depth=depth,annotation=annotation,self_check=checks,ui_pixels=ui,view=view,rhi=capture['rhi'],format=capture['backbuffer_format'],dropped=capture['dropped'])

@@ -1052,5 +1052,22 @@
     "4.25-only ApplyArgs.Add(1) finest LOD override: removed; only target token passed.",
     "4.25-only missing_object bench admission: removed; implementation is shared and has no API reason for the restriction."
   ],
-  "shared_extension": "Lighting/LOD explicit opt-ins are added to both source paths; original 5.1 default enabled IDs and first nine pool positions stay unchanged. No 5.1 build or engine write authorized."
+  "shared_extension": "Lighting/LOD explicit opt-ins are added to both source paths; original 5.1 default enabled IDs and first nine pool positions stay unchanged. No 5.1 build or engine write authorized.",
+  "09439_amendments": [
+    {
+      "rule": "FW2",
+      "decision": "Keep two shared default-off pool opt-ins on this 4.25-only branch; no keys added; FUTURE debug-UI key binding item."
+    },
+    {
+      "rule": "FW3",
+      "decision": "Auto lod_corruption candidates need at least one HasMultipleLods component; auto apply skips every single-LOD component, exactly the lod_popping >=2 predicate. Coarsest sentinel unchanged. Deliberate D3 addition, not an API parity claim.",
+      "source": "AnomalyAutoInjectorSubsystem.cpp candidate filter; Anomalies/Anomaly_LodCorruption.cpp auto guard; AnomalyLod.cpp:47-49; Anomalies/Anomaly_LodPopping.cpp:115"
+    },
+    {
+      "rule": "FW5",
+      "decision": "4.25 capture-only schedule: interval 0.8 seconds, hold 0.4 seconds, maximum 1 concurrent auto fire; four enabled smoke IDs, seed supplied by session.",
+      "source": "AnomalyCaptureLabels425.cpp:47,74-76",
+      "comparison": "Accepted C4 capture design; differs from 5.1 per-burst firing."
+    }
+  ]
 }

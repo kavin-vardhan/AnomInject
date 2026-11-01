@@ -11,6 +11,7 @@
 #include "AnomalyPreviewCapture.h"
 #include "Async/Async.h"
 #include "DynamicRHI.h"
+#include "CoreGlobals.h"
 #include "EngineUtils.h"
 #include "Camera/CameraActor.h"
 #include "GameFramework/PlayerController.h"
@@ -111,6 +112,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
     }
     if (Requested < Count && (!Labels || Labels->Ready()) && Backend->RequestFrame(World, NextId))
     {
+        Diagnostic->Requested(NextId,GFrameCounter);
         if (Labels && !Labels->Snapshot(World, NextId)) { ++Failures; }
         ++NextId; ++Requested;
         if (Labels) { Labels->SetNext(Requested); }

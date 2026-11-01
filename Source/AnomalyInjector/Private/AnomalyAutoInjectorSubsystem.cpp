@@ -19,6 +19,8 @@
 #include "Anomalies/TexCorruptPure.h"
 #include "AnomalyTargetPolicy.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyLod.h"
+#include "Components/MeshComponent.h"
 #include "Components/LightComponent.h"
 #include "EngineUtils.h"
 
@@ -448,6 +450,14 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 				continue;
 			}
 
+            if (DrawnId == FName(TEXT("lod_corruption")))
+            {
+                TInlineComponentArray<UMeshComponent*> Meshes(Actor);
+                bool Multiple = false;
+                for (UMeshComponent* Mesh : Meshes) { Multiple |= AnomalyLod::HasMultipleLods(Mesh); }
+                if (!Multiple) { RoundReasons.FindOrAdd(TEXT("single_lod")) += 1; continue; }
+            }
+
 			if (CensusQuery)
 			{
 				const FAnomalyCensusOpinion Opinion = CensusQuery(Actor);
@@ -619,6 +629,13 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 			ModeLog = FString(TEXT("none"));
 		}
 	}
+    if (Id == FName(TEXT("lod_corruption")))
+    {
+        TInlineComponentArray<UMeshComponent*> Meshes(Target);
+        int32 Count=0,Minimum=MAX_int32;
+        for (UMeshComponent* Mesh:Meshes) { if (AnomalyLod::HasMultipleLods(Mesh)) { ++Count; Minimum=FMath::Min(Minimum,AnomalyLod::GetWorstLod(Mesh)); } }
+        UE_LOG(LogAnomaly,Log,TEXT("Auto.LodTarget target=%s eligible_components=%d min_lods=%d"),*TargetName,Count,Count?Minimum:0);
+    }
 	Injector->SetAutoPoolSelection(true);
 	const bool bApplied = Injector->ApplyAnomaly(Id, ApplyArgs);
 	Injector->SetAutoPoolSelection(false);
