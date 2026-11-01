@@ -12,6 +12,7 @@ public:
     void Stop() override;
     int32 Dropped() const;
     FAnomalyReadbackLayout Layout() const;
+    int32 PostRenderCount() const { return View.IsValid() ? View->PostRenderCount() : 0; }
     void Labelled(uint64 Epoch) { LabelEpoch = Epoch; }
     ~FAnomalyCaptureBackend425() override { Stop(); }
 private:

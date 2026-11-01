@@ -3,6 +3,7 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalyCaptureLabels425.h"
 #include "AnomalyCensusPolicy425.h"
+#include "AnomalyCensusBatch425.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyHiddenClass.h"
 #include "AnomalyInstallState.h"
@@ -137,7 +138,7 @@ void FAnomalyMasks425::ReleaseUnused()
     }
     for (const auto& Batch:Batches)
     {
-        for (const auto& Pair:Batch.Value) { Held.Add(Pair.Key); Ledger.CensusClaimed.Add(Pair.Value); }
+        for (const auto& Pair:Batch.Value.Actors) { Held.Add(Pair.Key); Ledger.CensusClaimed.Add(Pair.Value); }
     }
     TArray<TWeakObjectPtr<AActor>> Retired;
     for (const auto& Pair:Tags) { if (!Held.Contains(Pair.Key)) { Retired.Add(Pair.Key); } }
@@ -198,12 +199,61 @@ void FAnomalyMasks425::Advance(uint64 Request)
         const uint8 Value=FreeTag(); if (!Value) { break; }
         if (Tag(A,Value)) { Ledger.CensusClaimed.Add(Value); Batch.Add(A,Value); }
     }
-    if (Batch.Num()) { Batches.Add(Request,Batch); }
+    if (Batch.Num())
+    {
+        FBatch Pending; Pending.Actors=MoveTemp(Batch); Pending.Armed=GFrameCounter;
+        Pending.Allowed=Ledger.HostReserved;
+        for (const auto& Pair:Tags) { Pending.Allowed.Add(Pair.Value); }
+        Batches.Add(Request,MoveTemp(Pending));
+    }
+}
+void FAnomalyMasks425::ReleaseBatch(uint64 Request,bool Requeue)
+{
+    if (auto* Batch=Batches.Find(Request))
+    {
+        if (Requeue) { for (const auto& Pair:Batch->Actors) { if (Pair.Key.IsValid()) { Queue.Insert(Pair.Key,Cursor); } } }
+        Batches.Remove(Request); ReleaseUnused();
+    }
+}
+void FAnomalyMasks425::NoPass(uint64 Request)
+{
+    if (ActiveMasks425) { ActiveMasks425->NoPassRequests.Enqueue(Request); }
+}
+void FAnomalyMasks425::Tick(UWorld* World)
+{
+    auto* Self=ActiveMasks425; if (!Self || Self->Owner.Get()!=World) { return; }
+    uint64 Request=0;
+    while (Self->NoPassRequests.Dequeue(Request))
+    {
+        if (Self->Batches.Contains(Request)) { ++Self->NoPassBatches; Self->ReleaseBatch(Request,true); }
+    }
+    TArray<uint64> Lost;
+    for (const auto& Pair:Self->Batches)
+    {
+        if (AnomalyCensusBatch425::Outcome(GFrameCounter,Pair.Value.Armed,false,false,false)==AnomalyCensusBatch425::EOutcome::Lost) { Lost.Add(Pair.Key); }
+    }
+    for (uint64 Id:Lost)
+    {
+        ++Self->LostBatches; Self->ReleaseBatch(Id,true);
+        UE_LOG(LogAnomalyCapture,Warning,TEXT("Census425: BATCH LOST request=%llu timeout=8 requeued=1 verdict_unchanged=1"),Id);
+    }
+}
+FString FAnomalyMasks425::Diagnostic(UWorld* World)
+{
+    auto* Self=ActiveMasks425;
+    if (!Self || Self->Owner.Get()!=World) { return TEXT("census=off batches=0 lost=0 no_pass=0 polluted=0"); }
+    return FString::Printf(TEXT("census=%s batches=%d lost=%d no_pass=%d polluted=%d"),CensusOff425?TEXT("bench_off"):TEXT("on"),Self->Batches.Num(),Self->LostBatches,Self->NoPassBatches,Self->PollutedBatches);
 }
 void FAnomalyMasks425::Observe(const FAnomalyCapturedFrame& Frame)
 {
     FAnomalyMasks425* Self=ActiveMasks425;
-    if (!Self || !Self->Owner.IsValid() || Frame.LabelKey425.Owner!=Self->Owner->GetUniqueID() || Frame.MaskData425.Num()!=Frame.Width*Frame.Height*16) { return; }
+    if (!Self || !Self->Owner.IsValid() || Frame.LabelKey425.Owner!=Self->Owner->GetUniqueID()) { return; }
+    const bool Pass=Frame.Width>1 && Frame.Height>1 && Frame.MaskData425.Num()==Frame.Width*Frame.Height*16;
+    if (!Pass)
+    {
+        if (Self->Batches.Contains(Frame.RequestId)) { ++Self->NoPassBatches; Self->ReleaseBatch(Frame.RequestId,true); }
+        return;
+    }
     uint32 Counts[256]={}; const uint32* Data=reinterpret_cast<const uint32*>(Frame.MaskData425.GetData());
     for (int32 I=0;I<Frame.Width*Frame.Height;++I)
     {
@@ -213,13 +263,23 @@ void FAnomalyMasks425::Observe(const FAnomalyCapturedFrame& Frame)
     }
     if (auto* Batch=Self->Batches.Find(Frame.RequestId))
     {
-        for (const auto& Pair:*Batch)
+        bool Polluted=false;
+        for (int32 Tag=AnomalyStencilTag::ReservedStencilBase;Tag<=AnomalyStencilTag::AssignableStencilMax;++Tag)
         {
+            Polluted|=Counts[Tag]>0 && !Batch->Allowed.Contains(uint8(Tag)) && !Self->Ledger.HostReserved.Contains(uint8(Tag)) && !Self->Ledger.CensusClaimed.Contains(uint8(Tag)) && !Self->Ledger.EventClaimed.Contains(uint8(Tag));
+        }
+        if (AnomalyCensusBatch425::Outcome(GFrameCounter,Batch->Armed,true,Pass,Polluted)!=AnomalyCensusBatch425::EOutcome::Credit)
+        {
+            ++Self->PollutedBatches; Self->ReleaseBatch(Frame.RequestId,true); return;
+        }
+        for (const auto& Pair:Batch->Actors)
+        {
+            FString Detail;
+            if (!Pair.Key.IsValid() || !AnomalyStencilTag::VerifyActorStillTagged(Pair.Key.Get(),Pair.Value,Detail)) { continue; }
             FCensusValue V; V.Pixels=Counts[Pair.Value]; V.Area=Frame.Width*Frame.Height; V.Tick=Frame.LabelKey425.SampleFrame;
             Self->Verdicts.Add(Pair.Key,V);
         }
-        Self->Batches.Remove(Frame.RequestId);
-        Self->ReleaseUnused();
+        Self->ReleaseBatch(Frame.RequestId,false);
     }
 }
 TSharedPtr<FJsonObject> FAnomalyMasks425::State() const
@@ -234,6 +294,7 @@ TSharedPtr<FJsonObject> FAnomalyMasks425::State() const
     for (uint8 V:Ledger.HostReserved) { Reserved.Add(MakeShared<FJsonValueNumber>(V)); }
     for (const FString& N:InitialVisible) { Initial.Add(MakeShared<FJsonValueString>(N)); }
     R->SetArrayField(TEXT("owners"),Owners); R->SetArrayField(TEXT("visible"),VisibleNames); R->SetArrayField(TEXT("host_reserved"),Reserved); R->SetArrayField(TEXT("initial_visible"),Initial);
+    R->SetNumberField(TEXT("batches_lost"),LostBatches); R->SetNumberField(TEXT("no_pass_batches"),NoPassBatches); R->SetNumberField(TEXT("polluted_batches"),PollutedBatches);
     R->SetNumberField(TEXT("in_flight_batches"),Batches.Num()); R->SetBoolField(TEXT("enabled"),!CensusOff425);
     R->SetNumberField(TEXT("host_actors_excluded"),HostActors.Num());
     R->SetNumberField(TEXT("visible_count"),Visible.Num()); R->SetNumberField(TEXT("peak_visible"),PeakVisible); R->SetNumberField(TEXT("cycles"),Cycles);
@@ -246,7 +307,7 @@ bool FAnomalyMasks425::Restore()
     if (Owner.IsValid()) { if (auto* Auto=Owner->GetSubsystem<UAnomalyAutoInjectorSubsystem>()) { Auto->ClearCensusProvider(); } }
     FlushRenderingCommands(); Release(); const bool Good=!AnomalyStencilTag::IsAnyTagged();
     AnomalyStencilTag::SetRestoreWatch(nullptr); AnomalyStencilTag::DisableCustomStencil();
-    UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 C5: stencil_restore=%d peak_visible=%d cycles=%d exhausted=%d"),Good?1:0,PeakVisible,Cycles,Exhausted);
+    UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 C5: stencil_restore=%d peak_visible=%d cycles=%d exhausted=%d lost=%d no_pass=%d polluted=%d"),Good?1:0,PeakVisible,Cycles,Exhausted,LostBatches,NoPassBatches,PollutedBatches);
     CensusOff425=0;
     if (ActiveMasks425==this) { ActiveMasks425=nullptr; } Started=false; Ledger.Reset(); return Good;
 }

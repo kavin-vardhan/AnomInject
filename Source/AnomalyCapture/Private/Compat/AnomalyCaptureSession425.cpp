@@ -4,6 +4,9 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalyPixel425.h"
 #include "AnomalyWriteQueue425.h"
+#include "AnomalyInjectorSubsystem.h"
+#include "Engine/GameViewportClient.h"
+#include "Misc/App.h"
 #include "Camera/PlayerCameraManager.h"
 #include "AnomalyPreviewCapture.h"
 #include "Async/Async.h"
@@ -63,6 +66,14 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         const FString MaskOutput = AnomalyCaptureC2::Masks() ? Output : FString();
         if (Labels) { FAnomalyMasks425::Observe(Frame); if (!Labels->Observe(Frame)) { ++Failures; continue; } }
         if (Labels && !Labels->Pair(Frame.LabelKey425, Name)) { ++Failures; continue; }
+        if (Frame.RequestId==1 || Frame.RequestId==300)
+        {
+            const int32 Hooks=static_cast<FAnomalyCaptureBackend425*>(Backend.Get())->PostRenderCount();
+            UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 SELF_CHECK stage=%s frames=%llu viewport=%s/FSceneViewport size=%dx%d format=%d RHI=%s PostRenderViewFamily=%d pre_ui=%d tick=OnWorldPostActorTick/LEVELTICK_All synth=%d fixed=%d %s"),
+                Frame.RequestId==1?TEXT("start"):TEXT("300"),Frame.RequestId,
+                World && World->GetGameViewport()?*World->GetGameViewport()->GetClass()->GetName():TEXT("none"),Frame.Width,Frame.Height,int32(Frame.Format),*RHI,
+                Hooks,Hooks>0?1:0,UAnomalyInjectorSubsystem::IsSynthTickOrderEnabled(World)?1:0,FApp::UseFixedTimeStep()?1:0,*FAnomalyMasks425::Diagnostic(World));
+        }
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
         WriterDrains += AnomalyWriteQueue425::MakeRoom(Writes,[this](bool Good) { if (Good) { ++Completed; } else { ++Failures; } });
@@ -82,6 +93,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World)
         }));
         PeakPendingWrites = FMath::Max(PeakPendingWrites,Writes.Num());
     }
+    FAnomalyMasks425::Tick(World);
     for (int32 I = Writes.Num() - 1; I >= 0; --I)
     {
         if (Writes[I].IsReady())

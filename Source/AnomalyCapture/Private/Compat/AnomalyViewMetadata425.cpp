@@ -70,6 +70,7 @@ bool FAnomalyViewMetadata425::Queue(const FAnomalyLabelKey425& Key, SWindow* Win
 }
 void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family)
 {
+    PostRenders.Increment();
     FScopeLock Lock(&Guard);
     for (auto& Pair : Tickets)
     {
@@ -84,11 +85,13 @@ void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListI
             const FIntRect Rect = Family.Views.Num() == 1 ? Family.Views[0]->UnscaledViewRect : FIntRect();
             if (!Source.IsValid() || !Source->GetTexture2D() || Rect != Ticket.Rect)
             {
+                FAnomalyMasks425::NoPass(Ticket.Key.Request);
                 Rejections.Increment();
                 continue;
             }
             if (Ticket.Key.Masks && !FAnomalyMasks425::Render(Cmd,Family,Ticket.Key.Request,Ticket.Key.MaskBits,*Capturer))
             {
+                FAnomalyMasks425::NoPass(Ticket.Key.Request);
                 Rejections.Increment(); continue;
             }
             Capturer->CaptureView_RenderThread(Ticket.Key.Request, Source->GetTexture2D(), Rect);

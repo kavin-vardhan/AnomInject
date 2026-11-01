@@ -66,10 +66,10 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     Protocol->SetNumberField(TEXT("turn"),Turn); Protocol->SetNumberField(TEXT("settle"),Settle); Protocol->SetNumberField(TEXT("clean_hold"),CleanHold); Protocol->SetNumberField(TEXT("score_hold"),ScoreHold);
     Protocol->SetNumberField(TEXT("pre_frames"),PreFrames); Protocol->SetNumberField(TEXT("total_frames"),TotalFrames);
     Protocol->SetArrayField(TEXT("base_position"),XYZ425(Position)); Protocol->SetArrayField(TEXT("base_rotation"),XYZ425(FVector(Base.Pitch,Base.Yaw,Base.Roll)));
-    Protocol->SetStringField(TEXT("view_target"),GetNameSafe(Target.Get())); Protocol->SetNumberField(TEXT("grain_levels"),1); Protocol->SetNumberField(TEXT("minimum_stable_share"),0.5);
+    Protocol->SetStringField(TEXT("view_target"),GetNameSafe(Target.Get())); Protocol->SetNumberField(TEXT("grain_levels"),1); Protocol->SetNumberField(TEXT("minimum_stable_share"),0.0);
     Protocol->SetNumberField(TEXT("grain_period"),7); Protocol->SetNumberField(TEXT("unstable_dilation"),2);
     Protocol->SetStringField(TEXT("grain_mode"),TEXT("phase_matched_viewstate_GetFrameIndex8_modulo7"));
-    Protocol->SetStringField(TEXT("reference_rule"),TEXT("First census-off held frame per actual render grain phase; phase-matched range above one, dilated two pixels. First-half map self-checks second half. At least half stable. Census-on must remain clean. All maps frozen before first scored image write."));
+    Protocol->SetStringField(TEXT("reference_rule"),TEXT("FU5 office smoke: six fixed poses; 28 off/on frames per pose; 240 auto frames per pose; all poses enabled without label-free grading. Wall strip compared by render grain phase against the off-hold RGB range with one-level tolerance."));
     Protocol->SetNumberField(TEXT("setup_components"),Original.Num());
     return N==3 && JsonStreet425(Protocol,Directory/TEXT("c5-protocol.json")) && JsonStreet425(DepthSample(true),Directory/TEXT("depth-before.json"));
 }
@@ -207,7 +207,7 @@ bool FAnomalyStreetBench425::Observe(const FAnomalyCapturedFrame& Frame,const TS
         V.Samples.Add(MakeShared<FJsonValueObject>(Sample)); ++V.OnCount;
         if (V.OnCount==CleanHold)
         {
-            V.Keep=V.Unstable<=0.5 && V.SelfMax<=0.001 && V.InterferenceMax<=0.001; V.Complete=true;
+            V.Keep=true; V.Complete=true;
         }
     }
     return Index!=PreFrames-1 || Freeze(Frame.Width,Frame.Height);

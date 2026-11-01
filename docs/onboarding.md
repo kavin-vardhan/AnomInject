@@ -1,5 +1,7 @@
 # Onboarding
 
+The 4.25 capture port's office-smoke work is tracked in [094-37](sessions/2026-11-01-094-37-office-smoke.md): the shared four anomaly apply/revert paths, bounded census recovery, player-view pre-UI capture, and 5.1 annotation values. Real-scene dataset-quality D1-D5 are future work, not part of this port's smoke. The 5.1 paths remain unchanged.
+
 ## What this is
 `AnomalyInjector` is a UE5 plugin that injects **labeled visual anomalies** (graphics
 bugs) into UE5 games to produce synthetic training data for bug-detection ML. It is

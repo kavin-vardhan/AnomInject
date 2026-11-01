@@ -21,6 +21,7 @@ public:
     bool Take(uint64 Request, FAnomalyLabelKey425& Key);
     void PostRenderViewFamily_RenderThread(FRHICommandListImmediate&, FSceneViewFamily& Family) override;
     int32 Rejected() const { return Rejections.GetValue(); }
+    int32 PostRenderCount() const { return PostRenders.GetValue(); }
 private:
     struct FTicket
     {
@@ -33,6 +34,7 @@ private:
     };
     TMap<uint64, FTicket> Tickets;
     FThreadSafeCounter Rejections;
+    FThreadSafeCounter PostRenders;
     TWeakObjectPtr<UWorld> Owner;
     mutable FCriticalSection Guard;
     FIntRect LastRect;

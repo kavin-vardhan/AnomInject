@@ -2,6 +2,7 @@
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyCaptureLog.h"
+#include "AnomalyCensusBatch425.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
@@ -264,7 +265,7 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
     for (const auto& S:Row->GetArrayField(TEXT("sampled_states")))
     {
         auto& E=AnnotationEvents[S->AsObject()->GetStringField(TEXT("event_id"))];
-        if (E.CamPath.IsEmpty()) { E.CamPath=Key.PlayerTarget; E.CamPosition=Key.PlayerLocation; E.CamRotation=Key.PlayerRotation; E.CamFovDeg=Key.PlayerFov; E.CamAspect=float(Size.X)/Size.Y; E.CamNear=Key.ViewNear; E.CamFar=Key.ViewFar; }
+        if (E.CamPath.IsEmpty()) { E.CamPath=Key.PlayerTarget; E.CamPosition=Key.PlayerLocation; E.CamRotation=Key.PlayerRotation; E.CamFovDeg=Key.PlayerFov; E.CamAspect=float(Size.X)/Size.Y; E.CamNear=Key.ViewNear; E.CamFar=AnomalyCensusBatch425::AnnotationFar(Key.ViewFar); }
     }
     Frames.Add(Key.SessionIndex, Row); Pending.Remove(Key.Request);
     return true;

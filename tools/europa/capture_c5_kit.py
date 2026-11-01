@@ -13,10 +13,10 @@ from runtime_policy import protection_snapshot,verify_protection
 from runtime_runner import execute,crash_policy
 from runtime_evidence import freeze,outcome,ensure_frozen
 from fixture_uploads import check as uploads
-import capture_c5_reader as reader
+import capture_office_reader as reader
 
-J=c1.ROOT/'Receipts/09436'
-AUTHORITY='094-36 FT1-FT6 FN2 FM1 FJ1 FK1'
+J=c1.ROOT/'Receipts/09437'
+AUTHORITY='094-37 FU1-FU6 FN2 FM1 FJ1 FK1'
 INSTALLED=c1.INSTALLED
 DEADLINE="2026-11-02T01:30:00+00:00"
 
@@ -33,8 +33,8 @@ def command(leg,root):
     return argv
 
 def validate(config):
-    if config.get('arming_job')!='09436' or config.get('stage')!='C5' or config['deadline']!=DEADLINE:raise RuntimeError('Wrong C3 arming')
-    if config.get('metrics')!=reader.THRESHOLDS or config.get('limits')!={'C5':2100}:raise RuntimeError('C3 thresholds or limit changed')
+    if config.get('arming_job')!='09437' or config.get('stage')!='OfficeSmoke' or config['deadline']!=DEADLINE:raise RuntimeError('Wrong office-smoke arming')
+    if config.get('metrics')!=reader.THRESHOLDS or config.get('limits')!={'C5':900}:raise RuntimeError('FU5 gates or limit changed')
     verify_files(config['engine_files']);verify_files(config['tooling_files']);verify_protection(config['protected'])
     if sha(config['manifest']['path'])!=config['manifest']['sha256']:raise RuntimeError('Manifest changed')
     verify_files(json.loads(Path(config['manifest']['path']).read_text())['files'])
@@ -56,9 +56,9 @@ def arm(retry=False,leg=None):
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before C3 arming')
     prior=json.loads(INSTALLED.read_text())
     if retry:
-        if prior.get('arming_job')!='09436':raise RuntimeError('No first 09436 arming')
+        if prior.get('arming_job')!='09437':raise RuntimeError('No first 09437 arming')
         retry_admitted(prior,leg)
-    elif prior.get('arming_job')=='09436':raise RuntimeError('C3 already armed; use the qualified retry route')
+    elif prior.get('arming_job')=='09437':raise RuntimeError('Office smoke already armed; use the qualified retry route')
     revision=('02-'+leg) if retry else '01'
     built=[json.loads(p.read_text()) for p in (J/'builds').glob('*/result.json')]
     good=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and c1.native_source_equal(r['commit'])]
@@ -69,15 +69,15 @@ def arm(retry=False,leg=None):
     manifest=json.loads(Path(prior['manifest']['path']).read_text())
     for row in manifest['files']:
         p=Path(row['path']);row.update(size=p.stat().st_size,mtime_ns=p.stat().st_mtime_ns,sha256=sha(p))
-    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09436 FS2 street capture build pair')
+    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09437 FU5 office smoke build pair')
     manifest_path=J/('c5-425-binaries-'+revision+'.json');create_json(manifest_path,manifest)
-    reference=TOOLS.parent.parent/'docs/sessions/2026-11-01-094-36-street-capture.md'
+    reference=TOOLS.parent.parent/'docs/sessions/2026-11-01-094-37-office-smoke.md'
     refs=dict(files=[dict(path=str(reference),size=reference.stat().st_size,sha256=sha(reference))])
-    config=dict(arming_job='09436',stage='C5',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,
+    config=dict(arming_job='09437',stage='OfficeSmoke',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),protected=current,
         engine_files=prior['engine_files'],tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
         reference_files=refs['files'],reference_rule=reader.REFERENCE_RULE,metrics=reader.THRESHOLDS,
-        slots={name:{number:str(J/'c5-attempts'/name/number) for number in ('01','02')} for name in ('C5',)},limits=dict(C5=2100),retry_authorized=leg if retry else None)
+        slots={name:{number:str(J/'c5-attempts'/name/number) for number in ('01','02')} for name in ('C5',)},limits=dict(C5=900),retry_authorized=leg if retry else None)
     validate(config)
     create_json(J/('c5-prior-arming-'+revision+'.json'),prior);create_json(J/('c5-arming-'+revision+'.json'),config)
     INSTALLED.write_text(json.dumps(config,indent=2),encoding='utf-8')
@@ -92,7 +92,7 @@ def run(leg,number):
     if number=='02':
         if config.get('retry_authorized')!=leg:raise RuntimeError('Retry not qualified/re-armed')
         retry_admitted(config,leg)
-    root=Path(config['slots'][leg][number]);temp=c1.ROOT/'Temp/09436/c5'/leg/number
+    root=Path(config['slots'][leg][number]);temp=c1.ROOT/'Temp/09437/c5'/leg/number
     os.environ['EUROPA_JOB_CONFIG']=str(J/'c5-job-config.json')
     import write_ledger as ledger
     from runtime_lean_gate import wait
@@ -118,9 +118,7 @@ def run(leg,number):
             reader.need(row.get('exit_code')==0 and 'LogExit: Exiting.' in log,'Normal exit missing')
             reader.need('Capture425 C3: shaders_loaded=visible425,reduce' in log,'Mask shaders did not load/dispatch')
             reader.need('Capture425 C5: stencil_restore=1' in log,'Stencil restoration missing')
-            result=reader.read(root/'plugin-frames/epoch01')
-            create_json(root/'c2-reader.json',result['c2'])
-            for negative in result['mask_negatives']:create_json(root/('mask-negative-'+negative['kind']+'.json'),negative)
+            result=reader.read(root/'plugin-frames/epoch01',log)
 
         except Exception as error:result=dict(result='FAIL',reason=str(error))
         create_json(root/'reader.json',result)

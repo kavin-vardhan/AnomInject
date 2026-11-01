@@ -7,6 +7,7 @@
 #include "Dom/JsonObject.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "Containers/Queue.h"
 class UWorld;
 class FSceneViewFamily;
 class FAnomalyMasks425
@@ -22,6 +23,9 @@ public:
     TArray<TWeakObjectPtr<AActor>> Receivers(const FAutoLiveFireInfo& Fire) const;
     static void SetBenchCensus(bool Enabled);
     static void Observe(const FAnomalyCapturedFrame& Frame);
+    static void Tick(UWorld* World);
+    static void NoPass(uint64 Request);
+    static FString Diagnostic(UWorld* World);
     static bool Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family, uint64 Request, uint64 Selected,
         FAnomalyFrameCapturer& Capturer);
     static bool Save(const FAnomalyCapturedFrame& Frame, const FString& Output);
@@ -33,7 +37,11 @@ private:
     bool Started = false;
     struct FCensusValue { int32 Pixels=0,Area=0; uint64 Tick=0; bool Translucent=false; };
     TMap<TWeakObjectPtr<AActor>,FCensusValue> Verdicts;
-    TMap<uint64,TMap<TWeakObjectPtr<AActor>,uint8>> Batches;
+    struct FBatch { TMap<TWeakObjectPtr<AActor>,uint8> Actors; TSet<uint8> Allowed; uint64 Armed=0; };
+    TMap<uint64,FBatch> Batches;
+    TQueue<uint64,EQueueMode::Mpsc> NoPassRequests;
+    int32 LostBatches=0,NoPassBatches=0,PollutedBatches=0;
+    void ReleaseBatch(uint64 Request,bool Requeue);
     struct FEventBinding { uint64 Start=0; TArray<TWeakObjectPtr<AActor>> Actors; TArray<uint8> Values; };
     TMap<FName,FEventBinding> EventTags;
     TSet<TWeakObjectPtr<AActor>> HostActors;

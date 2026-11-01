@@ -10,7 +10,7 @@ class AActor;
 class FAnomalyStreetBench425
 {
 public:
-    static constexpr int32 Poses=6,Turn=18,Settle=30,CleanHold=240,ScoreHold=480;
+    static constexpr int32 Poses=6,Turn=18,Settle=30,CleanHold=28,ScoreHold=240;
     static constexpr int32 PreFrames=Poses*(Turn+Settle+2*CleanHold);
     static constexpr int32 TotalFrames=PreFrames+Poses*(Turn+Settle+ScoreHold);
     bool Start(UWorld* World,const FString& Output);

@@ -1,5 +1,9 @@
 # Architecture (living — current as-built)
 
+## 4.25 capture office-smoke finish (094-37)
+
+The exact-4.25 capture route keeps census batches until their matching readback, preserves live-event ownership, and requeues no-pass, polluted or lost batches without changing prior verdicts. Lost means more than eight game ticks after arming, matching 5.1. Host custom-depth actors are excluded throughout. Annotation infinite far planes use 1,000,000; selection provenance is frozen by the shared evaluator. Capture logs its viewport, format, RHI, pre-UI hook count, tick and census health on the first resolved frame and frame 300. See [the source citations and smoke protocol](sessions/2026-11-01-094-37-office-smoke.md). Native qualification is recorded there after the build and session; real-scene label-free grading is deferred by FU2.
+
 ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
 
 The catalogue is **12 shipping entries** in every configuration (m53 added `uv_corruption` and

@@ -7,7 +7,7 @@ ROOT = Path('D:/IA_Europa')
 
 
 def fm1(data, job):
-    return (job in (ROOT/'Receipts/09431b',ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436') and
+    return (job in (ROOT/'Receipts/09431b',ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437') and
             data.get('incremental_memory_authority') == '094-31-ruling FM1' and
             data.get('incremental_builds_only') is True and not data.get('full_rebuild', False) and
             data.get('runtime_authorized') is False and data.get('query_pairs') == [] and
@@ -21,7 +21,7 @@ def fm1(data, job):
 def memory_policy_allowed(data, job):
     if fm1(data, job):
         return True
-    if ((job,data.get('authority')) in ((ROOT/'Receipts/09432','094-32 FN1-FN5 FM1 FL1-FL6 FJ1 FK1'),(ROOT/'Receipts/09433','094-33 FO1-FO5 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09433b','094-33b FP1-FP3 FO3 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09433c','094-33c FQ1-FQ4 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09434','094-34 FR1-FR4 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09435','094-35 FS1-FS3 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09436','094-36 FT1-FT6 FN2 FM1 FJ1 FK1')) and data.get('runtime_authorized') is True
+    if ((job,data.get('authority')) in ((ROOT/'Receipts/09432','094-32 FN1-FN5 FM1 FL1-FL6 FJ1 FK1'),(ROOT/'Receipts/09433','094-33 FO1-FO5 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09433b','094-33b FP1-FP3 FO3 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09433c','094-33c FQ1-FQ4 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09434','094-34 FR1-FR4 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09435','094-35 FS1-FS3 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09436','094-36 FT1-FT6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09437','094-37 FU1-FU6 FN2 FM1 FJ1 FK1')) and data.get('runtime_authorized') is True
         and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
         and data.get('build_pairs')==[] and data.get('query_pairs')==[]
         and data['memory']=={'start_physical_GiB':4,'start_commit_GiB':8,'stop_physical_GiB':None,'stop_commit_GiB':4}):

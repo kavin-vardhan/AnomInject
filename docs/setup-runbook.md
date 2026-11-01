@@ -1,5 +1,7 @@
 # Setup runbook (living document)
 
+For the 4.25 office-smoke finish, use the hash-bound `tools/europa/capture_c5_kit.py` arming for job 09437 and the [094-37 protocol](sessions/2026-11-01-094-37-office-smoke.md). Older armings are spent. FM1 admits two compiler actions below normal priority; the real session uses the lean idle/memory/disk gate and a 900-second owned-tree limit. The log must contain `Capture425 SELF_CHECK` at start and frame 300. Code supplies the office card after the passing smoke; this is not a push instruction.
+
 Authoritative, replayable recipe to go from a clean StackOBot checkout to a running PIE
 session with the `AnomalyInjector` plugin loaded. Update this whenever the steps change.
 
