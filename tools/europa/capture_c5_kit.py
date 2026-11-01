@@ -88,6 +88,7 @@ def arm(retry=False,leg=None):
 
 def run(leg,number):
     config=json.loads(INSTALLED.read_text());validate(config)
+    verified=stamp()
     if leg not in config['slots'] or number not in config['slots'][leg]:raise RuntimeError('Unarmed leg')
     if number=='02':
         if config.get('retry_authorized')!=leg:raise RuntimeError('Retry not qualified/re-armed')
@@ -99,14 +100,16 @@ def run(leg,number):
     with Guard(dict(state_root=str(J/'c5-state'/leg/number))) as guard:
         guard.check_unused_launch();root.mkdir(parents=True,exist_ok=False);temp.mkdir(parents=True,exist_ok=False);(root/'session').mkdir()
         argv=command(leg,root);create_json(root/'prepared.json',dict(argv=argv,leg=leg))
-        print(leg+': waiting for FJ1/FK1 gate.',flush=True)
-        gate=wait(root/'gate.jsonl',DEADLINE,idle_seconds=300)
-        if gate['status']!='CLEAR':raise RuntimeError('Window ended')
-        validate(config);create_json(root/'protection-before.json',dict(result='PASS',snapshot=protection_snapshot()))
+        create_json(root/'protection-before.json',dict(result='PASS',snapshot=config['protected'],hash_verified_utc=verified,verification='validate rehashed the protected snapshot'))
         create_json(root/'managed-before.json',managed_snapshot())
         process=root/'process';process.mkdir();os.environ['EUROPA_OPERATION_DIR']=str(process)
-        guard.reserve_launch(dict(number=1));print(leg+': launching bounded session.',flush=True)
-        row=execute(leg,root,temp,HOST,config['protected'],argv,ledger,config['limits'][leg])
+        def admit():
+            print(leg+': setup complete; waiting for FJ1/FK1 gate.',flush=True)
+            gate=wait(root/'gate.jsonl',DEADLINE,idle_seconds=300)
+            if gate['status']!='CLEAR':raise RuntimeError('Window ended before process creation')
+            guard.reserve_launch(dict(number=1));print(leg+': launching bounded session.',flush=True)
+            return dict(utc=gate['utc'],status=gate['status'],idle_seconds=gate['sample']['idle_seconds'],free_commit_bytes=gate['sample']['free_commit_bytes'],free_memory_bytes=gate['sample']['free_memory_bytes'],volumes=gate['sample']['volumes'])
+        row=execute(leg,root,temp,HOST,config['protected'],argv,ledger,config['limits'][leg],admit=admit)
         try:validate(config);protected=dict(result='PASS')
         except Exception as error:protected=dict(result='FAIL',reason=str(error))
         create_json(root/'protection-after.json',protected);create_json(root/'managed-after.json',managed_snapshot())

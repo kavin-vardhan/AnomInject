@@ -30,7 +30,7 @@ def quick_check(config):
     return check_ddc(policy.HOST/'StylizedParisStreet.uproject')
 
 
-def execute(leg,root,temp,host,protected,argv,ledger,deadline,on_started=None,synthetic=False):
+def execute(leg,root,temp,host,protected,argv,ledger,deadline,on_started=None,synthetic=False,admit=None):
     from runtime_monitor import Monitor
     result=dict(leg=leg,started_utc=stamp(),argv=argv,launches=0)
     monitor=Monitor(root,host,leg,protected,game=leg not in ('Smoke','Load','WorldsPIE'),synthetic=synthetic,temp=temp)
@@ -44,6 +44,12 @@ def execute(leg,root,temp,host,protected,argv,ledger,deadline,on_started=None,sy
     previous_temp=ledger.SCOPE['temp_root']
     try:
         ledger.SCOPE['temp_root']=str(temp)
+        if admit is not None:
+            result['creation_admission']=admit()
+            monitor.watch.check()
+            if monitor.metadata()!=monitor.before:
+                raise RuntimeError('Protected files changed during admission wait')
+            result['started_utc']=stamp()
         result['exit_code']=ledger.run_child(argv,cwd=host,runtime_guard=True,timeout_seconds=deadline,
             echo=False,on_started=launched,running_check=monitor.check,on_root_exit=monitor.process_exited)
         result['result']='PROCESS_PASS'
