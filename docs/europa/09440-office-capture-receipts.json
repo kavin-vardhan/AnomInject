@@ -1,0 +1,2171 @@
+{
+  "job": "094-40",
+  "source_commit": "08fe652734994549e084d190fff57207bc2a5c58",
+  "entry": {
+    "path": "D:\\IA_Europa\\Receipts\\09440\\entry.json",
+    "sha256": "40195e826f379a97079616e12170ae7ff3972e2660a382db0c2d235483d18e13"
+  },
+  "builds": {
+    "attempts": [
+      {
+        "attempt": "editor-01",
+        "target": "StylizedParisStreetEditor",
+        "commit": "08fe652734994549e084d190fff57207bc2a5c58",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-11-01T22:46:12.503335+00:00",
+        "ended_utc": "2026-11-01T22:47:08.085378+00:00",
+        "duration_seconds": 55.580189399945084,
+        "pid": 24256,
+        "start_free_commit_GiB": 10.104034423828125,
+        "minimum_free_commit_GiB": 6.3939666748046875,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreetEditor",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09440\\builds\\editor-01\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09440\\builds\\editor-01\\UBT.log"
+      },
+      {
+        "attempt": "game-01",
+        "target": "StylizedParisStreet",
+        "commit": "08fe652734994549e084d190fff57207bc2a5c58",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "started_utc": "2026-11-01T22:47:36.122752+00:00",
+        "ended_utc": "2026-11-01T22:48:50.781584+00:00",
+        "duration_seconds": 74.65635510004358,
+        "pid": 7860,
+        "start_free_commit_GiB": 10.07217025756836,
+        "minimum_free_commit_GiB": 7.854785919189453,
+        "memory_stops": [],
+        "argv": [
+          "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+          "StylizedParisStreet",
+          "Win64",
+          "Development",
+          "-Project=D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+          "-Log=D:\\IA_Europa\\Receipts\\09440\\builds\\game-01\\UBT.log",
+          "-NoEngineChanges",
+          "-NoBuildUHT",
+          "-NoHotReload",
+          "-NoHotReloadFromIDE",
+          "-NoXGE",
+          "-MaxParallelActions=2",
+          "-Verbose"
+        ],
+        "compile_error_counts": {},
+        "compile_errors": [],
+        "log": "D:\\IA_Europa\\Receipts\\09440\\builds\\game-01\\UBT.log"
+      }
+    ],
+    "admission_only": [],
+    "priority": "BELOW_NORMAL_PRIORITY_CLASS on UBT creation",
+    "max_parallel_actions": 2
+  },
+  "tests": {
+    "native": {
+      "result": "PASS",
+      "console": "PASS: 35 LOD choices; invalid/single LOD refused; one session start and stop; old six-start and unchanged-coarsest negatives fail\n",
+      "compile_pid": 28736,
+      "compile_exit": 0,
+      "compiler": "MSVC 14.16",
+      "priority": "BelowNormal"
+    },
+    "fx": {
+      "result": "PASS",
+      "python27": "N/A: no in-editor Python changed; native driver and external reader only",
+      "keyword_rotators": "N/A: no in-editor script changed"
+    },
+    "fx_receipt": {
+      "path": "D:\\IA_Europa\\Receipts\\09440\\tests\\fx-summary.json",
+      "sha256": "6acb74ec835ece50e1dadcb3f25fd8c0f171ac6ce3d19fabb3c15e55b8698fcf"
+    },
+    "keyword_rotators": [
+      {
+        "file": "author_425_fixture.py",
+        "result": "PASS"
+      },
+      {
+        "file": "fixture_smoke_425.py",
+        "result": "PASS"
+      },
+      {
+        "file": "fixture_launcher.py",
+        "result": "PASS"
+      },
+      {
+        "file": "runtime_editor_425.py",
+        "result": "PASS"
+      },
+      {
+        "file": "runtime_scripts.py",
+        "result": "PASS"
+      }
+    ]
+  },
+  "sessions": [
+    {
+      "slot": "01",
+      "timeline": {
+        "started_utc": "2026-11-01T22:50:20.934360+00:00",
+        "root_ended_utc": "2026-11-01T22:52:26.107664+00:00",
+        "ended_utc": "2026-11-01T22:52:29.110653+00:00",
+        "pid": 41924,
+        "exit_code": 0,
+        "result": "PASS",
+        "crashed": false,
+        "crash_count": 0,
+        "new_crash_report_folders": [],
+        "creation_admission": {
+          "utc": "2026-11-01T22:50:19.903492+00:00",
+          "status": "CLEAR",
+          "idle_seconds": 7112.906,
+          "free_commit_bytes": 9243049984,
+          "free_memory_bytes": 8400236544,
+          "volumes": {
+            "C": {
+              "resolved_drive": "C",
+              "free_bytes": 28137869312
+            },
+            "D": {
+              "resolved_drive": "D",
+              "free_bytes": 37719273472
+            },
+            "E": {
+              "resolved_drive": "E",
+              "free_bytes": 186588798976
+            }
+          }
+        }
+      },
+      "argv": [
+        "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+        "D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+        "/Game/EuropaPhaseA/EA_Core",
+        "-UserDir=D:/IA_Europa/StylizedParisStreet/",
+        "-ShaderWorkingDir=D:/IA_Europa/Caches/425/ShaderWorking/",
+        "-DDC=Europa425DDC",
+        "-abslog=D:/IA_Europa/Receipts/09440/c5-attempts/C5/01/session/Runtime.log",
+        "-AbsCrashReportClientLog=D:/IA_Europa/Receipts/09440/c5-attempts/C5/01/session/CrashClient.log",
+        "-NoLiveCoding",
+        "-NoHotReload",
+        "-windowed",
+        "-ResX=1280",
+        "-ResY=720",
+        "-IAIBench",
+        "-EuropaPhaseA",
+        "-EuropaProbeOut=D:/IA_Europa/Receipts/09440/c5-attempts/C5/01/session/probe",
+        "-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False",
+        "-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False",
+        "-nowrite",
+        "-SkipCompile",
+        "-stdout",
+        "-unattended",
+        "-NoSplash",
+        "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False",
+        "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False",
+        "-game",
+        "-IAICaptureExit",
+        "-ExecCmds=IAI.SetMinScreenCoverage 0.5,IAI.SetMinScreenCoverage,r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,r.PostProcessAAQuality 0,r.ScreenPercentage 100,r.DynamicRes.OperationMode 0,r.MotionBlurQuality 0,t.MaxFPS 30,IAI.Capture.C5 D:/IA_Europa/Receipts/09440/c5-attempts/C5/01/plugin-frames 4242",
+        "-IAICaptureFallback"
+      ],
+      "reader": {
+        "result": "PASS",
+        "reason": null,
+        "frames": 2352,
+        "per_anomaly": [
+          {
+            "anomaly": "blinking",
+            "events_fired": 22,
+            "affected_frames": 132,
+            "mask_frames": 132,
+            "mask_pixels": 2937054,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "events_fired": 13,
+            "affected_frames": 157,
+            "mask_frames": 157,
+            "mask_pixels": 56005197,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lod_corruption",
+            "events_fired": 19,
+            "affected_frames": 247,
+            "mask_frames": 247,
+            "mask_pixels": 3710434,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "missing_object",
+            "events_fired": 15,
+            "affected_frames": 195,
+            "mask_frames": 195,
+            "mask_pixels": 4468815,
+            "result": "PASS"
+          }
+        ],
+        "mask_check": {
+          "result": "PASS",
+          "affected_frames": 731,
+          "clean_frames": 1621,
+          "clean_mask_pixels": 0,
+          "failures": []
+        },
+        "census": {
+          "peak_drawn": 3,
+          "per_pose": [
+            {
+              "pose": 0,
+              "drawn": 3
+            },
+            {
+              "pose": 1,
+              "drawn": 3
+            },
+            {
+              "pose": 2,
+              "drawn": 3
+            },
+            {
+              "pose": 3,
+              "drawn": 3
+            },
+            {
+              "pose": 4,
+              "drawn": 3
+            },
+            {
+              "pose": 5,
+              "drawn": 3
+            }
+          ],
+          "exhaustion": 0,
+          "lost": 0,
+          "no_pass": 0,
+          "polluted": 0,
+          "over_55_waived": true,
+          "result": "PASS"
+        },
+        "wall_strip": {
+          "result": "PASS",
+          "waived": "FV5 fallback only",
+          "pose": 3,
+          "region": [
+            0,
+            686,
+            1280,
+            720
+          ]
+        },
+        "custom_depth": {
+          "result": "PASS",
+          "candidates": 14,
+          "after_candidates": 14,
+          "differences": [],
+          "mid_failures": [],
+          "host_custom_depth_changes": [],
+          "reserved": [
+            203
+          ],
+          "assigned_reserved": [],
+          "setup": [
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "on": false,
+              "value": 19,
+              "write_mask": 0,
+              "prior_on": false,
+              "prior_value": 19,
+              "prior_write_mask": 0,
+              "tagged": false,
+              "bench_setup": true
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "on": true,
+              "value": 18,
+              "write_mask": 2,
+              "prior_on": true,
+              "prior_value": 18,
+              "prior_write_mask": 2,
+              "tagged": false,
+              "bench_setup": true
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.DefaultPawn_0.MeshComponent0",
+              "on": true,
+              "value": 203,
+              "write_mask": 0,
+              "prior_on": true,
+              "prior_value": 203,
+              "prior_write_mask": 0,
+              "tagged": false,
+              "bench_setup": true
+            }
+          ]
+        },
+        "annotation": {
+          "result": "PASS",
+          "issues": [],
+          "events": 69,
+          "schema": "5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1",
+          "schema_and_sets": "PASS",
+          "values": {
+            "coverage_ratio": {
+              "result": "PASS",
+              "issues": []
+            },
+            "coverage_pct": {
+              "result": "PASS",
+              "issues": []
+            },
+            "bbox_source": {
+              "result": "PASS",
+              "issues": []
+            },
+            "camera_planes": {
+              "result": "PASS",
+              "issues": []
+            }
+          },
+          "coverage_measured": 56,
+          "coverage_unmeasurable": 13,
+          "coverage_value_errors": []
+        },
+        "self_check": {
+          "result": "PASS",
+          "lines": [
+            "Capture425 SELF_CHECK stage=start frames=1 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=5 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=4 ui_controls=4 ui_positive=4 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1319 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+            "Capture425 SELF_CHECK stage=300 frames=300 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=316 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1630 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=0 lost=0 no_pass=0 polluted=0"
+          ],
+          "parsed": [
+            {
+              "stage": "start",
+              "frames": "1",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "5",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "4",
+              "ui_controls": "4",
+              "ui_positive": "4",
+              "ui_checked": "1",
+              "ui_hits": "0",
+              "ui_paired": "1",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1319",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "bench_off",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            },
+            {
+              "stage": "300",
+              "frames": "300",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "316",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "8",
+              "ui_controls": "8",
+              "ui_positive": "8",
+              "ui_checked": "300",
+              "ui_hits": "0",
+              "ui_paired": "8",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1630",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "on",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            }
+          ]
+        },
+        "view": {
+          "result": "PASS",
+          "frames": 2352,
+          "bad_frames": []
+        },
+        "rhi": "D3D11",
+        "format": 18,
+        "dropped": 0,
+        "session_start": {
+          "result": "PASS",
+          "seeds": [
+            "4242"
+          ],
+          "selection_floor_pct": [
+            0.5
+          ],
+          "shipped_floor_pct": 6.0
+        },
+        "lod_guard": {
+          "result": "PASS",
+          "events": 19,
+          "selections": [
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            },
+            {
+              "target": "EA_LOD",
+              "eligible_components": 1,
+              "min_lods": 2
+            }
+          ],
+          "applied_components": [
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "chosen": 1,
+              "lods": 2
+            }
+          ],
+          "predictions": [
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            },
+            {
+              "component": "StaticMeshComponent0",
+              "drawn": 1,
+              "count": 2,
+              "forced": 1
+            }
+          ]
+        },
+        "ui_pixels": {
+          "result": "PASS",
+          "positive_controls": [
+            {
+              "request": 1,
+              "sample_frame": 1676,
+              "matching_cells": 8,
+              "image": "ui-control-00.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 2,
+              "sample_frame": 1677,
+              "matching_cells": 8,
+              "image": "ui-control-01.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 3,
+              "sample_frame": 1678,
+              "matching_cells": 8,
+              "image": "ui-control-02.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 4,
+              "sample_frame": 1679,
+              "matching_cells": 8,
+              "image": "ui-control-03.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 5,
+              "sample_frame": 1680,
+              "matching_cells": 8,
+              "image": "ui-control-04.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 6,
+              "sample_frame": 1681,
+              "matching_cells": 8,
+              "image": "ui-control-05.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 7,
+              "sample_frame": 1682,
+              "matching_cells": 8,
+              "image": "ui-control-06.png",
+              "observed_cells": 8
+            },
+            {
+              "request": 8,
+              "sample_frame": 1683,
+              "matching_cells": 8,
+              "image": "ui-control-07.png",
+              "observed_cells": 8
+            }
+          ],
+          "checked": 2352,
+          "marker_frames": [],
+          "native_matches": true,
+          "per_frame_pairs": [
+            {
+              "request": 1,
+              "sample_frame": 1676,
+              "result": "PASS",
+              "capture": {
+                "request": 1,
+                "sample_frame": 1676,
+                "family_frame": 1678,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 1,
+                  "sample_frame": 1676,
+                  "matching_cells": 8,
+                  "image": "ui-control-00.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 2,
+              "sample_frame": 1677,
+              "result": "PASS",
+              "capture": {
+                "request": 2,
+                "sample_frame": 1677,
+                "family_frame": 1679,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 2,
+                  "sample_frame": 1677,
+                  "matching_cells": 8,
+                  "image": "ui-control-01.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 3,
+              "sample_frame": 1678,
+              "result": "PASS",
+              "capture": {
+                "request": 3,
+                "sample_frame": 1678,
+                "family_frame": 1680,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 3,
+                  "sample_frame": 1678,
+                  "matching_cells": 8,
+                  "image": "ui-control-02.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 4,
+              "sample_frame": 1679,
+              "result": "PASS",
+              "capture": {
+                "request": 4,
+                "sample_frame": 1679,
+                "family_frame": 1681,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 4,
+                  "sample_frame": 1679,
+                  "matching_cells": 8,
+                  "image": "ui-control-03.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 5,
+              "sample_frame": 1680,
+              "result": "PASS",
+              "capture": {
+                "request": 5,
+                "sample_frame": 1680,
+                "family_frame": 1682,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 5,
+                  "sample_frame": 1680,
+                  "matching_cells": 8,
+                  "image": "ui-control-04.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 6,
+              "sample_frame": 1681,
+              "result": "PASS",
+              "capture": {
+                "request": 6,
+                "sample_frame": 1681,
+                "family_frame": 1683,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 6,
+                  "sample_frame": 1681,
+                  "matching_cells": 8,
+                  "image": "ui-control-05.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 7,
+              "sample_frame": 1682,
+              "result": "PASS",
+              "capture": {
+                "request": 7,
+                "sample_frame": 1682,
+                "family_frame": 1684,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 7,
+                  "sample_frame": 1682,
+                  "matching_cells": 8,
+                  "image": "ui-control-06.png",
+                  "observed_cells": 8
+                }
+              ]
+            },
+            {
+              "request": 8,
+              "sample_frame": 1683,
+              "result": "PASS",
+              "capture": {
+                "request": 8,
+                "sample_frame": 1683,
+                "family_frame": 1685,
+                "matching_cells": 1
+              },
+              "controls": [
+                {
+                  "request": 8,
+                  "sample_frame": 1683,
+                  "matching_cells": 8,
+                  "image": "ui-control-07.png",
+                  "observed_cells": 8
+                }
+              ]
+            }
+          ]
+        },
+        "lod_visible_change": [
+          {
+            "event": "lod_corruption@2404",
+            "target": "EA_LOD",
+            "reference": 694,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14462,
+            "max_changed_fraction": 0.9627213420316869
+          },
+          {
+            "event": "lod_corruption@2524",
+            "target": "EA_LOD",
+            "reference": 814,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14462,
+            "max_changed_fraction": 0.9627213420316869
+          },
+          {
+            "event": "lod_corruption@2596",
+            "target": "EA_LOD",
+            "reference": 886,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14461,
+            "max_changed_pixels": 14469,
+            "max_changed_fraction": 0.9631873252562908
+          },
+          {
+            "event": "lod_corruption@2620",
+            "target": "EA_LOD",
+            "reference": 910,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14458,
+            "max_changed_pixels": 14470,
+            "max_changed_fraction": 0.963253894288377
+          },
+          {
+            "event": "lod_corruption@2692",
+            "target": "EA_LOD",
+            "reference": 982,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14462,
+            "max_changed_fraction": 0.9627213420316869
+          },
+          {
+            "event": "lod_corruption@2716",
+            "target": "EA_LOD",
+            "reference": 1006,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14469,
+            "max_changed_pixels": 14475,
+            "max_changed_fraction": 0.9635867394488085
+          },
+          {
+            "event": "lod_corruption@2932",
+            "target": "EA_LOD",
+            "reference": 1222,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14461,
+            "max_changed_pixels": 14469,
+            "max_changed_fraction": 0.9631873252562908
+          },
+          {
+            "event": "lod_corruption@3004",
+            "target": "EA_LOD",
+            "reference": 1294,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14458,
+            "max_changed_pixels": 14467,
+            "max_changed_fraction": 0.9630541871921182
+          },
+          {
+            "event": "lod_corruption@3076",
+            "target": "EA_LOD",
+            "reference": 1366,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14462,
+            "max_changed_fraction": 0.9627213420316869
+          },
+          {
+            "event": "lod_corruption@3244",
+            "target": "EA_LOD",
+            "reference": 1534,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14462,
+            "max_changed_fraction": 0.9627213420316869
+          },
+          {
+            "event": "lod_corruption@3268",
+            "target": "EA_LOD",
+            "reference": 1558,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14461,
+            "max_changed_pixels": 14469,
+            "max_changed_fraction": 0.9631873252562908
+          },
+          {
+            "event": "lod_corruption@3316",
+            "target": "EA_LOD",
+            "reference": 1606,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14465,
+            "max_changed_fraction": 0.9629210491279456
+          },
+          {
+            "event": "lod_corruption@3460",
+            "target": "EA_LOD",
+            "reference": 1750,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14458,
+            "max_changed_pixels": 14470,
+            "max_changed_fraction": 0.963253894288377
+          },
+          {
+            "event": "lod_corruption@3628",
+            "target": "EA_LOD",
+            "reference": 1918,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14458,
+            "max_changed_pixels": 14470,
+            "max_changed_fraction": 0.963253894288377
+          },
+          {
+            "event": "lod_corruption@3724",
+            "target": "EA_LOD",
+            "reference": 2014,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14469,
+            "max_changed_pixels": 14475,
+            "max_changed_fraction": 0.9635867394488085
+          },
+          {
+            "event": "lod_corruption@3748",
+            "target": "EA_LOD",
+            "reference": 2038,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14462,
+            "max_changed_fraction": 0.9627213420316869
+          },
+          {
+            "event": "lod_corruption@3820",
+            "target": "EA_LOD",
+            "reference": 2110,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14455,
+            "max_changed_pixels": 14465,
+            "max_changed_fraction": 0.9629210491279456
+          },
+          {
+            "event": "lod_corruption@3940",
+            "target": "EA_LOD",
+            "reference": 2230,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14461,
+            "max_changed_pixels": 14469,
+            "max_changed_fraction": 0.9631873252562908
+          },
+          {
+            "event": "lod_corruption@3964",
+            "target": "EA_LOD",
+            "reference": 2254,
+            "result": "PASS",
+            "frames": 13,
+            "min_changed_pixels": 14458,
+            "max_changed_pixels": 14470,
+            "max_changed_fraction": 0.963253894288377
+          }
+        ]
+      },
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09440\\c5-attempts\\C5\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 519860,
+            "sha256": "1b175f09e3f22d5b5fd659fdba38c0f3cbcaa84c70c0ba80e23f1f76a0834c68",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09440\\c5-attempts\\C5\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6635,
+            "sha256": "0a7c656541173028750be28ff6e6cf9c526c15dcaeab506479760036bf6be261",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "protected": {
+        "result": "PASS"
+      },
+      "monitors": [
+        {
+          "pid": 39296,
+          "parent_pid": 37304,
+          "monitor_of": 41924,
+          "started_utc": "2026-11-01T22:50:21.274797+00:00",
+          "command_line": "\"E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClientEditor.exe\" \"../../../Engine/Binaries/Win64/CrashReportClientEditor.exe\"  -READ=500 -WRITE=512 -MONITOR=41924 -abslog=D:/IA_Europa/Receipts/09440/c5-attempts/C5/01/session/CrashClient.log -ConcertServer=\"C9C733BD47B60F171BEAAD9BBC647660\" -RespawnedInstance"
+        }
+      ],
+      "raw_evidence": {
+        "path": "D:\\IA_Europa\\Receipts\\09440\\c5-attempts\\C5\\01\\raw-evidence.json",
+        "sha256": "27d46d8b958e7dff7f0fe708887597d7f1c98c7d1167850adfa7715c54ebeb77"
+      }
+    }
+  ],
+  "redaction": {
+    "result": "PASS",
+    "backup_ref": "refs/backup/europa-pre-fv6-09440",
+    "old_head": "08fe652734994549e084d190fff57207bc2a5c58",
+    "new_head": "252b33596802c8569f0f1066fa73b6765fd49075",
+    "paths": [
+      "docs/europa/09434-live-capture-receipts.json"
+    ],
+    "commits": [
+      {
+        "old": "a2cc30d41d3498de675c482d72960d9d7405dda7",
+        "new": "a2cc30d41d3498de675c482d72960d9d7405dda7",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "3b6d7f2a5af3475f1c43ec4c94ed4b44f973313e",
+        "new": "3b6d7f2a5af3475f1c43ec4c94ed4b44f973313e",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "07dc36b5cc2b6f19311b7bd9df2de9e8e9a448f9",
+        "new": "07dc36b5cc2b6f19311b7bd9df2de9e8e9a448f9",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "01cb0daae4f621de6938a1126addb979af3500dc",
+        "new": "01cb0daae4f621de6938a1126addb979af3500dc",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "7a45e7479c2b19cd3e9ff6045a6317025caabb67",
+        "new": "7a45e7479c2b19cd3e9ff6045a6317025caabb67",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "4dbc4f1bed3d6f3054867c741dc4ffeca3fe0f86",
+        "new": "4dbc4f1bed3d6f3054867c741dc4ffeca3fe0f86",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "ff342dcecd07680524320762800faf4603107b6d",
+        "new": "ff342dcecd07680524320762800faf4603107b6d",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "56af02cbc041e72768f4f0a2f9ef54e4e08271df",
+        "new": "56af02cbc041e72768f4f0a2f9ef54e4e08271df",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "e9495b35f8cae4981692a5f0462a20130e0093b9",
+        "new": "e9495b35f8cae4981692a5f0462a20130e0093b9",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "02af6402ec7305f9b1a0b87721f405065bfe409f",
+        "new": "02af6402ec7305f9b1a0b87721f405065bfe409f",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "3df6f8fc1e04b00bc221d352a3cfab20e4b05db3",
+        "new": "3df6f8fc1e04b00bc221d352a3cfab20e4b05db3",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "741a0a3dd895f7b206e2702fad0780aa3fa559f9",
+        "new": "741a0a3dd895f7b206e2702fad0780aa3fa559f9",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "76b98b2b05dcde2a06d131db3ecc719b87656ad0",
+        "new": "76b98b2b05dcde2a06d131db3ecc719b87656ad0",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "5ce012233534ede6497b191039de474388e90d0e",
+        "new": "5ce012233534ede6497b191039de474388e90d0e",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "466ecb116df64dff703723db3596d20b8c6825ef",
+        "new": "466ecb116df64dff703723db3596d20b8c6825ef",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "1ab689741053d04acd21728d3db53fbcae5859e8",
+        "new": "1ab689741053d04acd21728d3db53fbcae5859e8",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "024e5fc9f3ee5871f056f40f760274dc5fe76001",
+        "new": "024e5fc9f3ee5871f056f40f760274dc5fe76001",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "3e44a297a328571e9eb0cb6f238a64861bc00827",
+        "new": "3e44a297a328571e9eb0cb6f238a64861bc00827",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "31f6ab89b6af8fcc67d105dfc891a0b3680ebd51",
+        "new": "31f6ab89b6af8fcc67d105dfc891a0b3680ebd51",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "32c5bf5ca5566c7a9ff75261897f39e95795b0e5",
+        "new": "32c5bf5ca5566c7a9ff75261897f39e95795b0e5",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "1686c2b1c34c107249b60f5519a25f3441766b91",
+        "new": "1686c2b1c34c107249b60f5519a25f3441766b91",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "ff16419f11c679544fcd8688a51d578bbd1b660e",
+        "new": "ff16419f11c679544fcd8688a51d578bbd1b660e",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "5b7ef2c368433a04fc4aeed4890c643fa02bf3de",
+        "new": "5b7ef2c368433a04fc4aeed4890c643fa02bf3de",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "13ced10da4e4099796326c18b82125310b6d35eb",
+        "new": "13ced10da4e4099796326c18b82125310b6d35eb",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "e19fefc50dc3551e0a93f5e679fc50eb4739db2d",
+        "new": "e19fefc50dc3551e0a93f5e679fc50eb4739db2d",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "dcdf3793dc0d66c2d11d21b42061122263b6611b",
+        "new": "dcdf3793dc0d66c2d11d21b42061122263b6611b",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "818d883b6a907997e2237e90e9051969340a73dc",
+        "new": "818d883b6a907997e2237e90e9051969340a73dc",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "10b271f5eec180fe033f8fa55f944aaa2026fca7",
+        "new": "10b271f5eec180fe033f8fa55f944aaa2026fca7",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "b80b971091916b682c8ddf74b7205b43a1ef1946",
+        "new": "b80b971091916b682c8ddf74b7205b43a1ef1946",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "8d1b2e49b322738278ee3715807012791062504c",
+        "new": "8d1b2e49b322738278ee3715807012791062504c",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "e129eba3bb7b8959ab363b119fea41af2ede872c",
+        "new": "e129eba3bb7b8959ab363b119fea41af2ede872c",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "0d2c4b5e2e14c3137d883b7287aa25ba92b28295",
+        "new": "0d2c4b5e2e14c3137d883b7287aa25ba92b28295",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "47f9be28cdd3e5373e288b3a611fa7900c9fea6d",
+        "new": "47f9be28cdd3e5373e288b3a611fa7900c9fea6d",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "d43635deb947f7bcaab15b8a0198da97ae7738a9",
+        "new": "d43635deb947f7bcaab15b8a0198da97ae7738a9",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "4147dcc6e002db64df8ce951c59f6afcf5bd24d5",
+        "new": "4147dcc6e002db64df8ce951c59f6afcf5bd24d5",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "03bdef0349d088285d497779e41d76ea6f6300e2",
+        "new": "03bdef0349d088285d497779e41d76ea6f6300e2",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "f16256beb04148ec79c75cff59511d29f7bfd8ae",
+        "new": "f16256beb04148ec79c75cff59511d29f7bfd8ae",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "93fec56e992937326b7a9aa9299879bf98d26e06",
+        "new": "93fec56e992937326b7a9aa9299879bf98d26e06",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "455506e80cb3047088e17bf13f5f115c199acf43",
+        "new": "455506e80cb3047088e17bf13f5f115c199acf43",
+        "tree_changed_files": [],
+        "only_redacted_files": true
+      },
+      {
+        "old": "47a69722526dc95fdf80da42ef7f5043746b89f9",
+        "new": "bb1026c545e828c5ca46f2621d2a5ca598dd32f3",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "120493b7f4c887fb8e2c9dbe7039a77c5eddc31a",
+        "new": "446154fa4d9dc9fa9efc75966ce6817f64c78504",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "18235f3e3672b04de61af296ea54dabd94a0d132",
+        "new": "2712820fd20915e2fdc61395a5552ed4196137b0",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "54e11c9eb319b8e753d185a15a1f1c148cf3ad03",
+        "new": "8d669161cb6362b7d984fbe8859a6eaf8f8bfcd3",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "2143215cbe80938d606e95ffcc8ea25179469a47",
+        "new": "8ce5063c2cb44e0960911f62cbc8a5f0deba4654",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "b1710b754be1264838d34d49a0a1ff4c903ee25b",
+        "new": "8e52c9f9201c8d9673061468cfbca5dcfffda56d",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "a4a0df6d756ef9b968c23654ed5b9850c3ae5d27",
+        "new": "73a235a4752e70fc8e252cd3b48696d6e5327a2b",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "9a785e0cf338589896e7a052297658450ccd670f",
+        "new": "d021ef376580b971b84752a0f263c2de1fbff092",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "05c55e278085af9ff9c0bb1bd8ba05cf5f4f480f",
+        "new": "7d01354dfbc5758259efde5b049937c2286da753",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "2b9dc19c90054a31a21aad55d5d66706bff1e0cf",
+        "new": "c9aa26850de6a27791153312b3a6da6055ff4e78",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "df5dfdc2d0a3c3cede765ddc065f5697cea14066",
+        "new": "efd67341d5726083f6b6337394f05c0a4edbd1b1",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "cedb5054701039fd79503b0395c9a05e909744e4",
+        "new": "918374d6cb40f004821d66fb8f938748360a18cd",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "0284a0da77c7af22697faf3f94df96b0914191c0",
+        "new": "d8bea663a09e657d90b520955acfb8a50f01bf27",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "07c853e90b396a466e18571200b04a3149156e9d",
+        "new": "a131a9f662e50f59581780b1711a225bc0db1337",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "99e69a2b48b3ad9da32c952068274ebf5a6940f5",
+        "new": "774441a3981cd42041aba5a19af163d6670c061d",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "0d40bcf2039da3fdd312ecde2050746dad17e47b",
+        "new": "22c04a9bfdbdd344ec8d64986c5db488e7577b7c",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "d589dd39f07ea348c455c924bfbf01ad7c73a3f2",
+        "new": "af30abe1e5663859cb267a8c36779cb4e05747ce",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "3d52e45aa19286fa60fe78b33c5022b97164ef33",
+        "new": "0944dc6663a5caa9cd6a442454058ec1cedb135d",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "50ad76f3aba1ad21b830602d463a5d64f32916cb",
+        "new": "265a1317c7c73766db7fe4e82c473a1612479f4f",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "59717924ff0e7822885a11c5603b4bfc2ccd5a4c",
+        "new": "1027c3843b96ca036ac171e8757802c4cd953413",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "4dbcf9bf5fbffbc13bc8e4df55480473d36fd08a",
+        "new": "8c5f3220f96f9f4b39ba5f90850aa62d9be41103",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "8bdcb4bf54098c22c458eaa118ec97ee0101be16",
+        "new": "26b845ed8936ce426c2624e7aceb4d14ecc90954",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "d25b8eb38ac819f42ed87732a5284e1117124aa4",
+        "new": "22a06ac0727d81fc17132b1421b9482397b721c4",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "d8f6ebf89cc0ce5467a8e4dd60e629f87d8050ef",
+        "new": "6e6fa112b8f83a800e94641fe931c66f36abd107",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "0621027a1be8174a7dd4511d0eaa809f0932eae0",
+        "new": "f9ffcbc33893d47b1936918add277ef9303d2a7f",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      },
+      {
+        "old": "08fe652734994549e084d190fff57207bc2a5c58",
+        "new": "252b33596802c8569f0f1066fa73b6765fd49075",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ],
+        "only_redacted_files": true
+      }
+    ],
+    "metadata": "Original authors, committers, dates and messages preserved; tree and parent pointers only rewritten"
+  },
+  "exit": {
+    "utc": "2026-11-01T22:58:20.936172+00:00",
+    "protected_result": "PASS",
+    "failures": [],
+    "feature": {
+      "head": "252b33596802c8569f0f1066fa73b6765fd49075",
+      "branch": "feat/europa-port",
+      "status": ""
+    },
+    "manifest": {
+      "path": "D:\\IA_Europa\\Receipts\\09440\\c5-425-binaries-01.json",
+      "sha256": "0d76f03baa78f01962344325e6e4b71de01908dba9ac96bbb70494341673e8e1",
+      "rebound": true,
+      "files": 27,
+      "equal": 27
+    },
+    "free_GiB": {
+      "C:": 26.197792053222656,
+      "D:": 33.64305114746094,
+      "E:": 173.77484893798828
+    },
+    "root_counts_hashes": {
+      "C:": {
+        "count": 60,
+        "sha256": "992c835653f2debc54836df3bb979ab01adbecabea7c19e6cd47a3f7a06c0407"
+      },
+      "D:": {
+        "count": 113,
+        "sha256": "46f74bf1790bee78be03db1765fc304a47b56f4262fd9ba5d6267713dd299801"
+      },
+      "E:": {
+        "count": 71,
+        "sha256": "849b2156fac30b8677b30dfb51de0150b01f7e0b0ecaa0ff89a2082573720270"
+      }
+    },
+    "root_change_counts": {
+      "C:": {
+        "added": 0,
+        "removed": 0
+      },
+      "D:": {
+        "added": 0,
+        "removed": 0
+      },
+      "E:": {
+        "added": 0,
+        "removed": 0
+      }
+    }
+  },
+  "binaries": {
+    "installed_manifest": "D:\\IA_Europa\\Receipts\\09440\\c5-425-binaries-01.json",
+    "rebound": true,
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "exists": true,
+        "expected_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+        "size": 67891200,
+        "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+        "exists": true,
+        "expected_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+        "size": 44176,
+        "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+        "exists": true,
+        "expected_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+        "size": 81852,
+        "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+        "exists": true,
+        "expected_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+        "size": 100036608,
+        "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+        "exists": true,
+        "expected_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+        "size": 43520,
+        "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "exists": true,
+        "expected_sha256": "6d402db1e3ab9f064ae088851e1487170fd112cc027a0ea85c07400da007cbdd",
+        "size": 139340800,
+        "sha256": "6d402db1e3ab9f064ae088851e1487170fd112cc027a0ea85c07400da007cbdd",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+        "exists": true,
+        "expected_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+        "size": 44147,
+        "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+        "exists": true,
+        "expected_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+        "size": 77016,
+        "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+        "exists": true,
+        "expected_sha256": "77e1ec2b8ccead2add27ca4738e42ad36232437f8efe155649b98d8786093e30",
+        "size": 186511360,
+        "sha256": "77e1ec2b8ccead2add27ca4738e42ad36232437f8efe155649b98d8786093e30",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+        "exists": true,
+        "expected_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+        "size": 43738,
+        "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+        "exists": true,
+        "expected_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+        "size": 163036,
+        "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "exists": true,
+        "expected_sha256": "f3b52d42a09992d10633c1198d2382fb53c781d9897b2640aff5c778a3af0653",
+        "size": 369152,
+        "sha256": "f3b52d42a09992d10633c1198d2382fb53c781d9897b2640aff5c778a3af0653",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+        "exists": true,
+        "expected_sha256": "f84486d980cc519c28847df587a0e4a322b85a20763b558bc145092ada5d77c0",
+        "size": 23801856,
+        "sha256": "f84486d980cc519c28847df587a0e4a322b85a20763b558bc145092ada5d77c0",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "exists": true,
+        "expected_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+        "size": 91648,
+        "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+        "exists": true,
+        "expected_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+        "size": 34131968,
+        "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+        "exists": true,
+        "expected_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+        "size": 172,
+        "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "exists": true,
+        "expected_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+        "size": 124416,
+        "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+        "exists": true,
+        "expected_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+        "size": 6082560,
+        "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "exists": true,
+        "expected_sha256": "8beb9e787819ea63c003409a3d19104631d37772340b4da53110160dd24ddf42",
+        "size": 911872,
+        "sha256": "8beb9e787819ea63c003409a3d19104631d37772340b4da53110160dd24ddf42",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+        "exists": true,
+        "expected_sha256": "bc2a2c687e131cf732c309e36820ea330b3c242703f39ab7f9a52230a1555fef",
+        "size": 35901440,
+        "sha256": "bc2a2c687e131cf732c309e36820ea330b3c242703f39ab7f9a52230a1555fef",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "exists": true,
+        "expected_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+        "size": 126464,
+        "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+        "exists": true,
+        "expected_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+        "size": 13881344,
+        "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "exists": true,
+        "expected_sha256": "46d212e01ebd9c84776c9e257778ef4f798ca18510ebbe844a0d46c29a6cbb84",
+        "size": 943616,
+        "sha256": "46d212e01ebd9c84776c9e257778ef4f798ca18510ebbe844a0d46c29a6cbb84",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+        "exists": true,
+        "expected_sha256": "b35b1e69bf260f31c48107eea0c1eb8bf67ea0d64c5306121f5ba6e213244e8c",
+        "size": 29773824,
+        "sha256": "b35b1e69bf260f31c48107eea0c1eb8bf67ea0d64c5306121f5ba6e213244e8c",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "exists": true,
+        "expected_sha256": "b5b767d343422d7360a8b78ec29c7ce0da0090f056d13c5f9fd11b574240e6ad",
+        "size": 111104,
+        "sha256": "b5b767d343422d7360a8b78ec29c7ce0da0090f056d13c5f9fd11b574240e6ad",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+        "exists": true,
+        "expected_sha256": "a612421b4456a2d38d6c5685b3f3c8cd3bd789fb01a5ca1576af64e53fe5b4c4",
+        "size": 8777728,
+        "sha256": "a612421b4456a2d38d6c5685b3f3c8cd3bd789fb01a5ca1576af64e53fe5b4c4",
+        "bound_equal": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+        "exists": true,
+        "expected_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+        "size": 325,
+        "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+        "bound_equal": true
+      }
+    ],
+    "archives_created": []
+  },
+  "pushes": [],
+  "archives": [],
+  "deletions": [],
+  "redaction_verification": {
+    "result": "PASS",
+    "scanned": 65,
+    "rewritten": 26,
+    "source_shaders_equal_to_built_backup": true,
+    "backup_ref": "refs/backup/europa-pre-fv6-09440",
+    "rows": [
+      {
+        "old": "47a69722526dc95fdf80da42ef7f5043746b89f9",
+        "new": "bb1026c545e828c5ca46f2621d2a5ca598dd32f3",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "120493b7f4c887fb8e2c9dbe7039a77c5eddc31a",
+        "new": "446154fa4d9dc9fa9efc75966ce6817f64c78504",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "18235f3e3672b04de61af296ea54dabd94a0d132",
+        "new": "2712820fd20915e2fdc61395a5552ed4196137b0",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "54e11c9eb319b8e753d185a15a1f1c148cf3ad03",
+        "new": "8d669161cb6362b7d984fbe8859a6eaf8f8bfcd3",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "2143215cbe80938d606e95ffcc8ea25179469a47",
+        "new": "8ce5063c2cb44e0960911f62cbc8a5f0deba4654",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "b1710b754be1264838d34d49a0a1ff4c903ee25b",
+        "new": "8e52c9f9201c8d9673061468cfbca5dcfffda56d",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "a4a0df6d756ef9b968c23654ed5b9850c3ae5d27",
+        "new": "73a235a4752e70fc8e252cd3b48696d6e5327a2b",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "9a785e0cf338589896e7a052297658450ccd670f",
+        "new": "d021ef376580b971b84752a0f263c2de1fbff092",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "05c55e278085af9ff9c0bb1bd8ba05cf5f4f480f",
+        "new": "7d01354dfbc5758259efde5b049937c2286da753",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "2b9dc19c90054a31a21aad55d5d66706bff1e0cf",
+        "new": "c9aa26850de6a27791153312b3a6da6055ff4e78",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "df5dfdc2d0a3c3cede765ddc065f5697cea14066",
+        "new": "efd67341d5726083f6b6337394f05c0a4edbd1b1",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "cedb5054701039fd79503b0395c9a05e909744e4",
+        "new": "918374d6cb40f004821d66fb8f938748360a18cd",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "0284a0da77c7af22697faf3f94df96b0914191c0",
+        "new": "d8bea663a09e657d90b520955acfb8a50f01bf27",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "07c853e90b396a466e18571200b04a3149156e9d",
+        "new": "a131a9f662e50f59581780b1711a225bc0db1337",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "99e69a2b48b3ad9da32c952068274ebf5a6940f5",
+        "new": "774441a3981cd42041aba5a19af163d6670c061d",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "0d40bcf2039da3fdd312ecde2050746dad17e47b",
+        "new": "22c04a9bfdbdd344ec8d64986c5db488e7577b7c",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "d589dd39f07ea348c455c924bfbf01ad7c73a3f2",
+        "new": "af30abe1e5663859cb267a8c36779cb4e05747ce",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "3d52e45aa19286fa60fe78b33c5022b97164ef33",
+        "new": "0944dc6663a5caa9cd6a442454058ec1cedb135d",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "50ad76f3aba1ad21b830602d463a5d64f32916cb",
+        "new": "265a1317c7c73766db7fe4e82c473a1612479f4f",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "59717924ff0e7822885a11c5603b4bfc2ccd5a4c",
+        "new": "1027c3843b96ca036ac171e8757802c4cd953413",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "4dbcf9bf5fbffbc13bc8e4df55480473d36fd08a",
+        "new": "8c5f3220f96f9f4b39ba5f90850aa62d9be41103",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "8bdcb4bf54098c22c458eaa118ec97ee0101be16",
+        "new": "26b845ed8936ce426c2624e7aceb4d14ecc90954",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "d25b8eb38ac819f42ed87732a5284e1117124aa4",
+        "new": "22a06ac0727d81fc17132b1421b9482397b721c4",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "d8f6ebf89cc0ce5467a8e4dd60e629f87d8050ef",
+        "new": "6e6fa112b8f83a800e94641fe931c66f36abd107",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "0621027a1be8174a7dd4511d0eaa809f0932eae0",
+        "new": "f9ffcbc33893d47b1936918add277ef9303d2a7f",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      },
+      {
+        "old": "08fe652734994549e084d190fff57207bc2a5c58",
+        "new": "252b33596802c8569f0f1066fa73b6765fd49075",
+        "roots": "counts and canonical hashes; no name arrays",
+        "tree_changed_files": [
+          "docs/europa/09434-live-capture-receipts.json"
+        ]
+      }
+    ]
+  }
+}
