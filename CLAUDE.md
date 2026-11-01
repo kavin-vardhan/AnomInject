@@ -15,7 +15,7 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
-> **094-38, 2026-11-01 - IN PROGRESS:** FV2 restores coarsest-LOD/default-pool parity; FV3 measures viewport, tick state and pre-UI pixels; FV4 matches the unconditional 5.1 annotation far plane. Changed-code tests pass. Builds and the new FV5 memory-gated smoke remain pending. See docs/sessions/2026-11-01-094-38-office-capture.md. No push or tags.
+> **094-38, 2026-11-01 - NEEDS-DECISION:** LOD/default-pool parity, measured self-check and exact 5.1 far plane are committed. Editor attempts 1/2 stopped below 3 GiB; attempt 3 found the diagnostic shared-reference compile error. The fix built in Game Development on attempt 1, but the Editor budget is spent. No smoke, re-arming, manifest rebind or FV6 history redaction. Protected state passes; installed spent-kit binaries are mixed (21/27 still equal). See docs/sessions/2026-11-01-094-38-office-capture.md and docs/europa/09438-office-capture-receipts.json. No push or tags.
 
 > **094-37, 2026-11-01 - NEEDS-DECISION: finishing fixes built; office smoke stopped twice by the acting memory floor.** FU4 removed 3,008 files (8.39 GiB) by receipt. Editor and Game Development built from cedb505 on attempt 1. Both bounded game sessions exited 125 on free commit below 4 GiB; the qualified retry wrote 24 PNGs and the start self-check, but no final labels or annotation. FU5 remains incomplete and both slots are spent. Protected state and 27 bound artifacts pass exit checks; no crash or upload sign. See docs/sessions/2026-11-01-094-37-office-smoke.md and docs/europa/09437-office-smoke-receipts.json. No push or tags.
 
