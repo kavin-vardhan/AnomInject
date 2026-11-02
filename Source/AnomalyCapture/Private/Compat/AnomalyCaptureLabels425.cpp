@@ -4,6 +4,7 @@
 #include "AnomalyCaptureLog.h"
 #include "AnomalyCensusBatch425.h"
 #include "AnomalySessionRun425.h"
+#include "AnomalyHostDepth425.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
@@ -45,7 +46,7 @@ namespace
     FAutoConsoleVariableRef CaptureBenchCameraCommand425(TEXT("IAI.Capture.BenchCamera"),CaptureBenchCamera425,TEXT("Bench-only first-camera override; default off"));
     int32 CaptureSeed425 = 4242;
     int32 CaptureCount425 = 1440;
-    const TCHAR* CaptureRoutes425[] = { TEXT("blinking"),TEXT("lighting_mismatch"),TEXT("lod_corruption"),TEXT("missing_object") };
+    TArray<FString> CaptureRoutes425 = { TEXT("blinking"),TEXT("lod_corruption") };
     FAutoConsoleVariableRef CapturePaceCommand425(TEXT("IAI.Capture.Pace"),CapturePace425,TEXT("4.25 capture pacing"));
     FString Json425(const TSharedPtr<FJsonObject>& Object)
     {
@@ -54,6 +55,28 @@ namespace
         FJsonSerializer::Serialize(Object.ToSharedRef(),Writer); return Text;
     }
     FString FireKey425(const FAutoLiveFireInfo& Fire) { return FString::Printf(TEXT("%s@%llu"),*Fire.Id.ToString(),Fire.StartFrame); }
+    bool Routes425(UWorld* World,const TArray<FString>& Args,int32 Index)
+    {
+        auto* Auto=World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
+        if (!Auto) { return false; }
+        const auto Pool=Auto->GetPoolIds(); std::vector<std::string> Routes;
+        if (!AnomalyCaptureAdmission425::Routes(Args.Num()>Index ? TCHAR_TO_UTF8(*Args[Index]) : "",Args.Num()>Index,
+            [&Pool](const std::string& Id) { return Pool.Contains(UTF8_TO_TCHAR(Id.c_str())); },Routes))
+        {
+            UE_LOG(LogAnomalyCapture,Error,TEXT("Capture425 refused: invalid route list"));
+            if (FParse::Param(FCommandLine::Get(),TEXT("IAICaptureExit"))) { FPlatformMisc::RequestExit(false); }
+            return false;
+        }
+        CaptureRoutes425.Empty(); for (const auto& Id:Routes) { CaptureRoutes425.Add(UTF8_TO_TCHAR(Id.c_str())); }
+        UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 routes=%s"),*FString::Join(CaptureRoutes425,TEXT(",")));
+        return true;
+    }
+    TArray<TSharedPtr<FJsonValue>> RouteRows425()
+    {
+        TArray<TSharedPtr<FJsonValue>> Rows;
+        for (const auto& Id:CaptureRoutes425) { Rows.Add(MakeShared<FJsonValueString>(Id)); }
+        return Rows;
+    }
 }
 
 bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool Boundary)
@@ -61,6 +84,9 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     if (!World || !World->IsGameWorld() || !World->GetGameViewport() || !World->GetGameViewport()->Viewport) { return false; }
     UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
     if (!Auto || Auto->IsRunning() || Auto->GetLiveFireCount()) { return false; }
+    auto Routes=MakeShared<FJsonObject>(); Routes->SetArrayField(TEXT("routes"),RouteRows425());
+    if (!FFileHelper::SaveStringToFile(Json425(Routes),*(Directory/TEXT("routes.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { return false; }
+    if (!AnomalyHostDepth425::Admit(World,Directory)) { FPlatformMisc::RequestExit(false); return false; }
     Owner = World; Output = Directory; RunEpoch = ++CaptureEpoch425; Size = World->GetGameViewport()->Viewport->GetSizeXY();
     Started = FPlatformTime::Seconds(); SavedFixed = FApp::UseFixedTimeStep(); SavedDelta = FApp::GetFixedDeltaTime(); SavedPace = CapturePace425;
     SavedEnabled = Auto->IsEnabled(); SavedRunning = Auto->IsRunning(); SavedSeed = Auto->GetSeed(); SavedMax = Auto->GetMaxConcurrent(); SavedPersist = Auto->GetPersist(); SavedIds = Auto->GetEnabledIds();
@@ -73,7 +99,7 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     MaskOwner = MakeUnique<FAnomalyMasks425>();
     if (!MaskOwner->Start(World)) { MaskOwner->Restore(); MaskOwner.Reset(); return false; }
     Auto->SetAllAnomaliesEnabled(false);
-    for (const TCHAR* Id : CaptureRoutes425) { if (!Auto->SetAnomalyEnabled(FName(Id),true)) { Failure = TEXT("Auto pool admission failed"); } }
+    for (const FString& Id : CaptureRoutes425) { if (!Auto->SetAnomalyEnabled(FName(*Id),true)) { Failure = TEXT("Auto pool admission failed"); } }
     Auto->SetSeed(CaptureSeed425); Auto->SetIntervalRange(0.8f,0.8f); Auto->SetHoldRange(0.4f,0.4f); Auto->SetMaxConcurrent(1); Auto->SetPersist(false); Auto->SetEnabled(true);
     FApp::SetFixedDeltaTime(1.0/30.0); FApp::SetUseFixedTimeStep(true); CapturePace425 = 1;
     PrepareHandle = FWorldDelegates::OnWorldPreActorTick.AddRaw(this,&FAnomalyCaptureLabels425::Prepare);
@@ -322,6 +348,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
     Result->SetBoolField(TEXT("mask_state_restored"),Restored);
     Result->SetBoolField(TEXT("pacing_restored"),FApp::UseFixedTimeStep()==SavedFixed && FApp::GetFixedDeltaTime()==SavedDelta);
     Result->SetArrayField(TEXT("commands"),Commands); Result->SetNumberField(TEXT("seed"),CaptureSeed425);
+    Result->SetArrayField(TEXT("routes"),RouteRows425());
     Result->SetArrayField(TEXT("events"),EventRows); Result->SetArrayField(TEXT("stencil_owners"),Owners);
     const bool Saved = FFileHelper::SaveStringToFile(Lines,*(Output/TEXT("labels.jsonl")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM) &&
         AnomalyAnnotation425::WriteSessionAnnotation(Output,Annotation) &&
@@ -334,10 +361,11 @@ bool AnomalyCaptureC2::Enabled() { return CaptureLive425; }
 bool AnomalyCaptureC2::Boundary() { return false; }
 bool AnomalyCaptureC2::Masks() { return CaptureLive425; }
 void AnomalyCaptureC2::Finished(UWorld* World,bool Success) { CaptureLive425 = false; FPlatformMisc::RequestExit(false); }
-static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Capture.C4"),TEXT("Capture live seeded auto-injection: output, frame count, seed"),
+static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Capture.C4"),TEXT("Capture live seeded auto-injection: output frame_count seed [route,route]; default blinking,lod_corruption"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
-        if (CaptureLive425 || Args.Num()!=3 || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+        if (CaptureLive425 || (Args.Num()!=3 && Args.Num()!=4) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+        if (!Routes425(World,Args,3)) { return; }
         APlayerController* PC = World->GetFirstPlayerController(); if (!PC) { return; }
         if (CaptureBenchCamera425 && FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { for (TActorIterator<ACameraActor> It(World); It; ++It) { PC->SetViewTarget(*It); break; } }
         PC->bShowMouseCursor = false;
@@ -352,10 +380,11 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Captu
             return false;
         }));
     }));
-static FAutoConsoleCommandWithWorldAndArgs CaptureStreetCommand425(TEXT("IAI.Capture.C5"),TEXT("Bench-only moving player-view capture: output, seed"),
+static FAutoConsoleCommandWithWorldAndArgs CaptureStreetCommand425(TEXT("IAI.Capture.C5"),TEXT("Bench-only moving player-view capture: output seed [route,route]; default blinking,lod_corruption"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
-        if (CaptureLive425 || Args.Num()!=2 || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+        if (CaptureLive425 || (Args.Num()!=2 && Args.Num()!=3) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+        if (!Routes425(World,Args,2)) { return; }
         CaptureLive425=true; CaptureStreet425=true; CaptureCount425=FAnomalyStreetBench425::TotalFrames; CaptureSeed425=FCString::Atoi(*Args[1]);
         const FString Root=Args[0]; const double Start=FPlatformTime::Seconds(); const TWeakObjectPtr<UWorld> Weak(World);
         TSharedRef<double> Quiet=MakeShared<double>(0);

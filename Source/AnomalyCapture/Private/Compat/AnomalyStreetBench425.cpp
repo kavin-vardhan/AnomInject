@@ -4,6 +4,7 @@
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyMasks425.h"
+#include "AnomalyHostDepth425.h"
 #include "AnomalyViewport.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -44,7 +45,7 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     int32 N=0;
     for (const auto& A:Candidates)
     {
-        if (!A.IsValid() || N>=3) { continue; }
+        if (!AnomalyHostDepth425::BenchFixture(World) || !AnomalyHostDepth425::FixtureActor(A.Get()) || N>=3) { continue; }
         TInlineComponentArray<UPrimitiveComponent*> Prims(A.Get());
         for (UPrimitiveComponent* Prim:Prims)
         {
@@ -75,7 +76,8 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     Protocol->SetStringField(TEXT("grain_mode"),TEXT("phase_matched_viewstate_GetFrameIndex8_modulo7"));
     Protocol->SetStringField(TEXT("reference_rule"),TEXT("FU5 office smoke: six fixed poses; 28 off/on frames per pose; 240 auto frames per pose; all poses enabled without label-free grading. Wall strip compared by render grain phase against the off-hold RGB range with one-level tolerance."));
     Protocol->SetNumberField(TEXT("setup_components"),Original.Num());
-    return N==3 && JsonStreet425(Protocol,Directory/TEXT("c5-protocol.json")) && JsonStreet425(DepthSample(true),Directory/TEXT("depth-before.json"));
+    Protocol->SetBoolField(TEXT("bench_fixture"),AnomalyHostDepth425::BenchFixture(World));
+    return JsonStreet425(Protocol,Directory/TEXT("c5-protocol.json")) && JsonStreet425(DepthSample(true),Directory/TEXT("depth-before.json"));
 }
 TSharedPtr<FJsonObject> FAnomalyStreetBench425::Describe(int32 Index) const
 {

@@ -10427,3 +10427,12 @@ FX3 deliberately extends the 4.25 auto path: retain FW3's two-LOD guard, predict
 ## G511 - A seeded capture run must not restart at every pose (2026-11-02, 094-40)
 
 FX2 corrects G509 in the bench driver, retaining shared 5.1 SetRunning(true)'s seed reset (d7eee97 AnomalyAutoInjectorSubsystem.cpp:231). The injector starts once after the clean pre-pass, keeps running through all scored poses/turns, and stops24 frames before the end. The six-pose test requires one start and one stop; the previous policy starts six times. FX4 limits IAI.SetMinScreenCoverage0.5 to EA_Core bench argv; the shipped bounds floor remains6%. The office card must use that default. The0.8s/0.4s/one-concurrent bench schedule is unchanged.
+
+
+## G512 - Legacy capture tags can activate host outlines (094-42)
+
+Census and live-event stencil writes happen before post-process. Pre-UI capture therefore still includes a host CustomDepth outline. The interim 4.25 scanner ports the 5.1 volume/cached-blend/POV material check and refuses reader or unknown before any test state or ledger mutation. It cannot certify arbitrary native readers or later additions absent. A private pass remains required for isolation. C5 prior-state planting is now IAIBench plus recognized-fixture plus EA_ actor only; the earlier arbitrary-object setup was not host-owned evidence. The repro bypass is bench-only, never an office workaround.
+
+## G513 - CSV routes and ExecCmds (094-42)
+
+C4/C5 default to blinking,lod_corruption; lighting and missing_object require explicit routes. Stock4.25 ExecCmds splits on commas, so a CSV route passed inside that list becomes multiple console commands. The armed Python bridge submits one complete C5 command after world creation and unregisters before submission. Console users can type the CSV directly. Receipts and logs list the routes actually enabled.

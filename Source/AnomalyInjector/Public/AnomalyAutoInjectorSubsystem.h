@@ -93,6 +93,7 @@ public:
 
 
 	TArray<FString> GetEnabledIds() const;
+	TArray<FString> GetPoolIds() const;
 
 	bool IsAnomalyEnabled(FName Id) const;
 

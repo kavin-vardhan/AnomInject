@@ -16,14 +16,14 @@ from runtime_evidence import freeze,outcome,ensure_frozen
 from fixture_uploads import check as uploads
 import capture_office_reader as reader
 
-J=c1.ROOT/'Receipts/09440'
-AUTHORITY='094-40 FX1-FX6 FN2 FM1 FJ1 FK1'
+J=c1.ROOT/'Receipts/09442'
+AUTHORITY='094-42 FZ3-FZ6 FN2 FM1 FJ1 FK1'
 INSTALLED=c1.INSTALLED
-DEADLINE="2026-11-02T01:30:00+00:00"
+DEADLINE=None
 FALLBACK="2026-11-01T21:30:00+00:00"
 
 def admission_profile(wait,root,prior=None,now=None,cutoff=FALLBACK):
-    if prior not in (None,'fallback'):raise RuntimeError('09440 admits EA_Core only')
+    if prior not in (None,'fallback'):raise RuntimeError('09442 admits EA_Core only')
     return wait(root/'gate-fallback.jsonl',DEADLINE,idle_seconds=300,memory=(8,4)),'fallback'
 
 def select_map(argv,profile):
@@ -40,15 +40,22 @@ def command(leg,root):
     argv=[a.replace('/Game/EuropaPhaseA/EA_Travel','/Game/ParisStreet/Levels/SampleMap') for a in argv if not a.startswith('-IAICaptureDiagnostics=')]
     argv=[a.replace('IAI.Capture.C1 '+(root/'plugin-frames').as_posix()+' 60','IAI.Capture.C5 '+(root/'plugin-frames').as_posix()+' 4242') for a in argv]
     argv=[a.replace('-ExecCmds=','-ExecCmds=r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,') for a in argv]
+    capture='IAI.Capture.C5 '+(root/'plugin-frames').as_posix()+' 4242'
+    route_command=capture+' blinking,lighting_mismatch,lod_corruption,missing_object'
+    path=root/'capture-command.json'
+    create_json(path,dict(command=route_command,receipt=str(root/'capture-command-receipt.json')))
+    launcher=root/'capture-command.py'
+    launcher.write_text('import sys\nsys.path.insert(0,'+repr(str(TOOLS))+')\nfrom capture_route_driver425 import start\nstart('+repr(str(path))+')\n',encoding='ascii')
+    argv=[a.replace(capture,'py '+launcher.as_posix()) for a in argv]
     width,height=1280,720
     argv=['-ResX='+str(width) if a.lower().startswith('-resx=') else '-ResY='+str(height) if a.lower().startswith('-resy=') else a for a in argv]
     c1.require_frame_format(argv)
     return argv
 
 def validate(config):
-    if config.get('arming_job')!='09440' or config.get('stage')!='OfficeSmoke' or config['deadline']!=DEADLINE:raise RuntimeError('Wrong office-smoke arming')
+    if config.get('arming_job')!='09442' or config.get('stage')!='OfficeSmoke' or config['deadline']!=DEADLINE:raise RuntimeError('Wrong office-smoke arming')
     finish=datetime.datetime.fromisoformat(config['build_finished_utc'])
-    expected=min(datetime.datetime.fromisoformat(FALLBACK),finish+datetime.timedelta(minutes=45)).isoformat()
+    expected=None
     if config.get('fallback')!=expected:raise RuntimeError('Fallback time changed')
     if config.get('metrics')!=reader.THRESHOLDS or config.get('limits')!={'C5':900}:raise RuntimeError('FU5 gates or limit changed')
     verify_files(config['engine_files']);verify_files(config['tooling_files']);verify_protection(config['protected'])
@@ -72,26 +79,26 @@ def arm(retry=False,leg=None):
     if subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'status','--porcelain'],text=True).strip():raise RuntimeError('Commit before C3 arming')
     prior=json.loads(INSTALLED.read_text())
     if retry:
-        if prior.get('arming_job')!='09440':raise RuntimeError('No first 09440 arming')
+        if prior.get('arming_job')!='09442':raise RuntimeError('No first 09442 arming')
         retry_admitted(prior,leg)
-    elif prior.get('arming_job')=='09440':raise RuntimeError('Office smoke already armed; use the qualified retry route')
+    elif prior.get('arming_job')=='09442':raise RuntimeError('Office smoke already armed; use the qualified retry route')
     revision=('02-'+leg) if retry else '01'
     built=[json.loads(p.read_text()) for p in (J/'builds').glob('*/result.json')]
     good=[r for r in built if r.get('gate_result')=='PASS' and r.get('exit_code')==0 and c1.native_source_equal(r['commit'])]
     assert {r['target'] for r in good}=={'StylizedParisStreetEditor','StylizedParisStreet'}
     finished=max(datetime.datetime.fromisoformat(r['ended_utc']) for r in good)
-    cutoff=min(datetime.datetime.fromisoformat(FALLBACK),finished+datetime.timedelta(minutes=45)).isoformat()
+    cutoff=None
     head=subprocess.check_output(['git','-C',str(TOOLS.parent.parent),'rev-parse','HEAD'],text=True).strip()
     before=json.loads((J/'entry.json').read_text())['protected'];current=protection_snapshot()
     assert all(before[k]==current[k] for k in ('content','config','descriptors'))
     manifest=json.loads(Path(prior['manifest']['path']).read_text())
     for row in manifest['files']:
         p=Path(row['path']);row.update(size=p.stat().st_size,mtime_ns=p.stat().st_mtime_ns,sha256=sha(p))
-    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09440 FV5 office smoke build pair')
+    manifest.update(source_commit=head,tooling_commit=head,build_sources={r['target']:r['commit'] for r in good},purpose='09442 FV5 office smoke build pair')
     manifest_path=J/('c5-425-binaries-'+revision+'.json');create_json(manifest_path,manifest)
-    reference=TOOLS.parent.parent/'docs/sessions/2026-11-02-094-40-office-capture.md'
+    reference=TOOLS.parent.parent/'docs/sessions/2026-11-03-094-42-guard-and-fixture.md'
     refs=dict(files=[dict(path=str(reference),size=reference.stat().st_size,sha256=sha(reference))])
-    config=dict(arming_job='09440',stage='OfficeSmoke',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,fallback=cutoff,build_finished_utc=finished.isoformat(),
+    config=dict(arming_job='09442',stage='OfficeSmoke',authority=AUTHORITY,source_commit=head,deadline=DEADLINE,fallback=cutoff,build_finished_utc=finished.isoformat(),
         manifest=dict(path=str(manifest_path),sha256=sha(manifest_path)),protected=current,
         engine_files=prior['engine_files'],tooling_files=[dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in sorted(TOOLS.glob('*.py'))],
         reference_files=refs['files'],reference_rule=reader.REFERENCE_RULE,metrics=reader.THRESHOLDS,
@@ -111,7 +118,7 @@ def run(leg,number):
     if number=='02':
         if config.get('retry_authorized')!=leg:raise RuntimeError('Retry not qualified/re-armed')
         retry_admitted(config,leg)
-    root=Path(config['slots'][leg][number]);temp=c1.ROOT/'Temp/09440/c5'/leg/number
+    root=Path(config['slots'][leg][number]);temp=c1.ROOT/'Temp/09442/c5'/leg/number
     os.environ['EUROPA_JOB_CONFIG']=str(J/'c5-job-config.json')
     import write_ledger as ledger
     from runtime_lean_gate import wait
@@ -122,7 +129,7 @@ def run(leg,number):
         create_json(root/'managed-before.json',managed_snapshot())
         process=root/'process';process.mkdir();os.environ['EUROPA_OPERATION_DIR']=str(process)
         def admit():
-            print(leg+': setup complete; waiting for FX6 EA_Core admission.',flush=True)
+            print(leg+': setup complete; waiting for FZ4 explicit four-route EA_Core admission.',flush=True)
             prior=json.loads((Path(config['slots'][leg]['01'])/'admitted.json').read_text())['profile'] if number=='02' else None
             gate,profile=admission_profile(wait,root,prior,cutoff=config['fallback'])
             if gate['status']!='CLEAR':raise RuntimeError('Window ended before process creation')
@@ -143,6 +150,12 @@ def run(leg,number):
             reader.need('Capture425 C3: shaders_loaded=visible425,reduce' in log,'Mask shaders did not load/dispatch')
             reader.need('Capture425 C5: stencil_restore=1' in log,'Stencil restoration missing')
             result=reader.read(root/'plugin-frames/epoch01',log,fallback='-IAICaptureFallback' in argv)
+            routes=json.loads((root/'plugin-frames/epoch01/routes.json').read_text())['routes']
+            reader.need(routes==['blinking','lighting_mismatch','lod_corruption','missing_object'],'FZ4 explicit routes differ')
+            result['routes']=routes
+            scan=json.loads((root/'plugin-frames/epoch01/host-custom-depth.json').read_text())
+            reader.need(scan['admitted'] and not scan['bench_bypass'] and scan['result'] in ('none','writer'),'FZ3 guard admission missing')
+            result['host_custom_depth']=scan
 
         except Exception as error:result=dict(result='FAIL',reason=str(error))
         create_json(root/'reader.json',result)

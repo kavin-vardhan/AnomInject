@@ -897,6 +897,19 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 }
 
 
+TArray<FString> UAnomalyAutoInjectorSubsystem::GetPoolIds() const
+{
+	TArray<FString> Ids;
+	for (const FName& Id:GAutoPool)
+	{
+#if ANOMALY_ENGINE_425
+		if (!AnomalyCompat::SupportsAnomaly(Id)) { continue; }
+#endif
+		Ids.Add(Id.ToString());
+	}
+	return Ids;
+}
+
 bool UAnomalyAutoInjectorSubsystem::SetAnomalyEnabled(FName Id, bool bInEnabled)
 {
 #if ANOMALY_ENGINE_425
