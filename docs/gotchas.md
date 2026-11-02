@@ -10436,3 +10436,7 @@ Census and live-event stencil writes happen before post-process. Pre-UI capture 
 ## G513 - CSV routes and ExecCmds (094-42)
 
 C4/C5 default to blinking,lod_corruption; lighting and missing_object require explicit routes. Stock4.25 ExecCmds splits on commas, so a CSV route passed inside that list becomes multiple console commands. The armed Python bridge submits one complete C5 command after world creation and unregisters before submission. Console users can type the CSV directly. Receipts and logs list the routes actually enabled.
+
+## G514 - Use stock ExecMacro for game CSV routing (094-42)
+
+Correction to G513's initial implementation: PythonScriptPlugin and EditorScriptingUtilities are Editor modules and do not load when GIsEditor is false (`ModuleDescriptor.cpp:494-500`). Their recording stub cannot establish -game availability. Before any launch, the bridge was replaced by stock local-player ExecMacro (`LocalPlayer.cpp:1522-1546`), which preserves each full line including CSV. Its owned receipt path must contain Binaries, otherwise stock code prepends ../../Binaries. No production helper command or module override is needed.

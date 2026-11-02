@@ -42,11 +42,11 @@ def command(leg,root):
     argv=[a.replace('-ExecCmds=','-ExecCmds=r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,') for a in argv]
     capture='IAI.Capture.C5 '+(root/'plugin-frames').as_posix()+' 4242'
     route_command=capture+' blinking,lighting_mismatch,lod_corruption,missing_object'
-    path=root/'capture-command.json'
-    create_json(path,dict(command=route_command,receipt=str(root/'capture-command-receipt.json')))
-    launcher=root/'capture-command.py'
-    launcher.write_text('import sys\nsys.path.insert(0,'+repr(str(TOOLS))+')\nfrom capture_route_driver425 import start\nstart('+repr(str(path))+')\n',encoding='ascii')
-    argv=[a.replace(capture,'py '+launcher.as_posix()) for a in argv]
+    macro=root/'Binaries/capture.txt'
+    macro.parent.mkdir(parents=True,exist_ok=False)
+    macro.write_text(route_command+'\n',encoding='ascii')
+    create_json(root/'capture-command.json',dict(command=route_command,macro=str(macro),sha256=sha(macro)))
+    argv=[a.replace(capture,'exec '+macro.as_posix()) for a in argv]
     width,height=1280,720
     argv=['-ResX='+str(width) if a.lower().startswith('-resx=') else '-ResY='+str(height) if a.lower().startswith('-resy=') else a for a in argv]
     c1.require_frame_format(argv)

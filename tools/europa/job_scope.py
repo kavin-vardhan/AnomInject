@@ -6,6 +6,21 @@ from pathlib import Path
 ROOT = Path('D:/IA_Europa')
 
 
+def outline_scope(data,job):
+    return (job==ROOT/'Receipts/09442' and data.get('authority')=='094-42 FZ3-FZ6 FN2 FM1 FJ1 FK1'
+        and data.get('fixture_project')=='E:/IA_Fixtures/Outline425/Outline425.uproject'
+        and data.get('fixture_engine')=='E:/EpicGames/UE_4.25')
+
+
+def outline_fm1(data,job):
+    return (outline_scope(data,job) and data.get('incremental_memory_authority')=='094-31-ruling FM1'
+        and data.get('fixture_first_build_authority')=='094-42 FZ5'
+        and data.get('runtime_authorized') is False and data.get('query_pairs')==[]
+        and data.get('max_parallel_actions')==2 and data.get('max_build_attempts_per_target')==3
+        and {tuple(p) for p in data.get('build_pairs',[])}=={('outline425','Outline425Editor','Development'),('outline425','Outline425','Development')}
+        and data.get('memory')=={'start_physical_GiB':None,'start_commit_GiB':8,'stop_physical_GiB':None,'stop_commit_GiB':3})
+
+
 def fm1(data, job):
     return (job in (ROOT/'Receipts/09431b',ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437',ROOT/'Receipts/09438',ROOT/'Receipts/09439',ROOT/'Receipts/09440',ROOT/'Receipts/09442') and
             data.get('incremental_memory_authority') == '094-31-ruling FM1' and
@@ -19,7 +34,7 @@ def fm1(data, job):
 
 
 def memory_policy_allowed(data, job):
-    if fm1(data, job):
+    if fm1(data, job) or outline_fm1(data,job):
         return True
     if ((job,data.get('authority')) in ((ROOT/'Receipts/09432','094-32 FN1-FN5 FM1 FL1-FL6 FJ1 FK1'),(ROOT/'Receipts/09433','094-33 FO1-FO5 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09433b','094-33b FP1-FP3 FO3 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09433c','094-33c FQ1-FQ4 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09434','094-34 FR1-FR4 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09435','094-35 FS1-FS3 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09436','094-36 FT1-FT6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09437','094-37 FU1-FU6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09438','094-38 FV1-FV6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09439','094-39 FW1-FW6 FV5 FV6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09440','094-40 FX1-FX6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09442','094-42 FZ3-FZ6 FN2 FM1 FJ1 FK1')) and data.get('runtime_authorized') is True
         and data.get('runtime_scope',{}).get('kind')=='phase-a-runtime'
@@ -85,10 +100,12 @@ def load(path=None):
     temp = Path(data['temp_root'])
     if job.resolve(strict=True) != job or path.parent != job or not job.is_relative_to(ROOT / 'Receipts'):
         raise RuntimeError('Job receipt root/configuration mismatch')
-    if temp.resolve() != temp or not temp.is_relative_to(ROOT / 'Temp'):
+    fixture_temp=outline_scope(data,job) and temp.is_relative_to(Path('E:/IA_Fixtures/Outline425/Temp'))
+    if temp.resolve() != temp or not (temp.is_relative_to(ROOT / 'Temp') or fixture_temp):
         raise RuntimeError('Job TEMP root is not physical-D owned scratch')
     known = {'425': ('StylizedParisStreet', 'StylizedParisStreetEditor'),
              '51base': ('StackOBot', 'StackOBotEditor'), '51port': ('StackOBot', 'StackOBotEditor')}
+    if outline_scope(data,job):known['outline425']=('Outline425','Outline425Editor')
     for key in ('build_pairs', 'query_pairs'):
         if len(data[key]) != len({tuple(p) for p in data[key]}):
             raise RuntimeError('Duplicate permitted target')
@@ -97,7 +114,7 @@ def load(path=None):
                 raise RuntimeError('Unknown target in job allow-list')
             if configuration == 'Shipping' and (target.endswith('Editor') or host == '51base'):
                 raise RuntimeError('Unapproved Shipping pair')
-    if data['max_parallel_actions'] not in (1, 4) and not fm1(data, job):
+    if data['max_parallel_actions'] not in (1, 4) and not (fm1(data, job) or outline_fm1(data,job)):
         raise RuntimeError('Unapproved action parallelism')
     if not memory_policy_allowed(data, job):
         raise RuntimeError('Memory policy is not a ruled EF1/EI2/EV4/FD3/FK1 policy')

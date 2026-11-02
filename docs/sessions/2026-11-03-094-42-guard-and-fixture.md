@@ -10,7 +10,7 @@ The receipt records reader/writer/unknown counts, admission, bypass, current mod
 
 Planted test states require IAIBench, a recognized fixture package and an authored EA_ actor tag. Arbitrary maps receive no planted states. This narrowly scoped bench exception is required by FZ3.
 
-C5 accepts `output seed [route,route]`; C4 accepts `output count seed [route,route]`. Omission selects blinking,lod_corruption. Lists must be nonempty, distinct and in the supported auto pool. The pool/keys do not change. Routes are logged and saved in routes.json and labels-receipt.json. Stock `UnrealEngine.cpp:1584-1604` splits ExecCmds on commas; the armed Python bridge submits the complete CSV console command once, after the game world exists, with its callback already unregistered.
+C5 accepts `output seed [route,route]`; C4 accepts `output count seed [route,route]`. Omission selects blinking,lod_corruption. Lists must be nonempty, distinct and in the supported auto pool. The pool/keys do not change. Routes are logged and saved in routes.json and labels-receipt.json. Stock `UnrealEngine.cpp:1584-1604` splits ExecCmds on commas; the armed launcher uses the stock local-player ExecMacro file route (`LocalPlayer.cpp:1522-1546`), which submits each whole line. Its owned receipt path contains Binaries as stock ExecMacro requires. No Editor-only Python module is needed in -game.
 
 ## Predictions and gates, fixed before sessions
 
@@ -20,4 +20,4 @@ C5 accepts `output seed [route,route]`; C4 accepts `output count seed [route,rou
 - Repro: outline-on versus blendable-off with identical pose/routes/seed and bench guard bypass. Count distinctive outline pixels and changed pixels on corresponding clean census frames and tagged objects. Retain census-off clean holds as another untagged control. Guard-on leaves the outline enabled and must show reader refusal, zero tags before/after, no setup/census/mask/capture output, normal exit.
 - Spike(a): cite stock prepass types, shader-map lookup and bindings for opaque/masked/WPO, including export limits. Spike(b): isolated never-merged/pushed branch adds one trivial FMeshMaterialShader. Compare a no-change fixture launch and the first launch after registration, same fixture/DDC/config, reporting actual material recompilation counts and seconds. No full private pass.
 
-Only changed-code tests run: native admission/routes negatives, Python2.7 delayed-world/re-entry/single-exit harness, keyword Rotator check, scoped-kit old-arming/low-memory/low-disk negatives. Final evidence goes in the closeout and Receipts/09442; drive-root names stay local.
+Only changed-code tests run: native admission/routes negatives, Python2.7 fixture authoring harness and keyword Rotator check, scoped-kit old-arming/low-memory/low-disk negatives. Final evidence goes in the closeout and Receipts/09442; drive-root names stay local.
