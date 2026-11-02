@@ -13,6 +13,7 @@
 #include "MaterialShared.h"
 #include "MaterialSceneTextureId.h"
 #include "SceneInterface.h"
+#include "UObject/Package.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
