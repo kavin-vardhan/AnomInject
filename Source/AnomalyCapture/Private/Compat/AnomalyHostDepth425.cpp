@@ -44,7 +44,6 @@ AnomalyHostDepth425::FScan AnomalyHostDepth425::Scan(UWorld* World)
     {
         for (const FWeightedBlendable& B:S.WeightedBlendables.Array)
         {
-            if (B.Weight<=0) { continue; }
             ++R.Entries;
             UMaterialInterface* MI=Cast<UMaterialInterface>(B.Object);
             if (!MI) { ++R.Unknown; continue; }

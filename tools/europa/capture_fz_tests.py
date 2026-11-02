@@ -22,7 +22,13 @@ def run(output):
     assert violations(scanner+'ActorHasTag(TEXT("EA_BlinkCube"))',True)
     assert violations(scanner+'FIntPoint(1280,720)',True)
     assert 'BenchFixture(World)' in scanner and 'FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))' in scanner
+    def scanner_parity(text):
+        settings=text[text.index('auto Settings='):text.index('for (TActorIterator<APostProcessVolume>')]
+        return 'B.Weight' not in settings and '++R.Entries;' in settings
+    assert scanner_parity(scanner)
+    assert not scanner_parity(scanner.replace('++R.Entries;','if (B.Weight<=0) { continue; } ++R.Entries;'))
     result=dict(result='PASS',guard_before_street_and_masks=True,fixture_gate=True,
+        zero_weight_reader_retained=True,zero_weight_skip_mutant_refused=True,
         static_fixture_exception='FZ3 package literals only in admission function; target and resolution mutants refused')
     Path(output).write_text(json.dumps(result,indent=2))
     print(json.dumps(result))
