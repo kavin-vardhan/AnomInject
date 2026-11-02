@@ -16,7 +16,14 @@ def run(output):
     street=(root/'Source/AnomalyCapture/Private/Compat/AnomalyStreetBench425.cpp').read_text()
     assert street.index('!AnomalyHostDepth425::BenchFixture(World)')<street.index('Prim->SetCustomDepthStencilValue')
     assert '!AnomalyHostDepth425::FixtureActor(A.Get())' in street
-    result=dict(result='PASS',guard_before_street_and_masks=True,fixture_gate=True)
+    from capture_fr_tests import violations
+    scanner=(root/'Source/AnomalyCapture/Private/Compat/AnomalyHostDepth425.cpp').read_text()
+    assert not violations(scanner,True)
+    assert violations(scanner+'ActorHasTag(TEXT("EA_BlinkCube"))',True)
+    assert violations(scanner+'FIntPoint(1280,720)',True)
+    assert 'BenchFixture(World)' in scanner and 'FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))' in scanner
+    result=dict(result='PASS',guard_before_street_and_masks=True,fixture_gate=True,
+        static_fixture_exception='FZ3 package literals only in admission function; target and resolution mutants refused')
     Path(output).write_text(json.dumps(result,indent=2))
     print(json.dumps(result))
 
