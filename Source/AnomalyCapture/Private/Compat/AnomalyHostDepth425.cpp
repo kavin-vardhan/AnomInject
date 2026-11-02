@@ -76,7 +76,7 @@ bool AnomalyHostDepth425::Admit(UWorld* World,const FString& Directory)
     TSet<TWeakObjectPtr<UPrimitiveComponent>> Before; AnomalyStencilTag::GetTaggedComponents(Before);
     const FScan ScanResult=Scan(World);
     const bool Bench=FParse::Param(FCommandLine::Get(),TEXT("IAIBench"));
-    const bool Bypass=Bench && FParse::Param(FCommandLine::Get(),TEXT("IAIBenchBypassHostDepth"));
+    const bool Bypass=Bench && BenchFixture(World) && FParse::Param(FCommandLine::Get(),TEXT("IAIBenchBypassHostDepth"));
     const bool Allowed=AnomalyCaptureAdmission425::Allowed(ScanResult.Result(),Bench,Bypass);
     TSet<TWeakObjectPtr<UPrimitiveComponent>> Tagged; AnomalyStencilTag::GetTaggedComponents(Tagged);
     auto R=ScanResult.Receipt(); R->SetBoolField(TEXT("admitted"),Allowed); R->SetBoolField(TEXT("bench_bypass"),Bypass);
