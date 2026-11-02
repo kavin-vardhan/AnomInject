@@ -21,3 +21,6 @@ C5 accepts `output seed [route,route]`; C4 accepts `output count seed [route,rou
 - Spike(a): cite stock prepass types, shader-map lookup and bindings for opaque/masked/WPO, including export limits. Spike(b): isolated never-merged/pushed branch adds one trivial FMeshMaterialShader. Compare a no-change fixture launch and the first launch after registration, same fixture/DDC/config, reporting actual material recompilation counts and seconds. No full private pass.
 
 Only changed-code tests run: native admission/routes negatives, Python2.7 fixture authoring harness and keyword Rotator check, scoped-kit old-arming/low-memory/low-disk negatives. Final evidence goes in the closeout and Receipts/09442; drive-root names stay local.
+# 4.25 camera API note
+
+The scanner ports the cached camera POV scan through `APlayerCameraManager::GetCameraCachePOV`, declared by installed 4.25 `Engine/Classes/Camera/PlayerCameraManager.h:312-313`; 5.1 calls `GetCameraCacheView`. This API difference was found from source before the first build. The scene texture IDs are included explicitly from `MaterialSceneTextureId.h`.

@@ -11,6 +11,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "MaterialShared.h"
+#include "MaterialSceneTextureId.h"
 #include "SceneInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
@@ -62,7 +63,7 @@ AnomalyHostDepth425::FScan AnomalyHostDepth425::Scan(UWorld* World)
         const TArray<FPostProcessSettings>* Blends=nullptr; const TArray<float>* Weights=nullptr;
         Camera->GetCachedPostProcessBlends(Blends,Weights);
         if (Blends) { for (const auto& S:*Blends) { ++R.CameraBlends; Settings(S); } }
-        ++R.CameraBlends; Settings(Camera->GetCameraCacheView().PostProcessSettings);
+        ++R.CameraBlends; Settings(Camera->GetCameraCachePOV().PostProcessSettings);
     }
     for (TActorIterator<AActor> It(World);It;++It)
     {
