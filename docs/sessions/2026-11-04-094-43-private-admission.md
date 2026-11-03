@@ -15,3 +15,5 @@ Stage A preparation: full P9 passed354.433s after d2f481d; all382970 inventory f
 Evidence: docs/europa/09443-stagea-receipts.json; raw files are retained on the fixture. The lean launch protocol used the first capture as warm-up and the second as the warm-cache gate, as frozen before either launch. The reader and thresholds did not change after measurements.
 
 094-43r Stage B source: direct component proxies, plugin-owned dynamic element collection, batched private ID/depth targets with fenced reuse, asynchronous row-pitch-aware copies, unavailable selection filtering, and freshly scanned fallback guard. Normal C4/C5 no longer tags host custom depth; the legacy route requires explicit fixture-only bench reference. Focused native/contract/FXC tests pass; engine builds and H1-H5 are pending. See docs/europa/09443-stageb-design.md.
+
+094-43r Stage B fixture Editor attempt1 failed with one AnomalyCapture C4458 (local Views shadows FMeshElementCollector::Views), zero other compile/link errors. Renamed it ViewList; no behavior or gate changed. Retry2 pending.

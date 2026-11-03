@@ -230,8 +230,8 @@ namespace
             }
             else
             {
-                TArray<const FSceneView*> Views; Views.Add(&View);
-                Item.Proxy->GetDynamicMeshElements(Views,Family,1,*this);
+                TArray<const FSceneView*> ViewList; ViewList.Add(&View);
+                Item.Proxy->GetDynamicMeshElements(ViewList,Family,1,*this);
             }
             ProcessTasks();
         }
