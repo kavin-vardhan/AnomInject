@@ -1,6 +1,7 @@
 #include "AnomalyMasks425.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureLog.h"
+#include "AnomalyPrivatePass425.h"
 #include "AnomalyCaptureLabels425.h"
 #include "AnomalyCensusPolicy425.h"
 #include "AnomalyCensusBatch425.h"
@@ -50,8 +51,10 @@ bool FAnomalyMasks425::Start(UWorld* World)
     if (!World || ActiveMasks425 || Started || AnomalyStencilTag::IsAnyTagged()) { return false; }
     UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
     if (!Auto || Auto->HasCensusProvider()) { return false; }
+    Legacy=AnomalyPrivate425::Legacy(World);
+    if (!Legacy && !AnomalyPrivate425::Available(World)) { return false; }
     Owner=World; Ledger.Reset(); Ledger.HostReserved=AnomalyStencilTag::SnapshotHostReservedValues(World);
-    AnomalyStencilTag::SetRestoreWatch(&Ledger); AnomalyStencilTag::EnableCustomStencil();
+    if (Legacy) { AnomalyStencilTag::SetRestoreWatch(&Ledger); AnomalyStencilTag::EnableCustomStencil(); }
     for (TActorIterator<AActor> It(World);It;++It) { if (HostDepth(*It)) { HostActors.Add(*It); } }
     Started=true; ActiveMasks425=this; CycleStarted=GFrameCounter;
     for (const auto& A:AnomalyViewport::GetVisibleRenderableActors(World)) { InitialVisible.Add(GetNameSafe(A.Get())); }
@@ -59,6 +62,8 @@ bool FAnomalyMasks425::Start(UWorld* World)
     {
         FAnomalyCensusOpinion O; O.WindowTicks=AnomalyCensusPolicy425::Window(LastCycleTicks);
         if (HostDepth(Actor)) { O.Decision=EAnomalyCensusDecision::ExcludedZero; O.Reason=TEXT("host_custom_depth_untouched"); return O; }
+        if (!Legacy && !AnomalyPrivate425::Supports(Actor)) { O.Decision=EAnomalyCensusDecision::ExcludedZero; O.Reason=TEXT("private_unavailable"); return O; }
+        if (!Legacy && !AnomalyPrivate425::Verified(Actor)) { O.Decision=EAnomalyCensusDecision::ExcludedZero; O.Reason=TEXT("private_unmeasured"); return O; }
         const FCensusValue* V=Verdicts.Find(const_cast<AActor*>(Actor));
         if (!V) { O.Decision=EAnomalyCensusDecision::FallbackBounds; O.Reason=TEXT("unseen"); O.bUnseen=true; return O; }
         if (V->Translucent) { O.Decision=EAnomalyCensusDecision::ExcludedTranslucent; O.Reason=TEXT("translucent"); return O; }
@@ -72,14 +77,22 @@ bool FAnomalyMasks425::Start(UWorld* World)
 }
 void FAnomalyMasks425::Release()
 {
-    AnomalyStencilTag::RestoreAll();
-    for (const auto& Pair:WriteMasks) { if (Pair.Key.IsValid()) { Pair.Key->SetCustomDepthStencilWriteMask(Pair.Value); } }
+    if (Legacy)
+    {
+        AnomalyStencilTag::RestoreAll();
+        for (const auto& Pair:WriteMasks) { if (Pair.Key.IsValid()) { Pair.Key->SetCustomDepthStencilWriteMask(Pair.Value); } }
+    }
     Tags.Reset(); WriteMasks.Reset(); Ledger.CensusClaimed.Reset(); Ledger.EventClaimed.Reset(); EventTags.Reset();
 }
 int32 FAnomalyMasks425::Tag(AActor* Actor,uint8 Value)
 {
     if (!Actor || !Value || HostDepth(Actor)) { return 0; }
     if (Tags.Contains(Actor)) { return 1; }
+    if (!Legacy)
+    {
+        if (!AnomalyPrivate425::Supports(Actor)) { return 0; }
+        Tags.Add(Actor,Value); return 1;
+    }
     TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
     for (UPrimitiveComponent* Prim:Prims)
     {
@@ -104,7 +117,7 @@ TArray<TWeakObjectPtr<AActor>> FAnomalyMasks425::Receivers(const FAutoLiveFireIn
     TInlineComponentArray<ULightComponent*> Lights(Actor);
     for (const auto& Weak:AnomalyViewport::GetCensusPrefilterActors(Owner.Get()))
     {
-        if (!Weak.IsValid()) { continue; }
+        if (!Weak.IsValid() || (!Legacy && !AnomalyPrivate425::Supports(Weak.Get()))) { continue; }
         TInlineComponentArray<UPrimitiveComponent*> Prims(Weak.Get()); bool Affected=false;
         for (ULightComponent* Light:Lights) { for (UPrimitiveComponent* Prim:Prims) { Affected|=Light->AffectsPrimitive(Prim); } }
         if (Affected) { Result.Add(Weak); }
@@ -119,6 +132,7 @@ TArray<uint8> FAnomalyMasks425::TagsFor(const FAutoLiveFireInfo& Fire) const
 void FAnomalyMasks425::ReleaseActor(AActor* Actor)
 {
     if (!Actor) { return; }
+    if (!Legacy) { Tags.Remove(Actor); return; }
     AnomalyStencilTag::RestoreActor(Actor);
     TInlineComponentArray<UPrimitiveComponent*> Prims(Actor);
     for (UPrimitiveComponent* Prim:Prims)
@@ -275,7 +289,7 @@ void FAnomalyMasks425::Observe(const FAnomalyCapturedFrame& Frame)
         for (const auto& Pair:Batch->Actors)
         {
             FString Detail;
-            if (!Pair.Key.IsValid() || !AnomalyStencilTag::VerifyActorStillTagged(Pair.Key.Get(),Pair.Value,Detail)) { continue; }
+            if (!Pair.Key.IsValid() || (Self->Legacy ? !AnomalyStencilTag::VerifyActorStillTagged(Pair.Key.Get(),Pair.Value,Detail) : !AnomalyPrivate425::Verified(Pair.Key.Get()))) { continue; }
             FCensusValue V; V.Pixels=Counts[Pair.Value]; V.Area=Frame.Width*Frame.Height; V.Tick=Frame.LabelKey425.SampleFrame;
             Self->Verdicts.Add(Pair.Key,V);
         }
@@ -297,6 +311,7 @@ TSharedPtr<FJsonObject> FAnomalyMasks425::State() const
     R->SetNumberField(TEXT("batches_lost"),LostBatches); R->SetNumberField(TEXT("no_pass_batches"),NoPassBatches); R->SetNumberField(TEXT("polluted_batches"),PollutedBatches);
     R->SetNumberField(TEXT("in_flight_batches"),Batches.Num()); R->SetBoolField(TEXT("enabled"),!CensusOff425);
     R->SetNumberField(TEXT("host_actors_excluded"),HostActors.Num());
+    R->SetObjectField(TEXT("private_pass"),AnomalyPrivate425::State()); R->SetBoolField(TEXT("legacy_reference"),Legacy);
     R->SetNumberField(TEXT("visible_count"),Visible.Num()); R->SetNumberField(TEXT("peak_visible"),PeakVisible); R->SetNumberField(TEXT("cycles"),Cycles);
     R->SetNumberField(TEXT("ledger_exhausted"),Exhausted); R->SetNumberField(TEXT("floor_pct"),AnomalyCensusPolicy425::Floor); R->SetNumberField(TEXT("ceiling_pct"),AnomalyCensusPolicy425::Ceiling);
     return R;
@@ -305,8 +320,10 @@ bool FAnomalyMasks425::Restore()
 {
     if (!Started) { return true; }
     if (Owner.IsValid()) { if (auto* Auto=Owner->GetSubsystem<UAnomalyAutoInjectorSubsystem>()) { Auto->ClearCensusProvider(); } }
-    FlushRenderingCommands(); Release(); const bool Good=!AnomalyStencilTag::IsAnyTagged();
-    AnomalyStencilTag::SetRestoreWatch(nullptr); AnomalyStencilTag::DisableCustomStencil();
+    if (Legacy) { FlushRenderingCommands(); }
+    Release(); const bool Good=!AnomalyStencilTag::IsAnyTagged();
+    if (Legacy) { AnomalyStencilTag::SetRestoreWatch(nullptr); AnomalyStencilTag::DisableCustomStencil(); }
+    else { AnomalyPrivate425::Stop(); }
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 C5: stencil_restore=%d peak_visible=%d cycles=%d exhausted=%d lost=%d no_pass=%d polluted=%d"),Good?1:0,PeakVisible,Cycles,Exhausted,LostBatches,NoPassBatches,PollutedBatches);
     CensusOff425=0;
     if (ActiveMasks425==this) { ActiveMasks425=nullptr; } Started=false; Ledger.Reset(); return Good;
@@ -325,6 +342,7 @@ uint64 FAnomalyMasks425::Selection(UWorld* World,uint64 Request)
 {
     if (!ActiveMasks425 || ActiveMasks425->Owner.Get()!=World) { return 0; }
     ActiveMasks425->Advance(Request);
+    if (!ActiveMasks425->Legacy) { AnomalyPrivate425::Prepare(Request,ActiveMasks425->Tags); }
     UAnomalyAutoInjectorSubsystem* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>(); if (!Auto) { return 0; }
     uint64 Bits=0;
     for (const auto& Fire:Auto->GetLiveFires()) { if (Labelled(World,Fire)) { for (uint8 Tag:ActiveMasks425->TagsFor(Fire)) { Bits|=uint64(1)<<(Tag-AnomalyStencilTag::ReservedStencilBase); } } }
@@ -332,6 +350,8 @@ uint64 FAnomalyMasks425::Selection(UWorld* World,uint64 Request)
 }
 bool FAnomalyMasks425::Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family, uint64 Request, uint64 Selected, FAnomalyFrameCapturer& Capturer)
 {
+    if (AnomalyPrivate425::Active()) { return AnomalyPrivate425::Render(Cmd,Family,Request,Selected,Capturer); }
+    if (!ActiveMasks425 || !ActiveMasks425->Legacy) { return false; }
     if (Family.Views.Num() != 1 || !Family.Scene) { return false; }
     const FViewInfo& View = static_cast<const FViewInfo&>(*Family.Views[0]);
     const FIntPoint Size = View.UnscaledViewRect.Size();

@@ -40,23 +40,6 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     IgnoreMove=PC->IsMoveInputIgnored(); IgnoreLook=PC->IsLookInputIgnored();
     PC->SetIgnoreMoveInput(true); PC->SetIgnoreLookInput(true);
     OriginalViewRotation=Base; Base.Pitch=-12.0f;
-    auto Candidates=AnomalyViewport::GetCensusPrefilterActors(World);
-    Candidates.Sort([](const TWeakObjectPtr<AActor>& A,const TWeakObjectPtr<AActor>& B) { return GetNameSafe(A.Get())<GetNameSafe(B.Get()); });
-    int32 N=0;
-    for (const auto& A:Candidates)
-    {
-        if (!AnomalyHostDepth425::BenchFixture(World) || !AnomalyHostDepth425::FixtureActor(A.Get()) || N>=3) { continue; }
-        TInlineComponentArray<UPrimitiveComponent*> Prims(A.Get());
-        for (UPrimitiveComponent* Prim:Prims)
-        {
-            if (!AnomalyViewport::IsRenderableComponent(Prim) || Prim->bRenderCustomDepth) { continue; }
-            FPrior Prior; Prior.On=Prim->bRenderCustomDepth; Prior.Value=Prim->CustomDepthStencilValue; Prior.Mask=Prim->CustomDepthStencilWriteMask;
-            Original.Add(Prim,Prior);
-            Prim->SetCustomDepthStencilValue(N==0 ? AnomalyStencilTag::ReservedStencilBase+3 : 17+N);
-            Prim->SetCustomDepthStencilWriteMask(N==1 ? ERendererStencilMask::ERSM_1 : ERendererStencilMask::ERSM_Default);
-            Prim->SetRenderCustomDepth(N!=2); ++N; break;
-        }
-    }
     for (TActorIterator<AActor> It(World);It;++It)
     {
         TInlineComponentArray<UPrimitiveComponent*> Prims(*It);
@@ -75,7 +58,7 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     Protocol->SetNumberField(TEXT("grain_period"),7); Protocol->SetNumberField(TEXT("unstable_dilation"),2);
     Protocol->SetStringField(TEXT("grain_mode"),TEXT("phase_matched_viewstate_GetFrameIndex8_modulo7"));
     Protocol->SetStringField(TEXT("reference_rule"),TEXT("FU5 office smoke: six fixed poses; 28 off/on frames per pose; 240 auto frames per pose; all poses enabled without label-free grading. Wall strip compared by render grain phase against the off-hold RGB range with one-level tolerance."));
-    Protocol->SetNumberField(TEXT("setup_components"),Original.Num());
+    Protocol->SetNumberField(TEXT("setup_components"),0);
     Protocol->SetBoolField(TEXT("bench_fixture"),AnomalyHostDepth425::BenchFixture(World));
     return JsonStreet425(Protocol,Directory/TEXT("c5-protocol.json")) && JsonStreet425(DepthSample(true),Directory/TEXT("depth-before.json"));
 }
@@ -118,12 +101,12 @@ TSharedPtr<FJsonObject> FAnomalyStreetBench425::DepthSample(bool Full) const
         const bool IsTagged=Tagged.Contains(Pair.Key);
         if ((bool(Prim->bRenderCustomDepth)!=(IsTagged||Pair.Value.On)) || (!IsTagged && Changed) || (Pair.Value.On && (Changed || IsTagged))) { ++Diff; }
         On+=Prim->bRenderCustomDepth ? 1 : 0;
-        if (Full || Prim->bRenderCustomDepth || Changed || Original.Contains(Pair.Key))
+        if (Full || Prim->bRenderCustomDepth || Changed)
         {
             auto V=MakeShared<FJsonObject>(); V->SetStringField(TEXT("component"),Prim->GetPathName());
             V->SetBoolField(TEXT("on"),Prim->bRenderCustomDepth); V->SetNumberField(TEXT("value"),Prim->CustomDepthStencilValue); V->SetNumberField(TEXT("write_mask"),int32(Prim->CustomDepthStencilWriteMask));
             V->SetBoolField(TEXT("prior_on"),Pair.Value.On); V->SetNumberField(TEXT("prior_value"),Pair.Value.Value); V->SetNumberField(TEXT("prior_write_mask"),int32(Pair.Value.Mask));
-            V->SetBoolField(TEXT("tagged"),IsTagged); V->SetBoolField(TEXT("bench_setup"),Original.Contains(Pair.Key)); Values.Add(MakeShared<FJsonValueObject>(V));
+            V->SetBoolField(TEXT("tagged"),IsTagged); V->SetBoolField(TEXT("bench_setup"),false); Values.Add(MakeShared<FJsonValueObject>(V));
         }
     }
     R->SetNumberField(TEXT("candidates"),Before.Num()); R->SetNumberField(TEXT("on_count"),On); R->SetNumberField(TEXT("tagged_components"),Tagged.Num()); R->SetNumberField(TEXT("unexpected"),Diff); R->SetArrayField(TEXT("components"),Values); return R;
@@ -250,7 +233,6 @@ bool FAnomalyStreetBench425::Stop()
 {
     auto After=DepthSample(true); const bool Good=After->GetNumberField(TEXT("unexpected"))==0 && After->GetNumberField(TEXT("tagged_components"))==0;
     JsonStreet425(After,Directory/TEXT("depth-after.json"));
-    for (const auto& Pair:Original) { if (Pair.Key.IsValid()) { Pair.Key->SetCustomDepthStencilValue(Pair.Value.Value); Pair.Key->SetCustomDepthStencilWriteMask(Pair.Value.Mask); Pair.Key->SetRenderCustomDepth(Pair.Value.On); } }
     if (Owner.IsValid()) { if (APlayerController* PC=Owner->GetFirstPlayerController()) { PC->SetControlRotation(OriginalViewRotation); PC->SetIgnoreMoveInput(false); PC->SetIgnoreLookInput(false); } }
     if (Target.IsValid() && Owner.IsValid() && Target.Get()!=Owner->GetFirstPlayerController()->GetPawn()) { Target->SetActorRotation(TargetRotation); }
     return Good;

@@ -35,6 +35,7 @@ private:
     TMap<TWeakObjectPtr<AActor>,uint8> Tags;
     TMap<TWeakObjectPtr<UPrimitiveComponent>,ERendererStencilMask> WriteMasks;
     bool Started = false;
+    bool Legacy = false;
     struct FCensusValue { int32 Pixels=0,Area=0; uint64 Tick=0; bool Translucent=false; };
     TMap<TWeakObjectPtr<AActor>,FCensusValue> Verdicts;
     struct FBatch { TMap<TWeakObjectPtr<AActor>,uint8> Actors; TSet<uint8> Allowed; uint64 Armed=0; };

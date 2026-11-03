@@ -3,15 +3,16 @@
 #if ANOMALY_ENGINE_425 && ANOMALY_CAPTURE
 #include "RHIGPUReadback.h"
 #include "RHICommandList.h"
+#include "AnomalyPrivatePolicy425.h"
 
 namespace AnomalyReadback425
 {
-    constexpr bool Accept(bool HasData, int W, int H, int Pitch, int MappedH)
+    constexpr bool Accept(bool HasData, int W, int H, int Pitch, int MappedH, int BytesPerPixel=4)
     {
-        return HasData && W > 0 && H > 0 && Pitch == W && MappedH == H;
+        return AnomalyPrivatePolicy425::Layout(HasData,W,H,Pitch,MappedH,BytesPerPixel);
     }
     static_assert(Accept(true, 64, 48, 64, 48), "Exact map must pass");
-    static_assert(!Accept(true, 64, 48, 80, 48), "Padded map must fail");
+    static_assert(Accept(true, 64, 48, 80, 48), "Padded rows are copied by pitch");
     static_assert(!Accept(true, 64, 48, 63, 48), "Short pitch must fail");
     static_assert(!Accept(true, 64, 48, 64, 47), "Short height must fail");
     static_assert(!Accept(true, 64, 48, 0, 0), "Zero map must fail");

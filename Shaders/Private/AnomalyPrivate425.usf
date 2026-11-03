@@ -1,0 +1,47 @@
+#include "/Engine/Private/Common.ush"
+int2 OutputSize;
+Texture2D PrivateDepth;
+Texture2D<uint2> PrivateIds;
+RWTexture2D<uint4> Evidence;
+RWTexture2D<uint> Mask;
+RWTexture2D<uint> Drawn;
+uint SelectedLo;
+uint SelectedHi;
+uint HiddenLo;
+uint HiddenHi;
+uint BaseTag;
+float DepthBias;
+int2 ScenePixel(int2 P)
+{
+    return int2(View.ViewRectMin.xy) + min(int2(P * View.ViewSizeAndInvSize.xy / OutputSize), int2(View.ViewSizeAndInvSize.xy) - 1);
+}
+void CopyVS(uint VertexId : SV_VertexID, out float4 Position : SV_Position)
+{
+    float2 UV = float2((VertexId << 1) & 2, VertexId & 2);
+    Position = float4(UV * float2(2, -2) + float2(-1, 1), 0, 1);
+}
+void CopyPS(float4 Position : SV_Position, out float Depth : SV_Depth)
+{
+    Depth = SceneTexturesStruct.SceneDepthTexture.Load(int3(ScenePixel(int2(Position.xy)), 0)).r;
+}
+[numthreads(8,8,1)]
+void IdsCS(uint3 DispatchId : SV_DispatchThreadID)
+{
+    int2 P = int2(DispatchId.xy);
+    if (any(P >= OutputSize)) return;
+    uint Id = PrivateIds.Load(int3(P,0)) STENCIL_COMPONENT_SWIZZLE;
+    float Z = PrivateDepth.Load(int3(P,0)).r;
+    float SceneZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(ScenePixel(P),0)).r;
+    uint Bit = Id - BaseTag;
+    bool Assigned = Id >= BaseTag && Bit < 64;
+    bool Selected = Assigned && ((Bit < 32 ? SelectedLo >> Bit : SelectedHi >> (Bit - 32)) & 1) != 0;
+    bool Hidden = Selected && ((Bit < 32 ? HiddenLo >> Bit : HiddenHi >> (Bit - 32)) & 1) != 0;
+    bool SameDepth = abs(Z - SceneZ) <= DepthBias;
+    bool Admitted = Assigned && Z > 0 && (SameDepth || (Hidden && Z >= SceneZ - DepthBias));
+    Id = Admitted ? Id : 0;
+    uint M = Selected && Admitted ? Id : 0;
+    uint D = M != 0 && SameDepth ? Id : 0;
+    Evidence[P] = uint4(Id, asuint(Z), asuint(SceneZ), M | (D << 8));
+    Mask[P] = M;
+    Drawn[P] = D;
+}

@@ -2,6 +2,7 @@
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"
+#include "AnomalyPrivatePass425.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/PostProcessVolume.h"
@@ -78,9 +79,10 @@ bool AnomalyHostDepth425::Admit(UWorld* World,const FString& Directory)
     const FScan ScanResult=Scan(World);
     const bool Bench=FParse::Param(FCommandLine::Get(),TEXT("IAIBench"));
     const bool Bypass=Bench && BenchFixture(World) && FParse::Param(FCommandLine::Get(),TEXT("IAIBenchBypassHostDepth"));
-    const bool Allowed=AnomalyCaptureAdmission425::Allowed(ScanResult.Result(),Bench,Bypass);
+    const bool Private=AnomalyPrivate425::Available(World);
+    const bool Allowed=Private || (AnomalyPrivate425::Legacy(World) && AnomalyCaptureAdmission425::Allowed(ScanResult.Result(),Bench,Bypass));
     TSet<TWeakObjectPtr<UPrimitiveComponent>> Tagged; AnomalyStencilTag::GetTaggedComponents(Tagged);
-    auto R=ScanResult.Receipt(); R->SetBoolField(TEXT("admitted"),Allowed); R->SetBoolField(TEXT("bench_bypass"),Bypass);
+    auto R=ScanResult.Receipt(); R->SetBoolField(TEXT("admitted"),Allowed); R->SetBoolField(TEXT("bench_bypass"),Bypass); R->SetBoolField(TEXT("private_pass"),Private);
     R->SetNumberField(TEXT("tagged_before"),Before.Num()); R->SetNumberField(TEXT("tagged_after_scan"),Tagged.Num());
     const auto* Mode=IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
     R->SetNumberField(TEXT("custom_depth_mode"),Mode ? Mode->GetInt() : -1);

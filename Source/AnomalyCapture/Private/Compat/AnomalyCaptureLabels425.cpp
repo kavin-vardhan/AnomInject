@@ -5,6 +5,7 @@
 #include "AnomalyCensusBatch425.h"
 #include "AnomalySessionRun425.h"
 #include "AnomalyHostDepth425.h"
+#include "AnomalyPrivatePass425.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalySelectorSubsystem.h"
@@ -87,6 +88,7 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     auto Routes=MakeShared<FJsonObject>(); Routes->SetArrayField(TEXT("routes"),RouteRows425());
     if (!FFileHelper::SaveStringToFile(Json425(Routes),*(Directory/TEXT("routes.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { return false; }
     if (!AnomalyHostDepth425::Admit(World,Directory)) { FPlatformMisc::RequestExit(false); return false; }
+    AnomalyPrivate425::Start(World,Directory);
     Owner = World; Output = Directory; RunEpoch = ++CaptureEpoch425; Size = World->GetGameViewport()->Viewport->GetSizeXY();
     Started = FPlatformTime::Seconds(); SavedFixed = FApp::UseFixedTimeStep(); SavedDelta = FApp::GetFixedDeltaTime(); SavedPace = CapturePace425;
     SavedEnabled = Auto->IsEnabled(); SavedRunning = Auto->IsRunning(); SavedSeed = Auto->GetSeed(); SavedMax = Auto->GetMaxConcurrent(); SavedPersist = Auto->GetPersist(); SavedIds = Auto->GetEnabledIds();
@@ -321,6 +323,8 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
             Owners.Add(MakeShared<FJsonValueObject>(Node));
         }
     }
+    const FString PrivateState=Json425(AnomalyPrivate425::State(true));
+    FFileHelper::SaveStringToFile(PrivateState,*(Output/TEXT("private-availability.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     const bool Restored = !MaskOwner || MaskOwner->Restore();
     if (!Restored || (Street && !Street->Stop())) { Failure = TEXT("Stencil restoration failed"); }
     FApp::SetFixedDeltaTime(SavedDelta); FApp::SetUseFixedTimeStep(SavedFixed); CapturePace425 = SavedPace;

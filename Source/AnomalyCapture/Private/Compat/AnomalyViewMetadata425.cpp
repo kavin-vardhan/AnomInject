@@ -6,6 +6,7 @@
 #include "CoreGlobals.h"
 #include "UnrealClient.h"
 #include "AnomalyMasks425.h"
+#include "AnomalyPrivatePass425.h"
 #include "SceneRendering.h"
 #include "ScenePrivate.h"
 #include "GameFramework/PlayerController.h"
@@ -49,6 +50,7 @@ void FAnomalyViewMetadata425::BeginRenderViewFamily(FSceneViewFamily& Family)
         const FMatrix& Projection=Family.Views[0]->ViewMatrices.GetProjectionMatrix();
         const double A=Projection.M[2][2],B=Projection.M[3][2];
         Ticket.Key.ViewNear=float(B/(1.0-A)); Ticket.Key.ViewFar=FMath::Abs(A)>1.e-12 ? float(-B/A) : 0;
+        if (Ticket.Key.Masks && AnomalyPrivate425::Active()) { AnomalyPrivate425::BindView(Ticket.Key.Request); }
         Ticket.Accepted = true;
     }
 }
@@ -71,6 +73,7 @@ bool FAnomalyViewMetadata425::Queue(const FAnomalyLabelKey425& Key, SWindow* Win
 void FAnomalyViewMetadata425::PostRenderViewFamily_RenderThread(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family)
 {
     PostRenders.Increment();
+    AnomalyPrivate425::Poll_RenderThread(Cmd);
     FScopeLock Lock(&Guard);
     for (auto& Pair : Tickets)
     {

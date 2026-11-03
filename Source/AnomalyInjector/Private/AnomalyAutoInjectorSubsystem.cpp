@@ -418,7 +418,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
             for (TActorIterator<AActor> It(World); It; ++It)
             {
                 TInlineComponentArray<ULightComponent*> Lights(*It);
-                bool AffectsVisible = false;
+                bool AffectsVisible = false, ReceiversAvailable = true;
                 for (ULightComponent* Light : Lights)
                 {
                     if (!Light->GetVisibleFlag() || Light->Intensity <= 0) { continue; }
@@ -426,10 +426,22 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
                     {
                         if (!Weak.IsValid()) { continue; }
                         TInlineComponentArray<UPrimitiveComponent*> Prims(Weak.Get());
-                        for (UPrimitiveComponent* Prim : Prims) { AffectsVisible |= AnomalyViewport::IsRenderableComponent(Prim) && Light->AffectsPrimitive(Prim); }
+                        for (UPrimitiveComponent* Prim : Prims)
+                        {
+                            const bool Affected=AnomalyViewport::IsRenderableComponent(Prim) && Light->AffectsPrimitive(Prim);
+                            AffectsVisible |= Affected;
+#if ANOMALY_ENGINE_425
+                            if (Affected && CensusQuery)
+                            {
+                                const auto Opinion=CensusQuery(Weak.Get());
+                                const FString Reason=Opinion.Reason;
+                                ReceiversAvailable &= Reason!=TEXT("private_unavailable") && Reason!=TEXT("private_unmeasured");
+                            }
+#endif
+                        }
                     }
                 }
-                if (AffectsVisible && !IsActorLive(*It)) { Candidates.Add(*It); }
+                if (AffectsVisible && ReceiversAvailable && !IsActorLive(*It)) { Candidates.Add(*It); }
             }
             Candidates.Sort([](const AActor& A,const AActor& B) { return A.GetName() < B.GetName(); });
             return Candidates.Num();

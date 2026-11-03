@@ -454,7 +454,7 @@ void FAnomalyFrameCapturer::Drain_RenderThread()
 		int32 BufferHeight = 0;
 		void* Src = Item.Readback->Lock(RowPitchInPixels, &BufferHeight);
 #if ANOMALY_ENGINE_425
-        if (!AnomalyReadback425::Accept(Src != nullptr, Item.Rect.Width(), Item.Rect.Height(), RowPitchInPixels, BufferHeight))
+        if (!AnomalyReadback425::Accept(Src != nullptr, Item.Rect.Width(), Item.Rect.Height(), RowPitchInPixels, BufferHeight,GPixelFormats[Item.Format].BlockBytes))
         {
             GuardDrops.Increment();
             UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture425: dropped mapping id=%llu requested=%dx%d mapped=%dx%d"), Item.RequestId, Item.Rect.Width(), Item.Rect.Height(), RowPitchInPixels, BufferHeight);
@@ -506,12 +506,14 @@ void FAnomalyFrameCapturer::Drain_RenderThread()
             {
                 int32 Pitch = 0, Height = 0;
                 void* Pixels = Item.Mask425.Pixels->Lock(Pitch,&Height);
-                if (!AnomalyReadback425::Accept(Pixels != nullptr,W,H,Pitch,Height))
+                if (!AnomalyReadback425::Accept(Pixels != nullptr,W,H,Pitch,Height,16))
                 {
                     if (Pixels) { Item.Mask425.Pixels->Unlock(); }
                     GuardDrops.Increment(); InFlight.RemoveAt(i); continue;
                 }
-                Frame.MaskData425.Append(static_cast<const uint8*>(Pixels),W*H*16); Item.Mask425.Pixels->Unlock();
+                Frame.MaskData425.SetNumUninitialized(W*H*16);
+                AnomalyPrivatePolicy425::CopyRows(Frame.MaskData425.GetData(),Pixels,W,H,Pitch,Height,16,[](void* D,const void* S,std::size_t N) { FMemory::Memcpy(D,S,N); });
+                Item.Mask425.Pixels->Unlock();
                 void* Table = Item.Mask425.Table->Lock(1536*4);
                 if (!Table) { GuardDrops.Increment(); InFlight.RemoveAt(i); continue; }
                 Frame.MaskTable425.Append(static_cast<const uint32*>(Table),1536); Item.Mask425.Table->Unlock();

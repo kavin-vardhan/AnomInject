@@ -10490,3 +10490,8 @@ A termination exception can prevent the successful-stop list from being recorded
 ## G525 - A private visible ID needs current scene-depth admission
 
 GD3 uses the saved family scene depth rather than trying to reproduce Renderer-private occlusion state. Visible pixels require equal depth within a frozen quantization allowance; only logically hidden, selected event components admit a private surface in front of scene depth. With reversed Z the latter comparison is greater/equal. The fixture candidate uses4/16777215 device depth units, fixed before measurements. Rejected private geometry cannot replace a previously admitted ID. The live proof remains a separate gate.
+
+
+## G526 - Private ID attachment is not host custom depth
+
+094-43 Stage B stores IDs in its own depth-stencil attachment and reads its own stencil SRV. Host custom-depth state and targets remain untouched. This is a private GPU attachment write, not a component stencil write. Seeding private depth from the saved frame avoids erasing an admitted background ID when an occlusion-delayed foreground is rejected. Hardware equality is stricter than the frozen final admission tolerance and must pass H2 unchanged. Unsupported dynamic GPU-scene data is unavailable rather than silently drawn with missing bindings.
