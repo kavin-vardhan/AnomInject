@@ -1,0 +1,351 @@
+{
+  "stage": "A",
+  "result": {
+    "result": "PASS",
+    "A_P2": {
+      "result": "PASS",
+      "missing_cached_shader_maps": 0
+    },
+    "A_P3": "PASS",
+    "A_P4": {
+      "result": "PASS",
+      "frames": 2352,
+      "new_magenta": {
+        "count": 2352,
+        "min": 0.0,
+        "mean": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "unpaired": [],
+      "example": {
+        "index": 746,
+        "on": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\private-on\\01\\plugin-frames\\epoch01\\frame-000746.png",
+        "off": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\private-off\\01\\plugin-frames\\epoch01\\frame-000746.png",
+        "measurement": {
+          "index": 746,
+          "new_magenta": 0,
+          "on_magenta": 0,
+          "off_magenta": 0,
+          "rgb_changed": 260
+        }
+      }
+    },
+    "A_P5": {
+      "result": "PASS",
+      "frames": 2352,
+      "max_on": 0,
+      "max_tagged": 0,
+      "max_unexpected": 0,
+      "states_equal": true,
+      "modes": [
+        1,
+        1,
+        1
+      ]
+    },
+    "cost": {
+      "cpu_submit_ms": {
+        "count": 2352,
+        "min": 0.0882,
+        "mean": 0.22313443877551017,
+        "p95": 0.3479049999999998,
+        "max": 0.825
+      },
+      "cpu_with_wait_ms": {
+        "count": 2352,
+        "min": 1.4421,
+        "mean": 2.3048054846938775,
+        "p95": 2.62838,
+        "max": 11.8866
+      },
+      "gpu_ms": {
+        "count": 2352,
+        "min": 0.118,
+        "mean": 0.48900722789115647,
+        "p95": 0.6364499999999998,
+        "max": 0.779
+      }
+    }
+  },
+  "coverage": {
+    "result": "PASS",
+    "A_P3": "PASS",
+    "A_P5": "PASS",
+    "objects": {
+      "DefaultPawn_0": {
+        "frames": 1805,
+        "nonempty": 0,
+        "iou": {
+          "count": 0
+        },
+        "different_pixels": {
+          "count": 1805,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "DefaultPawn_0+OF_Floor+OF_Hide+OF_LOD_A+OF_LOD_B+OF_Masked+OF_WPO": {
+        "frames": 13,
+        "nonempty": 13,
+        "iou": {
+          "count": 13,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 13,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Floor": {
+        "frames": 1805,
+        "nonempty": 1805,
+        "iou": {
+          "count": 1805,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1805,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Hide": {
+        "frames": 1805,
+        "nonempty": 1805,
+        "iou": {
+          "count": 1805,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1805,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_LOD_A": {
+        "frames": 1805,
+        "nonempty": 1805,
+        "iou": {
+          "count": 1805,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1805,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_LOD_B": {
+        "frames": 1805,
+        "nonempty": 1805,
+        "iou": {
+          "count": 1805,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1805,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Masked": {
+        "frames": 1805,
+        "nonempty": 84,
+        "iou": {
+          "count": 84,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1805,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_WPO": {
+        "frames": 1805,
+        "nonempty": 1637,
+        "iou": {
+          "count": 1637,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1805,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      }
+    },
+    "hidden_frames": 132,
+    "hidden_empty": 0,
+    "lighting_group_note_frames": 78,
+    "gated_unpaired": 0,
+    "failed_measurements": [],
+    "state": {
+      "frames": 2352,
+      "max_on": 0,
+      "max_tagged": 0,
+      "max_unexpected": 0,
+      "states_equal": true,
+      "modes": [
+        1,
+        1,
+        1
+      ]
+    },
+    "cost": {
+      "cpu_submit_ms": {
+        "count": 2352,
+        "min": 0.0824,
+        "mean": 0.21511458333333336,
+        "p95": 0.337445,
+        "max": 0.7733
+      },
+      "cpu_with_wait_ms": {
+        "count": 2352,
+        "min": 1.3442,
+        "mean": 2.2545527210884355,
+        "p95": 2.59179,
+        "max": 12.0876
+      },
+      "gpu_ms": {
+        "count": 2352,
+        "min": 0.102,
+        "mean": 0.4831279761904762,
+        "p95": 0.6264499999999998,
+        "max": 0.961
+      }
+    }
+  },
+  "builds": {
+    "result": "PASS",
+    "commit": "42ea37e3ddf7e9102757eec6ebd357f861a524bc",
+    "files": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Binaries\\Win64\\Outline425.exe",
+        "size": 139288576,
+        "sha256": "ef140d2e308c9490cea4480e63c3fa2d70c63982d2976daaf8f4a6207a8e4243"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+        "size": 171008,
+        "sha256": "86156bfc506d934efe83499621997fbfd48290f74983d48a9cddb35944ec481f"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "size": 124416,
+        "sha256": "0a74f35993eddb1406901e4b240360d67c5239cfc5a80ac0d6bcd38517b25e12"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "size": 1021440,
+        "sha256": "4fdd60742e64acb2d89ce60a05ffff749dafdce6c816e2b3282261e69405f182"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "size": 126464,
+        "sha256": "b84088b69fe7b66adcd79086941bd8374cbb9beebdc63f959113fb24fdc13b40"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "size": 944128,
+        "sha256": "fede3315dd36fbe22c4c32537fce9d40883e4b08d722827a540775800f17b02c"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "size": 112128,
+        "sha256": "10b0f03d2c3830aaee29ef0b9c458593c6316651f809f11ece780bf49baa50fe"
+      }
+    ],
+    "builds": [
+      {
+        "target": "Outline425",
+        "attempt": 1,
+        "result": "PASS",
+        "seconds": 54.978540500000236,
+        "errors": [],
+        "process_receipts": [
+          "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425-01\\process\\child-001.json"
+        ]
+      },
+      {
+        "target": "Outline425Editor",
+        "attempt": 1,
+        "result": "PASS",
+        "seconds": 48.27682889999414,
+        "errors": [],
+        "process_receipts": [
+          "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425Editor-01\\process\\child-001.json"
+        ]
+      }
+    ]
+  },
+  "full_p9": {
+    "start_utc": "2026-11-03T21:01:24.017145+00:00",
+    "invocation": "owner_p9.main()",
+    "phase": "entry",
+    "source_policy": "GE1 committed ref admission; remaining main unchanged",
+    "result": "PASS",
+    "exit_code": 0,
+    "elapsed_seconds": 354.43283800000063,
+    "end_utc": "2026-11-03T21:07:18.450444+00:00"
+  },
+  "frozen_rules": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\predictions.md",
+  "raw_root": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r",
+  "legacy_reference": "E:/IA_Fixtures/Outline425/Receipts/09443a/reference/02",
+  "spike": "42ea37e3ddf7e9102757eec6ebd357f861a524bc",
+  "stage_b": "not implemented or qualified yet"
+}
