@@ -10468,3 +10468,7 @@ ConfigCacheIni.cpp:1151-1196 parses each comma-separated override independently 
 ## G521 - A fixture probe timeout can exclude startup compilation
 
 The 094-42c ShaderProbe starts its 1,800-second timer when the console command runs. Raising only the outer kit limit did not prevent slot02 from exiting with985 shader jobs pending. MaterialShared.cpp:1919-1929 selects synchronous material compilation when ShaderCompiler.cpp:1798 reads bAllowAsynchronousShaderCompiling=False. The completed cost pair uses that command-line setting and two workers on both sides, measuring from process launch through normal exit. A fresh trivial-shader source hash forces new material keys without deleting DDC (MaterialShader.cpp:738-745). This policy changes the measurement conditions and must be reported. A shader-only retry may reuse a native build only after checking the exact one-file shader diff and every bound output hash; native or descriptor changes and missing/wrong hashes are refused. The final ready/zero-pending gate is unchanged.
+
+## G522 - Record stop intent before termination (094-43a)
+
+A termination exception can prevent the successful-stop list from being recorded. GC6 now saves UTC, root PID, reason and whether the root is running before invoking any owned-tree stop. The classifier checks PID and timestamp ordering; post-crash child cleanup cannot erase a genuine root crash. A missing or wrong intent fails the negative test. The prior WinError5 remains an open observation; this change does not identify or work around its cause.

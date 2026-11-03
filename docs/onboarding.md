@@ -1,3 +1,5 @@
+The kit distinguishes a requested owned stop from an actual runtime crash using intent persisted before termination. This changes process accounting, not capture gates; stopped sessions still fail. The 094-43a depth-only experiment remains separate from the product branch.
+
 # Onboarding
 
 The current 4.25 capture defaults to blinking and LOD corruption, and refuses labelled capture if the host custom-depth scan finds a reader or cannot establish safety. The [094-42c fixture evidence](sessions/2026-11-03-094-42c-outline-gates.md) demonstrates the outline leak and refusal. The proposed private pass is not implemented; its depth-shader link probe and new-material-shader cost are isolated experiments.

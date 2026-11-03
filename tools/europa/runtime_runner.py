@@ -62,6 +62,8 @@ def execute(leg,root,temp,host,protected,argv,ledger,deadline,on_started=None,sy
         result['child_receipt']=str(receipt)
         if receipt.exists():
             child=json.loads(receipt.read_text())
+            if 'stop_intents' in child:
+                result['stop_intents']=child['stop_intents']
             result.update(exit_code=child.get('exit_code'),stopped_owned_processes=child.get('stopped_owned_processes',[]),
                 post_crash_owned_stop=child.get('post_crash_owned_stop',[]),
                 root_ended_utc=child.get('root_ended_utc',child.get('ended_utc')),

@@ -1,3 +1,5 @@
+094-43a kit self-test: run `python tools/europa/runtime_exit_tests.py <receipt.json>`. Inspect `stop_intents` in the child and execution receipts and `exit_classification` in the result. An owned stop is still a failed session; a failed stop requires checking the recorded owned process identities before sealing evidence.
+
 # Setup runbook (living document)
 
 The 094-42c outline fixture is `E:\IA_Fixtures\Outline425`, with its script and asset hashes in `Receipts\09442c\assets.json`. Launch it only through the job's armed fixture kit; every authoring, capture and shader-cost argv includes `-nowrite`. P9 now selects baseline-v3 and its receipt; the retired overflow root is excluded whether absent or empty. Admission holds are capped at three hours. Earlier job slots remain spent. The [094-42c journal](sessions/2026-11-03-094-42c-outline-gates.md) records the exact run settings and shader-cost comparison; the experimental branch is never merged or pushed.

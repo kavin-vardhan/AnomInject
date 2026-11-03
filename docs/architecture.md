@@ -1,3 +1,5 @@
+The runtime kit records stop intent (UTC, root PID, reason, root-running observation) before termination. A matching intent preceding root exit classifies the exit as `owned-stop`; cleanup after an already exited root retains `crash`. A failed termination can leave `stop-pending`, and must not be claimed as completed cleanup. Historical receipts without intent retain their existing successful-stop interpretation.
+
 # Architecture (living — current as-built)
 
 For 4.25, the accepted FZ3/FZ4 guard scans host custom-depth readers before tagging, refuses reader/unknown results, and defaults capture routes to blinking and LOD corruption. The other two smoke routes require an explicit list. Bench state planting is restricted to the owned fixture. The separate outline fixture reproduces the leak and the guard refusal; its shader experiment stays outside the product branch. A private ID/depth pass is still future work, not part of the current capture path. See [094-42c](sessions/2026-11-03-094-42c-outline-gates.md).

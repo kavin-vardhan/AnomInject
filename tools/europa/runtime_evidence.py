@@ -6,6 +6,7 @@ import re
 
 from fixture_policy import sha
 from owner_attempts import create_json
+from runtime_exit import classify_exit
 
 
 def freeze(root, extra=(), canary_hash=None):
@@ -45,8 +46,9 @@ def outcome(leg,execution,protection,upload,reader,driver=None,crashes=(),raw=No
     if any(row.get('hits') for row in upload.get('logs',[])) or 'FH3 upload sign during session' in observed:
         fatal.append('upload sign')
     if (raw or {}).get('canary_hit_paths') or 'canary' in execution.get('reason','').lower():fatal.append('canary hit')
-    deliberate=bool(execution.get('stopped_owned_processes'))
-    crashed=bool(execution.get('launches') and execution.get('exit_code') not in (0,None) and not deliberate)
+    exit_classification=classify_exit(execution)
+    deliberate=exit_classification=='owned-stop'
+    crashed=exit_classification=='crash'
     if crashed:
         reasons.append('abnormal editor/game exit; FI4 runtime crash counted')
     if execution.get('hard_stop'):
@@ -62,7 +64,7 @@ def outcome(leg,execution,protection,upload,reader,driver=None,crashes=(),raw=No
     if crashes:reasons.append('new crash/ensure report folder after session')
     return dict(result='FAIL' if fatal or reasons else 'PASS',end_run=bool(fatal),run_stop_reasons=fatal,
                 leg_failure_reasons=reasons,new_crash_report_folders=list(crashes),reader=reader,
-                 upload=upload,deliberate_owned_stop=deliberate,crashed=crashed)
+                 upload=upload,deliberate_owned_stop=deliberate,crashed=crashed,exit_classification=exit_classification)
 
 
 def ensure_frozen(path):

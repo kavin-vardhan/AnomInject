@@ -427,7 +427,7 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     receipt = {'argv': list(map(str, argv)), 'windows_command_line': subprocess.list2cmdline(list(map(str, argv))),
         'cwd': str(cwd or Path.cwd()), 'started_utc': now(), 'environment': routing,
         'job_config_sha256': SCOPE['config_sha256'],
-        'W4': {x: None for x in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')}}
+        'W4': {x: None for x in ('GIT_AUTHOR_DATE', 'GIT_COMMITTER_DATE')}, 'stop_intents': []}
     from environment import fingerprints
     receipt['environment_contract'] = {'result': 'PASS', 'policy': 'EL1/EM2/EW3' if execution else 'EL1/EM2 orchestration', 'nonblocked_base_preserved': True, 'effective_sha256_by_name': fingerprints(env)}
     path = folder / f'child-{lognum:03}.json'
@@ -468,6 +468,10 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
         if on_creation_failed is not None:
             on_creation_failed()
         raise
+    def stop_tree(reason):
+        from runtime_exit import stop_with_intent
+        return stop_with_intent(receipt, proc.pid, reason, proc.poll() is None,
+                                lambda value: dump(path, value), tree.stop if tree else proc.terminate)
     try:
         if runtime_guard:
             tree = OwnedTree(proc.pid)
@@ -509,7 +513,7 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
                     root_exit_at=time.monotonic();receipt['root_ended_utc']=now()
                     if on_root_exit:on_root_exit(root_code)
                     if root_code!=0:
-                        receipt['post_crash_owned_stop']=tree.stop()
+                        receipt['post_crash_owned_stop']=stop_tree('cleanup after abnormal root exit')
                 if monitor_adoption and root_exit_at is not None and time.monotonic()-root_exit_at>=60:
                     tree.stop_monitors('FH5 still alive 60 seconds after root exit')
                 if running_check is not None and (not monitor_adoption or root_code is None):
@@ -520,7 +524,7 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
                 if runtime_guard and any(Path(r['image']).name.casefold() in ('cl.exe','link.exe','unrealheadertool.exe','automationtool.exe','unrealpak.exe','ue4editor-cmd.exe') for r in tree.known.values()):
                     raise RuntimeError('An unauthorized compile, commandlet, cook or packaging child appeared.')
                 if memory_guard and time.monotonic() - last_memory >= 5:
-                    low_count = monitor_sample(sample(), low_count, tree.stop, memory_log)
+                    low_count = monitor_sample(sample(), low_count, lambda: stop_tree('build memory floor'), memory_log)
                     last_memory = time.monotonic()
             if time.monotonic() - last_floor >= 20:
                 if not runtime_guard or running_check is None:
@@ -536,12 +540,17 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     except BaseException as error:
         receipt['interruption'] = {'type': type(error).__name__, 'message': str(error)}
         if tree:
-            receipt['stopped_owned_processes'] = tree.stop()
+            receipt['stopped_owned_processes'] = stop_tree(str(error))
         elif proc.poll() is None:
-            proc.terminate()
+            stop_tree(str(error))
         code = proc.wait()
         raise
     finally:
+        if code is None:
+            code = proc.poll()
+        if monitor_adoption and code is not None and 'root_ended_utc' not in receipt:
+            receipt['root_ended_utc'] = now()
+            if on_root_exit:on_root_exit(code)
         stop_observer.set()
         if thread is not None and thread.ident is not None:
             thread.join(timeout=10)
