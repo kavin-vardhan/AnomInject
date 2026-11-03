@@ -1,3 +1,5 @@
+The Stage A GD3 candidate and its frozen rules live on the existing 43a spike, separate from feat. P9 is now fully passed. Native builds and live coverage/leak/state gates remain pending; no private renderer is yet qualified for the product.
+
 094-43r resumes after GE1 corrects P9 admission for four recorded extra refs. Eight focused tests pass, but full P9 and the private scene-depth admission gates remain pending. The immutable P9 baseline and all prior spike evidence stay intact.
 
 094-43a proves that the installed 4.25 depth-only types can be found by name and drawn through public mesh-pass machinery. It does not certify mask parity: disocclusion frames fail P3, and P4 is unrun. The kit stop-intent fix is on the feature branch; the experimental renderer is not.

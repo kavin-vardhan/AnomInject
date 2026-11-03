@@ -10485,3 +10485,8 @@ A termination exception can prevent the successful-stop list from being recorded
 ## G524 - Admit recorded refs without replacing the P9 baseline
 
 094-43 full P9 exposed four recorded extra refs beyond the 71-ref baseline. GE1 keeps every baseline ref exact and admits only the named backup, origin and two spikes using fixed SHA or ancestry rules. The 43a spike may advance for Stage A; the 42c evidence spike and redaction backup cannot move. Unknown extras, moved or missing baseline refs, and invalid ancestry fail. No synthetic ref is created by the tests. Full main remains a separate entry gate.
+
+
+## G525 - A private visible ID needs current scene-depth admission
+
+GD3 uses the saved family scene depth rather than trying to reproduce Renderer-private occlusion state. Visible pixels require equal depth within a frozen quantization allowance; only logically hidden, selected event components admit a private surface in front of scene depth. With reversed Z the latter comparison is greater/equal. The fixture candidate uses4/16777215 device depth units, fixed before measurements. Rejected private geometry cannot replace a previously admitted ID. The live proof remains a separate gate.

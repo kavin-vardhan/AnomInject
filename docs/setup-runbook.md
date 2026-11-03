@@ -1,3 +1,5 @@
+094-43r uses fresh, single-use Stage A fixture slots and a new three-attempt budget per target. Full P9 entry passed after GE1. Run only the bound kit, with -nowrite, D3D11 and the frozen 09443a reference/02. GD4 reports lighting group mismatches separately. No Stage B launch is admitted before all Stage A results pass.
+
 094-43 GE1 entry: run `python tools/europa/owner_ref_policy_tests.py <receipt.json>`, commit the tested kit change with W4, then invoke the complete `owner_p9.main()` with an explicit entry-only job configuration. The eight tests use copied ref lists and real ancestry reads; they never move refs. A full-main failure still stops entry. Preserve earlier failure receipts.
 
 094-43a stopped at the frozen P3 comparison. Keep reference/02 and private-off/01, including frame 708 and its successor; do not shift references or exclude the failed edges. P4 was not armed. Editor build attempts 1-3 are spent, Game attempt 1 passed. The spike and prior spike remain local; a later attempt needs a new ruling and fresh slots.

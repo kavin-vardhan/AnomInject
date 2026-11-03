@@ -1,3 +1,5 @@
+094-43r Stage A changes only the experimental fixture renderer: scene-depth equality for visible IDs, front/equal for selected logically hidden event components. Product FZ2 is still gated on the fixture proof. The feature kit admits the new fixture job with unchanged FM1 and GA5 limits.
+
 P9 ref admission now preserves the original 71 refs exactly and applies GE1 to four named extras: the fixed redaction backup, the fixed 42c spike, origin as an ancestor of local feat, and the 43a spike as a descendant of its accepted base. Unknown extras fail. The baseline is not regenerated.
 
 The 094-43a private-pass spike is local evidence only. Its exported name/map lookup and draw path link, but it draws some newly disoccluded census objects before the main renderer admits them. P3 fails; no private pass has been merged into the product. The product retains FZ3/FZ4.

@@ -39,7 +39,7 @@ def floors(start=False):
     limits = {'C': (13, 11, 10), 'D': (40, 30, 25), 'E': (15, 12, 10)}
     if JOB in (ROOT/'Receipts/09431', ROOT/'Receipts/09431b', ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437',ROOT/'Receipts/09438',ROOT/'Receipts/09439',ROOT/'Receipts/09440',ROOT/'Receipts/09442',ROOT/'Receipts/09442c'):
         limits['D'] = (25, 25, 15)
-    if JOB == ROOT/'Receipts/09443a':
+    if JOB in (ROOT/'Receipts/09443a',ROOT/'Receipts/09443r'):
         limits['D'] = (25, 25, 15)
         limits['E'] = (50, 50, 50)
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
