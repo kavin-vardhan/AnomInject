@@ -10480,3 +10480,8 @@ A termination exception can prevent the successful-stop list from being recorded
 ## G524 - D3D11 typed UAV loads need scalar scratch
 
 094-43a's first boot rejected a uint4 Evidence UAV load (D3DShaderCompiler.cpp:1237-1240). The experimental global shader repair keeps Evidence write-only and accumulates exact depth bits and IDs through R32_UINT resources. FXC flags the old shader's additional typed UAV loads and clears the fixed shader; real retry boot passes. This is one FI4 crash, not a kit stop. Shader-only reuse of native outputs requires the exact Source tree, a bounded shader diff and unchanged bound binary hashes; no fourth Editor build was run.
+
+
+## G524 - Admit recorded refs without replacing the P9 baseline
+
+094-43 full P9 exposed four recorded extra refs beyond the 71-ref baseline. GE1 keeps every baseline ref exact and admits only the named backup, origin and two spikes using fixed SHA or ancestry rules. The 43a spike may advance for Stage A; the 42c evidence spike and redaction backup cannot move. Unknown extras, moved or missing baseline refs, and invalid ancestry fail. No synthetic ref is created by the tests. Full main remains a separate entry gate.

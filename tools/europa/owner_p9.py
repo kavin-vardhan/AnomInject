@@ -12,6 +12,7 @@ sys.path.insert(0, 'D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-euro
 import preflight09402 as pre
 import write_ledger as ledger
 from p9_exit09405 import binary_required
+from owner_ref_policy import git_ancestor, validate_refs
 
 BASE = ledger.ROOT / 'Receipts/P9/baseline'
 V2 = ledger.ROOT / 'Receipts/P9/baseline-v3'
@@ -69,7 +70,8 @@ def derive(out):
 def git_proof(out):
     expected = json.loads((BASE / 'git-state.json').read_text())
     refs = pre.git('--git-dir=' + str(pre.COMMON), 'for-each-ref', '--format=%(refname) %(objectname)').splitlines()
-    assert [r for r in refs if not r.startswith('refs/heads/feat/europa-port ')] == expected['refs']
+    admission = validate_refs(expected['refs'], refs, lambda a, b: git_ancestor(pre.COMMON, a, b))
+    ledger.dump(out / 'ref-admission.json', admission)
     states, exempt = [], []
     for old in expected['worktrees']:
         p = old['path']

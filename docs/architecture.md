@@ -1,3 +1,5 @@
+P9 ref admission now preserves the original 71 refs exactly and applies GE1 to four named extras: the fixed redaction backup, the fixed 42c spike, origin as an ancestor of local feat, and the 43a spike as a descendant of its accepted base. Unknown extras fail. The baseline is not regenerated.
+
 The 094-43a private-pass spike is local evidence only. Its exported name/map lookup and draw path link, but it draws some newly disoccluded census objects before the main renderer admits them. P3 fails; no private pass has been merged into the product. The product retains FZ3/FZ4.
 
 The runtime kit records stop intent (UTC, root PID, reason, root-running observation) before termination. A matching intent preceding root exit classifies the exit as `owned-stop`; cleanup after an already exited root retains `crash`. A failed termination can leave `stop-pending`, and must not be claimed as completed cleanup. Historical receipts without intent retain their existing successful-stop interpretation.
