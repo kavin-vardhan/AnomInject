@@ -7,7 +7,7 @@ ROOT = Path('D:/IA_Europa')
 
 
 def outline_scope(data,job):
-    return ((job,data.get('authority')) in ((ROOT/'Receipts/09442','094-42 FZ3-FZ6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09442c','094-42c GA1-GA6 FZ3-FZ6 FN2 FM1 FJ1 FK1'))
+    return ((job,data.get('authority')) in ((ROOT/'Receipts/09442','094-42 FZ3-FZ6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09442c','094-42c GA1-GA6 FZ3-FZ6 FN2 FM1 FJ1 FK1'),(ROOT/'Receipts/09443a','094-43a GC4 GC6 FN2 FM1 FJ1 FK1 GA2 GA5'))
         and data.get('fixture_project')=='E:/IA_Fixtures/Outline425/Outline425.uproject'
         and data.get('fixture_engine')=='E:/EpicGames/UE_4.25')
 
