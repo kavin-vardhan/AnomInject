@@ -1,0 +1,354 @@
+{
+  "job": "094-42c",
+  "state": "IN_PROGRESS_COST_RETRY_PENDING",
+  "p9": {
+    "baseline": {
+      "path": "D:\\IA_Europa\\Receipts\\P9\\baseline-v3\\full-sha256.jsonl",
+      "sha256": "0e7c3386fedc7b46738053220f41b3fd4fa18f0806a7f7b96caed0a099eab666"
+    },
+    "retained_entries": 382969,
+    "removed_from_v2": 89583,
+    "tests": {
+      "result": "PASS",
+      "inventory_files": 382970,
+      "baseline_files": 382969,
+      "negative": {
+        "result": "REFUSED",
+        "planted_missing_path": "D:/IntrusiveAnomalies/StackOBot/Content/09442c-missing-negative.uasset",
+        "missing": [
+          "D:/IntrusiveAnomalies/StackOBot/Content/09442c-missing-negative.uasset"
+        ]
+      },
+      "removed_root_exclusion": "pure lexical; independent of disk existence",
+      "scope": "Production owner_p9 derive and inventory path on current disk. FJ1 fast protected-git check is in entry.json; old full EA8 hash/toolchain/fsck checks remain deferred."
+    }
+  },
+  "fixture": {
+    "result": "PASS",
+    "assets": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\EA_Outline.umap",
+        "size": 25271,
+        "sha256": "bc5482f86ba9201b481fab2023d3527de67c3c96fffa84a6962080b8a1b00d74"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Masked.uasset",
+        "size": 84545,
+        "sha256": "bee36524b3ba3e05247ddfa2b386d2d5c2f401a19e84dd719957ee9e408bac49"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Outline.uasset",
+        "size": 79753,
+        "sha256": "1b8ec07966eb57ace076c5c213b7507d648a6f8a8af3712c811e69f61a417e7b"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Surface.uasset",
+        "size": 84985,
+        "sha256": "ab457d9d562886663d7dcfacd735e07975fe4a241c05017197df4a2d4298f7e5"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_WPO.uasset",
+        "size": 82340,
+        "sha256": "40395df2e0aaf388b3e404ff569b375e3d79ba391122925abd783daa296e5de2"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\SM_OutlineCubeSphere.uasset",
+        "size": 150240,
+        "sha256": "c7482e0d9ea8423766aa3cbdf634a69dbbc2f44b7402bf941fa031e6f6a44f99"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\SM_OutlineSphereCube.uasset",
+        "size": 150869,
+        "sha256": "0aa066da99d88f5fb030bace5efa65ce6fb53f9f98eb518859b07118126f535c"
+      }
+    ],
+    "author_script": {
+      "path": "E:\\IA_Fixtures\\Outline425\\Scripts\\author_outline425.py",
+      "size": 8303,
+      "sha256": "32928cb9757e252dd8fdac407e5754165011c3b73153b94ab1fe5adb232fda5a"
+    },
+    "fixture_native_source": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425\\Outline425.Build.cs",
+        "size": 336,
+        "sha256": "1f407b94d4723a6fed0687ae88d5010cb1b8708590a2ac4f17719dc0bddf8c59"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425\\Outline425.cpp",
+        "size": 5443,
+        "sha256": "0f6e76d79309ff6710f8a52ffed4e76c1959f3c81a00701a66f1d3aa253ae6db"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425.Target.cs",
+        "size": 507,
+        "sha256": "78693fecd675cd09d51e3a34e349a449c077b73fea3ecc3070d9d95900def772"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425Editor.Target.cs",
+        "size": 521,
+        "sha256": "985152d4bc5df4fc79c42088d049f6b79863eadfe970f37a5e9cc9f9b174c961"
+      }
+    ],
+    "preserved_saved_ini": {
+      "path": "E:\\IA_Fixtures\\Outline425\\Saved\\Config\\Windows\\Engine.ini",
+      "size": 1502,
+      "sha256": "64d45f80d234e4710ec289eda4ce41af0947f42d61925e903bd9652a5440d7b8"
+    }
+  },
+  "repro": {
+    "result": "PASS",
+    "routes": [
+      "blinking",
+      "lod_corruption"
+    ],
+    "frames_per_run": 2352,
+    "events_per_run": {
+      "blinking": 37,
+      "lod_corruption": 32
+    },
+    "positive_census_holds": 168,
+    "census_off_holds": 168,
+    "per_anomaly": {
+      "blinking": {
+        "frames": 186,
+        "positive_frames": 186,
+        "boundary_pixels_min": 6071,
+        "boundary_pixels_max": 6321,
+        "boundary_pixels_sum": 1148706
+      },
+      "lod_corruption": {
+        "frames": 351,
+        "positive_frames": 351,
+        "boundary_pixels_min": 6038,
+        "boundary_pixels_max": 6321,
+        "boundary_pixels_sum": 2210156
+      }
+    },
+    "example": {
+      "index": 76,
+      "pose": 0,
+      "tagged_components": 7,
+      "changed_pixels": 205672,
+      "outline_pixels": 205672,
+      "control_outline_pixels": 0,
+      "new_outline_pixels": 205672,
+      "tag_boundary_outline_pixels": 9461,
+      "tagged_pixels": 543906
+    },
+    "reader": {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\outline-pixels.json",
+      "sha256": "aab94985e1ed20ca7c23cc1746d4f55d162620cb0a0049b085bb247d002c1ab1"
+    },
+    "limitation": "The fixture gradient material also colors steep floor depth gradients."
+  },
+  "guard": {
+    "result": "PASS",
+    "scan": {
+      "result": "reader",
+      "readers": 1,
+      "writers": 0,
+      "unknown": 0,
+      "materials": 1,
+      "entries": 1,
+      "volumes": 1,
+      "camera_blends": 1,
+      "scope": "volume/cached-blend/camera-POV material snapshot; native/custom passes and later additions cannot be certified absent",
+      "admitted": false,
+      "bench_bypass": false,
+      "tagged_before": 0,
+      "tagged_after_scan": 0,
+      "custom_depth_mode": 1
+    },
+    "capture_frames": 0,
+    "tag_receipts": 0
+  },
+  "builds": [
+    {
+      "group": "builds",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\builds\\Outline425-01\\result.json",
+      "target": "Outline425",
+      "attempt": 1,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 28.93248990000211,
+      "paris_unchanged": true,
+      "start_commit_bytes": 9187901440,
+      "admission_seconds": 0.005559000001085224
+    },
+    {
+      "group": "builds",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\builds\\Outline425Editor-01\\result.json",
+      "target": "Outline425Editor",
+      "attempt": 1,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 9.469491599997127,
+      "paris_unchanged": true,
+      "start_commit_bytes": 10378194944,
+      "admission_seconds": 0.004586899998685112
+    },
+    {
+      "group": "spike-builds",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\spike-builds\\Outline425Editor-01\\result.json",
+      "target": "Outline425Editor",
+      "attempt": 1,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 23.48821239999961,
+      "paris_unchanged": true,
+      "start_commit_bytes": 9373102080,
+      "admission_seconds": 0.005455200000142213
+    },
+    {
+      "group": "spike-builds",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\spike-builds\\Outline425Editor-02\\result.json",
+      "target": "Outline425Editor",
+      "attempt": 2,
+      "result": "FAIL",
+      "exit_code": 6,
+      "seconds": 1147.9421600999995,
+      "paris_unchanged": true,
+      "start_commit_bytes": 9365676032,
+      "admission_seconds": 1120.414818199999
+    },
+    {
+      "group": "spike-builds",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\spike-builds\\Outline425Editor-03\\result.json",
+      "target": "Outline425Editor",
+      "attempt": 3,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 28.07479450000028,
+      "paris_unchanged": true,
+      "start_commit_bytes": 10171924480,
+      "admission_seconds": 0.005900200001633493
+    }
+  ],
+  "shader_cost": {
+    "result": "INCOMPLETE",
+    "baseline": {
+      "result": "PASS",
+      "material_recompile_entries": 0,
+      "distinct_materials": 0,
+      "seconds_from_command": 13.012380097061396,
+      "launch_to_root_exit_seconds": 43.657356,
+      "loaded_base_materials": 77
+    },
+    "spike": {
+      "material_recompile_requests": 53,
+      "distinct_materials": 47,
+      "materials": [
+        "BaseFlattenMaterial",
+        "CineMat",
+        "DebugMeshMaterial",
+        "DefaultMaterial",
+        "DefaultSpriteMaterial",
+        "DefaultTextMaterialOpaque",
+        "EmissiveMeshMaterial",
+        "FloorPlaneMaterial",
+        "GizmoMaterial",
+        "HelpActorMaterial",
+        "LandscapeGizmoHeight_Mat",
+        "LandscapeGizmo_Mat",
+        "LevelColorationLitMaterial",
+        "LevelColorationUnlitMaterial",
+        "MAT_LevelColorationLitLightmapUV",
+        "M_ChromeBall",
+        "M_InvalidLightmapSettings",
+        "M_Masked",
+        "M_SimpleOpaque",
+        "M_SimpleUnlitTranslucent",
+        "M_Surface",
+        "M_WPO",
+        "Main",
+        "MatineeCam_mat",
+        "OculusMR_ChromaKey",
+        "OculusMR_ChromaKey_Lit",
+        "OculusMR_OpaqueColoredMaterial",
+        "OculusMR_WhiteMaterial",
+        "PhAT_JointLimitMaterial",
+        "RemoveSurfaceMaterial",
+        "ShadedLevelColorationLitMaterial",
+        "ShadedLevelColorationUnlitMateri",
+        "SkySphereMaterial",
+        "SplineEditorMeshMat",
+        "TransformGizmoMaterial",
+        "TranslucentTransformGizmoMaterial",
+        "VertexColorMaterial",
+        "VertexColorViewMode_AlphaAsColor",
+        "VertexColorViewMode_BlueOnly",
+        "VertexColorViewMode_ColorOnly",
+        "VertexColorViewMode_GreenOnly",
+        "VertexColorViewMode_RedOnly",
+        "Widget3DCameraPassThrough_Opaque_OneSided",
+        "Widget3DPassThrough",
+        "WireframeMaterial",
+        "WorldGridMaterial",
+        "Xray"
+      ],
+      "observed_launch_seconds": 660.923188,
+      "cutoff_utc": "2026-11-03T13:43:45.012296+00:00",
+      "free_commit_bytes": 3972009984,
+      "last_reported_pending_jobs": 5239,
+      "actual_worker_counts": [
+        13
+      ],
+      "complete": false,
+      "caveat": "Cache-miss entries request recompilation; they do not prove all listed materials completed. No final shader probe or normal exit exists."
+    },
+    "stop_error": "[WinError 5] Access is denied.",
+    "cleanup_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\spike\\01\\memory-cleanup.json",
+    "changed_after_premature_seal": [
+      "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\spike\\01\\session\\Runtime.log"
+    ],
+    "upload": "PASS",
+    "first_launch_total_seconds": null,
+    "additional_total_seconds": null
+  },
+  "static_type": {
+    "result": "LINK_FAILURE_CONFIRMED",
+    "compile_reached_link": true,
+    "exit_code": 6,
+    "unresolved_static_types": 5,
+    "errors": [
+      "ParallelExecutor.ExecuteActions:   Module.AnomalyShaders.cpp.obj : error LNK2001: unresolved external symbol \"public: static class FMeshMaterialShaderType FDepthOnlyHS::StaticType\" (?StaticType@FDepthOnlyHS@@2VFMeshMaterialShaderType@@A)",
+      "ParallelExecutor.ExecuteActions:   Module.AnomalyShaders.cpp.obj : error LNK2001: unresolved external symbol \"public: static class FMeshMaterialShaderType TDepthOnlyVS<0>::StaticType\" (?StaticType@?$TDepthOnlyVS@$0A@@@2VFMeshMaterialShaderType@@A)",
+      "ParallelExecutor.ExecuteActions:   Module.AnomalyShaders.cpp.obj : error LNK2001: unresolved external symbol \"public: static class FMeshMaterialShaderType FDepthOnlyDS::StaticType\" (?StaticType@FDepthOnlyDS@@2VFMeshMaterialShaderType@@A)",
+      "ParallelExecutor.ExecuteActions:   Module.AnomalyShaders.cpp.obj : error LNK2001: unresolved external symbol \"public: static class FMeshMaterialShaderType TDepthOnlyVS<1>::StaticType\" (?StaticType@?$TDepthOnlyVS@$00@@2VFMeshMaterialShaderType@@A)",
+      "ParallelExecutor.ExecuteActions:   Module.AnomalyShaders.cpp.obj : error LNK2001: unresolved external symbol \"public: static class FMeshMaterialShaderType FDepthOnlyPS<0>::StaticType\" (?StaticType@?$FDepthOnlyPS@$0A@@@2VFMeshMaterialShaderType@@A)",
+      "ParallelExecutor.ExecuteActions:   E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll : fatal error LNK1120: 5 unresolved externals"
+    ],
+    "log": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\spike-builds\\Outline425Editor-02\\UBT.log",
+    "sha256": "8a362ce5dad72abe5b4abeccfa8d3df83edf846e9843cfb8240636707e2e792c"
+  },
+  "retry": {
+    "result": "PASS",
+    "prior": "26048a6c3870da407898ce686873a3975dc56d80",
+    "commit": "8447eba7da17b0ab421dfbea5e4004b51dc27dcf",
+    "tests": [
+      "Old malformed override ignored by 4.25-shaped parser",
+      "Both corrected section-qualified overrides accepted",
+      "Engine source pins parser delimiter",
+      "New shader source hash changes material key"
+    ],
+    "source_sha256": "4b5248fc3cccc36fe497ddd21403f1b78a65d546c9db6d0bac8ffb8c4960ee96",
+    "prior_source_sha256": "66f6d3cc7a2720523129f93146305c63a45ed2f98735f20fb6d53c2b4356ddbb",
+    "reason": "First cost launch hit the runtime commit floor with 13 workers. Correct the section syntax and run one fresh source-hash key with one worker. MaterialShader.cpp:738-745 includes type name and source hash in the material key; no DDC deletion or machine setting change.",
+    "comparison_limit": "The retained warm baseline had zero compile jobs. Its malformed worker override differs from this corrected one-worker retry. Report that resource-policy change; do not claim identical argv or controlled throughput.",
+    "limit_seconds": 7200
+  },
+  "executables": {
+    "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442c\\executable-index.json",
+    "sha256": "a06f0a041b80962227584922baa055a39a382e336ddbc72706efd03e088e7f82"
+  },
+  "source_branch": "feat/europa-port",
+  "spike_branch": "spike/europa-09442c-mesh-shader",
+  "pushed": false,
+  "merged_spike": false,
+  "notes": [
+    "GA1 accepts the earlier Paris smoke; it is not repeated.",
+    "All fixture launches carry -nowrite.",
+    "No manual files or DDC were deleted.",
+    "Exit checks and the final cost result are pending."
+  ]
+}
