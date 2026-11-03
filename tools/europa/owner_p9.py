@@ -14,9 +14,9 @@ import write_ledger as ledger
 from p9_exit09405 import binary_required
 
 BASE = ledger.ROOT / 'Receipts/P9/baseline'
-V2 = ledger.ROOT / 'Receipts/P9/baseline-v2'
+V2 = ledger.ROOT / 'Receipts/P9/baseline-v3'
 PORT = ledger.ROOT / 'StylizedParisStreet/Plugins/AnomalyInjector'
-receipt = json.loads((V2 / 'v2-receipt.json').read_text())
+receipt = json.loads((V2 / 'v3-receipt.json').read_text())
 def norm(p):
     return str(p).replace('/', '\\').rstrip('\\').casefold()
 removed = [norm(r['root']) for r in receipt['removed_roots']]
@@ -61,7 +61,7 @@ def derive(out):
         assert hashes[key].hexdigest() == expected['sha256']
         assert counts[key] == expected['lines'] and sizes[key] == expected['sum_size_field_bytes'] and bytecounts[key] == expected['file_bytes']
     assert hashes['v1'].hexdigest() == 'db884f1e9c3debd7b9ed678db08036509959b1fc5a0d27799b10ecccb0625cce'
-    assert hashes['v2'].hexdigest() == '8e3ed0956a28e51c4205e334a5f9d81bbedd8c3afb606ed7234e83c111a32c74'
+    assert hashes['v2'].hexdigest() == '0e7c3386fedc7b46738053220f41b3fd4fa18f0806a7f7b96caed0a099eab666'
     result = {'result': 'PASS', 'method': 'Stream v1 in order; derive partition from removal roots; compare every output line byte for byte with v2 and removed; no protected-file full rehash.',
         'files': {k: {'sha256': hashes[k].hexdigest(), 'lines': counts[k], 'bytes': bytecounts[k], 'size_field_sum': sizes[k]} for k in hashes}, 'roots': receipt['removed_roots']}
     ledger.dump(out / 'v2-rederivation.json', result)

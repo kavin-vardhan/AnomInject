@@ -10448,3 +10448,7 @@ The 5.1 settings walk at d7eee97 `AnomalyCaptureSubsystem.cpp:3234-3240` scans e
 ## G516 - Fixture authoring also needs the Saved-ini protection (094-42r)
 
 The separate Outline425 authoring argv omitted -nowrite, although its game legs carry it. Before the Python recipe ran, editor initialization created Saved/Config/Windows/Engine.ini (1,502 bytes). FF2/FG2 correctly stopped the owned editor and adopted monitor, exit125. No fixture Content was created and no crash/upload occurred; Paris stayed unchanged. Creating a fresh fixture does not waive the retained Saved/Config ini rule. Preserve the failed slot and generated file. A later authorized authoring run needs the missing switch and a qualified fresh slot; do not relabel the generated ini as harmless bookkeeping or clear the terminal result. The fixture's earlier compile failure was independent: MakeShared already returns TSharedRef, so its JSON probe must serialize R directly rather than R.ToSharedRef().
+
+## G517 - P9 v3 retires the deleted overflow root
+
+094-42c derives v3 from v2 by removing the owner-deleted BankOverflow subtree. The receipt retains legacy v1/v2/removed stream keys for the existing checker format; the selected baseline and receipt are v3. Exclusion is lexical, so an empty parent and an absent parent behave identically. Prior baselines remain immutable. FJ1 still defers the full EA8 binary rehash; the changed partition and current-disk inventory are tested directly. GA2 requires -nowrite for fixture authoring as well as runtime; GA5 caps a held admission at three hours.

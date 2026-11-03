@@ -53,7 +53,7 @@ def contexts(job):
 @functools.lru_cache(maxsize=1)
 def protected_roots():
     result=set()
-    with (ROOT/'Receipts/P9/baseline-v2/full-sha256.jsonl').open(encoding='utf-8') as stream:
+    with (ROOT/'Receipts/P9/baseline-v3/full-sha256.jsonl').open(encoding='utf-8') as stream:
         for line in stream:
             parts=PureWindowsPath(json.loads(line)['path']).parts
             if len(parts)>1:result.add(norm(PureWindowsPath(*parts[:2])))
