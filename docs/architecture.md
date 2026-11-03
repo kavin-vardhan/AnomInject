@@ -1,5 +1,7 @@
 # Architecture (living — current as-built)
 
+For 4.25, the accepted FZ3/FZ4 guard scans host custom-depth readers before tagging, refuses reader/unknown results, and defaults capture routes to blinking and LOD corruption. The other two smoke routes require an explicit list. Bench state planting is restricted to the owned fixture. The separate outline fixture reproduces the leak and the guard refusal; its shader experiment stays outside the product branch. A private ID/depth pass is still future work, not part of the current capture path. See [094-42c](sessions/2026-11-03-094-42c-outline-gates.md).
+
 ## 4.25 capture office-smoke finish (094-37)
 
 The exact-4.25 capture route keeps census batches until their matching readback, preserves live-event ownership, and requeues no-pass, polluted or lost batches without changing prior verdicts. Lost means more than eight game ticks after arming, matching 5.1. Host custom-depth actors are excluded throughout. Annotation infinite far planes use 1,000,000; selection provenance is frozen by the shared evaluator. Capture logs its viewport, format, RHI, pre-UI hook count, tick and census health on the first resolved frame and frame 300. See [the source citations and smoke protocol](sessions/2026-11-01-094-37-office-smoke.md). Native qualification is recorded there after the build and session; real-scene label-free grading is deferred by FU2.

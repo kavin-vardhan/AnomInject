@@ -1,5 +1,7 @@
 # Setup runbook (living document)
 
+The 094-42c outline fixture is `E:\IA_Fixtures\Outline425`, with its script and asset hashes in `Receipts\09442c\assets.json`. Launch it only through the job's armed fixture kit; every authoring, capture and shader-cost argv includes `-nowrite`. P9 now selects baseline-v3 and its receipt; the retired overflow root is excluded whether absent or empty. Admission holds are capped at three hours. Earlier job slots remain spent. The [094-42c journal](sessions/2026-11-03-094-42c-outline-gates.md) records the exact run settings and shader-cost comparison; the experimental branch is never merged or pushed.
+
 For the 4.25 office-smoke finish, use the hash-bound `tools/europa/capture_c5_kit.py` arming for job 09437 and the [094-37 protocol](sessions/2026-11-01-094-37-office-smoke.md). Older armings are spent. FM1 admits two compiler actions below normal priority; the real session uses the lean idle/memory/disk gate and a 900-second owned-tree limit. The log must contain `Capture425 SELF_CHECK` at start and frame 300. Code supplies the office card after the passing smoke; this is not a push instruction.
 
 Authoritative, replayable recipe to go from a clean StackOBot checkout to a running PIE

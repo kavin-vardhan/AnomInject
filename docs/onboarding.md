@@ -1,5 +1,7 @@
 # Onboarding
 
+The current 4.25 capture defaults to blinking and LOD corruption, and refuses labelled capture if the host custom-depth scan finds a reader or cannot establish safety. The [094-42c fixture evidence](sessions/2026-11-03-094-42c-outline-gates.md) demonstrates the outline leak and refusal. The proposed private pass is not implemented; its depth-shader link probe and new-material-shader cost are isolated experiments.
+
 The 4.25 capture port's office-smoke work is tracked in [094-37](sessions/2026-11-01-094-37-office-smoke.md): the shared four anomaly apply/revert paths, bounded census recovery, player-view pre-UI capture, and 5.1 annotation values. Real-scene dataset-quality D1-D5 are future work, not part of this port's smoke. The 5.1 paths remain unchanged.
 
 ## What this is
