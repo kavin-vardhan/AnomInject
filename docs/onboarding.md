@@ -1,3 +1,5 @@
+094-43r: FZ2 private capture is qualified on the outline fixture and EA_Core, including odd-widthD3D12. Read docs/europa/09443-private-capture-receipts.json for complete gates/build hashes/cost scope and docs/europa/office-card-094-43-draft.md for the three card corrections. Unsupported faithful-draw cases are unavailable, not approximated or host-tagged. Live skeletal/instance coverage is not claimed by these static fixtures.
+
 094-43r Stage B fixture Editor attempt1 failed with one AnomalyCapture C4458 (local Views shadows FMeshElementCollector::Views), zero other compile/link errors. Renamed it ViewList; no behavior or gate changed. Retry2 pending.
 
 094-43r Stage B source: direct component proxies, plugin-owned dynamic element collection, batched private ID/depth targets with fenced reuse, asynchronous row-pitch-aware copies, unavailable selection filtering, and freshly scanned fallback guard. Normal C4/C5 no longer tags host custom depth; the legacy route requires explicit fixture-only bench reference. Focused native/contract/FXC tests pass; engine builds and H1-H5 are pending. See docs/europa/09443-stageb-design.md.

@@ -10495,3 +10495,8 @@ GD3 uses the saved family scene depth rather than trying to reproduce Renderer-p
 ## G526 - Private ID attachment is not host custom depth
 
 094-43 Stage B stores IDs in its own depth-stencil attachment and reads its own stencil SRV. Host custom-depth state and targets remain untouched. This is a private GPU attachment write, not a component stencil write. Seeding private depth from the saved frame avoids erasing an admitted background ID when an occlusion-delayed foreground is rejected. Hardware equality is stricter than the frozen final admission tolerance and must pass H2 unchanged. Unsupported dynamic GPU-scene data is unavailable rather than silently drawn with missing bindings.
+
+
+## G527 - Number correction for the GE1 ref-policy note
+
+The second G524 heading above (Admit recorded refs without replacing the P9 baseline) was accidentally numbered twice in 094-43r. Refer to that ref-policy note as G527. The original G524 typed-UAV note and both historical paragraphs remain unedited. GE1 preserves the 71 baseline refs and narrowly admits the four named recorded refs, never a regenerated baseline.

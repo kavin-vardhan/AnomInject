@@ -1,6 +1,6 @@
-# Office capture card draft — 094-43
+# Office capture card draft â€” 094-43
 
-Draft pending Stage B qualification and Code's scan. This is not a release instruction yet.
+Stage B qualification passed on D3D11 and D3D12, including 1279x719. Draft still awaits Code's scan and final concrete launch line; it is not a release instruction yet.
 
 R1 must be read from the clone from which the plugin folder was copied: run `git -C "<source clone>" rev-parse HEAD` there and record that full hash. Do not read R1 from the game's repository or infer it from a copied folder.
 

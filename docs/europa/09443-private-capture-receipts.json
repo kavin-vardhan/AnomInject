@@ -1,0 +1,3600 @@
+{
+  "result": "PASS",
+  "built_source": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+  "source_files": [
+    "Shaders/Private/AnomalyPrivate425.usf",
+    "Source/AnomalyCapture/Private/AnomalyFrameCapturer.cpp",
+    "Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp",
+    "Source/AnomalyCapture/Private/Compat/AnomalyHostDepth425.cpp",
+    "Source/AnomalyCapture/Private/Compat/AnomalyMasks425.cpp",
+    "Source/AnomalyCapture/Private/Compat/AnomalyMasks425.h",
+    "Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp",
+    "Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.h",
+    "Source/AnomalyCapture/Private/Compat/AnomalyPrivatePolicy425.h",
+    "Source/AnomalyCapture/Private/Compat/AnomalyReadback425.h",
+    "Source/AnomalyCapture/Private/Compat/AnomalyStreetBench425.cpp",
+    "Source/AnomalyCapture/Private/Compat/AnomalyStreetBench425.h",
+    "Source/AnomalyCapture/Private/Compat/AnomalyViewMetadata425.cpp",
+    "Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp",
+    "Source/AnomalyShaders/Private/AnomalyPrivate425Shader.cpp",
+    "Source/AnomalyShaders/Public/AnomalyPrivate425Shader.h"
+  ],
+  "GE1": {
+    "result": "PASS",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0
+  },
+  "full_p9": {
+    "start_utc": "2026-11-03T21:01:24.017145+00:00",
+    "invocation": "owner_p9.main()",
+    "phase": "entry",
+    "source_policy": "GE1 committed ref admission; remaining main unchanged",
+    "result": "PASS",
+    "exit_code": 0,
+    "elapsed_seconds": 354.43283800000063,
+    "end_utc": "2026-11-03T21:07:18.450444+00:00"
+  },
+  "Stage_A": {
+    "result": "PASS",
+    "A_P2": {
+      "result": "PASS",
+      "missing_cached_shader_maps": 0
+    },
+    "A_P3": "PASS",
+    "A_P4": {
+      "result": "PASS",
+      "frames": 2352,
+      "new_magenta": {
+        "count": 2352,
+        "min": 0.0,
+        "mean": 0.0,
+        "p95": 0.0,
+        "max": 0.0
+      },
+      "unpaired": [],
+      "example": {
+        "index": 746,
+        "on": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\private-on\\01\\plugin-frames\\epoch01\\frame-000746.png",
+        "off": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\private-off\\01\\plugin-frames\\epoch01\\frame-000746.png",
+        "measurement": {
+          "index": 746,
+          "new_magenta": 0,
+          "on_magenta": 0,
+          "off_magenta": 0,
+          "rgb_changed": 260
+        }
+      }
+    },
+    "A_P5": {
+      "result": "PASS",
+      "frames": 2352,
+      "max_on": 0,
+      "max_tagged": 0,
+      "max_unexpected": 0,
+      "states_equal": true,
+      "modes": [
+        1,
+        1,
+        1
+      ]
+    },
+    "cost": {
+      "cpu_submit_ms": {
+        "count": 2352,
+        "min": 0.0882,
+        "mean": 0.22313443877551017,
+        "p95": 0.3479049999999998,
+        "max": 0.825
+      },
+      "cpu_with_wait_ms": {
+        "count": 2352,
+        "min": 1.4421,
+        "mean": 2.3048054846938775,
+        "p95": 2.62838,
+        "max": 11.8866
+      },
+      "gpu_ms": {
+        "count": 2352,
+        "min": 0.118,
+        "mean": 0.48900722789115647,
+        "p95": 0.6364499999999998,
+        "max": 0.779
+      }
+    }
+  },
+  "Stage_B": {
+    "H1_H2_H3": {
+      "result": "PASS",
+      "H1": {
+        "result": "PASS",
+        "rule": "GD4: lighting owner-group mismatches are reported separately; all other pairing failures remain gated. Pair the same capture index only when sweep, player view and injected anomaly/target state agree. Compare per-actor private ID silhouette with the separate legacy label-path silhouette; shared IDs are reported as groups. An unpaired state is reported and never replaced by a pixel-selected reference. Require nonempty opaque, masked, WPO and blink-hidden coverage. IoU floor 0.98; empty vs empty is recorded separately. P4 uses the kept magenta classifier R>220,G<40,B>220 and max RGB change>32 on every paired saved frame.",
+        "frames": 2352,
+        "unpaired": [],
+        "new_magenta": {
+          "count": 2352,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "example": {
+          "index": 746,
+          "on": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\private-on\\01\\plugin-frames\\epoch01\\frame-000746.png",
+          "off": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\private-off\\01\\plugin-frames\\epoch01\\frame-000746.png"
+        }
+      },
+      "H2": {
+        "result": "PASS",
+        "objects": {
+          "DefaultPawn_0": {
+            "frames": 1896,
+            "nonempty": 0,
+            "iou": {
+              "count": 0
+            },
+            "different_pixels": {
+              "count": 1896,
+              "min": 0.0,
+              "mean": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "pass_all": true
+          },
+          "OF_Floor": {
+            "frames": 1896,
+            "nonempty": 1896,
+            "iou": {
+              "count": 1896,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "different_pixels": {
+              "count": 1896,
+              "min": 0.0,
+              "mean": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "pass_all": true
+          },
+          "OF_Hide": {
+            "frames": 1896,
+            "nonempty": 1896,
+            "iou": {
+              "count": 1896,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "different_pixels": {
+              "count": 1896,
+              "min": 0.0,
+              "mean": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "pass_all": true
+          },
+          "OF_LOD_A": {
+            "frames": 1896,
+            "nonempty": 1896,
+            "iou": {
+              "count": 1896,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "different_pixels": {
+              "count": 1896,
+              "min": 0.0,
+              "mean": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "pass_all": true
+          },
+          "OF_LOD_B": {
+            "frames": 1896,
+            "nonempty": 1896,
+            "iou": {
+              "count": 1896,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "different_pixels": {
+              "count": 1896,
+              "min": 0.0,
+              "mean": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "pass_all": true
+          },
+          "OF_Masked": {
+            "frames": 1896,
+            "nonempty": 168,
+            "iou": {
+              "count": 168,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "different_pixels": {
+              "count": 1896,
+              "min": 0.0,
+              "mean": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "pass_all": true
+          },
+          "OF_WPO": {
+            "frames": 1896,
+            "nonempty": 1658,
+            "iou": {
+              "count": 1658,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            },
+            "different_pixels": {
+              "count": 1896,
+              "min": 0.0,
+              "mean": 0.0,
+              "p95": 0.0,
+              "max": 0.0
+            },
+            "pass_all": true
+          }
+        },
+        "hidden_frames": 222,
+        "hidden_empty": 0,
+        "gated_unpaired": 0,
+        "lighting_groups": 0
+      },
+      "H3": {
+        "result": "PASS",
+        "frames": 2352,
+        "max_on": 0,
+        "max_tagged": 0,
+        "max_unexpected": 0,
+        "states_equal": true,
+        "custom_depth_mode_reads": [
+          1,
+          1,
+          1
+        ]
+      },
+      "on_H3": {
+        "result": "PASS",
+        "frames": 2352,
+        "max_on": 0,
+        "max_tagged": 0,
+        "max_unexpected": 0,
+        "states_equal": true,
+        "custom_depth_mode_reads": [
+          1,
+          1,
+          1
+        ]
+      },
+      "default_routes": [
+        "blinking",
+        "lod_corruption"
+      ],
+      "seed": 4242,
+      "census_counts": "Every paired object/frame has equal pixel counts;0 unpaired groups;0 lighting groups in this default-route pair."
+    },
+    "H4_H5": {
+      "D3D11-1280": {
+        "result": "PASS",
+        "frames": 2352,
+        "rhi": "D3D11",
+        "format": 18,
+        "dropped": 0,
+        "per_anomaly": [
+          {
+            "anomaly": "blinking",
+            "events_fired": 22,
+            "affected_frames": 132,
+            "mask_frames": 132,
+            "mask_pixels": 2620290,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "events_fired": 13,
+            "affected_frames": 157,
+            "mask_frames": 157,
+            "mask_pixels": 58682204,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lod_corruption",
+            "events_fired": 19,
+            "affected_frames": 247,
+            "mask_frames": 247,
+            "mask_pixels": 3710434,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "missing_object",
+            "events_fired": 15,
+            "affected_frames": 195,
+            "mask_frames": 195,
+            "mask_pixels": 4125654,
+            "result": "PASS"
+          }
+        ],
+        "mask_check": {
+          "result": "PASS",
+          "affected_frames": 731,
+          "clean_frames": 1621,
+          "clean_mask_pixels": 0,
+          "failures": []
+        },
+        "census": {
+          "peak_drawn": 4,
+          "per_pose": [
+            {
+              "pose": 0,
+              "drawn": 4
+            },
+            {
+              "pose": 1,
+              "drawn": 4
+            },
+            {
+              "pose": 2,
+              "drawn": 4
+            },
+            {
+              "pose": 3,
+              "drawn": 4
+            },
+            {
+              "pose": 4,
+              "drawn": 4
+            },
+            {
+              "pose": 5,
+              "drawn": 4
+            }
+          ],
+          "exhaustion": 0,
+          "lost": 0,
+          "no_pass": 0,
+          "polluted": 0,
+          "over_55_waived": true,
+          "result": "PASS"
+        },
+        "custom_depth": {
+          "result": "PASS",
+          "candidates": 14,
+          "differences": [],
+          "bad_frames": [],
+          "bench_planted": [],
+          "host_writes": 0,
+          "rule": "GD5 removes the bench plant; before/mid/after states must be identical, enabled and tagged counts zero"
+        },
+        "annotation": {
+          "result": "PASS",
+          "issues": [],
+          "events": 69,
+          "schema": "5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1",
+          "schema_and_sets": "PASS",
+          "values": {
+            "coverage_ratio": {
+              "result": "PASS",
+              "issues": []
+            },
+            "coverage_pct": {
+              "result": "PASS",
+              "issues": []
+            },
+            "bbox_source": {
+              "result": "PASS",
+              "issues": []
+            },
+            "camera_planes": {
+              "result": "PASS",
+              "issues": []
+            }
+          },
+          "coverage_provenance": [
+            {
+              "event": "lod_corruption@2603",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2627",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@2651",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2675",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2699",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2723",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2747",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2771",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2795",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2819",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2843",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@2867",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2891",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2915",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2939",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2963",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2987",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3011",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3035",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3059",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3083",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3107",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3131",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3155",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3179",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3203",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3227",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3251",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3275",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3299",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3323",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3347",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3371",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3395",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3419",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3443",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3467",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3491",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3515",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3539",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3563",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3587",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3611",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3635",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3659",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3683",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3707",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3731",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3755",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3779",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3803",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3827",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3851",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3875",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3899",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3923",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3947",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3971",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3995",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@4019",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4043",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4067",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4091",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4115",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@4139",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@4163",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4187",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4211",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@4235",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            }
+          ],
+          "coverage_measured": 56,
+          "coverage_unmeasurable": 13,
+          "coverage_value_errors": []
+        },
+        "self_check": {
+          "result": "PASS",
+          "lines": [
+            "Capture425 SELF_CHECK stage=start frames=1 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=5 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=4 ui_controls=4 ui_positive=4 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1518 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+            "Capture425 SELF_CHECK stage=300 frames=300 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=315 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1828 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=0 lost=0 no_pass=0 polluted=0"
+          ],
+          "parsed": [
+            {
+              "stage": "start",
+              "frames": "1",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "5",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "4",
+              "ui_controls": "4",
+              "ui_positive": "4",
+              "ui_checked": "1",
+              "ui_hits": "0",
+              "ui_paired": "1",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1518",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "bench_off",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            },
+            {
+              "stage": "300",
+              "frames": "300",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D11",
+              "PostRenderViewFamily": "315",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "8",
+              "ui_controls": "8",
+              "ui_positive": "8",
+              "ui_checked": "300",
+              "ui_hits": "0",
+              "ui_paired": "8",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1828",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "on",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            }
+          ]
+        },
+        "view": {
+          "result": "PASS",
+          "frames": 2352,
+          "bad_frames": []
+        },
+        "unavailable": {
+          "enabled": true,
+          "unavailable": 0,
+          "verified": 5,
+          "components": [
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_HideCube.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_LOD.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.DefaultPawn_0.MeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            }
+          ],
+          "host_stencil_writes": 0,
+          "id_storage": "plugin_owned_depth_stencil_attachment"
+        },
+        "session_start": {
+          "result": "PASS",
+          "seeds": [
+            "4242"
+          ],
+          "selection_floor_pct": [
+            0.5
+          ],
+          "shipped_floor_pct": 6.0
+        },
+        "root": "D:\\IA_Europa\\Receipts\\09443r\\H4\\D3D11-1280\\01",
+        "cost": {
+          "result": "PASS",
+          "cpu_submit_ms": {
+            "count": 2352,
+            "mean": 0.1618015306122449,
+            "p95": 0.2259,
+            "min": 0.0556,
+            "max": 0.6918
+          },
+          "gpu_ms": {
+            "count": 2352,
+            "mean": 0.15851615646258502,
+            "p95": 0.189,
+            "min": 0.122,
+            "max": 1.211
+          },
+          "blocking_waits": 0,
+          "scope": "Incremental private-pass collector/command-submission CPU timer and private scene-depth copy/draw/reduce GPU timestamps. Common capture/readback and file output are excluded. No whole-engine frame-time subtraction is claimed."
+        },
+        "lod_event_changes": [
+          {
+            "event": "lod_corruption@2603",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14461,
+            "max_changed": 14469,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2723",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14469,
+            "max_changed": 14475,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2795",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2819",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2891",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14469,
+            "max_changed": 14475,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2915",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14462,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3131",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3203",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14462,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3275",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14461,
+            "max_changed": 14469,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3443",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14461,
+            "max_changed": 14469,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3467",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3515",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14467,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3659",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3827",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3923",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14462,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3947",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14461,
+            "max_changed": 14469,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@4019",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14467,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@4139",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@4163",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          }
+        ],
+        "ui": {
+          "result": "PASS",
+          "checked": 2352,
+          "marker_frames": [],
+          "paired": 8
+        }
+      },
+      "D3D12-1280": {
+        "result": "PASS",
+        "frames": 2352,
+        "rhi": "D3D12",
+        "format": 18,
+        "dropped": 0,
+        "per_anomaly": [
+          {
+            "anomaly": "blinking",
+            "events_fired": 22,
+            "affected_frames": 132,
+            "mask_frames": 132,
+            "mask_pixels": 2620290,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "events_fired": 13,
+            "affected_frames": 157,
+            "mask_frames": 157,
+            "mask_pixels": 58682204,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lod_corruption",
+            "events_fired": 19,
+            "affected_frames": 247,
+            "mask_frames": 247,
+            "mask_pixels": 3710434,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "missing_object",
+            "events_fired": 15,
+            "affected_frames": 195,
+            "mask_frames": 195,
+            "mask_pixels": 4125654,
+            "result": "PASS"
+          }
+        ],
+        "mask_check": {
+          "result": "PASS",
+          "affected_frames": 731,
+          "clean_frames": 1621,
+          "clean_mask_pixels": 0,
+          "failures": []
+        },
+        "census": {
+          "peak_drawn": 4,
+          "per_pose": [
+            {
+              "pose": 0,
+              "drawn": 4
+            },
+            {
+              "pose": 1,
+              "drawn": 4
+            },
+            {
+              "pose": 2,
+              "drawn": 4
+            },
+            {
+              "pose": 3,
+              "drawn": 4
+            },
+            {
+              "pose": 4,
+              "drawn": 4
+            },
+            {
+              "pose": 5,
+              "drawn": 4
+            }
+          ],
+          "exhaustion": 0,
+          "lost": 0,
+          "no_pass": 0,
+          "polluted": 0,
+          "over_55_waived": true,
+          "result": "PASS"
+        },
+        "custom_depth": {
+          "result": "PASS",
+          "candidates": 14,
+          "differences": [],
+          "bad_frames": [],
+          "bench_planted": [],
+          "host_writes": 0,
+          "rule": "GD5 removes the bench plant; before/mid/after states must be identical, enabled and tagged counts zero"
+        },
+        "annotation": {
+          "result": "PASS",
+          "issues": [],
+          "events": 69,
+          "schema": "5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1",
+          "schema_and_sets": "PASS",
+          "values": {
+            "coverage_ratio": {
+              "result": "PASS",
+              "issues": []
+            },
+            "coverage_pct": {
+              "result": "PASS",
+              "issues": []
+            },
+            "bbox_source": {
+              "result": "PASS",
+              "issues": []
+            },
+            "camera_planes": {
+              "result": "PASS",
+              "issues": []
+            }
+          },
+          "coverage_provenance": [
+            {
+              "event": "lod_corruption@2564",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2588",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@2612",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2636",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2660",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2684",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2708",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2732",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2756",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2780",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2804",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@2828",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2852",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2876",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2900",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2924",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2948",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@2972",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2996",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3020",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3044",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3068",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3092",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3116",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3140",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3164",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3188",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3212",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3236",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3260",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3284",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3308",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3332",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3356",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3380",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3404",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3428",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3452",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3476",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3500",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3524",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3548",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3572",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3596",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3620",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3644",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3668",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3692",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3716",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3740",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3764",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874247312545776,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3788",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3812",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3836",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3860",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3884",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3908",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3932",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3956",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3980",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4004",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4028",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4052",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4076",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@4100",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@4124",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4148",
+              "anomaly": "blinking",
+              "coverage_pct": 2.8988025188446045,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4172",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9874235391616821,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@4196",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            }
+          ],
+          "coverage_measured": 56,
+          "coverage_unmeasurable": 13,
+          "coverage_value_errors": []
+        },
+        "self_check": {
+          "result": "PASS",
+          "lines": [
+            "Capture425 SELF_CHECK stage=start frames=1 size=1280x720 format=18 RHI=D3D12 PostRenderViewFamily=4 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=3 ui_controls=3 ui_positive=3 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1465 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+            "Capture425 SELF_CHECK stage=300 frames=300 size=1280x720 format=18 RHI=D3D12 PostRenderViewFamily=323 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1784 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=0 lost=0 no_pass=0 polluted=0"
+          ],
+          "parsed": [
+            {
+              "stage": "start",
+              "frames": "1",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D12",
+              "PostRenderViewFamily": "4",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "3",
+              "ui_controls": "3",
+              "ui_positive": "3",
+              "ui_checked": "1",
+              "ui_hits": "0",
+              "ui_paired": "1",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1465",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "bench_off",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            },
+            {
+              "stage": "300",
+              "frames": "300",
+              "size": "1280x720",
+              "format": "18",
+              "RHI": "D3D12",
+              "PostRenderViewFamily": "323",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1280x720",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "8",
+              "ui_controls": "8",
+              "ui_positive": "8",
+              "ui_checked": "300",
+              "ui_hits": "0",
+              "ui_paired": "8",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1784",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "on",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            }
+          ]
+        },
+        "view": {
+          "result": "PASS",
+          "frames": 2352,
+          "bad_frames": []
+        },
+        "unavailable": {
+          "enabled": true,
+          "unavailable": 0,
+          "verified": 5,
+          "components": [
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_HideCube.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_LOD.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.DefaultPawn_0.MeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            }
+          ],
+          "host_stencil_writes": 0,
+          "id_storage": "plugin_owned_depth_stencil_attachment"
+        },
+        "session_start": {
+          "result": "PASS",
+          "seeds": [
+            "4242"
+          ],
+          "selection_floor_pct": [
+            0.5
+          ],
+          "shipped_floor_pct": 6.0
+        },
+        "root": "D:\\IA_Europa\\Receipts\\09443r\\H4\\D3D12-1280\\01",
+        "cost": {
+          "result": "PASS",
+          "cpu_submit_ms": {
+            "count": 2352,
+            "mean": 1.6875298894557822,
+            "p95": 2.076075,
+            "min": 1.1211,
+            "max": 3.7743
+          },
+          "gpu_ms": {
+            "count": 2352,
+            "mean": 0.1571437074829932,
+            "p95": 0.189,
+            "min": 0.124,
+            "max": 0.203
+          },
+          "blocking_waits": 0,
+          "scope": "Incremental private-pass collector/command-submission CPU timer and private scene-depth copy/draw/reduce GPU timestamps. Common capture/readback and file output are excluded. No whole-engine frame-time subtraction is claimed."
+        },
+        "lod_event_changes": [
+          {
+            "event": "lod_corruption@2564",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2684",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14462,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2756",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2780",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14467,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2852",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14462,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2876",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14461,
+            "max_changed": 14469,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3092",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3164",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14469,
+            "max_changed": 14475,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3236",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3404",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3428",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3476",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14462,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3620",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14467,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3788",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14467,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3884",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14461,
+            "max_changed": 14469,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3908",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14470,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3980",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14462,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@4100",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14455,
+            "max_changed": 14465,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@4124",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14458,
+            "max_changed": 14467,
+            "result": "PASS"
+          }
+        ],
+        "ui": {
+          "result": "PASS",
+          "checked": 2352,
+          "marker_frames": [],
+          "paired": 8
+        }
+      },
+      "D3D12-1279": {
+        "result": "PASS",
+        "frames": 2352,
+        "rhi": "D3D12",
+        "format": 18,
+        "dropped": 0,
+        "per_anomaly": [
+          {
+            "anomaly": "blinking",
+            "events_fired": 22,
+            "affected_frames": 132,
+            "mask_frames": 132,
+            "mask_pixels": 2617506,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lighting_mismatch",
+            "events_fired": 13,
+            "affected_frames": 157,
+            "mask_frames": 157,
+            "mask_pixels": 58538863,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "lod_corruption",
+            "events_fired": 19,
+            "affected_frames": 247,
+            "mask_frames": 247,
+            "mask_pixels": 3708211,
+            "result": "PASS"
+          },
+          {
+            "anomaly": "missing_object",
+            "events_fired": 15,
+            "affected_frames": 195,
+            "mask_frames": 195,
+            "mask_pixels": 4121715,
+            "result": "PASS"
+          }
+        ],
+        "mask_check": {
+          "result": "PASS",
+          "affected_frames": 731,
+          "clean_frames": 1621,
+          "clean_mask_pixels": 0,
+          "failures": []
+        },
+        "census": {
+          "peak_drawn": 4,
+          "per_pose": [
+            {
+              "pose": 0,
+              "drawn": 4
+            },
+            {
+              "pose": 1,
+              "drawn": 4
+            },
+            {
+              "pose": 2,
+              "drawn": 4
+            },
+            {
+              "pose": 3,
+              "drawn": 4
+            },
+            {
+              "pose": 4,
+              "drawn": 4
+            },
+            {
+              "pose": 5,
+              "drawn": 4
+            }
+          ],
+          "exhaustion": 0,
+          "lost": 0,
+          "no_pass": 0,
+          "polluted": 0,
+          "over_55_waived": true,
+          "result": "PASS"
+        },
+        "custom_depth": {
+          "result": "PASS",
+          "candidates": 14,
+          "differences": [],
+          "bad_frames": [],
+          "bench_planted": [],
+          "host_writes": 0,
+          "rule": "GD5 removes the bench plant; before/mid/after states must be identical, enabled and tagged counts zero"
+        },
+        "annotation": {
+          "result": "PASS",
+          "issues": [],
+          "events": 69,
+          "schema": "5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1",
+          "schema_and_sets": "PASS",
+          "values": {
+            "coverage_ratio": {
+              "result": "PASS",
+              "issues": []
+            },
+            "coverage_pct": {
+              "result": "PASS",
+              "issues": []
+            },
+            "bbox_source": {
+              "result": "PASS",
+              "issues": []
+            },
+            "camera_planes": {
+              "result": "PASS",
+              "issues": []
+            }
+          },
+          "coverage_provenance": [
+            {
+              "event": "lod_corruption@2545",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2569",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@2593",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886341094970703,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2617",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2641",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2665",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2689",
+              "anomaly": "blinking",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2713",
+              "anomaly": "blinking",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2737",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2761",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2785",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@2809",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2833",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@2857",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2881",
+              "anomaly": "blinking",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2905",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886341094970703,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@2929",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@2953",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@2977",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3001",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3025",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3049",
+              "anomaly": "blinking",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3073",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3097",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3121",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3145",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3169",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886341094970703,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3193",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886341094970703,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3217",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3241",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3265",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3289",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "blinking@3313",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3337",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886341094970703,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3361",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3385",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3409",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3433",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3457",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3481",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3505",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3529",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3553",
+              "anomaly": "blinking",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3577",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3601",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3625",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3649",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3673",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3697",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3721",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3745",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886341094970703,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3769",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3793",
+              "anomaly": "blinking",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3817",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3841",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3865",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3889",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@3913",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@3937",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@3961",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@3985",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4009",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4033",
+              "anomaly": "missing_object",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "missing_object@4057",
+              "anomaly": "missing_object",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@4081",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lod_corruption@4105",
+              "anomaly": "lod_corruption",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4129",
+              "anomaly": "blinking",
+              "coverage_pct": 2.9005658626556396,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "blinking@4153",
+              "anomaly": "blinking",
+              "coverage_pct": 1.9886329174041748,
+              "measured": true,
+              "valid": true
+            },
+            {
+              "event": "lighting_mismatch@4177",
+              "anomaly": "lighting_mismatch",
+              "coverage_pct": -1,
+              "measured": false,
+              "valid": true
+            }
+          ],
+          "coverage_measured": 56,
+          "coverage_unmeasurable": 13,
+          "coverage_value_errors": []
+        },
+        "self_check": {
+          "result": "PASS",
+          "lines": [
+            "Capture425 SELF_CHECK stage=start frames=1 size=1279x719 format=18 RHI=D3D12 PostRenderViewFamily=4 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1279x719 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=3 ui_controls=3 ui_positive=3 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1447 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+            "Capture425 SELF_CHECK stage=300 frames=300 size=1279x719 format=18 RHI=D3D12 PostRenderViewFamily=323 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1279x719 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1766 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=0 lost=0 no_pass=0 polluted=0"
+          ],
+          "parsed": [
+            {
+              "stage": "start",
+              "frames": "1",
+              "size": "1279x719",
+              "format": "18",
+              "RHI": "D3D12",
+              "PostRenderViewFamily": "4",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1279x719",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "3",
+              "ui_controls": "3",
+              "ui_positive": "3",
+              "ui_checked": "1",
+              "ui_hits": "0",
+              "ui_paired": "1",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1447",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "bench_off",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            },
+            {
+              "stage": "300",
+              "frames": "300",
+              "size": "1279x719",
+              "format": "18",
+              "RHI": "D3D12",
+              "PostRenderViewFamily": "323",
+              "synth": "0",
+              "viewport": "SceneViewport",
+              "client": "GameViewportClient",
+              "viewport_size": "1279x719",
+              "backbuffer_format": "18",
+              "slate": "1",
+              "pie": "0",
+              "pre_ui": "1",
+              "ui_draws": "8",
+              "ui_controls": "8",
+              "ui_positive": "8",
+              "ui_checked": "300",
+              "ui_hits": "0",
+              "ui_paired": "8",
+              "tick": "OnWorldPostActorTick425",
+              "tick_source": "build_constant",
+              "tick_type": "2",
+              "tick_type_source": "build_constant",
+              "tick_calls": "1766",
+              "fixed_step": "1",
+              "fixed_dt": "0.033333333",
+              "fixed_rate": "0",
+              "fixed_fps": "30.000000",
+              "smoothing": "0",
+              "census": "on",
+              "batches": "0",
+              "lost": "0",
+              "no_pass": "0",
+              "polluted": "0"
+            }
+          ]
+        },
+        "view": {
+          "result": "PASS",
+          "frames": 2352,
+          "bad_frames": []
+        },
+        "unavailable": {
+          "enabled": true,
+          "unavailable": 0,
+          "verified": 5,
+          "components": [
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_HideCube.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_LOD.StaticMeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            },
+            {
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.DefaultPawn_0.MeshComponent0",
+              "type": "StaticMeshComponent",
+              "reason": "",
+              "verified": true,
+              "unavailable": false
+            }
+          ],
+          "host_stencil_writes": 0,
+          "id_storage": "plugin_owned_depth_stencil_attachment"
+        },
+        "session_start": {
+          "result": "PASS",
+          "seeds": [
+            "4242"
+          ],
+          "selection_floor_pct": [
+            0.5
+          ],
+          "shipped_floor_pct": 6.0
+        },
+        "root": "D:\\IA_Europa\\Receipts\\09443r\\H4\\D3D12-1279\\01",
+        "cost": {
+          "result": "PASS",
+          "cpu_submit_ms": {
+            "count": 2352,
+            "mean": 1.5972298469387756,
+            "p95": 1.9494849999999995,
+            "min": 1.1156,
+            "max": 4.4216
+          },
+          "gpu_ms": {
+            "count": 2352,
+            "mean": 0.1574910714285714,
+            "p95": 0.189,
+            "min": 0.125,
+            "max": 0.2
+          },
+          "blocking_waits": 0,
+          "scope": "Incremental private-pass collector/command-submission CPU timer and private scene-depth copy/draw/reduce GPU timestamps. Common capture/readback and file output are excluded. No whole-engine frame-time subtraction is claimed."
+        },
+        "lod_event_changes": [
+          {
+            "event": "lod_corruption@2545",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14428,
+            "max_changed": 14438,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2665",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14429,
+            "max_changed": 14435,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2737",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14431,
+            "max_changed": 14437,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2761",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14422,
+            "max_changed": 14430,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2833",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14429,
+            "max_changed": 14435,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@2857",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14441,
+            "max_changed": 14448,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3073",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14431,
+            "max_changed": 14437,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3145",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14427,
+            "max_changed": 14432,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3217",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14428,
+            "max_changed": 14438,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3385",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14428,
+            "max_changed": 14438,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3409",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14431,
+            "max_changed": 14437,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3457",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14429,
+            "max_changed": 14435,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3601",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14422,
+            "max_changed": 14430,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3769",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14422,
+            "max_changed": 14430,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3865",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14441,
+            "max_changed": 14448,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3889",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14428,
+            "max_changed": 14438,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@3961",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14429,
+            "max_changed": 14435,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@4081",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14431,
+            "max_changed": 14437,
+            "result": "PASS"
+          },
+          {
+            "event": "lod_corruption@4105",
+            "target": "EA_LOD",
+            "frames": 13,
+            "min_changed": 14422,
+            "max_changed": 14430,
+            "result": "PASS"
+          }
+        ],
+        "ui": {
+          "result": "PASS",
+          "checked": 2352,
+          "marker_frames": [],
+          "paired": 8
+        }
+      }
+    }
+  },
+  "builds": [
+    {
+      "stage": "A fixture",
+      "attempt": "Outline425-01",
+      "source": "42ea37e3ddf7e9102757eec6ebd357f861a524bc",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 54.978540500000236,
+      "start": {
+        "free_physical": 11948957696,
+        "free_commit": 24362172416,
+        "load": 52,
+        "total_physical": 25372119040,
+        "total_commit": 51281108992
+      },
+      "stop_intents": [],
+      "errors": [],
+      "process_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425-01\\process",
+      "result_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425-01\\result.json"
+    },
+    {
+      "stage": "A fixture",
+      "attempt": "Outline425Editor-01",
+      "source": "42ea37e3ddf7e9102757eec6ebd357f861a524bc",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 48.27682889999414,
+      "start": {
+        "free_physical": 11956666368,
+        "free_commit": 24316309504,
+        "load": 52,
+        "total_physical": 25372119040,
+        "total_commit": 51281108992
+      },
+      "stop_intents": [],
+      "errors": [],
+      "process_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425Editor-01\\process",
+      "result_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425Editor-01\\result.json"
+    },
+    {
+      "stage": "B fixture",
+      "attempt": "Outline425-01",
+      "source": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 92.47487350000301,
+      "start": {
+        "free_physical": 12052475904,
+        "free_commit": 23593713664,
+        "load": 52,
+        "total_physical": 25372119040,
+        "total_commit": 51281108992
+      },
+      "stop_intents": [],
+      "errors": [],
+      "process_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425-01\\process",
+      "result_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425-01\\result.json"
+    },
+    {
+      "stage": "B fixture",
+      "attempt": "Outline425Editor-01",
+      "source": "ea082584bceda498b50a8a0d0f15ad955dcb34ff",
+      "result": "FAIL",
+      "exit_code": 6,
+      "seconds": 96.72091080000246,
+      "start": {
+        "free_physical": 10925846528,
+        "free_commit": 22477873152,
+        "load": 56,
+        "total_physical": 25372119040,
+        "total_commit": 51281108992
+      },
+      "stop_intents": [],
+      "errors": [
+        "ParallelExecutor.ExecuteActions:   E:/IA_Fixtures/Outline425/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp(233): error C4458: declaration of 'Views' hides class member"
+      ],
+      "process_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425Editor-01\\process",
+      "result_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425Editor-01\\result.json"
+    },
+    {
+      "stage": "B fixture",
+      "attempt": "Outline425Editor-02",
+      "source": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 39.947829400000046,
+      "start": {
+        "free_physical": 11982213120,
+        "free_commit": 23010463744,
+        "load": 52,
+        "total_physical": 25372119040,
+        "total_commit": 51281108992
+      },
+      "stop_intents": [],
+      "errors": [],
+      "process_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425Editor-02\\process",
+      "result_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425Editor-02\\result.json"
+    },
+    {
+      "stage": "B host",
+      "attempt": "editor-01",
+      "source": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 193.85301130000153,
+      "start": {
+        "free_physical": 11625566208,
+        "free_commit": 20425375744,
+        "load": 54,
+        "total_physical": 25372119040,
+        "total_commit": 51281108992
+      },
+      "stop_intents": [],
+      "errors": [],
+      "process_receipt": "D:\\IA_Europa\\Receipts\\09443r\\build-processes\\editor-01",
+      "result_receipt": "D:\\IA_Europa\\Receipts\\09443r\\builds\\editor-01\\result.json"
+    },
+    {
+      "stage": "B host",
+      "attempt": "game-01",
+      "source": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 119.00480720000633,
+      "start": {
+        "free_physical": 11618783232,
+        "free_commit": 22115966976,
+        "load": 54,
+        "total_physical": 25372119040,
+        "total_commit": 51281108992
+      },
+      "stop_intents": [],
+      "errors": [],
+      "process_receipt": "D:\\IA_Europa\\Receipts\\09443r\\build-processes\\game-01",
+      "result_receipt": "D:\\IA_Europa\\Receipts\\09443r\\builds\\game-01\\result.json"
+    }
+  ],
+  "archives": {
+    "binary-archive.json": {
+      "result": "PASS",
+      "commit": "42ea37e3ddf7e9102757eec6ebd357f861a524bc",
+      "files": [
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Binaries\\Win64\\Outline425.exe",
+          "size": 139288576,
+          "sha256": "ef140d2e308c9490cea4480e63c3fa2d70c63982d2976daaf8f4a6207a8e4243"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+          "size": 171008,
+          "sha256": "86156bfc506d934efe83499621997fbfd48290f74983d48a9cddb35944ec481f"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+          "size": 124416,
+          "sha256": "0a74f35993eddb1406901e4b240360d67c5239cfc5a80ac0d6bcd38517b25e12"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+          "size": 1021440,
+          "sha256": "4fdd60742e64acb2d89ce60a05ffff749dafdce6c816e2b3282261e69405f182"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+          "size": 126464,
+          "sha256": "b84088b69fe7b66adcd79086941bd8374cbb9beebdc63f959113fb24fdc13b40"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+          "size": 944128,
+          "sha256": "fede3315dd36fbe22c4c32537fce9d40883e4b08d722827a540775800f17b02c"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+          "size": 112128,
+          "sha256": "10b0f03d2c3830aaee29ef0b9c458593c6316651f809f11ece780bf49baa50fe"
+        }
+      ],
+      "builds": [
+        {
+          "target": "Outline425",
+          "attempt": 1,
+          "result": "PASS",
+          "seconds": 54.978540500000236,
+          "errors": [],
+          "process_receipts": [
+            "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425-01\\process\\child-001.json"
+          ]
+        },
+        {
+          "target": "Outline425Editor",
+          "attempt": 1,
+          "result": "PASS",
+          "seconds": 48.27682889999414,
+          "errors": [],
+          "process_receipts": [
+            "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\spike-builds\\Outline425Editor-01\\process\\child-001.json"
+          ]
+        }
+      ]
+    },
+    "stageb-fixture-binary-archive.json": {
+      "result": "PASS",
+      "commit": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+      "files": [
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\binary-archive\\Binaries\\Win64\\Outline425.exe",
+          "size": 139339776,
+          "sha256": "71cbce5c72d7a9747c25ba2ec3bcd6372e9796fab0d6d4f5d08d1bc37a69d4b3"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\binary-archive\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+          "size": 171008,
+          "sha256": "86156bfc506d934efe83499621997fbfd48290f74983d48a9cddb35944ec481f"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+          "size": 124416,
+          "sha256": "0a74f35993eddb1406901e4b240360d67c5239cfc5a80ac0d6bcd38517b25e12"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+          "size": 1090560,
+          "sha256": "fe4c1351f7ae397a546a99d83debd5283350833374ffed97028e790f23613466"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+          "size": 126464,
+          "sha256": "b84088b69fe7b66adcd79086941bd8374cbb9beebdc63f959113fb24fdc13b40"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+          "size": 944640,
+          "sha256": "54d1cc1e96a7ee2b7c84aad010bdfc346294f15e7d7911c58b8b94a8c9bc965e"
+        },
+        {
+          "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+          "size": 125440,
+          "sha256": "9ae9b60976505af41e9cdb547380954610bc10ef687ee71083f2240265f578c4"
+        }
+      ],
+      "builds": [
+        {
+          "target": "Outline425",
+          "attempt": 1,
+          "result": "PASS",
+          "seconds": 92.47487350000301,
+          "errors": [],
+          "process_receipts": [
+            "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425-01\\process\\child-001.json"
+          ]
+        },
+        {
+          "target": "Outline425Editor",
+          "attempt": 1,
+          "result": "FAIL",
+          "seconds": 96.72091080000246,
+          "errors": [
+            "ParallelExecutor.ExecuteActions:   E:/IA_Fixtures/Outline425/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp(233): error C4458: declaration of 'Views' hides class member"
+          ],
+          "process_receipts": [
+            "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425Editor-01\\process\\child-001.json"
+          ]
+        },
+        {
+          "target": "Outline425Editor",
+          "attempt": 2,
+          "result": "PASS",
+          "seconds": 39.947829400000046,
+          "errors": [],
+          "process_receipts": [
+            "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\builds\\Outline425Editor-02\\process\\child-001.json"
+          ]
+        }
+      ]
+    },
+    "stageb-host-binary-archive.json": {
+      "result": "PASS",
+      "source": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+      "manifest": {
+        "path": "D:\\IA_Europa\\Receipts\\09443r\\H4-manifest-D3D11-1280-01.json",
+        "sha256": "641b2fc90f57d27223a8a4ad5f86c77bf705a172c23d77b32c07c4a491474cba"
+      },
+      "files": [
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+          "size": 67891200,
+          "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Binaries\\Win64\\StylizedParisStreet.exe",
+          "size": 139444224,
+          "sha256": "9f60cec50f3827dce33e721e71946e814d4687b6b910bf1abe1e20c2156ca78f"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+          "size": 369152,
+          "sha256": "6037924a08166344146f337b2f0b19ba35a5daf3dc99715db15ef6c332864a89"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+          "size": 91648,
+          "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+          "size": 124416,
+          "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+          "size": 1090560,
+          "sha256": "62588a37e75e6fe20f74d79fb01a4b0d4d0484af376b12d23a6aaf6f3a2fb456"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+          "size": 126464,
+          "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+          "size": 944640,
+          "sha256": "35e619aab3bf9727d896d4c41b07ac4515b97ca291c0d738a5a40395161e37fe"
+        },
+        {
+          "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+          "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+          "size": 125440,
+          "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb"
+        }
+      ],
+      "builds": [
+        {
+          "target": "StylizedParisStreetEditor",
+          "commit": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+          "gate_result": "PASS",
+          "exit_code": 0,
+          "duration_seconds": 194.32126029999927,
+          "diagnostics": [
+            {
+              "module": "UBT/user XML",
+              "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bVerboseDistccOutput, bStopXGECompilationAfterErrors, bUseUnityBuild, bBreakBuildOnLicenseViolation, bOmitFramePointers, bGeneratedSYMFile, MaxParallelActions, bUseFastPDBLinking, bUseAdaptiveUnityBuild, bLogDetailedActionStats, bFlushBuildDirOnRemoteMac, bAdaptiveUnityEnablesEditAndContinue, bUseMallocProfiler, bUseFastMonoCalls, bForceUnityBuild, bAllowDistccLocalFallback, bUseFastSemanticsRenderContexts, DMUCSCoordinator, bUsePCHFiles, bPrintToolChainTimingInfo, bPGOOptimize, bAllowRuntimeSymbolFiles, DMUCSDistProp, bXGENoWatchdogThread, bDisableDebugInfo, bAllowASLRInShipping, bAllowDistcc, bParseTimingInfoForTracing, bEnableThreadSanitizer, bUseShippingPhysXLibraries, bDisableDebugInfoForGeneratedCode, bUseIncrementalLinking, UnsafeTypeCastWarningLevel, bCheckSystemHeadersForModification, DistccExecutablesPath, bDebugBuildsActuallyUseDebugCRT, bCheckLicenseViolations, bAllowParallelExecutor, bStripSymbols, bWriteSolutionOptionFile, bUseUBTMakefiles, bForcePrecompiledHeaderForGameModules, bUseSharedPC....",
+              "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+              "line": 16,
+              "new_port_warning": false,
+              "severity": "warning",
+              "code": "UBT",
+              "category": "accepted_environment"
+            },
+            {
+              "module": "UBT/user XML",
+              "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'ProcessorCountMultiplier, bStopCompilationAfterErrors' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+              "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+              "line": 22,
+              "new_port_warning": false,
+              "severity": "warning",
+              "code": "UBT",
+              "category": "accepted_environment"
+            },
+            {
+              "module": "AnomalyCapture",
+              "diagnostic": "  D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp(266): warning C4996: 'RHICreateRenderQuery': CreateRenderQuery API is deprecated; use RHICreateRenderQueryPool and suballocate queries there Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile.",
+              "file": "D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp",
+              "line": 266,
+              "new_port_warning": true,
+              "severity": "warning",
+              "code": "C4996",
+              "category": "compiler_or_build"
+            }
+          ],
+          "action_counts": {
+            "project": 1,
+            "plugin": 11,
+            "engine_source_in_host": 0,
+            "engine": 0,
+            "engine_plugin": 0
+          },
+          "operation": "D:\\IA_Europa\\Receipts\\09443r\\build-processes\\editor-01"
+        },
+        {
+          "target": "StylizedParisStreet",
+          "commit": "59c128218412ab81ee6bfb82be4bf9cff4e944de",
+          "gate_result": "PASS",
+          "exit_code": 0,
+          "duration_seconds": 120.95461490000162,
+          "diagnostics": [
+            {
+              "module": "UBT/user XML",
+              "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bUsePCHFiles, DMUCSDistProp, bEnableAddressSanitizer, bUseAdaptiveUnityBuild, bStressTestUnity, MinFilesUsingPrecompiledHeader, bUseUnityBuild, bForceUnityBuild, bCheckSystemHeadersForModification, bUseMallocProfiler, bBreakBuildOnLicenseViolation, bAllowDistcc, bEnableMemorySanitizer, DistccExecutablesPath, bAdaptiveUnityCreatesDedicatedPCH, bUseShippingPhysXLibraries, bSupportEditAndContinue, bFlushBuildDirOnRemoteMac, BaseLogFileName, bXGENoWatchdogThread, bAllowLTCG, CppStandard, bAdaptiveUnityEnablesEditAndContinue, bUndefinedIdentifierErrors, bPrintDebugInfo, bPublicSymbolsByDefault, bUseUBTMakefiles, bAddFastPDBToProjects, bUseFastMonoCalls, bWriteSolutionOptionFile, MinGameModuleSourceFilesForUnityBuild, bUseSharedPCHs, bUsePDBFiles, bParseTimingInfoForTracing, bEnableThreadSanitizer, bUseFastSemanticsRenderContexts, bPGOOptimize, bAllowASLRInShipping, bLogDetailedActionStats, bGeneratedSYMFile, bAdaptiveUnityDisablesPCH, bShowXGEMonitor, DMUCSCoordinator, bStopXGECompilationAfterErrors, bAdaptive....",
+              "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+              "line": 16,
+              "new_port_warning": false,
+              "severity": "warning",
+              "code": "UBT",
+              "category": "accepted_environment"
+            },
+            {
+              "module": "UBT/user XML",
+              "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bStopCompilationAfterErrors, ProcessorCountMultiplier' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+              "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+              "line": 22,
+              "new_port_warning": false,
+              "severity": "warning",
+              "code": "UBT",
+              "category": "accepted_environment"
+            },
+            {
+              "module": "AnomalyCapture",
+              "diagnostic": "  D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp(266): warning C4996: 'RHICreateRenderQuery': CreateRenderQuery API is deprecated; use RHICreateRenderQueryPool and suballocate queries there Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile.",
+              "file": "D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp",
+              "line": 266,
+              "new_port_warning": true,
+              "severity": "warning",
+              "code": "C4996",
+              "category": "compiler_or_build"
+            }
+          ],
+          "action_counts": {
+            "project": 2,
+            "plugin": 5,
+            "engine_source_in_host": 0,
+            "engine": 0,
+            "engine_plugin": 0
+          },
+          "operation": "D:\\IA_Europa\\Receipts\\09443r\\build-processes\\game-01"
+        }
+      ]
+    }
+  },
+  "binary_strings": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+      "sha256": "71cbce5c72d7a9747c25ba2ec3bcd6372e9796fab0d6d4f5d08d1bc37a69d4b3",
+      "found": {
+        "AnomalyPrivateIdDepth425": true,
+        "FAnomalyPrivateIds425CS": true
+      }
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "sha256": "fe4c1351f7ae397a546a99d83debd5283350833374ffed97028e790f23613466",
+      "found": {
+        "AnomalyPrivateIdDepth425": true,
+        "IAICaptureLegacyReference": true
+      }
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "sha256": "9ae9b60976505af41e9cdb547380954610bc10ef687ee71083f2240265f578c4",
+      "found": {
+        "FAnomalyPrivateDepth425VS": true,
+        "FAnomalyPrivateDepth425PS": true,
+        "FAnomalyPrivateIds425CS": true
+      }
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+      "sha256": "9f60cec50f3827dce33e721e71946e814d4687b6b910bf1abe1e20c2156ca78f",
+      "found": {
+        "AnomalyPrivateIdDepth425": true,
+        "FAnomalyPrivateIds425CS": true
+      }
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "sha256": "62588a37e75e6fe20f74d79fb01a4b0d4d0484af376b12d23a6aaf6f3a2fb456",
+      "found": {
+        "AnomalyPrivateIdDepth425": true,
+        "IAICaptureLegacyReference": true
+      }
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb",
+      "found": {
+        "FAnomalyPrivateDepth425VS": true,
+        "FAnomalyPrivateDepth425PS": true,
+        "FAnomalyPrivateIds425CS": true
+      }
+    }
+  ],
+  "fixture_checkout_receipt": "D:\\IA_Europa\\Receipts\\09443r\\fixture-checkout-receipt.json",
+  "tests": {
+    "private_policy_and_contract": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb-tests\\result.json",
+    "kit": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443r\\stageb\\kit-tests.json",
+    "scope": "D:\\IA_Europa\\Receipts\\09443r\\stageb-scope-tests.json",
+    "H4_scope": "D:\\IA_Europa\\Receipts\\09443r\\H4-scope-tests.json"
+  },
+  "limitations": [
+    "EA_Core and outline qualification contain static targets; no skeletal target exists in EA_Core. Dynamic collectors for ISM/HISM/skeletal are compiled, with unsupported faithful-draw cases unavailable and excluded, but no live skeletal or instance proof is claimed here.",
+    "GPU/CPU costs are instrumented incremental private-pass work, not a whole-engine on/off benchmark. Shared staging/readback and PNG writing are excluded.",
+    "Private ID uses its own stencil attachment. All zero-write state claims refer to host custom depth, component stencil values/write masks and r.CustomDepth."
+  ],
+  "crash_upload_protected_change": "none",
+  "pushes": [],
+  "tags": []
+}

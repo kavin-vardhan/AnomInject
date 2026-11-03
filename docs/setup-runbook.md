@@ -1,3 +1,5 @@
+094-43r: Stage A and H1-H5 passed; binaries bind to source 59c1282 and the final 27-file H4 manifest. Reuse no spent slot. Fixture launches require -nowrite. Private default routes are blinking,lod_corruption; the EA_Core qualification explicitly used all four routes and 0.5% bench coverage, with shipped 6% unchanged. Code must scan and issue the final office card; Codex did not push.
+
 094-43r Stage B fixture Editor attempt1 failed with one AnomalyCapture C4458 (local Views shadows FMeshElementCollector::Views), zero other compile/link errors. Renamed it ViewList; no behavior or gate changed. Retry2 pending.
 
 094-43r Stage B source: direct component proxies, plugin-owned dynamic element collection, batched private ID/depth targets with fenced reuse, asynchronous row-pitch-aware copies, unavailable selection filtering, and freshly scanned fallback guard. Normal C4/C5 no longer tags host custom depth; the legacy route requires explicit fixture-only bench reference. Focused native/contract/FXC tests pass; engine builds and H1-H5 are pending. See docs/europa/09443-stageb-design.md.
