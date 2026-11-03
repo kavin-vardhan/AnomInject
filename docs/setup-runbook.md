@@ -915,3 +915,6 @@ FM1 runs UBT BelowNormal with -MaxParallelActions=2, starts on one >=8 GiB free-
 FJ1/FK1 requires five idle minutes, physical >=4 GiB, commit >=8 GiB and D: >=25 GiB; commit 4 GiB/D: 15 GiB acting floors remain. Both C3 sessions exited normally. Slot 01 retains a handled BUF_SourceCopy ensure; the tested descriptor correction qualified slot 02, which has no ensure. Both slots are spent; do not launch or reuse them.
 
 Readers and raw evidence are under Receipts/09433b/c3-attempts/C3/{01,02}. capture_c3_reader.py reports frozen FO3 metrics and its shift/wrong-target negatives. capture_c2_reader.read(..., profile='C3') checks these same 240 labels with unchanged pixel/edge rules; the default C2 profile still requires 480. No new in-editor Python was introduced. Both sessions fail lighting/LOD coverage; no threshold is relaxed. See [receipt index](europa/09433b-mask-receipts.json).
+
+
+094-44 material authoring: tools/europa/create_anomaly_materials425.py runs only in the armed Outline425 fixture editor on 4.25. It refuses existing outputs. Use its main(receipt) once, then readback(author_receipt, receipt) in a fresh -nowrite editor process. Never run it in the host or against the 5.1 material folder. The receipt records all six usage flags and expression constants.

@@ -1941,3 +1941,6 @@ The 4.25 capture adapter now rotates census batches through the shared stencil l
 ### 4.25 auto capture, 094-40
 
 The bench capture driver seeds/starts the injector once after its pre-pass and stops before its final clean tail. Auto lod_corruption requires a multi-LOD component, predicts its drawn LOD with the player's game-thread view and 4.25 ComputeStaticMeshLOD, then chooses the coarsest or LOD0 if already coarse. This is a guarded 4.25 auto addition; manual and 5.1 selection stay unchanged. Production selection defaults to6%; only the EA_Core bench argv sets0.5%. The office reader retains masks/labels/schema/restoration/UI proofs and additionally requires every LOD event to change target pixels beyond grain. See the 094-40 journal for source citations and frozen checks.
+
+
+094-44 partial D2: 4.25 material lookup uses /AnomalyInjector/Engine425/Materials; 5.1 keeps /AnomalyInjector/Materials. The new assets have the release d7eee97 graphs. The finder change is unbuilt, and fresh-process readback is blocked by an owned kit stop. Texture anomaly code stays compiled out; GF4 and all anomaly gates remain unrun.

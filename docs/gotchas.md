@@ -10500,3 +10500,12 @@ GD3 uses the saved family scene depth rather than trying to reproduce Renderer-p
 ## G527 - Number correction for the GE1 ref-policy note
 
 The second G524 heading above (Admit recorded refs without replacing the P9 baseline) was accidentally numbered twice in 094-43r. Refer to that ref-policy note as G527. The original G524 typed-UAV note and both historical paragraphs remain unedited. GE1 preserves the 71 baseline refs and narrowly admits the four named recorded refs, never a regenerated baseline.
+
+
+## G528 - 4.25 material shading-model readback
+
+4.25 does not reliably expose EMaterialShadingModel as a Python enum. The port reads the editor-visible UsedShadingModels string, derived by Material.cpp:4303-4308 from the actual shading-model field (Material.h:396-399), and requires Default Lit. This read passed in the authoring process. The six supported usage flags and all explicit constants also passed; used_with_nanite is omitted because 4.25 has no such usage. The d7eee97 graph and constants are unchanged. Original 5.1 assets remain byte-identical. Fresh-process verification is still unqualified.
+
+## G529 - A child that exits before its first command-line sample remains unclassified
+
+094-44 material-readback01 stopped at FE3: owned UBT PID9640 was already exited at its first observation, with no cached command line and read_attempts0. runtime_children.py observed_command returns that missing cached value and reason rejects it. The kit recorded stop intent for root9616 before stopping it, and correctly classified exit125 as owned-stop. No crash or binary change was found. The actual UBT action is unknown; do not call it a harmless query without evidence. The required stop-on-failed-gate rule ended the job; no guard rule or threshold was relaxed.

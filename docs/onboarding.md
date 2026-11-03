@@ -147,3 +147,6 @@ Europa 094-27c (2026-10-30): The two A6 maps and shared mesh were quarantined an
 Phase A and UI-free C1/C2 are accepted. The two 4.25 C3 resource-usage defects are repaired: shader-read in TargetableFlags and copy-source usage on the reduction buffer. The final retry produces all 240 masks without an ensure or crash and keeps labels aligned.
 
 C3 remains NEEDS-DECISION: blinking drawn/hidden and missing_object pass; lighting and LOD fail the frozen 95% changed-pixel coverage despite perfect silhouette IoU and zero spill. Extending the masks over the observed colour changes violates the 1% spill limit. Both slots are spent. No protected change, upload sign, push or tag. [Receipts](europa/09433b-mask-receipts.json), [journal](sessions/2026-11-01-094-33b-mask-flags.md).
+
+
+094-44 partial D2: materials are authored and verified in the authoring process; fresh-process readback never reached its script after an FE3 owned stop. GF4 live skeletal/instanced proof has not started. Texture and camera_clipping routes are not enabled by this asset step; default routes remain blinking and lod_corruption. Native finders are committed but unbuilt.

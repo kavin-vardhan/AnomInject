@@ -1,0 +1,35 @@
+{
+  "result": "NEEDS-DECISION",
+  "assets": [
+    {
+      "source": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Content\\Engine425\\Materials\\M_MissingTexture_Checker.uasset",
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Content\\Engine425\\Materials\\M_MissingTexture_Checker.uasset",
+      "size": 81634,
+      "sha256": "5222b3eeb7cdd1f5b58b5975d568b699c7430949b024c67e6f5b1ae6b88a7bec"
+    },
+    {
+      "source": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Content\\Engine425\\Materials\\M_CorruptedTexture_Pink.uasset",
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Content\\Engine425\\Materials\\M_CorruptedTexture_Pink.uasset",
+      "size": 99183,
+      "sha256": "b88d88615286a6c9a3648a5c80ab3889ca8f6c648c378e8984ba3d01e79c552a"
+    }
+  ],
+  "author": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444\\materials\\01\\author.json",
+  "fresh_readback": "NOT EXECUTED: kit owned-stop before the script; exit125",
+  "stop_reason": "FE3 unreadable UnrealBuildTool command line",
+  "stopped_session": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444\\material-readback\\01\\result.json",
+  "tests": "D:\\IA_Europa\\Receipts\\09444\\material-tests.json",
+  "p9": "D:\\IA_Europa\\Receipts\\09444\\owner-p9-result.json",
+  "selection_defaults": [
+    "blinking",
+    "lod_corruption"
+  ],
+  "anomaly_ports": "unrun because the readback session failed; GF4 was not started",
+  "exit_fast_checks": "D:/IA_Europa/Receipts/09444/exit-before-commit.json",
+  "binary_hashes_and_archives": "D:/IA_Europa/Receipts/09444/binaries.json",
+  "native_builds": 0,
+  "finder_change_built": false,
+  "runtime_crashes": 0,
+  "upload_signs": 0,
+  "protected_changes": 0
+}

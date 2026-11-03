@@ -100,6 +100,13 @@ UAnomalyInjectorSubsystem::UAnomalyInjectorSubsystem()
 	static ConstructorHelpers::FObjectFinder<UTexture2D> TexCorruptNoiseFinder(
 		TEXT("/AnomalyInjector/Textures/T_CorruptTex_NoiseN.T_CorruptTex_NoiseN"));
 	TexCorruptNoise = TexCorruptNoiseFinder.Object;
+#elif ANOMALY_ENGINE_425
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> CheckerFinder425(
+		TEXT("/AnomalyInjector/Engine425/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker"));
+	MissingTextureChecker = CheckerFinder425.Object;
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PinkFinder425(
+		TEXT("/AnomalyInjector/Engine425/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"));
+	CorruptedTexturePink = PinkFinder425.Object;
 #endif
 }
 
