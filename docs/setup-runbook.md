@@ -1,3 +1,5 @@
+094-43a stopped at the frozen P3 comparison. Keep reference/02 and private-off/01, including frame 708 and its successor; do not shift references or exclude the failed edges. P4 was not armed. Editor build attempts 1-3 are spent, Game attempt 1 passed. The spike and prior spike remain local; a later attempt needs a new ruling and fresh slots.
+
 094-43a kit self-test: run `python tools/europa/runtime_exit_tests.py <receipt.json>`. Inspect `stop_intents` in the child and execution receipts and `exit_classification` in the result. An owned stop is still a failed session; a failed stop requires checking the recorded owned process identities before sealing evidence.
 
 # Setup runbook (living document)

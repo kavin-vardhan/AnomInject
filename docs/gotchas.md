@@ -10472,3 +10472,11 @@ The 094-42c ShaderProbe starts its 1,800-second timer when the console command r
 ## G522 - Record stop intent before termination (094-43a)
 
 A termination exception can prevent the successful-stop list from being recorded. GC6 now saves UTC, root PID, reason and whether the root is running before invoking any owned-tree stop. The classifier checks PID and timestamp ordering; post-crash child cleanup cannot erase a genuine root crash. A missing or wrong intent fails the negative test. The prior WinError5 remains an open observation; this change does not identify or work around its cause.
+
+## G523 - A private immediate pass can precede main-view disocclusion
+
+094-43a links the stock 4.25 depth-only types by name and binds the fixture's opaque, masked and WPO material shaders through public mesh-pass APIs. That does not prove visibility parity. At LOD changes, its explicit census draws produced masked/WPO ID pixels one frame before the main colour and legacy custom-depth paths. Frozen P3 fails7masked and12WPO frames; all132 compared blink-hidden frames remain nonempty. SceneVisibility.cpp:930-946,1209,2546 explains temporal admission; FViewInfo::PrimitiveVisibilityMap lives in Renderer-private SceneRendering.h:877. No private-header workaround or shifted reference was used. Stop under GC4 and keep the failed pairs. The private experiment remains unmerged.
+
+## G524 - D3D11 typed UAV loads need scalar scratch
+
+094-43a's first boot rejected a uint4 Evidence UAV load (D3DShaderCompiler.cpp:1237-1240). The experimental global shader repair keeps Evidence write-only and accumulates exact depth bits and IDs through R32_UINT resources. FXC flags the old shader's additional typed UAV loads and clears the fixed shader; real retry boot passes. This is one FI4 crash, not a kit stop. Shader-only reuse of native outputs requires the exact Source tree, a bounded shader diff and unchanged bound binary hashes; no fourth Editor build was run.

@@ -1,3 +1,5 @@
+094-43a proves that the installed 4.25 depth-only types can be found by name and drawn through public mesh-pass machinery. It does not certify mask parity: disocclusion frames fail P3, and P4 is unrun. The kit stop-intent fix is on the feature branch; the experimental renderer is not.
+
 The kit distinguishes a requested owned stop from an actual runtime crash using intent persisted before termination. This changes process accounting, not capture gates; stopped sessions still fail. The 094-43a depth-only experiment remains separate from the product branch.
 
 # Onboarding

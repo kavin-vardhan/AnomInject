@@ -1,0 +1,696 @@
+{
+  "job": "094-43a",
+  "verdict": "NEEDS-DECISION",
+  "feature_before_closeout": "7688ddf4ad5d2a09be46c06489cb5937dd211597",
+  "spike": "c1193bdc386cc77bccb7c6c756a6f6fe28f195d0",
+  "native": "1cf84a0f83805c88f618931c02f585926f3303ee",
+  "builds": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\spike-builds\\Outline425-01\\result.json",
+      "sha256": "12a727e855b3a71527629f97931f22992731370cb8d99e6b4970d2c485536a2f",
+      "target": "Outline425",
+      "attempt": 1,
+      "commit": "1cf84a0f83805c88f618931c02f585926f3303ee",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 66.86172559999977,
+      "priority": "BelowNormal"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\spike-builds\\Outline425Editor-01\\result.json",
+      "sha256": "6d9b89ecb4012b7f1cce37a7401bf516d08fbaf528339876e455dd20837ce51a",
+      "target": "Outline425Editor",
+      "attempt": 1,
+      "commit": "9cce48af4bb8a400932d129380ae670663730654",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 72.62089549999655,
+      "priority": "BelowNormal"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\spike-builds\\Outline425Editor-02\\result.json",
+      "sha256": "4f9b1f9ca62a06a89a02f02f12101ce4af11fcd17a1685ba0c310d7bb9bfa70e",
+      "target": "Outline425Editor",
+      "attempt": 2,
+      "commit": "5d4ab886d87a560cae5a515e5070ee15bc080b04",
+      "result": "FAIL",
+      "exit_code": 6,
+      "seconds": 33.63637540000491,
+      "priority": "BelowNormal"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\spike-builds\\Outline425Editor-03\\result.json",
+      "sha256": "f53201a8e95408f5bd00162b931522a562548d146f6b7823eec1c15e414dde9e",
+      "target": "Outline425Editor",
+      "attempt": 3,
+      "commit": "1cf84a0f83805c88f618931c02f585926f3303ee",
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 48.16341050000483,
+      "priority": "BelowNormal"
+    }
+  ],
+  "sessions": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\warmup\\01\\result.json",
+      "sha256": "db9dd60e9f166d26d3cbd235abe71920d7786c3f8a561bfa6a845c3ae33132f8",
+      "result": "FAIL",
+      "exit_code": 3,
+      "exit_classification": "crash",
+      "crashed": true,
+      "shader_failure": true
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\warmup\\02\\result.json",
+      "sha256": "7da30af692dcecf096fcb79680f8d9503232827a88b8ca4e8cfdfb2882b4a440",
+      "result": "PASS",
+      "exit_code": 0,
+      "exit_classification": "normal",
+      "crashed": false,
+      "shader_failure": null
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\warm\\01\\result.json",
+      "sha256": "54d09f167a424a04b8d5b40302899f9a1ec03c10410cd592820a2b34615d54af",
+      "result": "PASS",
+      "exit_code": 0,
+      "exit_classification": "normal",
+      "crashed": false,
+      "shader_failure": null
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\reference\\01\\result.json",
+      "sha256": "3adfa8da56cdbbb54369a5765c53a619f1b33f1f3583ccb82f5d775538888fa9",
+      "result": "FAIL",
+      "exit_code": 125,
+      "exit_classification": "owned-stop",
+      "crashed": false,
+      "shader_failure": null
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\reference\\02\\result.json",
+      "sha256": "f7750bd165c39fc041e502409194bb39e9d2fab50855cdb21500f10476d0df16",
+      "result": "PASS",
+      "exit_code": 0,
+      "exit_classification": "normal",
+      "crashed": false,
+      "shader_failure": null
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\private-off\\01\\result.json",
+      "sha256": "54469a103797bb3974a6061218bf2302349469ff227d70018317f78aa1fe0a92",
+      "result": "PASS",
+      "exit_code": 0,
+      "exit_classification": "normal",
+      "crashed": false,
+      "shader_failure": null
+    }
+  ],
+  "gc6": {
+    "result": "PASS",
+    "owned_stop": {
+      "pid": 5600,
+      "exit_code": 125,
+      "classification": "owned-stop",
+      "intents": [
+        {
+          "utc": "2026-11-03T19:00:30.859332+00:00",
+          "pid": 5600,
+          "reason": "FE3 unreadable UnrealBuildTool command line",
+          "root_running": true
+        }
+      ],
+      "reason": "FE3 unreadable UnrealBuildTool command line"
+    },
+    "genuine_crash": {
+      "pid": 33728,
+      "exit_code": 3,
+      "classification": "crash"
+    },
+    "unreadable_child": {
+      "pid": 12036,
+      "parent_pid": 5600,
+      "image": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+      "live": false,
+      "command_line": null,
+      "read_attempts": 0,
+      "cached_after_exit": false,
+      "read_error": null,
+      "reason": "FE3 unreadable UnrealBuildTool command line"
+    }
+  },
+  "P1": "PASS",
+  "P2": {
+    "result": "PASS",
+    "warm_missing_maps": 0
+  },
+  "P3": {
+    "result": "FAIL",
+    "rule": "Pair the same capture index only when sweep, player view and injected anomaly/target state agree. Compare per-actor private ID silhouette with the separate legacy label-path silhouette; shared IDs are reported as groups. An unpaired state is reported and never replaced by a pixel-selected reference. Require nonempty opaque, masked, WPO and blink-hidden coverage. IoU floor 0.98; empty vs empty is recorded separately. P4 uses the kept magenta classifier R>220,G<40,B>220 and max RGB change>32 on every paired saved frame.",
+    "reference": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\reference\\02\\plugin-frames\\epoch01",
+    "private": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\private-off\\01\\plugin-frames\\epoch01",
+    "frames": [
+      2352,
+      2352
+    ],
+    "objects": {
+      "DefaultPawn_0": {
+        "frames": 1844,
+        "nonempty": 0,
+        "iou": {
+          "count": 0
+        },
+        "different_pixels": {
+          "count": 1844,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "DefaultPawn_0+OF_Floor+OF_Hide+OF_LOD_A+OF_LOD_B+OF_Masked+OF_WPO": {
+        "frames": 26,
+        "nonempty": 26,
+        "iou": {
+          "count": 26,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 26,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Floor": {
+        "frames": 1844,
+        "nonempty": 1844,
+        "iou": {
+          "count": 1844,
+          "min": 0.9999235045132338,
+          "mean": 0.9999997096158312,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1844,
+          "min": 0.0,
+          "mean": 0.10249457700650759,
+          "p95": 0.0,
+          "max": 27.0
+        },
+        "pass_all": true
+      },
+      "OF_Hide": {
+        "frames": 1844,
+        "nonempty": 1844,
+        "iou": {
+          "count": 1844,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1844,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_LOD_A": {
+        "frames": 1844,
+        "nonempty": 1844,
+        "iou": {
+          "count": 1844,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1844,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_LOD_B": {
+        "frames": 1844,
+        "nonempty": 1844,
+        "iou": {
+          "count": 1844,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1844,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Masked": {
+        "frames": 1844,
+        "nonempty": 91,
+        "iou": {
+          "count": 91,
+          "min": 0.0,
+          "mean": 0.9230769230769231,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1844,
+          "min": 0.0,
+          "mean": 17.84164859002169,
+          "p95": 0.0,
+          "max": 4700.0
+        },
+        "pass_all": false
+      },
+      "OF_WPO": {
+        "frames": 1844,
+        "nonempty": 1688,
+        "iou": {
+          "count": 1688,
+          "min": 0.0,
+          "mean": 0.9928909952606635,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1844,
+          "min": 0.0,
+          "mean": 32.29067245119306,
+          "p95": 0.0,
+          "max": 4962.0
+        },
+        "pass_all": false
+      }
+    },
+    "hidden_frames": 132,
+    "hidden_empty": 0
+  },
+  "P4": {
+    "result": "NOT RUN",
+    "reason": "GC4 stop after failed P3"
+  },
+  "P5": {
+    "result": "PASS",
+    "frames": 2352,
+    "max_on": 0,
+    "max_tagged": 0,
+    "max_unexpected": 0,
+    "states_equal": true,
+    "custom_depth_mode_reads": [
+      1,
+      1,
+      1
+    ],
+    "cost": {
+      "cpu_submit_ms": {
+        "count": 2352,
+        "min": 0.0807,
+        "mean": 0.21341938775510205,
+        "p95": 0.3320949999999998,
+        "max": 0.7232
+      },
+      "cpu_with_wait_ms": {
+        "count": 2352,
+        "min": 1.4324,
+        "mean": 2.23867606292517,
+        "p95": 2.5559549999999995,
+        "max": 9.116
+      },
+      "gpu_ms": {
+        "count": 2352,
+        "min": 0.105,
+        "mean": 0.48580782312925164,
+        "p95": 0.6274499999999998,
+        "max": 6.994
+      }
+    },
+    "cost_scope": "Render-thread private pass: submission, submission plus GPU query wait, and GPU timestamp interval. Game-thread Prepare and metrics-file append are outside these intervals; no whole-engine net-speed claim.",
+    "timed_frames": 2352,
+    "scope": "Completed private-off run only; outline-on proof was not run."
+  },
+  "unpaired_owner_records": 208,
+  "unpaired_frames": 26,
+  "coverage_failures": {
+    "OF_Masked": 7,
+    "OF_WPO": 12
+  },
+  "pixel_diagnosis": {
+    "result": "FAIL",
+    "examples": [
+      {
+        "index": 708,
+        "object": "OF_WPO",
+        "private_id_pixels": 4962,
+        "paired_color_different_gt1": 0,
+        "next_frame_color_different_gt1": 4538,
+        "private_scene_depth_zero": 4962,
+        "example": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\private-off\\01\\plugin-frames\\epoch01\\frame-000708.png",
+        "next_frame": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\private-off\\01\\plugin-frames\\epoch01\\frame-000709.png"
+      },
+      {
+        "index": 815,
+        "object": "OF_Masked",
+        "private_id_pixels": 4700,
+        "paired_color_different_gt1": 0,
+        "next_frame_color_different_gt1": 4093,
+        "private_scene_depth_zero": 4673,
+        "example": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\private-off\\01\\plugin-frames\\epoch01\\frame-000815.png",
+        "next_frame": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\private-off\\01\\plugin-frames\\epoch01\\frame-000816.png"
+      }
+    ],
+    "interpretation": "Private ID coverage precedes main-color/custom-depth coverage on LOD disocclusion frames. Temporal occlusion admission is the source-supported explanation, not directly instrumented query telemetry. The fixed P3 rule and threshold were not changed."
+  },
+  "binary_archive": {
+    "result": "PASS",
+    "files": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\binary-archive\\Binaries\\Win64\\Outline425.exe",
+        "size": 139288576,
+        "sha256": "c69ebe63feeca7d439b4a01a40ed4284caea258644aaba28401f89b38c311037"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\binary-archive\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+        "size": 171008,
+        "sha256": "86156bfc506d934efe83499621997fbfd48290f74983d48a9cddb35944ec481f"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "size": 124416,
+        "sha256": "0a74f35993eddb1406901e4b240360d67c5239cfc5a80ac0d6bcd38517b25e12"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "size": 1021440,
+        "sha256": "f56cc2393a0591632317280675b2404c809a4d9750429bcf2e5c84af52a3dcfc"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "size": 126464,
+        "sha256": "b84088b69fe7b66adcd79086941bd8374cbb9beebdc63f959113fb24fdc13b40"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "size": 944128,
+        "sha256": "fede3315dd36fbe22c4c32537fce9d40883e4b08d722827a540775800f17b02c"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "size": 112128,
+        "sha256": "10b0f03d2c3830aaee29ef0b9c458593c6316651f809f11ece780bf49baa50fe"
+      }
+    ]
+  },
+  "build_changed_binaries": [
+    {
+      "attempt": "Outline425-01",
+      "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+      "size": 139288576,
+      "sha256": "c69ebe63feeca7d439b4a01a40ed4284caea258644aaba28401f89b38c311037"
+    },
+    {
+      "attempt": "Outline425Editor-01",
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "size": 985088,
+      "sha256": "5da45d424915e6147ebe3435fbb99acb114ae62c189f140e4e5e7c2cae13d3dd"
+    },
+    {
+      "attempt": "Outline425Editor-01",
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "size": 111104,
+      "sha256": "eddc45d93166ce8a3669128c5e4a4557dcf5027557f2b0e09b9194e8dae8d83c"
+    },
+    {
+      "attempt": "Outline425Editor-02",
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "size": 112128,
+      "sha256": "833e0d0fe1917484fa3d67024a911531dc88dcbb2b48e9a63701a152b0c2fb09"
+    },
+    {
+      "attempt": "Outline425Editor-03",
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "size": 1021440,
+      "sha256": "f56cc2393a0591632317280675b2404c809a4d9750429bcf2e5c84af52a3dcfc"
+    },
+    {
+      "attempt": "Outline425Editor-03",
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "size": 112128,
+      "sha256": "10b0f03d2c3830aaee29ef0b9c458593c6316651f809f11ece780bf49baa50fe"
+    }
+  ],
+  "engine_binaries": [
+    {
+      "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClient.exe",
+      "size": 18272000,
+      "sha256": "f5c00f65e6dc4b2d3f7182f5efb41b481f8f9b2128f23a956f77397f54bd5449"
+    },
+    {
+      "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+      "size": 462080,
+      "sha256": "4a6d83264e68403534aa917e92f741e0d09add5e8cf20c19b76d2cfe4558c387"
+    }
+  ],
+  "citations": {
+    "engine": "E:/EpicGames/UE_4.25/Engine/Source",
+    "citations": [
+      {
+        "file": "Runtime/RenderCore/Public/Shader.h",
+        "line": 2195,
+        "claim": "exported shader-type registry"
+      },
+      {
+        "file": "Runtime/Engine/Public/MaterialShared.h",
+        "line": 1764,
+        "claim": "exported rendering-thread material map"
+      },
+      {
+        "file": "Runtime/Engine/Public/MaterialShared.h",
+        "line": 1193,
+        "claim": "public vertex-factory mesh shader map"
+      },
+      {
+        "file": "Runtime/RenderCore/Public/Shader.h",
+        "line": 1725,
+        "claim": "exported shader-map content class"
+      },
+      {
+        "file": "Runtime/RenderCore/Public/Shader.h",
+        "line": 1771,
+        "claim": "by-type map lookup"
+      },
+      {
+        "file": "Runtime/Engine/Public/MaterialShared.h",
+        "line": 1908,
+        "claim": "private section containing direct GetShader overload at 1992"
+      },
+      {
+        "file": "Runtime/Renderer/Private/DepthRendering.cpp",
+        "line": 974,
+        "claim": "engine default-material substitution; citation only"
+      },
+      {
+        "file": "Runtime/Renderer/Private/DepthRendering.h",
+        "line": 82,
+        "claim": "VS binding delegates to base; citation only"
+      },
+      {
+        "file": "Runtime/Renderer/Private/DepthRendering.h",
+        "line": 168,
+        "claim": "desktop mobile-color binding compiled out; citation only"
+      },
+      {
+        "file": "Runtime/Renderer/Public/MeshMaterialShader.h",
+        "line": 57,
+        "claim": "exported common material and VF bindings"
+      },
+      {
+        "file": "Runtime/Renderer/Public/MeshPassProcessor.h",
+        "line": 1550,
+        "claim": "exported processor constructor"
+      },
+      {
+        "file": "Runtime/Renderer/Public/MeshPassProcessor.inl",
+        "line": 135,
+        "claim": "public dynamic-pass template"
+      },
+      {
+        "file": "Runtime/Engine/Public/StaticMeshResources.h",
+        "line": 831,
+        "claim": "exported static-mesh proxy and geometry access"
+      },
+      {
+        "file": "Runtime/Engine/Public/SceneInterface.h",
+        "line": 89,
+        "claim": "exported scene primitive lookup"
+      },
+      {
+        "file": "Runtime/Renderer/Private/PostProcess/SceneRenderTargets.cpp",
+        "line": 3375,
+        "claim": "custom-depth resource binding gated by mode; private route requests only SceneDepth"
+      },
+      {
+        "file": "Runtime/Renderer/Private/PostProcess/SceneRenderTargets.cpp",
+        "line": 3423,
+        "claim": "exported immediate-command-list scene uniform helper"
+      },
+      {
+        "file": "Runtime/Renderer/Private/SceneVisibility.cpp",
+        "line": 930,
+        "claim": "temporal occlusion query read; citation only"
+      },
+      {
+        "file": "Runtime/Renderer/Private/SceneVisibility.cpp",
+        "line": 1209,
+        "claim": "occluded primitive visibility cleared; citation only"
+      },
+      {
+        "file": "Runtime/Renderer/Private/SceneVisibility.cpp",
+        "line": 2258,
+        "claim": "base pass admission"
+      },
+      {
+        "file": "Runtime/Renderer/Private/SceneVisibility.cpp",
+        "line": 2278,
+        "claim": "custom-depth admission"
+      },
+      {
+        "file": "Runtime/Renderer/Private/SceneVisibility.cpp",
+        "line": 2546,
+        "claim": "relevance packets use primitive visibility map"
+      },
+      {
+        "file": "Runtime/Renderer/Private/SceneRendering.h",
+        "line": 877,
+        "claim": "PrimitiveVisibilityMap belongs to private FViewInfo; not included or accessed by new pass"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\entry.json",
+      "size": 497232,
+      "sha256": "8191af0c396ec393c41467e9ec02312b3b997b1f828878c9072c102251799fd3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\exit.json",
+      "size": 492640,
+      "sha256": "78c3c7aaf2dd2492f4d7f19fb360a3ea13eec7a784ab0fc0ce9ea51c90bcc4b9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\gc6-tests.json",
+      "size": 73,
+      "sha256": "5f366adf41568bc9e8d6cff35e0572acc5e5bd62d5951f059ab5b4f6717656a1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\gc6-real-exits.json",
+      "size": 854,
+      "sha256": "baec9efaee828c3c7829f3467f8494e56bc61da532ca760b167202957e24a67d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\kit-tests.json",
+      "size": 754,
+      "sha256": "f452e6199126f50989fc0ee19fa42f00ec86919fcd923ba8eb4e9076ad8c8f49"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\build-scope-tests.json",
+      "size": 72,
+      "sha256": "c46af47d8c4598a9f60bf211b017d6b46dcf65ddee0dfad9c8f04240930417bc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\runtime-e-floor-test.json",
+      "size": 101,
+      "sha256": "01969ee2ccbdee589e672eaf644e62548c27968f7e0344283853a40c3fe31475"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\private-static.json",
+      "size": 278,
+      "sha256": "517276c387bdf903a9505be677d914d04fc4046aa726c64c159f88e8f2db94ac"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\shader-only.json",
+      "size": 391,
+      "sha256": "09ef78c33e92953e4518d7282ab540f63907463b81b6d2ff4a5522916a82dc1c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09443a\\console-sequence-test.json",
+      "size": 293,
+      "sha256": "7318bdad32d633c56b5c8cb0e074cb05129cc4e431ffdf88c28df124964628b0"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\P3-coverage.json",
+      "size": 2970588,
+      "sha256": "07909f9ca82a1db85a4a128bf907508881d0d0a6702b6943aaf4d9f59b517a89"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\P3-diagnosis.json",
+      "size": 26602,
+      "sha256": "e69199f75d208260e0d8e934245ae9272eb77fe29fbc89163a8536880f0c802c"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\P3-pixel-diagnosis.json",
+      "size": 1280,
+      "sha256": "9ee49d85a2f8536adc7be5dbb94a22c4b00977fdbecfd7f85d3a1496984d3f39"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\P5-cost-private-off.json",
+      "size": 11599,
+      "sha256": "89f74ca3cad5c2579be8ec60bdb061949bbd2df7b3471451746ae4f32466ed0e"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\reader-tests.json",
+      "size": 687,
+      "sha256": "d4dcf6b07b0b68b465c70dc4c139895d1fbabe685d1b60c295ca7f48d53d83ce"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09443a\\uav-tests\\result.json",
+      "size": 1058,
+      "sha256": "8e830004cce9376477f4b8095e38405899e70c7e2ea482d8581e4d226053c37a"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\private_reader09443a.py",
+      "size": 7954,
+      "sha256": "9f7a9237587d968b3c261d1be5265c50c9dc037e4ab6d8c2c0a420ca1bf5c230"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\outline_kit09443a.py",
+      "size": 13452,
+      "sha256": "7cde678dbcc13dfad1393d10ad44f34160a3d73c6f078fc19f8e44a53dd33d98"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\console_probe09443a.py",
+      "size": 2345,
+      "sha256": "abca3ddb3513f85be8c0ec4005c3842770a88b1ac4d19ced2764f702e04c06c5"
+    }
+  ],
+  "pushes": [],
+  "manual_deletions": [],
+  "threshold_changes": []
+}
