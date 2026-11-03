@@ -1,0 +1,358 @@
+{
+  "job": "09442r",
+  "source": "4fdfe84fc325798afea0252ca68a146717d8cc35",
+  "result": "NEEDS-DECISION",
+  "step2_tests": "PASS",
+  "code_path_audit": "D:\\IA_Europa\\Receipts\\09442\\tests\\resume\\step2.json",
+  "builds": [
+    {
+      "kind": "Paris",
+      "target": "StylizedParisStreetEditor",
+      "result": "PASS",
+      "exit": 0,
+      "seconds": null,
+      "source": "4fdfe84fc325798afea0252ca68a146717d8cc35",
+      "receipt": "D:\\IA_Europa\\Receipts\\09442\\builds\\editor-01\\result.json",
+      "compile_diagnostics": 0
+    },
+    {
+      "kind": "Paris",
+      "target": "StylizedParisStreet",
+      "result": "PASS",
+      "exit": 0,
+      "seconds": null,
+      "source": "4fdfe84fc325798afea0252ca68a146717d8cc35",
+      "receipt": "D:\\IA_Europa\\Receipts\\09442\\builds\\game-01\\result.json",
+      "compile_diagnostics": 0
+    },
+    {
+      "kind": "fixture",
+      "target": "Outline425",
+      "result": "PASS",
+      "exit": 0,
+      "seconds": 139.48694339999975,
+      "source": "4fdfe84fc325798afea0252ca68a146717d8cc35",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442\\builds\\Outline425-01\\result.json",
+      "compile_diagnostics": 0
+    },
+    {
+      "kind": "fixture",
+      "target": "Outline425Editor",
+      "result": "FAIL",
+      "exit": 6,
+      "seconds": 154.69935850000002,
+      "source": "4fdfe84fc325798afea0252ca68a146717d8cc35",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442\\builds\\Outline425Editor-01\\result.json",
+      "compile_diagnostics": 6
+    },
+    {
+      "kind": "fixture",
+      "target": "Outline425Editor",
+      "result": "PASS",
+      "exit": 0,
+      "seconds": 4.794875900000079,
+      "source": "4fdfe84fc325798afea0252ca68a146717d8cc35",
+      "receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442\\builds\\Outline425Editor-02\\result.json",
+      "compile_diagnostics": 0
+    }
+  ],
+  "smoke": {
+    "result": "PASS",
+    "frames": 2352,
+    "per_anomaly": [
+      {
+        "anomaly": "blinking",
+        "events_fired": 22,
+        "affected_frames": 132,
+        "mask_frames": 132,
+        "mask_pixels": 2937054,
+        "result": "PASS"
+      },
+      {
+        "anomaly": "lighting_mismatch",
+        "events_fired": 13,
+        "affected_frames": 157,
+        "mask_frames": 157,
+        "mask_pixels": 6735457,
+        "result": "PASS"
+      },
+      {
+        "anomaly": "lod_corruption",
+        "events_fired": 19,
+        "affected_frames": 247,
+        "mask_frames": 247,
+        "mask_pixels": 3710434,
+        "result": "PASS"
+      },
+      {
+        "anomaly": "missing_object",
+        "events_fired": 15,
+        "affected_frames": 195,
+        "mask_frames": 195,
+        "mask_pixels": 4468815,
+        "result": "PASS"
+      }
+    ],
+    "mask_check": {
+      "result": "PASS",
+      "affected_frames": 731,
+      "clean_frames": 1621,
+      "clean_mask_pixels": 0,
+      "failures": []
+    },
+    "lod_visible_change": [
+      {
+        "event": "lod_corruption@2415",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14469,
+        "max_changed_pixels": 14475
+      },
+      {
+        "event": "lod_corruption@2535",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14458,
+        "max_changed_pixels": 14467
+      },
+      {
+        "event": "lod_corruption@2607",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14455,
+        "max_changed_pixels": 14462
+      },
+      {
+        "event": "lod_corruption@2631",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14461,
+        "max_changed_pixels": 14469
+      },
+      {
+        "event": "lod_corruption@2703",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14458,
+        "max_changed_pixels": 14467
+      },
+      {
+        "event": "lod_corruption@2727",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14455,
+        "max_changed_pixels": 14462
+      },
+      {
+        "event": "lod_corruption@2943",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14455,
+        "max_changed_pixels": 14462
+      },
+      {
+        "event": "lod_corruption@3015",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14455,
+        "max_changed_pixels": 14465
+      },
+      {
+        "event": "lod_corruption@3087",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14469,
+        "max_changed_pixels": 14475
+      },
+      {
+        "event": "lod_corruption@3255",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14469,
+        "max_changed_pixels": 14475
+      },
+      {
+        "event": "lod_corruption@3279",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14455,
+        "max_changed_pixels": 14462
+      },
+      {
+        "event": "lod_corruption@3327",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14458,
+        "max_changed_pixels": 14470
+      },
+      {
+        "event": "lod_corruption@3471",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14461,
+        "max_changed_pixels": 14469
+      },
+      {
+        "event": "lod_corruption@3639",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14461,
+        "max_changed_pixels": 14469
+      },
+      {
+        "event": "lod_corruption@3735",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14455,
+        "max_changed_pixels": 14462
+      },
+      {
+        "event": "lod_corruption@3759",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14469,
+        "max_changed_pixels": 14475
+      },
+      {
+        "event": "lod_corruption@3831",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14458,
+        "max_changed_pixels": 14470
+      },
+      {
+        "event": "lod_corruption@3951",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14455,
+        "max_changed_pixels": 14462
+      },
+      {
+        "event": "lod_corruption@3975",
+        "target": "EA_LOD",
+        "result": "PASS",
+        "frames": 13,
+        "min_changed_pixels": 14461,
+        "max_changed_pixels": 14469
+      }
+    ],
+    "census": {
+      "peak_drawn": 2,
+      "per_pose": [
+        {
+          "pose": 0,
+          "drawn": 2
+        },
+        {
+          "pose": 1,
+          "drawn": 2
+        },
+        {
+          "pose": 2,
+          "drawn": 2
+        },
+        {
+          "pose": 3,
+          "drawn": 2
+        },
+        {
+          "pose": 4,
+          "drawn": 2
+        },
+        {
+          "pose": 5,
+          "drawn": 2
+        }
+      ],
+      "exhaustion": 0,
+      "lost": 0,
+      "no_pass": 0,
+      "polluted": 0,
+      "over_55_waived": true,
+      "result": "PASS"
+    },
+    "routes": [
+      "blinking",
+      "lighting_mismatch",
+      "lod_corruption",
+      "missing_object"
+    ],
+    "guard": {
+      "result": "none",
+      "readers": 0,
+      "writers": 0,
+      "unknown": 0,
+      "materials": 0,
+      "entries": 0,
+      "volumes": 1,
+      "camera_blends": 1,
+      "scope": "volume/cached-blend/camera-POV material snapshot; native/custom passes and later additions cannot be certified absent",
+      "admitted": true,
+      "bench_bypass": false,
+      "tagged_before": 0,
+      "tagged_after_scan": 0,
+      "custom_depth_mode": 1
+    },
+    "rhi": "D3D11",
+    "format": 18,
+    "dropped": 0,
+    "other_gates": {
+      "custom_depth": "PASS",
+      "annotation": "PASS",
+      "self_check": "PASS",
+      "ui_pixels": "PASS",
+      "view": "PASS"
+    },
+    "receipt": "D:\\IA_Europa\\Receipts\\09442\\c5-attempts\\C5\\01\\reader.json"
+  },
+  "fixture": {
+    "path": "E:\\IA_Fixtures\\Outline425",
+    "script_sha256": "6e4174a1886925076c352f32578d0e7cd4c10df7c17aa055c2be9f6fbd44891c",
+    "author": {
+      "path": "E:\\IA_Fixtures\\Outline425\\Saved\\Config\\Windows\\Engine.ini",
+      "size": 1502,
+      "sha256": "64d45f80d234e4710ec289eda4ce41af0947f42d61925e903bd9652a5440d7b8",
+      "authority": "FF2/FG2 Saved/Config ini protection",
+      "reason": "FB2 protected file changed during session",
+      "exit_code": 125,
+      "launch_argv_missing_nowrite": true,
+      "no_author_outputs": true
+    },
+    "repro": "NOT RUN",
+    "guard": "NOT RUN",
+    "author_receipt": "E:\\IA_Fixtures\\Outline425\\Receipts\\09442\\author\\01\\result.json"
+  },
+  "spike": {
+    "source_result": "D:\\IA_Europa\\Receipts\\09442\\shader-route-source.md",
+    "cost": "NOT MEASURED; authoring STOP",
+    "branch_created": false
+  },
+  "exit_checks": {
+    "m51_and_protected_refs": "PASS",
+    "paris": "PASS",
+    "bound_files": 27,
+    "upload": "none",
+    "crashes": 0
+  },
+  "pushed": [],
+  "tags_created": [],
+  "manual_deletions_during_resume": []
+}

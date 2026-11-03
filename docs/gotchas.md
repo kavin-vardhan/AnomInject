@@ -10444,3 +10444,7 @@ Correction to G513's initial implementation: PythonScriptPlugin and EditorScript
 ## G515 - A zero blend weight does not remove a scanner reader (094-42)
 
 The 5.1 settings walk at d7eee97 `AnomalyCaptureSubsystem.cpp:3234-3240` scans every blendable, including weight zero. The initial unbuilt 4.25 port skipped those entries; that filter was removed before the first build. The outline-off control still reports a reader and uses the explicit fixture bypass. Production admission cannot be passed merely by setting a host effect's weight to zero. The focused parity test rejects the old skip filter.
+
+## G516 - Fixture authoring also needs the Saved-ini protection (094-42r)
+
+The separate Outline425 authoring argv omitted -nowrite, although its game legs carry it. Before the Python recipe ran, editor initialization created Saved/Config/Windows/Engine.ini (1,502 bytes). FF2/FG2 correctly stopped the owned editor and adopted monitor, exit125. No fixture Content was created and no crash/upload occurred; Paris stayed unchanged. Creating a fresh fixture does not waive the retained Saved/Config ini rule. Preserve the failed slot and generated file. A later authorized authoring run needs the missing switch and a qualified fresh slot; do not relabel the generated ini as harmless bookkeeping or clear the terminal result. The fixture's earlier compile failure was independent: MakeShared already returns TSharedRef, so its JSON probe must serialize R directly rather than R.ToSharedRef().
