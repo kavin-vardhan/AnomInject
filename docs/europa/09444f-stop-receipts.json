@@ -1,0 +1,495 @@
+{
+  "result": "NEEDS-DECISION",
+  "summary": "094-44f NEEDS-DECISION: GK2 re-read of the accepted65-exposure sweep selects -5 EV; all40 brighter tested values fail. The first D3D11 fresh preflight records all3 target centers outside1280x720, with0 usable checker-patch pixels. The kit stops after3 previews/24frames/0drops, before approval or any C5 fire; both D3D12 legs remain unrun. Native code, assets and binaries are unchanged. The raw kit reports1 crash because the stop intent has an empty AssertionError reason; the intent precedes termination, and no crash-report folder exists. Original receipts remain immutable. No further launch, push or tags.",
+  "calibration": {
+    "result": "PASS",
+    "utc": "2026-11-04T06:44:33.796518+00:00",
+    "exposure": -5,
+    "objects": [
+      {
+        "actor": "EA_HideCube",
+        "pixels": 17051,
+        "front_pixels": 2304,
+        "baseline_mean_min": 151.89261626884053,
+        "baseline_mean_max": 151.90045549625634,
+        "saturated_pixels": 0,
+        "pink_min": [
+          147.73139405313472,
+          27.79713799777139,
+          147.8562547651164
+        ],
+        "pink_max": [
+          147.7367896311067,
+          27.79936660606416,
+          147.86452407483432
+        ],
+        "front_pink_min": [
+          136.41449652777777,
+          0.0,
+          138.88715277777777
+        ],
+        "front_pink_max": [
+          136.43706597222223,
+          0.0,
+          138.91015625
+        ],
+        "checker": {
+          "low": 94.17728471001757,
+          "high": 144.82239851343627,
+          "contrast": 50.645113803418695,
+          "low_share": 0.4939236111111111,
+          "high_share": 0.5060763888888888
+        },
+        "result": "PASS"
+      },
+      {
+        "actor": "EA_BlinkCube",
+        "pixels": 17051,
+        "front_pixels": 2304,
+        "baseline_mean_min": 152.4441186245186,
+        "baseline_mean_max": 152.45072625261471,
+        "saturated_pixels": 0,
+        "pink_min": [
+          148.3142337692804,
+          27.810802885461264,
+          148.40372998651105
+        ],
+        "pink_max": [
+          148.32338279279807,
+          27.815494692393408,
+          148.41264441968212
+        ],
+        "front_pink_min": [
+          136.81510416666666,
+          0.0,
+          139.24348958333334
+        ],
+        "front_pink_max": [
+          136.83854166666666,
+          0.0,
+          139.265625
+        ],
+        "checker": {
+          "low": 94.82441243909429,
+          "high": 144.55926818580193,
+          "contrast": 49.73485574670764,
+          "low_share": 0.5047743055555556,
+          "high_share": 0.4952256944444444
+        },
+        "result": "PASS"
+      },
+      {
+        "actor": "EA_LOD",
+        "pixels": 25850,
+        "front_pixels": 2256,
+        "baseline_mean_min": 101.55949709864603,
+        "baseline_mean_max": 101.56602192134108,
+        "saturated_pixels": 0,
+        "pink_min": [
+          245.90514506769827,
+          90.62499032882012,
+          231.97009671179885
+        ],
+        "pink_max": [
+          245.90765957446808,
+          90.62916827852997,
+          231.97431334622823
+        ],
+        "front_pink_min": [
+          254.65558510638297,
+          110.50975177304964,
+          238.2304964539007
+        ],
+        "front_pink_max": [
+          254.6679964539007,
+          110.53058510638297,
+          238.2584219858156
+        ],
+        "checker": {
+          "low": 213.11912677304966,
+          "high": 234.2061908983452,
+          "contrast": 21.08706412529554,
+          "low_share": 0.5,
+          "high_share": 0.5
+        },
+        "result": "PASS"
+      }
+    ],
+    "calibration": "E:\\IA_BuildCache\\09444e-evidence\\Calibration\\01",
+    "prediction_sha256": "6c26f3651565044e015b6cffbbf56e707ce98a2fa1db203eaf320d2a65356656"
+  },
+  "preflight": {
+    "result": "NEEDS-DECISION",
+    "utc": "2026-11-04T06:55:26.038631+00:00",
+    "reason": "Fresh preview view is not the accepted calibration view; all three target centres and all checker patches are out of frame",
+    "exact_reader_failure": "calibration_reader09444f.py:52: region.sum()>100 and front.sum()>100 and center[projected]; front.sum()==0 for all3 targets",
+    "objects": [
+      {
+        "actor": "EA_HideCube",
+        "recorded_projection": {
+          "actor": "EA_HideCube",
+          "x": 2556.37646484375,
+          "y": 637.9940795898438,
+          "projected": true
+        },
+        "calibration_projection": {
+          "actor": "EA_HideCube",
+          "x": 502.01812744140625,
+          "y": 435.560546875,
+          "projected": true
+        },
+        "reference_pixels": 17051,
+        "usable_checker_patch_pixels": 0,
+        "center_inside_capture": false
+      },
+      {
+        "actor": "EA_BlinkCube",
+        "recorded_projection": {
+          "actor": "EA_BlinkCube",
+          "x": 2254.39501953125,
+          "y": 1437.804931640625,
+          "projected": true
+        },
+        "calibration_projection": {
+          "actor": "EA_BlinkCube",
+          "x": 777.9818725585938,
+          "y": 435.560546875,
+          "projected": true
+        },
+        "reference_pixels": 17051,
+        "usable_checker_patch_pixels": 0,
+        "center_inside_capture": false
+      },
+      {
+        "actor": "EA_LOD",
+        "recorded_projection": {
+          "actor": "EA_LOD",
+          "x": 3018.91796875,
+          "y": 1272.432861328125,
+          "projected": true
+        },
+        "calibration_projection": {
+          "actor": "EA_LOD",
+          "x": 640,
+          "y": 383.87109375,
+          "projected": true
+        },
+        "reference_pixels": 25850,
+        "usable_checker_patch_pixels": 0,
+        "center_inside_capture": false
+      }
+    ],
+    "previews": 3,
+    "frames": 24,
+    "dropped": 0,
+    "C5_started": false,
+    "automatic_fires": 0,
+    "prefire_approval": false,
+    "native_or_binary_changes": false,
+    "root_ended_utc": "2026-11-04T06:48:19.829032+00:00",
+    "kit_ended_utc": "2026-11-04T06:48:24.465991+00:00",
+    "stop_intent": {
+      "utc": "2026-11-04T06:48:19.631199+00:00",
+      "pid": 23160,
+      "reason": "",
+      "root_running": true
+    },
+    "raw_exit_classification": "crash",
+    "raw_crash_count": 1,
+    "crash_report_folders": [],
+    "classification_diagnostic": {
+      "actual": "crash",
+      "in_memory_nonempty_reason_replay": "owned-stop",
+      "source": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\runtime_exit.py",
+      "cause": "Empty AssertionError string fails the nonempty-reason requirement at line16. Original receipts are unchanged."
+    },
+    "raw_files_rehashed": 73,
+    "example_frame": "E:\\IA_BuildCache\\09444f-evidence\\D3D11-1280\\01\\preview-000\\frame-000000.png",
+    "camera_root_cause": "Not established; helper sets control rotation once at startup but does not bind or verify the full camera pose before previews. No attribution to foreign activity.",
+    "later_legs": "Both D3D12 legs unrun; no re-arm or retry after this failure"
+  },
+  "entry": {
+    "result": "PASS",
+    "head": "d33689f5b48ed7f73ea30b46e6713fa62a853918"
+  },
+  "full_p9": {
+    "start_utc": "2026-11-04T06:37:25.725707+00:00",
+    "invocation": "owner_p9.main()",
+    "phase": "entry",
+    "result": "PASS",
+    "exit_code": 0,
+    "elapsed_seconds": 358.79749870000524,
+    "end_utc": "2026-11-04T06:43:24.524209+00:00"
+  },
+  "exit_fast": {
+    "result": "PASS",
+    "manifest_files": 27,
+    "refs_count": 76,
+    "free_GiB": {
+      "C:": 21.504642486572266,
+      "D:": 53.802284240722656,
+      "E:": 85.63317489624023
+    },
+    "protected_changes": 0,
+    "upload_signs": 0,
+    "binary_archive_rehash": "PASS"
+  },
+  "process_audit": {
+    "result": "PASS",
+    "utc": "2026-11-04T06:54:16.148405+00:00",
+    "active_owned": 0,
+    "records": [
+      {
+        "pid": 23160,
+        "created_filetime": 134382484624980300,
+        "image": "UE4Editor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 21760,
+        "created_filetime": 134382484627624791,
+        "image": "CrashReportClientEditor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 30392,
+        "created_filetime": 134382484627989927,
+        "image": "CrashReportClientEditor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 5344,
+        "created_filetime": 134382484658739544,
+        "image": "UnrealBuildTool.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 36944,
+        "created_filetime": 134382484658948478,
+        "image": "conhost.exe",
+        "status": "gone",
+        "winerror": 87
+      }
+    ],
+    "stopped_by_this_audit": 0,
+    "method": "Retained receipt PID and creation FILETIME; read-only OpenProcess/GetProcessTimes/WaitForSingleObject(0)"
+  },
+  "launcher_restore": {
+    "result": "PASS",
+    "utc": "2026-11-04T06:55:47.060115+00:00",
+    "restored_job": "09444e-build-only",
+    "manifest": {
+      "path": "D:\\IA_Europa\\Receipts\\09444e\\H4-manifest-Calibration-01.json",
+      "sha256": "43a7f986cfae9a45c534f1cf27dc9299f52c83ed2f11a96dd2e484d49b6f2041"
+    },
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\Launch\\Europa425-Runtime.json",
+        "staged_sha256": "2d95a16e37648aae34912f9a522ae5adbf1d124af8c083d2f221ebaddabbe1dd",
+        "restored_sha256": "0d56f87b610efe99e3e6bedeb09cc76ca831d99176e4d2fb3580008c724d4f5f",
+        "source": "D:\\IA_Europa\\Receipts\\09444f\\H4-prior-default-D3D11-1280-01.json"
+      },
+      {
+        "path": "D:\\IA_Europa\\Launch\\Europa425-Runtime.bat",
+        "staged_sha256": "89dbb816c479309dc0f147daca68c432d596e32b87f3b8240b020a920cc18c26",
+        "restored_sha256": "5064407716c8d225ceec27359cbbff10131734c3fca46ddcf04bc9eb9dde27a3",
+        "source": "D:\\IA_Europa\\Receipts\\09444f\\H4-prior-default-D3D11-1280-01.bat"
+      }
+    ]
+  },
+  "gates": {
+    "GK2_retained_sweep": "PASS",
+    "fresh_preflight": "FAIL_VIEW_MISMATCH",
+    "D3D11_1280": "NOT_RUN_C5",
+    "D3D12_1280": "NOT_RUN",
+    "D3D12_1279": "NOT_RUN"
+  },
+  "native_code_assets_binaries": "Unchanged; no builds in09444f",
+  "deletions": [],
+  "pushes": [],
+  "tags": [],
+  "readers": {
+    "pixel": {
+      "result": "PASS",
+      "calibration": {
+        "result": "PASS",
+        "positive": 2,
+        "negatives": 6,
+        "authority": "GK2"
+      },
+      "self_checks": {
+        "positive": 1,
+        "negative": 4,
+        "full_log_floor_and_seed_retained": true
+      }
+    },
+    "setup": {
+      "result": "PASS",
+      "scope_positive": 2,
+      "memory_negative": 1,
+      "launch_deadline_negative": 1,
+      "shipping_and_world_guard": "PASS",
+      "no_state_or_asset_write": "PASS",
+      "calibration_previews": 195
+    },
+    "argv": {
+      "result": "PASS",
+      "argv_cases": [
+        {
+          "leg": "Calibration",
+          "argv": [
+            "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+            "D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+            "/Game/EuropaPhaseA/EA_Core",
+            "-UserDir=D:/IA_Europa/StylizedParisStreet/",
+            "-ShaderWorkingDir=D:/IA_Europa/Caches/425/ShaderWorking/",
+            "-DDC=Europa425DDC",
+            "-abslog=D:/IA_Europa/Receipts/09444f/kit-selftest/Calibration/session/Runtime.log",
+            "-AbsCrashReportClientLog=D:/IA_Europa/Receipts/09444f/kit-selftest/Calibration/session/CrashClient.log",
+            "-NoLiveCoding",
+            "-NoHotReload",
+            "-windowed",
+            "-ResX=1280",
+            "-ResY=720",
+            "-IAIBench",
+            "-EuropaPhaseA",
+            "-EuropaProbeOut=D:/IA_Europa/Receipts/09444f/kit-selftest/Calibration/session/probe",
+            "-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False",
+            "-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False",
+            "-nowrite",
+            "-SkipCompile",
+            "-stdout",
+            "-unattended",
+            "-NoSplash",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False",
+            "-game",
+            "-ExecCmds=r.CustomDepth,IAI.SetMinScreenCoverage 0.5,IAI.SetMinScreenCoverage,r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,r.PostProcessAAQuality 0,r.ScreenPercentage 100,r.DynamicRes.OperationMode 0,r.MotionBlurQuality 0,t.MaxFPS 30,exec D:/IA_Europa/Receipts/09444f/kit-selftest/Calibration/Binaries/capture.txt",
+            "-IAICaptureFallback",
+            "-d3d11"
+          ],
+          "macro": "Europa.TextureBench E:/IA_BuildCache/09444f-evidence/Calibration/01 calibrate 0\n"
+        },
+        {
+          "leg": "D3D11-1280",
+          "argv": [
+            "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+            "D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+            "/Game/EuropaPhaseA/EA_Core",
+            "-UserDir=D:/IA_Europa/StylizedParisStreet/",
+            "-ShaderWorkingDir=D:/IA_Europa/Caches/425/ShaderWorking/",
+            "-DDC=Europa425DDC",
+            "-abslog=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D11-1280/session/Runtime.log",
+            "-AbsCrashReportClientLog=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D11-1280/session/CrashClient.log",
+            "-NoLiveCoding",
+            "-NoHotReload",
+            "-windowed",
+            "-ResX=1280",
+            "-ResY=720",
+            "-IAIBench",
+            "-EuropaPhaseA",
+            "-EuropaProbeOut=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D11-1280/session/probe",
+            "-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False",
+            "-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False",
+            "-nowrite",
+            "-SkipCompile",
+            "-stdout",
+            "-unattended",
+            "-NoSplash",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False",
+            "-game",
+            "-ExecCmds=r.CustomDepth,IAI.SetMinScreenCoverage 0.5,IAI.SetMinScreenCoverage,r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,r.PostProcessAAQuality 0,r.ScreenPercentage 100,r.DynamicRes.OperationMode 0,r.MotionBlurQuality 0,t.MaxFPS 30,exec D:/IA_Europa/Receipts/09444f/kit-selftest/D3D11-1280/Binaries/capture.txt",
+            "-IAICaptureFallback",
+            "-d3d11"
+          ],
+          "macro": "Europa.TextureBench E:/IA_BuildCache/09444f-evidence/D3D11-1280/01 run -2.125\n"
+        },
+        {
+          "leg": "D3D12-1280",
+          "argv": [
+            "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+            "D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+            "/Game/EuropaPhaseA/EA_Core",
+            "-UserDir=D:/IA_Europa/StylizedParisStreet/",
+            "-ShaderWorkingDir=D:/IA_Europa/Caches/425/ShaderWorking/",
+            "-DDC=Europa425DDC",
+            "-abslog=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1280/session/Runtime.log",
+            "-AbsCrashReportClientLog=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1280/session/CrashClient.log",
+            "-NoLiveCoding",
+            "-NoHotReload",
+            "-windowed",
+            "-ResX=1280",
+            "-ResY=720",
+            "-IAIBench",
+            "-EuropaPhaseA",
+            "-EuropaProbeOut=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1280/session/probe",
+            "-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False",
+            "-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False",
+            "-nowrite",
+            "-SkipCompile",
+            "-stdout",
+            "-unattended",
+            "-NoSplash",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False",
+            "-game",
+            "-ExecCmds=r.CustomDepth,IAI.SetMinScreenCoverage 0.5,IAI.SetMinScreenCoverage,r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,r.PostProcessAAQuality 0,r.ScreenPercentage 100,r.DynamicRes.OperationMode 0,r.MotionBlurQuality 0,t.MaxFPS 30,exec D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1280/Binaries/capture.txt",
+            "-IAICaptureFallback",
+            "-d3d12"
+          ],
+          "macro": "Europa.TextureBench E:/IA_BuildCache/09444f-evidence/D3D12-1280/01 run -2.125\n"
+        },
+        {
+          "leg": "D3D12-1279",
+          "argv": [
+            "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+            "D:\\IA_Europa\\StylizedParisStreet\\StylizedParisStreet.uproject",
+            "/Game/EuropaPhaseA/EA_Core",
+            "-UserDir=D:/IA_Europa/StylizedParisStreet/",
+            "-ShaderWorkingDir=D:/IA_Europa/Caches/425/ShaderWorking/",
+            "-DDC=Europa425DDC",
+            "-abslog=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1279/session/Runtime.log",
+            "-AbsCrashReportClientLog=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1279/session/CrashClient.log",
+            "-NoLiveCoding",
+            "-NoHotReload",
+            "-windowed",
+            "-ResX=1279",
+            "-ResY=719",
+            "-IAIBench",
+            "-EuropaPhaseA",
+            "-EuropaProbeOut=D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1279/session/probe",
+            "-ini:EditorSettings:[/Script/UnrealEd.CrashReportsPrivacySettings]:bSendUnattendedBugReports=False",
+            "-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False",
+            "-nowrite",
+            "-SkipCompile",
+            "-stdout",
+            "-unattended",
+            "-NoSplash",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.EditorLoadingSavingSettings]:bAutoSaveEnable=False",
+            "-ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorPlaySettings]:bAutoCompileBlueprintsOnLaunch=False,RunUnderOneProcess=True,PlayNumberOfClients=1,PlayNetMode=PIE_Standalone,NewWindowWidth=1280,NewWindowHeight=720,ShowMouseControlLabel=False",
+            "-game",
+            "-ExecCmds=r.CustomDepth,IAI.SetMinScreenCoverage 0.5,IAI.SetMinScreenCoverage,r.EyeAdaptationQuality 0,r.EyeAdaptationQuality,r.PostProcessAAQuality 0,r.ScreenPercentage 100,r.DynamicRes.OperationMode 0,r.MotionBlurQuality 0,t.MaxFPS 30,exec D:/IA_Europa/Receipts/09444f/kit-selftest/D3D12-1279/Binaries/capture.txt",
+            "-IAICaptureFallback",
+            "-d3d12"
+          ],
+          "macro": "Europa.TextureBench E:/IA_BuildCache/09444f-evidence/D3D12-1279/01 run -2.125\n"
+        }
+      ],
+      "pixel_negative_tests": {
+        "result": "PASS",
+        "positive": 2,
+        "negatives": 6,
+        "authority": "GK2"
+      }
+    }
+  },
+  "rehash_inventory": {
+    "path": "D:\\IA_Europa\\Receipts\\09444f\\exe-dll-inventory.json",
+    "sha256": "1eee62661bedfc2efb1efc25064c6cc169d003911e26f4d49cb95fb093090f9d"
+  }
+}
