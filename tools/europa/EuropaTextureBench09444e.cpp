@@ -1,6 +1,10 @@
 #include "CoreMinimal.h"
 #if !UE_BUILD_SHIPPING
 #include "Engine/World.h"
+#include "Engine/PointLight.h"
+#include "Engine/DirectionalLight.h"
+#include "Components/PointLightComponent.h"
+#include "Components/DirectionalLightComponent.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/GameViewportClient.h"
 #include "UnrealClient.h"
@@ -11,6 +15,8 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Components/MeshComponent.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "UObject/StrongObjectPtr.h"
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "HAL/IConsoleManager.h"
@@ -136,21 +142,63 @@ static FAutoConsoleCommandWithWorldAndArgs TextureBench09444e(TEXT("Europa.Textu
             TArray<TWeakObjectPtr<UMeshComponent>> Meshes;
             TArray<TArray<UMaterialInterface*>> Original;
             TArray<UMaterialInterface*> Materials;
+            TStrongObjectPtr<UMaterialInstanceDynamic> Base;
         };
         auto State=MakeShared<FPreview>(); State->Owner=World; State->NextAt=FPlatformTime::Seconds()+15;
         State->Materials={nullptr,LoadObject<UMaterial>(nullptr,TEXT("/AnomalyInjector/Engine425/Materials/M_MissingTexture_Checker.M_MissingTexture_Checker")),
             LoadObject<UMaterial>(nullptr,TEXT("/AnomalyInjector/Engine425/Materials/M_CorruptedTexture_Pink.M_CorruptedTexture_Pink"))};
         if (!State->Materials[1] || !State->Materials[2]) { return; }
+        auto* Basic=LoadObject<UMaterial>(nullptr,TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+        FLinearColor Parameter;
+        if (!Basic || !Basic->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Color")),Parameter)) { return; }
+        State->Base.Reset(UMaterialInstanceDynamic::Create(Basic,World));
+        const FLinearColor BaseColor(0.05f,0.2f,0.5f,1.0f);
+        State->Base->SetVectorParameterValue(TEXT("Color"),BaseColor);
+        FLinearColor ReadColor;
+        if (!State->Base->GetVectorParameterValue(FMaterialParameterInfo(TEXT("Color")),ReadColor) || !ReadColor.Equals(BaseColor)) { return; }
+        TArray<TSharedPtr<FJsonValue>> BaseTargets;
         for (TActorIterator<AActor> It(World);It;++It)
         {
-            if (!It->ActorHasTag(TEXT("EA_HideCube")) && !It->ActorHasTag(TEXT("EA_BlinkCube")) && !It->ActorHasTag(TEXT("EA_LOD"))) { continue; }
+            if (!It->ActorHasTag(TEXT("EA_HideCube")) && !It->ActorHasTag(TEXT("EA_BlinkCube")) && !It->ActorHasTag(TEXT("EA_LOD")) && !It->ActorHasTag(TEXT("EA_Floor"))) { continue; }
             TInlineComponentArray<UMeshComponent*> Meshes(*It); for (auto* Mesh:Meshes)
             {
                 State->Meshes.Add(Mesh); TArray<UMaterialInterface*> Original;
-                for (int32 I=0;I<Mesh->GetNumMaterials();++I) { Original.Add(Mesh->GetMaterial(I)); } State->Original.Add(Original);
+                auto Target=MakeShared<FJsonObject>(); Target->SetStringField(TEXT("actor"),It->Tags[0].ToString());
+                Target->SetStringField(TEXT("component"),Mesh->GetPathName()); TArray<TSharedPtr<FJsonValue>> Slots;
+                for (int32 I=0;I<Mesh->GetNumMaterials();++I)
+                {
+                    Slots.Add(MakeShared<FJsonValueString>(GetPathNameSafe(Mesh->GetMaterial(I))));
+                    Mesh->SetMaterial(I,State->Base.Get()); Original.Add(State->Base.Get());
+                }
+                State->Original.Add(Original); Target->SetArrayField(TEXT("original_slots"),Slots);
+                Target->SetStringField(TEXT("session_base"),State->Base->GetPathName()); BaseTargets.Add(MakeShared<FJsonValueObject>(Target));
             }
         }
-        if (State->Meshes.Num()!=3) { return; }
+        if (State->Meshes.Num()!=4) { return; }
+        TArray<TSharedPtr<FJsonValue>> PointLights;
+        for (TActorIterator<APointLight> It(World);It;++It)
+        {
+            auto Light=MakeShared<FJsonObject>(); Light->SetStringField(TEXT("actor"),It->GetName());
+            Light->SetNumberField(TEXT("before"),It->PointLightComponent->Intensity);
+            It->PointLightComponent->SetIntensity(0); Light->SetNumberField(TEXT("after"),It->PointLightComponent->Intensity);
+            PointLights.Add(MakeShared<FJsonValueObject>(Light));
+        }
+        const FRotator Rotations[]={FRotator(0,0,0),FRotator(0,180,0),FRotator(0,90,0),FRotator(0,-90,0),FRotator(90,0,0),FRotator(-90,0,0)};
+        TArray<TSharedPtr<FJsonValue>> Fills;
+        for (const auto& Rotation:Rotations)
+        {
+            auto* Light=World->SpawnActor<ADirectionalLight>(FVector::ZeroVector,Rotation); if (!Light) { return; }
+            auto* Component=Cast<UDirectionalLightComponent>(Light->GetLightComponent()); if (!Component) { return; }
+            Component->SetMobility(EComponentMobility::Movable); Component->SetIntensity(3.0f);
+            Component->SetLightColor(FLinearColor::White); Component->SetCastShadows(false);
+            auto Fill=MakeShared<FJsonObject>(); Fill->SetStringField(TEXT("actor"),Light->GetName());
+            Fill->SetStringField(TEXT("rotation"),Light->GetActorRotation().ToString()); Fill->SetNumberField(TEXT("intensity"),Component->Intensity);
+            Fill->SetBoolField(TEXT("shadows"),Component->CastShadows); Fills.Add(MakeShared<FJsonValueObject>(Fill));
+        }
+        Setup->SetStringField(TEXT("base_parent"),Basic->GetPathName()); Setup->SetStringField(TEXT("base_color"),ReadColor.ToString());
+        Setup->SetArrayField(TEXT("base_targets"),BaseTargets); Setup->SetArrayField(TEXT("point_lights"),PointLights);
+        Setup->SetArrayField(TEXT("shadowless_fills"),Fills); Setup->SetBoolField(TEXT("texture_exclusions"),false);
+        WriteTextureBench09444e(Setup,Directory/TEXT("settings.json"));
         FTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Directory,State,View,Calibrate,Frozen](float)
         {
             UWorld* W=State->Owner.Get(); if (!W) { FWorldDelegates::OnWorldPreActorTick.Remove(View->Handle); return false; }
@@ -177,7 +225,7 @@ static FAutoConsoleCommandWithWorldAndArgs TextureBench09444e(TEXT("Europa.Textu
             if (State->Phase==0)
             {
                 Restore(); ++State->Step;
-                if (State->Step==(Calibrate?195:3))
+                if (State->Step==(Calibrate?198:3))
                 {
                     auto Row=MakeShared<FJsonObject>(); Row->SetArrayField(TEXT("samples"),State->Samples);
                     Row->SetBoolField(TEXT("auto_injection"),false); Row->SetNumberField(TEXT("preview_count"),State->Step);
@@ -185,7 +233,8 @@ static FAutoConsoleCommandWithWorldAndArgs TextureBench09444e(TEXT("Europa.Textu
                     if (Calibrate) { FWorldDelegates::OnWorldPreActorTick.Remove(View->Handle); FPlatformMisc::RequestExit(false); return false; }
                     State->Complete=true; return true;
                 }
-                IConsoleManager::Get().FindConsoleVariable(TEXT("r.ExposureOffset"))->Set(Calibrate?-0.125f*(State->Step/3):Frozen,ECVF_SetByConsole);
+                const float Exposure=Calibrate ? (State->Step<3 ? -5.0f : -0.125f*((State->Step-3)/3)) : Frozen;
+                IConsoleManager::Get().FindConsoleVariable(TEXT("r.ExposureOffset"))->Set(Exposure,ECVF_SetByConsole);
                 State->NextAt=FPlatformTime::Seconds()+0.25; State->Phase=1; return true;
             }
             const FString Geometry=Attempt/FString::Printf(TEXT("geometry-%03d"),State->Step);

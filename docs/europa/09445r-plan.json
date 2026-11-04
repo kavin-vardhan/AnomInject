@@ -1,0 +1,103 @@
+{
+  "prediction": {
+    "utc": "2026-11-04T10:57:11.299680+00:00",
+    "authority": "094-45r GM1-GM3 GL1-GL5 GK2 GJ4 GE3 GF4 GF5 FN2 FM1 FJ1 FK1 GA2 GA5",
+    "base": {
+      "parent": "/Engine/BasicShapes/BasicShapeMaterial",
+      "parameter": "Color",
+      "linear_rgba": [
+        0.05,
+        0.2,
+        0.5,
+        1
+      ]
+    },
+    "fills": {
+      "directions": 6,
+      "intensity": 3,
+      "shadowless": true,
+      "point_light_intensity": 0
+    },
+    "targets": [
+      "EA_HideCube",
+      "EA_BlinkCube",
+      "EA_LOD",
+      "EA_Floor"
+    ],
+    "runtime_only": true,
+    "exposure": "First preview -5EV, followed by0..-8 descending0.125 grid under same -game lighting; choose brightest passing GK2 across all4 targets. No C5 in calibration.",
+    "previews": "Same-session private silhouettes; all4 centers/drawn0.5-25%; GK2 checker contrast on full silhouette using frozen two-cluster method; 8frames per material",
+    "visibility": "Each texture changes>=98% of each target silhouette at max RGB difference>2; frozen before C5",
+    "fallback": "Only per-target/texture predeclared preview failures. Count unchanged pixels as explained only if their independent preview swap color is within2 of the immediately preceding frame, and current color agrees with that preview within2, or exact black in both. Require explained-or-changed>=.98, zero spill and clean edges.",
+    "strict_gate": "Whole-frame IoU>=.98 for all qualified targets; failed scored gates stop further launch",
+    "C_floor_GiB": 10,
+    "D_floor_GiB": 50,
+    "D_reserve_GiB": 3,
+    "E_floor_GiB": 50,
+    "stage2": "Requires exactSHA Code push handshake",
+    "checker_cluster_region": "Eroded full silhouette, before any runtime data"
+  },
+  "tests": {
+    "result": "PASS",
+    "geometry": {
+      "result": "PASS",
+      "positive": 1,
+      "negative": 4
+    },
+    "GK2": {
+      "result": "PASS",
+      "positive": 2,
+      "negatives": 6,
+      "authority": "GK2"
+    },
+    "GM2": {
+      "result": "PASS",
+      "positive": 2,
+      "unpredicted_unchanged_negative": 1,
+      "spill_negative": 1
+    },
+    "comments": [
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\geometry_reader09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\calibration_reader09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\texture_reader09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\host_reader09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\h4_kit09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\window09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\c_space09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\host_build09445r.py",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\EuropaTextureBench09444e.cpp",
+        "result": "nochange"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\job_scope.py",
+        "result": "nochange"
+      }
+    ],
+    "helper_sha256": "5f47ca150680b6dbb7d287f2d98224a59d3d8f5824a3c33fa1e2e9bfb93ae2f7"
+  }
+}

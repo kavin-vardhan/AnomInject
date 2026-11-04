@@ -10583,3 +10583,8 @@ The first09445 geometry probe returned from Prepare before assigning Prepared=Ne
 ### G545 - Qualify the actual eligible set, and keep the colour-change gate independent
 
 The held EA_Camera admits EA_Floor at23.49% drawn share. Hard-coding only the three cube actors leaves11 texture fires without their required pre-fire qualification. The same run also shows that visible checker contrast and pink hue do not establish whole-frame mask IoU:221 checker and40 pink frames fail0.98 because some in-mask pixels change by<=2 levels; outside changes are0. Preserve this measured failure and stop. Do not infer that the mask is wrong or alter the threshold from these numbers alone.
+
+
+### G546 - Qualify every selectable texture target
+
+GM2 requires all four EA_Core meshes including EA_Floor. The bench uses a distinct blue runtime MID and the accepted six shadowless fills, with point-light intensity0. Before C5, same-session previews must check both swaps on every private silhouette. Any explained-pixel fallback is selected before firing and reported separately; a matching label alone never explains a missing picture change. Host assets/config and plugin anomaly behavior remain unchanged.
