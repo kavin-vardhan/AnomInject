@@ -1,0 +1,544 @@
+{
+  "summary": {
+    "result": "NEEDS-DECISION",
+    "stage1_pushed": "c5d0919e5074404d26da8c16ccf845b360bde383",
+    "stage2": {
+      "frames": 2352,
+      "labelled_frames": 864,
+      "positive_spans": [
+        [
+          624,
+          912
+        ],
+        [
+          1200,
+          1488
+        ],
+        [
+          1776,
+          2064
+        ]
+      ],
+      "positive_changed_min": 902398,
+      "negative_changed_max": 3,
+      "negative_any_level_max": 383768,
+      "mismatched_frames": 914,
+      "unlabelled_frames": 1488,
+      "negative_histogram": {
+        "0": 574,
+        "2": 401,
+        "1": 390,
+        "3": 123
+      },
+      "mismatched_grain_phases": [
+        {
+          "positive": 1,
+          "control": 2,
+          "frames": 45
+        },
+        {
+          "positive": 3,
+          "control": 4,
+          "frames": 44
+        },
+        {
+          "positive": 4,
+          "control": 5,
+          "frames": 45
+        },
+        {
+          "positive": 1,
+          "control": 3,
+          "frames": 25
+        },
+        {
+          "positive": 2,
+          "control": 4,
+          "frames": 26
+        },
+        {
+          "positive": 3,
+          "control": 5,
+          "frames": 26
+        },
+        {
+          "positive": 4,
+          "control": 6,
+          "frames": 25
+        },
+        {
+          "positive": 5,
+          "control": 1,
+          "frames": 4
+        },
+        {
+          "positive": 1,
+          "control": 4,
+          "frames": 4
+        },
+        {
+          "positive": 2,
+          "control": 5,
+          "frames": 4
+        },
+        {
+          "positive": 3,
+          "control": 6,
+          "frames": 4
+        },
+        {
+          "positive": 0,
+          "control": 0,
+          "frames": 15
+        },
+        {
+          "positive": 1,
+          "control": 1,
+          "frames": 15
+        },
+        {
+          "positive": 3,
+          "control": 3,
+          "frames": 15
+        },
+        {
+          "positive": 6,
+          "control": 4,
+          "frames": 123
+        },
+        {
+          "positive": 0,
+          "control": 5,
+          "frames": 124
+        },
+        {
+          "positive": 1,
+          "control": 6,
+          "frames": 123
+        },
+        {
+          "positive": 2,
+          "control": 0,
+          "frames": 124
+        },
+        {
+          "positive": 3,
+          "control": 1,
+          "frames": 123
+        }
+      ],
+      "pixel_examples": [
+        {
+          "index": 1,
+          "labelled": false,
+          "positive_grain_phase": 1,
+          "control_grain_phase": 2,
+          "pixels": [
+            {
+              "x": 17,
+              "y": 422,
+              "positive": [
+                228,
+                227,
+                228
+              ],
+              "control": [
+                225,
+                226,
+                226
+              ],
+              "max_channel_delta": 3
+            },
+            {
+              "x": 10,
+              "y": 426,
+              "positive": [
+                226,
+                226,
+                226
+              ],
+              "control": [
+                229,
+                229,
+                229
+              ],
+              "max_channel_delta": 3
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "labelled": false,
+          "positive_grain_phase": 3,
+          "control_grain_phase": 4,
+          "pixels": [
+            {
+              "x": 17,
+              "y": 422,
+              "positive": [
+                228,
+                227,
+                228
+              ],
+              "control": [
+                225,
+                225,
+                225
+              ],
+              "max_channel_delta": 3
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "labelled": false,
+          "positive_grain_phase": 4,
+          "control_grain_phase": 5,
+          "pixels": [
+            {
+              "x": 2,
+              "y": 435,
+              "positive": [
+                227,
+                227,
+                227
+              ],
+              "control": [
+                230,
+                229,
+                229
+              ],
+              "max_channel_delta": 3
+            },
+            {
+              "x": 298,
+              "y": 585,
+              "positive": [
+                240,
+                240,
+                241
+              ],
+              "control": [
+                243,
+                242,
+                243
+              ],
+              "max_channel_delta": 3
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "labelled": false,
+          "positive_grain_phase": 1,
+          "control_grain_phase": 2,
+          "pixels": [
+            {
+              "x": 17,
+              "y": 422,
+              "positive": [
+                228,
+                227,
+                228
+              ],
+              "control": [
+                225,
+                226,
+                226
+              ],
+              "max_channel_delta": 3
+            },
+            {
+              "x": 10,
+              "y": 426,
+              "positive": [
+                226,
+                226,
+                226
+              ],
+              "control": [
+                229,
+                229,
+                229
+              ],
+              "max_channel_delta": 3
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "labelled": false,
+          "positive_grain_phase": 3,
+          "control_grain_phase": 4,
+          "pixels": [
+            {
+              "x": 17,
+              "y": 422,
+              "positive": [
+                228,
+                227,
+                228
+              ],
+              "control": [
+                225,
+                225,
+                225
+              ],
+              "max_channel_delta": 3
+            }
+          ]
+        },
+        {
+          "index": 915,
+          "labelled": false,
+          "positive_grain_phase": 1,
+          "control_grain_phase": 6,
+          "pixels": [
+            {
+              "x": 17,
+              "y": 422,
+              "positive": [
+                228,
+                227,
+                228
+              ],
+              "control": [
+                225,
+                225,
+                225
+              ],
+              "max_channel_delta": 3
+            },
+            {
+              "x": 10,
+              "y": 426,
+              "positive": [
+                226,
+                226,
+                226
+              ],
+              "control": [
+                229,
+                229,
+                229
+              ],
+              "max_channel_delta": 3
+            },
+            {
+              "x": 275,
+              "y": 585,
+              "positive": [
+                239,
+                239,
+                240
+              ],
+              "control": [
+                242,
+                242,
+                242
+              ],
+              "max_channel_delta": 3
+            }
+          ]
+        }
+      ],
+      "control_labels": 0,
+      "D3D12": "NOT_RUN; stop after D3D11 D4 gate failed",
+      "cause": "Observed 1-3 full-frame pixels above the frozen two-level threshold on unlabelled frames; rendering mechanism not established, no threshold changed"
+    },
+    "c_space": [
+      {
+        "leg": "D3D11-control",
+        "before_GiB": 20.417465209960938,
+        "after_GiB": 20.416175842285156,
+        "delta_GiB": -0.00128936767578125,
+        "floor_pass": true
+      },
+      {
+        "leg": "D3D11-positive",
+        "before_GiB": 20.401470184326172,
+        "after_GiB": 20.400585174560547,
+        "delta_GiB": -0.000885009765625,
+        "floor_pass": true
+      }
+    ]
+  },
+  "stage1_tip": "c5d0919e5074404d26da8c16ccf845b360bde383",
+  "tested_code": "24a120eba16e8943d5db68fd99e48e622ff289de",
+  "runtime_kit": "0ec5becd25588af0aa489aeb348bb9d7db7f93b2",
+  "stage2_frames": "E:\\IA_BuildCache\\09445r-evidence\\Stage2",
+  "stage1_report": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\report-stage1.md",
+  "stage1_push_confirmation": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\STAGE1-PUSHED.txt",
+  "final_exit": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\exit.json",
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\result-summary.json",
+      "size": 7467,
+      "sha256": "930a70cc9809d4ef0ec834d97d0661f707e1b103d282cdb5e36f105e1437d4f0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\selftests.json",
+      "size": 2739,
+      "sha256": "43b540089bbeb42edc4f5fd20386be69c7d566ea5feec8513f302ed14dc7f75d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\reader-selftests.json",
+      "size": 155,
+      "sha256": "4d9ab74020ecd9f85366d1101231f456bfef0cbdabbe7430178199daca9b540d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\source-audit.json",
+      "size": 4317,
+      "sha256": "330e82f05e067bfdab6a65deb3db61b8ee101f334f5655390d33799940609052"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\binary-archive.json",
+      "size": 15789,
+      "sha256": "9fb80bf148ce63eaf2a3cfc90b25c0b8daa74f1b1e570b20aa13a30aef4e70e5"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\exe-dll-inventory.json",
+      "size": 24664,
+      "sha256": "8a14c522f998de5ccccc3e05458ceab7fbd6f182bc027fb8fd1bb8b2e5adde0c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\owned-processes-closed.json",
+      "size": 1955,
+      "sha256": "720c549f06d24702e9052a2eb2c45e16c49e58065e44291ba9ab19e6da0e9da4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\kit-restore.json",
+      "size": 991,
+      "sha256": "e4e810e4c37fef87c831a9dbbc56d032d1195f934ee167b6f1cf3cd8cb5b7c32"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\exit-before-commit.json",
+      "size": 495319,
+      "sha256": "7d4df77897833051fca43d52675df6ec6c89f00afe44854b75148c4c0fedb481"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-control\\01\\result.json",
+      "size": 514921,
+      "sha256": "3b6b7d198b2ea0192e18dcc89bf4d438973701d724050eb8a03428d935fd88b0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-control\\01\\reader.json",
+      "size": 333175,
+      "sha256": "fad4b262a6cdbbd90aa8e4d99496c13b3e532a2ce8e980dd7b14ced7220193d1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-control\\01\\raw-evidence.json",
+      "size": 1763358,
+      "sha256": "26d8a94d2eb4b279673762d405d91373731daa2e54f9b46aa0d949a3f0b8a060"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-control\\01\\c-space-before.json",
+      "size": 1015,
+      "sha256": "344802fd3e8fb875dc6791bf50f5c368282986bdb4a7d53c0ec91d1414b74f5e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-control\\01\\c-space-after.json",
+      "size": 3254,
+      "sha256": "9c76e5815baa1a112ee41659f221eda273dc1496e56354b10f9e2ae31283311b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-positive\\01\\result.json",
+      "size": 514166,
+      "sha256": "c6da7d903bffd0ae891d725e0eac13135c666173da6241ae00453289005278bc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-positive\\01\\reader.json",
+      "size": 333458,
+      "sha256": "0551a859d71459d3d158cfaa9910032b3826ac17adfe31b33c7081160c076796"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-positive\\01\\raw-evidence.json",
+      "size": 1770735,
+      "sha256": "613c3703ca80f19d286f6daa0c321a5542b03f22624882c10dd34664d2973fe4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-positive\\01\\c-space-before.json",
+      "size": 1015,
+      "sha256": "37ec6845122a3536efa245b6e879840a6b4740f94ce3508337997cef9784b41b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-positive\\01\\c-space-after.json",
+      "size": 3251,
+      "sha256": "eff88af7d0a9ae1ee3ac8d8239db28109271b77bf6bc9bda0c0bf3d3b99d5290"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09445r\\Stage2\\legs\\D3D11-positive\\01\\paired-pixels.json",
+      "size": 371773,
+      "sha256": "f8515c820d8ca735170e95d2b9cbf9af718d7e7685d911b3efe896f514f0f9f8"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\camera_tests09445r.py",
+      "size": 3064,
+      "sha256": "fb9417157476b9dc0824ffd2b57c4bfd3a0b859fb7022e0fa3ee9e294ab365e4"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\camera_reader09445r.py",
+      "size": 7121,
+      "sha256": "a20fd8f5e69d3914976bc4b5350e3dc9a7dc9b2befb4da466fdeba9dad9ef637"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\camera_kit09445r.py",
+      "size": 8644,
+      "sha256": "ddf417622e8c1502285dae02593a9d4e8ea8446bd5994e46f14c7984132b9a39"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\summarize_camera09445r.py",
+      "size": 2568,
+      "sha256": "3442c465e6ee7dc8a2238271509f62f7c9fb8b833a40a5f0dd9ddd219705d738"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\audit_camera_source09445r.py",
+      "size": 3109,
+      "sha256": "3dcc67f6e02a72e6d5668dc892a2a6adea22a74a662498ebcbc82bcf2c2e6379"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\closeout_camera09445r.py",
+      "size": 5068,
+      "sha256": "6272543198b2054f9ab3ce1f5830d1b8c8ef18016d312d2f22b34de2825ed7bc"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\audit_camera_owned09445r.py",
+      "size": 2116,
+      "sha256": "04c37307d9b0fb86684e28857409449596aaf04197431a85478cd910c4997daa"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\restore_camera_kit09445r.py",
+      "size": 1349,
+      "sha256": "f8c798637f4febd8915c072e339ff745410eee10cc2ccac70cd618aabaaa64cd"
+    }
+  ],
+  "gate_policy": "D4 failed; D3D12 unrun. No rerun, threshold adjustment, build or launch after the failed measured gate.",
+  "selftests": {
+    "result": "PASS",
+    "parity": [
+      {
+        "file": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CameraClipping.cpp",
+        "release": "d7eee97",
+        "normalized_equal": true
+      },
+      {
+        "file": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CameraClipping.h",
+        "release": "d7eee97",
+        "normalized_equal": true
+      }
+    ],
+    "row_and_summary_key_count": 55,
+    "counter_block_equal": true,
+    "unchanged_slab_test": true,
+    "output": "case                                         truth legacy new aabbOnly noFrustum\nwall_face_150_in_front                           0      0   0        0         0\nwall_face_50_in_front                            1      1   1        1         1\nwall_face_97.5_edge_in                           1      1   1        1         1\nwall_face_102.5_edge_out                         0      0   0        0         0\nbehind_wall_face_50_behind                       0      1   0        0         1\nbeside_collider_lateral_70                       0      1   0        0         1\nnoncolliding_prop_depth_50                       1      0   1        1         1\npawn_owned_mesh_depth_50                         1      0   1        1         1\nfirst_person_arms_only_owner_see_depth_40        1      0   1        1         1\npawn_body_owner_no_see_depth_50                  0      0   0        0         0\nhidden_collider_depth_50                         0      1   0        0         0\ncloser_than_baseline_near_depth_2_to_8           0      1   0        0         1\nabove_vertical_extent_depth_50                   0      1   0        0         1\nrotated_rod_aabb_overlaps_obb_does_not           0      1   0        1         1\nfx_system_depth_50_excluded                      0      0   0        0         0\nnull_leg_near_equals_baseline                    0      0   0        0         0\nrotated_camera_yaw_180_wall_ahead_50             1      1   1        1         1\ndisagreements with truth: legacy 9, new 0, new-with-world-aabb-only 1, new-with-frustum-removed 5 (of 17)\nrandom cross-check: 20000 boxes, SAT hits 3746, sample-hit-but-SAT-miss 0, SAT-hit-coarse-sample-miss 60, still-unconfirmed-at-61^3 6 (largest minimum SAT overlap among them 0.366 cm)\nBENCH ns per call: exact SAT box-vs-slab 56.6, AABB broad phase 3.4, slab build 55.0 (sink 1098629)\nBENCH confirmation overhead without traces: 22.43 us per frame at 16 enclosing candidates (2304 traces/frame requested)\ncamera_clipping slab selftest: 154 checks, 0 failures\n",
+    "exe_sha256": "041ea9503b583dbbd148882546e96cfbfb19a79e7bcc9184459f91a3d202b738",
+    "default_routes": "{ TEXT(\"blinking\"),TEXT(\"lod_corruption\"),TEXT(\"missing_texture\"),TEXT(\"corrupted_texture\") }"
+  },
+  "reader_selftests": {
+    "result": "PASS",
+    "positive": 1,
+    "early_label_canfail": true,
+    "unlabelled_difference_canfail": true,
+    "unchanged_positive_canfail": true
+  }
+}

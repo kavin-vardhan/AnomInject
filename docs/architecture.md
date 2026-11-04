@@ -2002,3 +2002,6 @@ Phase B texture source now preserves release d7eee97 apply/revert/installed-stat
 
 
 094-45r Stage2 compiled: Editor attempt3 PASS44.843s and Game attempt2 PASS83.521s at24a120e, no link errors; failed Editor attempt2 is retained. The27-file archive rehashes equal under E:/IA_BuildCache/09445r-evidence/Stage2/binary-archive. D4 armed kit has separate D3D11/D3D12 baseline and positive tuples, r.CustomDepth startup/live readings and C: before/after receipts. It compares every saved frame at the same seed/index, reports raw any-level differences as well as established >2-level RGB differences, and does not scope away any region. Reader can-fails catch shifted labels, unlabelled differences and unchanged positives. No runtime gate run yet. Four texture defaults unchanged; camera_clipping opt-in only.
+
+
+The 4.25 camera session adapter holds the release camera_clipping anomaly from capture Start through Stop. The anomaly class/header and diagnostic accumulator retain d7eee97 behavior after compile-only compatibility changes; 55 row/summary keys match. Rows use whole-frame extent and no object mask. Runtime D4 is not qualified: 914 unlabelled D3D11 frames differ above two levels. This local implementation must not be described as a passing camera port.

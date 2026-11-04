@@ -976,3 +976,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-45r Stage2 compiled: Editor attempt3 PASS44.843s and Game attempt2 PASS83.521s at24a120e, no link errors; failed Editor attempt2 is retained. The27-file archive rehashes equal under E:/IA_BuildCache/09445r-evidence/Stage2/binary-archive. D4 armed kit has separate D3D11/D3D12 baseline and positive tuples, r.CustomDepth startup/live readings and C: before/after receipts. It compares every saved frame at the same seed/index, reports raw any-level differences as well as established >2-level RGB differences, and does not scope away any region. Reader can-fails catch shifted labels, unlabelled differences and unchanged positives. No runtime gate run yet. Four texture defaults unchanged; camera_clipping opt-in only.
+
+
+094-45r camera stop: do not start another leg or rebuild from this job. The armed launcher has been returned to build-only with runtime disabled. The fixed seed 4242 control held near=10; the positive held near=100, and both restored near=10 at Stop. IAICameraSlabBench and IAICameraBaseline are restricted to non-Shipping, -IAIBench, EA_Core sessions. D3D12 remains unrun after the D3D11 D4 failure. Evidence is indexed in docs/europa/09445r-stage2-receipts.json.

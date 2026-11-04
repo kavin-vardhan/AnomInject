@@ -208,3 +208,6 @@ Do not infer texture qualification from source parity. Both target builds and G1
 
 
 094-45r Stage2 compiled: Editor attempt3 PASS44.843s and Game attempt2 PASS83.521s at24a120e, no link errors; failed Editor attempt2 is retained. The27-file archive rehashes equal under E:/IA_BuildCache/09445r-evidence/Stage2/binary-archive. D4 armed kit has separate D3D11/D3D12 baseline and positive tuples, r.CustomDepth startup/live readings and C: before/after receipts. It compares every saved frame at the same seed/index, reports raw any-level differences as well as established >2-level RGB differences, and does not scope away any region. Reader can-fails catch shifted labels, unlabelled differences and unchanged positives. No runtime gate run yet. Four texture defaults unchanged; camera_clipping opt-in only.
+
+
+Stage 1 is independently reviewed and pushed at c5d0919: blinking, lod_corruption, missing_texture and corrupted_texture are the defaults. Camera clipping remains opt-in and its local Stage 2 qualification is incomplete. The release slab self-test passes 154 checks, but a correct slab counter does not replace the paired-picture gate. D4 failed on 914 unlabelled frames; no threshold was changed.
