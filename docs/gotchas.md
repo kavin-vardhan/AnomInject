@@ -10598,3 +10598,8 @@ The198 no-fire previews each require a separate32-frame geometry run. The inheri
 ### G548 - Texture timing checks need independent clean neighbours
 
 Compare both pre-fire frames and both reverted frames with the saved frame immediately before the fire. Comparing that reference only with itself cannot detect an early edge. The reader rejects an early or late changed neighbour before any scored09445r leg. The threshold stays greater than2 RGB levels.
+
+
+### G549 - Qualify material swaps against a distinct base in the actual game session
+
+A bench-only blue base plus shadowless fills removes the invisible checker half and black floor shadows without changing either anomaly. The full eligible set is qualified before C5 and each scored session independently rechecks the view and all swaps. At -1.875EV all three09445r legs reach strict IoU1.000 with no spill; no explained-pixel fallback is needed. No host asset or config is saved.
