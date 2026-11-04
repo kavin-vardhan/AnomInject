@@ -150,3 +150,5 @@ C3 remains NEEDS-DECISION: blinking drawn/hidden and missing_object pass; lighti
 
 
 094-44 partial D2: materials are authored and verified in the authoring process; fresh-process readback never reached its script after an FE3 owned stop. GF4 live skeletal/instanced proof has not started. Texture and camera_clipping routes are not enabled by this asset step; default routes remain blinking and lod_corruption. Native finders are committed but unbuilt.
+
+094-44r resumes the Phase B port after GG1 material acceptance. FE3b records short-lived children before the normal monitor classifies them. Native loader compilation and live skeletal/instanced GF4 remain required before the texture ports.

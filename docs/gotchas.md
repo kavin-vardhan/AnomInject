@@ -10509,3 +10509,7 @@ The second G524 heading above (Admit recorded refs without replacing the P9 base
 ## G529 - A child that exits before its first command-line sample remains unclassified
 
 094-44 material-readback01 stopped at FE3: owned UBT PID9640 was already exited at its first observation, with no cached command line and read_attempts0. runtime_children.py observed_command returns that missing cached value and reason rejects it. The kit recorded stop intent for root9616 before stopping it, and correctly classified exit125 as owned-stop. No crash or binary change was found. The actual UBT action is unknown; do not call it a harmless query without evidence. The required stop-on-failed-gate rule ended the job; no guard rule or threshold was relaxed.
+
+### G530. Record short-lived child command lines before classifying their exit
+
+GG2 permits a 10 ms owned-tree creation poll after a real 100 ms-child self-test. Twelve children were recorded before exit; six query modes passed and six build modes were refused. Missing commands still refuse. A single retry is permitted only for an exited unreadable child with no binary change in its window; it never converts a missing command into permission. The old G529 stop remains evidence.

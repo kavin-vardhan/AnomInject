@@ -477,7 +477,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
                                 lambda value: dump(path, value), tree.stop if tree else proc.terminate)
     try:
         if runtime_guard:
-            tree = OwnedTree(proc.pid)
+            tree = (OwnedTree(proc.pid, creation_log=folder/f'child-{lognum:03}-creations.jsonl')
+                    if monitor_adoption else OwnedTree(proc.pid))
         if on_started is not None:
             on_started(proc.pid)
         receipt['pid'] = proc.pid

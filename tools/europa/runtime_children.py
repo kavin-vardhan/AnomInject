@@ -21,6 +21,8 @@ def reason(image, command_line, root=False, rehearsal=False):
         return 'FE3 forbidden UBT action mode'
     if not modes and any(t.startswith('-targetlist=') for t in tokens):
         return 'FE3 implicit TargetList build'
+    if modes not in (['validateplatforms'], ['querytargets']):
+        return 'FE3 UBT mode is not an admitted query'
     return None
 
 
@@ -41,6 +43,18 @@ def observed_command(tree, row):
     if tree.kernel.WaitForSingleObject(row['handle'],0)==0:
         return cached,False,11
     return None,True,11
+
+
+def short_child_retry(result, observations, before, after, retries_used):
+    if retries_used != 0 or result.get('exit_classification') != 'owned-stop':
+        return False
+    if result.get('reason') != 'FE3 unreadable UnrealBuildTool command line':
+        return False
+    if result.get('end_run') or result.get('crashed') or not before or before != after:
+        return False
+    refused = [row for row in observations if row.get('reason')]
+    return bool(refused) and all(row['reason'] == result['reason'] and row.get('live') is False
+                                 and not row.get('command_line') for row in refused)
 
 
 def poll(tree, path):

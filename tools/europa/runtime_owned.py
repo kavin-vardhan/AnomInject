@@ -3,7 +3,7 @@ from ctypes import wintypes
 import datetime
 import time
 
-from build_memory import OwnedTree
+from runtime_creation import CreationTree
 from fixture_children import arguments
 
 
@@ -65,9 +65,9 @@ def environment_names(pid, created_filetime):
         k.CloseHandle(handle)
 
 
-class RuntimeTree(OwnedTree):
-    def __init__(self,pid):
-        super().__init__(pid)
+class RuntimeTree(CreationTree):
+    def __init__(self,pid,creation_log=None):
+        super().__init__(pid,creation_log=creation_log)
         self.adoption_events=[]
         self.monitor_stops=[]
 

@@ -1,0 +1,54 @@
+{
+  "result": "PASS",
+  "p9": {
+    "start_utc": "2026-11-04T00:25:34.159022+00:00",
+    "invocation": "owner_p9.main()",
+    "phase": "entry",
+    "result": "PASS",
+    "exit_code": 0,
+    "elapsed_seconds": 352.4951807000034,
+    "end_utc": "2026-11-04T00:31:26.665132+00:00"
+  },
+  "children": 12,
+  "lifetime_seconds": [
+    0.1042798,
+    0.1041109,
+    0.1045714,
+    0.1041444,
+    0.1043787,
+    0.1045368,
+    0.1044791,
+    0.1044928,
+    0.1041555,
+    0.1044356,
+    0.1044348,
+    0.1044764
+  ],
+  "observation_delay_seconds": [
+    0.012311935424804688,
+    0.016494035720825195,
+    0.004898786544799805,
+    0.008418083190917969,
+    0.02753448486328125,
+    0.015358924865722656,
+    0.033989906311035156,
+    0.005712747573852539,
+    0.007293224334716797,
+    0.011989831924438477,
+    0.03147244453430176,
+    0.018596410751342773
+  ],
+  "build_children_refused": 6,
+  "query_children_accepted": 6,
+  "unreadable_refused": true,
+  "bounded_retry_cases": 5,
+  "gc6": {
+    "result": "PASS",
+    "tests": 7,
+    "failures": 0,
+    "errors": 0
+  },
+  "evidence": "D:\\IA_Europa\\Receipts\\09444r\\fe3b-final-tests\\result.json",
+  "elevation": false,
+  "machine_changes": false
+}

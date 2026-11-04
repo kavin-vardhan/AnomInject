@@ -918,3 +918,5 @@ Readers and raw evidence are under Receipts/09433b/c3-attempts/C3/{01,02}. captu
 
 
 094-44 material authoring: tools/europa/create_anomaly_materials425.py runs only in the armed Outline425 fixture editor on 4.25. It refuses existing outputs. Use its main(receipt) once, then readback(author_receipt, receipt) in a fresh -nowrite editor process. Never run it in the host or against the 5.1 material folder. The receipt records all six usage flags and expression constants.
+
+094-44r: run tools/europa/runtime_creation_tests.py with a fresh receipt directory before qualifying the child watcher. GG2 permits one rerun only for an unreadable short-lived child and unchanged binaries; a product-gate failure is not retry authority. Material readback is accepted under GG1; do not repeat that launch.
