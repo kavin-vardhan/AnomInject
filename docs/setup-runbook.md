@@ -935,3 +935,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-44e uses h4_kit09444e.py only. Its calibration has no injector fires; each real leg repeats the three frozen pre-fire previews and waits for the pixel reader approval before C5. The launch reserve is3GiB on D:, with frame evidence on E:/IA_BuildCache/09444e-evidence. No starts after07:40UTC; owned closure before08:05UTC.
+
+
+094-44e is closed after GJ3 calibration failure. Preserve all 195 previews and the calibration-result table. No freeze.json or scored output exists. The default launcher is disabled and its build-only manifest is rebound to the authorized rebuild. A later job must first resolve the non-overlapping target exposure intervals; do not lower the 3 GiB launch reserve or the pixel thresholds.

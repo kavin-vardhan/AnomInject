@@ -167,3 +167,6 @@ Do not infer texture qualification from source parity. Both target builds and G1
 
 
 094-44e retains the whole-frame texture IoU bar0.98 and the four local defaults; their push is conditional on all three host regression legs. Camera clipping remains future094-45.
+
+
+094-44e stops at pre-fire calibration: none of 65 common exposures satisfies all target checks. The three host regression legs remain unrun, so the local four-route defaults remain unqualified for push. Accepted outline-fixture results are unchanged.

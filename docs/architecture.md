@@ -1961,3 +1961,6 @@ Phase B texture source now preserves release d7eee97 apply/revert/installed-stat
 
 
 094-44e adds a host-only runtime exposure/calibration probe, excluded from Shipping and refused outside IAIBench/EA_Core. The plugin anomaly and private capture implementation is unchanged.
+
+
+094-44e qualifies no EA_Core exposure. The new host-only helper is compiled and bound, but its frozen no-fire grid fails before C5. Plugin production Source/Shaders and anomaly behavior remain unchanged; there is no new regression qualification.

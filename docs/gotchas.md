@@ -10549,3 +10549,8 @@ A query typed into a PIE window can produce a posted-input receipt without reach
 ### G538 — The fixed outline fixture does not calibrate EA_Core
 
 094-44d closes fixture G4/G5 with frozen settings, but the unchanged host bench renders saturated surfaces and halos. Texture swaps change20127-263454 pixels outside their masks; all443 affected texture frames fail the unchanged whole-frame0.98 IoU gate even though all70 clean edges and35 reverts pass. GI7 does not authorize weakening G3 or silently changing host presentation. Stop and retain the passing fixture evidence; D3D12 remains unrun pending a ruling.
+
+
+### G539 - One manual exposure need not qualify differently lit targets
+
+094-44e disabled bloom and used eye quality2/method3, then tested the frozen 0..-8 EV grid in0.125 steps without injector fires. The small cubes meet the full-region pink criteria at -3.0..-3.625 EV; EA_LOD meets them at -5.25..-6.0 EV. Those measured grid intervals do not overlap. No individual target passed every combined check either: saturation remains on the small cubes at pink-eligible exposures; EA_LOD checker contrast reaches40 only after its baseline falls below51. This is a pre-fire scene-qualification failure, not a measured G3 failure of the port. Stop before scored runs; retain the full table and all limits. See docs/europa/09444e-stop-receipts.json. No claim is made about untested exposures or a different bench arrangement.
