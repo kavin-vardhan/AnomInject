@@ -10544,3 +10544,8 @@ The094-44c fixture probe found the owned preview window and successfully posted2
 ### G537 — Fixture PIE CVar evidence is an in-process read
 
 A query typed into a PIE window can produce a posted-input receipt without reaching the console. GI2 keeps the three readings and uses Python SystemLibrary.get_console_variable_int_value directly at startup and saved-frame thresholds80/2300, with an engine frame counter. The read-only observer leaves the frozen picture settings and binaries unchanged. GI3 requires -BENCHMARK on fixture editor launches; host regression remains -game. GI7 enforces the launch/close blackout in the armed kit, including admission wait.
+
+
+### G538 — The fixed outline fixture does not calibrate EA_Core
+
+094-44d closes fixture G4/G5 with frozen settings, but the unchanged host bench renders saturated surfaces and halos. Texture swaps change20127-263454 pixels outside their masks; all443 affected texture frames fail the unchanged whole-frame0.98 IoU gate even though all70 clean edges and35 reverts pass. GI7 does not authorize weakening G3 or silently changing host presentation. Stop and retain the passing fixture evidence; D3D12 remains unrun pending a ruling.

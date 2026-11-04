@@ -161,3 +161,6 @@ Do not infer texture qualification from source parity. Both target builds and G1
 
 
 094-44d is limited to paired texture G4, direct G5 readings and the three host regressions. Camera clipping is deferred; the default-route change still awaits all passing gates. Code owns scan/push/card.
+
+
+094-44d ends NEEDS-DECISION: both textures pass the fixed outline fixture, including the paired leak and direct state proof, but the host regression fails G3. No D3D12 result or push is claimed. Camera clipping remains the separate094-45 scope.

@@ -929,3 +929,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-44d uses the frozen09444c fixture binaries/settings and texture_pose09444d.py. Launch through texture_kit09444d.py with -BENCHMARK/-nowrite. Direct readings are depth-readings.jsonl; do not use posted window input as fixture CVar evidence. The kit refuses launches at07:40UTC and requests owned shutdown before08:05UTC on2026-11-04.
+
+
+094-44d stopped after the D3D11 G3 failure; do not treat its host kit as qualified. The default launcher was restored. Keep the0.98 whole-frame bar and request a ruling on the host bench presentation before another regression. Frozen outline-fixture G4/G5 evidence remains accepted.

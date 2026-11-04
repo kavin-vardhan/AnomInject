@@ -1,0 +1,1342 @@
+{
+  "stop": {
+    "result": "NEEDS-DECISION",
+    "stop_utc": "2026-11-04T05:08:48.017505+00:00",
+    "cause": "First host regression fails whole-frame texture G3; no D3D12 launch and no threshold/settings change.",
+    "textures": {
+      "missing_texture": {
+        "events": 22,
+        "frames": 286,
+        "failed_frames": 286,
+        "iou": {
+          "min": 0.09558987104841246,
+          "max": 0.1838990801011351,
+          "mean": 0.14929469643629328,
+          "count": 286
+        },
+        "mask_pixels": {
+          "min": 17051.0,
+          "max": 25850.0,
+          "mean": 19850.68181818182,
+          "count": 286
+        },
+        "changed_target": {
+          "min": 6821.0,
+          "max": 24922.0,
+          "mean": 12585.038461538461,
+          "count": 286
+        },
+        "outside": {
+          "min": 20127.0,
+          "max": 234868.0,
+          "mean": 89659.92657342658,
+          "count": 286
+        },
+        "all_mask_pixels_changed": false,
+        "clean_edges": 44,
+        "edges": 44
+      },
+      "corrupted_texture": {
+        "events": 13,
+        "frames": 157,
+        "failed_frames": 157,
+        "iou": {
+          "min": 0.08789716008074551,
+          "max": 0.13427358706009276,
+          "mean": 0.11784007820913617,
+          "count": 157
+        },
+        "mask_pixels": {
+          "min": 17051.0,
+          "max": 25850.0,
+          "mean": 19965.31847133758,
+          "count": 157
+        },
+        "changed_target": {
+          "min": 17051.0,
+          "max": 25462.0,
+          "mean": 19827.458598726116,
+          "count": 157
+        },
+        "outside": {
+          "min": 109936.0,
+          "max": 263454.0,
+          "mean": 161700.46496815287,
+          "count": 157
+        },
+        "all_mask_pixels_changed": false,
+        "clean_edges": 26,
+        "edges": 26
+      }
+    },
+    "host_checks": {
+      "mask_check": {
+        "result": "PASS",
+        "affected_frames": 780,
+        "clean_frames": 1572,
+        "clean_mask_pixels": 0,
+        "failures": []
+      },
+      "census": {
+        "peak_drawn": 4,
+        "per_pose": [
+          {
+            "pose": 0,
+            "drawn": 4
+          },
+          {
+            "pose": 1,
+            "drawn": 4
+          },
+          {
+            "pose": 2,
+            "drawn": 4
+          },
+          {
+            "pose": 3,
+            "drawn": 4
+          },
+          {
+            "pose": 4,
+            "drawn": 4
+          },
+          {
+            "pose": 5,
+            "drawn": 4
+          }
+        ],
+        "exhaustion": 0,
+        "lost": 0,
+        "no_pass": 0,
+        "polluted": 0,
+        "over_55_waived": true,
+        "result": "PASS"
+      },
+      "custom_depth": {
+        "result": "PASS",
+        "candidates": 14,
+        "differences": [],
+        "bad_frames": [],
+        "bench_planted": [],
+        "host_writes": 0,
+        "rule": "GD5 removes the bench plant; before/mid/after states must be identical, enabled and tagged counts zero"
+      },
+      "annotation": {
+        "result": "PASS",
+        "issues": [],
+        "events": 69,
+        "schema": "5.1 AnomalyLabelWriter.cpp WriteSessionAnnotation, 2.1",
+        "values": {
+          "coverage_ratio": {
+            "result": "PASS",
+            "issues": []
+          },
+          "coverage_pct": {
+            "result": "PASS",
+            "issues": []
+          },
+          "bbox_source": {
+            "result": "PASS",
+            "issues": []
+          },
+          "camera_planes": {
+            "result": "PASS",
+            "issues": []
+          }
+        },
+        "coverage_measured": 69,
+        "coverage_unmeasurable": 0,
+        "coverage_value_errors": []
+      },
+      "self_check": {
+        "result": "PASS",
+        "lines": [
+          "Capture425 SELF_CHECK stage=start frames=1 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=5 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=4 ui_controls=4 ui_positive=4 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1263 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+          "Capture425 SELF_CHECK stage=300 frames=300 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=315 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1573 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=1 lost=0 no_pass=0 polluted=0"
+        ],
+        "parsed": [
+          {
+            "stage": "start",
+            "frames": "1",
+            "size": "1280x720",
+            "format": "18",
+            "RHI": "D3D11",
+            "PostRenderViewFamily": "5",
+            "synth": "0",
+            "viewport": "SceneViewport",
+            "client": "GameViewportClient",
+            "viewport_size": "1280x720",
+            "backbuffer_format": "18",
+            "slate": "1",
+            "pie": "0",
+            "pre_ui": "1",
+            "ui_draws": "4",
+            "ui_controls": "4",
+            "ui_positive": "4",
+            "ui_checked": "1",
+            "ui_hits": "0",
+            "ui_paired": "1",
+            "tick": "OnWorldPostActorTick425",
+            "tick_source": "build_constant",
+            "tick_type": "2",
+            "tick_type_source": "build_constant",
+            "tick_calls": "1263",
+            "fixed_step": "1",
+            "fixed_dt": "0.033333333",
+            "fixed_rate": "0",
+            "fixed_fps": "30.000000",
+            "smoothing": "0",
+            "census": "bench_off",
+            "batches": "0",
+            "lost": "0",
+            "no_pass": "0",
+            "polluted": "0"
+          },
+          {
+            "stage": "300",
+            "frames": "300",
+            "size": "1280x720",
+            "format": "18",
+            "RHI": "D3D11",
+            "PostRenderViewFamily": "315",
+            "synth": "0",
+            "viewport": "SceneViewport",
+            "client": "GameViewportClient",
+            "viewport_size": "1280x720",
+            "backbuffer_format": "18",
+            "slate": "1",
+            "pie": "0",
+            "pre_ui": "1",
+            "ui_draws": "8",
+            "ui_controls": "8",
+            "ui_positive": "8",
+            "ui_checked": "300",
+            "ui_hits": "0",
+            "ui_paired": "8",
+            "tick": "OnWorldPostActorTick425",
+            "tick_source": "build_constant",
+            "tick_type": "2",
+            "tick_type_source": "build_constant",
+            "tick_calls": "1573",
+            "fixed_step": "1",
+            "fixed_dt": "0.033333333",
+            "fixed_rate": "0",
+            "fixed_fps": "30.000000",
+            "smoothing": "0",
+            "census": "on",
+            "batches": "1",
+            "lost": "0",
+            "no_pass": "0",
+            "polluted": "0"
+          }
+        ]
+      },
+      "view": {
+        "result": "PASS",
+        "frames": 2352,
+        "bad_frames": []
+      },
+      "depth_mode": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "unavailable": {
+        "enabled": true,
+        "unavailable": 0,
+        "verified": 5,
+        "components": [
+          {
+            "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+            "type": "StaticMeshComponent",
+            "reason": "",
+            "verified": true,
+            "unavailable": false
+          },
+          {
+            "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_HideCube.StaticMeshComponent0",
+            "type": "StaticMeshComponent",
+            "reason": "",
+            "verified": true,
+            "unavailable": false
+          },
+          {
+            "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+            "type": "StaticMeshComponent",
+            "reason": "",
+            "verified": true,
+            "unavailable": false
+          },
+          {
+            "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_LOD.StaticMeshComponent0",
+            "type": "StaticMeshComponent",
+            "reason": "",
+            "verified": true,
+            "unavailable": false
+          },
+          {
+            "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.DefaultPawn_0.MeshComponent0",
+            "type": "StaticMeshComponent",
+            "reason": "",
+            "verified": true,
+            "unavailable": false
+          }
+        ],
+        "host_stencil_writes": 0,
+        "id_storage": "plugin_owned_depth_stencil_attachment"
+      },
+      "lod_guard": {
+        "result": "PASS",
+        "events": 19,
+        "selections": [
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          },
+          {
+            "target": "EA_LOD",
+            "eligible_components": 1,
+            "min_lods": 2
+          }
+        ],
+        "applied_components": [
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "chosen": 1,
+            "lods": 2
+          }
+        ],
+        "predictions": [
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          },
+          {
+            "component": "StaticMeshComponent0",
+            "drawn": 1,
+            "count": 2,
+            "forced": 1
+          }
+        ]
+      },
+      "session_start": {
+        "result": "PASS",
+        "seeds": [
+          "4242"
+        ],
+        "selection_floor_pct": [
+          0.5
+        ],
+        "shipped_floor_pct": 6.0
+      },
+      "per_anomaly": [
+        {
+          "anomaly": "blinking",
+          "events_fired": 15,
+          "affected_frames": 90,
+          "mask_frames": 90,
+          "mask_pixels": 1904148,
+          "result": "PASS"
+        },
+        {
+          "anomaly": "lod_corruption",
+          "events_fired": 19,
+          "affected_frames": 247,
+          "mask_frames": 247,
+          "mask_pixels": 3710434,
+          "result": "PASS"
+        },
+        {
+          "anomaly": "missing_texture",
+          "events_fired": 22,
+          "affected_frames": 286,
+          "mask_frames": 286,
+          "mask_pixels": 5677295,
+          "result": "PASS"
+        },
+        {
+          "anomaly": "corrupted_texture",
+          "events_fired": 13,
+          "affected_frames": 157,
+          "mask_frames": 157,
+          "mask_pixels": 3134555,
+          "result": "PASS"
+        }
+      ],
+      "lod_visible_change": [
+        {
+          "event": "lod_corruption@2447",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        },
+        {
+          "event": "lod_corruption@2567",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14465
+        },
+        {
+          "event": "lod_corruption@2639",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14469,
+          "max_changed_pixels": 14475
+        },
+        {
+          "event": "lod_corruption@2663",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        },
+        {
+          "event": "lod_corruption@2735",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14465
+        },
+        {
+          "event": "lod_corruption@2759",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14458,
+          "max_changed_pixels": 14467
+        },
+        {
+          "event": "lod_corruption@2975",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14469,
+          "max_changed_pixels": 14475
+        },
+        {
+          "event": "lod_corruption@3047",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14458,
+          "max_changed_pixels": 14470
+        },
+        {
+          "event": "lod_corruption@3119",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        },
+        {
+          "event": "lod_corruption@3287",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        },
+        {
+          "event": "lod_corruption@3311",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14469,
+          "max_changed_pixels": 14475
+        },
+        {
+          "event": "lod_corruption@3359",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14461,
+          "max_changed_pixels": 14469
+        },
+        {
+          "event": "lod_corruption@3503",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        },
+        {
+          "event": "lod_corruption@3671",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        },
+        {
+          "event": "lod_corruption@3767",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14458,
+          "max_changed_pixels": 14467
+        },
+        {
+          "event": "lod_corruption@3791",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        },
+        {
+          "event": "lod_corruption@3863",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14461,
+          "max_changed_pixels": 14469
+        },
+        {
+          "event": "lod_corruption@3983",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14469,
+          "max_changed_pixels": 14475
+        },
+        {
+          "event": "lod_corruption@4007",
+          "target": "EA_LOD",
+          "result": "PASS",
+          "frames": 13,
+          "min_changed_pixels": 14455,
+          "max_changed_pixels": 14462
+        }
+      ]
+    },
+    "fixture": "G4/G5 PASS",
+    "missing": [
+      "D3D12-1280",
+      "D3D12-1279"
+    ],
+    "camera_clipping": "Excluded by GI7; 094-45",
+    "raw_reader": {
+      "path": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\reader.json",
+      "sha256": "4632917e8a50182e4f920666a8b322527b7662078383ccb77ff01073ee7be079"
+    },
+    "examples": {
+      "corrupted_texture": {
+        "image": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\plugin-frames\\epoch01\\frame-000719.png",
+        "mask": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\plugin-frames\\epoch01\\mask-000719.png",
+        "reference": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\plugin-frames\\epoch01\\frame-000718.png"
+      },
+      "missing_texture": {
+        "image": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\plugin-frames\\epoch01\\frame-000743.png",
+        "mask": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\plugin-frames\\epoch01\\mask-000743.png",
+        "reference": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\plugin-frames\\epoch01\\frame-000742.png"
+      }
+    },
+    "result_path": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\result.json"
+  },
+  "fixture": {
+    "result": "PASS",
+    "G5": {
+      "result": "PASS",
+      "direct": {
+        "result": "PASS",
+        "checks": {
+          "three": true,
+          "kinds": true,
+          "requests": true,
+          "values": true,
+          "direct": true,
+          "frame_order": true,
+          "saved_positions": true
+        },
+        "samples": [
+          {
+            "engine_frame": 2140,
+            "kind": "startup",
+            "latest_saved_index": -1,
+            "requested_capture_index": null,
+            "source": "in_process_SystemLibrary",
+            "time_utc_epoch": 1793767971.484,
+            "value": 1
+          },
+          {
+            "engine_frame": 5968,
+            "kind": "live",
+            "latest_saved_index": 81,
+            "requested_capture_index": 80,
+            "source": "in_process_SystemLibrary",
+            "time_utc_epoch": 1793767989.794,
+            "value": 1
+          },
+          {
+            "engine_frame": 8212,
+            "kind": "live",
+            "latest_saved_index": 2300,
+            "requested_capture_index": 2300,
+            "source": "in_process_SystemLibrary",
+            "time_utc_epoch": 1793768076.746,
+            "value": 1
+          }
+        ]
+      },
+      "depth": {
+        "result": "PASS",
+        "candidates": 28,
+        "differences": [],
+        "bad_frames": [],
+        "bench_planted": [],
+        "host_writes": 0,
+        "rule": "GD5 removes the bench plant; before/mid/after states must be identical, enabled and tagged counts zero"
+      },
+      "all_rows_clean": true
+    },
+    "frozen_setup_equal": true,
+    "frozen_pose_equal": true,
+    "off": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\textures\\texture-off\\01",
+    "on": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444d\\textures\\texture-on\\01",
+    "example_index": 719
+  },
+  "fixture_g4": {
+    "result": "PASS",
+    "frames": 2352,
+    "unpaired": [],
+    "new_magenta": {
+      "count": 2352,
+      "min": 0.0,
+      "mean": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "rule": "Same capture index and matching pose, player view, and event/target state; R>220,G<40,B>220 newly present with RGB change>32. No absolute magenta gate.",
+    "per_target": {
+      "corrupted_texture/EA_Skeletal": {
+        "events": 8,
+        "frames": 92,
+        "new_magenta": 0,
+        "max_new_magenta": 0
+      },
+      "missing_texture/EA_Skeletal": {
+        "events": 9,
+        "frames": 117,
+        "new_magenta": 0,
+        "max_new_magenta": 0
+      },
+      "missing_texture/OF_LOD_B": {
+        "events": 13,
+        "frames": 169,
+        "new_magenta": 0,
+        "max_new_magenta": 0
+      },
+      "corrupted_texture/OF_LOD_B": {
+        "events": 5,
+        "frames": 65,
+        "new_magenta": 0,
+        "max_new_magenta": 0
+      }
+    },
+    "both_target_kinds": true
+  },
+  "exit": {
+    "utc": "2026-11-04T05:09:33.462366+00:00",
+    "feature": {
+      "head": "035ec20c58f7ed477af6a693be6381cff52f4e93",
+      "branch": "feat/europa-port",
+      "status": ""
+    },
+    "manifest_files": 27,
+    "free_GiB": {
+      "C:": 25.14075469970703,
+      "D:": 54.09242248535156,
+      "E:": 86.72032928466797
+    },
+    "roots": {
+      "C:": {
+        "count": 62,
+        "sha256": "7a923e614166efc67e803f631061b20adb099904c0b19e3ff3dc3a28342323ce"
+      },
+      "D:": {
+        "count": 113,
+        "sha256": "c9c6b26305be319bc3fcad8a282325f5fddc7f963e92981ed509be6bc00082a8"
+      },
+      "E:": {
+        "count": 77,
+        "sha256": "da3e34412a51349954415f71caf1e88d3eecdc4d8853c3b2cfb6f0b789b33fbd"
+      }
+    },
+    "result": "PASS",
+    "ref_changes": {
+      "refs/heads/feat/europa-port": {
+        "before": "90d4275aad88ad25a313dc18e3058e8b13adf376",
+        "after": "035ec20c58f7ed477af6a693be6381cff52f4e93"
+      }
+    },
+    "refs_count": 76,
+    "fixture_assets": "PASS",
+    "materials_unchanged": "PASS",
+    "binary_archive_rehash": "PASS",
+    "runtime_crashes": 0,
+    "upload_signs": 0,
+    "protected_changes": 0,
+    "runs": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444d\\textures\\texture-on\\01\\result.json",
+        "result": "PASS",
+        "exit_code": 0,
+        "ended_utc": "2026-11-04T04:54:44.215563+00:00"
+      },
+      {
+        "path": "D:\\IA_Europa\\Receipts\\09444d\\H4\\D3D11-1280\\01\\result.json",
+        "result": "FAIL",
+        "exit_code": 0,
+        "ended_utc": "2026-11-04T05:02:53.558517+00:00"
+      }
+    ],
+    "no_push": true,
+    "no_tags": true,
+    "fixture_head": "8e59a56e11887248b0cb3333e260177bd627f780"
+  },
+  "archives": {
+    "result": "PASS",
+    "files": [
+      {
+        "round": "fixture-builds-uniform.json",
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\uniform-binary-archive\\Binaries\\Win64\\Outline425.exe",
+        "sha256": "e3aac41dbd05b3c1d9cb31f89a13e8acf6dbbbfb6623f506de0a64fe0e9a68a1",
+        "size": 139400704
+      },
+      {
+        "round": "fixture-builds-uniform.json",
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\uniform-binary-archive\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+        "sha256": "67614a21922a9516f56504fbead6a4c0ff1a10bf6f2ec83101671d767c7c9032",
+        "size": 243200
+      },
+      {
+        "round": "fixture-builds-uniform.json",
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\uniform-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "sha256": "0a74f35993eddb1406901e4b240360d67c5239cfc5a80ac0d6bcd38517b25e12",
+        "size": 124416
+      },
+      {
+        "round": "fixture-builds-uniform.json",
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\uniform-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "sha256": "eb9900526b37c559634be99b6b848b77218b34dd97aa296835c31ee45f3a9602",
+        "size": 1090560
+      },
+      {
+        "round": "fixture-builds-uniform.json",
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\uniform-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "sha256": "b84088b69fe7b66adcd79086941bd8374cbb9beebdc63f959113fb24fdc13b40",
+        "size": 126464
+      },
+      {
+        "round": "fixture-builds-uniform.json",
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\uniform-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "sha256": "0ead5c69edabc96a301dc3059cca824696a9736799ab2df10e2446ffdbdd2eb7",
+        "size": 986624
+      },
+      {
+        "round": "fixture-builds-uniform.json",
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444c\\uniform-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "sha256": "9ae9b60976505af41e9cdb547380954610bc10ef687ee71083f2240265f578c4",
+        "size": 125440
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "size": 67891200,
+        "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "size": 139478016,
+        "sha256": "46d4946a5df34bbd700d09ca009d4c999f4d292f617a209a7c9ba86e2b737eee"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "size": 369152,
+        "sha256": "6037924a08166344146f337b2f0b19ba35a5daf3dc99715db15ef6c332864a89"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "size": 91648,
+        "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "size": 124416,
+        "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "size": 1090560,
+        "sha256": "ea6dcbdaa7849dae68b850b9ca86240973eebce75810a77da5745d7d28f383ce"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "size": 126464,
+        "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "size": 986624,
+        "sha256": "5bb246f0299f2409c62655005663972ee4900f99386b4c5f3b9eeea01cf84701"
+      },
+      {
+        "round": "texture-builds-and-archive.json",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "size": 125440,
+        "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb"
+      },
+      {
+        "round": "engine",
+        "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\UE4Editor.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444\\executable-archive\\UE4Editor.exe",
+        "size": 462080,
+        "sha256": "4a6d83264e68403534aa917e92f741e0d09add5e8cf20c19b76d2cfe4558c387"
+      },
+      {
+        "round": "engine",
+        "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\CrashReportClientEditor.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444\\executable-archive\\CrashReportClientEditor.exe",
+        "size": 18538752,
+        "sha256": "ccd60dfe533f605b1ad8c8d550121be3eda3073b846f3e0df51a478a17a380e7"
+      },
+      {
+        "round": "engine",
+        "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\DotNET\\UnrealBuildTool.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444\\executable-archive\\UnrealBuildTool.exe",
+        "size": 1441536,
+        "sha256": "07c1a6fbc30271b96679253143eb620c49db5b2919a1cbb7430e8fc6bdab9bd0"
+      },
+      {
+        "round": "engine",
+        "path": "E:\\EpicGames\\UE_4.25\\Engine\\Binaries\\Win64\\ShaderCompileWorker.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444\\executable-archive\\ShaderCompileWorker.exe",
+        "size": 313088,
+        "sha256": "6805ce2c9cea663cd356cfc463b470390f227b08ef05e80a12d400363cdf60e6"
+      }
+    ],
+    "archive_rehash": "PASS"
+  },
+  "restoration": {
+    "result": "PASS",
+    "utc": "2026-11-04T05:09:33.144816+00:00",
+    "restored_job": "09444r-build-only",
+    "manifest": {
+      "path": "D:\\IA_Europa\\Receipts\\09444r\\texture-manifest.json",
+      "sha256": "45f8ee5052fe0c9930b84588858fa4d5f02a0cc977a982cf93bda3fcb7f59fc4"
+    },
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\Launch\\Europa425-Runtime.json",
+        "staged_sha256": "04d2ef48142c2d141ee137e59d9740311959542493a8439f89831410a4bbff44",
+        "restored_sha256": "224a75fc13d208d1f8af0c4bae6ae7751d4b1cac81b34d6315c00fced616f1f4",
+        "source": "D:\\IA_Europa\\Receipts\\09444d\\H4-prior-default-D3D11-1280-01.json"
+      },
+      {
+        "path": "D:\\IA_Europa\\Launch\\Europa425-Runtime.bat",
+        "staged_sha256": "518d7ed29e8ed97336d9a22e261bd69d02c8b1aa7c82e3fc034ba185ff94bc69",
+        "restored_sha256": "16a7d71499148d5d0cfa5f8277165a23ae78e7beaa75c3f38d419fe51e99490c",
+        "source": "D:\\IA_Europa\\Receipts\\09444d\\H4-prior-default-D3D11-1280-01.bat"
+      }
+    ]
+  },
+  "owned_closed": {
+    "result": "PASS",
+    "utc": "2026-11-04T05:11:10.079431+00:00",
+    "active_owned": 0,
+    "records": [
+      {
+        "pid": 36052,
+        "created_filetime": 134382415393747785,
+        "image": "UE4Editor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 30052,
+        "created_filetime": 134382415409647852,
+        "image": "CrashReportClientEditor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 8104,
+        "created_filetime": 134382415409951194,
+        "image": "CrashReportClientEditor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 31916,
+        "created_filetime": 134382415469379065,
+        "image": "UnrealBuildTool.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 18824,
+        "created_filetime": 134382415469573052,
+        "image": "conhost.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 36032,
+        "created_filetime": 134382420404799967,
+        "image": "UE4Editor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 26032,
+        "created_filetime": 134382420407187465,
+        "image": "CrashReportClientEditor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 31056,
+        "created_filetime": 134382420407548120,
+        "image": "CrashReportClientEditor.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 32680,
+        "created_filetime": 134382420431490595,
+        "image": "UnrealBuildTool.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 20280,
+        "created_filetime": 134382420431654332,
+        "image": "conhost.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 33192,
+        "created_filetime": 134382420471354173,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 15284,
+        "created_filetime": 134382420471415391,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 29676,
+        "created_filetime": 134382420471451377,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 35524,
+        "created_filetime": 134382420471486169,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 9044,
+        "created_filetime": 134382420471520851,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 4064,
+        "created_filetime": 134382420471556172,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 14268,
+        "created_filetime": 134382420471590874,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 32096,
+        "created_filetime": 134382420471627218,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 28484,
+        "created_filetime": 134382420471661847,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 16200,
+        "created_filetime": 134382420471695329,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 35380,
+        "created_filetime": 134382420471728845,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 21452,
+        "created_filetime": 134382420471760681,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      },
+      {
+        "pid": 5908,
+        "created_filetime": 134382420471794577,
+        "image": "ShaderCompileWorker.exe",
+        "status": "gone",
+        "winerror": 87
+      }
+    ],
+    "stopped_by_this_audit": 0,
+    "method": "Retained receipt PID and creation FILETIME; read-only OpenProcess/GetProcessTimes/WaitForSingleObject(0)"
+  },
+  "entry_p9": {
+    "start_utc": "2026-11-04T04:43:45.873733+00:00",
+    "invocation": "owner_p9.main()",
+    "phase": "entry",
+    "result": "PASS",
+    "exit_code": 0,
+    "elapsed_seconds": 393.9350950999942,
+    "end_utc": "2026-11-04T04:50:19.809972+00:00"
+  },
+  "native_source_changed": false,
+  "build_attempts": 0,
+  "deleted_paths": [],
+  "pushes": [],
+  "tags": []
+}

@@ -1955,3 +1955,6 @@ Phase B texture source now preserves release d7eee97 apply/revert/installed-stat
 
 
 094-44d adds only bench evidence tooling: a direct Python custom-depth observer and a scoped deadline policy. Native capture/anomaly source remains byte-identical to the qualified8e59a56 builds.
+
+
+094-44d status: fixture texture G4/G5 are qualified. The first EA_Core D3D11 regression fails whole-frame texture G3 under its current saturated rendering; the D3D12 legs are unrun. No native implementation changed. The four-route default remains local pending the complete host gates.
