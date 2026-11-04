@@ -1,0 +1,114 @@
+{
+  "result": "PASS",
+  "authority": "094-44c GI2 GI3 GI6 GI7",
+  "files": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Scripts\\capture_depth_read09444d.py",
+      "sha256": "d75b1ca8a8053a6c082dab8d3701f9cc2cadb405d0fb784ed6c6c3ce91edd103"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Scripts\\texture_pose09444d.py",
+      "sha256": "c0abf170c89ac6ae9ac44fcf078544ff58ee61d833175a8fe24dde225a7b9051"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\texture_kit09444d.py",
+      "sha256": "58b6f499725bb1853db8f7f4a108719034da295ca0cec2f081829b7ef586fc09"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\blackout09444d.py",
+      "sha256": "b507bb3855994f92366d9cff2f14be054d505a49198c0545c3c39c0796ee5ba6"
+    }
+  ],
+  "tests": {
+    "result": "PASS",
+    "deadline_negatives": 4,
+    "unchanged_setup": true,
+    "python27": [
+      {
+        "other_actor_unchanged": true,
+        "result": "PASS",
+        "python": "2.7.14",
+        "pose": {
+          "distance": 1300.0,
+          "fov": 30.0,
+          "exposure_ladder": [
+            -1.5,
+            -1.5625,
+            -1.625,
+            -1.6875,
+            -1.75,
+            -1.8125,
+            -1.875,
+            -1.9375,
+            -2.0,
+            -2.0625,
+            -2.125,
+            -2.1875,
+            -2.25,
+            -2.3125,
+            -2.375,
+            -2.4375,
+            -2.5
+          ],
+          "camera": [
+            100,
+            -700,
+            2000
+          ],
+          "actors": [
+            "EA_Skeletal",
+            "OF_LOD_B"
+          ],
+          "runtime_only": true,
+          "rotation": [
+            -12.0,
+            0.0,
+            0.0
+          ],
+          "side": 125.0
+        },
+        "targets": 2,
+        "rotator_negative": true
+      },
+      {
+        "duplicate_suppressed": true,
+        "python": "2.7.14",
+        "before_threshold_suppressed": true,
+        "samples": [
+          {
+            "kind": "startup",
+            "time_utc_epoch": 1793767571.145,
+            "requested_capture_index": null,
+            "value": 1,
+            "source": "in_process_SystemLibrary",
+            "engine_frame": 10,
+            "latest_saved_index": -1
+          },
+          {
+            "kind": "live",
+            "time_utc_epoch": 1793767571.147,
+            "requested_capture_index": 80,
+            "value": 1,
+            "source": "in_process_SystemLibrary",
+            "engine_frame": 180,
+            "latest_saved_index": 80
+          },
+          {
+            "kind": "live",
+            "time_utc_epoch": 1793767571.152,
+            "requested_capture_index": 2300,
+            "value": 1,
+            "source": "in_process_SystemLibrary",
+            "engine_frame": 2400,
+            "latest_saved_index": 2300
+          }
+        ],
+        "result": "PASS"
+      }
+    ]
+  },
+  "launch_cutoff_utc": "2026-11-04T07:40:00Z",
+  "close_deadline_utc": "2026-11-04T08:05:00Z",
+  "native_changes": false,
+  "rendering_setup_unchanged": true
+}

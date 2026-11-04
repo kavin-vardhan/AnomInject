@@ -1952,3 +1952,6 @@ The 4.25-only material finders are compiled on both targets. The separate outlin
 GF4 now qualifies the private pass live on one SkeletalCube actor and a three-instance static mesh actor: IoU 1.000 against legacy coverage and zero new outline pixels.
 
 Phase B texture source now preserves release d7eee97 apply/revert/installed-state logic and uses a compat pointer accessor. The four-route defaults include both textures; compilation and runtime qualification are pending.
+
+
+094-44d adds only bench evidence tooling: a direct Python custom-depth observer and a scoped deadline policy. Native capture/anomaly source remains byte-identical to the qualified8e59a56 builds.

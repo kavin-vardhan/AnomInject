@@ -926,3 +926,6 @@ Readers and raw evidence are under Receipts/09433b/c3-attempts/C3/{01,02}. captu
 GF4 raw evidence and its frozen reader are recorded in docs/europa/09444r-gf4-receipts.json. Reference, private-off and private-on use the same seed and view; frame 746 is the paired outline example.
 
 The texture fixture setup, exposure, references, metrics and can-fails are fixed in docs/europa/09444r-texture-port-receipts.json before capture. The usage mutant is a separate fixture asset; accepted and 5.1 materials stay unchanged.
+
+
+094-44d uses the frozen09444c fixture binaries/settings and texture_pose09444d.py. Launch through texture_kit09444d.py with -BENCHMARK/-nowrite. Direct readings are depth-readings.jsonl; do not use posted window input as fixture CVar evidence. The kit refuses launches at07:40UTC and requests owned shutdown before08:05UTC on2026-11-04.

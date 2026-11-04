@@ -10539,3 +10539,8 @@ PythonScriptPlugin is an Editor module; enabling its plugin does not load that m
 ### G536. Posted PIE console keystrokes do not prove that a CVar was read
 
 The094-44c fixture probe found the owned preview window and successfully posted21 messages twice. Neither request produced a Cmd:r.CustomDepth or value reply in the engine log. Only the startup value was measured. G5 therefore failed despite all28 component records and2,352 per-frame state rows matching. Preserve the three-reading requirement and prove execution/readback for the play-world query before another product leg; do not count a sent-message receipt as a reply. No such fix or rerun was attempted after the failed gate.
+
+
+### G537 — Fixture PIE CVar evidence is an in-process read
+
+A query typed into a PIE window can produce a posted-input receipt without reaching the console. GI2 keeps the three readings and uses Python SystemLibrary.get_console_variable_int_value directly at startup and saved-frame thresholds80/2300, with an engine frame counter. The read-only observer leaves the frozen picture settings and binaries unchanged. GI3 requires -BENCHMARK on fixture editor launches; host regression remains -game. GI7 enforces the launch/close blackout in the armed kit, including admission wait.

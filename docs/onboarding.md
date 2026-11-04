@@ -158,3 +158,6 @@ The accepted 4.25 materials now have compiled finders. GF4 on the live skeletal 
 The live skeletal and ISM coverage prerequisite passes. Texture anomalies remain disabled until the following Phase B implementation and gates.
 
 Do not infer texture qualification from source parity. Both target builds and G1-G5 remain required; camera_clipping is not enabled yet.
+
+
+094-44d is limited to paired texture G4, direct G5 readings and the three host regressions. Camera clipping is deferred; the default-route change still awaits all passing gates. Code owns scan/push/card.
