@@ -10534,3 +10534,8 @@ In4.25, r.EyeAdaptationQuality0 disables the show flag; the no-eye-adaptation pa
 ### G535. Editor-only fixture Python needs a settled play-world camera
 
 PythonScriptPlugin is an Editor module; enabling its plugin does not load that module in-game. The094-44c runtime fixture pose therefore runs in PIE. Moving the pawn and reading PlayerCameraManager in the same callback observes the previous POV; wait for a new frame and assert the expected camera before placing objects. BENCHMARK suppresses the editor's automatic launcher child (EditorEngine.cpp:615-624). The incidental pre_ui marker's outer-window control is not qualified by these PIE calibration captures; host H4 remains separate and unchanged.
+
+
+### G536. Posted PIE console keystrokes do not prove that a CVar was read
+
+The094-44c fixture probe found the owned preview window and successfully posted21 messages twice. Neither request produced a Cmd:r.CustomDepth or value reply in the engine log. Only the startup value was measured. G5 therefore failed despite all28 component records and2,352 per-frame state rows matching. Preserve the three-reading requirement and prove execution/readback for the play-world query before another product leg; do not count a sent-message receipt as a reply. No such fix or rerun was attempted after the failed gate.
