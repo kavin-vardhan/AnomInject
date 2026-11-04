@@ -1,0 +1,37 @@
+{
+  "prediction": {
+    "utc": "2026-11-04T10:01:45.540018+00:00",
+    "authority": "094-45 GL1-GL5 GK2 GJ4 GE3 GF4 GF5 FN2 FM1 FJ1 FK1 GA2 GA5",
+    "pose": "EA_Camera explicitly held every frame; old reference masks never reused",
+    "geometry": "Private census probe before each preview; 32 frames, zero auto fires; last 8 frames must agree with camera and 0.5-25% drawn share",
+    "qualification": "Same-session original/checker/pink 8-frame previews; existing GK2 reader thresholds; at -5EV",
+    "reapply": "One per session, original failed evidence retained; no third attempt",
+    "g3": "Whole-frame IoU>=0.98 and exactly clean edges; no threshold changes",
+    "regression": [
+      "D3D11 1280x720",
+      "D3D12 1280x720",
+      "D3D12 1279x719"
+    ],
+    "reserve_GiB": 3,
+    "c_drive": "Read before and after; >=1GiB drop triggers attribution; stop below10GiB",
+    "stage2": "Only after READY -> Code PUSHED exact SHA -> remote verification"
+  },
+  "tests": {
+    "result": "PASS",
+    "geometry": {
+      "result": "PASS",
+      "positive": 1,
+      "negative": 4
+    },
+    "gk2": {
+      "result": "PASS",
+      "positive": 2,
+      "negatives": 6,
+      "authority": "GK2"
+    },
+    "scope_positive": 2,
+    "scope_and_sequence_negative": 7,
+    "helper_sha256": "4dfdb4715f4a9954b52e0b17b7ef6e771006fe5226defe9a594e5f52ac38447a",
+    "native_contract": "Bench geometry returns before auto start; Shipping guard, IAIBench and exact map; same-session readers fail closed before fire"
+  }
+}

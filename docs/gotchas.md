@@ -10568,3 +10568,8 @@ The094-44f preflight raises AssertionError with an empty string. stop_with_inten
 ### G542 - Stop ownership does not depend on a diagnostic string
 
 GL3 removes the nonempty-reason predicate from classify_exit. PID, root-running state and UTC bounds still have to match. Empty assertion messages now retain owned-stop classification; a missing intent, a different PID, or an out-of-window intent still fails ownership. The original09444f raw result remains immutable.
+
+
+### G543 - A held camera still needs measured coverage
+
+GL2 selects EA_Camera explicitly and holds its transform/FOV, with bAutoManageActiveCameraTarget disabled. Geometry probes use the existing private census output before each preview, with auto fires suppressed only in the bench-only probe. The same-session private silhouettes determine drawn share and GK2 regions. A camera or material qualification failure is preserved and re-applied once; a second failure stops the leg. No projection-box area is reported as drawn coverage.

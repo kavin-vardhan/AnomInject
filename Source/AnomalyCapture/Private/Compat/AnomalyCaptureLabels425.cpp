@@ -43,6 +43,7 @@ namespace
     int32 CapturePace425 = 1;
     bool CaptureLive425 = false;
     bool CaptureStreet425 = false;
+    bool CaptureGeometry425 = false;
     int32 CaptureBenchCamera425 = 0;
     FAutoConsoleVariableRef CaptureBenchCameraCommand425(TEXT("IAI.Capture.BenchCamera"),CaptureBenchCamera425,TEXT("Bench-only first-camera override; default off"));
     int32 CaptureSeed425 = 4242;
@@ -110,6 +111,7 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
 
 void FAnomalyCaptureLabels425::Prepare(UWorld* World,ELevelTick TickType,float Delta)
 {
+    if (CaptureGeometry425) { return; }
     if (World != Owner.Get() || TickType != LEVELTICK_All || Prepared == Next || Failed() || FPlatformTime::Seconds()-Started < 3) { return; }
     if (Street && !Street->Ready(Next)) { return; }
     Prepared = Next;
@@ -364,7 +366,26 @@ bool AnomalyCaptureC2::Street() { return CaptureStreet425; }
 bool AnomalyCaptureC2::Enabled() { return CaptureLive425; }
 bool AnomalyCaptureC2::Boundary() { return false; }
 bool AnomalyCaptureC2::Masks() { return CaptureLive425; }
-void AnomalyCaptureC2::Finished(UWorld* World,bool Success) { CaptureLive425 = false; FPlatformMisc::RequestExit(false); }
+void AnomalyCaptureC2::Finished(UWorld* World,bool Success)
+{
+    CaptureLive425 = false;
+    if (CaptureGeometry425) { CaptureGeometry425=false; return; }
+    FPlatformMisc::RequestExit(false);
+}
+#if !UE_BUILD_SHIPPING
+static FAutoConsoleCommandWithWorldAndArgs CaptureGeometryCommand425(TEXT("IAI.Capture.BenchGeometry"),TEXT("EA_Core bench-only no-fire private coverage probe: output"),
+    FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
+    {
+        if (CaptureLive425 || Args.Num()!=1 || !World || !World->IsGameWorld() || World->GetMapName()!=TEXT("EA_Core") ||
+            !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+        auto* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
+        auto* Capture=World->GetSubsystem<UAnomalyCaptureSubsystem>();
+        if (!Auto || !Capture || Auto->IsRunning() || Auto->GetLiveFireCount()) { return; }
+        CaptureLive425=true; CaptureStreet425=false; CaptureGeometry425=true; CaptureCount425=32;
+        UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 geometry probe frames=32 auto_fires=disabled"));
+        Capture->StartRun(Args[0],true,0,CaptureCount425);
+    }));
+#endif
 static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Capture.C4"),TEXT("Capture live seeded auto-injection: output frame_count seed [route,route]; default blinking,lod_corruption,missing_texture,corrupted_texture"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
