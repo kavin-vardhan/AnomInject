@@ -15,10 +15,10 @@ int main()
         assert(Allowed(D,true,true));
     }
     assert(Allowed(Depth::Writer,false,false));
-    std::set<std::string> Pool={"blinking","lod_corruption","lighting_mismatch","missing_object"};
+    std::set<std::string> Pool={"blinking","lod_corruption","lighting_mismatch","missing_object","missing_texture","corrupted_texture"};
     auto Known=[&](const std::string& Id) { return Pool.count(Id)>0; };
     std::vector<std::string> Out;
-    assert(Routes("",false,Known,Out)); assert((Out==std::vector<std::string>{"blinking","lod_corruption"}));
+    assert(Routes("",false,Known,Out)); assert((Out==std::vector<std::string>{"blinking","lod_corruption","missing_texture","corrupted_texture"}));
     assert(Routes("blinking,lighting_mismatch,lod_corruption,missing_object",true,Known,Out) && Out.size()==4);
     for (const auto* Text:{"","unknown","blinking,","blinking,,lod_corruption","blinking,blinking","lighting_mismatch,unknown"})
     {

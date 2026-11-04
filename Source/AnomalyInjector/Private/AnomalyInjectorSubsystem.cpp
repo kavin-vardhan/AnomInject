@@ -46,12 +46,8 @@
 #if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_CameraClipping.h"
 #endif
-#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_MissingTexture.h"
-#endif
-#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_CorruptedTexture.h"
-#endif
 #if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_StuckLowMip.h"
 #endif
@@ -292,12 +288,8 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_CameraClipping>());
 #endif
-#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_MissingTexture>());
-#endif
-#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
-#endif
 #if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_StuckLowMip>());
 #endif

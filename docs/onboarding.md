@@ -156,3 +156,5 @@ C3 remains NEEDS-DECISION: blinking drawn/hidden and missing_object pass; lighti
 The accepted 4.25 materials now have compiled finders. GF4 on the live skeletal and instanced targets is the remaining admission step before texture anomaly work.
 
 The live skeletal and ISM coverage prerequisite passes. Texture anomalies remain disabled until the following Phase B implementation and gates.
+
+Do not infer texture qualification from source parity. Both target builds and G1-G5 remain required; camera_clipping is not enabled yet.

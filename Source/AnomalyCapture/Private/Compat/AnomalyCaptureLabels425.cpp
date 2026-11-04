@@ -47,7 +47,7 @@ namespace
     FAutoConsoleVariableRef CaptureBenchCameraCommand425(TEXT("IAI.Capture.BenchCamera"),CaptureBenchCamera425,TEXT("Bench-only first-camera override; default off"));
     int32 CaptureSeed425 = 4242;
     int32 CaptureCount425 = 1440;
-    TArray<FString> CaptureRoutes425 = { TEXT("blinking"),TEXT("lod_corruption") };
+    TArray<FString> CaptureRoutes425 = { TEXT("blinking"),TEXT("lod_corruption"),TEXT("missing_texture"),TEXT("corrupted_texture") };
     FAutoConsoleVariableRef CapturePaceCommand425(TEXT("IAI.Capture.Pace"),CapturePace425,TEXT("4.25 capture pacing"));
     FString Json425(const TSharedPtr<FJsonObject>& Object)
     {
@@ -365,7 +365,7 @@ bool AnomalyCaptureC2::Enabled() { return CaptureLive425; }
 bool AnomalyCaptureC2::Boundary() { return false; }
 bool AnomalyCaptureC2::Masks() { return CaptureLive425; }
 void AnomalyCaptureC2::Finished(UWorld* World,bool Success) { CaptureLive425 = false; FPlatformMisc::RequestExit(false); }
-static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Capture.C4"),TEXT("Capture live seeded auto-injection: output frame_count seed [route,route]; default blinking,lod_corruption"),
+static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Capture.C4"),TEXT("Capture live seeded auto-injection: output frame_count seed [route,route]; default blinking,lod_corruption,missing_texture,corrupted_texture"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
         if (CaptureLive425 || (Args.Num()!=3 && Args.Num()!=4) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
@@ -384,7 +384,7 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Captu
             return false;
         }));
     }));
-static FAutoConsoleCommandWithWorldAndArgs CaptureStreetCommand425(TEXT("IAI.Capture.C5"),TEXT("Bench-only moving player-view capture: output seed [route,route]; default blinking,lod_corruption"),
+static FAutoConsoleCommandWithWorldAndArgs CaptureStreetCommand425(TEXT("IAI.Capture.C5"),TEXT("Bench-only moving player-view capture: output seed [route,route]; default blinking,lod_corruption,missing_texture,corrupted_texture"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
         if (CaptureLive425 || (Args.Num()!=2 && Args.Num()!=3) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }

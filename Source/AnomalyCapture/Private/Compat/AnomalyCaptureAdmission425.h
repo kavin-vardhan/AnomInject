@@ -17,7 +17,7 @@ namespace AnomalyCaptureAdmission425
     template<class Known> bool Routes(const std::string& Text,bool Explicit,Known InPool,std::vector<std::string>& Out)
     {
         Out.clear();
-        const std::string Input=Explicit ? Text : "blinking,lod_corruption";
+        const std::string Input=Explicit ? Text : "blinking,lod_corruption,missing_texture,corrupted_texture";
         std::size_t Start=0;
         do
         {

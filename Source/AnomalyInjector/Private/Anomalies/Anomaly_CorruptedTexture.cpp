@@ -1,6 +1,5 @@
 #include "Anomalies/Anomaly_CorruptedTexture.h"
-#include "Compat/AnomalyEngineVersion.h"
-#if ANOMALY_ENGINE_51
+#include "Compat/AnomalyEngineCompat.h"
 
 #include "AnomalyInstallState.h"
 #include "AnomalyLod.h"
@@ -66,7 +65,7 @@ namespace AnomalyCorruptedTextureLocal
 		{
 			return Mesh->GetMaterial(Index);
 		}
-		return Mesh->OverrideMaterials.IsValidIndex(Index) ? Mesh->OverrideMaterials[Index].Get() : nullptr;
+		return Mesh->OverrideMaterials.IsValidIndex(Index) ? AnomalyCompat::OverrideMaterial(Mesh, Index) : nullptr;
 	}
 }
 
@@ -282,7 +281,7 @@ void FAnomaly_CorruptedTexture::Revert()
 		Ours.Reserve(Component->OverrideMaterials.Num());
 		for (int32 i = 0; i < Component->OverrideMaterials.Num(); ++i)
 		{
-			Ours.Add(AnomalyCorruptedTextureLocal::IsPinkDerived(Component->OverrideMaterials[i].Get(), Pink));
+			Ours.Add(AnomalyCorruptedTextureLocal::IsPinkDerived(AnomalyCompat::OverrideMaterial(Component, i), Pink));
 		}
 		Residual += AnomalyInstall::CountOwnedOverrides(Ours.GetData(), Ours.Num());
 	}
@@ -344,5 +343,3 @@ unsigned char FAnomaly_CorruptedTexture::GetVisualConditionState() const
 	}
 	return (unsigned char)AnomalyInstall::Classify(Captured.Num(), Ours);
 }
-
-#endif

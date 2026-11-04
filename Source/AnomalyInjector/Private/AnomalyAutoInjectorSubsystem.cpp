@@ -60,7 +60,11 @@ namespace
 		FName(TEXT("blinking")),
 		FName(TEXT("missing_texture")),
 		FName(TEXT("corrupted_texture")),
+#if ANOMALY_ENGINE_425
+		FName(TEXT("lod_corruption")),
+#else
 		FName(TEXT("lod_popping")),
+#endif
 	};
 
 	UAnomalyInjectorSubsystem* ResolveInjector(UWorld* World)

@@ -5,6 +5,8 @@
 #include "Templates/Function.h"
 
 class USkinnedMeshComponent;
+class UMeshComponent;
+class UMaterialInterface;
 class UStaticMesh;
 class UPrimitiveComponent;
 class UBodySetup;
@@ -15,6 +17,7 @@ struct FConvexVolume;
 
 namespace AnomalyCompat
 {
+	ANOMALYINJECTOR_API UMaterialInterface* OverrideMaterial(const UMeshComponent* Mesh, int32 Index);
 	ANOMALYINJECTOR_API const UObject* SkinnedAssetIdentity(const USkinnedMeshComponent* Component);
 	ANOMALYINJECTOR_API const FStaticMeshRenderData* StaticRenderData(const UStaticMesh* Mesh);
 	ANOMALYINJECTOR_API FMinimalViewInfo CameraCachePOV(const APlayerCameraManager* Camera);

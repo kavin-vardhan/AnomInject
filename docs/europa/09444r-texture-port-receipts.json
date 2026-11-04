@@ -1,0 +1,168 @@
+{
+  "status": "SOURCE_TESTED_NOT_BUILT",
+  "tests": {
+    "result": "PASS",
+    "compiler": "MSVC14.16",
+    "priority": "BelowNormal",
+    "parity": [
+      {
+        "file": "Source/AnomalyInjector/Private/Anomalies/Anomaly_MissingTexture.cpp",
+        "release": "d7eee97",
+        "normalized_equal": true,
+        "release_sha256": "c96488e2b7ed488e4668a94a1ab93369fa36a1c65cb3e2f5176fe64d47e283e8"
+      },
+      {
+        "file": "Source/AnomalyInjector/Private/Anomalies/Anomaly_CorruptedTexture.cpp",
+        "release": "d7eee97",
+        "normalized_equal": true,
+        "release_sha256": "c88804dbf74a3605118bcc50a1e97937c7924f0ecb3e61655bc60bdebf16dbd2"
+      }
+    ],
+    "cases": [
+      {
+        "name": "compat-425",
+        "compile_exit": 0,
+        "expected_compile": true
+      },
+      {
+        "name": "old-get-mutant",
+        "compile_exit": 2,
+        "expected_compile": false
+      },
+      {
+        "name": "compat-51",
+        "compile_exit": 0,
+        "expected_compile": true
+      },
+      {
+        "name": "install-state",
+        "compile_exit": 0,
+        "expected_compile": true
+      },
+      {
+        "name": "routes",
+        "compile_exit": 0,
+        "expected_compile": true
+      }
+    ],
+    "install_state_unchanged": true,
+    "fresh_proxy_per_frame": true
+  },
+  "reader_test": {
+    "result": "PASS",
+    "correct_iou": 1,
+    "one_frame_early_iou": 0,
+    "grey_fallback_changed_pixels": 0
+  },
+  "prediction": {
+    "authority": "094-44 GE3 GF4 GG3",
+    "rule": "094-44: reference is the capture immediately before the event first_index; never selected by pixels. Colour change means max absolute RGB difference greater than 2 quantized levels. Active mask IoU against the whole colour-change silhouette must be at least0.98. Inspect the frame before apply and the first reverted frame too. Clean edge frames must have zero changed pixels under the same quantization-aware threshold; no anomalous frame is exempt. Missing-usage negative uses the engine default material as the skeletal baseline, so the same grey fallback must change no target pixels. Paired new magenta uses the kept R>220,G<40,B>220 and RGB change>32 rule.",
+    "required": {
+      "events_each": 3,
+      "fixture_static_each": 3,
+      "fixture_skeletal_each": 3,
+      "mask_iou": 0.98,
+      "new_magenta": 0,
+      "residual": 0,
+      "custom_depth_components": 0
+    },
+    "fixture": {
+      "camera": [
+        100,
+        -700,
+        2000,
+        -12,
+        0,
+        0
+      ],
+      "skeletal_location": [
+        450,
+        -825,
+        2000
+      ],
+      "skeletal_scale": 5,
+      "static_location": [
+        450,
+        -575,
+        2000
+      ],
+      "static_scale": 2,
+      "baseline": "Engine default surface material; same as missing-usage fallback",
+      "point_light_location": [
+        100,
+        -700,
+        2000
+      ],
+      "point_light_intensity": 600,
+      "selection_floor_percent": 6,
+      "seed": 4242,
+      "routes": [
+        "blinking",
+        "lod_corruption",
+        "missing_texture",
+        "corrupted_texture"
+      ]
+    },
+    "regression": {
+      "seed": 4242,
+      "routes": [
+        "blinking",
+        "lighting_mismatch",
+        "lod_corruption",
+        "missing_object",
+        "missing_texture",
+        "corrupted_texture"
+      ],
+      "selection_floor_percent": 0.5,
+      "selection_scope": "EA_Core bench only; shipped floor6 unchanged"
+    },
+    "settings": {
+      "exposure_offset": -2,
+      "eye_adaptation_quality": 0,
+      "anti_aliasing_quality": 0,
+      "scope": "process command line only; no config or material graph edits"
+    },
+    "exposure_citations": [
+      "UE4.25 Engine/Private/SceneView.cpp:80-84,1877-1881 adds r.ExposureOffset to AutoExposureBias",
+      "Renderer/Private/PostProcess/PostProcessEyeAdaptation.cpp:174-182 uses exp2(bias); -2 is one-quarter exposure"
+    ],
+    "negatives": [
+      "same mesh draws the same default material before and after a missing skeletal-usage swap: G2 must fail",
+      "move labels/masks one frame early: G3 must fail"
+    ],
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\capture_texture425_reader.py",
+        "sha256": "e65a5d97e4b9f85db27c695a0f0a2bde6167b0b69d75670e727029f4fd218901"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\capture_phaseb_h4_reader.py",
+        "sha256": "6e04874afcdf7370c51410e8da808d8e3af4e2b970158c998c396d32c8a41360"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425\\Outline425TextureBench09444.cpp",
+        "sha256": "db3331f1680c2928e02dc29b292d120300f159d16da99ec400453637d6544537"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Scripts\\author_texture_mutant09444.py",
+        "sha256": "4b4ca9eb06e2d03a3f24d534edb789c82ffc2e1ef94de5327d1997a43f1be34c"
+      }
+    ]
+  },
+  "source": "d7eee97",
+  "citations": {
+    "behavior": [
+      "d7eee97 Anomaly_MissingTexture.cpp:98-143,152-346",
+      "d7eee97 Anomaly_CorruptedTexture.cpp:98-143,152-346"
+    ],
+    "api": [
+      "UE4.25 Engine/Classes/Components/MeshComponent.h:28 raw OverrideMaterials pointers",
+      "AnomalyEngineCompat.cpp OverrideMaterial switches raw pointer versus TObjectPtr.Get"
+    ],
+    "labels": [
+      "AnomalyMasks425.cpp:331-339 FireWindow plus installed",
+      "AnomalyCaptureLabels425.cpp:241-247 affected requires target pixels"
+    ],
+    "proxy": "AnomalyPrivatePass425.cpp BeginRenderViewFamily refreshes Item.Component->SceneProxy each frame"
+  }
+}

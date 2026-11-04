@@ -1,6 +1,5 @@
 #include "Anomalies/Anomaly_MissingTexture.h"
-#include "Compat/AnomalyEngineVersion.h"
-#if ANOMALY_ENGINE_51
+#include "Compat/AnomalyEngineCompat.h"
 
 #include "AnomalyInstallState.h"
 #include "AnomalyLod.h"
@@ -66,7 +65,7 @@ namespace
 		{
 			return Mesh->GetMaterial(Index);
 		}
-		return Mesh->OverrideMaterials.IsValidIndex(Index) ? Mesh->OverrideMaterials[Index].Get() : nullptr;
+		return Mesh->OverrideMaterials.IsValidIndex(Index) ? AnomalyCompat::OverrideMaterial(Mesh, Index) : nullptr;
 	}
 }
 
@@ -282,7 +281,7 @@ void FAnomaly_MissingTexture::Revert()
 		Ours.Reserve(Component->OverrideMaterials.Num());
 		for (int32 i = 0; i < Component->OverrideMaterials.Num(); ++i)
 		{
-			Ours.Add(IsCheckerDerived(Component->OverrideMaterials[i].Get(), Checker));
+			Ours.Add(IsCheckerDerived(AnomalyCompat::OverrideMaterial(Component, i), Checker));
 		}
 		Residual += AnomalyInstall::CountOwnedOverrides(Ours.GetData(), Ours.Num());
 	}
@@ -344,5 +343,3 @@ unsigned char FAnomaly_MissingTexture::GetVisualConditionState() const
 	}
 	return (unsigned char)AnomalyInstall::Classify(Captured.Num(), Ours);
 }
-
-#endif

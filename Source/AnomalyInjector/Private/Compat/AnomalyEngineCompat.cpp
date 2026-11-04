@@ -3,6 +3,7 @@
 #include "Camera/CameraTypes.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/MeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Engine/Engine.h"
 #include "EngineGlobals.h"
@@ -14,6 +15,16 @@
 #if ANOMALY_ENGINE_51
 #include "Engine/SkinnedAsset.h"
 #endif
+
+UMaterialInterface* AnomalyCompat::OverrideMaterial(const UMeshComponent* Mesh, int32 Index)
+{
+	if (!Mesh || !Mesh->OverrideMaterials.IsValidIndex(Index)) { return nullptr; }
+#if ANOMALY_ENGINE_425
+	return Mesh->OverrideMaterials[Index];
+#else
+	return Mesh->OverrideMaterials[Index].Get();
+#endif
+}
 
 const UObject* AnomalyCompat::SkinnedAssetIdentity(const USkinnedMeshComponent* Component)
 {

@@ -924,3 +924,5 @@ Readers and raw evidence are under Receipts/09433b/c3-attempts/C3/{01,02}. captu
 094-44r archives and source-bound manifests are recorded in docs/europa/09444r-loader-target-receipts.json. The fixture author command saves only its declared map and M_LiveSurface. Confirm an added host CPP appears in executed build actions before launching it.
 
 GF4 raw evidence and its frozen reader are recorded in docs/europa/09444r-gf4-receipts.json. Reference, private-off and private-on use the same seed and view; frame 746 is the paired outline example.
+
+The texture fixture setup, exposure, references, metrics and can-fails are fixed in docs/europa/09444r-texture-port-receipts.json before capture. The usage mutant is a separate fixture asset; accepted and 5.1 materials stay unchanged.

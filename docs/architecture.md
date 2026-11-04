@@ -1950,3 +1950,5 @@ The bench capture driver seeds/starts the injector once after its pre-pass and s
 The 4.25-only material finders are compiled on both targets. The separate outline fixture now contains live skeletal and instanced targets; GF4 qualification is pending, so the three Phase B anomalies remain disabled.
 
 GF4 now qualifies the private pass live on one SkeletalCube actor and a three-instance static mesh actor: IoU 1.000 against legacy coverage and zero new outline pixels.
+
+Phase B texture source now preserves release d7eee97 apply/revert/installed-state logic and uses a compat pointer accessor. The four-route defaults include both textures; compilation and runtime qualification are pending.

@@ -10517,3 +10517,7 @@ GG2 permits a 10 ms owned-tree creation poll after a real 100 ms-child self-test
 ### G531. Check executed actions when adding a fixture source file
 
 The first094-44r fixture Editor build succeeded but its cached action graph did not include the newly added Outline425Targets09444.cpp. Refreshing only that target's Makefile.bin by receipt made the next build compile the helper. A successful exit and unchanged plugin source hash alone did not prove the new host helper was built; its executed compile action was checked before authoring.
+
+### G532. A material-usage negative needs a visible fallback oracle
+
+For094-44r, the separate fixture texture bench uses the engine default surface as its clean skeletal baseline. Removing only the skeletal usage flag from a separate checker duplicate, with automatic flag repair off, should render that same baseline grey. The positive retains every accepted usage flag. This arrangement makes the G2 changed-pixel negative meaningful without changing either shipped material. The pose, light and exposure are runtime bench settings and are fixed before any texture measurement.
