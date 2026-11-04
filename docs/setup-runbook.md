@@ -938,3 +938,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-44e is closed after GJ3 calibration failure. Preserve all 195 previews and the calibration-result table. No freeze.json or scored output exists. The default launcher is disabled and its build-only manifest is rebound to the authorized rebuild. A later job must first resolve the non-overlapping target exposure intervals; do not lower the 3 GiB launch reserve or the pixel thresholds.
+
+
+094-44f re-reads the accepted09444e raw sweep without modifying it, freezes the brightest common passing exposure, and requires fresh GK2 previews before each armed C5. No launch after07:40UTC; closure before08:05UTC. Keep3GiB D: reserve and use authorized E: evidence.

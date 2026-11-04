@@ -170,3 +170,6 @@ Do not infer texture qualification from source parity. Both target builds and G1
 
 
 094-44e stops at pre-fire calibration: none of 65 common exposures satisfies all target checks. The three host regression legs remain unrun, so the local four-route defaults remain unqualified for push. Accepted outline-fixture results are unchanged.
+
+
+094-44f must qualify the brightest GK2 exposure before three host regression legs. No result is inferred from the changed pre-fire criteria; the whole-frame G3 bar and timing edges remain unchanged.

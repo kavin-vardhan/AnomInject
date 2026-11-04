@@ -1964,3 +1964,6 @@ Phase B texture source now preserves release d7eee97 apply/revert/installed-stat
 
 
 094-44e qualifies no EA_Core exposure. The new host-only helper is compiled and bound, but its frozen no-fire grid fails before C5. Plugin production Source/Shaders and anomaly behavior remain unchanged; there is no new regression qualification.
+
+
+094-44f changes only the GK2 calibration reader and job tooling. The accepted host helper and native plugin implementation are unchanged. C5 self-checks are separated from three no-fire preview self-checks without removing startup floor, seed or CVar evidence.
