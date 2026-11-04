@@ -1,6 +1,5 @@
 #pragma once
 #include "Compat/AnomalyEngineVersion.h"
-#if ANOMALY_ENGINE_51
 
 #include "CoreMinimal.h"
 #include "IAnomaly.h"
@@ -55,5 +54,3 @@ private:
 	void ExecuteSetNearClip(UWorld* World, float Value) const;
 	bool IsPlayerWithinTriggerRadius() const;
 };
-
-#endif

@@ -104,6 +104,7 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     Auto->SetAllAnomaliesEnabled(false);
     for (const FString& Id : CaptureRoutes425) { if (!Auto->SetAnomalyEnabled(FName(*Id),true)) { Failure = TEXT("Auto pool admission failed"); } }
     Auto->SetSeed(CaptureSeed425); Auto->SetIntervalRange(0.8f,0.8f); Auto->SetHoldRange(0.4f,0.4f); Auto->SetMaxConcurrent(1); Auto->SetPersist(false); Auto->SetEnabled(true);
+    if (!SessionGlobals.Start(World,CaptureRoutes425,Directory)) { Failure=TEXT("Session global apply failed"); }
     FApp::SetFixedDeltaTime(1.0/30.0); FApp::SetUseFixedTimeStep(true); CapturePace425 = 1;
     PrepareHandle = FWorldDelegates::OnWorldPreActorTick.AddRaw(this,&FAnomalyCaptureLabels425::Prepare);
     return !Failed();
@@ -116,6 +117,7 @@ void FAnomalyCaptureLabels425::Prepare(UWorld* World,ELevelTick TickType,float D
     Prepared = Next;
     if (CaptureGeometry425) { return; }
     if (Street) { Street->Prepare(Next); }
+    SessionGlobals.Prepare(Next);
     UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
     if (!Auto) { Failure = TEXT("Auto injector missing"); return; }
     if (Street)
@@ -156,7 +158,8 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
     if (Street) { Row->SetObjectField(TEXT("sweep"),Street->Describe(int32(Request-1))); Row->SetObjectField(TEXT("custom_depth"),Street->DepthSample()); }
     TSet<FString> Live;
     TArray<TSharedPtr<FJsonValue>> States,Anomalies;
-    for (const auto& Fire : Auto->GetLiveFires())
+    auto Fires=Auto->GetLiveFires(); SessionGlobals.Append(Row,Fires);
+    for (const auto& Fire : Fires)
     {
         const FString Key = FireKey425(Fire); Live.Add(Key);
         const TArray<uint8> Tags = MaskOwner->TagsFor(Fire);
@@ -166,6 +169,7 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
         State->SetStringField(TEXT("id"),Fire.Id.ToString()); State->SetStringField(TEXT("event_id"),Key);
         State->SetStringField(TEXT("target_name"),Fire.Target); State->SetNumberField(TEXT("start_frame"),double(Fire.StartFrame));
         State->SetNumberField(TEXT("seconds_remaining"),Fire.SecondsRemaining);
+        State->SetBoolField(TEXT("whole_frame"),Fire.bWholeFrameExtent);
         State->SetBoolField(TEXT("fire_active"),true); State->SetBoolField(TEXT("injected"),Labelled); State->SetBoolField(TEXT("labelled"),Labelled);
         TArray<TSharedPtr<FJsonValue>> ReceiverNames;
         for (const auto& A:MaskOwner->Receivers(Fire)) { ReceiverNames.Add(MakeShared<FJsonValueString>(GetNameSafe(A.Get()))); }
@@ -182,6 +186,9 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
         { return AnomalyViewport::ProjectBoxToScreenRect(V,B,A,Z); },Min,Max);
         const double Coverage=FMath::Max(0.0,double(FMath::Clamp(Max.X,0.0f,1.0f)-FMath::Clamp(Min.X,0.0f,1.0f)))*FMath::Max(0.0,double(FMath::Clamp(Max.Y,0.0f,1.0f)-FMath::Clamp(Min.Y,0.0f,1.0f)));
         State->SetNumberField(TEXT("projected_screen_share"),Coverage);
+        bool Unconfirmed=false;
+        if (Fire.Id==FName(TEXT("camera_clipping")) && Row->TryGetBoolField(TEXT("camera_clipping.unconfirmed"),Unconfirmed) && Unconfirmed)
+        { auto& T=Transitions.FindOrAdd(Key+TEXT("|")+Fire.Target); T.Frames.Add(int32(Request-1)); ++T.Reasons.FindOrAdd(TEXT("camera_clipping_unconfirmed")); }
         States.Add(MakeShared<FJsonValueObject>(State));
         if (Labelled) { Anomalies.Add(MakeShared<FJsonValueObject>(State)); }
         if (!Events.Contains(Key))
@@ -242,12 +249,13 @@ bool FAnomalyCaptureLabels425::Observe(const FAnomalyCapturedFrame& Frame)
     {
         auto State=Value->AsObject(); uint32 Pixels=0,Drawn=0;
         for (const auto& Tag:State->GetArrayField(TEXT("target_tags"))) { Pixels+=Counts[int32(Tag->AsNumber())]; Drawn+=Frame.MaskTable425[int32(Tag->AsNumber())*6+5]; }
-        const bool Injected=State->GetBoolField(TEXT("injected")),Visible=Injected && Pixels>0;
+        const bool Whole=State->GetBoolField(TEXT("whole_frame"));
+        const bool Injected=State->GetBoolField(TEXT("injected")),Visible=Injected && (Whole || Pixels>0);
         State->SetBoolField(TEXT("labelled"),Visible); State->SetBoolField(TEXT("affected"),Visible); State->SetNumberField(TEXT("mask_pixels"),Pixels); State->SetNumberField(TEXT("drawn_pixels"),Drawn);
         if (Drawn) { AnnotationEvents[State->GetStringField(TEXT("event_id"))].BboxSource=TEXT("drawn"); }
         auto& E=AnnotationEvents[State->GetStringField(TEXT("event_id"))];
         if (Injected) { E.InjectedFrameIndices.Add(int32(Frame.RequestId-1)); }
-        if (Visible) { CoverageSum.FindOrAdd(State->GetStringField(TEXT("event_id")))+=State->GetNumberField(TEXT("projected_screen_share")); ++CoverageCount.FindOrAdd(State->GetStringField(TEXT("event_id"))); E.FrameIndices.Add(int32(Frame.RequestId-1)); ++E.ObservableFrameCount; E.bMaskProvided=true; Affected.Add(Value); }
+        if (Visible) { CoverageSum.FindOrAdd(State->GetStringField(TEXT("event_id")))+=State->GetNumberField(TEXT("projected_screen_share")); ++CoverageCount.FindOrAdd(State->GetStringField(TEXT("event_id"))); E.FrameIndices.Add(int32(Frame.RequestId-1)); ++E.ObservableFrameCount; E.bMaskProvided=!Whole; Affected.Add(Value); }
     }
     Row->SetArrayField(TEXT("anomalies"),Affected); Row->SetBoolField(TEXT("anomaly_present"),Affected.Num()!=0);
     Row->SetBoolField(TEXT("mask_nonempty"),Counts[0]!=uint32(Frame.Width*Frame.Height));
@@ -316,6 +324,8 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
             Auto->SetMaxConcurrent(SavedMax); Auto->SetPersist(SavedPersist); Auto->SetEnabled(SavedEnabled);
         }
     }
+    if (!SessionGlobals.Stop()) { Failure=TEXT("Session global restoration failed"); }
+    FFileHelper::SaveStringToFile(Json425(SessionGlobals.Summary()),*(Output/TEXT("run_summary.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     TArray<TSharedPtr<FJsonValue>> Owners;
     if (MaskOwner)
     {
@@ -340,6 +350,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
     for (const auto& Event : SortedEvents) { EventRows.Add(MakeShared<FJsonValueObject>(Event)); }
     AnomalyAnnotation425::FSessionAnnotation Annotation; Annotation.SessionId=FPaths::GetCleanFilename(Output);
     Annotation.Video.FramesDir=TEXT("."); Annotation.Video.ResolutionW=Size.X; Annotation.Video.ResolutionH=Size.Y;
+    Annotation.Transitions=Transitions;
     Annotation.Video.TotalFrames=Written; Annotation.Video.Fps=30; Annotation.Video.TargetFps=30;
     for (const auto& Event:SortedEvents)
     {

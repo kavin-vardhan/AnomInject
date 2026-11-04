@@ -3,7 +3,7 @@
 bool AnomalyCompat::SupportsAnomaly(FName Id)
 {
 #if ANOMALY_ENGINE_425
-	return Id == FName(TEXT("missing_object")) || Id == FName(TEXT("blinking")) || Id == FName(TEXT("lighting_mismatch")) || Id == FName(TEXT("lod_corruption")) || Id == FName(TEXT("missing_texture")) || Id == FName(TEXT("corrupted_texture"));
+	return Id == FName(TEXT("missing_object")) || Id == FName(TEXT("blinking")) || Id == FName(TEXT("lighting_mismatch")) || Id == FName(TEXT("lod_corruption")) || Id == FName(TEXT("missing_texture")) || Id == FName(TEXT("corrupted_texture")) || Id == FName(TEXT("camera_clipping"));
 #else
 	return true;
 #endif

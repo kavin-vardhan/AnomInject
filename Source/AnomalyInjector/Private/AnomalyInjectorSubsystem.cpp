@@ -43,9 +43,7 @@
 #if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_LodPopping.h"
 #endif
-#if ANOMALY_ENGINE_51
 #include "Anomalies/Anomaly_CameraClipping.h"
-#endif
 #include "Anomalies/Anomaly_MissingTexture.h"
 #include "Anomalies/Anomaly_CorruptedTexture.h"
 #if ANOMALY_ENGINE_51
@@ -285,9 +283,7 @@ void UAnomalyInjectorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_LodPopping>());
 #endif
-#if ANOMALY_ENGINE_51
 	Register(MakeUnique<FAnomaly_CameraClipping>());
-#endif
 	Register(MakeUnique<FAnomaly_MissingTexture>());
 	Register(MakeUnique<FAnomaly_CorruptedTexture>());
 #if ANOMALY_ENGINE_51
@@ -1223,7 +1219,6 @@ FString UAnomalyInjectorSubsystem::GetAnomalyLastRefusalReason(const FName& Id) 
 bool UAnomalyInjectorSubsystem::GetCameraClippingFrameEvaluation(FAnomalyNearClipSlabResult& OutSlab,
 	bool& bOutSphereProxy) const
 {
-#if ANOMALY_ENGINE_51
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(FName(TEXT("camera_clipping")));
 	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
 	{
@@ -1231,11 +1226,6 @@ bool UAnomalyInjectorSubsystem::GetCameraClippingFrameEvaluation(FAnomalyNearCli
 	}
 	return static_cast<const FAnomaly_CameraClipping*>(Found->Get())->GetFrameEvaluation(OutSlab, bOutSphereProxy);
 
-#else
-	OutSlab = FAnomalyNearClipSlabResult();
-	bOutSphereProxy = false;
-	return false;
-#endif
 }
 
 bool UAnomalyInjectorSubsystem::IsAnomalyCurrentlyAnomalous(const FName& Id) const

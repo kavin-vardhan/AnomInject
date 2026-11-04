@@ -331,6 +331,7 @@ bool FAnomalyMasks425::Restore()
 bool FAnomalyMasks425::Labelled(UWorld* World,const FAutoLiveFireInfo& Fire)
 {
     UAnomalyInjectorSubsystem* Injector=World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+    if (Fire.bWholeFrameExtent) { return Injector && Injector->IsAnomalyCurrentlyAnomalous(Fire.Id); }
     if (!Injector || !Fire.TargetActor.IsValid()) { return false; }
     const bool Installed=AnomalyInstall::IsInstalledByte(Injector->GetAnomalyVisualConditionState(Fire.Id));
     AnomalyActiveSource::ESource Source;

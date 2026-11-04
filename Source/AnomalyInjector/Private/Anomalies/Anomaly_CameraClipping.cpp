@@ -1,7 +1,7 @@
 #include "Anomalies/Anomaly_CameraClipping.h"
 #include "Compat/AnomalyEngineVersion.h"
-#if ANOMALY_ENGINE_51
 #include "Camera/CameraTypes.h"
+#include "Compat/AnomalyEngineCompat.h"
 
 #include "AnomalyArgs.h"
 #include "AnomalyDefaults.h"
@@ -156,7 +156,7 @@ const FAnomalyNearClipSlabResult& FAnomaly_CameraClipping::EvaluateNow() const
 		{
 			if (PC->PlayerCameraManager)
 			{
-				const FMinimalViewInfo& Pov = PC->PlayerCameraManager->GetCameraCacheView();
+				const FMinimalViewInfo& Pov = AnomalyCompat::CameraCachePOV(PC->PlayerCameraManager);
 				Location = Pov.Location;
 				Rotation = Pov.Rotation;
 				Fov = Pov.FOV;
@@ -242,5 +242,3 @@ void FAnomaly_CameraClipping::Revert()
 	bActive = false;
 	bCacheValid = false;
 }
-
-#endif

@@ -10603,3 +10603,8 @@ Compare both pre-fire frames and both reverted frames with the saved frame immed
 ### G549 - Qualify material swaps against a distinct base in the actual game session
 
 A bench-only blue base plus shadowless fills removes the invisible checker half and black floor shadows without changing either anomaly. The full eligible set is qualified before C5 and each scored session independently rechecks the view and all swaps. At -1.875EV all three09445r legs reach strict IoU1.000 with no spill; no explained-pixel fallback is needed. No host asset or config is saved.
+
+
+### G550 - Hold camera clipping across the session and evaluate after the camera
+
+The opt-in camera_clipping route is a session global, excluded from auto selection. Its positive frames come from the release slab predicate after camera evaluation, with whole-frame extent and no target mask. The4.25 capture adapter copies the release diagnostics/counters, and Stop restores the saved near plane. The baseline-near control uses the same held-session/pose path.

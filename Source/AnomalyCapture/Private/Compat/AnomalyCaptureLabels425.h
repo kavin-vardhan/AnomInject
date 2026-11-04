@@ -8,6 +8,7 @@
 #include "AnomalyMasks425.h"
 #include "AnomalyStreetBench425.h"
 #include "AnomalyAnnotation425.h"
+#include "AnomalyCameraSession425.h"
 
 class FAnomalyCaptureLabels425
 {
@@ -23,6 +24,8 @@ public:
     bool Failed() const { return !Failure.IsEmpty(); }
 private:
     void Prepare(UWorld* World, ELevelTick TickType, float Delta);
+    FAnomalyCameraSession425 SessionGlobals;
+    TMap<FString,AnomalyAnnotation425::FSessionTransition> Transitions;
     TUniquePtr<FAnomalyMasks425> MaskOwner;
     TUniquePtr<FAnomalyStreetBench425> Street;
     TMap<FString,AnomalyAnnotation425::FSessionEvent> AnnotationEvents;
