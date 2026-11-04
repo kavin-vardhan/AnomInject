@@ -1,0 +1,281 @@
+{
+  "result": "PASS",
+  "coverage": {
+    "result": "PASS",
+    "rule": "GD4: lighting owner-group mismatches are reported separately; all other pairing failures remain gated. Pair the same capture index only when sweep, player view and injected anomaly/target state agree. Compare per-actor private ID silhouette with the separate legacy label-path silhouette; shared IDs are reported as groups. An unpaired state is reported and never replaced by a pixel-selected reference. Require nonempty opaque, masked, WPO and blink-hidden coverage. IoU floor 0.98; empty vs empty is recorded separately. P4 uses the kept magenta classifier R>220,G<40,B>220 and max RGB change>32 on every paired saved frame.",
+    "reference": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\reference\\01\\plugin-frames\\epoch01",
+    "private": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\private-off\\01\\plugin-frames\\epoch01",
+    "frames": [
+      2352,
+      2352
+    ],
+    "objects": {
+      "DefaultPawn_0": {
+        "frames": 1896,
+        "nonempty": 0,
+        "iou": {
+          "count": 0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "EA_Instanced": {
+        "frames": 1896,
+        "nonempty": 1896,
+        "iou": {
+          "count": 1896,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "EA_Skeletal": {
+        "frames": 1896,
+        "nonempty": 1896,
+        "iou": {
+          "count": 1896,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Floor": {
+        "frames": 1896,
+        "nonempty": 1896,
+        "iou": {
+          "count": 1896,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Hide": {
+        "frames": 1896,
+        "nonempty": 1896,
+        "iou": {
+          "count": 1896,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_LOD_A": {
+        "frames": 1896,
+        "nonempty": 1896,
+        "iou": {
+          "count": 1896,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_LOD_B": {
+        "frames": 1896,
+        "nonempty": 1896,
+        "iou": {
+          "count": 1896,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_Masked": {
+        "frames": 1896,
+        "nonempty": 168,
+        "iou": {
+          "count": 168,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      },
+      "OF_WPO": {
+        "frames": 1896,
+        "nonempty": 1658,
+        "iou": {
+          "count": 1658,
+          "min": 1.0,
+          "mean": 1.0,
+          "p95": 1.0,
+          "max": 1.0
+        },
+        "different_pixels": {
+          "count": 1896,
+          "min": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "pass_all": true
+      }
+    },
+    "hidden_frames": 222,
+    "hidden_empty": 0,
+    "unpaired": [],
+    "lighting_group_notes": [],
+    "gated_unpaired": []
+  },
+  "leak": {
+    "result": "PASS",
+    "rule": "GD4: lighting owner-group mismatches are reported separately; all other pairing failures remain gated. Pair the same capture index only when sweep, player view and injected anomaly/target state agree. Compare per-actor private ID silhouette with the separate legacy label-path silhouette; shared IDs are reported as groups. An unpaired state is reported and never replaced by a pixel-selected reference. Require nonempty opaque, masked, WPO and blink-hidden coverage. IoU floor 0.98; empty vs empty is recorded separately. P4 uses the kept magenta classifier R>220,G<40,B>220 and max RGB change>32 on every paired saved frame.",
+    "frames": 2352,
+    "unpaired": [],
+    "new_magenta": {
+      "count": 2352,
+      "min": 0.0,
+      "mean": 0.0,
+      "p95": 0.0,
+      "max": 0.0
+    },
+    "example": {
+      "index": 746,
+      "on": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\private-on\\01\\plugin-frames\\epoch01\\frame-000746.png",
+      "off": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\private-off\\01\\plugin-frames\\epoch01\\frame-000746.png"
+    }
+  },
+  "state": [
+    {
+      "root": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\private-off\\01\\plugin-frames\\epoch01",
+      "frames": 2352,
+      "max_on": 0,
+      "max_tagged": 0,
+      "max_unexpected": 0,
+      "states_equal": true,
+      "custom_depth_mode_reads": [
+        1,
+        1,
+        1
+      ],
+      "result": "PASS"
+    },
+    {
+      "root": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\private-on\\01\\plugin-frames\\epoch01",
+      "frames": 2352,
+      "max_on": 0,
+      "max_tagged": 0,
+      "max_unexpected": 0,
+      "states_equal": true,
+      "custom_depth_mode_reads": [
+        1,
+        1,
+        1
+      ],
+      "result": "PASS"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\P3-coverage.json",
+      "size": 3891383,
+      "sha256": "f246a697a80d2f39cde944ab0a3b90f2e813fff60a2a75109dcf7e9c60d23ac6"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\P4-leak.json",
+      "size": 321869,
+      "sha256": "f96555bb31c9e870caefe9a5f75dcd0fdf23a98f395456236b6a2d4abe2627d4"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\P5-cost-private-off.json",
+      "size": 12822,
+      "sha256": "9d779d460042ee128a5e1e865f590b88dc5d15f5cdd48e74d6cf7573abee4eba"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\P5-cost-private-on.json",
+      "size": 12821,
+      "sha256": "2d61f0b4d10173cd8f3f039f7f474db466d60662ff70d237dd7fc8cea34056d3"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\gf4-frozen.json",
+      "size": 841,
+      "sha256": "ab8bfb4a6c6b173ac55d60b2f642c24a4712660f6acc53a74c014e2aaea65903"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\reader-tests.json",
+      "size": 790,
+      "sha256": "646a3a1f646c27593ed2d69b3ae259179bd65b0d097e0a6c6b3957ded7fcae9f"
+    }
+  ],
+  "launches": [
+    {
+      "leg": "reference",
+      "result": "PASS"
+    },
+    {
+      "leg": "private-off",
+      "result": "PASS"
+    },
+    {
+      "leg": "private-on",
+      "result": "PASS"
+    }
+  ]
+}

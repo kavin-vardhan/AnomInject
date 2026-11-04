@@ -154,3 +154,5 @@ C3 remains NEEDS-DECISION: blinking drawn/hidden and missing_object pass; lighti
 094-44r resumes the Phase B port after GG1 material acceptance. FE3b records short-lived children before the normal monitor classifies them. Native loader compilation and live skeletal/instanced GF4 remain required before the texture ports.
 
 The accepted 4.25 materials now have compiled finders. GF4 on the live skeletal and instanced targets is the remaining admission step before texture anomaly work.
+
+The live skeletal and ISM coverage prerequisite passes. Texture anomalies remain disabled until the following Phase B implementation and gates.

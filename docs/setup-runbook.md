@@ -922,3 +922,5 @@ Readers and raw evidence are under Receipts/09433b/c3-attempts/C3/{01,02}. captu
 094-44r: run tools/europa/runtime_creation_tests.py with a fresh receipt directory before qualifying the child watcher. GG2 permits one rerun only for an unreadable short-lived child and unchanged binaries; a product-gate failure is not retry authority. Material readback is accepted under GG1; do not repeat that launch.
 
 094-44r archives and source-bound manifests are recorded in docs/europa/09444r-loader-target-receipts.json. The fixture author command saves only its declared map and M_LiveSurface. Confirm an added host CPP appears in executed build actions before launching it.
+
+GF4 raw evidence and its frozen reader are recorded in docs/europa/09444r-gf4-receipts.json. Reference, private-off and private-on use the same seed and view; frame 746 is the paired outline example.

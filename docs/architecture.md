@@ -1948,3 +1948,5 @@ The bench capture driver seeds/starts the injector once after its pre-pass and s
 094-44r: the launch kit retains child creation identities and command lines with a 10 ms owned-tree watcher. FE3 continues to refuse build modes and unreadable UBT commands. The watch uses ordinary process handles, with no elevation or machine changes.
 
 The 4.25-only material finders are compiled on both targets. The separate outline fixture now contains live skeletal and instanced targets; GF4 qualification is pending, so the three Phase B anomalies remain disabled.
+
+GF4 now qualifies the private pass live on one SkeletalCube actor and a three-instance static mesh actor: IoU 1.000 against legacy coverage and zero new outline pixels.
