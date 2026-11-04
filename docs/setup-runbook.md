@@ -932,3 +932,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-44d stopped after the D3D11 G3 failure; do not treat its host kit as qualified. The default launcher was restored. Keep the0.98 whole-frame bar and request a ruling on the host bench presentation before another regression. Frozen outline-fixture G4/G5 evidence remains accepted.
+
+
+094-44e uses h4_kit09444e.py only. Its calibration has no injector fires; each real leg repeats the three frozen pre-fire previews and waits for the pixel reader approval before C5. The launch reserve is3GiB on D:, with frame evidence on E:/IA_BuildCache/09444e-evidence. No starts after07:40UTC; owned closure before08:05UTC.

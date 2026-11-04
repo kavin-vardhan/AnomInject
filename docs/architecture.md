@@ -1958,3 +1958,6 @@ Phase B texture source now preserves release d7eee97 apply/revert/installed-stat
 
 
 094-44d status: fixture texture G4/G5 are qualified. The first EA_Core D3D11 regression fails whole-frame texture G3 under its current saturated rendering; the D3D12 legs are unrun. No native implementation changed. The four-route default remains local pending the complete host gates.
+
+
+094-44e adds a host-only runtime exposure/calibration probe, excluded from Shipping and refused outside IAIBench/EA_Core. The plugin anomaly and private capture implementation is unchanged.

@@ -164,3 +164,6 @@ Do not infer texture qualification from source parity. Both target builds and G1
 
 
 094-44d ends NEEDS-DECISION: both textures pass the fixed outline fixture, including the paired leak and direct state proof, but the host regression fails G3. No D3D12 result or push is claimed. Camera clipping remains the separate094-45 scope.
+
+
+094-44e retains the whole-frame texture IoU bar0.98 and the four local defaults; their push is conditional on all three host regression legs. Camera clipping remains future094-45.
