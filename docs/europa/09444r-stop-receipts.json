@@ -1,0 +1,322 @@
+{
+  "result": "NEEDS-DECISION",
+  "stopped_at": "094-44 step5 G3 and absent static texture targets",
+  "failure": {
+    "result": "NEEDS-DECISION",
+    "stop": "094-44 step5 G3 IoU below0.98; static target coverage absent",
+    "rule_unchanged": true,
+    "further_engine_launches": false,
+    "per_anomaly": {
+      "missing_texture": {
+        "counts": {
+          "events": 20,
+          "skeletal_events": 20,
+          "static_events": 0,
+          "iou": {
+            "count": 260,
+            "min": 0.2636153134214356,
+            "mean": 0.2638344512998418,
+            "p95": 0.26450991493592574,
+            "max": 0.26468170072821234
+          }
+        },
+        "changed_target_pixels": {
+          "count": 260,
+          "min": 76619.0,
+          "mean": 76619.0,
+          "p95": 76619.0,
+          "max": 76619.0
+        },
+        "changed_outside_mask": {
+          "count": 260,
+          "min": 212857.0,
+          "mean": 213786.8076923077,
+          "p95": 214001.0,
+          "max": 214028.0
+        },
+        "changed_total": {
+          "count": 260,
+          "min": 289476.0,
+          "mean": 290405.8076923077,
+          "p95": 290620.0,
+          "max": 290647.0
+        },
+        "example": {
+          "image": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\plugin-frames\\epoch01\\frame-000767.png",
+          "mask": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\plugin-frames\\epoch01\\mask-000767.png",
+          "reference": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\plugin-frames\\epoch01\\frame-000766.png"
+        },
+        "example_census": [
+          {
+            "actor": "OF_LOD_A",
+            "pixels": 257327,
+            "pct": 27.921766493055557,
+            "above_census_ceiling": true
+          },
+          {
+            "actor": "EA_Skeletal",
+            "pixels": 76619,
+            "pct": 8.31369357638889,
+            "above_census_ceiling": false
+          },
+          {
+            "actor": "DefaultPawn_0",
+            "pixels": 0,
+            "pct": 0.0,
+            "above_census_ceiling": false
+          }
+        ]
+      },
+      "corrupted_texture": {
+        "counts": {
+          "events": 19,
+          "skeletal_events": 19,
+          "static_events": 0,
+          "iou": {
+            "count": 247,
+            "min": 0.24713255405893586,
+            "mean": 0.24731035079596161,
+            "p95": 0.24792904386543962,
+            "max": 0.24799003107198342
+          }
+        },
+        "changed_target_pixels": {
+          "count": 247,
+          "min": 76619.0,
+          "mean": 76619.0,
+          "p95": 76619.0,
+          "max": 76619.0
+        },
+        "changed_outside_mask": {
+          "count": 247,
+          "min": 232341.0,
+          "mean": 233190.2995951417,
+          "p95": 233406.0,
+          "max": 233413.0
+        },
+        "changed_total": {
+          "count": 247,
+          "min": 308960.0,
+          "mean": 309809.2995951417,
+          "p95": 310025.0,
+          "max": 310032.0
+        },
+        "example": {
+          "image": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\plugin-frames\\epoch01\\frame-000719.png",
+          "mask": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\plugin-frames\\epoch01\\mask-000719.png",
+          "reference": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\plugin-frames\\epoch01\\frame-000718.png"
+        },
+        "example_census": [
+          {
+            "actor": "OF_LOD_A",
+            "pixels": 257327,
+            "pct": 27.921766493055557,
+            "above_census_ceiling": true
+          },
+          {
+            "actor": "EA_Skeletal",
+            "pixels": 76619,
+            "pct": 8.31369357638889,
+            "above_census_ceiling": false
+          },
+          {
+            "actor": "DefaultPawn_0",
+            "pixels": 0,
+            "pct": 0.0,
+            "above_census_ceiling": false
+          }
+        ]
+      }
+    },
+    "clean_edges_failed": 0,
+    "residuals": 39,
+    "residual_result": "PASS",
+    "note": "Saved examples show a broad glow outside the target silhouette. Every target-mask pixel changes, but the frozen whole colour-change silhouette includes the surrounding glow. No post-result exposure, light, bloom, camera, threshold or reference adjustment was made. The static object is above the existing census ceiling in both examples."
+  },
+  "events": {
+    "blinking": 12,
+    "lod_corruption": 0,
+    "missing_texture": 20,
+    "corrupted_texture": 19
+  },
+  "masks": {
+    "blinking": {
+      "affected_frames": 72,
+      "mask_frames": 72
+    },
+    "lod_corruption": {
+      "affected_frames": 0,
+      "mask_frames": 0
+    },
+    "missing_texture": {
+      "affected_frames": 260,
+      "mask_frames": 260
+    },
+    "corrupted_texture": {
+      "affected_frames": 247,
+      "mask_frames": 247
+    }
+  },
+  "state": {
+    "result": "PASS",
+    "frames": 2352,
+    "max_on": 0,
+    "max_tagged": 0,
+    "max_unexpected": 0,
+    "states_equal": true,
+    "custom_depth_mode_reads": [
+      1,
+      1,
+      1
+    ]
+  },
+  "assets": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\EA_Outline.umap",
+      "size": 29224,
+      "sha256": "e12299bb5e48fec45d2769947681b7cd8c0c2b12edeec149d7a4f5e650410983"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_LiveSurface.uasset",
+      "size": 85122,
+      "sha256": "1eee29fe253be405a0d825cf435b5472a3ff857a01dc3b854196f613db6a96ca"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Masked.uasset",
+      "size": 84545,
+      "sha256": "bee36524b3ba3e05247ddfa2b386d2d5c2f401a19e84dd719957ee9e408bac49"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_MissingTexture_NoSkeletal.uasset",
+      "size": 81639,
+      "sha256": "0e5172773c260935646128a3b82c6324030474d9efeba980c9c900e637b93466"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Outline.uasset",
+      "size": 79753,
+      "sha256": "1b8ec07966eb57ace076c5c213b7507d648a6f8a8af3712c811e69f61a417e7b"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Surface.uasset",
+      "size": 84985,
+      "sha256": "ab457d9d562886663d7dcfacd735e07975fe4a241c05017197df4a2d4298f7e5"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_WPO.uasset",
+      "size": 82340,
+      "sha256": "40395df2e0aaf388b3e404ff569b375e3d79ba391122925abd783daa296e5de2"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\SM_OutlineCubeSphere.uasset",
+      "size": 150240,
+      "sha256": "c7482e0d9ea8423766aa3cbdf634a69dbbc2f44b7402bf941fa031e6f6a44f99"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\SM_OutlineSphereCube.uasset",
+      "size": 150869,
+      "sha256": "0aa066da99d88f5fb030bace5efa65ce6fb53f9f98eb518859b07118126f535c"
+    }
+  ],
+  "scripts": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Scripts\\author_targets09444.py",
+      "sha256": "95e13f8a2fdd945c201dfe7345b1318fdaee9d3b80664eb8c34a425a9ea573f2"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Scripts\\author_texture_mutant09444.py",
+      "sha256": "4b4ca9eb06e2d03a3f24d534edb789c82ffc2e1ef94de5327d1997a43f1be34c"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425\\Outline425TextureBench09444.cpp",
+      "sha256": "db3331f1680c2928e02dc29b292d120300f159d16da99ec400453637d6544537"
+    }
+  ],
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09444r\\texture-failure-analysis.json",
+      "sha256": "e4ed5f5c975250ce6019d2906a4a116ac7621e3f1838609e94801e2ed2a97193"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09444r\\texture-state.json",
+      "sha256": "7d09fbc32996f542202e6b35b6a1bc8d3d37bcd8e911e37a142014ceca8f27d8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09444r\\exe-dll-inventory.json",
+      "sha256": "658bd07d0ace041e1f2ea1342193cbb8dab77baae79a76667a00a5270e2fd8a8"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\texture-metrics.json",
+      "sha256": "c2bcb648917ec001b672430d9c84bc51edecea7ad653eeccd70d8873a065205d"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\raw-evidence.json",
+      "sha256": "fe069cd33f4f2799ecd8b08b92fc94dadf385e7d042c04b54018096b2567eb5d"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\texture-off\\01\\result.json",
+      "sha256": "df8d6361e8a1e0332fa0345cf5d49af41a3ce58ed7d6f2e3b7cfc5b31ed5b6e1"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\textures\\mutant-author\\01\\author.json",
+      "sha256": "8e7985d51b63627e764c94501fe65ba35bc4949e9d6c9173dc10d7b5face58cf"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-predictions.json",
+      "sha256": "3753f896c1df0f88089469d8d21683d13f7fb34e3552723817d75844675e2c9b"
+    }
+  ],
+  "not_run": [
+    "texture outline-on pair",
+    "real missing-usage negative",
+    "real one-frame-early negative",
+    "EA_Core texture regressions",
+    "camera_clipping port and gates"
+  ],
+  "default_routes": [
+    "blinking",
+    "lod_corruption",
+    "missing_texture",
+    "corrupted_texture"
+  ],
+  "runtime_settings": {
+    "common": {
+      "r.PostProcessAAQuality": 0,
+      "r.ScreenPercentage": 100,
+      "r.DynamicRes.OperationMode": 0,
+      "r.MotionBlurQuality": 0,
+      "r.EyeAdaptationQuality": 0,
+      "t.MaxFPS": 30
+    },
+    "textures": {
+      "r.ExposureOffset": -2,
+      "seed": 4242,
+      "outline_blendable": 0,
+      "selection_floor_pct": 6,
+      "census_floor_pct": 0.5,
+      "census_ceiling_pct": 25
+    },
+    "gf4": "IAIBench, IAICaptureFallback, seed4242 and explicit four smoke routes. Only the separate legacy reference used IAICaptureLegacyReference and the bench guard bypass. Private outline-off/on paired runs used the private pass.",
+    "restoration": "Runtime pose, material baseline, light, exposure, AA, timing and blendable settings discarded at normal process exit; no saved settings changed. Custom-depth state read back equal and r.CustomDepth remained1. Thirty-nine texture reverts reported residual0."
+  },
+  "scope_deviations": [
+    "No gate or threshold changed after measurement. Later steps stopped as expressly required. Fixture Editor attempt1 omitted the new host helper from its cached action graph; the target makefile was refreshed by receipt and attempt2 compiled it."
+  ],
+  "exit": {
+    "result": "PASS",
+    "manifest_files": 27,
+    "refs_count": 76,
+    "runtime_crashes": 0,
+    "upload_signs": 0,
+    "protected_changes": 0,
+    "binary_archive_rehash": "PASS",
+    "free_GiB": {
+      "C:": 25.354816436767578,
+      "D:": 55.812103271484375,
+      "E:": 89.1253433227539
+    }
+  },
+  "exit_receipt": {
+    "path": "D:\\IA_Europa\\Receipts\\09444r\\exit-before-commit.json",
+    "sha256": "98c58b9ad6192bede06e2ff75d1fbc3b6cbe174583ec5d20bbe5d97efb64a0ed"
+  }
+}

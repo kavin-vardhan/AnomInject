@@ -10521,3 +10521,7 @@ The first094-44r fixture Editor build succeeded but its cached action graph did 
 ### G532. A material-usage negative needs a visible fallback oracle
 
 For094-44r, the separate fixture texture bench uses the engine default surface as its clean skeletal baseline. Removing only the skeletal usage flag from a separate checker duplicate, with automatic flag repair off, should render that same baseline grey. The positive retains every accepted usage flag. This arrangement makes the G2 changed-pixel negative meaningful without changing either shipped material. The pose, light and exposure are runtime bench settings and are fixed before any texture measurement.
+
+### G533. The Phase B fixture texture arrangement failed its frozen silhouette gate
+
+094-44r step 5 fixed its runtime pose, light and exposure before measurement. All 76,619 skeletal silhouette pixels changed, but the colour-difference region included surrounding glow: 212,857–214,028 extra checker pixels or 232,341–233,413 pink pixels. Frozen whole-change IoU was 0.2636–0.2647/0.2471–0.2480, below 0.98. The static target covered 27.9218%, above the 25% census ceiling, and never fired. These are failing bench results. The request required stopping; no post-result setting, pose or threshold adjustment and no later session was attempted. G532 remains a prediction; its authored missing-usage material has not yet run.
