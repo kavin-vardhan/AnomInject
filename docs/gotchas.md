@@ -10525,3 +10525,12 @@ For094-44r, the separate fixture texture bench uses the engine default surface a
 ### G533. The Phase B fixture texture arrangement failed its frozen silhouette gate
 
 094-44r step 5 fixed its runtime pose, light and exposure before measurement. All 76,619 skeletal silhouette pixels changed, but the colour-difference region included surrounding glow: 212,857–214,028 extra checker pixels or 232,341–233,413 pink pixels. Frozen whole-change IoU was 0.2636–0.2647/0.2471–0.2480, below 0.98. The static target covered 27.9218%, above the 25% census ceiling, and never fired. These are failing bench results. The request required stopping; no post-result setting, pose or threshold adjustment and no later session was attempted. G532 remains a prediction; its authored missing-usage material has not yet run.
+
+
+### G534. Measure fixed exposure before using it to grade a material swap
+
+In4.25, r.EyeAdaptationQuality0 disables the show flag; the no-eye-adaptation path forces exposure compensation1, so r.ExposureOffset changes do not change these fixture pixels. For the094-44c bench, quality2 plus MethodOverride3 and physical-camera exposure off provides a fixed manual exposure. Five no-fire protocols were retained; the final two-cube arrangement qualifies at-2.1875 before any texture event. No product or shipping setting is changed, and whole-frame IoU remains0.98. See09444c-calibration-receipts.json and the session journal for source citations and measurements.
+
+### G535. Editor-only fixture Python needs a settled play-world camera
+
+PythonScriptPlugin is an Editor module; enabling its plugin does not load that module in-game. The094-44c runtime fixture pose therefore runs in PIE. Moving the pawn and reading PlayerCameraManager in the same callback observes the previous POV; wait for a new frame and assert the expected camera before placing objects. BENCHMARK suppresses the editor's automatic launcher child (EditorEngine.cpp:615-624). The incidental pre_ui marker's outer-window control is not qualified by these PIE calibration captures; host H4 remains separate and unchanged.
