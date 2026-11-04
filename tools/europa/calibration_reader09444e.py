@@ -42,8 +42,7 @@ def read(root,prefire=False):
         for center in samples[0]['centers']:
             region=source[center['actor']]
             if (h,w)!=region.shape:region=np.asarray(Image.fromarray(region).resize((w,h),Image.Resampling.NEAREST),dtype=bool)
-            region=erode(region)
-            yy,xx=np.indices(region.shape);front=region & (np.abs(xx-center['x'])<24) & (np.abs(yy-center['y'])<24)
+            yy,xx=np.indices(region.shape);front=erode(region) & (np.abs(xx-center['x'])<24) & (np.abs(yy-center['y'])<24)
             assert region.sum()>100 and front.sum()>100 and center['projected']
             base=baseline[:,region,:].mean(axis=(1,2));p=pink[:,region,:].mean(axis=1)
             group=clusters(checker.mean(axis=0)[front].mean(axis=1));sat=int(np.count_nonzero(baseline[:,region,:].max(axis=2)>=250))
@@ -52,7 +51,7 @@ def read(root,prefire=False):
             objects.append(dict(actor=center['actor'],pixels=int(region.sum()),front_pixels=int(front.sum()),baseline_mean_min=float(base.min()),baseline_mean_max=float(base.max()),saturated_pixels=sat,pink_min=p.min(axis=0).tolist(),pink_max=p.max(axis=0).tolist(),front_pink_min=fp.min(axis=0).tolist(),front_pink_max=fp.max(axis=0).tolist(),checker=group,result='PASS' if good else 'NO_QUALIFICATION'))
         table.append(dict(exposure=samples[0]['exposure'],objects=objects,qualified=all(o['result']=='PASS' for o in objects)))
     chosen=next((r for r in table if r['qualified']),None)
-    result=dict(result='PASS' if chosen else 'FAIL',utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),table=table,reference_index=100,reference=str(REFERENCE),no_fires=True,selection='First common qualifying exposure on frozen descending grid',rule='Baseline whole eroded silhouette means51..204, no channel>=250; checker front patch cluster contrast>=40; pink full region and front patch R/B>=200,G<=80; no grading threshold changed')
+    result=dict(result='PASS' if chosen else 'FAIL',utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),table=table,reference_index=100,reference=str(REFERENCE),no_fires=True,selection='First common qualifying exposure on frozen descending grid',rule='Baseline full silhouette means51..204, no channel>=250; checker front patch cluster contrast>=40; pink full region and front patch R/B>=200,G<=80; no grading threshold changed')
     (root/('prefire-result.json' if prefire else 'calibration-result.json')).write_text(json.dumps(result,indent=2))
     if chosen and not prefire:
         frozen=dict(result='PASS',utc=result['utc'],exposure=chosen['exposure'],objects=chosen['objects'],calibration=str(root),prediction_sha256=hashlib.sha256((J/'calibration-prediction.json').read_bytes()).hexdigest())

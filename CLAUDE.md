@@ -1,3 +1,5 @@
+094-44e: host Editor attempt2 and Game attempt1 build the isolated EA_Core bench helper; one Editor attempt1 C4668 was fixed by including CoreMinimal first. Plugin Source/Shaders/descriptor unchanged; archive hashes pass. No runtime gate has run yet.
+
 094-44e Editor attempt1 found C4668 on the new host helper guard. CoreMinimal now precedes the Shipping guard; no behavior changed. Retry2 pending; no runtime launched.
 
 > **094-44e in progress: GJ3 authorizes EA_Core-only runtime bloom/manual exposure correction. The host probe requires -IAIBench and exact EA_Core; no plugin production change or saved asset/config. A fixed no-fire exposure grid and first-common qualification rule precede any seeded fire. GJ4 restores3GiB D: launch reserve; capture evidence is under authorized E: scratch. All G3 thresholds, defaults and GI7 blackout deadlines are retained. Camera clipping is excluded. No push or tags.**
