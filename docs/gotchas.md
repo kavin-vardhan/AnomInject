@@ -10563,3 +10563,8 @@ A query typed into a PIE window can produce a posted-input receipt without reach
 ### G541 - An empty assertion message can defeat a recorded stop intent
 
 The094-44f preflight raises AssertionError with an empty string. stop_with_intent records it before termination, but classify_exit also requires a nonempty reason and therefore labels this exit as crash. The original result remains crash_count1. In-memory replacement of only that reason with AssertionError yields owned-stop; timestamps/PID/root-running evidence are otherwise identical. This records a kit reporting gap, not a product crash diagnosis or a silent reclassification. No classifier fix or new launch was made after the preflight stop.
+
+
+### G542 - Stop ownership does not depend on a diagnostic string
+
+GL3 removes the nonempty-reason predicate from classify_exit. PID, root-running state and UTC bounds still have to match. Empty assertion messages now retain owned-stop classification; a missing intent, a different PID, or an out-of-window intent still fails ownership. The original09444f raw result remains immutable.

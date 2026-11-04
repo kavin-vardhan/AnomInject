@@ -10,20 +10,20 @@ from runtime_evidence import outcome
 
 
 class ExitTests(unittest.TestCase):
-    def execute_stop(self, running=True, stop_error=False):
+    def execute_stop(self, running=True, stop_error=False, reason='session limit'):
         receipt = dict(started_utc='2026-01-01T00:00:00+00:00', launches=1,
                        pid=123, result='SESSION_STOP', stop_intents=[])
         persisted = []
         def stop():
             self.assertEqual(len(persisted), 1)
             self.assertEqual(persisted[0]['stop_intents'][0]['pid'], 123)
-            self.assertEqual(persisted[0]['stop_intents'][0]['reason'], 'session limit')
+            self.assertEqual(persisted[0]['stop_intents'][0]['reason'], reason)
             if stop_error:
                 raise OSError('synthetic denied stop')
             return [dict(pid=123)]
         try:
             receipt['stopped_owned_processes'] = stop_with_intent(
-                receipt, 123, 'session limit', running,
+                receipt, 123, reason, running,
                 lambda value: persisted.append(copy.deepcopy(value)), stop)
         except OSError:
             pass
@@ -42,6 +42,22 @@ class ExitTests(unittest.TestCase):
         row = self.execute_stop(stop_error=True)
         self.assertNotIn('stopped_owned_processes', row)
         self.assertEqual(classify_exit(row), 'owned-stop')
+
+    def test_empty_reason_is_owned_stop(self):
+        row = self.execute_stop(reason='')
+        self.assertEqual(row['stop_intents'][0]['reason'], '')
+        self.assertEqual(classify_exit(row), 'owned-stop')
+        passed = dict(result='PASS')
+        result = outcome('Load', row, passed, passed, passed)
+        self.assertTrue(result['deliberate_owned_stop'])
+        self.assertFalse(result['crashed'])
+
+    def test_empty_reason_cannot_replace_missing_or_stale_intent(self):
+        row = self.execute_stop(reason='')
+        row['stop_intents'][0]['pid'] = 456
+        self.assertEqual(classify_exit(row), 'crash')
+        row['stop_intents'] = []
+        self.assertEqual(classify_exit(row), 'crash')
 
     def test_genuine_crash_and_cleanup(self):
         row = self.execute_stop(running=False)

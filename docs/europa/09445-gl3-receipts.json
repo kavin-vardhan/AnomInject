@@ -1,0 +1,14 @@
+{
+  "tests": {
+    "result": "PASS",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0
+  },
+  "replay": {
+    "path": "D:\\IA_Europa\\Receipts\\09444f\\H4\\D3D11-1280\\01\\execution.json",
+    "sha256": "062da59efcab0836c12837ad63daeebc0d8a9877b4f34eebab26210e2188c471",
+    "classification": "owned-stop",
+    "original_unchanged": true
+  }
+}

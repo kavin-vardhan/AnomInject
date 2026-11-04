@@ -12,7 +12,7 @@ def stop_with_intent(receipt, pid, reason, root_running, persist, stop):
 def classify_exit(execution):
     code = execution.get('exit_code')
     for intent in execution.get('stop_intents', []):
-        if intent.get('pid') != execution.get('pid') or not intent.get('root_running') or not intent.get('reason'):
+        if intent.get('pid') != execution.get('pid') or not intent.get('root_running'):
             continue
         try:
             began = datetime.datetime.fromisoformat(execution['started_utc'])
