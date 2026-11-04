@@ -1,0 +1,272 @@
+{
+  "result": "PASS",
+  "fixture_builds": [
+    {
+      "commit": "8e59a56e11887248b0cb3333e260177bd627f780",
+      "target": "Outline425Editor",
+      "attempt": 3,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 92.38864580000518,
+      "paris_unchanged": true
+    },
+    {
+      "commit": "8e59a56e11887248b0cb3333e260177bd627f780",
+      "target": "Outline425",
+      "attempt": 2,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 94.01475400000345,
+      "paris_unchanged": true
+    }
+  ],
+  "fixture_files": [
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+      "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-fixture-binary-archive\\Binaries\\Win64\\Outline425.exe",
+      "size": 139384832,
+      "sha256": "be24c159f9e83b2bb739df8f2dffc3fcb049049e8d03c327cbe89304cf82cdec"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+      "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-fixture-binary-archive\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+      "size": 217600,
+      "sha256": "fbf049350b77040b4dc1063350a9ca33f60343621140348b911a3899dbaa49d3"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+      "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+      "size": 124416,
+      "sha256": "0a74f35993eddb1406901e4b240360d67c5239cfc5a80ac0d6bcd38517b25e12"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "size": 1090560,
+      "sha256": "eb9900526b37c559634be99b6b848b77218b34dd97aa296835c31ee45f3a9602"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+      "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+      "size": 126464,
+      "sha256": "b84088b69fe7b66adcd79086941bd8374cbb9beebdc63f959113fb24fdc13b40"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "size": 986624,
+      "sha256": "0ead5c69edabc96a301dc3059cca824696a9736799ab2df10e2446ffdbdd2eb7"
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "size": 125440,
+      "sha256": "9ae9b60976505af41e9cdb547380954610bc10ef687ee71083f2240265f578c4"
+    }
+  ],
+  "host": {
+    "result": "PASS",
+    "source": "8e59a56e11887248b0cb3333e260177bd627f780",
+    "manifest": {
+      "path": "D:\\IA_Europa\\Receipts\\09444r\\texture-manifest.json",
+      "sha256": "45f8ee5052fe0c9930b84588858fa4d5f02a0cc977a982cf93bda3fcb7f59fc4"
+    },
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "size": 67891200,
+        "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "size": 139478016,
+        "sha256": "46d4946a5df34bbd700d09ca009d4c999f4d292f617a209a7c9ba86e2b737eee"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "size": 369152,
+        "sha256": "6037924a08166344146f337b2f0b19ba35a5daf3dc99715db15ef6c332864a89"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "size": 91648,
+        "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "size": 124416,
+        "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "size": 1090560,
+        "sha256": "ea6dcbdaa7849dae68b850b9ca86240973eebce75810a77da5745d7d28f383ce"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "size": 126464,
+        "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "size": 986624,
+        "sha256": "5bb246f0299f2409c62655005663972ee4900f99386b4c5f3b9eeea01cf84701"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\texture-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "size": 125440,
+        "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb"
+      }
+    ],
+    "utc": "2026-11-04T01:33:43.877978+00:00",
+    "builds": [
+      {
+        "target": "StylizedParisStreetEditor",
+        "commit": "8e59a56e11887248b0cb3333e260177bd627f780",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "duration_seconds": 93.79766379999637,
+        "diagnostics": [
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bAdaptiveUnityDisablesOptimizations, bAdaptiveUnityEnablesEditAndContinue, bUndefinedIdentifierErrors, bCheckSystemHeadersForModification, bAllowRuntimeSymbolFiles, UnsafeTypeCastWarningLevel, MaxParallelActions, bForceUnityBuild, bAdaptiveUnityDisablesPCH, bUseShippingPhysXLibraries, bEnableMemorySanitizer, bUseInlining, bDisableDebugInfoForGeneratedCode, bUseDebugLiveCodingConsole, bOmitFramePointers, bSupportEditAndContinue, DMUCSCoordinator, bUseUnityBuild, bCheckLicenseViolations, bAllowDistcc, bForcePrecompiledHeaderForGameModules, bStopXGECompilationAfterErrors, bUseCheckedPhysXLibraries, bUseFastSemanticsRenderContexts, bEditorDependsOnShaderCompileWorker, MinGameModuleSourceFilesForUnityBuild, bUsePerFileIntellisense, bAddFastPDBToProjects, bFlushBuildDirOnRemoteMac, NumIncludedBytesPerUnityCPP, DistccExecutablesPath, bUsePCHFiles, bPublicSymbolsByDefault, CppStandard, bUsePDBFiles, BaseLogFileName, bAllowLTCG, bAdaptiveUnityDisablesProjectPCHForProjectPrivate, bAllowParallelExecutor, bEnableUnde....",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 16,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          },
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'ProcessorCountMultiplier, bStopCompilationAfterErrors' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 22,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          },
+          {
+            "module": "AnomalyCapture",
+            "diagnostic": "  D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp(266): warning C4996: 'RHICreateRenderQuery': CreateRenderQuery API is deprecated; use RHICreateRenderQueryPool and suballocate queries there Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile.",
+            "file": "D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp",
+            "line": 266,
+            "new_port_warning": true,
+            "severity": "warning",
+            "code": "C4996",
+            "category": "compiler_or_build"
+          }
+        ],
+        "action_counts": {
+          "project": 1,
+          "plugin": 7,
+          "engine_source_in_host": 0,
+          "engine": 0,
+          "engine_plugin": 0
+        }
+      },
+      {
+        "target": "StylizedParisStreet",
+        "commit": "8e59a56e11887248b0cb3333e260177bd627f780",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "duration_seconds": 94.01507259999926,
+        "diagnostics": [
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bEnableUndefinedBehaviorSanitizer, bAllowHybridExecutor, bUseMallocProfiler, bAdaptiveUnityCreatesDedicatedPCH, bAdaptiveUnityDisablesPCH, bForcePrecompiledHeaderForGameModules, bUseAdaptiveUnityBuild, bStripSymbols, bShowXGEMonitor, bAddFastPDBToProjects, bBreakBuildOnLicenseViolation, bFlushBuildDirOnRemoteMac, bEditorDependsOnShaderCompileWorker, bUseDebugLiveCodingConsole, bPrintDebugInfo, bAllowDistccLocalFallback, bDisableDebugInfo, bUseFastMonoCalls, bGeneratedSYMFile, CppStandard, MinFilesUsingPrecompiledHeader, bEnableThreadSanitizer, bPrintToolChainTimingInfo, bOmitFramePointers, bIgnoreOutdatedImportLibraries, bUseUBTMakefiles, bUseUnityBuild, bUndefinedIdentifierErrors, bDisableDebugInfoForGeneratedCode, bWriteSolutionOptionFile, bUseFastSemanticsRenderContexts, bLogDetailedActionStats, bOmitPCDebugInfoInDevelopment, bAllowASLRInShipping, DMUCSCoordinator, bPGOProfile, MinGameModuleSourceFilesForUnityBuild, bUseXGEController, bAllowXGE, bUsePDBFiles, bPublicSymbolsByDefault, bUseIncrementalLin....",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 16,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          },
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'ProcessorCountMultiplier, bStopCompilationAfterErrors' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 22,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          },
+          {
+            "module": "AnomalyCapture",
+            "diagnostic": "  D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp(266): warning C4996: 'RHICreateRenderQuery': CreateRenderQuery API is deprecated; use RHICreateRenderQueryPool and suballocate queries there Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile.",
+            "file": "D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp",
+            "line": 266,
+            "new_port_warning": true,
+            "severity": "warning",
+            "code": "C4996",
+            "category": "compiler_or_build"
+          }
+        ],
+        "action_counts": {
+          "project": 2,
+          "plugin": 3,
+          "engine_source_in_host": 0,
+          "engine": 0,
+          "engine_plugin": 0
+        }
+      }
+    ]
+  },
+  "binary_strings": [
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "marker": "missing_texture: overrode %d slot(s)",
+      "present": true
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "marker": "corrupted_texture: overrode %d slot(s)",
+      "present": true
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+      "marker": "missing_texture: overrode %d slot(s)",
+      "present": true
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+      "marker": "corrupted_texture: overrode %d slot(s)",
+      "present": true
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "marker": "missing_texture: overrode %d slot(s)",
+      "present": true
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "marker": "corrupted_texture: overrode %d slot(s)",
+      "present": true
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+      "marker": "missing_texture: overrode %d slot(s)",
+      "present": true
+    },
+    {
+      "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+      "marker": "corrupted_texture: overrode %d slot(s)",
+      "present": true
+    }
+  ],
+  "fixture_helper": {
+    "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425\\Outline425TextureBench09444.cpp",
+    "sha256": "db3331f1680c2928e02dc29b292d120300f159d16da99ec400453637d6544537"
+  }
+}
