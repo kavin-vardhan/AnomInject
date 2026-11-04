@@ -1,0 +1,13 @@
+{
+  "result": "PASS",
+  "classification": "Unscored setup abort",
+  "cause": "Probe skipped Prepared=Next; Ready stayed false, so no request reached the backend",
+  "frames": 0,
+  "previews": 0,
+  "events": 0,
+  "original_result_retained": "FAIL",
+  "raw": "D:\\IA_Europa\\Receipts\\09445\\H4\\D3D11-1280\\01\\raw-evidence.json",
+  "stop": "D:\\IA_Europa\\Receipts\\09445\\H4\\D3D11-1280\\01\\owned-setup-stop.json",
+  "tests": "test09445 requires Prepared before the no-auto return and rejects the original ordering",
+  "authority": "GL2 qualification not reached; remaining second session slot only; no G1-G5/H4 threshold or failure changed"
+}

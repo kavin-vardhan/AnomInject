@@ -31,6 +31,9 @@ assert b'Var->Set' in helper and b'FindConsoleVariable(TEXT("r.CustomDepth"))->G
 assert b'FindConsoleVariable(TEXT("r.CustomDepth"))->Set' not in helper
 labels=(P/'Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp').read_text()
 assert labels.index('if (CaptureGeometry425) { return; }')<labels.index('if (!AutoStarted && Next>=3)')
+assert labels.index('Prepared = Next;')<labels.index('if (CaptureGeometry425) { return; }')
+mutant=labels.replace('    Prepared = Next;\n    if (CaptureGeometry425) { return; }','    if (CaptureGeometry425) { return; }\n    Prepared = Next;')
+assert mutant.index('Prepared = Next;')>mutant.index('if (CaptureGeometry425) { return; }')
 assert '#if !UE_BUILD_SHIPPING\nstatic FAutoConsoleCommandWithWorldAndArgs CaptureGeometryCommand425' in labels
 result=dict(result='PASS',geometry=geometry.test(),gk2=calibration.test(),scope_positive=positive,scope_and_sequence_negative=negative,helper_sha256=hashlib.sha256(helper).hexdigest(),native_contract='Bench geometry returns before auto start; Shipping guard, IAIBench and exact map; same-session readers fail closed before fire')
 (J/'focused-tests.json').write_text(json.dumps(result,indent=2));print(json.dumps(result))

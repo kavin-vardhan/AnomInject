@@ -21,13 +21,29 @@ from runtime_evidence import freeze,outcome
 from fixture_uploads import check as uploads
 
 def files(paths):return [dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in paths]
+def unscored_setup_abort(path):
+    assert path==J/'H4/D3D11-1280/01/result.json','Earlier gate failed; no further launch'
+    value=json.loads(path.read_text());stop=json.loads((path.parent/'owned-setup-stop.json').read_text())
+    diagnostic=json.loads((J/'setup-abort-diagnostic.json').read_text())
+    capture=json.loads((B/'D3D11-1280/01/attempt-01/geometry-000/capture.json').read_text())
+    native=json.loads((B/'D3D11-1280/01/attempt-01/geometry-000/labels-receipt.json').read_text())
+    assert diagnostic['result']=='PASS' and value['exit_code']==0 and not value['crashed'] and not value['end_run']
+    assert capture['written']==0 and not native['events'] and not (B/'D3D11-1280/01/plugin-frames').exists()
+    assert stop['pid']==value['pid'] and stop['stop_intents'][0]['utc']<value['root_ended_utc']
+    from runtime_evidence import ensure_frozen
+    ensure_frozen(path.parent/'raw-evidence.json')
+
 def arm(leg,number):
     require_launch()
     assert leg in SPECS and number in ('01','02')
     root=J/'H4'/leg/number
     assert not root.exists()
-    assert all(json.loads(p.read_text())['result']=='PASS' for p in (J/'H4').glob('*/*/result.json')),'Earlier gate failed; no further launch'
-    audit=json.loads((BUILDJ/'build-audit.json').read_text())
+    for prior_path in (J/'H4').glob('*/*/result.json'):
+        prior=json.loads(prior_path.read_text())
+        if prior['result']=='PASS':continue
+        unscored_setup_abort(prior_path)
+
+    audit=json.loads((BUILDJ/'build-audit-02.json').read_text())
     assert sha(P.parents[1]/'Source/EuropaPhaseAProbe/EuropaTextureBench09444e.cpp')==audit['helper_sha256'],'Unbuilt host helper'
     assert not subprocess.check_output(['git','-C',str(P),'status','--porcelain'],text=True).strip()
     if leg!='Calibration':

@@ -111,10 +111,10 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
 
 void FAnomalyCaptureLabels425::Prepare(UWorld* World,ELevelTick TickType,float Delta)
 {
-    if (CaptureGeometry425) { return; }
     if (World != Owner.Get() || TickType != LEVELTICK_All || Prepared == Next || Failed() || FPlatformTime::Seconds()-Started < 3) { return; }
     if (Street && !Street->Ready(Next)) { return; }
     Prepared = Next;
+    if (CaptureGeometry425) { return; }
     if (Street) { Street->Prepare(Next); }
     UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
     if (!Auto) { Failure = TEXT("Auto injector missing"); return; }
