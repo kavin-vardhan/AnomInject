@@ -1,3 +1,5 @@
+094-45 Stage1 native build PASS: host Editor and Game each pass attempt2 at422ac34 after the no-fire readiness correction. The rebuilt capture TUs contain the correction; the helper remains byte-equal to its attempt1 build; the27-file binary archive rehashes. Armed D3D11 qualification is next; no runtime result or Stage1 readiness claimed.
+
 094-45 first runtime was an unscored setup abort: the new geometry Prepare returned before setting Prepared, so Ready stayed false and0 frames/previews/events were captured. An intent-recorded kit WM_CLOSE ended only the matched owned PID normally. Original FAIL/incomplete receipt is retained. The fix moves the no-auto return after readiness bookkeeping; the focused check rejects the original order. No GL2 pixel check or H4/G1-G5 gate ran, and no gate was weakened. Use only the remaining session slot after FM1 attempt2 rebuilds.
 
 094-45 Stage1 native build PASS: host Editor and Game each pass attempt1 at93e7435. Both compiled the held-view helper and no-fire geometry path; the27-file binary archive rehashes. Armed D3D11 qualification is next; no runtime result or Stage1 readiness claimed.

@@ -1,8 +1,8 @@
-import json,sys
+import datetime,json,sys
 from pathlib import Path
 import h4_kit09445 as kit
 from calibration_reader09445 import test
-J=kit.J;kit.J=J/'kit-selftest';kit.J.mkdir(exist_ok=False)
+J=kit.J;kit.J=J/('kit-selftest-'+datetime.datetime.now(datetime.timezone.utc).strftime('%H%M%S%f'));kit.J.mkdir(exist_ok=False)
 (kit.J/'freeze.json').write_text(json.dumps(dict(result='PASS',exposure=-5.0)))
 rows=[]
 for leg,spec in kit.SPECS.items():
