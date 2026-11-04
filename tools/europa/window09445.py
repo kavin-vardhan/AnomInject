@@ -10,4 +10,4 @@ def require_reader(*args):
     require_launch()
 
 def admission_deadline():
-    return datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=3)
+    return (datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=3)).isoformat()
