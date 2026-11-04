@@ -1946,3 +1946,5 @@ The bench capture driver seeds/starts the injector once after its pre-pass and s
 094-44 partial D2: 4.25 material lookup uses /AnomalyInjector/Engine425/Materials; 5.1 keeps /AnomalyInjector/Materials. The new assets have the release d7eee97 graphs. The finder change is unbuilt, and fresh-process readback is blocked by an owned kit stop. Texture anomaly code stays compiled out; GF4 and all anomaly gates remain unrun.
 
 094-44r: the launch kit retains child creation identities and command lines with a 10 ms owned-tree watcher. FE3 continues to refuse build modes and unreadable UBT commands. The watch uses ordinary process handles, with no elevation or machine changes.
+
+The 4.25-only material finders are compiled on both targets. The separate outline fixture now contains live skeletal and instanced targets; GF4 qualification is pending, so the three Phase B anomalies remain disabled.

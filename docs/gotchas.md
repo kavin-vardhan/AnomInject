@@ -10513,3 +10513,7 @@ The second G524 heading above (Admit recorded refs without replacing the P9 base
 ### G530. Record short-lived child command lines before classifying their exit
 
 GG2 permits a 10 ms owned-tree creation poll after a real 100 ms-child self-test. Twelve children were recorded before exit; six query modes passed and six build modes were refused. Missing commands still refuse. A single retry is permitted only for an exited unreadable child with no binary change in its window; it never converts a missing command into permission. The old G529 stop remains evidence.
+
+### G531. Check executed actions when adding a fixture source file
+
+The first094-44r fixture Editor build succeeded but its cached action graph did not include the newly added Outline425Targets09444.cpp. Refreshing only that target's Makefile.bin by receipt made the next build compile the helper. A successful exit and unchanged plugin source hash alone did not prove the new host helper was built; its executed compile action was checked before authoring.

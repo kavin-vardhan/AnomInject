@@ -1,0 +1,332 @@
+{
+  "result": "LOADERS_AND_AUTHOR_PASS_GF4_PENDING",
+  "host": {
+    "result": "PASS",
+    "source": "ae82fe7f7014b33316d3dc616cca5b88795a54e5",
+    "manifest": {
+      "path": "D:\\IA_Europa\\Receipts\\09444r\\loader-manifest.json",
+      "sha256": "75a4912c056f826ed715dc9af1cc3bd4f9fa9248395ee18edbbfa6e1773e52a4"
+    },
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "size": 67891200,
+        "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "size": 139445760,
+        "sha256": "a6eb0dcdcceab62a58f39b2124a608c212f4fa545449b930a263efb6fa7cd8cd"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "size": 369152,
+        "sha256": "6037924a08166344146f337b2f0b19ba35a5daf3dc99715db15ef6c332864a89"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "size": 91648,
+        "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "size": 124416,
+        "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "size": 1090560,
+        "sha256": "62588a37e75e6fe20f74d79fb01a4b0d4d0484af376b12d23a6aaf6f3a2fb456"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "size": 126464,
+        "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "size": 949248,
+        "sha256": "41245307650b7f7bd04743e80609276af47f709fdd4ef6138711e49cf1be6749"
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\loader-host-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "size": 125440,
+        "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb"
+      }
+    ],
+    "utc": "2026-11-04T00:36:58.068291+00:00",
+    "builds": [
+      {
+        "target": "StylizedParisStreetEditor",
+        "commit": "ae82fe7f7014b33316d3dc616cca5b88795a54e5",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "duration_seconds": 46.82266130000062,
+        "diagnostics": [
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bCheckLicenseViolations, bUsePCHFiles, bAllowASLRInShipping, UnsafeTypeCastWarningLevel, DMUCSCoordinator, DMUCSDistProp, bAllowDistcc, bWriteSolutionOptionFile, bAllowParallelExecutor, bUseSharedPCHs, bSupportEditAndContinue, bVerboseDistccOutput, bUseFastSemanticsRenderContexts, bStopXGECompilationAfterErrors, bAllowRuntimeSymbolFiles, bEditorDependsOnShaderCompileWorker, bShowXGEMonitor, bDisableDebugInfo, bPrintToolChainTimingInfo, bParseTimingInfoForTracing, bCheckSystemHeadersForModification, bAdaptiveUnityCreatesDedicatedPCH, bFlushBuildDirOnRemoteMac, bAdaptiveUnityDisablesProjectPCHForProjectPrivate, bOmitFramePointers, bIgnoreOutdatedImportLibraries, bAdaptiveUnityEnablesEditAndContinue, bForcePrecompiledHeaderForGameModules, NumIncludedBytesPerUnityCPP, bUseIncrementalLinking, bDebugBuildsActuallyUseDebugCRT, bPGOProfile, bStressTestUnity, bAddFastPDBToProjects, bUsePerFileIntellisense, BaseLogFileName, bUndefinedIdentifierErrors, DistccExecutablesPath, bUseAdaptiveUnityBuild, bCreateMapFile, b....",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 16,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          },
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bStopCompilationAfterErrors, ProcessorCountMultiplier' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 22,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          }
+        ],
+        "action_counts": {
+          "project": 1,
+          "plugin": 3,
+          "engine_source_in_host": 0,
+          "engine": 0,
+          "engine_plugin": 0
+        }
+      },
+      {
+        "target": "StylizedParisStreet",
+        "commit": "ae82fe7f7014b33316d3dc616cca5b88795a54e5",
+        "gate_result": "PASS",
+        "exit_code": 0,
+        "duration_seconds": 59.61728289999883,
+        "diagnostics": [
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bAllowASLRInShipping, bAllowParallelExecutor, bUseSharedPCHs, bAllowDistcc, bEnableAddressSanitizer, bDisableDebugInfo, bDebugBuildsActuallyUseDebugCRT, bUseUBTMakefiles, bShowXGEMonitor, bUsePerFileIntellisense, BaseLogFileName, DistccExecutablesPath, bEnableUndefinedBehaviorSanitizer, bCheckSystemHeadersForModification, bVerboseDistccOutput, bUseFastPDBLinking, CppStandard, MinGameModuleSourceFilesForUnityBuild, bFlushBuildDirOnRemoteMac, bPrintToolChainTimingInfo, bSupportEditAndContinue, bEditorDependsOnShaderCompileWorker, bUseFastMonoCalls, bXGENoWatchdogThread, bIgnoreOutdatedImportLibraries, bUseAdaptiveUnityBuild, bParseTimingInfoForTracing, bEnableMemorySanitizer, bLogDetailedActionStats, bUseMallocProfiler, bPrintDebugInfo, bUseIncrementalLinking, bPublicSymbolsByDefault, bOmitPCDebugInfoInDevelopment, bAllowHybridExecutor, bUseShippingPhysXLibraries, bAllowRuntimeSymbolFiles, MaxParallelActions, bAdaptiveUnityDisablesOptimizations, bAddFastPDBToProjects, bPGOOptimize, bUseInlining, bAllowLTCG,....",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 16,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          },
+          {
+            "module": "UBT/user XML",
+            "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bStopCompilationAfterErrors, ProcessorCountMultiplier' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+            "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+            "line": 22,
+            "new_port_warning": false,
+            "severity": "warning",
+            "code": "UBT",
+            "category": "accepted_environment"
+          }
+        ],
+        "action_counts": {
+          "project": 2,
+          "plugin": 1,
+          "engine_source_in_host": 0,
+          "engine": 0,
+          "engine_plugin": 0
+        }
+      }
+    ]
+  },
+  "fixture_builds": [
+    {
+      "target": "Outline425",
+      "attempt": 1,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 53.19615479999629,
+      "paris_unchanged": true
+    },
+    {
+      "target": "Outline425Editor",
+      "attempt": 1,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 45.329766399998334,
+      "paris_unchanged": true
+    },
+    {
+      "target": "Outline425Editor",
+      "attempt": 2,
+      "result": "PASS",
+      "exit_code": 0,
+      "seconds": 7.3245956000027945,
+      "paris_unchanged": true
+    }
+  ],
+  "fixture_binaries": {
+    "result": "PASS",
+    "files": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\Outline425.exe",
+        "size": 139341312,
+        "sha256": "993ec2d9a14421c6f6d3e0b9beee0e98afe10af91825eddab791220032dcb4ff",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\fixture-binary-archive\\Binaries\\Win64\\Outline425.exe"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Binaries\\Win64\\UE4Editor-Outline425.dll",
+        "size": 186368,
+        "sha256": "6ce9edade915322252a81b3a0104839c4a764a170c8e0d8bf18d096966f28d0d",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\fixture-binary-archive\\Binaries\\Win64\\UE4Editor-Outline425.dll"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "size": 124416,
+        "sha256": "0a74f35993eddb1406901e4b240360d67c5239cfc5a80ac0d6bcd38517b25e12",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "size": 1090560,
+        "sha256": "fe4c1351f7ae397a546a99d83debd5283350833374ffed97028e790f23613466",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "size": 126464,
+        "sha256": "b84088b69fe7b66adcd79086941bd8374cbb9beebdc63f959113fb24fdc13b40",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "size": 948736,
+        "sha256": "2bd2bf15a49dad2f452b1fa6ca1aef7ddb8f8607e757bf6741548de98ba62d0d",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "size": 125440,
+        "sha256": "9ae9b60976505af41e9cdb547380954610bc10ef687ee71083f2240265f578c4",
+        "archive": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\fixture-binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll"
+      }
+    ]
+  },
+  "fixture_assets": {
+    "result": "PASS",
+    "assets": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_LiveSurface.uasset",
+        "size": 85122,
+        "sha256": "1eee29fe253be405a0d825cf435b5472a3ff857a01dc3b854196f613db6a96ca"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Masked.uasset",
+        "size": 84545,
+        "sha256": "bee36524b3ba3e05247ddfa2b386d2d5c2f401a19e84dd719957ee9e408bac49"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Outline.uasset",
+        "size": 79753,
+        "sha256": "1b8ec07966eb57ace076c5c213b7507d648a6f8a8af3712c811e69f61a417e7b"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_Surface.uasset",
+        "size": 84985,
+        "sha256": "ab457d9d562886663d7dcfacd735e07975fe4a241c05017197df4a2d4298f7e5"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\M_WPO.uasset",
+        "size": 82340,
+        "sha256": "40395df2e0aaf388b3e404ff569b375e3d79ba391122925abd783daa296e5de2"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\SM_OutlineCubeSphere.uasset",
+        "size": 150240,
+        "sha256": "c7482e0d9ea8423766aa3cbdf634a69dbbc2f44b7402bf941fa031e6f6a44f99"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\SM_OutlineSphereCube.uasset",
+        "size": 150869,
+        "sha256": "0aa066da99d88f5fb030bace5efa65ce6fb53f9f98eb518859b07118126f535c"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Content\\OutlineFixture\\EA_Outline.umap",
+        "size": 29224,
+        "sha256": "e12299bb5e48fec45d2769947681b7cd8c0c2b12edeec149d7a4f5e650410983"
+      }
+    ],
+    "materials": [
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Content\\Engine425\\Materials\\M_CorruptedTexture_Pink.uasset",
+        "size": 99183,
+        "sha256": "b88d88615286a6c9a3648a5c80ab3889ca8f6c648c378e8984ba3d01e79c552a"
+      },
+      {
+        "path": "E:\\IA_Fixtures\\Outline425\\Plugins\\AnomalyInjector\\Content\\Engine425\\Materials\\M_MissingTexture_Checker.uasset",
+        "size": 81634,
+        "sha256": "5222b3eeb7cdd1f5b58b5975d568b699c7430949b024c67e6f5b1ae6b88a7bec"
+      }
+    ],
+    "author_script": {
+      "path": "E:\\IA_Fixtures\\Outline425\\Scripts\\author_targets09444.py",
+      "size": 1934,
+      "sha256": "95e13f8a2fdd945c201dfe7345b1318fdaee9d3b80664eb8c34a425a9ea573f2"
+    },
+    "author_native": {
+      "path": "E:\\IA_Fixtures\\Outline425\\Source\\Outline425\\Outline425Targets09444.cpp",
+      "size": 3953,
+      "sha256": "8ab00b67b980dcd09145bd8ac19359c09de6c69052327a0eaeac72bf06d7c6f5"
+    },
+    "saved_ini": {
+      "path": "E:\\IA_Fixtures\\Outline425\\Saved\\Config\\Windows\\Engine.ini",
+      "size": 1502,
+      "sha256": "64d45f80d234e4710ec289eda4ce41af0947f42d61925e903bd9652a5440d7b8"
+    },
+    "author": {
+      "instances": 3,
+      "instanced_actor": "/Game/OutlineFixture/EA_Outline.EA_Outline:PersistentLevel.EA_Instanced",
+      "tags": [
+        "EA_Skeletal",
+        "EA_Instanced"
+      ],
+      "saved_map": "/Game/OutlineFixture/EA_Outline",
+      "skeletal_actor": "/Game/OutlineFixture/EA_Outline.EA_Outline:PersistentLevel.EA_Skeletal",
+      "skeletal_custom_depth": false,
+      "instanced_custom_depth": false,
+      "result": "PASS",
+      "saved_material": "/Game/OutlineFixture/M_LiveSurface",
+      "skeletal_asset": "/Engine/EngineMeshes/SkeletalCube.SkeletalCube"
+    }
+  },
+  "target_tests": {
+    "result": "PASS",
+    "argv_contract_negatives": 3,
+    "author_path_negative": true,
+    "memory_negative": true,
+    "wrapper": {
+      "exit_code": 0,
+      "stdout": "PASS py27 author wrapper: one call and shader-quiet exit; failure exits once\n",
+      "stderr": ""
+    },
+    "author_test": {
+      "result": "PASS",
+      "once_only_author": true,
+      "python": "2.7.14 (v2.7.14:84471935ed, Sep 16 2017, 20:25:58) [MSC v.1500 64 bit (AMD64)]",
+      "load_ticks": 3,
+      "wrong_instance_count_negative": true,
+      "keyword_rotator": "PASS"
+    }
+  },
+  "reference": {
+    "result": "PASS",
+    "frames": 2352,
+    "dropped": 0,
+    "exit_code": 0,
+    "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\reference\\01"
+  },
+  "gf4_freeze": {
+    "path": "E:\\IA_Fixtures\\Outline425\\Receipts\\09444r\\gf4-frozen.json",
+    "sha256": "ab8bfb4a6c6b173ac55d60b2f642c24a4712660f6acc53a74c014e2aaea65903"
+  }
+}
