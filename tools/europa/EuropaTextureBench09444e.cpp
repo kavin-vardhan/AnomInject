@@ -1,3 +1,4 @@
+#include "CoreMinimal.h"
 #if !UE_BUILD_SHIPPING
 #include "Engine/World.h"
 #include "Engine/PostProcessVolume.h"

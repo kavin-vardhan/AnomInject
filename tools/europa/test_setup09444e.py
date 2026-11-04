@@ -7,7 +7,7 @@ cfg=json.loads((J/'c5-job-config.json').read_text());assert job_scope.memory_pol
 bad=copy.deepcopy(cfg);bad['memory']['stop_commit_GiB']=3;assert not job_scope.memory_policy_allowed(bad,J)
 build=json.loads((J/'paris-build-job.json').read_text());assert job_scope.fm1(build,J)
 s=(T/'EuropaTextureBench09444e.cpp').read_text();assert s==(P.parents[1]/'Source/EuropaPhaseAProbe/EuropaTextureBench09444e.cpp').read_text()
-assert s.startswith('#if !UE_BUILD_SHIPPING') and 'World->GetMapName()==TEXT("EA_Core")' in s and 'TEXT("IAIBench")' in s
+assert s.startswith('#include "CoreMinimal.h"\n#if !UE_BUILD_SHIPPING') and 'World->GetMapName()==TEXT("EA_Core")' in s and 'TEXT("IAIBench")' in s
 assert s.index('if (!TextureBenchAllowed09444e(World)')<s.index('Var->Set(')
 assert all(x not in s for x in ('SetRenderCustomDepth','SetCustomDepthStencil','SavePackage','SaveConfig'))
 assert s.count('IAI.Capture.C5')==1 and 'if (State->Complete)' in s
