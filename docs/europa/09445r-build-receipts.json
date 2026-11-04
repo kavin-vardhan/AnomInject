@@ -1,0 +1,245 @@
+{
+  "result": "PASS",
+  "builds": [
+    {
+      "target": "StylizedParisStreetEditor",
+      "commit": "c356b7eda776242f9a6a23432e0cdfa48979609f",
+      "exit_code": 0,
+      "gate_result": "PASS",
+      "duration_seconds": 32.816788399999496,
+      "action_counts": {
+        "project": 4,
+        "plugin": 0,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "diagnostics": [
+        {
+          "module": "UBT/user XML",
+          "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bParseTimingInfoForTracing, NumIncludedBytesPerUnityCPP, MaxParallelActions, CppStandard, bForceUnityBuild, bSupportEditAndContinue, bCheckLicenseViolations, bUseFastSemanticsRenderContexts, bCheckSystemHeadersForModification, bAllowHybridExecutor, bShowXGEMonitor, bUsePDBFiles, MinGameModuleSourceFilesForUnityBuild, bUseUnityBuild, bUseCheckedPhysXLibraries, bForcePrecompiledHeaderForGameModules, bFlushBuildDirOnRemoteMac, bBreakBuildOnLicenseViolation, bAllowXGE, bEnableAddressSanitizer, bUseAdaptiveUnityBuild, bUseSharedPCHs, bUseFastMonoCalls, bDebugBuildsActuallyUseDebugCRT, bAdaptiveUnityEnablesEditAndContinue, bCreateMapFile, bUsePerFileIntellisense, bAllowASLRInShipping, bUseShippingPhysXLibraries, bUseFastPDBLinking, bStopXGECompilationAfterErrors, bAllowParallelExecutor, UnsafeTypeCastWarningLevel, bPGOProfile, bUndefinedIdentifierErrors, bAllowLTCG, bIgnoreOutdatedImportLibraries, bPrintDebugInfo, bAdaptiveUnityCreatesDedicatedPCH, bDisableDebugInfoForGeneratedCode, bAdaptiveUnityDisablesOptimi....",
+          "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+          "line": 16,
+          "new_port_warning": false,
+          "severity": "warning",
+          "code": "UBT",
+          "category": "accepted_environment"
+        },
+        {
+          "module": "UBT/user XML",
+          "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bStopCompilationAfterErrors, ProcessorCountMultiplier' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+          "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+          "line": 22,
+          "new_port_warning": false,
+          "severity": "warning",
+          "code": "UBT",
+          "category": "accepted_environment"
+        }
+      ]
+    },
+    {
+      "target": "StylizedParisStreet",
+      "commit": "c356b7eda776242f9a6a23432e0cdfa48979609f",
+      "exit_code": 0,
+      "gate_result": "PASS",
+      "duration_seconds": 44.658342900002026,
+      "action_counts": {
+        "project": 3,
+        "plugin": 0,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "diagnostics": [
+        {
+          "module": "UBT/user XML",
+          "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(16): warning: The element 'BuildConfiguration' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'bAllowUBAExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'MinGameModuleSourceFilesForUnityBuild, bUseInlining, bUsePDBFiles, bCreateMapFile, bUseFastSemanticsRenderContexts, bPGOOptimize, bAdaptiveUnityEnablesEditAndContinue, bPrintToolChainTimingInfo, bDisableDebugInfo, bAdaptiveUnityCreatesDedicatedPCH, bAllowDistcc, bStopXGECompilationAfterErrors, bEnableUndefinedBehaviorSanitizer, bUsePCHFiles, bAdaptiveUnityDisablesPCH, bXGENoWatchdogThread, bAllowDistccLocalFallback, bOmitPCDebugInfoInDevelopment, bParseTimingInfoForTracing, bUseDebugLiveCodingConsole, UnsafeTypeCastWarningLevel, bPGOProfile, bEnableThreadSanitizer, bUseIncrementalLinking, DMUCSDistProp, bEnableMemorySanitizer, bAdaptiveUnityDisablesProjectPCHForProjectPrivate, bAllowASLRInShipping, bUseAdaptiveUnityBuild, bIgnoreOutdatedImportLibraries, bDisableDebugInfoForGeneratedCode, bUseSharedPCHs, MaxParallelActions, bPrintDebugInfo, MinFilesUsingPrecompiledHeader, bUseFastMonoCalls, bAllowHybridExecutor, bSupportEditAndContinue, bCheckSystemHeadersForModification, bShowXGEMonitor, bCheckLicenseViol....",
+          "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+          "line": 16,
+          "new_port_warning": false,
+          "severity": "warning",
+          "code": "UBT",
+          "category": "accepted_environment"
+        },
+        {
+          "module": "UBT/user XML",
+          "diagnostic": "C:\\Users\\kavin\\AppData\\Roaming\\Unreal Engine\\UnrealBuildTool\\BuildConfiguration.xml(22): warning: The element 'ParallelExecutor' in namespace 'https://www.unrealengine.com/BuildConfiguration' has invalid child element 'MemoryPerActionBytes' in namespace 'https://www.unrealengine.com/BuildConfiguration'. List of possible elements expected: 'bStopCompilationAfterErrors, ProcessorCountMultiplier' in namespace 'https://www.unrealengine.com/BuildConfiguration'.",
+          "file": "C:/Users/kavin/AppData/Roaming/Unreal Engine/UnrealBuildTool/BuildConfiguration.xml",
+          "line": 22,
+          "new_port_warning": false,
+          "severity": "warning",
+          "code": "UBT",
+          "category": "accepted_environment"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+      "size": 67891200,
+      "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+      "size": 44176,
+      "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+      "size": 81852,
+      "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+      "size": 100036608,
+      "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+      "size": 43520,
+      "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet.exe",
+      "size": 139524608,
+      "sha256": "bc4864d33cdb81228b3b2298c1aecc92c3189507084a19327125a4dc72b63a53"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet.exp",
+      "size": 44147,
+      "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet.lib",
+      "size": 77016,
+      "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet.pdb",
+      "size": 189403136,
+      "sha256": "4cbd652a99f494cd92f979d4e0860d72929c102852a259510f37b48579972206"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreet.target",
+      "size": 43738,
+      "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+      "size": 163036,
+      "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+      "size": 476672,
+      "sha256": "927462edd2a3fa243e1249a92b7fd3955f45cd9c2bb5fbf52c4075dc1bf58b11"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+      "size": 25513984,
+      "sha256": "17a7e544f650813242b496a4778e6c5c21c44e259576654244d7483d2911667d"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+      "size": 91648,
+      "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+      "size": 34131968,
+      "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Binaries\\Win64\\UE4Editor.modules",
+      "size": 172,
+      "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+      "size": 124416,
+      "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+      "size": 6082560,
+      "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+      "size": 1093632,
+      "sha256": "0376ba82c8edf89cd58a28e539eb0cda06f8ccf928eef8ccf5425e55199682c6"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+      "size": 40284160,
+      "sha256": "b81da9eddbee81c8e123ea38dbe0a05f078a9f6771292a0d32ee74a66dd3c7a9"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+      "size": 126464,
+      "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+      "size": 13881344,
+      "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+      "size": 986624,
+      "sha256": "5bb246f0299f2409c62655005663972ee4900f99386b4c5f3b9eeea01cf84701"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+      "size": 30437376,
+      "sha256": "e7198e9a80e8d19112ebe71a477892ef0310a29b5c91744ba91fd7d7251cc8e5"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+      "size": 125440,
+      "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+      "size": 16388096,
+      "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+      "archive": "E:\\IA_BuildCache\\09445r-evidence\\binary-archive\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+      "size": 325,
+      "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0"
+    }
+  ],
+  "helper": {
+    "path": "D:\\IA_Europa\\StylizedParisStreet\\Source\\EuropaPhaseAProbe\\EuropaTextureBench09444e.cpp",
+    "sha256": "5f47ca150680b6dbb7d287f2d98224a59d3d8f5824a3c33fa1e2e9bfb93ae2f7"
+  }
+}
