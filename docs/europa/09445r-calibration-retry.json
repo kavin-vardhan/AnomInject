@@ -1,0 +1,19 @@
+{
+  "result": "PASS",
+  "tests": [
+    "Calibration2700 only",
+    "All3 scored C5 limits900",
+    "Known intent-recorded unscored partial admitted",
+    "Measured-leg negative rejected"
+  ],
+  "native_change": false,
+  "reason": "Measured no-fire geometry/preview cadence exceeds inherited900s scored C5 timer; calibration alone gets2700s on remaining slot. Reader runs after root closes.",
+  "authority": "GM2/GL2 no-fire calibration implementation; original900s scored session rule unchanged",
+  "prior_raw": "D:/IA_Europa/Receipts/09445r/H4/Calibration/01/raw-evidence.json",
+  "observed_timing": {
+    "completed_previews": 20,
+    "mean_between_completed_previews_seconds": 10.231446441851164,
+    "projected198_steps_seconds": 2085.8263954865306,
+    "calibration_limit_seconds": 2700
+  }
+}

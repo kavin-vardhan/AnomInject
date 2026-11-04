@@ -21,6 +21,21 @@ from runtime_evidence import freeze,outcome
 from fixture_uploads import check as uploads
 
 def files(paths):return [dict(path=str(p),size=p.stat().st_size,sha256=sha(p)) for p in paths]
+def leg_limit(leg):return 2700 if leg=='Calibration' else 900
+
+def calibration_setup_stop(path):
+    assert path==J/'H4/Calibration/01/result.json','Earlier measured gate failed; no further launch'
+    value=json.loads(path.read_text());stop=json.loads((path.parent/'owned-setup-stop.json').read_text())
+    assert value['exit_code']==0 and not value['crashed'] and not value['end_run']
+    assert stop['pid']==value['pid'] and stop['stop_intents'][0]['root_running']
+    assert stop['stop_intents'][0]['utc']<value['root_ended_utc']
+    folder=B/'Calibration/01';assert not (folder/'plugin-frames').exists()
+    assert not (folder/'attempt-01/calibration.json').exists()
+    for p in folder.glob('attempt-*/geometry-*/labels-receipt.json'):assert not json.loads(p.read_text())['events']
+    assert 'Capture425 routes=blinking,lod_corruption,missing_texture,corrupted_texture' not in (path.parent/'session/Runtime.log').read_text(errors='replace')
+    from runtime_evidence import ensure_frozen
+    ensure_frozen(path.parent/'raw-evidence.json')
+
 def arm(leg,number):
     require_launch()
     assert leg in SPECS and number in ('01','02')
@@ -29,7 +44,7 @@ def arm(leg,number):
     for prior_path in (J/'H4').glob('*/*/result.json'):
         prior=json.loads(prior_path.read_text())
         if prior['result']=='PASS':continue
-        raise AssertionError('Earlier measured gate failed; no further launch')
+        calibration_setup_stop(prior_path)
 
     audit=json.loads((BUILDJ/'build-audit.json').read_text())
     assert sha(P.parents[1]/'Source/EuropaPhaseAProbe/EuropaTextureBench09444e.cpp')==audit['helper_sha256'],'Unbuilt host helper'
@@ -56,7 +71,7 @@ def arm(leg,number):
     cfg=dict(job='09445r-Textures-H4',leg=leg,number=number,root=str(root),spec=SPECS[leg],source=head,protected=protected,
         manifest=dict(path=str(path),sha256=sha(path)),engine=prior['engine_files'],
         tools=files([Path(__file__),R/'host_reader09445r.py',R/'calibration_reader09445r.py',R/'console_probe09443r.py',R/'geometry_reader09445r.py',R/'window09445r.py',R/'c_space09445r.py',R/'texture_reader09445r.py',*T.glob('*.py')]),
-        source_files=files([p for part in ('Source','Shaders') for p in (P/part).rglob('*') if p.is_file()]+list((P.parents[1]/'Source').rglob('*.cpp'))),limit=900)
+        source_files=files([p for part in ('Source','Shaders') for p in (P/part).rglob('*') if p.is_file()]+list((P.parents[1]/'Source').rglob('*.cpp'))),limit=leg_limit(leg))
     cfg.update(arming_job=cfg['job'],source_commit=head,engine_files=cfg['engine'],tooling_files=cfg['tools'],stage='H4')
     create_json(J/('H4-arming-'+leg+'-'+number+'.json'),cfg);INSTALLED.write_text(json.dumps(cfg,indent=2))
     create_json(J/('H4-prior-default-'+leg+'-'+number+'.json'),prior)
@@ -67,7 +82,7 @@ def arm(leg,number):
     print(json.dumps(dict(result='ARMED',leg=leg,source=head,manifest=cfg['manifest'])),flush=True)
 def validate(cfg):
     assert cfg['job']=='09445r-Textures-H4' and tuple(cfg['spec'])==SPECS[cfg['leg']]
-    assert cfg['limit']==900
+    assert cfg['limit']==leg_limit(cfg['leg'])
     for key in ('engine','tools','source_files'):verify_files(cfg[key])
     assert sha(cfg['manifest']['path'])==cfg['manifest']['sha256']
     verify_files(json.loads(Path(cfg['manifest']['path']).read_text())['files']);verify_protection(cfg['protected'])

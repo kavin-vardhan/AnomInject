@@ -10588,3 +10588,8 @@ The held EA_Camera admits EA_Floor at23.49% drawn share. Hard-coding only the th
 ### G546 - Qualify every selectable texture target
 
 GM2 requires all four EA_Core meshes including EA_Floor. The bench uses a distinct blue runtime MID and the accepted six shadowless fills, with point-light intensity0. Before C5, same-session previews must check both swaps on every private silhouette. Any explained-pixel fallback is selected before firing and reported separately; a matching label alone never explains a missing picture change. Host assets/config and plugin anomaly behavior remain unchanged.
+
+
+### G547 - Calibration and scored capture need separate time bounds
+
+The198 no-fire previews each require a separate32-frame geometry run. The inherited900s C5 bound was undersized for that calibration. The initial session is retained as an owned setup stop before scoring; only calibration gets2700s on the remaining slot, while all C5 gates keep900s. This changes execution allowance, not any pixel or state gate.
