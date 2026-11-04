@@ -1987,3 +1987,6 @@ Phase B texture source now preserves release d7eee97 apply/revert/installed-stat
 
 
 094-44f changes only the GK2 calibration reader and job tooling. The accepted host helper and native plugin implementation are unchanged. C5 self-checks are separated from three no-fire preview self-checks without removing startup floor, seed or CVar evidence.
+
+
+094-45r no-fire calibration PASS: all four targets qualify at -1.875EV, the brightest passing grid value. Every target pixel changes in both texture previews; no explained-pixel fallback is selected. Untouched saturation is0, baseline means104.07-157.27 and checker gaps25.53-57.99. The scored reader now checks both frames before each fire and both after each revert, with early/late mutants failing. Native binaries unchanged; three scored legs remain pending.

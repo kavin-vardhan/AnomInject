@@ -193,3 +193,6 @@ Do not infer texture qualification from source parity. Both target builds and G1
 
 
 094-44f must qualify the brightest GK2 exposure before three host regression legs. No result is inferred from the changed pre-fire criteria; the whole-frame G3 bar and timing edges remain unchanged.
+
+
+094-45r no-fire calibration PASS: all four targets qualify at -1.875EV, the brightest passing grid value. Every target pixel changes in both texture previews; no explained-pixel fallback is selected. Untouched saturation is0, baseline means104.07-157.27 and checker gaps25.53-57.99. The scored reader now checks both frames before each fire and both after each revert, with early/late mutants failing. Native binaries unchanged; three scored legs remain pending.

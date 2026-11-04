@@ -1,0 +1,224 @@
+{
+  "result": "PASS",
+  "frozen": {
+    "result": "PASS",
+    "utc": "2026-11-04T11:58:56.723458+00:00",
+    "exposure": -1.875,
+    "objects": [
+      {
+        "actor": "EA_Floor",
+        "pixels": 216502,
+        "front_pixels": 206492,
+        "baseline_mean_min": 157.27322457375297,
+        "baseline_mean_max": 157.27461332150895,
+        "saturated_pixels": 0,
+        "pink_min": [
+          251.18872804870162,
+          84.78524909700603,
+          231.23339738201034
+        ],
+        "pink_max": [
+          251.19035389973303,
+          84.78730450527016,
+          231.2351202298362
+        ],
+        "front_pink_min": [
+          251.22020707824032,
+          84.79748852255777,
+          231.23687600488154
+        ],
+        "front_pink_max": [
+          251.22213935648838,
+          84.79965325533193,
+          231.2386436278403
+        ],
+        "checker": {
+          "low": 202.34883408397502,
+          "high": 227.8809323757591,
+          "contrast": 25.53209829178408,
+          "low_share": 0.49999515719737325,
+          "high_share": 0.5000048428026267
+        },
+        "swaps": {
+          "missing_texture": {
+            "changed_pixels_min": 216502,
+            "silhouette_pixels": 216502,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          },
+          "corrupted_texture": {
+            "changed_pixels_min": 216502,
+            "silhouette_pixels": 216502,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          }
+        },
+        "result": "PASS"
+      },
+      {
+        "actor": "EA_HideCube",
+        "pixels": 78390,
+        "front_pixels": 76086,
+        "baseline_mean_min": 104.0704596674746,
+        "baseline_mean_max": 104.07433771314368,
+        "saturated_pixels": 0,
+        "pink_min": [
+          207.32743972445465,
+          17.60324020921036,
+          197.41755325934432
+        ],
+        "pink_max": [
+          207.32894501849725,
+          17.604847557086362,
+          197.42001530807502
+        ],
+        "front_pink_min": [
+          207.86053938963803,
+          17.18327944694162,
+          197.84286202455115
+        ],
+        "front_pink_max": [
+          207.86226112556844,
+          17.184935467760166,
+          197.84517519648819
+        ],
+        "checker": {
+          "low": 147.26025039232618,
+          "high": 205.2486874517903,
+          "contrast": 57.988437059464104,
+          "low_share": 0.4717950739952159,
+          "high_share": 0.5282049260047841
+        },
+        "swaps": {
+          "missing_texture": {
+            "changed_pixels_min": 78390,
+            "silhouette_pixels": 78390,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          },
+          "corrupted_texture": {
+            "changed_pixels_min": 78390,
+            "silhouette_pixels": 78390,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          }
+        },
+        "result": "PASS"
+      },
+      {
+        "actor": "EA_BlinkCube",
+        "pixels": 78390,
+        "front_pixels": 76086,
+        "baseline_mean_min": 104.10057830505592,
+        "baseline_mean_max": 104.10302759705745,
+        "saturated_pixels": 0,
+        "pink_min": [
+          207.32390611047327,
+          17.59357060849598,
+          197.41345834927924
+        ],
+        "pink_max": [
+          207.32783518305905,
+          17.59497384870519,
+          197.41887995917847
+        ],
+        "front_pink_min": [
+          207.85760849564966,
+          17.175130773072574,
+          197.83958941198117
+        ],
+        "front_pink_max": [
+          207.86136740004733,
+          17.17690508109245,
+          197.84488604999606
+        ],
+        "checker": {
+          "low": 147.18933842417448,
+          "high": 205.03026327731163,
+          "contrast": 57.84092485313715,
+          "low_share": 0.46900875325289804,
+          "high_share": 0.530991246747102
+        },
+        "swaps": {
+          "missing_texture": {
+            "changed_pixels_min": 78390,
+            "silhouette_pixels": 78390,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          },
+          "corrupted_texture": {
+            "changed_pixels_min": 78390,
+            "silhouette_pixels": 78390,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          }
+        },
+        "result": "PASS"
+      },
+      {
+        "actor": "EA_LOD",
+        "pixels": 118616,
+        "front_pixels": 115832,
+        "baseline_mean_min": 110.13340246397338,
+        "baseline_mean_max": 110.13468953036127,
+        "saturated_pixels": 0,
+        "pink_min": [
+          216.21587306940043,
+          12.330941862817832,
+          204.51573986645982
+        ],
+        "pink_max": [
+          216.21876475349026,
+          12.331717474876914,
+          204.51861468941794
+        ],
+        "front_pink_min": [
+          216.32599799709925,
+          11.763243317908696,
+          204.56162373092064
+        ],
+        "front_pink_max": [
+          216.32855342219767,
+          11.7640893708129,
+          204.56476621313627
+        ],
+        "checker": {
+          "low": 159.73817617295308,
+          "high": 206.39247394901489,
+          "contrast": 46.65429777606181,
+          "low_share": 0.46921403411837836,
+          "high_share": 0.5307859658816216
+        },
+        "swaps": {
+          "missing_texture": {
+            "changed_pixels_min": 118616,
+            "silhouette_pixels": 118616,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          },
+          "corrupted_texture": {
+            "changed_pixels_min": 118616,
+            "silhouette_pixels": 118616,
+            "fraction_min": 1.0,
+            "g3_mode": "strict"
+          }
+        },
+        "result": "PASS"
+      }
+    ],
+    "calibration": "E:\\IA_BuildCache\\09445r-evidence\\Calibration\\02\\attempt-01",
+    "prediction_sha256": "1c0b95efba9c7033de356d506eacb2e0dfe5e043c06f8fe0aaad2dbd7a58def7"
+  },
+  "calibration_result": "D:\\IA_Europa\\Receipts\\09445r\\H4\\Calibration\\02\\result.json",
+  "raw_manifest": "D:\\IA_Europa\\Receipts\\09445r\\H4\\Calibration\\02\\raw-evidence.json",
+  "reader_tests": {
+    "result": "PASS",
+    "positive": 3,
+    "unpredicted_unchanged_negative": 1,
+    "spill_negative": 1,
+    "early_edge_negative": 1,
+    "late_edge_negative": 1
+  },
+  "timing_edges": "first-2, first-1, end, end+1 against saved first-1; >2 RGB levels",
+  "scope": "Reader-only change before scored legs; native binaries unchanged"
+}

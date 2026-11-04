@@ -16,6 +16,16 @@ def explained(reference,current,prediction,mask):
     return dict(changed=int((delta&mask).sum()),unchanged=int(unchanged.sum()),black=int(black.sum()),matching_prediction=int((matched&~black).sum()),unexplained=int((unchanged&~accounted).sum()),outside=int((delta&~mask).sum()),accounted_share=float(((delta&mask)|accounted).sum()/max(count,1)))
 
 
+def timing_edges(event,rows,load,reference):
+    values=[]
+    for index in (event['first']-2,event['first']-1,event['end'],event['end']+1):
+        if not 0<=index<len(rows):
+            values.append(dict(index=index,pass_clean=False,reason='Edge not captured'));continue
+        count=int(strict.changed(load(index),reference).sum())
+        values.append(dict(index=index,changed_pixels=count,pass_clean=count==0))
+    return values
+
+
 def read(root,log,attempt):
     root=Path(root);attempt=Path(attempt)
     qualification=json.loads((attempt/'prefire-result.json').read_text())
@@ -45,6 +55,7 @@ def read(root,log,attempt):
         value['g2_pass']=value['changed_target_pixels']>0
     for event in result['events']:
         samples=[v for v in result['per_frame'] if v['event']==event['event']]
+        event['edges']=timing_edges(event,rows,load,references[event['event']])
         event['strict_result']=event['result']
         event['g3_mode']=objects[event['target']]['swaps'][event['anomaly']]['g3_mode']
         event['explained_share']=strict.distribution([s['explained_pixels']['accounted_share'] for s in samples])
@@ -66,4 +77,10 @@ def test():
     prediction[2:5,2:8]=base[2:5,2:8]
     assert explained(base,active,prediction,mask)['accounted_share']==1
     active[0,0]=255;assert explained(base,active,prediction,mask)['outside']==1
-    return dict(result='PASS',positive=2,unpredicted_unchanged_negative=1,spill_negative=1)
+    pictures=[base.copy() for _ in range(8)];event=dict(first=3,end=6)
+    assert all(v['pass_clean'] for v in timing_edges(event,pictures,lambda i:pictures[i],base))
+    pictures[1][mask]=255
+    assert not all(v['pass_clean'] for v in timing_edges(event,pictures,lambda i:pictures[i],base))
+    pictures[1]=base.copy();pictures[7][mask]=255
+    assert not all(v['pass_clean'] for v in timing_edges(event,pictures,lambda i:pictures[i],base))
+    return dict(result='PASS',positive=3,unpredicted_unchanged_negative=1,spill_negative=1,early_edge_negative=1,late_edge_negative=1)

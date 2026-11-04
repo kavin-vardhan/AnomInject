@@ -10593,3 +10593,8 @@ GM2 requires all four EA_Core meshes including EA_Floor. The bench uses a distin
 ### G547 - Calibration and scored capture need separate time bounds
 
 The198 no-fire previews each require a separate32-frame geometry run. The inherited900s C5 bound was undersized for that calibration. The initial session is retained as an owned setup stop before scoring; only calibration gets2700s on the remaining slot, while all C5 gates keep900s. This changes execution allowance, not any pixel or state gate.
+
+
+### G548 - Texture timing checks need independent clean neighbours
+
+Compare both pre-fire frames and both reverted frames with the saved frame immediately before the fire. Comparing that reference only with itself cannot detect an early edge. The reader rejects an early or late changed neighbour before any scored09445r leg. The threshold stays greater than2 RGB levels.
