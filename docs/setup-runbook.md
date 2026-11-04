@@ -970,3 +970,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-45r Stage2 implementation: camera_clipping is enabled on4.25 through the existing CameraCachePOV compat helper. Its anomaly class is behavior-equal to release d7eee97 after that compile-only substitution. C4/C5 hold this opt-in global fromStart toStop, evaluate its slab after the camera, emit whole-frame/no-mask rows and the55 release row/summary keys, and restore the near plane. Default routes remain the four accepted Stage1 routes. The EA_Core-only non-Shipping IAICameraSlabBench schedule alternates three near spans with far views; IAICameraBaseline holds the original near plane for the paired negative. Unchanged slab selftest:154checks/0failures, with legacy/frustum/AABB can-fails; release counter block is exact. Runtime/build gates pending. Stage1c5d0919 was independently pushed byCode; no push byCodex.
+
+
+094-45r Stage2 build correction: Editor attempt2 failed at AnomalyCameraSession425.cpp:56 because MakeShared returns TSharedRef and it has no ToSharedRef method. Pass the existing reference directly to FJsonSerializer::Serialize. No behavior/keys changed; no launch occurred. Editor attempt3 remains, Game attempt2 is next. Stage1 remains pushed and accepted.

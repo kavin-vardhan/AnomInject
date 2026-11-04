@@ -10608,3 +10608,6 @@ A bench-only blue base plus shadowless fills removes the invisible checker half 
 ### G550 - Hold camera clipping across the session and evaluate after the camera
 
 The opt-in camera_clipping route is a session global, excluded from auto selection. Its positive frames come from the release slab predicate after camera evaluation, with whole-frame extent and no target mask. The4.25 capture adapter copies the release diagnostics/counters, and Stop restores the saved near plane. The baseline-near control uses the same held-session/pose path.
+
+
+094-45r Stage2 build correction: Editor attempt2 failed at AnomalyCameraSession425.cpp:56 because MakeShared returns TSharedRef and it has no ToSharedRef method. Pass the existing reference directly to FJsonSerializer::Serialize. No behavior/keys changed; no launch occurred. Editor attempt3 remains, Game attempt2 is next. Stage1 remains pushed and accepted.

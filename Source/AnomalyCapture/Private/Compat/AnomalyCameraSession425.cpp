@@ -53,7 +53,7 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
     Receipt->SetStringField(TEXT("pose_rule"),TEXT("624 far prepass frames; six 288-frame holds alternating near/far, starting near; near eye 50cm before EA_LOD front bounds"));
     Receipt->SetStringField(TEXT("near_position"),NearPosition.ToString()); Receipt->SetStringField(TEXT("far_position"),FarPosition.ToString());
     Receipt->SetNumberField(TEXT("start_frame"),double(StartFrame));
-    FString Text; auto W=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(Receipt.ToSharedRef(),W);
+    FString Text; auto W=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(Receipt,W);
     FFileHelper::SaveStringToFile(Text,*(Output/TEXT("camera-session-start.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 camera_clipping session held=%d baseline=%.3f near=%.3f bench=%d"),Active,Baseline,GNearClippingPlane,Bench);
     return Active;
