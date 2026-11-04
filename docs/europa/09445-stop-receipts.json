@@ -1,0 +1,892 @@
+{
+  "result": "NEEDS-DECISION",
+  "utc": "2026-11-04T10:30:54.175621+00:00",
+  "summary": {
+    "result": "NEEDS-DECISION",
+    "gate_results": {
+      "lod_guard": "PASS",
+      "session_start": "PASS",
+      "mask_check": "PASS",
+      "wall_strip": "PASS",
+      "census": "PASS",
+      "custom_depth": "PASS",
+      "annotation": "PASS",
+      "self_check": "PASS",
+      "ui_pixels": "PASS",
+      "view": "PASS",
+      "textures": "FAIL",
+      "depth_mode": "PASS",
+      "host_depth": "none"
+    },
+    "per_anomaly": [
+      {
+        "anomaly": "blinking",
+        "events_fired": 15,
+        "affected_frames": 90,
+        "mask_frames": 90,
+        "mask_pixels": 9677868,
+        "result": "PASS"
+      },
+      {
+        "anomaly": "lod_corruption",
+        "events_fired": 19,
+        "affected_frames": 247,
+        "mask_frames": 247,
+        "mask_pixels": 17171440,
+        "result": "PASS"
+      },
+      {
+        "anomaly": "missing_texture",
+        "events_fired": 22,
+        "affected_frames": 286,
+        "mask_frames": 286,
+        "mask_pixels": 37602422,
+        "result": "PASS"
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "events_fired": 13,
+        "affected_frames": 157,
+        "mask_frames": 157,
+        "mask_pixels": 19400524,
+        "result": "PASS"
+      }
+    ],
+    "details": [
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_BlinkCube",
+        "events": 4,
+        "frames": 52,
+        "failed_frames": 0,
+        "min_iou": 0.9861844623038653,
+        "max_iou": 0.9862099757622146,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 1083,
+        "changed_target_min": 77307,
+        "mask_pixels_max": 78390
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_Floor",
+        "events": 4,
+        "frames": 40,
+        "failed_frames": 40,
+        "min_iou": 0.8131518415534268,
+        "max_iou": 0.8131564604484023,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 40453,
+        "changed_target_min": 176049,
+        "mask_pixels_max": 216502
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_HideCube",
+        "events": 2,
+        "frames": 26,
+        "failed_frames": 0,
+        "min_iou": 0.9861717055746907,
+        "max_iou": 0.9861844623038653,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 1084,
+        "changed_target_min": 77306,
+        "mask_pixels_max": 78390
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_LOD",
+        "events": 3,
+        "frames": 39,
+        "failed_frames": 0,
+        "min_iou": 1.0,
+        "max_iou": 1.0,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 0,
+        "changed_target_min": 118616,
+        "mask_pixels_max": 118616
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_BlinkCube",
+        "events": 2,
+        "frames": 26,
+        "failed_frames": 26,
+        "min_iou": 0.4935323383084577,
+        "max_iou": 0.4935833652251563,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 39702,
+        "changed_target_min": 38688,
+        "mask_pixels_max": 78390
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_Floor",
+        "events": 7,
+        "frames": 91,
+        "failed_frames": 91,
+        "min_iou": 0.40649509011464097,
+        "max_iou": 0.4065274223794699,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 128495,
+        "changed_target_min": 88007,
+        "mask_pixels_max": 216502
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_HideCube",
+        "events": 8,
+        "frames": 104,
+        "failed_frames": 104,
+        "min_iou": 0.4926266105370583,
+        "max_iou": 0.4927541778288047,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 39773,
+        "changed_target_min": 38617,
+        "mask_pixels_max": 78390
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_LOD",
+        "events": 5,
+        "frames": 65,
+        "failed_frames": 0,
+        "min_iou": 1.0,
+        "max_iou": 1.0,
+        "outside_changed_max": 0,
+        "unchanged_inside_max": 0,
+        "changed_target_min": 118616,
+        "mask_pixels_max": 118616
+      }
+    ],
+    "texture_edges": 70,
+    "dirty_edges": 0,
+    "reverts": 35,
+    "residual_nonzero": 0,
+    "lod": [
+      {
+        "event": "lod_corruption@7418",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69408,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@7538",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69409,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@7610",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69404,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@7634",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69405,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@7706",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69409,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@7730",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69409,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@7946",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69404,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8018",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69407,
+        "changed_max": 69413,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8090",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69408,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8258",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69408,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8282",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69404,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8330",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69406,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8474",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69405,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8642",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69405,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8738",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69409,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8762",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69408,
+        "changed_max": 69415,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8834",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69406,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8954",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69404,
+        "changed_max": 69414,
+        "result": "PASS"
+      },
+      {
+        "event": "lod_corruption@8978",
+        "target": "EA_LOD",
+        "frames": 13,
+        "changed_min": 69405,
+        "changed_max": 69414,
+        "result": "PASS"
+      }
+    ],
+    "texture_examples": {
+      "corrupted_texture": {
+        "image": "E:\\IA_BuildCache\\09445-evidence\\D3D11-1280\\02\\plugin-frames\\epoch01\\frame-000719.png",
+        "mask": "E:\\IA_BuildCache\\09445-evidence\\D3D11-1280\\02\\plugin-frames\\epoch01\\mask-000719.png",
+        "reference": "E:\\IA_BuildCache\\09445-evidence\\D3D11-1280\\02\\plugin-frames\\epoch01\\frame-000718.png"
+      },
+      "missing_texture": {
+        "image": "E:\\IA_BuildCache\\09445-evidence\\D3D11-1280\\02\\plugin-frames\\epoch01\\frame-000743.png",
+        "mask": "E:\\IA_BuildCache\\09445-evidence\\D3D11-1280\\02\\plugin-frames\\epoch01\\mask-000743.png",
+        "reference": "E:\\IA_BuildCache\\09445-evidence\\D3D11-1280\\02\\plugin-frames\\epoch01\\frame-000742.png"
+      }
+    },
+    "self_checks": [
+      "Capture425 SELF_CHECK stage=start frames=1 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=5 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=4 ui_controls=4 ui_positive=4 ui_checked=1 ui_hits=0 ui_paired=1 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1211 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=bench_off batches=0 lost=0 no_pass=0 polluted=0",
+      "Capture425 SELF_CHECK stage=300 frames=300 size=1280x720 format=18 RHI=D3D11 PostRenderViewFamily=318 synth=0 viewport=SceneViewport client=GameViewportClient viewport_size=1280x720 backbuffer_format=18 slate=1 pie=0 pre_ui=1 ui_draws=8 ui_controls=8 ui_positive=8 ui_checked=300 ui_hits=0 ui_paired=8 tick=OnWorldPostActorTick425 tick_source=build_constant tick_type=2 tick_type_source=build_constant tick_calls=1524 fixed_step=1 fixed_dt=0.033333333 fixed_rate=0 fixed_fps=30.000000 smoothing=0 census=on batches=0 lost=0 no_pass=0 polluted=0"
+    ],
+    "census": {
+      "peak_drawn": 4,
+      "per_pose": [
+        {
+          "pose": 0,
+          "drawn": 4
+        },
+        {
+          "pose": 1,
+          "drawn": 4
+        },
+        {
+          "pose": 2,
+          "drawn": 4
+        },
+        {
+          "pose": 3,
+          "drawn": 4
+        },
+        {
+          "pose": 4,
+          "drawn": 4
+        },
+        {
+          "pose": 5,
+          "drawn": 4
+        }
+      ],
+      "exhaustion": 0,
+      "lost": 0,
+      "no_pass": 0,
+      "polluted": 0,
+      "over_55_waived": true,
+      "result": "PASS"
+    },
+    "custom_depth": {
+      "result": "PASS",
+      "candidates": 14,
+      "differences": [],
+      "bad_frames": [],
+      "bench_planted": [],
+      "host_writes": 0,
+      "rule": "GD5 removes the bench plant; before/mid/after states must be identical, enabled and tagged counts zero"
+    },
+    "c_space": [
+      {
+        "leg": "H4\\D3D11-1280\\01",
+        "before": {
+          "utc": "2026-11-04T10:08:43.938913+00:00",
+          "free_bytes": 21970456576,
+          "caches": [
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\D3DSCache",
+              "files": 72,
+              "bytes": 3432448,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\DXCache",
+              "files": 88,
+              "bytes": 1152114688,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\GLCache",
+              "files": 28,
+              "bytes": 192764053,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\Common\\DerivedDataCache",
+              "files": 12,
+              "bytes": 974848,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\4.25\\Saved",
+              "files": 7,
+              "bytes": 14267,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\StylizedParisStreet\\Saved",
+              "files": 0,
+              "bytes": 0,
+              "errors": 0
+            }
+          ]
+        },
+        "after": {
+          "utc": "2026-11-04T10:12:13.551827+00:00",
+          "free_bytes": 21977526272,
+          "caches": [
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\D3DSCache",
+              "files": 72,
+              "bytes": 3432448,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\DXCache",
+              "files": 88,
+              "bytes": 1152114688,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\GLCache",
+              "files": 28,
+              "bytes": 192764053,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\Common\\DerivedDataCache",
+              "files": 12,
+              "bytes": 974848,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\4.25\\Saved",
+              "files": 7,
+              "bytes": 14267,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\StylizedParisStreet\\Saved",
+              "files": 0,
+              "bytes": 0,
+              "errors": 0
+            }
+          ]
+        },
+        "drop_bytes": -7069696,
+        "drop_GiB": -0.00658416748046875,
+        "attribution_required": false,
+        "cache_changes": [
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\D3DSCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\DXCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\GLCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\Common\\DerivedDataCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\4.25\\Saved",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\StylizedParisStreet\\Saved",
+            "delta_bytes": 0,
+            "errors": 0
+          }
+        ],
+        "attribution": "Measured cache size deltas; other disk writers not established",
+        "floor_pass": true
+      },
+      {
+        "leg": "H4\\D3D11-1280\\02",
+        "before": {
+          "utc": "2026-11-04T10:18:17.783961+00:00",
+          "free_bytes": 21961043968,
+          "caches": [
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\D3DSCache",
+              "files": 72,
+              "bytes": 3432448,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\DXCache",
+              "files": 88,
+              "bytes": 1152114688,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\GLCache",
+              "files": 28,
+              "bytes": 192764053,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\Common\\DerivedDataCache",
+              "files": 12,
+              "bytes": 974848,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\4.25\\Saved",
+              "files": 7,
+              "bytes": 14267,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\StylizedParisStreet\\Saved",
+              "files": 0,
+              "bytes": 0,
+              "errors": 0
+            }
+          ]
+        },
+        "after": {
+          "utc": "2026-11-04T10:21:58.475244+00:00",
+          "free_bytes": 21956489216,
+          "caches": [
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\D3DSCache",
+              "files": 72,
+              "bytes": 3432448,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\DXCache",
+              "files": 88,
+              "bytes": 1152114688,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\GLCache",
+              "files": 28,
+              "bytes": 192764053,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\Common\\DerivedDataCache",
+              "files": 12,
+              "bytes": 974848,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\4.25\\Saved",
+              "files": 7,
+              "bytes": 14267,
+              "errors": 0
+            },
+            {
+              "path": "C:\\Users\\kavin\\AppData\\Local\\StylizedParisStreet\\Saved",
+              "files": 0,
+              "bytes": 0,
+              "errors": 0
+            }
+          ]
+        },
+        "drop_bytes": 4554752,
+        "drop_GiB": 0.004241943359375,
+        "attribution_required": false,
+        "cache_changes": [
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\D3DSCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\DXCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\NVIDIA\\GLCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\Common\\DerivedDataCache",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\UnrealEngine\\4.25\\Saved",
+            "delta_bytes": 0,
+            "errors": 0
+          },
+          {
+            "path": "C:\\Users\\kavin\\AppData\\Local\\StylizedParisStreet\\Saved",
+            "delta_bytes": 0,
+            "errors": 0
+          }
+        ],
+        "attribution": "Measured cache size deltas; other disk writers not established",
+        "floor_pass": true
+      }
+    ]
+  },
+  "qualification": {
+    "native": "PASS",
+    "frames": 2352,
+    "dropped": 0,
+    "events": [
+      {
+        "anomaly": "blinking",
+        "target": "EA_BlinkCube",
+        "count": 3
+      },
+      {
+        "anomaly": "blinking",
+        "target": "EA_Floor",
+        "count": 2
+      },
+      {
+        "anomaly": "blinking",
+        "target": "EA_HideCube",
+        "count": 6
+      },
+      {
+        "anomaly": "blinking",
+        "target": "EA_LOD",
+        "count": 4
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_BlinkCube",
+        "count": 4
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_Floor",
+        "count": 4
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_HideCube",
+        "count": 2
+      },
+      {
+        "anomaly": "corrupted_texture",
+        "target": "EA_LOD",
+        "count": 3
+      },
+      {
+        "anomaly": "lod_corruption",
+        "target": "EA_LOD",
+        "count": 19
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_BlinkCube",
+        "count": 2
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_Floor",
+        "count": 7
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_HideCube",
+        "count": 8
+      },
+      {
+        "anomaly": "missing_texture",
+        "target": "EA_LOD",
+        "count": 5
+      }
+    ],
+    "qualified": [
+      "EA_BlinkCube",
+      "EA_HideCube",
+      "EA_LOD"
+    ],
+    "selected": [
+      "EA_BlinkCube",
+      "EA_Floor",
+      "EA_HideCube",
+      "EA_LOD"
+    ],
+    "unqualified_selected": [
+      "EA_Floor"
+    ],
+    "qualification_complete": false,
+    "rows": 2352,
+    "sampled_state_keys": [
+      "id",
+      "event_id",
+      "target_name",
+      "start_frame",
+      "seconds_remaining",
+      "fire_active",
+      "injected",
+      "labelled",
+      "receiver_names",
+      "target_tags",
+      "projected_screen_share",
+      "affected",
+      "mask_pixels",
+      "drawn_pixels"
+    ],
+    "mask_counts": {
+      "lod_corruption": 247,
+      "corrupted_texture": 157,
+      "missing_texture": 286,
+      "blinking": 90
+    }
+  },
+  "floor": {
+    "actor": "EA_Floor",
+    "measured_before_fire": [
+      {
+        "frame": 24,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.87297884854027,
+        "saturated_pixels": 0
+      },
+      {
+        "frame": 25,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.87291264437897,
+        "saturated_pixels": 0
+      },
+      {
+        "frame": 26,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.8741766819706,
+        "saturated_pixels": 0
+      },
+      {
+        "frame": 27,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.87345921361774,
+        "saturated_pixels": 0
+      },
+      {
+        "frame": 28,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.8733006315569,
+        "saturated_pixels": 0
+      },
+      {
+        "frame": 29,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.87409354186104,
+        "saturated_pixels": 0
+      },
+      {
+        "frame": 30,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.87345921361774,
+        "saturated_pixels": 0
+      },
+      {
+        "frame": 31,
+        "pixels": 216502,
+        "drawn_pct": 23.49197048611111,
+        "baseline_mean": 151.87297884854027,
+        "saturated_pixels": 0
+      }
+    ],
+    "qualification": "NOT_PERFORMED: helper did not swap or qualify this selectable actor in the three-material preflight",
+    "cause": "Helper enumerates only EA_HideCube, EA_BlinkCube and EA_LOD; held EA_Camera view admits EA_Floor to the census selection band",
+    "stage1": "NEEDS-DECISION; no D3D12 launches and no READY file"
+  },
+  "exit": {
+    "utc": "2026-11-04T10:27:45.676705+00:00",
+    "feature": {
+      "head": "ea3ea6815a3c619cd792dbc214be5cf7c8a31597",
+      "branch": "feat/europa-port",
+      "status": ""
+    },
+    "manifest_files": 27,
+    "free_GiB": {
+      "C:": 20.430706024169922,
+      "D:": 53.63916015625,
+      "E:": 83.24253845214844
+    },
+    "result": "PASS",
+    "ref_changes": {
+      "refs/heads/feat/europa-port": {
+        "before": "983f429961b258270c8878c3d1161d1dae057452",
+        "after": "ea3ea6815a3c619cd792dbc214be5cf7c8a31597"
+      }
+    },
+    "refs_count": 76,
+    "materials_unchanged": "PASS",
+    "fixture_assets": "PASS",
+    "binary_archive_rehash": "PASS",
+    "runtime_crashes": 0,
+    "upload_signs": 0,
+    "protected_changes": 0,
+    "no_push": true,
+    "no_tags": true,
+    "stage2": "NOT_RUN",
+    "unscored_setup_aborts": 1,
+    "runs": [
+      {
+        "path": "D:\\IA_Europa\\Receipts\\09445\\H4\\D3D11-1280\\01\\result.json",
+        "result": "FAIL",
+        "exit_code": 0,
+        "ended_utc": "2026-11-04T10:12:09.304560+00:00"
+      },
+      {
+        "path": "D:\\IA_Europa\\Receipts\\09445\\H4\\D3D11-1280\\02\\result.json",
+        "result": "FAIL",
+        "exit_code": 0,
+        "ended_utc": "2026-11-04T10:21:51.650916+00:00"
+      }
+    ]
+  },
+  "gl3": {
+    "result": "PASS",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0
+  },
+  "setup_abort": {
+    "result": "PASS",
+    "classification": "Unscored setup abort",
+    "cause": "Probe skipped Prepared=Next; Ready stayed false, so no request reached the backend",
+    "frames": 0,
+    "previews": 0,
+    "events": 0,
+    "original_result_retained": "FAIL",
+    "raw": "D:\\IA_Europa\\Receipts\\09445\\H4\\D3D11-1280\\01\\raw-evidence.json",
+    "stop": "D:\\IA_Europa\\Receipts\\09445\\H4\\D3D11-1280\\01\\owned-setup-stop.json",
+    "tests": "test09445 requires Prepared before the no-auto return and rejects the original ordering",
+    "authority": "GL2 qualification not reached; remaining second session slot only; no G1-G5/H4 threshold or failure changed"
+  },
+  "retry_tests": {
+    "result": "PASS",
+    "positive": 1,
+    "negative": 3,
+    "raw_mutated": false
+  },
+  "build_archive_paths": [
+    "D:\\IA_Europa\\Receipts\\09445\\builds-and-archive.json",
+    "D:\\IA_Europa\\Receipts\\09445\\builds-and-archive-02.json"
+  ],
+  "binary_inventory": "D:\\IA_Europa\\Receipts\\09445\\exe-dll-inventory.json",
+  "readers": [
+    "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\h4_kit09445.py",
+    "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\geometry_reader09445.py",
+    "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\calibration_reader09445.py",
+    "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\host_reader09445.py",
+    "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\result_summary09445.py",
+    "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\floor_audit09445.py"
+  ],
+  "stage1_ready": false,
+  "stage2": "NOT_RUN: Stage1 failed; no Code push confirmation",
+  "no_push": true,
+  "no_tags": true
+}
