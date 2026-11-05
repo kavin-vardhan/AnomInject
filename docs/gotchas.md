@@ -10640,3 +10640,6 @@ G554 outcome (094-46r): D3D11 passes its independently measured2/255 floor. D3D1
 
 
 G555. GP2 gates camera-clipping noise by the measured maximum level, with pixel count recorded only. Keep the original failed count receipts; rejudge separately. An odd-width image needs a same-size pixel control even when GP3 permits transferring the measured RHI floor.
+
+
+G555 result: GP3 allowed transfer of D3D12's measured 2-level floor, but the odd-width comparison fails on 131 frames at up to 117 levels, confined to rows 373-375 during EA_Floor texture fires. Both runs pass the 0.98 texture IoU bar; the positive has 1-2 spill pixels on 125 frames. The cause remains unestablished. Keep the failure; do not derive a new floor from the positive or mask away the strip.

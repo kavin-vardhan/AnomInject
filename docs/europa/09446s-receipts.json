@@ -1,0 +1,388 @@
+{
+  "result": "NEEDS-DECISION",
+  "utc": "2026-11-05T07:15:57.044985+00:00",
+  "entry": "886e1a0a28d2521559b4122ac0610e7be803d665",
+  "runtime": "871902052b3721660c55c442bb2bf2620ec3237d",
+  "origin": "c5d0919e5074404d26da8c16ccf845b360bde383",
+  "evidence_root": "E:/IA_BuildCache/09446s-evidence",
+  "accepted_1280_roots": [
+    "E:/IA_BuildCache/09446-evidence",
+    "E:/IA_BuildCache/09446r-evidence"
+  ],
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\all-owned-processes-closed.json",
+      "bytes": 1855,
+      "sha256": "e639920e5413d2a3d86c29db956c646d84338d7e0edf2ce594e7956dc1df6903"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\c5-job-config.json",
+      "bytes": 830,
+      "sha256": "677e2ffeccaa2f80a7b2b9c842b9b627d905ac5be9dd16f5dc1140043699d308"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\capacity-plan.json",
+      "bytes": 506,
+      "sha256": "905644dd35a501989f49cbb50b25208b3ab0aa9171f7e75cf57011192db501e1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\compression-20261105T062258Z.json",
+      "bytes": 18875,
+      "sha256": "767db976c347cc7fa5e8bd7485c3e82dd97630f7e45bba719c31400b1c719d34"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\compression-20261105T063702Z.json",
+      "bytes": 1454,
+      "sha256": "cdec5cdae94bd7f5d1eb90f3e8a809287379d18caad81596c02c2d3e0a493284"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\D3D11-gp2.json",
+      "bytes": 904,
+      "sha256": "eb3083b31b37d5d91cad6f7b62a1f2ad87aaa779bc9fce212f2c6d7ca8e37eab"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\D3D12-rejudged-full.json",
+      "bytes": 8983805,
+      "sha256": "ef44d4b6ede0c873cb63d1a8e4e47a8f1422f21222d3825c49189d164b95c769"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\D3D12-rejudged.json",
+      "bytes": 7965,
+      "sha256": "76a9d35b5aa00bee0095046172f0c7640cfea2bda411f309cfdd96df5c2e0f50"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\entry-job-config.json",
+      "bytes": 390,
+      "sha256": "09d950086bc9d2032859f96fc10e330657c0e8c4aca9cb835a09f29dec7b01ca"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\entry.json",
+      "bytes": 499739,
+      "sha256": "4d56642f3819ee94f1f5ab2da390442998a1234ae65e43814270d525c187505f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\examples.json",
+      "bytes": 760,
+      "sha256": "991c0ae846e4a7b191065aee833481d6adb34650419171a3d879a3ae97bc8669"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\exe-dll-inventory.json",
+      "bytes": 13202,
+      "sha256": "0c9fd5844fd3510cab9d1c857c5f207b0d6787c73f54cbff70d550cbd55ea655"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\exit-before-commit.json",
+      "bytes": 495155,
+      "sha256": "a3f78bb58ef0e4385a2514752a26b2a3eae3acc5d9e4746782a2eada5e4b32a0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\failure-audit.json",
+      "bytes": 55164,
+      "sha256": "ba7a791636383bf638f1471d334c49cd1fa86c4e9a8eeffd4f1e44962cfdc922"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\floors\\D3D12-1279-combined.json",
+      "bytes": 10794,
+      "sha256": "be177efeb706c1fca9a20032bdec4d12bf7951e406e83e0cce84d042e5fda253"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\freeze.json",
+      "bytes": 5699,
+      "sha256": "311c66817745d9af1770131a918d48d2b2a6109ac3e82e61ef9d7793dd607c96"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\c-space-after.json",
+      "bytes": 3248,
+      "sha256": "c1196d28448b72a0125096556e1ee808db28264b729ae83246fc37879ea397ab"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\c-space-before.json",
+      "bytes": 1015,
+      "sha256": "e87d97e16880ee8d430ceea2638fc58067d45c83f284ddac62e2947af8221078"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\execution.json",
+      "bytes": 151520,
+      "sha256": "ffc3bac8d54f2464da0030fdabdfc0e45255716739ddec510a11bd3a6dd964ed"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\raw-evidence.json",
+      "bytes": 2257471,
+      "sha256": "1987f5f76ba5aa1ca24d22a7bc1948aeb0fd188316f789bf82f5df7917c0b00d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\reader.json",
+      "bytes": 779726,
+      "sha256": "61b3080cd1feacf88190418cc61d2e21e7dfee8773b388e3f8ec89c75d3afdb7"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\result.json",
+      "bytes": 994615,
+      "sha256": "a553b5f82fe9e0b2c224e2955e98557946fc877eda7d23fed5dfb4883f33fe54"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\c-space-after.json",
+      "bytes": 3253,
+      "sha256": "10495ac5353aab813d1b6d23dd24ac3b1d967a2ce278762306f5823ac1e56d1c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\c-space-before.json",
+      "bytes": 1015,
+      "sha256": "3103c05b02850fb7e2d3ce3ec78cd78418ec7fc38105dd62effa8e01e938a38f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\execution.json",
+      "bytes": 152621,
+      "sha256": "72eacc8b5e8cb091a52590039c8018127131b7d8b1ea00cea2a4c54668b3a965"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\paired-pixels.json",
+      "bytes": 8988457,
+      "sha256": "c8e0904101e5989fe7c416242f07b5b17b4a6f2e1bc12829ac8a67dd9cd8c529"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\raw-evidence.json",
+      "bytes": 2248348,
+      "sha256": "f6e2f808be50043c14302e00aa4ebe2ada9f66995aa1bb6697d06f3cfc71312c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\reader.json",
+      "bytes": 785104,
+      "sha256": "e335ae1d9f9770862c30719cfe5afa7fc6921873d7968720fd23b53e7c1d4de3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\result.json",
+      "bytes": 1001475,
+      "sha256": "86c68bc62989e6979401123fb227847e3cadd57a6374fac92dc4b89a3d6587b8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4-arming-D3D12-1279-control-a-01.json",
+      "bytes": 654455,
+      "sha256": "ed5c3b3c9837bde543b99c65aad6e8299525358f031d82a5f3efa4b17629c084"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4-arming-D3D12-1279-positive-01.json",
+      "bytes": 654452,
+      "sha256": "69d4b6c98eae25311806d28911ffe75065467d53e84f3a8f96dc71b02036a5e6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4-job-config.json",
+      "bytes": 902,
+      "sha256": "3b6ff643d69d259d936c27dc4aa0fb4cf3acf50c26b0b0033acfe2ace4f80109"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4-manifest-D3D12-1279-control-a-01.json",
+      "bytes": 18666,
+      "sha256": "d70ced1ecaa13dde66a0e2915558e91c6552e78d1283b3bdc86259846fd55072"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4-manifest-D3D12-1279-positive-01.json",
+      "bytes": 18667,
+      "sha256": "be54e4659df4b7e25169a7801927efac22f2e0dc0c6784521586346162a0bb74"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4-prior-default-D3D12-1279-control-a-01.json",
+      "bytes": 610007,
+      "sha256": "dfced73976819c6545aa42c37639e0826223462a5157241f638a8c21a1f0294d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4-prior-default-D3D12-1279-positive-01.json",
+      "bytes": 654455,
+      "sha256": "ed5c3b3c9837bde543b99c65aad6e8299525358f031d82a5f3efa4b17629c084"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\kit-commit.json",
+      "bytes": 737,
+      "sha256": "ed0421f9ad0a95f0f4859780b6b7a76194d3e4a6c6bf50d2618e81ee0b82989c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\kit-restore.json",
+      "bytes": 992,
+      "sha256": "d28a1c7633a6e8be1abc60e1e262b13446470719b1eb8c3576926055d833b43e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\owned-processes-closed.json",
+      "bytes": 1957,
+      "sha256": "46bab695a7c347aa5683fb8d7f0983d2f232bbd38b1833e6fb180650b3cb391e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\owner-p9-result.json",
+      "bytes": 243,
+      "sha256": "dc31d66510b2b76a62318ee57921dfa5188ca61fb3d3c386622e6a4a23b9dde4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\predictions.json",
+      "bytes": 2008,
+      "sha256": "9388f00e242864f3653254d2113fd0f2ab022ef1d2e9215549c7c73c432672d4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\prefire-summary.json",
+      "bytes": 13428,
+      "sha256": "462555b9237b2d479f87027372f47b1bcd673639acbc3dd44b29700ff5506b3d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\reader-selftest.json",
+      "bytes": 148,
+      "sha256": "556a1be6681b86151bf67cc78cffe6f28e9ac9dced1802c624e29bc88626addb"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\result-summary.json",
+      "bytes": 16128,
+      "sha256": "eab6615506084f34e6a2d6f3f940cb63d9cf2e18aa6306ff77cc7d268ed7f55a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\reused-binary-rehash.json",
+      "bytes": 3451,
+      "sha256": "7792a3bfa2bd19df6a02871ff204349b042c9a28202d0dc907d85888cafeb60d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\reused-sessions.json",
+      "bytes": 1030,
+      "sha256": "2940395264d1155f3243eff5a45ca57abec0648a2056210a80e15fa0e60346c1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\source-audit.json",
+      "bytes": 2511,
+      "sha256": "4b2e66b46f82993c4a9ebac8bba4603b03876ea4c682e7eab2158306ccc97197"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\stop.json",
+      "bytes": 2729,
+      "sha256": "58be05b4f02cdc6ed6e0aedc5b42f82ed7cc45cbcad5e642472185aba88e9fb8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\tool-tests.json",
+      "bytes": 532,
+      "sha256": "15d47cd3bd3f7ee10dc83fe0e4826ffba04a2ac2fc6eb49212b4a0c848069179"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\tooling-files.json",
+      "bytes": 581,
+      "sha256": "b5425db83ea9423a6f610381141ccb98aab2dbf7f5d2c94766e14766e7ccc36d"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\additive_reader09446s.py",
+      "bytes": 37,
+      "sha256": "eb300d8a02c6b7d1c82741bd418343c327acb8f97a10954ad69f742ed1184bb0"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\c_space09446s.py",
+      "bytes": 29,
+      "sha256": "b23eb94781680d5aeb89905e2cc04b04fbdb44e11a935ac52c2cb5efa8c3687f"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\camera_reader09446s.py",
+      "bytes": 10505,
+      "sha256": "a7bdf48fad229d327b2e36242dd2f09692aed68abd9c2f3e98ae1a3e62f35392"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\card_reads09446s.py",
+      "bytes": 1925,
+      "sha256": "bba4391e0d2bf4d3cf30c41054b32994b9de1979286bd350ed5d9925171e6412"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\h4_reader09446s.py",
+      "bytes": 31,
+      "sha256": "0933b36a56ad882646bf3e1d39f8c083ff2f5c8fef34fd723d5e1d4a1d4195f7"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\host_reader09446s.py",
+      "bytes": 2178,
+      "sha256": "76fcafac452b3c4c841281581cdcd356809bc7dd4ba3dbc4594f568b110b484e"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\job_scope.py",
+      "bytes": 12047,
+      "sha256": "f92cd4a55423df9d91ce6fe6d26505f033522036630835492ef3d750986608ad"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\kit09446s.py",
+      "bytes": 14900,
+      "sha256": "729e222ecf0eac3989035a05300dd263e5dafbb2fde46346c139a34fb3384f0d"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\rejudge09446s.py",
+      "bytes": 1517,
+      "sha256": "f42077c48202a0baa92bc68b7a18c87934099bd35825ac30a6e8c54b80a88a8d"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\seal_odd09446s.py",
+      "bytes": 2339,
+      "sha256": "ddbb16ca67b93764324e878116fed2b4012bd72fa84ec5ce792d042e983318d5"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\window09446s.py",
+      "bytes": 28,
+      "sha256": "6cbee25d9dc3ca2b71d4ec1b5bd2a273207a3a4273abfa30369206dcfce0eb8c"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\audit_all_owned09446s.py",
+      "bytes": 2089,
+      "sha256": "f86c576ee52467f7e620fc7c143820454d85b3d8340e2534f9c08c2d1eb49069"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\audit_owned09446s.py",
+      "bytes": 2100,
+      "sha256": "93e001e87430a2638dee26dd3a822d72ba30863ea689ffa41261d26dec1dc002"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\binary_table09446s.py",
+      "bytes": 1324,
+      "sha256": "7d995f7c95b7d99ba81832ea1ee7519496da040537efdadca29d0132d517a076"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\capacity09446s.py",
+      "bytes": 2715,
+      "sha256": "bf35697e0afba980f6fc9106bba667afdcd55e2704699552c79ccab7b54ff528"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\closeout09446s.py",
+      "bytes": 4704,
+      "sha256": "da2cbd27b80e8aa761042a0122f706e871d6e3e9ced680025c9f14237edd07d1"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\compatibility09446s.py",
+      "bytes": 2274,
+      "sha256": "675b1c575a2deab144a70012a2f5d2dd2a4f34863cfa2195e9924626d92d54cb"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\d11_gp2_record09446s.py",
+      "bytes": 1466,
+      "sha256": "06032dcd08977946339de11c04600916b3447a8201db0312adca367a376244bf"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\examples09446s.py",
+      "bytes": 647,
+      "sha256": "9f50f59781bb878cf77af7f0693e6efe053bbee366f1986fbb7f99208fe503b4"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\failure09446s.py",
+      "bytes": 3430,
+      "sha256": "c074d6618d61d30fac1f4599b07fc7b3c224eb5cc4aab7c067cd59d717888871"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\qualifications09446s.py",
+      "bytes": 1252,
+      "sha256": "548a75ce508d114e08a4d55935913dd984f0f775f33489d1fcdc48689c51f4c5"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\restore_kit09446s.py",
+      "bytes": 1376,
+      "sha256": "a9bbcf9f2578d105746a9863a9f903c2551d9cb41bdb9b55f7918b030c40cb93"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\reused_sessions09446s.py",
+      "bytes": 944,
+      "sha256": "b4f6f1b5b7be88a466ac751660f8a0383272eb3f12217e353e08f6b4d3021f28"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\summarize09446s.py",
+      "bytes": 3872,
+      "sha256": "81bf891ccc21b4d44b376f46642ae18eb93db005ecde36d4686782bf064570b5"
+    }
+  ],
+  "no_native_changes": true,
+  "builds": 0,
+  "no_push": true,
+  "no_tags": true
+}

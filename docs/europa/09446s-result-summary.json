@@ -1,0 +1,430 @@
+{
+  "result": "NEEDS-DECISION",
+  "utc": "2026-11-05T07:07:30.765751+00:00",
+  "legs": [
+    {
+      "leg": "D3D12-1279-control-a",
+      "result": "PASS",
+      "crashed": false,
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 634903,
+            "sha256": "f033601209c64930473dd6210646f9acce3dde2840cc871ad7ddcd9933eb6fc4",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6632,
+            "sha256": "d2a59f8584c852e4b87562a869cbd3c5fcbf8337f9f0cb2c8c172f9be89c1b10",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "receipt": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\result.json",
+      "frames_root": "E:\\IA_BuildCache\\09446s-evidence\\D3D12-1279-control-a\\01\\plugin-frames\\epoch01",
+      "reader": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-control-a\\01\\reader.json",
+      "c_before_GiB": 23.225162506103516,
+      "c_after_GiB": 23.224430084228516,
+      "c_drop_GiB": 0.000732421875,
+      "exit_utc": "2026-11-05T06:42:27.640932+00:00",
+      "exit_code": 0,
+      "frames": 2640,
+      "drops": 0,
+      "masks": 780,
+      "events": {
+        "blinking": 15,
+        "lod_corruption": 19,
+        "missing_texture": 22,
+        "corrupted_texture": 13
+      },
+      "h4_components": {
+        "mask_check": "PASS",
+        "wall_strip": "PASS",
+        "census": "PASS",
+        "custom_depth": "PASS",
+        "annotation": "PASS",
+        "self_check": "PASS",
+        "ui_pixels": "PASS",
+        "view": "PASS",
+        "lod_guard": "PASS",
+        "session_start": "PASS"
+      },
+      "lod_min_event_peak": 67919,
+      "textures": {
+        "missing_texture": {
+          "events": 22,
+          "skeletal_events": 0,
+          "static_events": 22,
+          "iou": {
+            "count": 286,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        },
+        "corrupted_texture": {
+          "events": 13,
+          "skeletal_events": 0,
+          "static_events": 13,
+          "iou": {
+            "count": 157,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        }
+      },
+      "strict_texture_result": "PASS",
+      "texture_fallback_frames": 0,
+      "texture_edge_frames": 140,
+      "texture_bad_edges": 0,
+      "residual_reverts": 35,
+      "residual_max": 0,
+      "texture_spill_max": 0,
+      "unavailable": 0,
+      "depth_modes": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "camera": {
+        "result": "PASS",
+        "requested": true,
+        "baseline": true,
+        "far_only": false,
+        "frames": 2640,
+        "positive_frames": 0,
+        "spans": [],
+        "start": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 10,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "start_frame": 5887,
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": false
+        },
+        "summary": {
+          "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+          "camera_clipping_bounds_candidate_frames": 0,
+          "camera_clipping_confirmed_positive_frames": 0,
+          "camera_clipping_unconfirmed_frames": 0,
+          "camera_clipping_bounds_rejected_by_triangles_frames": 0,
+          "camera_clipping_confirm_traces_total": 0,
+          "camera_clipping_confirm_traces_max": 0,
+          "camera_clipping_confirm_unconfirmable_candidates": 0,
+          "camera_clipping_confirm_over_cap_candidates": 0,
+          "camera_clipping_confirm_trace_capped_candidates": 0,
+          "camera_clipping_confirm_no_ray_candidates": 0,
+          "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+          "camera_clipping_confirm_full_slab_fallback_traces": 0,
+          "camera_clipping_confirm_invalid_segments": 0,
+          "camera_clipping_confirm_landscape_candidates": 0,
+          "camera_clipping_confirm_skinned_unconfirmable": 0,
+          "camera_clipping_confirm_no_collision_unconfirmable": 0,
+          "camera_clipping_confirm_no_complex_unconfirmable": 0,
+          "camera_clipping_confirm_welded_unconfirmable": 0,
+          "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+          "camera_clipping_confirm_us_mean_per_labelled_frame": 0,
+          "camera_clipping_confirm_us_mean_per_candidate_frame": 0,
+          "camera_clipping_confirm_us_max": 0,
+          "camera_clipping_confirm_budget_us": 500,
+          "camera_clipping_clipped_ray_fraction_mean_confirmed": 0,
+          "camera_clipping_baseline_near": 10,
+          "camera_clipping_anomalous_near": 10,
+          "camera_clipping_frames_evaluated": 2640,
+          "camera_clipping_slab_positive_frames": 0,
+          "camera_clipping_sphere_proxy_positive_frames": 0,
+          "camera_clipping_slab_only_frames": 0,
+          "camera_clipping_sphere_proxy_only_frames": 0,
+          "camera_clipping_eye_inside_box_frames": 0,
+          "camera_clipping_near_overridden_frames": 0,
+          "camera_clipping_box_fallbacks": 0,
+          "camera_clipping_fx_excluded_max": 0,
+          "camera_clipping_primitives_enumerated_mean": 0,
+          "camera_clipping_candidates_mean": 0,
+          "camera_clipping_instances_tested_total": 0,
+          "camera_clipping_eval_ms_total": 11.367400000000005,
+          "camera_clipping_eval_us_mean": 4.305833333333335,
+          "camera_clipping_eval_us_max": 52.3,
+          "camera_clipping_first_hits": [],
+          "session_global_baseline_near": 10,
+          "session_global_restored_near": 10,
+          "session_global_near_restored": true,
+          "label_transition_camera_clipping_unconfirmed_entries": 0
+        },
+        "gn4_entries": 0
+      }
+    },
+    {
+      "leg": "D3D12-1279-positive",
+      "result": "FAIL",
+      "crashed": false,
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 636452,
+            "sha256": "6a2f6a359230d52ffaa3b43b40e994147b6538d47ff6c3ac18a0a4e7bbb7025c",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6631,
+            "sha256": "1927cd279d376028aa0a4a1c52fb52b20a3b64436a486c030a1b412c61b67fca",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "receipt": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\result.json",
+      "frames_root": "E:\\IA_BuildCache\\09446s-evidence\\D3D12-1279-positive\\01\\plugin-frames\\epoch01",
+      "reader": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\reader.json",
+      "c_before_GiB": 22.989368438720703,
+      "c_after_GiB": 23.005603790283203,
+      "c_drop_GiB": -0.0162353515625,
+      "exit_utc": "2026-11-05T06:55:02.799349+00:00",
+      "exit_code": 0,
+      "frames": 2640,
+      "drops": 0,
+      "masks": 780,
+      "events": {
+        "blinking": 15,
+        "lod_corruption": 19,
+        "missing_texture": 22,
+        "corrupted_texture": 13
+      },
+      "h4_components": {
+        "mask_check": "PASS",
+        "wall_strip": "PASS",
+        "census": "PASS",
+        "custom_depth": "PASS",
+        "annotation": "PASS",
+        "self_check": "PASS",
+        "ui_pixels": "PASS",
+        "view": "PASS",
+        "lod_guard": "PASS",
+        "session_start": "PASS"
+      },
+      "lod_min_event_peak": 67924,
+      "textures": {
+        "missing_texture": {
+          "events": 22,
+          "skeletal_events": 0,
+          "static_events": 22,
+          "iou": {
+            "count": 286,
+            "min": 0.9999953764922371,
+            "mean": 0.9999985935483378,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        },
+        "corrupted_texture": {
+          "events": 13,
+          "skeletal_events": 0,
+          "static_events": 13,
+          "iou": {
+            "count": 157,
+            "min": 0.9999907530272277,
+            "mean": 0.9999987336903181,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        }
+      },
+      "strict_texture_result": "PASS",
+      "texture_fallback_frames": 0,
+      "texture_edge_frames": 140,
+      "texture_bad_edges": 0,
+      "residual_reverts": 35,
+      "residual_max": 0,
+      "texture_spill_max": 2,
+      "unavailable": 0,
+      "depth_modes": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "camera": {
+        "result": "PASS",
+        "requested": true,
+        "baseline": false,
+        "far_only": false,
+        "frames": 2640,
+        "positive_frames": 144,
+        "spans": [
+          [
+            2352,
+            2400
+          ],
+          [
+            2448,
+            2496
+          ],
+          [
+            2544,
+            2592
+          ]
+        ],
+        "start": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 100,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "start_frame": 5802,
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": false
+        },
+        "summary": {
+          "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+          "camera_clipping_bounds_candidate_frames": 2640,
+          "camera_clipping_confirmed_positive_frames": 144,
+          "camera_clipping_unconfirmed_frames": 0,
+          "camera_clipping_bounds_rejected_by_triangles_frames": 2496,
+          "camera_clipping_confirm_traces_total": 380160,
+          "camera_clipping_confirm_traces_max": 144,
+          "camera_clipping_confirm_unconfirmable_candidates": 0,
+          "camera_clipping_confirm_over_cap_candidates": 0,
+          "camera_clipping_confirm_trace_capped_candidates": 0,
+          "camera_clipping_confirm_no_ray_candidates": 0,
+          "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+          "camera_clipping_confirm_full_slab_fallback_traces": 0,
+          "camera_clipping_confirm_invalid_segments": 0,
+          "camera_clipping_confirm_landscape_candidates": 0,
+          "camera_clipping_confirm_skinned_unconfirmable": 0,
+          "camera_clipping_confirm_no_collision_unconfirmable": 0,
+          "camera_clipping_confirm_no_complex_unconfirmable": 0,
+          "camera_clipping_confirm_welded_unconfirmable": 0,
+          "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+          "camera_clipping_confirm_us_mean_per_labelled_frame": 181.68333333333342,
+          "camera_clipping_confirm_us_mean_per_candidate_frame": 116.31121212121207,
+          "camera_clipping_confirm_us_max": 2178.1,
+          "camera_clipping_confirm_budget_us": 500,
+          "camera_clipping_clipped_ray_fraction_mean_confirmed": 1,
+          "camera_clipping_baseline_near": 10,
+          "camera_clipping_anomalous_near": 100,
+          "camera_clipping_frames_evaluated": 2640,
+          "camera_clipping_slab_positive_frames": 144,
+          "camera_clipping_sphere_proxy_positive_frames": 144,
+          "camera_clipping_slab_only_frames": 0,
+          "camera_clipping_sphere_proxy_only_frames": 0,
+          "camera_clipping_eye_inside_box_frames": 2496,
+          "camera_clipping_near_overridden_frames": 0,
+          "camera_clipping_box_fallbacks": 0,
+          "camera_clipping_fx_excluded_max": 0,
+          "camera_clipping_primitives_enumerated_mean": 14,
+          "camera_clipping_candidates_mean": 1,
+          "camera_clipping_instances_tested_total": 0,
+          "camera_clipping_eval_ms_total": 420.7694999999999,
+          "camera_clipping_eval_us_mean": 159.38238636363633,
+          "camera_clipping_eval_us_max": 2220.2999999999997,
+          "camera_clipping_first_hits": [
+            "EA_LOD.StaticMeshComponent0=144"
+          ],
+          "session_global_baseline_near": 10,
+          "session_global_restored_near": 10,
+          "session_global_near_restored": true,
+          "label_transition_camera_clipping_unconfirmed_entries": 0
+        },
+        "gn4_entries": 0
+      }
+    }
+  ],
+  "D4": {
+    "D3D12-1280": {
+      "result": "PASS",
+      "max_floor_level": 2,
+      "frames": 2640,
+      "labelled": 144,
+      "unlabelled": 2496,
+      "mismatches": 0,
+      "labelled_min_changed": 921600,
+      "unlabelled_max_delta": 2,
+      "unlabelled_max_count_information": 255,
+      "unlabelled_pixels_above_floor": 0,
+      "early_label_canfail_mismatches": 6,
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\D3D12-rejudged-full.json",
+      "comparison_utc": "2026-11-05T06:33:19.368818+00:00"
+    },
+    "D3D12-1279": {
+      "result": "FAIL",
+      "max_floor_level": 2,
+      "frames": 2640,
+      "labelled": 144,
+      "unlabelled": 2496,
+      "mismatches": 131,
+      "labelled_min_changed": 919601,
+      "unlabelled_max_delta": 117,
+      "unlabelled_max_count_information": 552,
+      "unlabelled_pixels_above_floor": 63341,
+      "early_label_canfail_mismatches": 6,
+      "path": "D:\\IA_Europa\\Receipts\\09446s\\H4\\D3D12-1279-positive\\01\\paired-pixels.json",
+      "comparison_utc": "2026-11-05T07:01:07.356315+00:00"
+    },
+    "D3D11-1280": {
+      "result": "PASS",
+      "utc": "2026-11-05T06:30:56.835121+00:00",
+      "authority": "GP2; reused accepted D3D11 raw histogram receipt, no new session",
+      "source": "D:\\IA_Europa\\Receipts\\09446r\\D3D11-rejudged-full.json",
+      "source_sha256": "ab9ce9473028164cd8b8904495e14c10706c8cc9e760f990a6d156a7a2479d69",
+      "floor": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D11-1280-combined.json",
+      "floor_sha256": "a72c0422d1f34ff0b1db72bd7e8827aa7e351f5d0bd423c21c7b09c10ee59d70",
+      "rule": "max delta only, count information",
+      "effective_max_delta": 2,
+      "frames": 2640,
+      "positive_frames": 144,
+      "negative_frames": 2496,
+      "negative_max_delta": 2,
+      "negative_count_information": 254,
+      "negative_pixels_above_floor": 0,
+      "positive_pixels_above_floor_min": 921600,
+      "mismatches": [],
+      "early_label_canfail": [
+        2351,
+        2399,
+        2447,
+        2495,
+        2543,
+        2591
+      ]
+    }
+  },
+  "other_gates": {},
+  "accepted_D3D11": "D:/IA_Europa/Receipts/09446/result-summary.json",
+  "accepted_D3D12": "D:/IA_Europa/Receipts/09446r/result-summary.json",
+  "defaults": [
+    "blinking",
+    "lod_corruption",
+    "missing_texture",
+    "corrupted_texture"
+  ],
+  "camera_opt_in": true,
+  "no_push": true,
+  "no_tags": true
+}
