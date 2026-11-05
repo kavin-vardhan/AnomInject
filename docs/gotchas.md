@@ -1,3 +1,5 @@
+G562: Read an actively written UE log with FileStream FileShare.ReadWrite. File.ReadAllText uses a sharing mode incompatible with the existing writer, even when no log mutation is requested. Preserve the failed smoke; validate old-reader failure and byte-exact shared reading before another owned protocol invocation. No token values in copied logs or commands.
+
 # Gotchas (append-only)
 
 Non-obvious lessons. Newest at the bottom. Never delete entries — supersede them.

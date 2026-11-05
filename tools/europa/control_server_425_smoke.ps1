@@ -9,6 +9,16 @@ $ErrorActionPreference='Stop'
 $rows=New-Object System.Collections.Generic.List[object]
 $clients=New-Object System.Collections.Generic.List[object]
 $credential=$null
+function Read-CaptureLog([string]$Path) {
+    $stream=[IO.FileStream]::new($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    $reader=$null
+    try {
+        $reader=[IO.StreamReader]::new($stream)
+        return $reader.ReadToEnd()
+    } finally {
+        if ($null -ne $reader) { $reader.Dispose() } else { $stream.Dispose() }
+    }
+}
 function Record($kind,$value) { $rows.Add(@{utc=[DateTime]::UtcNow.ToString('o');kind=$kind;value=$value}) }
 function Need($ok,$name) { if (-not $ok) { throw ('Gate failed: '+$name) }; Record 'check' $name }
 function Connect-Peer {
@@ -67,7 +77,7 @@ function Start-Capture($ws) {
 $verdict='FAIL';$failure=$null
 try {
     if (Test-Path -LiteralPath $Output) { throw 'Fresh output file required' }
-    $log=[IO.File]::ReadAllText($LogPath)
+    $log=Read-CaptureLog $LogPath
     $found=[regex]::Matches($log,'Control server token:\s*([^\s]+)')
     if ($found.Count -eq 0) { throw 'Listener announcement absent' }
     $credential=$found[$found.Count-1].Groups[1].Value;$log=$null;$found=$null
