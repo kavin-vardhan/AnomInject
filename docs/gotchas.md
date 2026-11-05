@@ -10667,3 +10667,7 @@ The first09447t Editor attempt was stopped by an enumerated file vanishing befor
 ### G560. A SQLite transaction context does not close its connection
 
 Close a receipt reader explicitly before the owned ledger replaces current.sqlite. The047t archive preparation hit WinError32 from its own reader handle; preserve that stopped operation and incoming snapshot, then close/recheck under a fresh measured budget. Do not ignore the write error or remove foreign handles. Also derive absent UBT macros from pinned engine defaults: Development defines UE_BUILD_DEVELOPMENT, while Build.h supplies Shipping=0. A profile must bind the actual forced definition file through its native compile response.
+
+### G561. Strict header and source TUs need their defining includes
+
+Normal Unity/PCH builds masked missing CoreTypes.h in AnomalyTransitionCounts425.h and Misc/ScopeLock.h in AnomalyRunLog.cpp. The full strict425 build rejected both. Include the defining headers explicitly and retain the failure; do not change the strict denominator or suppress diagnostics. The strict harness must also refresh the target-owned makefile before a full native invocation: UE4 SingleFile builds do not save a fresh makefile, so an unrelated cached environment cannot prove that invocation. Preserve exact EN1 environment checks and post-build action provenance.

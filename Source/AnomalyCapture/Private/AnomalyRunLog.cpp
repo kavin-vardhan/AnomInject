@@ -5,6 +5,7 @@
 #include "CoreGlobals.h"
 #include "HAL/FileManager.h"
 #include "Misc/OutputDeviceHelper.h"
+#include "Misc/ScopeLock.h"
 #include "Serialization/Archive.h"
 
 namespace

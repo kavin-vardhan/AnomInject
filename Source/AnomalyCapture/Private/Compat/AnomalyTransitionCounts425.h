@@ -1,4 +1,5 @@
 #pragma once
+#include "CoreTypes.h"
 namespace AnomalyTransitionCounts425
 {
     template<typename TTransitions>
