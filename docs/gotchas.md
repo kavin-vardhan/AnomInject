@@ -10662,3 +10662,8 @@ The prior32 missing registrations are inactive in4.25 and active in5.1. Include 
 ### G559. Allocation reads must account for live compiler output replacement
 
 The first09447t Editor attempt was stopped by an enumerated file vanishing before its allocation handle opened. That is a failed measurement, not a disk-floor or compiler diagnostic. Preserve it. The new job helper samples allocations during traversal; only a specifically bound disappearing owned-output read can trigger up to3 complete rechecks while running. Preserve partial high-water charges; unstable start, persistent read failure, permission error, reparse or nonmutable loss still stops. Never turn a write error into an ignored exception.
+
+
+### G560. A SQLite transaction context does not close its connection
+
+Close a receipt reader explicitly before the owned ledger replaces current.sqlite. The047t archive preparation hit WinError32 from its own reader handle; preserve that stopped operation and incoming snapshot, then close/recheck under a fresh measured budget. Do not ignore the write error or remove foreign handles. Also derive absent UBT macros from pinned engine defaults: Development defines UE_BUILD_DEVELOPMENT, while Build.h supplies Shipping=0. A profile must bind the actual forced definition file through its native compile response.

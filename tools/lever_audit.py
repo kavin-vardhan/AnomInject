@@ -331,6 +331,15 @@ def load_modules(root):
     return mods
 
 
+def binary_inventory(blob):
+    found = set()
+    for enc, rx in (("ascii", re.compile(rb"IAI\.Bench\.[A-Za-z0-9_]+")),
+                    ("utf16", re.compile(rb"I\0A\0I\0\.\0B\0e\0n\0c\0h\0\.\0(?:[A-Za-z0-9_]\0)+"))):
+        for match in rx.finditer(blob):
+            found.add(match.group(0).decode("ascii") if enc == "ascii" else match.group(0).decode("utf-16-le"))
+    return found, [e for e in ECHO_STRINGS if e.encode("utf-16-le") not in blob and e.encode("ascii") not in blob]
+
+
 def binary_rules(found, source_names, registrations, echo_missing):
     problems = []
     if not source_names or not registrations or not found:
@@ -532,16 +541,11 @@ def audit(root, binaries=None, binary_config="Development", out=print, engine=No
         for p in binaries:
             with open(p, "rb") as f:
                 blob += f.read() + b"\0"
-        found = set()
-        for enc, rx in (("ascii", re.compile(rb"IAI\.Bench\.[A-Za-z0-9_]+")),
-                        ("utf16", re.compile(rb"I\0A\0I\0\.\0B\0e\0n\0c\0h\0\.\0(?:[A-Za-z0-9_]\0)+"))):
-            for m in rx.finditer(blob):
-                found.add(m.group(0).decode("ascii") if enc == "ascii" else m.group(0).decode("utf-16-le"))
+        found, echo_missing = binary_inventory(blob)
         src_all = names_live[binary_config]
         src_reg = reg_names[binary_config]
         extra = sorted(found - src_all)
         missing = sorted(src_reg - found)
-        echo_missing = [e for e in ECHO_STRINGS if e.encode("utf-16-le") not in blob and e.encode("ascii") not in blob]
         out("G-LEVER-AUDIT BINARY config=%s files=%d names_in_binary=%d names_in_source=%d registered=%d unknown=%d missing=%d echo=%s" % (
             binary_config, len(binaries), len(found), len(src_all), len(src_reg), len(extra), len(missing),
             "present" if not echo_missing else "MISSING " + ",".join(echo_missing)))

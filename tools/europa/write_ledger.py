@@ -82,6 +82,8 @@ def specs():
         ('port', str(ROOT), 'tree', True)]
     for i, p in enumerate(dict.fromkeys(['C:/ClaudeTemp', str(LOCAL / 'Temp'), 'C:/Windows/Temp'])):
         items.append(('ue_temp_' + str(i), p, 'ue_temp', False))
+    if JOB == ROOT/'Receipts/09447t':
+        items.append(('job09447t_archive','E:/IA_BuildCache/09447t-evidence','tree',True))
     return items
 
 def digest(con):
@@ -234,6 +236,9 @@ def snapshot(folder, label):
 
 def classification(scope, path, kind, change=None, build_ok=False):
     p = path.lower().replace('\\', '/')
+    if scope == 'job09447t_archive' and JOB == ROOT/'Receipts/09447t':
+        from archive_scope09447t import classify
+        return classify(change,kind,SCOPE)
     if scope == 'port':
         from fixture_policy import managed_kind
         managed=managed_kind(Path(path))

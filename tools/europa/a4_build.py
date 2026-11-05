@@ -185,6 +185,8 @@ def execute(host, target, configuration, output, *, dirty_manifest=None, single_
                 break
             except MemoryStopped:
                 record['outcome'] = 'EF1_stopped_not_D2'
+                if ledger.JOB == ledger.ROOT / 'Receipts/09447t':
+                    raise
                 if plan.exists():
                     cleanup(plan, project, output / f'EF1-cleanup-{attempt}.json')
                 elif host != '51base':
