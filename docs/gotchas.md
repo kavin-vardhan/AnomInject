@@ -10675,3 +10675,20 @@ Close a receipt reader explicitly before the owned ledger replaces current.sqlit
 ### G561. Strict header and source TUs need their defining includes
 
 Normal Unity/PCH builds masked missing CoreTypes.h in AnomalyTransitionCounts425.h and Misc/ScopeLock.h in AnomalyRunLog.cpp. The full strict425 build rejected both. Include the defining headers explicitly and retain the failure; do not change the strict denominator or suppress diagnostics. The strict harness must also refresh the target-owned makefile before a full native invocation: UE4 SingleFile builds do not save a fresh makefile, so an unrelated cached environment cannot prove that invocation. Preserve exact EN1 environment checks and post-build action provenance.
+
+
+### G562. Void async .NET results can leak into a PowerShell function result
+
+ConnectAsync/SendAsync GetResult() must be discarded explicitly when the PowerShell function promises only a socket. Test the actual .NET method against a loopback endpoint; a stand-in returning nothing cannot expose VoidTaskResult pipeline leakage. Preserve the old real-method mutant and failed native smoke.
+
+### G563. A successful cook is not proof of the staged package contents
+
+The4.25 staging pass expects the WindowsNoEditor platform child below CookOutputDir. A flat successful cook produced a small incomplete pak. Keep that package, account for the simultaneous copy, stage the exact cooked files into the expected child and run native pak plus serialized shader/resource validation. Do not recook blindly or alter host Content/Config.
+
+### G564. Tauri frontendDist can interpret a Windows drive path as a URL
+
+A drive-prefixed absolute frontend path can select the URL variant and build an executable that opens a directory listing. Use a directory path relative to src-tauri, pin the frontend bytes and prove the actual native page, discovery and authentication. Compilation and frontend tests alone do not prove embedded assets.
+
+### G565. Pixel qualification does not replace exact protocol or lifecycle qualification
+
+A2352-frame dashboard capture can pass independent H4/texture/depth gates while its console-equivalence receipts differ. A successful stop response can still leave requested frames dropped. Preserve exact failed rows and honest FAIL artifacts; do not normalize extra fields, sort a failed route order, shrink the capture or relabel dropped partial output as a pass.
