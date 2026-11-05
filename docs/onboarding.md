@@ -211,3 +211,6 @@ Do not infer texture qualification from source parity. Both target builds and G1
 
 
 Stage 1 is independently reviewed and pushed at c5d0919: blinking, lod_corruption, missing_texture and corrupted_texture are the defaults. Camera clipping remains opt-in and its local Stage 2 qualification is incomplete. The release slab self-test passes 154 checks, but a correct slab counter does not replace the paired-picture gate. D4 failed on 914 unlabelled frames; no threshold was changed.
+
+
+094-46 source ready: GN4 sums camera_clipping_unconfirmed reason entries into the unchanged 5.1 run-summary key. Its focused C++ test passes and the accumulation mutant fails. The EA_Core-only combined regression keeps the complete 2352-frame texture schedule, then appends six48-frame near/far holds; camera_clipping is held for the whole session. Two baseline-near controls will seal GN2 thresholds before each positive. Default routes and the production slab algorithm are unchanged. Entry fast checks and full P9 pass; native builds and runtime gates are pending. No push or tags. See europa/09446-camera.md.

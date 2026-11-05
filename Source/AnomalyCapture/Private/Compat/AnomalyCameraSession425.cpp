@@ -16,6 +16,15 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
+int32 FAnomalyCameraSession425::FrameCount(UWorld* World,const TArray<FString>& Routes)
+{
+#if !UE_BUILD_SHIPPING
+    if (World && World->GetMapName()==TEXT("EA_Core") && Routes.Contains(TEXT("camera_clipping")) &&
+        FParse::Param(FCommandLine::Get(),TEXT("IAIBench")) && FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench")) &&
+        FParse::Param(FCommandLine::Get(),TEXT("IAICameraRegression"))) { return FAnomalyStreetBench425::TotalFrames+6*48; }
+#endif
+    return FAnomalyStreetBench425::TotalFrames;
+}
 FAnomalyCameraSession425::~FAnomalyCameraSession425() { Stop(); }
 bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes,const FString& Directory)
 {
@@ -29,6 +38,8 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
         FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench"));
     if (Bench)
     {
+        const bool Regression=FrameCount(World,Routes)>FAnomalyStreetBench425::TotalFrames;
+        NearStart=Regression?FAnomalyStreetBench425::TotalFrames:FAnomalyStreetBench425::PreFrames; PoseHold=Regression?48:288;
         auto* PC=World->GetFirstPlayerController(); if (!PC) { return false; }
         AActor* Target=nullptr;
         for (TActorIterator<AActor> It(World);It;++It)
@@ -50,9 +61,10 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
     auto Receipt=MakeShared<FJsonObject>(); Receipt->SetBoolField(TEXT("held"),Active);
     Receipt->SetBoolField(TEXT("bench"),Bench); Receipt->SetNumberField(TEXT("baseline_near"),Baseline);
     Receipt->SetNumberField(TEXT("held_near"),GNearClippingPlane);
-    Receipt->SetStringField(TEXT("pose_rule"),TEXT("624 far prepass frames; six 288-frame holds alternating near/far, starting near; near eye 50cm before EA_LOD front bounds"));
+    Receipt->SetStringField(TEXT("pose_rule"),TEXT("near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds"));
     Receipt->SetStringField(TEXT("near_position"),NearPosition.ToString()); Receipt->SetStringField(TEXT("far_position"),FarPosition.ToString());
     Receipt->SetNumberField(TEXT("start_frame"),double(StartFrame));
+    Receipt->SetNumberField(TEXT("near_start"),NearStart); Receipt->SetNumberField(TEXT("pose_hold"),PoseHold);
     FString Text; auto W=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(Receipt,W);
     FFileHelper::SaveStringToFile(Text,*(Output/TEXT("camera-session-start.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 camera_clipping session held=%d baseline=%.3f near=%.3f bench=%d"),Active,Baseline,GNearClippingPlane,Bench);
@@ -63,7 +75,7 @@ void FAnomalyCameraSession425::Prepare(int32 Index)
 #if !UE_BUILD_SHIPPING
     if (!Bench || !Owner.IsValid() || !Camera.IsValid()) { return; }
     auto* PC=Owner->GetFirstPlayerController(); if (!PC) { return; }
-    const bool Near=Index>=FAnomalyStreetBench425::PreFrames && ((Index-FAnomalyStreetBench425::PreFrames)/288)%2==0;
+    const bool Near=Index>=NearStart && ((Index-NearStart)/PoseHold)%2==0;
     const FRotator Rotation=Near ? FRotator::ZeroRotator : FarRotation;
     Camera->SetActorLocationAndRotation(Near ? NearPosition : FarPosition,Rotation);
     auto* C=CastChecked<ACameraActor>(Camera.Get())->GetCameraComponent(); C->SetFieldOfView(PriorFov);

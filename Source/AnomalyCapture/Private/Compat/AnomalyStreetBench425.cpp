@@ -30,7 +30,7 @@ namespace
         return {MakeShared<FJsonValueNumber>(V.X),MakeShared<FJsonValueNumber>(V.Y),MakeShared<FJsonValueNumber>(V.Z)};
     }
 }
-bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
+bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output,int32 Frames)
 {
     Owner=World; Directory=Output;
     Fallback=FParse::Param(FCommandLine::Get(),TEXT("IAICaptureFallback"));
@@ -52,7 +52,7 @@ bool FAnomalyStreetBench425::Start(UWorld* World,const FString& Output)
     Protocol->SetNumberField(TEXT("poses"),Poses); Protocol->SetNumberField(TEXT("yaw_step"),Fallback?0:60);
     Protocol->SetBoolField(TEXT("fallback"),Fallback);
     Protocol->SetNumberField(TEXT("turn"),Turn); Protocol->SetNumberField(TEXT("settle"),Settle); Protocol->SetNumberField(TEXT("clean_hold"),CleanHold); Protocol->SetNumberField(TEXT("score_hold"),ScoreHold);
-    Protocol->SetNumberField(TEXT("pre_frames"),PreFrames); Protocol->SetNumberField(TEXT("total_frames"),TotalFrames);
+    Protocol->SetNumberField(TEXT("pre_frames"),PreFrames); Protocol->SetNumberField(TEXT("total_frames"),Frames);
     Protocol->SetArrayField(TEXT("base_position"),XYZ425(Position)); Protocol->SetArrayField(TEXT("base_rotation"),XYZ425(FVector(Base.Pitch,Base.Yaw,Base.Roll)));
     Protocol->SetStringField(TEXT("view_target"),GetNameSafe(Target.Get())); Protocol->SetNumberField(TEXT("grain_levels"),1); Protocol->SetNumberField(TEXT("minimum_stable_share"),0.0);
     Protocol->SetNumberField(TEXT("grain_period"),7); Protocol->SetNumberField(TEXT("unstable_dilation"),2);

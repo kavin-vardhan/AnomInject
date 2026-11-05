@@ -1,5 +1,6 @@
 #include "AnomalyCaptureLabels425.h"
 #if ANOMALY_CAPTURE_FRAMES425
+#include "AnomalyTransitionCounts425.h"
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyCaptureLog.h"
 #include "AnomalyCensusBatch425.h"
@@ -97,7 +98,7 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     if (CaptureStreet425)
     {
         Street=MakeUnique<FAnomalyStreetBench425>();
-        if (!Street->Start(World,Directory)) { Street->Stop(); Street.Reset(); return false; }
+        if (!Street->Start(World,Directory,CaptureCount425)) { Street->Stop(); Street.Reset(); return false; }
     }
     MaskOwner = MakeUnique<FAnomalyMasks425>();
     if (!MaskOwner->Start(World)) { MaskOwner->Restore(); MaskOwner.Reset(); return false; }
@@ -325,7 +326,9 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
         }
     }
     if (!SessionGlobals.Stop()) { Failure=TEXT("Session global restoration failed"); }
-    FFileHelper::SaveStringToFile(Json425(SessionGlobals.Summary()),*(Output/TEXT("run_summary.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    auto Summary=SessionGlobals.Summary();
+    Summary->SetNumberField(TEXT("label_transition_camera_clipping_unconfirmed_entries"),AnomalyTransitionCounts425::CameraUnconfirmedEntries(Transitions));
+    FFileHelper::SaveStringToFile(Json425(Summary),*(Output/TEXT("run_summary.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     TArray<TSharedPtr<FJsonValue>> Owners;
     if (MaskOwner)
     {
@@ -421,7 +424,7 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureStreetCommand425(TEXT("IAI.Cap
     {
         if (CaptureLive425 || (Args.Num()!=2 && Args.Num()!=3) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
         if (!Routes425(World,Args,2)) { return; }
-        CaptureLive425=true; CaptureStreet425=true; CaptureCount425=FAnomalyStreetBench425::TotalFrames; CaptureSeed425=FCString::Atoi(*Args[1]);
+        CaptureLive425=true; CaptureStreet425=true; CaptureCount425=FAnomalyCameraSession425::FrameCount(World,CaptureRoutes425); CaptureSeed425=FCString::Atoi(*Args[1]);
         const FString Root=Args[0]; const double Start=FPlatformTime::Seconds(); const TWeakObjectPtr<UWorld> Weak(World);
         TSharedRef<double> Quiet=MakeShared<double>(0);
         FTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak,Root,Start,Quiet](float)

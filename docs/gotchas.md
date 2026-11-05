@@ -10619,3 +10619,8 @@ The opt-in camera_clipping route is a session global, excluded from auto selecti
 ### G551 - Small unlabelled differences still fail the camera picture gate
 
 The 094-45r held-near pair confirms three spans and restores the near plane, but 914 unlabelled frames differ by 1-3 pixels above the frozen two-level threshold. Those differences fail D4 even though every positive changes more than 902,000 pixels and state restoration is clean. Preserve the raw pair and stop before D3D12; do not infer a rendering cause or tune the threshold from these readings. The passing, pushed Stage 1 texture work is independent.
+
+
+### G552 - Count camera unconfirmed entries, not unique frames
+
+The release summary uses ReasonEntries[3]. The 4.25 annotation already counts each camera_clipping_unconfirmed transition entry, so the run summary sums those per-event counts. Multiple entries in one frame remain multiple entries. A direct compiled helper test rejects assignment in place of accumulation.

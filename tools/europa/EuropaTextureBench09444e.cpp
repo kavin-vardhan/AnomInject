@@ -202,6 +202,7 @@ static FAutoConsoleCommandWithWorldAndArgs TextureBench09444e(TEXT("Europa.Textu
         FTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Directory,State,View,Calibrate,Frozen](float)
         {
             UWorld* W=State->Owner.Get(); if (!W) { FWorldDelegates::OnWorldPreActorTick.Remove(View->Handle); return false; }
+            if (State->Fired && FParse::Param(FCommandLine::Get(),TEXT("IAICameraRegression"))) { return true; }
             View->Hold(); auto* Capture=W->GetSubsystem<UAnomalyCaptureSubsystem>(); auto* Controller=W->GetFirstPlayerController();
             if (!Capture || !Controller || FPlatformTime::Seconds()<State->NextAt) { return true; }
             const FString Attempt=Directory/FString::Printf(TEXT("attempt-%02d"),State->Attempt);
@@ -218,7 +219,11 @@ static FAutoConsoleCommandWithWorldAndArgs TextureBench09444e(TEXT("Europa.Textu
             {
                 if (!State->Fired && IFileManager::Get().FileExists(*(Attempt/TEXT("prefire-approved.json"))))
                 {
-                    State->Fired=true; Controller->ConsoleCommand(FString::Printf(TEXT("IAI.Capture.C5 %s 4242"),*(Directory/TEXT("plugin-frames"))),true);
+                    State->Fired=true;
+                    const bool CameraRegression=FParse::Param(FCommandLine::Get(),TEXT("IAICameraRegression"));
+                    if (CameraRegression) { FWorldDelegates::OnWorldPreActorTick.Remove(View->Handle); View->Handle.Reset(); }
+                    const FString Routes=CameraRegression?TEXT(" blinking,lod_corruption,missing_texture,corrupted_texture,camera_clipping"):TEXT("");
+                    Controller->ConsoleCommand(FString::Printf(TEXT("IAI.Capture.C5 %s 4242%s"),*(Directory/TEXT("plugin-frames")),*Routes),true);
                 }
                 return true;
             }

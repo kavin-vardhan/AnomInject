@@ -9,6 +9,7 @@ class FAnomalyCameraSession425
 {
 public:
     ~FAnomalyCameraSession425();
+    static int32 FrameCount(UWorld* World,const TArray<FString>& Routes);
     bool Start(UWorld* World,const TArray<FString>& Routes,const FString& Directory);
     void Append(const TSharedPtr<FJsonObject>& Row,TArray<FAutoLiveFireInfo>& Fires);
     void Prepare(int32 Index);
@@ -22,6 +23,7 @@ private:
     float PriorFov=0,Baseline=0;
     bool Active=false,Bench=false,PriorAutoManage=true;
     uint64 StartFrame=0;
+    int32 NearStart=624,PoseHold=288;
     FString Output;
     FCameraClipRunAccum Accum;
 };

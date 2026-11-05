@@ -2005,3 +2005,6 @@ Phase B texture source now preserves release d7eee97 apply/revert/installed-stat
 
 
 The 4.25 camera session adapter holds the release camera_clipping anomaly from capture Start through Stop. The anomaly class/header and diagnostic accumulator retain d7eee97 behavior after compile-only compatibility changes; 55 row/summary keys match. Rows use whole-frame extent and no object mask. Runtime D4 is not qualified: 914 unlabelled D3D11 frames differ above two levels. This local implementation must not be described as a passing camera port.
+
+
+094-46 source ready: GN4 sums camera_clipping_unconfirmed reason entries into the unchanged 5.1 run-summary key. Its focused C++ test passes and the accumulation mutant fails. The EA_Core-only combined regression keeps the complete 2352-frame texture schedule, then appends six48-frame near/far holds; camera_clipping is held for the whole session. Two baseline-near controls will seal GN2 thresholds before each positive. Default routes and the production slab algorithm are unchanged. Entry fast checks and full P9 pass; native builds and runtime gates are pending. No push or tags. See europa/09446-camera.md.

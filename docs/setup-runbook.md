@@ -979,3 +979,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-45r camera stop: do not start another leg or rebuild from this job. The armed launcher has been returned to build-only with runtime disabled. The fixed seed 4242 control held near=10; the positive held near=100, and both restored near=10 at Stop. IAICameraSlabBench and IAICameraBaseline are restricted to non-Shipping, -IAIBench, EA_Core sessions. D3D12 remains unrun after the D3D11 D4 failure. Evidence is indexed in docs/europa/09445r-stage2-receipts.json.
+
+
+094-46 source ready: GN4 sums camera_clipping_unconfirmed reason entries into the unchanged 5.1 run-summary key. Its focused C++ test passes and the accumulation mutant fails. The EA_Core-only combined regression keeps the complete 2352-frame texture schedule, then appends six48-frame near/far holds; camera_clipping is held for the whole session. Two baseline-near controls will seal GN2 thresholds before each positive. Default routes and the production slab algorithm are unchanged. Entry fast checks and full P9 pass; native builds and runtime gates are pending. No push or tags. See europa/09446-camera.md.

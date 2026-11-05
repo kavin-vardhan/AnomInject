@@ -1,0 +1,75 @@
+{
+  "utc": "2026-11-05T02:41:44.880820+00:00",
+  "authority": "094-46 GN1-GN5 GL1-GL5 GM2 FN2 FM1 FJ1 FK1 GA2 GA5",
+  "plan": "Each RHI/size: combined baseline A, baseline B, seal GN2 floor, then combined positive. First two combined positives also are the D4 RHI proofs. Separate default-only runs compare additive output schema/meaning against c5d0919.",
+  "dimensions": [
+    [
+      "D3D11",
+      1280,
+      720
+    ],
+    [
+      "D3D12",
+      1280,
+      720
+    ],
+    [
+      "D3D12",
+      1279,
+      719
+    ]
+  ],
+  "combined": {
+    "routes": [
+      "blinking",
+      "lod_corruption",
+      "missing_texture",
+      "corrupted_texture",
+      "camera_clipping"
+    ],
+    "frames": 2640,
+    "texture_section": [
+      0,
+      2352
+    ],
+    "camera_spans": [
+      [
+        2352,
+        2400
+      ],
+      [
+        2448,
+        2496
+      ],
+      [
+        2544,
+        2592
+      ]
+    ],
+    "near_far_hold": 48,
+    "seed": 4242,
+    "near_control": 10,
+    "near_positive": 100,
+    "auto_stop": 2328,
+    "exposure": -1.875,
+    "pose": "qualified far view during complete original texture section; tail near/far only after auto stopped"
+  },
+  "noise": {
+    "pixel_norm": "max absolute RGB channel difference in integer eight-bit saved PNG values",
+    "distribution": "256-bin per-pixel maximum-delta histogram and count strictly above each level for every frame",
+    "floor": "global maximum pixel delta across both baseline sessions; maximum number of pixels equal to that delta in any pair frame",
+    "seal": "UTC and SHA256 receipt before positive launch and comparison",
+    "unlabelled": "frame max <= floor max AND number of pixels equal to floor max <= floor max count",
+    "labelled": "pixels above floor >1% of frame and greater than max-count floor (zero-delta floor has zero changing noise); report full margins",
+    "no_retune": true
+  },
+  "gates": "H4 unchanged for object events; camera whole-frame/no-object-mask entries checked independently. Strict texture IoU >=.98 and clean edges. Every failed measured gate stops subsequent launches.",
+  "default_comparison": "Every original key and type survives; compare stable values after explicitly reporting run-identity/timing/readback-cost fields, whose values naturally vary by session; no semantic field silently omitted.",
+  "floors": {
+    "C": 10,
+    "D": 50,
+    "D_launch_reserve": 3,
+    "E": 50
+  },
+  "no_push": true
+}

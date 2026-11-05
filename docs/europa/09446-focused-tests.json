@@ -1,0 +1,26 @@
+{
+  "result": "PASS",
+  "counter": [
+    {
+      "test": "counter",
+      "exit_code": 0,
+      "expected": 0,
+      "sha256": "6da0bb04752fc859b037f7baa91a9c4a445f94a1b6f87575ebf00d96ac476f5c",
+      "exe": "E:\\IA_BuildCache\\09446-evidence\\selftests\\counter.exe"
+    },
+    {
+      "test": "counter-mutant",
+      "exit_code": 2,
+      "expected": 2,
+      "sha256": "de65d091c96eeaca12d6e665aad28f438d87aead4a1ccba29c8f155a22012429",
+      "exe": "E:\\IA_BuildCache\\09446-evidence\\selftests\\counter-mutant.exe"
+    }
+  ],
+  "reason": "Counts entries, including two entries in one frame; ignores other reasons; missing reason zero",
+  "scope_positive": 2,
+  "scope_negative": 2,
+  "bench_scope": "Shipping excluded + IAIBench + EA_Core + camera route + IAICameraSlabBench + IAICameraRegression",
+  "default_routes_unchanged": true,
+  "comments": "nochange",
+  "native_builds": "pending"
+}
