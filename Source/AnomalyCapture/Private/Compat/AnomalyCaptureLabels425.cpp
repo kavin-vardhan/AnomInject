@@ -29,6 +29,7 @@
 #include "UnrealClient.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/FileManager.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
@@ -45,6 +46,11 @@ namespace
     bool CaptureLive425 = false;
     bool CaptureStreet425 = false;
     bool CaptureGeometry425 = false;
+    bool CaptureExit425 = true;
+    bool CaptureStarting425 = false;
+    TWeakObjectPtr<UWorld> CaptureOwner425;
+    FDelegateHandle CaptureWarmup425;
+    uint64 CaptureGeneration425 = 0;
     int32 CaptureBenchCamera425 = 0;
     FAutoConsoleVariableRef CaptureBenchCameraCommand425(TEXT("IAI.Capture.BenchCamera"),CaptureBenchCamera425,TEXT("Bench-only first-camera override; default off"));
     int32 CaptureSeed425 = 4242;
@@ -89,12 +95,13 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     if (!Auto || Auto->IsRunning() || Auto->GetLiveFireCount()) { return false; }
     auto Routes=MakeShared<FJsonObject>(); Routes->SetArrayField(TEXT("routes"),RouteRows425());
     if (!FFileHelper::SaveStringToFile(Json425(Routes),*(Directory/TEXT("routes.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { return false; }
-    if (!AnomalyHostDepth425::Admit(World,Directory)) { FPlatformMisc::RequestExit(false); return false; }
+    if (!AnomalyHostDepth425::Admit(World,Directory)) { return false; }
     AnomalyPrivate425::Start(World,Directory);
     Owner = World; Output = Directory; RunEpoch = ++CaptureEpoch425; Size = World->GetGameViewport()->Viewport->GetSizeXY();
     Started = FPlatformTime::Seconds(); SavedFixed = FApp::UseFixedTimeStep(); SavedDelta = FApp::GetFixedDeltaTime(); SavedPace = CapturePace425;
     SavedEnabled = Auto->IsEnabled(); SavedRunning = Auto->IsRunning(); SavedSeed = Auto->GetSeed(); SavedMax = Auto->GetMaxConcurrent(); SavedPersist = Auto->GetPersist(); SavedIds = Auto->GetEnabledIds();
     Auto->GetIntervalRange(SavedIntervalMin,SavedIntervalMax); Auto->GetHoldRange(SavedHoldMin,SavedHoldMax);
+    Initialized = true;
     if (CaptureStreet425)
     {
         Street=MakeUnique<FAnomalyStreetBench425>();
@@ -312,8 +319,14 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
 }
 
 
-void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
+void FAnomalyCaptureLabels425::Abort()
 {
+    Failure=TEXT("Label initialization failed"); Stop(0,0,false);
+}
+void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete)
+{
+    if (!Initialized) { return; }
+    Initialized=false;
     FWorldDelegates::OnWorldPreActorTick.Remove(PrepareHandle); PrepareHandle.Reset();
     if (Owner.IsValid())
     {
@@ -362,7 +375,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped)
         Annotation.Events.Add(E);
     }
     auto Result = MakeShared<FJsonObject>();
-    Result->SetStringField(TEXT("result"),Failed() || Pending.Num() || Dropped || Written != Frames.Num() ? TEXT("FAIL") : TEXT("PASS"));
+    Result->SetStringField(TEXT("result"),Failed() || Dropped || (Complete && (Pending.Num() || Written != Frames.Num())) ? TEXT("FAIL") : Complete ? TEXT("PASS") : TEXT("PARTIAL"));
     Result->SetStringField(TEXT("failure"),Failure); Result->SetNumberField(TEXT("paired"),Frames.Num());
     Result->SetNumberField(TEXT("unmatched_dropped"),Pending.Num()); Result->SetNumberField(TEXT("dropped"),Dropped);
     Result->SetBoolField(TEXT("mask_state_restored"),Restored);
@@ -380,12 +393,72 @@ bool AnomalyCaptureC2::Street() { return CaptureStreet425; }
 bool AnomalyCaptureC2::Enabled() { return CaptureLive425; }
 bool AnomalyCaptureC2::Boundary() { return false; }
 bool AnomalyCaptureC2::Masks() { return CaptureLive425; }
+bool AnomalyCaptureC2::Pending(UWorld* World) { return CaptureOwner425.Get()==World && CaptureWarmup425.IsValid(); }
+bool AnomalyCaptureC2::Starting(UWorld* World) { return CaptureOwner425.Get()==World && CaptureStarting425; }
+void AnomalyCaptureC2::Cancel(UWorld* World)
+{
+    if (CaptureOwner425.Get()!=World) { return; }
+    ++CaptureGeneration425;
+    if (CaptureWarmup425.IsValid())
+    {
+        FTicker::GetCoreTicker().RemoveTicker(CaptureWarmup425); CaptureWarmup425.Reset();
+        UE_LOG(LogAnomalyCapture,Log,TEXT("C5 warmup cancelled; pending start removed"));
+        Finished(World,false);
+    }
+}
 void AnomalyCaptureC2::Finished(UWorld* World,bool Success)
 {
     CaptureLive425 = false;
     if (CaptureGeometry425) { CaptureGeometry425=false; return; }
-    FPlatformMisc::RequestExit(false);
+    if (CaptureWarmup425.IsValid()) { FTicker::GetCoreTicker().RemoveTicker(CaptureWarmup425); CaptureWarmup425.Reset(); }
+    const bool Exit=CaptureExit425;
+    CaptureOwner425.Reset(); CaptureStreet425=false; CaptureStarting425=false; ++CaptureGeneration425;
+    UE_LOG(LogAnomalyCapture,Log,TEXT("C5 transaction finished success=%d exit=%d"),Success?1:0,Exit?1:0);
+    CaptureExit425=true;
+    if (Exit) { FPlatformMisc::RequestExit(false); }
 }
+bool AnomalyCaptureC2::StartC5(UWorld* World,const FString& Root,int32 Seed,const TArray<FString>& Routes,bool ExitOnFinish,FString& Error)
+{
+    if (CaptureLive425 || CaptureWarmup425.IsValid()) { Error=TEXT("A capture owns the process"); return false; }
+    if (!World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { Error=TEXT("C5 requires a game world and IAIBench"); return false; }
+    auto* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
+    if (!Auto || Auto->IsRunning() || Auto->GetLiveFireCount()) { Error=TEXT("Auto injection must be idle before C5"); return false; }
+    const auto Pool=Auto->GetPoolIds(); std::vector<std::string> Validated;
+    if (!AnomalyCaptureAdmission425::Routes(TCHAR_TO_UTF8(*FString::Join(Routes,TEXT(","))),true,
+        [&Pool](const std::string& Id) { return Pool.Contains(UTF8_TO_TCHAR(Id.c_str())); },Validated)) { Error=TEXT("Invalid C5 routes"); return false; }
+    if (Root.IsEmpty() || FPaths::IsRelative(Root) || IFileManager::Get().DirectoryExists(*(Root/TEXT("epoch01"))) ||
+        !IFileManager::Get().MakeDirectory(*Root,true)) { Error=TEXT("C5 requires a fresh absolute run directory"); return false; }
+    if (!AnomalyHostDepth425::Admit(World,Root)) { Error=TEXT("C5 host-depth/private-pass admission refused"); return false; }
+    CaptureRoutes425=Routes; CaptureSeed425=Seed;
+    CaptureLive425=true; CaptureStreet425=true; CaptureGeometry425=false; CaptureExit425=ExitOnFinish;
+    CaptureOwner425=World; CaptureCount425=FAnomalyCameraSession425::FrameCount(World,Routes);
+    const uint64 Generation=++CaptureGeneration425;
+    const double Start=FPlatformTime::Seconds(); const TWeakObjectPtr<UWorld> Weak(World);
+    TSharedRef<double> Quiet=MakeShared<double>(0);
+    CaptureWarmup425=FTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak,Root,Start,Quiet,Generation](float)
+    {
+        if (Generation!=CaptureGeneration425 || CaptureOwner425!=Weak) { return false; }
+        if (!Weak.IsValid()) { CaptureWarmup425.Reset(); Finished(nullptr,false); return false; }
+        const double Now=FPlatformTime::Seconds();
+        const int32 Shaders=GShaderCompilingManager ? GShaderCompilingManager->GetNumRemainingJobs() : 0;
+        const int32 Streaming=IStreamingManager::Get().GetNumWantingResources();
+        if (Shaders || Streaming || Now-Start<10) { *Quiet=0; } else if (*Quiet==0) { *Quiet=Now; }
+        if (Now-Start>120)
+        {
+            CaptureWarmup425.Reset();
+            UE_LOG(LogAnomalyCapture,Error,TEXT("C5 warmup timeout shaders=%d streaming=%d"),Shaders,Streaming);
+            Finished(Weak.Get(),false); return false;
+        }
+        if (*Quiet==0 || Now-*Quiet<2) { return true; }
+        CaptureWarmup425.Reset(); CaptureStarting425=true;
+        UE_LOG(LogAnomalyCapture,Log,TEXT("C5 warmup settled shaders=%d streaming=%d seconds=%.3f"),Shaders,Streaming,Now-Start);
+        if (auto* Capture=Weak->GetSubsystem<UAnomalyCaptureSubsystem>()) { Capture->StartRun(Root/TEXT("epoch01"),true,CaptureSeed425,CaptureCount425); }
+        else { Finished(Weak.Get(),false); }
+        CaptureStarting425=false; return false;
+    }));
+    return true;
+}
+
 #if !UE_BUILD_SHIPPING
 static FAutoConsoleCommandWithWorldAndArgs CaptureGeometryCommand425(TEXT("IAI.Capture.BenchGeometry"),TEXT("EA_Core bench-only no-fire private coverage probe: output"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
@@ -422,23 +495,14 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Captu
 static FAutoConsoleCommandWithWorldAndArgs CaptureStreetCommand425(TEXT("IAI.Capture.C5"),TEXT("Bench-only moving player-view capture: output seed [route,route]; default blinking,lod_corruption,missing_texture,corrupted_texture"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
-        if (CaptureLive425 || (Args.Num()!=2 && Args.Num()!=3) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
-        if (!Routes425(World,Args,2)) { return; }
-        CaptureLive425=true; CaptureStreet425=true; CaptureCount425=FAnomalyCameraSession425::FrameCount(World,CaptureRoutes425); CaptureSeed425=FCString::Atoi(*Args[1]);
-        const FString Root=Args[0]; const double Start=FPlatformTime::Seconds(); const TWeakObjectPtr<UWorld> Weak(World);
-        TSharedRef<double> Quiet=MakeShared<double>(0);
-        FTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Weak,Root,Start,Quiet](float)
+        if ((Args.Num()!=2 && Args.Num()!=3) || !World) { return; }
+        TArray<FString> Routes;
+        (Args.Num()==3 ? Args[2] : FString(TEXT("blinking,lod_corruption,missing_texture,corrupted_texture"))).ParseIntoArray(Routes,TEXT(","),false);
+        FString Error; auto* Capture=World->GetSubsystem<UAnomalyCaptureSubsystem>();
+        if (!Capture || !Capture->StartC5Run(Args[0],FCString::Atoi(*Args[1]),Routes,true,Error))
         {
-            if (!Weak.IsValid()) { CaptureLive425=false; FPlatformMisc::RequestExit(false); return false; }
-            const double Now=FPlatformTime::Seconds();
-            const int32 Shaders=GShaderCompilingManager ? GShaderCompilingManager->GetNumRemainingJobs() : 0;
-            const int32 Streaming=IStreamingManager::Get().GetNumWantingResources();
-            if (Shaders || Streaming || Now-Start<10) { *Quiet=0; } else if (*Quiet==0) { *Quiet=Now; }
-            if (Now-Start>120) { UE_LOG(LogAnomalyCapture,Error,TEXT("C5 warmup timeout shaders=%d streaming=%d"),Shaders,Streaming); FPlatformMisc::RequestExit(false); return false; }
-            if (*Quiet==0 || Now-*Quiet<2) { return true; }
-            UE_LOG(LogAnomalyCapture,Log,TEXT("C5 warmup settled shaders=%d streaming=%d seconds=%.3f"),Shaders,Streaming,Now-Start);
-            if (auto* Capture=Weak->GetSubsystem<UAnomalyCaptureSubsystem>()) { Capture->StartRun(Root/TEXT("epoch01"),true,0,CaptureCount425); }
-            return false;
-        }));
+            UE_LOG(LogAnomalyCapture,Error,TEXT("C5 refused: %s"),*Error);
+            if (FParse::Param(FCommandLine::Get(),TEXT("IAICaptureExit"))) { FPlatformMisc::RequestExit(false); }
+        }
     }));
 #endif

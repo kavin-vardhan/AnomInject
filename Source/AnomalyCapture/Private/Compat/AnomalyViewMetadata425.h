@@ -1,6 +1,7 @@
 #pragma once
 #include "AnomalyCaptureFeatures.h"
 #if ANOMALY_CAPTURE_FRAMES425
+#include "SceneRendering.h"
 #include "SceneViewExtension.h"
 #include "Engine/World.h"
 #include "HAL/CriticalSection.h"

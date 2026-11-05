@@ -3,11 +3,10 @@
 #include "CoreMinimal.h"
 
 #if ANOMALY_CONTROL_SERVER
-#include "IWebSocketServer.h"
-class INetworkingWebSocket;
+#include "AnomalyControlTransport.h"
 struct FControlConn
 {
-	INetworkingWebSocket* Socket = nullptr;
+	uint64 Id = 0;
 	bool bAuthed = false;
 	bool bRejected = false;
 	double ConnectTime = 0.0;
@@ -17,7 +16,7 @@ struct FControlConn
 
 struct FAnomalyControlTransportState
 {
-	TUniquePtr<IWebSocketServer> Server;
+	TUniquePtr<IAnomalyControlTransport> Server;
 	TArray<FControlConn> Conns;
 
 	FString Token;

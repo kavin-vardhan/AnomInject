@@ -1049,6 +1049,7 @@ void UAnomalyCaptureSubsystem::OnWorldPostActorTick425(UWorld* World, ELevelTick
 {
 #if ANOMALY_CAPTURE_FRAMES425
     if (bDeinitializing || World != GetWorld() || TickType != LEVELTICK_All) { return; }
+    if (AnomalyCaptureC2::Pending(World)) { bRunning=true; return; }
     Frames425->Tick(World,TickType,GET_FUNCTION_NAME_CHECKED(UAnomalyCaptureSubsystem,OnWorldPostActorTick425));
     bRunning = Frames425->IsRunning();
     FramesWritten = Frames425->Written();
@@ -3597,19 +3598,41 @@ void UAnomalyCaptureSubsystem::SetFocusGate(bool bInGate)
 			: TEXT("Start begins immediately regardless of focus"));
 }
 
+#if ANOMALY_CAPTURE_FRAMES425
+int32 UAnomalyCaptureSubsystem::GetC5FrameCount(const TArray<FString>& Routes) const
+{
+    return FAnomalyCameraSession425::FrameCount(GetWorld(),Routes);
+}
+bool UAnomalyCaptureSubsystem::StartC5Run(const FString& RunDirectory,int32 InSeed,const TArray<FString>& Routes,bool bExitOnFinish,FString& OutError)
+{
+    OutError.Empty();
+    if (bDeinitializing || bRunning || !Frames425 || Frames425->IsRunning()) { OutError=TEXT("Capture is active or shutting down"); return false; }
+    if (bSveCapture || bMaskMeasure || bTargetMask || bCensus || bMaskProbe || !bAsyncCapture) { OutError=TEXT("C5 requires native asynchronous capture"); return false; }
+    if (!AnomalyCaptureC2::StartC5(GetWorld(),RunDirectory,InSeed,Routes,bExitOnFinish,OutError)) { return false; }
+    Frames425=MakeUnique<FAnomalyCaptureSession425>();
+    Seed=InSeed; FrameCap=GetC5FrameCount(Routes); FramesWritten=0; SessionFrameIndex=0;
+    LastRunDir=RunDirectory/TEXT("epoch01"); RunDir=LastRunDir; SessionId=FPaths::GetCleanFilename(RunDirectory);
+    bRunning=true; return true;
+}
+#endif
+
 void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32 InSeed, int32 InFrameCap,
 	const FString& InTargetAnomaly, const FString& InTargetActor, const TArray<FString>& InTargetArgs,
 	int32 InOutputHeight)
 {
 #if ANOMALY_CAPTURE_FRAMES425
+    if (bDeinitializing || Frames425->IsRunning() || (bRunning && !AnomalyCaptureC2::Starting(GetWorld()))) { return; }
     if (!InTargetAnomaly.IsEmpty() || !InTargetActor.IsEmpty() || InTargetArgs.Num() || InOutputHeight > 0 || !bPng ||
         bSveCapture || bMaskMeasure || bTargetMask || bCensus || bMaskProbe || !bAsyncCapture)
     {
         UE_LOG(LogAnomalyCapture, Error, TEXT("Capture425: C1 admits native PNG frames only; labels/masks/targets unavailable"));
+        if (AnomalyCaptureC2::Starting(GetWorld())) { bRunning=false; AnomalyCaptureC2::Finished(GetWorld(),false); }
         return;
     }
     bRunning = Frames425->Start(GetWorld(), BaseDir, InFrameCap);
-    LastRunDir = BaseDir;
+    LastRunDir = BaseDir; RunDir=BaseDir; Seed=InSeed; FrameCap=InFrameCap; FramesWritten=0;
+    if (SessionId.IsEmpty() || !AnomalyCaptureC2::Enabled()) { SessionId=FPaths::GetCleanFilename(BaseDir); }
+    if (!bRunning && AnomalyCaptureC2::Starting(GetWorld())) { AnomalyCaptureC2::Finished(GetWorld(),false); }
     return;
 #endif
 
@@ -4491,7 +4514,8 @@ bool UAnomalyCaptureSubsystem::IsGameWindowFocused(UWorld* World) const
 void UAnomalyCaptureSubsystem::StopRun()
 {
 #if ANOMALY_CAPTURE_FRAMES425
-    if (Frames425) { Frames425->Stop(); }
+    AnomalyCaptureC2::Cancel(GetWorld());
+    if (Frames425) { Frames425->Stop(); FramesWritten=Frames425->Written(); SessionFrameIndex=Frames425->RequestedFrames(); }
     bRunning = false;
 #endif
 #if ANOMALY_CAPTURE_ADVANCED

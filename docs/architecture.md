@@ -2029,3 +2029,6 @@ The4.25 summary emits label_transition_camera_clipping_unconfirmed_entries by su
 
 
 094-46s NEEDS-DECISION: existing D3D12 1280 D4 passes GP2 with 0 pixels above 2 levels on 2,496 unlabelled frames; the accepted D3D11 histograms also pass. The new 1279x719 baseline and positive each capture 2,640 frames with 0 drops and pass H4 and the unchanged 0.98 whole-frame texture IoU bar. Odd-width D4 fails on 131 unlabelled frames: maximum delta 117, with up to 793 pixels above 2 in a frame. All failures coincide with EA_Floor texture fires in rows 373-375; the cause is not established. The 144 clipped frames each change all 919,601 pixels and the three spans are exact. Default-only GO3 and card reads remain unrun. No native change, build, retune, retry, push or tag. Owned processes ended, the launcher is disabled, and protection/archive exit checks pass.
+
+
+094-47 local development: AnomalyControlServer now selects a private transport by engine. The 4.25 implementation binds127.0.0.1 and queues complete raw binary messages after lws_service; bounds are1MiB inbound,16MiB outbound,512 queued messages and8 peers. The5.1 wrapper preserves factory/socket calls. StartC5Run owns one cancellable warmup generation and is shared by console/dashboard; dashboard requests keep the listener alive. Compilation/runtime qualification pending; Shipping remains excluded.

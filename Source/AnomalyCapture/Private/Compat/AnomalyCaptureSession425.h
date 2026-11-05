@@ -14,6 +14,8 @@ public:
     void Stop();
     bool IsRunning() const { return Running; }
     int32 Written() const { return Completed; }
+    int32 RequestedFrames() const { return Requested; }
+    int32 PlannedFrames() const { return Count; }
 private:
     TUniquePtr<IAnomalyCaptureBackend> Backend;
     TUniquePtr<FAnomalyCaptureLabels425> Labels;

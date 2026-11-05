@@ -39,7 +39,7 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     if (AnomalyCaptureC2::Enabled())
     {
         Labels = MakeUnique<FAnomalyCaptureLabels425>();
-        if (!Labels->Start(World, Directory, AnomalyCaptureC2::Boundary())) { Labels.Reset(); Backend.Reset(); return false; }
+        if (!Labels->Start(World, Directory, AnomalyCaptureC2::Boundary())) { Labels->Abort(); Labels.Reset(); Backend->Stop(); Backend.Reset(); return false; }
         static_cast<FAnomalyCaptureBackend425*>(Backend.Get())->Labelled(Labels->Epoch());
     }
     Output = Directory; Count = InCount; Requested = Completed = Failures = 0; NextId = 1;
@@ -132,20 +132,25 @@ void FAnomalyCaptureSession425::Stop()
     const FAnomalyReadbackLayout Layout = Concrete->Layout();
     const int32 Dropped = Concrete->Dropped() + Failures;
     bool LabelsPassed = true;
+    bool LabelsFailed = false;
     const bool HadLabels = bool(Labels);
     if (Labels)
     {
-        Labels->Stop(Completed, Dropped);
+        Labels->Stop(Completed, Dropped, Completed==Count);
+        LabelsFailed = Labels->Failed();
         LabelsPassed = !Labels->Failed() && Dropped == 0 && Completed == Count;
         Labels.Reset();
     }
     FString Json = FString::Printf(TEXT("{\"rhi\":\"%s\",\"backbuffer_format\":%d,\"requested\":%d,\"written\":%d,\"dropped\":%d,\"pitch\":%d,\"mapped_height\":%d,\"elapsed_seconds\":%.6f,\"labels\":\"unqualified\",\"masks\":\"unavailable\",\"frames\":["),
-        *RHI, Layout.Format, Count, Completed, Dropped, Layout.RowPitchInPixels, Layout.BufferHeight, FPlatformTime::Seconds() - Started);
+        *RHI, Layout.Format, Requested, Completed, Dropped, Layout.RowPitchInPixels, Layout.BufferHeight, FPlatformTime::Seconds() - Started);
     Json += FString::Join(Rows, TEXT(",")) + FString::Printf(TEXT("],\"peak_pending_writes\":%d,\"writer_drains\":%d,\"writer_limit\":%d}"),PeakPendingWrites,WriterDrains,AnomalyWriteQueue425::MaxPending);
+    Json.RemoveAt(Json.Len()-1);
+    Json+=FString::Printf(TEXT(",\"planned\":%d,\"complete\":%s,\"result\":\"%s\"}"),Count,
+        Completed==Count && !Dropped && !LabelsFailed ? TEXT("true") : TEXT("false"),Dropped || LabelsFailed ? TEXT("FAIL") : Completed==Count ? TEXT("PASS") : TEXT("PARTIAL"));
     if (AnomalyCaptureC2::Masks()) { Json.ReplaceInline(TEXT("\"masks\":\"unavailable\""),TEXT("\"masks\":\"stencil-depth-rdg425\"")); }
 
     const bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: finish RHI=%s written=%d requested=%d dropped=%d receipt=%d"), *RHI, Completed, Count, Dropped, Saved ? 1 : 0);
+    UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: finish RHI=%s written=%d requested=%d dropped=%d receipt=%d"), *RHI, Completed, Requested, Dropped, Saved ? 1 : 0);
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: writer peak=%d limit=%d drains=%d"),PeakPendingWrites,AnomalyWriteQueue425::MaxPending,WriterDrains);
     Backend.Reset();
     if (HadLabels) { AnomalyCaptureC2::Finished(SessionWorld.Get(), LabelsPassed && Saved); }

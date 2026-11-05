@@ -1,0 +1,22 @@
+{
+  "utc": "2026-11-05T09:30:40.495348+00:00",
+  "authority": "094-47 OD1-OD6 GQ1-GQ5 FN2 FM1 FJ1 FK1 GA5 GL4",
+  "scope": "Stage A source tests, two 4.25 builds, ReGate51 changed-module compile only, then armed editor-game smoke",
+  "expected": {
+    "wire": "Raw binary JSON, final-fragment delivery only; overflow and stopped peers refused",
+    "lifecycle": "One owner and generation; 10s minimum plus 2s quiet warmup; cancel removes ticker; dashboard stays alive; counts finalized after drain",
+    "builds": "Development success, no engine actions, Shipping excluded",
+    "smoke": "Loopback listener, welcome, catalog includes four defaults, bad_token refusal, pending start/stop and second start, no late start"
+  },
+  "canfails": [
+    "length prefix mutation",
+    "premature fragment mutation",
+    "queue cap mutation",
+    "post-stop mutation"
+  ],
+  "later_stages": "Packaging capacity and each physical leg are separately sealed before starting",
+  "camera": "No corrections or new camera sessions; inherited D4/G3 and GO3 remain open",
+  "strict_texture_gate": "IoU 1.000 and zero spill",
+  "deadline_utc": "2026-11-05T15:00:00Z",
+  "push": false
+}

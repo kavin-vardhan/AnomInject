@@ -5,7 +5,6 @@
 #include "Compat/AnomalyTickableWorldSubsystem.h"
 #include "AnomalyControlServerSubsystem.generated.h"
 
-class INetworkingWebSocket;
 class FJsonObject;
 
 struct FControlConn;
@@ -33,19 +32,19 @@ public:
 	bool IsListening() const { return bListening; }
 
 private:
-	void OnClientConnected(INetworkingWebSocket* Socket);
-	void OnReceive(INetworkingWebSocket* Socket, void* Data, int32 Size);
-	void OnSocketClosed(INetworkingWebSocket* Socket);
+	void OnClientConnected(uint64 Id, const FString& Remote);
+	void OnReceive(uint64 Id, const void* Data, int32 Size);
+	void OnSocketClosed(uint64 Id);
 
 	void HandleMessage(FControlConn& Conn, const TSharedPtr<FJsonObject>& Msg);
-	void SendJson(INetworkingWebSocket* Socket, const TSharedRef<FJsonObject>& Obj) const;
-	void SendRawText(INetworkingWebSocket* Socket, const FString& Text) const;
-	void SendAck(INetworkingWebSocket* Socket, const FString& ReType) const;
+	void SendJson(uint64 Id, const TSharedRef<FJsonObject>& Obj) const;
+	void SendRawText(uint64 Id, const FString& Text) const;
+	void SendAck(uint64 Id, const FString& ReType) const;
 
 	void PushSnapshots();
 	void PushFrames(bool bForce);
 
-	FControlConn* FindConn(INetworkingWebSocket* Socket);
+	FControlConn* FindConn(uint64 Id);
 	static bool IsLoopbackAddr(const FString& Addr);
 
 	TUniquePtr<FAnomalyControlTransportState> Transport;

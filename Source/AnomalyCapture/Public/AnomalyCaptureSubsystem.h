@@ -85,6 +85,10 @@ public:
 		const FString& InTargetAnomaly = FString(), const FString& InTargetActor = FString(),
 		const TArray<FString>& InTargetArgs = TArray<FString>(), int32 InOutputHeight = -1);
 
+#if ANOMALY_ENGINE_425
+    bool StartC5Run(const FString& RunDirectory,int32 InSeed,const TArray<FString>& Routes,bool bExitOnFinish,FString& OutError);
+    int32 GetC5FrameCount(const TArray<FString>& Routes) const;
+#endif
 	void StopRun();
 
 	void LogStatus() const;

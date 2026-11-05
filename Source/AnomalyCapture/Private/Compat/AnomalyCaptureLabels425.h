@@ -19,7 +19,8 @@ public:
     bool Observe(const FAnomalyCapturedFrame& Frame);
     bool Ready() const { return Prepared == Next && (!Street || Street->Ready(Next)); }
     bool Pair(const FAnomalyLabelKey425& Key, const FString& File);
-    void Stop(int32 Written, int32 Dropped);
+    void Stop(int32 Written, int32 Dropped, bool Complete);
+    void Abort();
     uint64 Epoch() const { return RunEpoch; }
     bool Failed() const { return !Failure.IsEmpty(); }
 private:
@@ -49,6 +50,7 @@ private:
     TMap<FString,TSharedPtr<FJsonObject>> Events;
     TSet<FString> PreviousFires;
     FIntPoint Size = FIntPoint::ZeroValue;
+    bool Initialized = false;
     bool AutoStarted = false;
     bool SavedEnabled = false;
     bool SavedRunning = false;
@@ -66,5 +68,9 @@ namespace AnomalyCaptureC2
     bool Boundary();
     bool Masks();
     void Finished(UWorld* World, bool Success);
+    bool StartC5(UWorld* World,const FString& Root,int32 Seed,const TArray<FString>& Routes,bool ExitOnFinish,FString& Error);
+    bool Pending(UWorld* World);
+    bool Starting(UWorld* World);
+    void Cancel(UWorld* World);
 }
 #endif

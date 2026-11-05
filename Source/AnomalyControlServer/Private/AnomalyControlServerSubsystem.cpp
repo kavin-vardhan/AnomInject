@@ -22,6 +22,9 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "CoreGlobals.h"
+#include "Misc/Paths.h"
+#include "Misc/DateTime.h"
+#include "HAL/FileManager.h"
 
 #if ANOMALY_CONTROL_SERVER
 #include "AnomalyPreviewCapture.h"
@@ -34,10 +37,6 @@
 #include "AnomalyViewport.h"
 #include "AnomalyCaptureSubsystem.h"
 #include "Modules/ModuleManager.h"
-#include "IWebSocketNetworkingModule.h"
-#include "IWebSocketServer.h"
-#include "INetworkingWebSocket.h"
-#include "WebSocketNetworkingDelegates.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonReader.h"
@@ -137,19 +136,8 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 		return true;
 	}
 
-	IWebSocketNetworkingModule* Module = FModuleManager::LoadModulePtr<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking"));
-	if (!Module)
-	{
-		UE_LOG(LogAnomalyServer, Error, TEXT("Control: WebSocketNetworking module unavailable (is the plugin enabled?)."));
-		return false;
-	}
-
-	Transport->Server = Module->CreateServer();
-	if (!Transport->Server.IsValid())
-	{
-		UE_LOG(LogAnomalyServer, Error, TEXT("Control: CreateServer() failed."));
-		return false;
-	}
+	Transport->Server = MakeAnomalyControlTransport();
+	if (!Transport->Server) { return false; }
 
 	Transport->Port = (InPort > 0) ? InPort : DefaultControlPort;
 
@@ -159,15 +147,15 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 		&& !ConfigToken.IsEmpty();
 	Transport->Token = bHasConfigToken ? ConfigToken : FGuid::NewGuid().ToString(EGuidFormats::Digits);
 
-	FWebSocketClientConnectedCallBack ConnectedCb =
-		FWebSocketClientConnectedCallBack::CreateUObject(this, &UAnomalyControlServerSubsystem::OnClientConnected);
-
-	if (!Transport->Server->Init((uint32)Transport->Port, ConnectedCb))
-	{
-		UE_LOG(LogAnomalyServer, Error, TEXT("Control: server Init failed on port %d."), Transport->Port);
-		Transport->Server.Reset();
-		return false;
-	}
+    FAnomalyControlCallbacks Callbacks;
+    Callbacks.Open=[this](uint64 Id,const FString& Remote) { OnClientConnected(Id,Remote); };
+    Callbacks.Message=[this](uint64 Id,const TArray<uint8>& Bytes) { OnReceive(Id,Bytes.GetData(),Bytes.Num()); };
+    Callbacks.Close=[this](uint64 Id) { OnSocketClosed(Id); };
+    if (!Transport->Server->Start(Transport->Port,MoveTemp(Callbacks)))
+    {
+        UE_LOG(LogAnomalyServer,Error,TEXT("Control: server Init failed on port %d."),Transport->Port);
+        Transport->Server.Reset(); return false;
+    }
 
 	bListening = true;
 	Transport->LastSnapshotTime = 0.0;
@@ -181,6 +169,7 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 	UE_LOG(LogAnomalyServer, Log, TEXT("=== Anomaly Control Server LISTENING on ws://127.0.0.1:%d ==="), Transport->Port);
 	UE_LOG(LogAnomalyServer, Log, TEXT("=== Control server token: %s (%s) ==="), *Transport->Token,
 		bHasConfigToken ? TEXT("from DefaultGame.ini [AnomalyControlServer] Token") : TEXT("random per-session"));
+	if (GLog) { GLog->FlushThreadedLogs(); GLog->Flush(); }
 	return true;
 #else
 	UE_LOG(LogAnomalyServer, Warning, TEXT("Control: server compiled out (ANOMALY_CONTROL_SERVER=0)."));
@@ -191,6 +180,7 @@ bool UAnomalyControlServerSubsystem::StartListening(int32 InPort)
 void UAnomalyControlServerSubsystem::StopListening()
 {
 #if ANOMALY_CONTROL_SERVER
+	if (Transport->Server) { Transport->Server->Stop(); }
 	Transport->Conns.Reset();
 	Transport->Server.Reset();
 	if (bListening)
@@ -271,9 +261,9 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 
 #if ANOMALY_CONTROL_SERVER
 
-FControlConn* UAnomalyControlServerSubsystem::FindConn(INetworkingWebSocket* Socket)
+FControlConn* UAnomalyControlServerSubsystem::FindConn(uint64 Id)
 {
-	return Transport->Conns.FindByPredicate([Socket](const FControlConn& C) { return C.Socket == Socket; });
+	return Transport->Conns.FindByPredicate([Id](const FControlConn& C) { return C.Id == Id; });
 }
 
 bool UAnomalyControlServerSubsystem::IsLoopbackAddr(const FString& Addr)
@@ -285,17 +275,16 @@ bool UAnomalyControlServerSubsystem::IsLoopbackAddr(const FString& Addr)
 		|| Addr.Equals(TEXT("localhost"), ESearchCase::IgnoreCase);
 }
 
-void UAnomalyControlServerSubsystem::OnClientConnected(INetworkingWebSocket* Socket)
+void UAnomalyControlServerSubsystem::OnClientConnected(uint64 Id,const FString& Remote)
 {
-	if (!Socket)
+	if (!Id)
 	{
 		return;
 	}
 
-	const FString Remote = Socket->RemoteEndPoint( false);
 
 	FControlConn Conn;
-	Conn.Socket = Socket;
+	Conn.Id = Id;
 	Conn.ConnectTime = FPlatformTime::Seconds();
 
 	if (!IsLoopbackAddr(Remote))
@@ -311,30 +300,24 @@ void UAnomalyControlServerSubsystem::OnClientConnected(INetworkingWebSocket* Soc
 
 	Transport->Conns.Add(Conn);
 
-	Socket->SetReceiveCallBack(FWebSocketPacketReceivedCallBack::CreateLambda(
-		[this, Socket](void* Data, int32 Size) { OnReceive(Socket, Data, Size); }));
-	Socket->SetSocketClosedCallBack(FWebSocketInfoCallBack::CreateLambda(
-		[this, Socket]() { OnSocketClosed(Socket); }));
-	Socket->SetErrorCallBack(FWebSocketInfoCallBack::CreateLambda(
-		[this, Socket]() { UE_LOG(LogAnomalyServer, Warning, TEXT("Control: socket error.")); OnSocketClosed(Socket); }));
 }
 
-void UAnomalyControlServerSubsystem::OnSocketClosed(INetworkingWebSocket* Socket)
+void UAnomalyControlServerSubsystem::OnSocketClosed(uint64 Id)
 {
-	const int32 Removed = Transport->Conns.RemoveAll([Socket](const FControlConn& C) { return C.Socket == Socket; });
+	const int32 Removed = Transport->Conns.RemoveAll([Id](const FControlConn& C) { return C.Id == Id; });
 	if (Removed > 0)
 	{
 		UE_LOG(LogAnomalyServer, Log, TEXT("Control: connection closed; %d remain."), Transport->Conns.Num());
 	}
 }
 
-void UAnomalyControlServerSubsystem::OnReceive(INetworkingWebSocket* Socket, void* Data, int32 Size)
+void UAnomalyControlServerSubsystem::OnReceive(uint64 Id, const void* Data, int32 Size)
 {
 	if (!Data || Size <= 0)
 	{
 		return;
 	}
-	FControlConn* Conn = FindConn(Socket);
+	FControlConn* Conn = FindConn(Id);
 	if (!Conn || Conn->bRejected)
 	{
 		return;
@@ -370,7 +353,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			Welcome->SetStringField(TEXT("type"), TEXT("welcome"));
 			Welcome->SetStringField(TEXT("server"), TEXT("AnomalyControlServer/slice1"));
 			Welcome->SetNumberField(TEXT("v"), ControlProtocol::Version);
-			SendJson(Conn.Socket, Welcome);
+			SendJson(Conn.Id, Welcome);
 			UE_LOG(LogAnomalyServer, Log, TEXT("Control: client authenticated."));
 		}
 		else
@@ -379,7 +362,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			Err->SetStringField(TEXT("type"), TEXT("error"));
 			Err->SetStringField(TEXT("code"), TEXT("bad_token"));
 			Err->SetStringField(TEXT("message"), TEXT("token rejected"));
-			SendJson(Conn.Socket, Err);
+			SendJson(Conn.Id, Err);
 			Conn.bRejected = true;
 			UE_LOG(LogAnomalyServer, Warning, TEXT("Control: bad token — peer rejected."));
 		}
@@ -392,6 +375,19 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 	}
 
 	UWorld* World = GetWorld();
+#if ANOMALY_ENGINE_425
+    if (const auto* Capture=World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr)
+    {
+        const bool ReadOnly=Type==TEXT("list_anomalies") || Type==TEXT("subscribe") || Type==TEXT("request_frame") ||
+            Type==TEXT("capture_status") || Type==TEXT("capture_stop");
+        if (Capture->IsCaptureActive() && !ReadOnly)
+        {
+            auto Reply=MakeShared<FJsonObject>(); Reply->SetStringField(TEXT("type"),TEXT("error"));
+            Reply->SetStringField(TEXT("code"),TEXT("capture_active")); Reply->SetStringField(TEXT("message"),TEXT("Capture transaction is active"));
+            SendJson(Conn.Id,Reply); return;
+        }
+    }
+#endif
 
 #if !UE_BUILD_SHIPPING
 	if (Type == TEXT("bench_place_view") || Type == TEXT("bench_input_lock") || Type == TEXT("bench_log_barrier") || Type == TEXT("bench_scene_fixture"))
@@ -440,13 +436,13 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			GLog->FlushThreadedLogs(); GLog->Flush();
 		}
 		Reply->SetBoolField(TEXT("executed"), Executed);
-		SendJson(Conn.Socket, Reply); return;
+		SendJson(Conn.Id, Reply); return;
 	}
 #endif
 
 	if (Type == TEXT("list_anomalies"))
 	{
-		SendRawText(Conn.Socket, ControlSnapshot::BuildCatalogJson(World));
+		SendRawText(Conn.Id, ControlSnapshot::BuildCatalogJson(World));
 		return;
 	}
 
@@ -473,7 +469,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		{
 			Transport->FrameIntervalSec = 1.0 / FMath::Clamp(Hz, 0.5, 10.0);
 		}
-		SendAck(Conn.Socket, TEXT("subscribe"));
+		SendAck(Conn.Id, TEXT("subscribe"));
 		return;
 	}
 
@@ -508,7 +504,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		Ack->SetStringField(TEXT("re"), TEXT("inject"));
 		Ack->SetStringField(TEXT("anomaly"), Anomaly);
 		Ack->SetBoolField(TEXT("applied"), bApplied);
-		SendJson(Conn.Socket, Ack);
+		SendJson(Conn.Id, Ack);
 		return;
 	}
 
@@ -520,7 +516,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		{
 			Inj->RevertAnomaly(FName(*Anomaly));
 		}
-		SendAck(Conn.Socket, TEXT("revert"));
+		SendAck(Conn.Id, TEXT("revert"));
 		return;
 	}
 
@@ -530,7 +526,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		{
 			Inj->RevertAllActive();
 		}
-		SendAck(Conn.Socket, TEXT("revert_all"));
+		SendAck(Conn.Id, TEXT("revert_all"));
 		return;
 	}
 
@@ -542,7 +538,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		{
 			Inj->SetViewportScoping(bEnabled);
 		}
-		SendAck(Conn.Socket, TEXT("set_viewport_scoping"));
+		SendAck(Conn.Id, TEXT("set_viewport_scoping"));
 		return;
 	}
 
@@ -566,7 +562,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 				Auto->SetEnabled(bEnabled);
 			}
 		}
-		SendAck(Conn.Socket, TEXT("set_hud"));
+		SendAck(Conn.Id, TEXT("set_hud"));
 		return;
 	}
 
@@ -581,7 +577,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		double Cm = 0.0;
 		Msg->TryGetNumberField(TEXT("cm"), Cm);
 		AnomalyViewport::SetPollRadius((float)Cm);
-		SendAck(Conn.Socket, TEXT("set_poll_radius"));
+		SendAck(Conn.Id, TEXT("set_poll_radius"));
 		return;
 	}
 
@@ -590,7 +586,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		double Pct = 0.0;
 		Msg->TryGetNumberField(TEXT("pct"), Pct);
 		AnomalyViewport::SetMinScreenCoveragePct((float)Pct);
-		SendAck(Conn.Socket, TEXT("set_min_screen_coverage"));
+		SendAck(Conn.Id, TEXT("set_min_screen_coverage"));
 		return;
 	}
 
@@ -633,7 +629,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			if (Msg->TryGetBoolField(TEXT("persist"), bPersist)) { Auto->SetPersist(bPersist); }
 			if (Msg->TryGetNumberField(TEXT("seed"), NumV)) { Auto->SetSeed((int32)NumV); }
 		}
-		SendAck(Conn.Socket, TEXT("auto_config"));
+		SendAck(Conn.Id, TEXT("auto_config"));
 		return;
 	}
 
@@ -646,7 +642,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			if (bRunning) { Auto->SetEnabled(true); }
 			Auto->SetRunning(bRunning);
 		}
-		SendAck(Conn.Socket, TEXT("auto_run"));
+		SendAck(Conn.Id, TEXT("auto_run"));
 		return;
 	}
 
@@ -658,7 +654,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		{
 			Auto->AdvanceTime((float)Seconds);
 		}
-		SendAck(Conn.Socket, TEXT("auto_step"));
+		SendAck(Conn.Id, TEXT("auto_step"));
 		return;
 	}
 
@@ -668,12 +664,42 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 		{
 			Auto->TryFireOnce();
 		}
-		SendAck(Conn.Socket, TEXT("auto_fire_once"));
+		SendAck(Conn.Id, TEXT("auto_fire_once"));
 		return;
 	}
 
 	if (Type == TEXT("capture_start"))
 	{
+#if ANOMALY_ENGINE_425
+        FString Directory,Format,Anomaly,Target,Error;
+        Msg->TryGetStringField(TEXT("dir"),Directory); Msg->TryGetStringField(TEXT("format"),Format);
+        Msg->TryGetStringField(TEXT("anomaly"),Anomaly); Msg->TryGetStringField(TEXT("target"),Target);
+        double Seed=4242,MaxFrames=0,Height=0;
+        Msg->TryGetNumberField(TEXT("seed"),Seed); Msg->TryGetNumberField(TEXT("maxFrames"),MaxFrames);
+        Msg->TryGetNumberField(TEXT("outputHeight"),Height);
+        auto* Capture=World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
+        auto* Auto=World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
+        TArray<FString> Routes=Auto ? Auto->GetEnabledIds() : TArray<FString>();
+        if (!Capture || !Auto) { Error=TEXT("Capture subsystem unavailable"); }
+        else if ((!Format.IsEmpty() && !Format.Equals(TEXT("png"),ESearchCase::IgnoreCase)) ||
+            !Anomaly.IsEmpty() || !Target.IsEmpty() || Height!=0 || Msg->HasField(TEXT("targetArgs")) ||
+            Msg->HasField(TEXT("outputWidth"))) { Error=TEXT("4.25 requires native PNG auto capture"); }
+        else if (!FMath::IsFinite(Seed) || Seed<MIN_int32 || Seed>MAX_int32 || Seed!=double(int32(Seed))) { Error=TEXT("Invalid seed"); }
+        else if (MaxFrames!=Capture->GetC5FrameCount(Routes)) { Error=TEXT("maxFrames must equal the C5 schedule"); }
+        else if (Directory.IsEmpty() || FPaths::IsRelative(Directory)) { Error=TEXT("Absolute capture base directory required"); }
+        else
+        {
+            const FString Session=Directory/FString::Printf(TEXT("session_%s_%lld"),*FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")),FDateTime::UtcNow().GetTicks());
+            Capture->StartC5Run(Session,int32(Seed),Routes,false,Error);
+        }
+        if (!Error.IsEmpty())
+        {
+            auto Reply=MakeShared<FJsonObject>(); Reply->SetStringField(TEXT("type"),TEXT("error"));
+            Reply->SetStringField(TEXT("code"),TEXT("capture_refused")); Reply->SetStringField(TEXT("message"),Error);
+            SendJson(Conn.Id,Reply); return;
+        }
+        SendAck(Conn.Id,TEXT("capture_start")); return;
+#else
 		FString Dir, Format, Anomaly, TargetActor;
 		Msg->TryGetStringField(TEXT("dir"), Dir);
 		Msg->TryGetStringField(TEXT("format"), Format);
@@ -727,9 +753,10 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 #endif
 			Cap->StartRun(Dir, bPng, (int32)SeedV, (int32)MaxFramesV, Anomaly, TargetActor, TargetArgs, OutputHeight);
 		}
-		SendAck(Conn.Socket, TEXT("capture_start"));
+		SendAck(Conn.Id, TEXT("capture_start"));
 		return;
-	}
+#endif
+    }
 
 	if (Type == TEXT("capture_stop"))
 	{
@@ -760,7 +787,7 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			Reply->SetNumberField(TEXT("speedRatio"), Pacing.SpeedRatio);
 			Reply->SetBoolField(TEXT("paced"), Pacing.bPaced);
 		}
-		SendJson(Conn.Socket, Reply);
+		SendJson(Conn.Id, Reply);
 		return;
 	}
 
@@ -794,37 +821,37 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			Reply->SetNumberField(TEXT("speedRatio"), Pacing.SpeedRatio);
 			Reply->SetBoolField(TEXT("paced"), Pacing.bPaced);
 		}
-		SendJson(Conn.Socket, Reply);
+		SendJson(Conn.Id, Reply);
 		return;
 	}
 
-	SendAck(Conn.Socket, Type);
+	SendAck(Conn.Id, Type);
 }
 
-void UAnomalyControlServerSubsystem::SendJson(INetworkingWebSocket* Socket, const TSharedRef<FJsonObject>& Obj) const
+void UAnomalyControlServerSubsystem::SendJson(uint64 Id, const TSharedRef<FJsonObject>& Obj) const
 {
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
 	FJsonSerializer::Serialize(Obj, Writer);
-	SendRawText(Socket, Out);
+	SendRawText(Id, Out);
 }
 
-void UAnomalyControlServerSubsystem::SendRawText(INetworkingWebSocket* Socket, const FString& Text) const
+void UAnomalyControlServerSubsystem::SendRawText(uint64 Id, const FString& Text) const
 {
-	if (!Socket)
+	if (!Id)
 	{
 		return;
 	}
 	FTCHARToUTF8 Utf8(*Text);
-	Socket->Send(reinterpret_cast<const uint8*>(Utf8.Get()), (uint32)Utf8.Length(),  false);
+	Transport->Server->Send(Id,reinterpret_cast<const uint8*>(Utf8.Get()),Utf8.Length());
 }
 
-void UAnomalyControlServerSubsystem::SendAck(INetworkingWebSocket* Socket, const FString& ReType) const
+void UAnomalyControlServerSubsystem::SendAck(uint64 Id, const FString& ReType) const
 {
 	const TSharedRef<FJsonObject> Ack = MakeShared<FJsonObject>();
 	Ack->SetStringField(TEXT("type"), TEXT("ack"));
 	Ack->SetStringField(TEXT("re"), ReType);
-	SendJson(Socket, Ack);
+	SendJson(Id, Ack);
 }
 
 void UAnomalyControlServerSubsystem::PushSnapshots()
@@ -863,9 +890,9 @@ void UAnomalyControlServerSubsystem::PushSnapshots()
 	const FString Json = ControlSnapshot::BuildSnapshotJson(World, Transport->ViewEpoch);
 	for (const FControlConn& C : Transport->Conns)
 	{
-		if (C.bAuthed && C.bSubSnapshot && C.Socket)
+		if (C.bAuthed && C.bSubSnapshot && C.Id)
 		{
-			SendRawText(C.Socket, Json);
+			SendRawText(C.Id, Json);
 		}
 	}
 }
@@ -910,9 +937,9 @@ void UAnomalyControlServerSubsystem::PushFrames(bool bForce)
 
 		for (const FControlConn& C : Transport->Conns)
 		{
-			if (C.bAuthed && (C.bSubFrames || bForce) && C.Socket)
+			if (C.bAuthed && (C.bSubFrames || bForce) && C.Id)
 			{
-				C.Socket->Send(Frame.GetData(), (uint32)Frame.Num(),  false);
+				Transport->Server->Send(C.Id,Frame.GetData(),Frame.Num());
 			}
 		}
 	}

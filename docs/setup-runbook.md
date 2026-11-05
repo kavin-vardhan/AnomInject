@@ -1003,3 +1003,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-46s NEEDS-DECISION: existing D3D12 1280 D4 passes GP2 with 0 pixels above 2 levels on 2,496 unlabelled frames; the accepted D3D11 histograms also pass. The new 1279x719 baseline and positive each capture 2,640 frames with 0 drops and pass H4 and the unchanged 0.98 whole-frame texture IoU bar. Odd-width D4 fails on 131 unlabelled frames: maximum delta 117, with up to 793 pixels above 2 in a frame. All failures coincide with EA_Floor texture fires in rows 373-375; the cause is not established. The 144 clipped frames each change all 919,601 pixels and the three spans are exact. Default-only GO3 and card reads remain unrun. No native change, build, retune, retry, push or tag. Owned processes ended, the launcher is disabled, and protection/archive exit checks pass.
+
+
+094-47 sequence: commit source,4.25 Editor/Game compile, ReGate51 Development compile without launching5.1, then armed editor-game protocol smoke. Packaging and desktop work remain gated. All tokens stay masked in receipts; no host Config change. C/D/E floors10/50/50GiB and3GiB launch reserve remain. New physical work stops at20:30IST after safely finishing active workers. No deletion or archive compression to fit.

@@ -235,3 +235,6 @@ The texture release remains c5d0919 on origin. The camera port plus GN4 counter 
 
 
 094-46s NEEDS-DECISION: existing D3D12 1280 D4 passes GP2 with 0 pixels above 2 levels on 2,496 unlabelled frames; the accepted D3D11 histograms also pass. The new 1279x719 baseline and positive each capture 2,640 frames with 0 drops and pass H4 and the unchanged 0.98 whole-frame texture IoU bar. Odd-width D4 fails on 131 unlabelled frames: maximum delta 117, with up to 793 pixels above 2 in a frame. All failures coincide with EA_Floor texture fires in rows 373-375; the cause is not established. The 144 clipped frames each change all 919,601 pixels and the three spans are exact. Default-only GO3 and card reads remain unrun. No native change, build, retune, retry, push or tag. Owned processes ended, the launcher is disabled, and protection/archive exit checks pass.
+
+
+094-47 local development begins atf3fbba7 over shippedc5d0919. Read OD1-OD6 and GQ1-GQ5. Transport helper543checks and4mutants pass. Do not treat source readiness as packaged qualification. Camera remains unqualified/opt-in and plugin pushes remain held. Current shipped instructions remain094-45r.

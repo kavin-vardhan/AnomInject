@@ -1,0 +1,59 @@
+{
+  "result": "PASS",
+  "transport": [
+    {
+      "test": "wire",
+      "expected": "PASS",
+      "exit_code": 0,
+      "output": "PASS 543 framing, fragmentation, teardown and bounds checks\n",
+      "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\wire\\test.exe",
+      "sha256": "c1d8846b8a1555e0ad4bccd91ef465c756e2e02fb9ec58edbe27af3d92d9bc85"
+    },
+    {
+      "test": "length-prefix",
+      "expected": "FAIL",
+      "exit_code": 1,
+      "output": "FAILED check 2\n",
+      "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\length-prefix\\test.exe",
+      "sha256": "f9b19736f727a04e4d0b2a3510f05210e7d0551063d33c3fcba0fccd4d6062e4"
+    },
+    {
+      "test": "early-fragment",
+      "expected": "FAIL",
+      "exit_code": 1,
+      "output": "FAILED check 4\n",
+      "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\early-fragment\\test.exe",
+      "sha256": "b7bfcd66fca4a12deac6ffb55464d8868e1df82ed3bfa8291537c3ca22a096ea"
+    },
+    {
+      "test": "unbounded-queue",
+      "expected": "FAIL",
+      "exit_code": 1,
+      "output": "FAILED check 27\n",
+      "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\unbounded-queue\\test.exe",
+      "sha256": "cdf6063807dc7ea88fde98952fc2f4aa07e47e235e83bd029f06acf99a41d9d1"
+    },
+    {
+      "test": "after-stop",
+      "expected": "FAIL",
+      "exit_code": 1,
+      "output": "FAILED check 9\n",
+      "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\after-stop\\test.exe",
+      "sha256": "09f7db8a6c84461f73ae79ad3fe6d5b40847bf3a38874f1338bcee1439d4e390"
+    }
+  ],
+  "scope": [
+    {
+      "config": "paris-build-job.json",
+      "result": "PASS",
+      "weaker_floor_refused": true
+    },
+    {
+      "config": "regate51-build-job.json",
+      "result": "PASS",
+      "weaker_floor_refused": true
+    }
+  ],
+  "comments": "nochange",
+  "live_protocol": "pending"
+}
