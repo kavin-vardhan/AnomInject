@@ -1,0 +1,21 @@
+{
+  "camera": {
+    "result": "PASS",
+    "positive": 2,
+    "maximum_delta_canfail": true,
+    "maximum_count_canfail": true,
+    "zero_floor_canfail": true
+  },
+  "schema": {
+    "result": "PASS",
+    "added_key_positive": true,
+    "removed_key_canfail": true,
+    "changed_type_canfail": true,
+    "bool_number_canfail": true,
+    "nested_removed_key_canfail": true,
+    "changed_values_reported": true
+  },
+  "result": "PASS",
+  "accepted_states": 3,
+  "armed_tuples": 7
+}

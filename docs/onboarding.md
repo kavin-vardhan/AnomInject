@@ -1,3 +1,5 @@
+094-46r native build PASS: host Editor and Game each pass attempt1 atcd2d60c. The guarded far-only schedule compiles, and the27-file archive rehashes. Runtime GN2/GN3 gates are pending; no push or tags.
+
 094-46r source ready: GO2 adds a guarded IAICameraFarOnly bench lever. It holds the qualified far view for the full2352-frame default section and omits the near-wall tail. Its near100 floor pairs with the same-index near10 control prefix. Both zero-label and unchanged-pose checks are required. The larger measured floor keeps the count belonging to its maximum delta. Accepted09446 D3D11 sessions are reused; D3D12 and one odd-width default-only run follow only if gates pass. Entry fast checks/full P9 pass; build and runtime qualification pending. No push or tags.
 
 094-46 native build PASS: host Editor and Game each pass attempt1 at1e65b6f. The GN4 counter and combined bench schedule compile, and the27-file archive rehashes. Runtime GN2/GN3 gates are pending; no push or tags.
@@ -221,3 +223,6 @@ Stage 1 is independently reviewed and pushed at c5d0919: blinking, lod_corruptio
 
 
 The texture release remains c5d0919 on origin. The camera port plus GN4 counter are local only. The two baseline controls prove0 camera labels; the positive proves144 labels in three spans and restoration10->100->10. Whole-frame pixels still fail GN2 outside those spans, so there is no camera release or new office card from Codex.
+
+
+094-46r kit ready: native Editor/Game pass attempt1; the27-file archive rehashes. Seven bounded launches cover one reused-prefix D3D11 near-plane pair, the D3D12 session and near-plane floors/positive, the odd-width combined leg and one default-only comparison. Far-only sessions require0 camera labels and a fixed far pose. The larger-floor count and key/type readers pass their can-fails. No runtime result is claimed yet; no push/tags.

@@ -1,3 +1,5 @@
+094-46r native build PASS: host Editor and Game each pass attempt1 atcd2d60c. The guarded far-only schedule compiles, and the27-file archive rehashes. Runtime GN2/GN3 gates are pending; no push or tags.
+
 094-46r source ready: GO2 adds a guarded IAICameraFarOnly bench lever. It holds the qualified far view for the full2352-frame default section and omits the near-wall tail. Its near100 floor pairs with the same-index near10 control prefix. Both zero-label and unchanged-pose checks are required. The larger measured floor keeps the count belonging to its maximum delta. Accepted09446 D3D11 sessions are reused; D3D12 and one odd-width default-only run follow only if gates pass. Entry fast checks/full P9 pass; build and runtime qualification pending. No push or tags.
 
 094-46 native build PASS: host Editor and Game each pass attempt1 at1e65b6f. The GN4 counter and combined bench schedule compile, and the27-file archive rehashes. Runtime GN2/GN3 gates are pending; no push or tags.
@@ -2015,3 +2017,6 @@ The 4.25 camera session adapter holds the release camera_clipping anomaly from c
 
 
 The4.25 summary emits label_transition_camera_clipping_unconfirmed_entries by summing the existing transition reason entries, with the5.1 name and meaning. The camera class/slab algorithm is unchanged from c706b7c. The new IAICameraRegression switch is a non-Shipping IAIBench/EA_Core-only extension of the bench schedule. Camera qualification remains incomplete: the held positive exceeds the measured control noise floor on2440 unlabelled frames. The four accepted texture defaults remain unchanged.
+
+
+094-46r kit ready: native Editor/Game pass attempt1; the27-file archive rehashes. Seven bounded launches cover one reused-prefix D3D11 near-plane pair, the D3D12 session and near-plane floors/positive, the odd-width combined leg and one default-only comparison. Far-only sessions require0 camera labels and a fixed far pose. The larger-floor count and key/type readers pass their can-fails. No runtime result is claimed yet; no push/tags.
