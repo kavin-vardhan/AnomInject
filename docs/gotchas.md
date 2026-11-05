@@ -10637,3 +10637,6 @@ GO2 adds a separate near100/near10 floor with the same far view. The full2352-fr
 
 
 G554 outcome (094-46r): D3D11 passes its independently measured2/255 floor. D3D12 stays at delta2 but exceeds its own240-pixel count cap on six frames (255each). Do not borrow D3D11's count, import the level1 count or retune after the positive. The job stopped with both odd-width runs unrun; raw distributions and failed indices are retained.
+
+
+G555. GP2 gates camera-clipping noise by the measured maximum level, with pixel count recorded only. Keep the original failed count receipts; rejudge separately. An odd-width image needs a same-size pixel control even when GP3 permits transferring the measured RHI floor.

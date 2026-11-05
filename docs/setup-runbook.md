@@ -997,3 +997,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-46r NEEDS-DECISION: the guarded far-only near-plane floors are sealed. D3D11 D4 passes at delta2/count255, reusing the accepted sessions. D3D12 seals session delta1/count559838 and near-plane delta2/count240 before its positive. All144 labelled frames change921600pixels and the three spans are exact, but six of2496 unlabelled frames each have255pixels at delta2, exceeding240. H4, strict texture IoU1.000, G5 and zero-drop checks pass on all five new sessions. Both odd-width legs and GO3/card reads remain unrun under the failed-gate stop rule. No threshold retune, retry, push or tag. Exit fast checks and archive rehash pass; all owned processes ended; launcher disabled; no crash/upload/protected change.
+
+
+094-46s GP2/GP3 in progress: no native or binary change. The D4 reader now gates unlabelled frames only on the measured maximum delta; pixel counts remain information. Reader overflow, shifted-label and schema can-fails are retained. The exact scoped kit authorizes only one odd-width baseline control, combined positive and default-only run, reusing accepted D3D12 floors. No new1280 sessions, include-order fix, push or tags. Entry fast checks/fullP9 pass; runtime gates pending.
