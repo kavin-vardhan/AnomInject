@@ -26,7 +26,7 @@ function Connect-Peer {
     $clients.Add($ws)
     $cancel=New-Object System.Threading.CancellationTokenSource
     $cancel.CancelAfter(10000)
-    try { $ws.ConnectAsync([Uri]('ws://127.0.0.1:'+$Port+'/'),$cancel.Token).GetAwaiter().GetResult() } finally { $cancel.Dispose() }
+    try { $null=$ws.ConnectAsync([Uri]('ws://127.0.0.1:'+$Port+'/'),$cancel.Token).GetAwaiter().GetResult() } finally { $cancel.Dispose() }
     return $ws
 }
 function Send-Packet($ws,$packet,[switch]$Fragment) {
@@ -36,9 +36,9 @@ function Send-Packet($ws,$packet,[switch]$Fragment) {
     try {
         if ($Fragment) {
             $cut=[Math]::Max(1,[int]($bytes.Length/2))
-            $ws.SendAsync([ArraySegment[byte]]::new($bytes,0,$cut),[Net.WebSockets.WebSocketMessageType]::Text,$false,$cancel.Token).GetAwaiter().GetResult()
-            $ws.SendAsync([ArraySegment[byte]]::new($bytes,$cut,$bytes.Length-$cut),[Net.WebSockets.WebSocketMessageType]::Text,$true,$cancel.Token).GetAwaiter().GetResult()
-        } else { $ws.SendAsync([ArraySegment[byte]]::new($bytes),[Net.WebSockets.WebSocketMessageType]::Text,$true,$cancel.Token).GetAwaiter().GetResult() }
+            $null=$ws.SendAsync([ArraySegment[byte]]::new($bytes,0,$cut),[Net.WebSockets.WebSocketMessageType]::Text,$false,$cancel.Token).GetAwaiter().GetResult()
+            $null=$ws.SendAsync([ArraySegment[byte]]::new($bytes,$cut,$bytes.Length-$cut),[Net.WebSockets.WebSocketMessageType]::Text,$true,$cancel.Token).GetAwaiter().GetResult()
+        } else { $null=$ws.SendAsync([ArraySegment[byte]]::new($bytes),[Net.WebSockets.WebSocketMessageType]::Text,$true,$cancel.Token).GetAwaiter().GetResult() }
     } finally { $cancel.Dispose() }
     Record 'sent' $packet.type
 }

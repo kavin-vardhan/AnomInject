@@ -1,3 +1,5 @@
+G563: Assign asynchronous .NET void-task results to $null in PowerShell. ConnectAsync.GetAwaiter().GetResult() can emit VoidTaskResult into the function pipeline, so a function returning its WebSocket otherwise returns an array. ReceiveAsync must keep its meaningful result. Test the old-output mutant and an actual fragmented loopback send.
+
 G562: Read an actively written UE log with FileStream FileShare.ReadWrite. File.ReadAllText uses a sharing mode incompatible with the existing writer, even when no log mutation is requested. Preserve the failed smoke; validate old-reader failure and byte-exact shared reading before another owned protocol invocation. No token values in copied logs or commands.
 
 # Gotchas (append-only)
