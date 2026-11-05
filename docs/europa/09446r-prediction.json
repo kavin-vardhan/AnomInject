@@ -1,0 +1,48 @@
+{
+  "utc": "2026-11-05T04:16:27.474875+00:00",
+  "authority": "094-46r GO1-GO4 GN1-GN5 GL1-GL5 GM2 FN2 FM1 FJ1 FK1 GA2 GA5",
+  "near_plane": {
+    "switch": "IAICameraFarOnly",
+    "guard": "non-Shipping, IAIBench, EA_Core, requested camera route, IAICameraSlabBench, IAICameraRegression",
+    "frames": 2352,
+    "pose": "EA_Camera far throughout; no near-wall tail",
+    "held_near": 100,
+    "labels_required": 0,
+    "pair": "Same-index first2352 frames of near10 control-a. Both capture the complete default route section. No frame remapping or phase selection.",
+    "D3D11_control": "09446 accepted control-a; binary differs only by this guarded far-only lever and its additive start receipt",
+    "D3D12_control": "09446r session-floor control-a; same binaries"
+  },
+  "floor": {
+    "metric": "max absolute RGB channel difference per pixel, full saved frame; every-frame256-bin histogram and above-level counts",
+    "larger": "Choose larger max_delta; if equal choose larger count. The count belongs to the selected maximum level; never import the lower-level count allowance.",
+    "seal": "Both measurements and chosen threshold sealed before D4 comparison; D3D12 also before positive launch. GO4 explicitly rejudges existing D3D11 positive.",
+    "unlabelled": "max_delta <= selected maximum AND count at selected maximum <= measured maximum count",
+    "labelled": "Above each measured floor by >1% of frame and more than its maximum-level noise count",
+    "no_retune": true
+  },
+  "order": [
+    "D3D11 far-only near100; pair with accepted near10 prefix; seal; rejudge existing positive",
+    "D3D12-1280 baseline A and B; seal session floor",
+    "D3D12-1280 far-only near100; pair with baseline A prefix; seal larger floor",
+    "D3D12-1280 positive full2640",
+    "D3D12-1279 combined full2640 H4 textures G5",
+    "D3D12-1279 default-only2352; GO3 key/type and card reads"
+  ],
+  "capacity": {
+    "new_sessions": 7,
+    "reference_bytes_per2640": 1933210910,
+    "shorter_floor_frames": 2352,
+    "estimated_capture_bytes": 13000000000,
+    "binary_archive_estimate_bytes": 700000000,
+    "floors_GiB": {
+      "C": 10,
+      "D": 50,
+      "E": 50
+    },
+    "D_launch_reserve_GiB": 3,
+    "no_deletion_of_prior_evidence": true
+  },
+  "stop": "Any failed measured gate; no threshold increase or retry",
+  "defaults_unchanged": true,
+  "no_push": true
+}

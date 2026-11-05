@@ -21,7 +21,7 @@ private:
     FVector FarPosition=FVector::ZeroVector,NearPosition=FVector::ZeroVector,PriorPosition=FVector::ZeroVector;
     FRotator FarRotation=FRotator::ZeroRotator,PriorRotation=FRotator::ZeroRotator;
     float PriorFov=0,Baseline=0;
-    bool Active=false,Bench=false,PriorAutoManage=true;
+    bool Active=false,Bench=false,FarOnly=false,PriorAutoManage=true;
     uint64 StartFrame=0;
     int32 NearStart=624,PoseHold=288;
     FString Output;

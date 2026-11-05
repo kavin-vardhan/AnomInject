@@ -1,0 +1,13 @@
+{
+  "result": "PASS",
+  "positive": 2,
+  "maximum_delta_canfail": true,
+  "maximum_count_canfail": true,
+  "zero_floor_canfail": true,
+  "scope_positive": 2,
+  "scope_negative": 2,
+  "larger_floor_positive": 3,
+  "lower_level_count_mutant_rejected": true,
+  "far_only_old_positive_canfail": true,
+  "default_routes_unchanged": true
+}

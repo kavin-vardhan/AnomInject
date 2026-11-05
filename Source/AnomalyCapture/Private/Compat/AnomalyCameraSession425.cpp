@@ -21,7 +21,10 @@ int32 FAnomalyCameraSession425::FrameCount(UWorld* World,const TArray<FString>& 
 #if !UE_BUILD_SHIPPING
     if (World && World->GetMapName()==TEXT("EA_Core") && Routes.Contains(TEXT("camera_clipping")) &&
         FParse::Param(FCommandLine::Get(),TEXT("IAIBench")) && FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench")) &&
-        FParse::Param(FCommandLine::Get(),TEXT("IAICameraRegression"))) { return FAnomalyStreetBench425::TotalFrames+6*48; }
+        FParse::Param(FCommandLine::Get(),TEXT("IAICameraRegression")))
+    {
+        return FAnomalyStreetBench425::TotalFrames+(FParse::Param(FCommandLine::Get(),TEXT("IAICameraFarOnly"))?0:6*48);
+    }
 #endif
     return FAnomalyStreetBench425::TotalFrames;
 }
@@ -38,7 +41,8 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
         FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench"));
     if (Bench)
     {
-        const bool Regression=FrameCount(World,Routes)>FAnomalyStreetBench425::TotalFrames;
+        const bool Regression=FParse::Param(FCommandLine::Get(),TEXT("IAICameraRegression"));
+        FarOnly=Regression && FParse::Param(FCommandLine::Get(),TEXT("IAICameraFarOnly"));
         NearStart=Regression?FAnomalyStreetBench425::TotalFrames:FAnomalyStreetBench425::PreFrames; PoseHold=Regression?48:288;
         auto* PC=World->GetFirstPlayerController(); if (!PC) { return false; }
         AActor* Target=nullptr;
@@ -65,6 +69,7 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
     Receipt->SetStringField(TEXT("near_position"),NearPosition.ToString()); Receipt->SetStringField(TEXT("far_position"),FarPosition.ToString());
     Receipt->SetNumberField(TEXT("start_frame"),double(StartFrame));
     Receipt->SetNumberField(TEXT("near_start"),NearStart); Receipt->SetNumberField(TEXT("pose_hold"),PoseHold);
+    Receipt->SetBoolField(TEXT("far_only"),FarOnly);
     FString Text; auto W=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(Receipt,W);
     FFileHelper::SaveStringToFile(Text,*(Output/TEXT("camera-session-start.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 camera_clipping session held=%d baseline=%.3f near=%.3f bench=%d"),Active,Baseline,GNearClippingPlane,Bench);
@@ -75,7 +80,7 @@ void FAnomalyCameraSession425::Prepare(int32 Index)
 #if !UE_BUILD_SHIPPING
     if (!Bench || !Owner.IsValid() || !Camera.IsValid()) { return; }
     auto* PC=Owner->GetFirstPlayerController(); if (!PC) { return; }
-    const bool Near=Index>=NearStart && ((Index-NearStart)/PoseHold)%2==0;
+    const bool Near=!FarOnly && Index>=NearStart && ((Index-NearStart)/PoseHold)%2==0;
     const FRotator Rotation=Near ? FRotator::ZeroRotator : FarRotation;
     Camera->SetActorLocationAndRotation(Near ? NearPosition : FarPosition,Rotation);
     auto* C=CastChecked<ACameraActor>(Camera.Get())->GetCameraComponent(); C->SetFieldOfView(PriorFov);
