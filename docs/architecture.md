@@ -2035,3 +2035,6 @@ The4.25 summary emits label_transition_camera_clipping_unconfirmed_entries by su
 
 
 094-47 Editor attempt1 failed with C4668: the new engine guards lacked AnomalyEngineVersion.h in the public capture header and transport boundary. Both now include the existing compat header explicitly. No behavior change, runtime launch or push; attempt2 follows within FM1. Failed receipt retained.
+
+
+094-47 Editor attempt2 and Game attempt1 PASS atdfd11ca. The new C4005 Windows TEXT warning is corrected with the engine Windows header boundary; no protocol change. The smoke driver is added, and child log output masks control tokens before writing. Four redaction checks pass. OD3 D/E50GiB floors are enforced during builds. Final425 compiles and ReGate51 compile remain pending; no runtime launch or push.

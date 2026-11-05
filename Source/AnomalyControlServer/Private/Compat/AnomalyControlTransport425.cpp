@@ -1,11 +1,13 @@
 #include "AnomalyControlTransport.h"
 #if ANOMALY_CONTROL_SERVER && ANOMALY_ENGINE_425
 #include "AnomalyControlWire.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
 #define UI UI_ST
 THIRD_PARTY_INCLUDES_START
 #include "libwebsockets.h"
 THIRD_PARTY_INCLUDES_END
 #undef UI
+#include "Windows/HideWindowsPlatformTypes.h"
 
 class FAnomalyControlTransport425 final : public IAnomalyControlTransport
 {

@@ -42,6 +42,9 @@ def floors(start=False):
     if JOB in (ROOT/'Receipts/09443a',ROOT/'Receipts/09443r'):
         limits['D'] = (25, 25, 15)
         limits['E'] = (50, 50, 50)
+    if JOB == ROOT/'Receipts/09447':
+        limits['D'] = (50, 50, 50)
+        limits['E'] = (50, 50, 50)
     data = {d: {'resolved': str(Path(d + ':/').resolve(strict=True)), 'free': shutil.disk_usage(d + ':/').free,
         'start': v[0] * GIB, 'warning': v[1] * GIB, 'floor': v[2] * GIB} for d, v in limits.items()}
     if any(v['free'] < v['floor'] for v in data.values()) and os.environ.get('EUROPA_DISK_SUPERVISOR_PID') and not AUTHORING_STARTED:
@@ -493,6 +496,8 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
             try:
                 with (folder / f'child-{lognum:03}.log').open('w', encoding='utf-8') as output:
                     for line in proc.stdout:
+                        from token_redaction09447 import line as redact_control_line
+                        line = redact_control_line(line)
                         output.write(line)
                         output.flush()
                         if echo and 'TICKPIN probe' not in line:
