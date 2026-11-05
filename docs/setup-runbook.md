@@ -1,3 +1,5 @@
+094-46 native build PASS: host Editor and Game each pass attempt1 at1e65b6f. The GN4 counter and combined bench schedule compile, and the27-file archive rehashes. Runtime GN2/GN3 gates are pending; no push or tags.
+
 094-45r calibration setup correction: slot01 was closed normally by recorded PID-matched intent after partial no-fire previews, with no C5 or measured anomaly gate. The raw incomplete receipt is retained. Its inherited900s C5 limit cannot fit198 geometry-plus-preview steps. Only Calibration now has a bounded2700s limit; all scored C5 legs remain900s. The single remaining calibration slot is authorized by an exact-path, no-C5/no-event, normal-exit, intent-and-frozen-evidence predicate. Positive and wrong-leg negative pass. Native binaries unchanged.
 
 094-45r Stage1 native build PASS: host Editor and Game each pass attempt1 atc356b7e. Both compiled the GM2 blue-base and shadowless-fill helper; private-pass production source is unchanged; the27-file binary archive rehashes. Armed D3D11 qualification is next; no runtime result or Stage1 readiness claimed.

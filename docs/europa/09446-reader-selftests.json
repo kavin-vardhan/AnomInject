@@ -1,0 +1,12 @@
+{
+  "result": "PASS",
+  "positive": 2,
+  "maximum_delta_canfail": true,
+  "maximum_count_canfail": true,
+  "zero_floor_canfail": true,
+  "object_mask_positive": 2,
+  "object_mask_missing_canfail": true,
+  "unlabelled_mask_canfail": true,
+  "armed_tuples": 12,
+  "no_elevation": true
+}
