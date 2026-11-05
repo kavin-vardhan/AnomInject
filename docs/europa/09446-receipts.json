@@ -1,0 +1,846 @@
+{
+  "result": "NEEDS-DECISION",
+  "summary": {
+    "result": "NEEDS-DECISION",
+    "utc": "2026-11-05T03:37:11.112179+00:00",
+    "stop": "D4 unlabelled frame max absolute RGB delta exceeds sealed control pair floor; no subsequent builds or launches",
+    "floor": {
+      "sealed_utc": "2026-11-05T03:22:02.800511+00:00",
+      "thresholds": {
+        "max_delta": 1,
+        "max_count_at_max_delta": 560155
+      },
+      "frames": 2640,
+      "control_a": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-control-a\\01\\plugin-frames\\epoch01",
+      "control_b": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-control-b\\01\\plugin-frames\\epoch01"
+    },
+    "floor_sha256": "79d01f09c03a3cad3b98bf7a0da3a4ced4be071897018760e30a1ae36816a57d",
+    "D4": {
+      "result": "FAIL",
+      "frames": 2640,
+      "labelled": 144,
+      "unlabelled": 2496,
+      "spans": [
+        [
+          2352,
+          2400
+        ],
+        [
+          2448,
+          2496
+        ],
+        [
+          2544,
+          2592
+        ]
+      ],
+      "labelled_changed_min": 921600,
+      "unlabelled_failures": 2440,
+      "unlabelled_max_delta": 2,
+      "unlabelled_count_at_floor_max": 296540,
+      "count_bound_failures": 0,
+      "delta_bound_failures": 2440,
+      "unlabelled_above_floor_min": 0,
+      "unlabelled_above_floor_max": 254,
+      "unlabelled_above_floor_histogram": {
+        "0": 56,
+        "32": 4,
+        "33": 4,
+        "40": 1,
+        "44": 3,
+        "89": 16,
+        "90": 4,
+        "96": 3,
+        "97": 4,
+        "100": 13,
+        "101": 1,
+        "103": 1,
+        "104": 10,
+        "106": 14,
+        "108": 40,
+        "110": 17,
+        "111": 27,
+        "113": 5,
+        "116": 14,
+        "117": 16,
+        "118": 4,
+        "120": 34,
+        "123": 1,
+        "126": 43,
+        "127": 9,
+        "129": 36,
+        "132": 36,
+        "138": 11,
+        "144": 34,
+        "147": 15,
+        "148": 5,
+        "149": 174,
+        "150": 50,
+        "152": 9,
+        "153": 23,
+        "154": 19,
+        "155": 14,
+        "156": 15,
+        "157": 5,
+        "158": 21,
+        "159": 179,
+        "160": 15,
+        "161": 45,
+        "163": 23,
+        "165": 15,
+        "166": 48,
+        "167": 6,
+        "168": 10,
+        "169": 28,
+        "170": 32,
+        "171": 356,
+        "172": 26,
+        "173": 55,
+        "176": 47,
+        "177": 26,
+        "178": 40,
+        "180": 3,
+        "181": 173,
+        "182": 9,
+        "184": 15,
+        "185": 219,
+        "186": 16,
+        "187": 10,
+        "188": 15,
+        "189": 4,
+        "190": 19,
+        "191": 4,
+        "192": 181,
+        "193": 7,
+        "207": 15,
+        "208": 4,
+        "211": 7,
+        "217": 6,
+        "232": 10,
+        "234": 6,
+        "237": 6,
+        "254": 5
+      },
+      "early_label_reader_canfail_mismatches": 6,
+      "paired_result": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\paired-pixels.json"
+    },
+    "legs": [
+      {
+        "leg": "D3D11-1280-control-a",
+        "result": "PASS",
+        "rhi": "D3D11",
+        "frames": 2640,
+        "drops": 0,
+        "masks": 780,
+        "events": {
+          "blinking": 15,
+          "lod_corruption": 19,
+          "missing_texture": 22,
+          "corrupted_texture": 13
+        },
+        "h4_components": {
+          "mask_check": "PASS",
+          "wall_strip": "PASS",
+          "census": "PASS",
+          "custom_depth": "PASS",
+          "annotation": "PASS",
+          "self_check": "PASS",
+          "ui_pixels": "PASS",
+          "view": "PASS",
+          "lod_guard": "PASS",
+          "session_start": "PASS"
+        },
+        "lod_min_changed": 68061,
+        "textures": {
+          "missing_texture": {
+            "events": 22,
+            "skeletal_events": 0,
+            "static_events": 22,
+            "iou": {
+              "count": 286,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            }
+          },
+          "corrupted_texture": {
+            "events": 13,
+            "skeletal_events": 0,
+            "static_events": 13,
+            "iou": {
+              "count": 157,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            }
+          }
+        },
+        "strict_texture_result": "PASS",
+        "texture_fallback_frames": 0,
+        "texture_edge_frames": 140,
+        "texture_bad_edges": 0,
+        "residual_reverts": 35,
+        "residual_max": 0,
+        "texture_spill_max": 0,
+        "unavailable": 0,
+        "depth_modes": {
+          "result": "PASS",
+          "readings": [
+            "1",
+            "1",
+            "1"
+          ]
+        },
+        "camera": {
+          "result": "PASS",
+          "requested": true,
+          "baseline": true,
+          "frames": 2640,
+          "positive_frames": 0,
+          "spans": [],
+          "start": {
+            "held": true,
+            "bench": true,
+            "baseline_near": 10,
+            "held_near": 10,
+            "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+            "near_position": "X=600.000 Y=0.000 Z=160.000",
+            "far_position": "X=-550.000 Y=0.000 Z=480.000",
+            "start_frame": 6160,
+            "near_start": 2352,
+            "pose_hold": 48
+          },
+          "summary": {
+            "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+            "camera_clipping_bounds_candidate_frames": 0,
+            "camera_clipping_confirmed_positive_frames": 0,
+            "camera_clipping_unconfirmed_frames": 0,
+            "camera_clipping_bounds_rejected_by_triangles_frames": 0,
+            "camera_clipping_confirm_traces_total": 0,
+            "camera_clipping_confirm_traces_max": 0,
+            "camera_clipping_confirm_unconfirmable_candidates": 0,
+            "camera_clipping_confirm_over_cap_candidates": 0,
+            "camera_clipping_confirm_trace_capped_candidates": 0,
+            "camera_clipping_confirm_no_ray_candidates": 0,
+            "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+            "camera_clipping_confirm_full_slab_fallback_traces": 0,
+            "camera_clipping_confirm_invalid_segments": 0,
+            "camera_clipping_confirm_landscape_candidates": 0,
+            "camera_clipping_confirm_skinned_unconfirmable": 0,
+            "camera_clipping_confirm_no_collision_unconfirmable": 0,
+            "camera_clipping_confirm_no_complex_unconfirmable": 0,
+            "camera_clipping_confirm_welded_unconfirmable": 0,
+            "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+            "camera_clipping_confirm_us_mean_per_labelled_frame": 0,
+            "camera_clipping_confirm_us_mean_per_candidate_frame": 0,
+            "camera_clipping_confirm_us_max": 0,
+            "camera_clipping_confirm_budget_us": 500,
+            "camera_clipping_clipped_ray_fraction_mean_confirmed": 0,
+            "camera_clipping_baseline_near": 10,
+            "camera_clipping_anomalous_near": 10,
+            "camera_clipping_frames_evaluated": 2640,
+            "camera_clipping_slab_positive_frames": 0,
+            "camera_clipping_sphere_proxy_positive_frames": 0,
+            "camera_clipping_slab_only_frames": 0,
+            "camera_clipping_sphere_proxy_only_frames": 0,
+            "camera_clipping_eye_inside_box_frames": 0,
+            "camera_clipping_near_overridden_frames": 0,
+            "camera_clipping_box_fallbacks": 0,
+            "camera_clipping_fx_excluded_max": 0,
+            "camera_clipping_primitives_enumerated_mean": 0,
+            "camera_clipping_candidates_mean": 0,
+            "camera_clipping_instances_tested_total": 0,
+            "camera_clipping_eval_ms_total": 10.152699999999996,
+            "camera_clipping_eval_us_mean": 3.845719696969695,
+            "camera_clipping_eval_us_max": 143.9,
+            "camera_clipping_first_hits": [],
+            "session_global_baseline_near": 10,
+            "session_global_restored_near": 10,
+            "session_global_near_restored": true,
+            "label_transition_camera_clipping_unconfirmed_entries": 0
+          },
+          "gn4_entries": 0
+        },
+        "c_before_GiB": 23.814716339111328,
+        "c_after_GiB": 23.810993194580078,
+        "c_drop_GiB": 0.00372314453125,
+        "c_attribution_required": false,
+        "receipt": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\result.json",
+        "raw_evidence": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\raw-evidence.json",
+        "frames_root": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-control-a\\01\\plugin-frames\\epoch01",
+        "runtime_exit_utc": "2026-11-05T02:58:51.883132+00:00"
+      },
+      {
+        "leg": "D3D11-1280-control-b",
+        "result": "PASS",
+        "rhi": "D3D11",
+        "frames": 2640,
+        "drops": 0,
+        "masks": 780,
+        "events": {
+          "blinking": 15,
+          "lod_corruption": 19,
+          "missing_texture": 22,
+          "corrupted_texture": 13
+        },
+        "h4_components": {
+          "mask_check": "PASS",
+          "wall_strip": "PASS",
+          "census": "PASS",
+          "custom_depth": "PASS",
+          "annotation": "PASS",
+          "self_check": "PASS",
+          "ui_pixels": "PASS",
+          "view": "PASS",
+          "lod_guard": "PASS",
+          "session_start": "PASS"
+        },
+        "lod_min_changed": 68061,
+        "textures": {
+          "missing_texture": {
+            "events": 22,
+            "skeletal_events": 0,
+            "static_events": 22,
+            "iou": {
+              "count": 286,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            }
+          },
+          "corrupted_texture": {
+            "events": 13,
+            "skeletal_events": 0,
+            "static_events": 13,
+            "iou": {
+              "count": 157,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            }
+          }
+        },
+        "strict_texture_result": "PASS",
+        "texture_fallback_frames": 0,
+        "texture_edge_frames": 140,
+        "texture_bad_edges": 0,
+        "residual_reverts": 35,
+        "residual_max": 0,
+        "texture_spill_max": 0,
+        "unavailable": 0,
+        "depth_modes": {
+          "result": "PASS",
+          "readings": [
+            "1",
+            "1",
+            "1"
+          ]
+        },
+        "camera": {
+          "result": "PASS",
+          "requested": true,
+          "baseline": true,
+          "frames": 2640,
+          "positive_frames": 0,
+          "spans": [],
+          "start": {
+            "held": true,
+            "bench": true,
+            "baseline_near": 10,
+            "held_near": 10,
+            "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+            "near_position": "X=600.000 Y=0.000 Z=160.000",
+            "far_position": "X=-550.000 Y=0.000 Z=480.000",
+            "start_frame": 6062,
+            "near_start": 2352,
+            "pose_hold": 48
+          },
+          "summary": {
+            "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+            "camera_clipping_bounds_candidate_frames": 0,
+            "camera_clipping_confirmed_positive_frames": 0,
+            "camera_clipping_unconfirmed_frames": 0,
+            "camera_clipping_bounds_rejected_by_triangles_frames": 0,
+            "camera_clipping_confirm_traces_total": 0,
+            "camera_clipping_confirm_traces_max": 0,
+            "camera_clipping_confirm_unconfirmable_candidates": 0,
+            "camera_clipping_confirm_over_cap_candidates": 0,
+            "camera_clipping_confirm_trace_capped_candidates": 0,
+            "camera_clipping_confirm_no_ray_candidates": 0,
+            "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+            "camera_clipping_confirm_full_slab_fallback_traces": 0,
+            "camera_clipping_confirm_invalid_segments": 0,
+            "camera_clipping_confirm_landscape_candidates": 0,
+            "camera_clipping_confirm_skinned_unconfirmable": 0,
+            "camera_clipping_confirm_no_collision_unconfirmable": 0,
+            "camera_clipping_confirm_no_complex_unconfirmable": 0,
+            "camera_clipping_confirm_welded_unconfirmable": 0,
+            "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+            "camera_clipping_confirm_us_mean_per_labelled_frame": 0,
+            "camera_clipping_confirm_us_mean_per_candidate_frame": 0,
+            "camera_clipping_confirm_us_max": 0,
+            "camera_clipping_confirm_budget_us": 500,
+            "camera_clipping_clipped_ray_fraction_mean_confirmed": 0,
+            "camera_clipping_baseline_near": 10,
+            "camera_clipping_anomalous_near": 10,
+            "camera_clipping_frames_evaluated": 2640,
+            "camera_clipping_slab_positive_frames": 0,
+            "camera_clipping_sphere_proxy_positive_frames": 0,
+            "camera_clipping_slab_only_frames": 0,
+            "camera_clipping_sphere_proxy_only_frames": 0,
+            "camera_clipping_eye_inside_box_frames": 0,
+            "camera_clipping_near_overridden_frames": 0,
+            "camera_clipping_box_fallbacks": 0,
+            "camera_clipping_fx_excluded_max": 0,
+            "camera_clipping_primitives_enumerated_mean": 0,
+            "camera_clipping_candidates_mean": 0,
+            "camera_clipping_instances_tested_total": 0,
+            "camera_clipping_eval_ms_total": 11.313199999999991,
+            "camera_clipping_eval_us_mean": 4.2853030303030275,
+            "camera_clipping_eval_us_max": 67.19999999999999,
+            "camera_clipping_first_hits": [],
+            "session_global_baseline_near": 10,
+            "session_global_restored_near": 10,
+            "session_global_near_restored": true,
+            "label_transition_camera_clipping_unconfirmed_entries": 0
+          },
+          "gn4_entries": 0
+        },
+        "c_before_GiB": 23.789867401123047,
+        "c_after_GiB": 23.78857421875,
+        "c_drop_GiB": 0.001293182373046875,
+        "c_attribution_required": false,
+        "receipt": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\result.json",
+        "raw_evidence": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\raw-evidence.json",
+        "frames_root": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-control-b\\01\\plugin-frames\\epoch01",
+        "runtime_exit_utc": "2026-11-05T03:09:39.796542+00:00"
+      },
+      {
+        "leg": "D3D11-1280-positive",
+        "result": "FAIL",
+        "rhi": "D3D11",
+        "frames": 2640,
+        "drops": 0,
+        "masks": 780,
+        "events": {
+          "blinking": 15,
+          "lod_corruption": 19,
+          "missing_texture": 22,
+          "corrupted_texture": 13
+        },
+        "h4_components": {
+          "mask_check": "PASS",
+          "wall_strip": "PASS",
+          "census": "PASS",
+          "custom_depth": "PASS",
+          "annotation": "PASS",
+          "self_check": "PASS",
+          "ui_pixels": "PASS",
+          "view": "PASS",
+          "lod_guard": "PASS",
+          "session_start": "PASS"
+        },
+        "lod_min_changed": 68061,
+        "textures": {
+          "missing_texture": {
+            "events": 22,
+            "skeletal_events": 0,
+            "static_events": 22,
+            "iou": {
+              "count": 286,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            }
+          },
+          "corrupted_texture": {
+            "events": 13,
+            "skeletal_events": 0,
+            "static_events": 13,
+            "iou": {
+              "count": 157,
+              "min": 1.0,
+              "mean": 1.0,
+              "p95": 1.0,
+              "max": 1.0
+            }
+          }
+        },
+        "strict_texture_result": "PASS",
+        "texture_fallback_frames": 0,
+        "texture_edge_frames": 140,
+        "texture_bad_edges": 0,
+        "residual_reverts": 35,
+        "residual_max": 0,
+        "texture_spill_max": 0,
+        "unavailable": 0,
+        "depth_modes": {
+          "result": "PASS",
+          "readings": [
+            "1",
+            "1",
+            "1"
+          ]
+        },
+        "camera": {
+          "result": "PASS",
+          "requested": true,
+          "baseline": false,
+          "frames": 2640,
+          "positive_frames": 144,
+          "spans": [
+            [
+              2352,
+              2400
+            ],
+            [
+              2448,
+              2496
+            ],
+            [
+              2544,
+              2592
+            ]
+          ],
+          "start": {
+            "held": true,
+            "bench": true,
+            "baseline_near": 10,
+            "held_near": 100,
+            "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+            "near_position": "X=600.000 Y=0.000 Z=160.000",
+            "far_position": "X=-550.000 Y=0.000 Z=480.000",
+            "start_frame": 6137,
+            "near_start": 2352,
+            "pose_hold": 48
+          },
+          "summary": {
+            "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+            "camera_clipping_bounds_candidate_frames": 2640,
+            "camera_clipping_confirmed_positive_frames": 144,
+            "camera_clipping_unconfirmed_frames": 0,
+            "camera_clipping_bounds_rejected_by_triangles_frames": 2496,
+            "camera_clipping_confirm_traces_total": 380160,
+            "camera_clipping_confirm_traces_max": 144,
+            "camera_clipping_confirm_unconfirmable_candidates": 0,
+            "camera_clipping_confirm_over_cap_candidates": 0,
+            "camera_clipping_confirm_trace_capped_candidates": 0,
+            "camera_clipping_confirm_no_ray_candidates": 0,
+            "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+            "camera_clipping_confirm_full_slab_fallback_traces": 0,
+            "camera_clipping_confirm_invalid_segments": 0,
+            "camera_clipping_confirm_landscape_candidates": 0,
+            "camera_clipping_confirm_skinned_unconfirmable": 0,
+            "camera_clipping_confirm_no_collision_unconfirmable": 0,
+            "camera_clipping_confirm_no_complex_unconfirmable": 0,
+            "camera_clipping_confirm_welded_unconfirmable": 0,
+            "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+            "camera_clipping_confirm_us_mean_per_labelled_frame": 167.7555555555556,
+            "camera_clipping_confirm_us_mean_per_candidate_frame": 106.77340909090888,
+            "camera_clipping_confirm_us_max": 2714.2999999999997,
+            "camera_clipping_confirm_budget_us": 500,
+            "camera_clipping_clipped_ray_fraction_mean_confirmed": 1,
+            "camera_clipping_baseline_near": 10,
+            "camera_clipping_anomalous_near": 100,
+            "camera_clipping_frames_evaluated": 2640,
+            "camera_clipping_slab_positive_frames": 144,
+            "camera_clipping_sphere_proxy_positive_frames": 144,
+            "camera_clipping_slab_only_frames": 0,
+            "camera_clipping_sphere_proxy_only_frames": 0,
+            "camera_clipping_eye_inside_box_frames": 2496,
+            "camera_clipping_near_overridden_frames": 0,
+            "camera_clipping_box_fallbacks": 0,
+            "camera_clipping_fx_excluded_max": 0,
+            "camera_clipping_primitives_enumerated_mean": 14,
+            "camera_clipping_candidates_mean": 1,
+            "camera_clipping_instances_tested_total": 0,
+            "camera_clipping_eval_ms_total": 393.7000999999989,
+            "camera_clipping_eval_us_mean": 149.12882575757533,
+            "camera_clipping_eval_us_max": 2758.3999999999996,
+            "camera_clipping_first_hits": [
+              "EA_LOD.StaticMeshComponent0=144"
+            ],
+            "session_global_baseline_near": 10,
+            "session_global_restored_near": 10,
+            "session_global_near_restored": true,
+            "label_transition_camera_clipping_unconfirmed_entries": 0
+          },
+          "gn4_entries": 0
+        },
+        "c_before_GiB": 23.779438018798828,
+        "c_after_GiB": 23.777179718017578,
+        "c_drop_GiB": 0.00225830078125,
+        "c_attribution_required": false,
+        "receipt": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\result.json",
+        "raw_evidence": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\raw-evidence.json",
+        "frames_root": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-positive\\01\\plugin-frames\\epoch01",
+        "runtime_exit_utc": "2026-11-05T03:26:49.038953+00:00"
+      }
+    ],
+    "unrun": [
+      "D3D12 1280x720 controls and combined D4/GN3 positive",
+      "D3D12 1279x719 controls and combined GN3 positive",
+      "Default-only additive comparison against c5d0919",
+      "Office-card read-command validation"
+    ],
+    "examples": {
+      "control": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-control-a\\01\\plugin-frames\\epoch01\\frame-002352.png",
+      "positive": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-positive\\01\\plugin-frames\\epoch01\\frame-002352.png"
+    },
+    "no_push": true,
+    "no_tags": true
+  },
+  "native_commit": "1e65b6fc9437e90d141f31d3191f06c052ba808f",
+  "tested_tooling_commit": "afa3ea08d63e6f4d134ced83b97b4bd4d7cd9b0b",
+  "entry_commit": "c706b7cb0fc50ef02461ff611413800dc54ee87d",
+  "origin_unchanged": "c5d0919e5074404d26da8c16ccf845b360bde383",
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\entry.json",
+      "size": 499740,
+      "sha256": "5c39cf1d3d93fe7f15b8d62e53145f9d44ba9468fb4a1f42416a6dd9380e1c65"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\owner-p9-result.json",
+      "size": 237,
+      "sha256": "2b7bbb13d3e3ae836bb4456c44ae51c0a6497ea57476766daeb502cdd8b010bd"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\focused-tests.json",
+      "size": 921,
+      "sha256": "d3a746701c1bc97ac85b6bbf92ec827b30a44216754342e7c5c1efa40fad14ac"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\reader-selftests.json",
+      "size": 295,
+      "sha256": "a5e57211c4fbe56f3679b43ed5f5fb165a33eaf34f93b25497050ebe4d6a6746"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\prediction.json",
+      "size": 2508,
+      "sha256": "83853f41d96ca95768854df158222905fdb8c3db5457559ae125503b63b245c3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\capacity-plan.json",
+      "size": 852,
+      "sha256": "a31b5b4313e38d485fe229c5ed6876a0565e315a665a2a562ec9ab14f1f5fe0f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\builds-and-archive.json",
+      "size": 17649,
+      "sha256": "33b29549e096630d9a75fafbcb2ad1ab6bfbaa609a9b45540bd5053a683cf8f4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\build-audit.json",
+      "size": 4354,
+      "sha256": "7a8ac3263206e37226d219b1296e58665f4a71ce9297bbf6a26d278c85d675c3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\source-audit.json",
+      "size": 4372,
+      "sha256": "2420087711c133fd3317d0bc5cf6fb19e8d12c7f6e1753ce2c3a501c332601f6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\result-summary.json",
+      "size": 20974,
+      "sha256": "b0b70d6a00d674588667fb3d2fcf5fda5b0a23b3b348fcd036c3d32f237ef07f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\all-owned-processes-closed.json",
+      "size": 9286,
+      "sha256": "0385736d23281f8a1e34ee64720da384c85039fc15db165fddfdcb965b234052"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\kit-restore.json",
+      "size": 989,
+      "sha256": "0461d5fc41ac87ba4a9342e820aa756e2644984dd7b4633b28edbe35f3e11407"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\exit-before-commit.json",
+      "size": 495361,
+      "sha256": "78cc474e4c5f7b51241f4fd442018a1f427338ee2eb41b1ebfce780eb614c7c4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\exe-dll-inventory.json",
+      "size": 13175,
+      "sha256": "ba772b8fbace7bb32891d9e9d632d8708c9a03108cb08123258c4bf5cfb2efb0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\floors\\D3D11-1280.json",
+      "size": 16725259,
+      "sha256": "79d01f09c03a3cad3b98bf7a0da3a4ced4be071897018760e30a1ae36816a57d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\result.json",
+      "size": 978652,
+      "sha256": "b1232726b8c7e429ae914d8b0c92aaaba2f6a420363edb701d1bafd6faeb15e5"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\reader.json",
+      "size": 780379,
+      "sha256": "2f724826544cd534fe9ace45b4fe2e9cd388b19cedcf2f993043ab44b09c6244"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\raw-evidence.json",
+      "size": 2248364,
+      "sha256": "20dcbfd830bac388a2411ee1e5a25051e1a97e4347c2fc4aed9af720313d6d2f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\c-space-before.json",
+      "size": 1015,
+      "sha256": "66f0af02aea4aab50f5723ec200cfd3137b24535cb723f26da2bfc81505b61b4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\c-space-after.json",
+      "size": 3251,
+      "sha256": "710c9a9bff6d5d6e4c41c55ab8dc4bcf052a6c7905db3c14fa30c4b497e0557f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\execution.json",
+      "size": 134910,
+      "sha256": "1eaa318cc28950c71a09b0600c8eb3eb7ba64a739e34f9c57518954818d2d4fb"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\result.json",
+      "size": 975925,
+      "sha256": "f630ec6c2538f4958035902e6a7ab623503be92d07689c8d0c04950a4a4c117f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\reader.json",
+      "size": 779936,
+      "sha256": "c58e58386c74e75330d94051bce011bfe3d73a1798fc4b9f459dff9e775286da"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\raw-evidence.json",
+      "size": 2248364,
+      "sha256": "b14cdf54c9a8d0bdd91f36a1e087028072dbc8cc158389d6905dc0905a418f04"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\c-space-before.json",
+      "size": 1015,
+      "sha256": "52e313f219152c426bcfec4cdd2d7d78caac12c74992cfe78e64761cab70ae0d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\c-space-after.json",
+      "size": 3255,
+      "sha256": "f472fa1b8aa2b476a6b16a068fd6512b38cdc6bdcfb245257fdb817ad3ede40a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-b\\01\\execution.json",
+      "size": 132626,
+      "sha256": "80c31cd5453cef79bcd0f2c23dc83289aef614f4cb0bb0fb437671e4b42e84fd"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\result.json",
+      "size": 1011339,
+      "sha256": "e498f4c9ac0aebd5ca958f202c0ecb97f31a31b29b9a53fa465568bfcbced104"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\reader.json",
+      "size": 811658,
+      "sha256": "0c441392cab64d32cef72bdb77edaf4d179445a6399c505a89e797fdae1c6369"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\raw-evidence.json",
+      "size": 2239240,
+      "sha256": "50512615800b5facd0208d05d694fec2c1618f2be8d864359363ccbafee2b9e9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\c-space-before.json",
+      "size": 1015,
+      "sha256": "15a6dbb724633556ffbbdc5713c10cb7959b65a9db3dc76ffe71db7ec803cd92"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\c-space-after.json",
+      "size": 3251,
+      "sha256": "05746b7d65328cd866905c37c45992cefaa2ee2899ac26530e5b2040423e2fd3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\execution.json",
+      "size": 131325,
+      "sha256": "d5573e3a5d437e249e99f7a064232342a85074c973a78c7324fb969a9c6bf755"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-positive\\01\\paired-pixels.json",
+      "size": 8838448,
+      "sha256": "49cf0745519e8ba833877a73c8bbb9e5f9942b3873331248dcf51d6f75339a06"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\kit09446.py",
+      "size": 14785,
+      "sha256": "85300ec318dda65bccee172337519aad49ea7889833d31dadb42423ec4b86de9"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\host_reader09446.py",
+      "size": 2175,
+      "sha256": "f57e0c7e9799de8a8a614b42a95e340304af16aae35f6cd020e5290bc712f71c"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\h4_reader09446.py",
+      "size": 18375,
+      "sha256": "0fde4850da86903d70af97f06ec4c8415116c62f2a41008d7fbf02110e2580b4"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\camera_reader09446.py",
+      "size": 8473,
+      "sha256": "f9056c6b11993c92f36776fc70ef3f97cbd6f8ab26a2e78200dc837f2b469665"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\seal_floor09446.py",
+      "size": 2052,
+      "sha256": "84a842a8d77ed5caa54dbf49f42b976308eb7fbc2eec39a751172f0d4aa66411"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\calibration_reader09445r.py",
+      "size": 6970,
+      "sha256": "bccbbc2a3d4302217c86daea6f12ad63a1f206eac29d73b926ab0f870b59fa87"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\geometry_reader09445r.py",
+      "size": 2891,
+      "sha256": "373b92af860b4d38e97db3a0181339c8b6bf4b3e4466b928c5ba0b364ecf3277"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\texture_reader09445r.py",
+      "size": 5810,
+      "sha256": "1349de34afba9a2d00e8cae049b29a09a44e94eafd2be56bdd65f6b11de06b7c"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\console_probe09443r.py",
+      "size": 2400,
+      "sha256": "eedf5282c71305a149ef51dc01685898976461742cb51c91537f350739934016"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\summarize09446.py",
+      "size": 4382,
+      "sha256": "e615a2378cf04aa6f42675fa9a243709210d5f3b1f5e749b1a25304ba583092a"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\closeout09446.py",
+      "size": 4686,
+      "sha256": "8bddc3b00d0bc7dbfa4f673160d2c3bc3b9548b4b22d25bff59bc103c64a4861"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\audit_all_owned09446.py",
+      "size": 2060,
+      "sha256": "e236d63bef84ea306e5093758c3d04842edc3e16cc5a8179100fb55d5b73fa1f"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\restore_kit09446.py",
+      "size": 1379,
+      "sha256": "d5833e7514d45e6ecd74d9d5b2ac64fe09ece9c35e14fb4d3aa7d3a9f9dd3c09"
+    }
+  ],
+  "deviations": [
+    "Combined bench keeps all2352 texture frames, then adds six48-frame near/far holds, to meet GN3 without moving the texture targets during their gates. Anomaly behavior is unchanged.",
+    "One odd-width D3D12 default-only compatibility run was planned under GN3 singular requirement to preserve disk reserve; it remains unrun.",
+    "The failed D3D11 D4 gate stops both D3D12 legs, additive compatibility and card-read checks. No threshold was changed and no failed measured leg was retried."
+  ],
+  "no_push": true,
+  "no_tags": true
+}

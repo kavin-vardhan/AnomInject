@@ -10624,3 +10624,8 @@ The 094-45r held-near pair confirms three spans and restores the near plane, but
 ### G552 - Count camera unconfirmed entries, not unique frames
 
 The release summary uses ReasonEntries[3]. The 4.25 annotation already counts each camera_clipping_unconfirmed transition entry, so the run summary sums those per-event counts. Multiple entries in one frame remain multiple entries. A direct compiled helper test rejects assignment in place of accumulation.
+
+
+### G553 - A previous positive pair does not set the control noise floor
+
+The09446 control pair has a maximum RGB delta of1, while2440 unlabelled positive/control frames reach2. GN2 requires the measured and sealed control floor, so the old observation of3-level differences cannot authorize a larger threshold. Retain the per-frame histograms and stop; these readings alone do not establish a rendering cause. The count-at-maximum bound passes independently.

@@ -984,3 +984,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-46 source ready: GN4 sums camera_clipping_unconfirmed reason entries into the unchanged 5.1 run-summary key. Its focused C++ test passes and the accumulation mutant fails. The EA_Core-only combined regression keeps the complete 2352-frame texture schedule, then appends six48-frame near/far holds; camera_clipping is held for the whole session. Two baseline-near controls will seal GN2 thresholds before each positive. Default routes and the production slab algorithm are unchanged. Entry fast checks and full P9 pass; native builds and runtime gates are pending. No push or tags. See europa/09446-camera.md.
+
+
+094-46 stopped after the first combined positive failed D4. The runtime launcher is disabled. Exact reproduction paths, the sealed GN2 histogram and all three session receipts are indexed in europa/09446-receipts.json; tested scripts are in the run folder. D3D12 and default-output compatibility checks did not run. The floor was sealed at03:22:02.800511UTC before positive launch03:23:29.798393UTC.

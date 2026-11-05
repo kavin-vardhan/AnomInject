@@ -2010,3 +2010,6 @@ The 4.25 camera session adapter holds the release camera_clipping anomaly from c
 
 
 094-46 source ready: GN4 sums camera_clipping_unconfirmed reason entries into the unchanged 5.1 run-summary key. Its focused C++ test passes and the accumulation mutant fails. The EA_Core-only combined regression keeps the complete 2352-frame texture schedule, then appends six48-frame near/far holds; camera_clipping is held for the whole session. Two baseline-near controls will seal GN2 thresholds before each positive. Default routes and the production slab algorithm are unchanged. Entry fast checks and full P9 pass; native builds and runtime gates are pending. No push or tags. See europa/09446-camera.md.
+
+
+The4.25 summary emits label_transition_camera_clipping_unconfirmed_entries by summing the existing transition reason entries, with the5.1 name and meaning. The camera class/slab algorithm is unchanged from c706b7c. The new IAICameraRegression switch is a non-Shipping IAIBench/EA_Core-only extension of the bench schedule. Camera qualification remains incomplete: the held positive exceeds the measured control noise floor on2440 unlabelled frames. The four accepted texture defaults remain unchanged.

@@ -216,3 +216,6 @@ Stage 1 is independently reviewed and pushed at c5d0919: blinking, lod_corruptio
 
 
 094-46 source ready: GN4 sums camera_clipping_unconfirmed reason entries into the unchanged 5.1 run-summary key. Its focused C++ test passes and the accumulation mutant fails. The EA_Core-only combined regression keeps the complete 2352-frame texture schedule, then appends six48-frame near/far holds; camera_clipping is held for the whole session. Two baseline-near controls will seal GN2 thresholds before each positive. Default routes and the production slab algorithm are unchanged. Entry fast checks and full P9 pass; native builds and runtime gates are pending. No push or tags. See europa/09446-camera.md.
+
+
+The texture release remains c5d0919 on origin. The camera port plus GN4 counter are local only. The two baseline controls prove0 camera labels; the positive proves144 labels in three spans and restoration10->100->10. Whole-frame pixels still fail GN2 outside those spans, so there is no camera release or new office card from Codex.
