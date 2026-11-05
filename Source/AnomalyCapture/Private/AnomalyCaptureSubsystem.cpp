@@ -1,5 +1,5 @@
-#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyCaptureSubsystem.h"
+#include "Compat/AnomalyCaptureFeatures.h"
 #include "Compat/AnomalyCaptureSession425.h"
 #if ANOMALY_CAPTURE_ADVANCED
 #include "RHIDefinitions.h"

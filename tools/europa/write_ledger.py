@@ -33,6 +33,9 @@ def dump(p, value):
     p.write_text(json.dumps(value, indent=2) + '\n', encoding='utf-8')
 
 def floors(start=False):
+    if JOB == ROOT/'Receipts/09447t':
+        from resource_job09447t import floors as current_job_floors
+        return current_job_floors(SCOPE,start)
     if (start and not AUTHORING_STARTED and SCOPE.get('runtime_authorized') is True
             and SCOPE.get('runtime_scope', {}).get('kind') == 'fixture-authoring'):
         start = False
@@ -464,7 +467,7 @@ def run_child(argv, cwd=None, acceptable=(0,), memory_guard=False, on_started=No
     start = time.monotonic()
     if before_create is not None:
         before_create()
-    if memory_guard and JOB in (ROOT/'Receipts/09431', ROOT/'Receipts/09431b', ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437',ROOT/'Receipts/09438',ROOT/'Receipts/09439',ROOT/'Receipts/09440',ROOT/'Receipts/09442',ROOT/'Receipts/09442c'):
+    if memory_guard and JOB in (ROOT/'Receipts/09431', ROOT/'Receipts/09431b', ROOT/'Receipts/09432',ROOT/'Receipts/09433',ROOT/'Receipts/09433b',ROOT/'Receipts/09433c',ROOT/'Receipts/09434',ROOT/'Receipts/09435',ROOT/'Receipts/09436',ROOT/'Receipts/09437',ROOT/'Receipts/09438',ROOT/'Receipts/09439',ROOT/'Receipts/09440',ROOT/'Receipts/09442',ROOT/'Receipts/09442c',ROOT/'Receipts/09447t'):
         floors(start=True)
     try:
         proc = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

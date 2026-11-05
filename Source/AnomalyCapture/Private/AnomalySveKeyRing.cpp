@@ -1,5 +1,5 @@
-#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalySveKeyRing.h"
+#include "Compat/AnomalyCaptureFeatures.h"
 #include "HAL/CriticalSection.h"
 
 #if ANOMALY_CAPTURE_ADVANCED

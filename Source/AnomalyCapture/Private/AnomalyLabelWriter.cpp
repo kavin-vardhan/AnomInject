@@ -1,6 +1,6 @@
+#include "AnomalyLabelWriter.h"
 #include "Compat/AnomalyCaptureFeatures.h"
 #if ANOMALY_CAPTURE_ADVANCED
-#include "AnomalyLabelWriter.h"
 #include "Containers/Set.h"
 #include "HAL/CriticalSection.h"
 #include "PixelFormat.h"

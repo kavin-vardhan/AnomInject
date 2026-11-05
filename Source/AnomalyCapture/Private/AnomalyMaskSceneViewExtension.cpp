@@ -1,6 +1,6 @@
+#include "AnomalyMaskSceneViewExtension.h"
 #include "Compat/AnomalyCaptureFeatures.h"
 #if ANOMALY_CAPTURE_ADVANCED
-#include "AnomalyMaskSceneViewExtension.h"
 #include "RHI.h"
 #include "RHICommandList.h"
 #include "RHIGPUReadback.h"

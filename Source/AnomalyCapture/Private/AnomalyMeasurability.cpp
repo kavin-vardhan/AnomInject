@@ -1,6 +1,6 @@
+#include "AnomalyMeasurability.h"
 #include "Compat/AnomalyCaptureFeatures.h"
 #if ANOMALY_CAPTURE_ADVANCED
-#include "AnomalyMeasurability.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIShaderPlatform.h")
 #include "RHIShaderPlatform.h"

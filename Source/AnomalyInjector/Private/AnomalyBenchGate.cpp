@@ -19,6 +19,15 @@ namespace AnomalyBenchGate
 #endif
 	}
 
+	bool IsCapture425Enabled()
+	{
+#if UE_BUILD_SHIPPING
+		return false;
+#else
+		return FParse::Param(FCommandLine::Get(), TEXT("IAIBench"));
+#endif
+	}
+
 	FString DescribeFlags()
 	{
 		FString Flags;

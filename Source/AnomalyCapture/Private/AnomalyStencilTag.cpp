@@ -1,5 +1,5 @@
-#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyStencilTag.h"
+#include "Compat/AnomalyCaptureFeatures.h"
 
 #if ANOMALY_CAPTURE_ADVANCED || ANOMALY_CAPTURE_FRAMES425
 

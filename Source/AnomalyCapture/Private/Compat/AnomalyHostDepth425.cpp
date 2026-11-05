@@ -1,4 +1,5 @@
 #include "AnomalyHostDepth425.h"
+#include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"
@@ -77,7 +78,7 @@ bool AnomalyHostDepth425::Admit(UWorld* World,const FString& Directory)
 {
     TSet<TWeakObjectPtr<UPrimitiveComponent>> Before; AnomalyStencilTag::GetTaggedComponents(Before);
     const FScan ScanResult=Scan(World);
-    const bool Bench=FParse::Param(FCommandLine::Get(),TEXT("IAIBench"));
+    const bool Bench=AnomalyBenchGate::IsCapture425Enabled();
     const bool Bypass=Bench && BenchFixture(World) && FParse::Param(FCommandLine::Get(),TEXT("IAIBenchBypassHostDepth"));
     const bool Private=AnomalyPrivate425::Available(World);
     const bool Allowed=Private || (AnomalyPrivate425::Legacy(World) && AnomalyCaptureAdmission425::Allowed(ScanResult.Result(),Bench,Bypass));
@@ -94,7 +95,7 @@ bool AnomalyHostDepth425::Admit(UWorld* World,const FString& Directory)
 }
 bool AnomalyHostDepth425::BenchFixture(UWorld* World)
 {
-    if (!World || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return false; }
+    if (!World || !AnomalyBenchGate::IsCapture425Enabled()) { return false; }
     const FString Package=World->GetOutermost()->GetName();
     return Package==TEXT("/Game/EuropaPhaseA/EA_Core") || Package==TEXT("/Game/EuropaPhaseA/EA_Travel") ||
         (FString(FApp::GetProjectName())==TEXT("Outline425") && Package==TEXT("/Game/OutlineFixture/EA_Outline"));

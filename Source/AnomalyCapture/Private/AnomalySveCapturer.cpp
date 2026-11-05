@@ -1,6 +1,6 @@
+#include "AnomalySveCapturer.h"
 #include "Compat/AnomalyCaptureFeatures.h"
 #if ANOMALY_CAPTURE_ADVANCED
-#include "AnomalySveCapturer.h"
 #include "Engine/Texture.h"
 #include "PixelFormat.h"
 #include "RHIGPUReadback.h"

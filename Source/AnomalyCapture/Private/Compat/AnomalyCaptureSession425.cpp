@@ -1,4 +1,5 @@
 #include "AnomalyCaptureSession425.h"
+#include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyCaptureLog.h"
@@ -164,7 +165,7 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureFrames425(TEXT("IAI.Capture.C1
         APlayerController* PC = World->GetFirstPlayerController();
         if (!PC) { return; }
         const IConsoleVariable* BenchCamera=IConsoleManager::Get().FindConsoleVariable(TEXT("IAI.Capture.BenchCamera"));
-        if (FParse::Param(FCommandLine::Get(),TEXT("IAIBench")) && BenchCamera && BenchCamera->GetInt())
+        if (AnomalyBenchGate::IsCapture425Enabled() && BenchCamera && BenchCamera->GetInt())
         {
             for (TActorIterator<ACameraActor> It(World);It;++It) { PC->SetViewTarget(*It); break; }
         }

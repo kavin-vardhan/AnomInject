@@ -1,4 +1,5 @@
 #include "AnomalyPrivatePass425.h"
+#include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyPrivatePolicy425.h"
 #include "AnomalyPrivate425Shader.h"
@@ -290,7 +291,7 @@ void Start(UWorld* World,const FString& Output)
         }
     }
     { FScopeLock Lock(&Guard); Pending.Reset(); Bound.Reset(); }
-    const bool Costs=FParse::Param(FCommandLine::Get(),TEXT("IAIBench"));
+    const bool Costs=AnomalyBenchGate::IsCapture425Enabled();
     ENQUEUE_RENDER_COMMAND(AnomalyPrivateBegin425)([Output,Costs](FRHICommandListImmediate& Cmd)
     { Poll_RenderThread(Cmd); Slots.Reset(); RenderDirectory=Output; Measure=Costs; });
 }

@@ -1,6 +1,6 @@
+#include "AnomalySceneViewExtension.h"
 #include "Compat/AnomalyCaptureFeatures.h"
 #if ANOMALY_CAPTURE_ADVANCED
-#include "AnomalySceneViewExtension.h"
 #include "RHI.h"
 #include "RHIResources.h"
 #include "RenderGraphDefinitions.h"

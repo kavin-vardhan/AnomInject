@@ -1,4 +1,5 @@
 #include "AnomalyCaptureLabels425.h"
+#include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyTransitionCounts425.h"
 #include "AnomalyCaptureSubsystem.h"
@@ -420,7 +421,7 @@ void AnomalyCaptureC2::Finished(UWorld* World,bool Success)
 bool AnomalyCaptureC2::StartC5(UWorld* World,const FString& Root,int32 Seed,const TArray<FString>& Routes,bool ExitOnFinish,FString& Error)
 {
     if (CaptureLive425 || CaptureWarmup425.IsValid()) { Error=TEXT("A capture owns the process"); return false; }
-    if (!World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { Error=TEXT("C5 requires a game world and IAIBench"); return false; }
+    if (!World || !World->IsGameWorld() || !AnomalyBenchGate::IsCapture425Enabled()) { Error=TEXT("C5 requires a game world and IAIBench"); return false; }
     auto* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
     if (!Auto || Auto->IsRunning() || Auto->GetLiveFireCount()) { Error=TEXT("Auto injection must be idle before C5"); return false; }
     const auto Pool=Auto->GetPoolIds(); std::vector<std::string> Validated;
@@ -464,7 +465,7 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureGeometryCommand425(TEXT("IAI.C
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
         if (CaptureLive425 || Args.Num()!=1 || !World || !World->IsGameWorld() || World->GetMapName()!=TEXT("EA_Core") ||
-            !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+            !AnomalyBenchGate::IsCapture425Enabled()) { return; }
         auto* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
         auto* Capture=World->GetSubsystem<UAnomalyCaptureSubsystem>();
         if (!Auto || !Capture || Auto->IsRunning() || Auto->GetLiveFireCount()) { return; }
@@ -476,10 +477,10 @@ static FAutoConsoleCommandWithWorldAndArgs CaptureGeometryCommand425(TEXT("IAI.C
 static FAutoConsoleCommandWithWorldAndArgs CaptureLiveCommand425(TEXT("IAI.Capture.C4"),TEXT("Capture live seeded auto-injection: output frame_count seed [route,route]; default blinking,lod_corruption,missing_texture,corrupted_texture"),
     FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args,UWorld* World)
     {
-        if (CaptureLive425 || (Args.Num()!=3 && Args.Num()!=4) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+        if (CaptureLive425 || (Args.Num()!=3 && Args.Num()!=4) || !World || !World->IsGameWorld() || !AnomalyBenchGate::IsCapture425Enabled()) { return; }
         if (!Routes425(World,Args,3)) { return; }
         APlayerController* PC = World->GetFirstPlayerController(); if (!PC) { return; }
-        if (CaptureBenchCamera425 && FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { for (TActorIterator<ACameraActor> It(World); It; ++It) { PC->SetViewTarget(*It); break; } }
+        if (CaptureBenchCamera425 && AnomalyBenchGate::IsCapture425Enabled()) { for (TActorIterator<ACameraActor> It(World); It; ++It) { PC->SetViewTarget(*It); break; } }
         PC->bShowMouseCursor = false;
         CaptureLive425 = true; CaptureCount425 = FCString::Atoi(*Args[1]); CaptureSeed425 = FCString::Atoi(*Args[2]);
         const FString Root = Args[0]; const double Ready = FPlatformTime::Seconds()+1;

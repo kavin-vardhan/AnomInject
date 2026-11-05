@@ -8,6 +8,8 @@ namespace AnomalyBenchGate
 {
 	ANOMALYINJECTOR_API bool IsEnabled();
 
+	ANOMALYINJECTOR_API bool IsCapture425Enabled();
+
 	ANOMALYINJECTOR_API FString DescribeFlags();
 
 	ANOMALYINJECTOR_API int32 SweepUngatedLevers(const TCHAR* Where);

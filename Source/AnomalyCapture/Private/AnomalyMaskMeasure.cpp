@@ -1,5 +1,5 @@
-#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyMaskMeasure.h"
+#include "Compat/AnomalyCaptureFeatures.h"
 
 #if ANOMALY_CAPTURE_ADVANCED
 

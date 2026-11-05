@@ -1,4 +1,5 @@
 #include "AnomalyMasks425.h"
+#include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyCaptureLog.h"
 #include "AnomalyPrivatePass425.h"
@@ -36,7 +37,7 @@ namespace
 }
 void FAnomalyMasks425::SetBenchCensus(bool Enabled)
 {
-    if (FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { CensusOff425=Enabled?0:1; }
+    if (AnomalyBenchGate::IsCapture425Enabled()) { CensusOff425=Enabled?0:1; }
 }
 bool FAnomalyMasks425::HostDepth(const AActor* Actor) const
 {
@@ -193,7 +194,7 @@ void FAnomalyMasks425::Advance(uint64 Request)
         }
         EventTags.Add(Fire.Id,Binding);
     }
-    if (CensusOff425 && FParse::Param(FCommandLine::Get(),TEXT("IAIBench"))) { return; }
+    if (CensusOff425 && AnomalyBenchGate::IsCapture425Enabled()) { return; }
     if (Batches.Num()>=2) { return; }
     if (Cursor>=Queue.Num())
     {

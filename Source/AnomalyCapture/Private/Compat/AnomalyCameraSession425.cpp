@@ -1,4 +1,5 @@
 #include "AnomalyCameraSession425.h"
+#include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyCaptureLog.h"
@@ -20,7 +21,7 @@ int32 FAnomalyCameraSession425::FrameCount(UWorld* World,const TArray<FString>& 
 {
 #if !UE_BUILD_SHIPPING
     if (World && World->GetMapName()==TEXT("EA_Core") && Routes.Contains(TEXT("camera_clipping")) &&
-        FParse::Param(FCommandLine::Get(),TEXT("IAIBench")) && FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench")) &&
+        AnomalyBenchGate::IsCapture425Enabled() && FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench")) &&
         FParse::Param(FCommandLine::Get(),TEXT("IAICameraRegression")))
     {
         return FAnomalyStreetBench425::TotalFrames+(FParse::Param(FCommandLine::Get(),TEXT("IAICameraFarOnly"))?0:6*48);
@@ -37,7 +38,7 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
     if (!Injector) { return false; }
     TArray<FString> Args;
 #if !UE_BUILD_SHIPPING
-    Bench=World->GetMapName()==TEXT("EA_Core") && FParse::Param(FCommandLine::Get(),TEXT("IAIBench")) &&
+    Bench=World->GetMapName()==TEXT("EA_Core") && AnomalyBenchGate::IsCapture425Enabled() &&
         FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench"));
     if (Bench)
     {

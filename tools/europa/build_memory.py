@@ -54,7 +54,7 @@ def event(path, value):
 
 def wait_for_window(log, sampler=sample, sleeper=time.sleep, clock=time.monotonic, limit=4 * 3600):
     from job_scope import load
-    if Path(load()['job_root']).name in ('09442c','09443a','09443r'):
+    if Path(load()['job_root']).name in ('09442c','09443a','09443r','09447t'):
         limit=min(limit,3*3600)
     start, consecutive = clock(), 0
     required = required_readings(True)

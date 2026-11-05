@@ -35,6 +35,8 @@ import re
 import shutil
 import sys
 import tempfile
+from pathlib import Path
+from lever_profiles import configurations, declaration_proof, validate_provenance
 
 PREFIX = "IAI.Bench."
 GATE_CALL = "AnomalyBenchGate::IsEnabled()"
@@ -49,15 +51,7 @@ CALL_RX = re.compile(r"(\w+)\s*\(\s*(?:TEXT\s*\(\s*)?$")
 NAME_RX = re.compile(r"IAI\.Bench\.[A-Za-z0-9_]+")
 ECHO_STRINGS = ("IAI bench levers: ENABLED", "IAI bench levers: DISABLED")
 
-BASE = {"UE_BUILD_DEBUG": 0, "UE_BUILD_TEST": 0, "WITH_DEV_AUTOMATION_TESTS": 0}
-CONFIGS = {
-    "Shipping": dict(BASE, UE_BUILD_SHIPPING=1, UE_BUILD_DEVELOPMENT=0, ANOMALY_CAPTURE=0,
-                     ANOMALY_CONTROL_SERVER=0, WITH_EDITOR=0, WITH_EDITORONLY_DATA=0),
-    "Development": dict(BASE, UE_BUILD_SHIPPING=0, UE_BUILD_DEVELOPMENT=1, ANOMALY_CAPTURE=1,
-                        ANOMALY_CONTROL_SERVER=1, WITH_EDITOR=0, WITH_EDITORONLY_DATA=0),
-    "Editor": dict(BASE, UE_BUILD_SHIPPING=0, UE_BUILD_DEVELOPMENT=1, ANOMALY_CAPTURE=1,
-                   ANOMALY_CONTROL_SERVER=1, WITH_EDITOR=1, WITH_EDITORONLY_DATA=1),
-}
+CONFIGS = configurations("51")
 
 
 def and3(a, b):
@@ -235,7 +229,7 @@ def split_top(cond, op):
 
 
 class Source:
-    def __init__(self, root, rel):
+    def __init__(self, root, rel, configs=None):
         self.rel = rel
         self.path = os.path.join(root, rel)
         with open(self.path, "r", encoding="utf-8-sig", errors="replace") as f:
@@ -245,7 +239,7 @@ class Source:
         for ln in self.lines[:-1]:
             self.line_starts.append(self.line_starts[-1] + len(ln) + 1)
         self.lits, braces, self.bounds = scan(self.text)
-        self.activity = {name: line_activity(self.lines, m) for name, m in CONFIGS.items()}
+        self.activity = {name: line_activity(self.lines, m) for name, m in (configs or CONFIGS).items()}
         self.blocks = []
         stack = []
         for pos, ch in braces:
@@ -337,8 +331,26 @@ def load_modules(root):
     return mods
 
 
-def audit(root, binaries=None, binary_config="Development", out=print):
+def binary_rules(found, source_names, registrations, echo_missing):
+    problems = []
+    if not source_names or not registrations or not found:
+        problems.append(("B2", "empty expected or actual binary lever inventory"))
+    problems.extend(("B1", "binary carries " + name) for name in sorted(found - source_names))
+    problems.extend(("B2", "source registration absent from binary: " + name) for name in sorted(registrations - found))
+    if echo_missing:
+        problems.append(("B3", "gate echo string(s) absent: " + ", ".join(echo_missing)))
+    return problems
+
+
+def audit(root, binaries=None, binary_config="Development", out=print, engine=None, provenance=None, provenance_sha256=None):
     fails = []
+    try:
+        configs = configurations(engine)
+        declarations = declaration_proof(root)
+    except (OSError, ValueError) as error:
+        out("G-LEVER-AUDIT REFUSED profile: " + str(error))
+        return 2
+    out("G-LEVER-AUDIT PROFILE engine=%s macros=%s declarations=%s" % (engine, json.dumps(configs, sort_keys=True), json.dumps(declarations, sort_keys=True)))
 
     def fail(rule, msg):
         fails.append(rule)
@@ -364,13 +376,13 @@ def audit(root, binaries=None, binary_config="Development", out=print):
     for base, _dirs, files in os.walk(srcdir):
         for fn in sorted(files):
             if fn.endswith((".cpp", ".h")):
-                sources.append(Source(root, os.path.relpath(os.path.join(base, fn), root)))
+                sources.append(Source(root, os.path.relpath(os.path.join(base, fn), root), configs))
     sources.sort(key=lambda s: s.rel)
     out("G-LEVER-AUDIT source=%s files=%d modules=%s" % (root, len(sources),
         ",".join("%s(%s)" % (k, "shipping" if v["shipping"] else "no-shipping") for k, v in mods.items())))
 
-    names_live = {c: set() for c in CONFIGS}
-    reg_names = {c: set() for c in CONFIGS}
+    names_live = {c: set() for c in configs}
+    reg_names = {c: set() for c in configs}
     n_reg = n_static = n_runtime = n_lookup = n_strings = 0
 
     for s in sources:
@@ -382,8 +394,8 @@ def audit(root, binaries=None, binary_config="Development", out=print):
                 continue
             line = s.line_of(a) + 1
             names = NAME_RX.findall(val)
-            live = {c: s.live(a, c) for c in CONFIGS}
-            for c in CONFIGS:
+            live = {c: s.live(a, c) for c in configs}
+            for c in configs:
                 if live[c] is not False and not (c == "Shipping" and not mod_ship):
                     names_live[c].update(names)
             ship_live = live["Shipping"] if mod_ship else False
@@ -401,8 +413,8 @@ def audit(root, binaries=None, binary_config="Development", out=print):
                     n_static += 1
                 else:
                     n_runtime += 1
-                for c in CONFIGS:
-                    if live[c] is not False:
+                for c in configs:
+                    if live[c] is not False and not (c == "Shipping" and not mod_ship):
                         reg_names[c].add(names[0])
                 verdict = "OK"
                 if dev_live and g is None:
@@ -507,7 +519,15 @@ def audit(root, binaries=None, binary_config="Development", out=print):
         for m in re.finditer(r'TEXT\s*\(\s*"IAIBench"\s*\)', s.text):
             fail("R6", "%s:%d tests -IAIBench inline; use %s" % (s.rel.replace("\\", "/"), s.line_of(m.start()) + 1, GATE_CALL))
 
+    if not sources or not names_live["Development"] or not reg_names["Development"] or not n_cat:
+        fail("R2", "empty expected source/registration/catalog inventory")
     if binaries:
+        try:
+            proof = validate_provenance(root, engine, binary_config, binaries, provenance, provenance_sha256)
+            out("G-LEVER-AUDIT PROVENANCE " + json.dumps(proof, sort_keys=True))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            out("G-LEVER-AUDIT REFUSED binary provenance: " + str(error))
+            return 2
         blob = b""
         for p in binaries:
             with open(p, "rb") as f:
@@ -525,12 +545,8 @@ def audit(root, binaries=None, binary_config="Development", out=print):
         out("G-LEVER-AUDIT BINARY config=%s files=%d names_in_binary=%d names_in_source=%d registered=%d unknown=%d missing=%d echo=%s" % (
             binary_config, len(binaries), len(found), len(src_all), len(src_reg), len(extra), len(missing),
             "present" if not echo_missing else "MISSING " + ",".join(echo_missing)))
-        for x in extra:
-            fail("B1", "binary carries %s, which this source does not compile in %s" % (x, binary_config))
-        for x in missing:
-            fail("B2", "source registers %s in %s but the binary does not carry it (stale build)" % (x, binary_config))
-        if echo_missing:
-            fail("B3", "gate echo string(s) absent from the binary: %s" % ", ".join(echo_missing))
+        for rule, message in binary_rules(found, src_all, src_reg, echo_missing):
+            fail(rule, message)
 
     out("G-LEVER-AUDIT SUMMARY lever_names=%d registrations=%d static=%d runtime=%d lookups=%d other_strings=%d catalog=%d bench_catalog=%d failures=%d" % (
         len(names_live["Development"] | names_live["Editor"]), n_reg, n_static, n_runtime, n_lookup, n_strings,
@@ -558,9 +574,9 @@ MUTANTS = [
     ("R3", "IsEnabled() no longer opens on -IAIBenchFixture", GATE_IMPL.replace("\\", "/"),
      r' \|\| FParse::Param\(CommandLine, TEXT\("IAIBenchFixture"\)\);', ";"),
     ("R4", "the twins registered outside the gate", AIS,
-     r"if \(AnomalyBenchGate::IsEnabled\(\)\)(\r?\n\t\{\r?\n\t\tRegister\(MakeUnique<FAnomaly_ChangeCase>)", r"if (true)\1"),
+     r"if \(AnomalyBenchGate::IsEnabled\(\)\)(\r?\n\t\{\r?\n(?:#if ANOMALY_ENGINE_51\r?\n)?\t\tRegister\(MakeUnique<FAnomaly_ChangeCase>)", r"if (true)\1"),
     ("R4", "the twins compiled into Shipping", AIS,
-     r"#if !UE_BUILD_SHIPPING(\r?\n\tif \(AnomalyBenchGate::IsEnabled\(\)\)\r?\n\t\{\r?\n\t\tRegister\(MakeUnique<FAnomaly_ChangeCase>)",
+     r"#if !UE_BUILD_SHIPPING(\r?\n\tif \(AnomalyBenchGate::IsEnabled\(\)\)\r?\n\t\{\r?\n(?:#if ANOMALY_ENGINE_51\r?\n)?\t\tRegister\(MakeUnique<FAnomaly_ChangeCase>)",
      r"#if 1\1"),
     ("R5", "a lever looked up with a raw FindConsoleObject", "Source/AnomalyControlServer/Private/AnomalyControlServerSubsystem.cpp",
      r'AnomalyBenchGate::FindLeverCommand\(TEXT\("IAI\.Bench\.PlaceView"\)\)',
@@ -571,21 +587,23 @@ MUTANTS = [
 ]
 
 
-def selftest(root):
-    tmp = tempfile.mkdtemp(prefix="lever_audit_")
+def selftest(root, scratch=None):
+    tmp = tempfile.mkdtemp(prefix="lever_audit_") if scratch is None else str(Path(scratch).resolve())
+    if scratch is not None:
+        Path(tmp).mkdir(parents=True, exist_ok=False)
+    generated = []
     results = []
     try:
         def fresh():
-            d = os.path.join(tmp, "tree")
-            if os.path.isdir(d):
-                shutil.rmtree(d)
+            d = os.path.join(tmp, "tree-%02d" % len(generated))
+            generated.append(d)
             shutil.copytree(os.path.join(root, "Source"), os.path.join(d, "Source"))
             shutil.copy(os.path.join(root, "AnomalyInjector.uplugin"), d)
             return d
 
         sink = []
         d = fresh()
-        rc = audit(d, out=sink.append)
+        rc = audit(d, out=sink.append, engine="51")
         ok = rc == 0
         results.append(ok)
         print("G-LEVER-AUDIT SELFTEST control (clean copy)                         -> %s (exit %d)" % ("PASS as expected" if ok else "*** DID NOT PASS ***", rc))
@@ -628,13 +646,24 @@ def selftest(root):
             if admit:
                 admit_shipping(d, module_of(rel))
             sink = []
-            rc = audit(d, out=sink.append)
+            rc = audit(d, out=sink.append, engine="51")
             rules = set(re.findall(r"G-LEVER-AUDIT FAIL (\w+) ", "\n".join(sink)))
+            active = excluded
+            active_config = "Shipping" if rule == "R1" or "compiled into Shipping" in label else "Development"
+            mutated_source = Source(d, rel, configurations("51"))
+            for line in sink:
+                match = re.search(r" FAIL " + rule + r" (Source/[^:]+):(\d+) ", line)
+                if match and match.group(1) == rel:
+                    active = active or mutated_source.activity[active_config][int(match.group(2)) - 1] is True
+            if rule == "R3":
+                before_source = Source(root, rel, configurations("51"))
+                matched = re.search(pat, before_source.text)
+                active = bool(matched and before_source.live(matched.start(), "Development") is True)
             if rule == "R1" and not admit:
                 ok = excluded and rc == 0
                 verdict = "PASSED as expected (the descriptor keeps the module out of Shipping)" if ok else "*** WRONG ***"
             else:
-                ok = rc == 1 and rule in rules
+                ok = rc == 1 and rule in rules and active
                 verdict = "FAILED as expected" if ok else "*** NOT CAUGHT ***"
             results.append(ok)
             first = next((l for l in sink if (" FAIL %s " % rule) in l), "")
@@ -643,8 +672,11 @@ def selftest(root):
                 " [module re-admitted to Shipping in the copy]" if admit else ""))
             if first:
                 print("    " + first.replace("G-LEVER-AUDIT ", "")[:180])
+            print("    active_profile=51/%s activity=%s" % (active_config, "ACTIVE" if active else "INVALID"))
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        with open(os.path.join(tmp, "created-files.json"), "w", encoding="utf-8") as f:
+            json.dump([str(p) for p in Path(tmp).rglob("*") if p.is_file()], f, indent=2)
+        print("G-LEVER-AUDIT SELFTEST retained scratch=" + tmp)
     passed = all(results)
     print("G-LEVER-AUDIT SELFTEST %d case(s): %s" % (len(results), "OK" if passed else "FAILED"))
     return 0 if passed else 1
@@ -656,11 +688,15 @@ def main():
     ap.add_argument("--root", default=here, help="plugin root (holds AnomalyInjector.uplugin and Source/)")
     ap.add_argument("--binary", action="append", default=[], help="built exe/dll to cross-check (repeatable; union)")
     ap.add_argument("--binary-config", default="Development", choices=sorted(CONFIGS))
+    ap.add_argument("--engine", required=True, choices=("425", "51"))
+    ap.add_argument("--provenance")
+    ap.add_argument("--provenance-sha256")
+    ap.add_argument("--scratch")
     ap.add_argument("--selftest", action="store_true", help="plant one violation per rule in a copy; each must FAIL")
     a = ap.parse_args()
     if a.selftest:
-        return selftest(a.root)
-    return audit(a.root, a.binary, a.binary_config)
+        return selftest(a.root, a.scratch)
+    return audit(a.root, a.binary, a.binary_config, engine=a.engine, provenance=a.provenance, provenance_sha256=a.provenance_sha256)
 
 
 if __name__ == "__main__":

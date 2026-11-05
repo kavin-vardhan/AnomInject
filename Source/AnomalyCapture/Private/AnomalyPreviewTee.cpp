@@ -1,5 +1,5 @@
-#include "Compat/AnomalyCaptureFeatures.h"
 #include "AnomalyPreviewTee.h"
+#include "Compat/AnomalyCaptureFeatures.h"
 #if __has_include("Templates/SharedPointerFwd.h")
 #include "Templates/SharedPointerFwd.h"
 #endif

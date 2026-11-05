@@ -10652,3 +10652,8 @@ G555 result: GP3 allowed transfer of D3D12's measured 2-level floor, but the odd
 ### G557. UBT exit zero does not clear first-header errors
 
 094-47 compiled and linked AnomalyCapture and AnomalyControlServer on ReGate51, but UBT emitted fourteen first-header errors in the existing capture translation units. Their first three lines match the entry revision. The unchanged error gate rejected the build despite exit zero; no live protocol or package followed. GQ2 permits only the shared transport changes on the 5.1 path, so a broader include-order correction needs a separate scope decision. The retained lever audit also fails: twelve inline bench guards and thirty-two registrations absent from the tested 4.25 binary union. Do not describe these audits as passing or use native compile success as runtime qualification.
+
+
+### G558. Binary lever inventories require the compiled engine profile
+
+The prior32 missing registrations are inactive in4.25 and active in5.1. Include ANOMALY_BENCH, engine/capture guards and actual target macros in the source evaluator; unknown conditions stay conservative. Bind binary checks to a pinned passing build, exact source/profile and artifact hashes. A mutant in compiled-out code is INVALID evidence. Source audit and synthetic can-fail passes do not qualify a native binary or runtime. OD7/OD8 now authorize the precise include-order and narrow bench-predicate corrections described in the09447t journal.

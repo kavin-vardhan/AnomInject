@@ -1,6 +1,6 @@
+#include "AnomalyChangeStage.h"
 #include "Compat/AnomalyCaptureFeatures.h"
 #if ANOMALY_CAPTURE_ADVANCED
-#include "AnomalyChangeStage.h"
 #include "Dom/JsonValue.h"
 #include "SceneInterface.h"
 #if __has_include("Templates/SharedPointerFwd.h")
