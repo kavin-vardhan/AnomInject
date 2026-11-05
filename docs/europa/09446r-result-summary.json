@@ -1,0 +1,3313 @@
+{
+  "result": "NEEDS-DECISION",
+  "utc": "2026-11-05T05:42:28.648447+00:00",
+  "legs": [
+    {
+      "leg": "D3D11-1280-near-floor",
+      "result": "PASS",
+      "crashed": false,
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 581127,
+            "sha256": "6f7401598bb40bc61afd8fa365ca59ff922554dc779629b05237e3b0e37faf92",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6634,
+            "sha256": "42aa910de702b791f990d76a213d36a37544647502bf29e2c2e82c6f1290d275",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "receipt": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\result.json",
+      "frames_root": "E:\\IA_BuildCache\\09446r-evidence\\D3D11-1280-near-floor\\01\\plugin-frames\\epoch01",
+      "reader": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\reader.json",
+      "c_before_GiB": 23.662097930908203,
+      "c_after_GiB": 23.66039276123047,
+      "c_drop_GiB": 0.001705169677734375,
+      "exit_utc": "2026-11-05T04:26:53.562485+00:00",
+      "exit_code": 0,
+      "frames": 2352,
+      "drops": 0,
+      "masks": 780,
+      "events": {
+        "blinking": 15,
+        "lod_corruption": 19,
+        "missing_texture": 22,
+        "corrupted_texture": 13
+      },
+      "h4_components": {
+        "mask_check": "PASS",
+        "wall_strip": "PASS",
+        "census": "PASS",
+        "custom_depth": "PASS",
+        "annotation": "PASS",
+        "self_check": "PASS",
+        "ui_pixels": "PASS",
+        "view": "PASS",
+        "lod_guard": "PASS",
+        "session_start": "PASS"
+      },
+      "lod_min_event_peak": 68061,
+      "textures": {
+        "missing_texture": {
+          "events": 22,
+          "skeletal_events": 0,
+          "static_events": 22,
+          "iou": {
+            "count": 286,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        },
+        "corrupted_texture": {
+          "events": 13,
+          "skeletal_events": 0,
+          "static_events": 13,
+          "iou": {
+            "count": 157,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        }
+      },
+      "strict_texture_result": "PASS",
+      "texture_fallback_frames": 0,
+      "texture_edge_frames": 140,
+      "texture_bad_edges": 0,
+      "residual_reverts": 35,
+      "residual_max": 0,
+      "texture_spill_max": 0,
+      "unavailable": 0,
+      "depth_modes": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "camera": {
+        "result": "PASS",
+        "requested": true,
+        "baseline": false,
+        "far_only": true,
+        "frames": 2352,
+        "positive_frames": 0,
+        "spans": [],
+        "start": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 100,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "start_frame": 6127,
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": true
+        },
+        "summary": {
+          "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+          "camera_clipping_bounds_candidate_frames": 2352,
+          "camera_clipping_confirmed_positive_frames": 0,
+          "camera_clipping_unconfirmed_frames": 0,
+          "camera_clipping_bounds_rejected_by_triangles_frames": 2352,
+          "camera_clipping_confirm_traces_total": 338688,
+          "camera_clipping_confirm_traces_max": 144,
+          "camera_clipping_confirm_unconfirmable_candidates": 0,
+          "camera_clipping_confirm_over_cap_candidates": 0,
+          "camera_clipping_confirm_trace_capped_candidates": 0,
+          "camera_clipping_confirm_no_ray_candidates": 0,
+          "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+          "camera_clipping_confirm_full_slab_fallback_traces": 0,
+          "camera_clipping_confirm_invalid_segments": 0,
+          "camera_clipping_confirm_landscape_candidates": 0,
+          "camera_clipping_confirm_skinned_unconfirmable": 0,
+          "camera_clipping_confirm_no_collision_unconfirmable": 0,
+          "camera_clipping_confirm_no_complex_unconfirmable": 0,
+          "camera_clipping_confirm_welded_unconfirmable": 0,
+          "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+          "camera_clipping_confirm_us_mean_per_labelled_frame": 0,
+          "camera_clipping_confirm_us_mean_per_candidate_frame": 101.67287414965978,
+          "camera_clipping_confirm_us_max": 2549.3,
+          "camera_clipping_confirm_budget_us": 500,
+          "camera_clipping_clipped_ray_fraction_mean_confirmed": 0,
+          "camera_clipping_baseline_near": 10,
+          "camera_clipping_anomalous_near": 100,
+          "camera_clipping_frames_evaluated": 2352,
+          "camera_clipping_slab_positive_frames": 0,
+          "camera_clipping_sphere_proxy_positive_frames": 0,
+          "camera_clipping_slab_only_frames": 0,
+          "camera_clipping_sphere_proxy_only_frames": 0,
+          "camera_clipping_eye_inside_box_frames": 2352,
+          "camera_clipping_near_overridden_frames": 0,
+          "camera_clipping_box_fallbacks": 0,
+          "camera_clipping_fx_excluded_max": 0,
+          "camera_clipping_primitives_enumerated_mean": 14,
+          "camera_clipping_candidates_mean": 1,
+          "camera_clipping_instances_tested_total": 0,
+          "camera_clipping_eval_ms_total": 341.3550999999998,
+          "camera_clipping_eval_us_mean": 145.1339710884353,
+          "camera_clipping_eval_us_max": 2585,
+          "camera_clipping_first_hits": [],
+          "session_global_baseline_near": 10,
+          "session_global_restored_near": 10,
+          "session_global_near_restored": true,
+          "label_transition_camera_clipping_unconfirmed_entries": 0
+        },
+        "gn4_entries": 0
+      }
+    },
+    {
+      "leg": "D3D12-1280-control-a",
+      "result": "PASS",
+      "crashed": false,
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 634893,
+            "sha256": "202c42c63bf97b34b33c638be91830bb49f24543ace03344a0ff6380b1ef9f8e",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6631,
+            "sha256": "f528d87beae4f16ff50de624a913ffa24fbc1663994cbd09dafb9ff017dcac5b",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "receipt": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\result.json",
+      "frames_root": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-control-a\\01\\plugin-frames\\epoch01",
+      "reader": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\reader.json",
+      "c_before_GiB": 23.271656036376953,
+      "c_after_GiB": 23.26980972290039,
+      "c_drop_GiB": 0.0018463134765625,
+      "exit_utc": "2026-11-05T04:48:15.793801+00:00",
+      "exit_code": 0,
+      "frames": 2640,
+      "drops": 0,
+      "masks": 780,
+      "events": {
+        "blinking": 15,
+        "lod_corruption": 19,
+        "missing_texture": 22,
+        "corrupted_texture": 13
+      },
+      "h4_components": {
+        "mask_check": "PASS",
+        "wall_strip": "PASS",
+        "census": "PASS",
+        "custom_depth": "PASS",
+        "annotation": "PASS",
+        "self_check": "PASS",
+        "ui_pixels": "PASS",
+        "view": "PASS",
+        "lod_guard": "PASS",
+        "session_start": "PASS"
+      },
+      "lod_min_event_peak": 68061,
+      "textures": {
+        "missing_texture": {
+          "events": 22,
+          "skeletal_events": 0,
+          "static_events": 22,
+          "iou": {
+            "count": 286,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        },
+        "corrupted_texture": {
+          "events": 13,
+          "skeletal_events": 0,
+          "static_events": 13,
+          "iou": {
+            "count": 157,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        }
+      },
+      "strict_texture_result": "PASS",
+      "texture_fallback_frames": 0,
+      "texture_edge_frames": 140,
+      "texture_bad_edges": 0,
+      "residual_reverts": 35,
+      "residual_max": 0,
+      "texture_spill_max": 0,
+      "unavailable": 0,
+      "depth_modes": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "camera": {
+        "result": "PASS",
+        "requested": true,
+        "baseline": true,
+        "far_only": false,
+        "frames": 2640,
+        "positive_frames": 0,
+        "spans": [],
+        "start": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 10,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "start_frame": 5762,
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": false
+        },
+        "summary": {
+          "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+          "camera_clipping_bounds_candidate_frames": 0,
+          "camera_clipping_confirmed_positive_frames": 0,
+          "camera_clipping_unconfirmed_frames": 0,
+          "camera_clipping_bounds_rejected_by_triangles_frames": 0,
+          "camera_clipping_confirm_traces_total": 0,
+          "camera_clipping_confirm_traces_max": 0,
+          "camera_clipping_confirm_unconfirmable_candidates": 0,
+          "camera_clipping_confirm_over_cap_candidates": 0,
+          "camera_clipping_confirm_trace_capped_candidates": 0,
+          "camera_clipping_confirm_no_ray_candidates": 0,
+          "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+          "camera_clipping_confirm_full_slab_fallback_traces": 0,
+          "camera_clipping_confirm_invalid_segments": 0,
+          "camera_clipping_confirm_landscape_candidates": 0,
+          "camera_clipping_confirm_skinned_unconfirmable": 0,
+          "camera_clipping_confirm_no_collision_unconfirmable": 0,
+          "camera_clipping_confirm_no_complex_unconfirmable": 0,
+          "camera_clipping_confirm_welded_unconfirmable": 0,
+          "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+          "camera_clipping_confirm_us_mean_per_labelled_frame": 0,
+          "camera_clipping_confirm_us_mean_per_candidate_frame": 0,
+          "camera_clipping_confirm_us_max": 0,
+          "camera_clipping_confirm_budget_us": 500,
+          "camera_clipping_clipped_ray_fraction_mean_confirmed": 0,
+          "camera_clipping_baseline_near": 10,
+          "camera_clipping_anomalous_near": 10,
+          "camera_clipping_frames_evaluated": 2640,
+          "camera_clipping_slab_positive_frames": 0,
+          "camera_clipping_sphere_proxy_positive_frames": 0,
+          "camera_clipping_slab_only_frames": 0,
+          "camera_clipping_sphere_proxy_only_frames": 0,
+          "camera_clipping_eye_inside_box_frames": 0,
+          "camera_clipping_near_overridden_frames": 0,
+          "camera_clipping_box_fallbacks": 0,
+          "camera_clipping_fx_excluded_max": 0,
+          "camera_clipping_primitives_enumerated_mean": 0,
+          "camera_clipping_candidates_mean": 0,
+          "camera_clipping_instances_tested_total": 0,
+          "camera_clipping_eval_ms_total": 11.148100000000003,
+          "camera_clipping_eval_us_mean": 4.222765151515152,
+          "camera_clipping_eval_us_max": 76.8,
+          "camera_clipping_first_hits": [],
+          "session_global_baseline_near": 10,
+          "session_global_restored_near": 10,
+          "session_global_near_restored": true,
+          "label_transition_camera_clipping_unconfirmed_entries": 0
+        },
+        "gn4_entries": 0
+      }
+    },
+    {
+      "leg": "D3D12-1280-control-b",
+      "result": "PASS",
+      "crashed": false,
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 635257,
+            "sha256": "ee31a357fc489cb1d770c4e8173ebce47d89ceb7606a08cba894cce9a2a0d766",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6631,
+            "sha256": "29174b483a74737d3fe87f70faa971b6a164ea41fa07bee701888e27d347e1e5",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "receipt": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\result.json",
+      "frames_root": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-control-b\\01\\plugin-frames\\epoch01",
+      "reader": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\reader.json",
+      "c_before_GiB": 23.25153350830078,
+      "c_after_GiB": 23.25161361694336,
+      "c_drop_GiB": -8.0108642578125e-05,
+      "exit_utc": "2026-11-05T04:59:59.780569+00:00",
+      "exit_code": 0,
+      "frames": 2640,
+      "drops": 0,
+      "masks": 780,
+      "events": {
+        "blinking": 15,
+        "lod_corruption": 19,
+        "missing_texture": 22,
+        "corrupted_texture": 13
+      },
+      "h4_components": {
+        "mask_check": "PASS",
+        "wall_strip": "PASS",
+        "census": "PASS",
+        "custom_depth": "PASS",
+        "annotation": "PASS",
+        "self_check": "PASS",
+        "ui_pixels": "PASS",
+        "view": "PASS",
+        "lod_guard": "PASS",
+        "session_start": "PASS"
+      },
+      "lod_min_event_peak": 68061,
+      "textures": {
+        "missing_texture": {
+          "events": 22,
+          "skeletal_events": 0,
+          "static_events": 22,
+          "iou": {
+            "count": 286,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        },
+        "corrupted_texture": {
+          "events": 13,
+          "skeletal_events": 0,
+          "static_events": 13,
+          "iou": {
+            "count": 157,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        }
+      },
+      "strict_texture_result": "PASS",
+      "texture_fallback_frames": 0,
+      "texture_edge_frames": 140,
+      "texture_bad_edges": 0,
+      "residual_reverts": 35,
+      "residual_max": 0,
+      "texture_spill_max": 0,
+      "unavailable": 0,
+      "depth_modes": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "camera": {
+        "result": "PASS",
+        "requested": true,
+        "baseline": true,
+        "far_only": false,
+        "frames": 2640,
+        "positive_frames": 0,
+        "spans": [],
+        "start": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 10,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "start_frame": 6032,
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": false
+        },
+        "summary": {
+          "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+          "camera_clipping_bounds_candidate_frames": 0,
+          "camera_clipping_confirmed_positive_frames": 0,
+          "camera_clipping_unconfirmed_frames": 0,
+          "camera_clipping_bounds_rejected_by_triangles_frames": 0,
+          "camera_clipping_confirm_traces_total": 0,
+          "camera_clipping_confirm_traces_max": 0,
+          "camera_clipping_confirm_unconfirmable_candidates": 0,
+          "camera_clipping_confirm_over_cap_candidates": 0,
+          "camera_clipping_confirm_trace_capped_candidates": 0,
+          "camera_clipping_confirm_no_ray_candidates": 0,
+          "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+          "camera_clipping_confirm_full_slab_fallback_traces": 0,
+          "camera_clipping_confirm_invalid_segments": 0,
+          "camera_clipping_confirm_landscape_candidates": 0,
+          "camera_clipping_confirm_skinned_unconfirmable": 0,
+          "camera_clipping_confirm_no_collision_unconfirmable": 0,
+          "camera_clipping_confirm_no_complex_unconfirmable": 0,
+          "camera_clipping_confirm_welded_unconfirmable": 0,
+          "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+          "camera_clipping_confirm_us_mean_per_labelled_frame": 0,
+          "camera_clipping_confirm_us_mean_per_candidate_frame": 0,
+          "camera_clipping_confirm_us_max": 0,
+          "camera_clipping_confirm_budget_us": 500,
+          "camera_clipping_clipped_ray_fraction_mean_confirmed": 0,
+          "camera_clipping_baseline_near": 10,
+          "camera_clipping_anomalous_near": 10,
+          "camera_clipping_frames_evaluated": 2640,
+          "camera_clipping_slab_positive_frames": 0,
+          "camera_clipping_sphere_proxy_positive_frames": 0,
+          "camera_clipping_slab_only_frames": 0,
+          "camera_clipping_sphere_proxy_only_frames": 0,
+          "camera_clipping_eye_inside_box_frames": 0,
+          "camera_clipping_near_overridden_frames": 0,
+          "camera_clipping_box_fallbacks": 0,
+          "camera_clipping_fx_excluded_max": 0,
+          "camera_clipping_primitives_enumerated_mean": 0,
+          "camera_clipping_candidates_mean": 0,
+          "camera_clipping_instances_tested_total": 0,
+          "camera_clipping_eval_ms_total": 11.185900000000021,
+          "camera_clipping_eval_us_mean": 4.2370833333333415,
+          "camera_clipping_eval_us_max": 52.8,
+          "camera_clipping_first_hits": [],
+          "session_global_baseline_near": 10,
+          "session_global_restored_near": 10,
+          "session_global_near_restored": true,
+          "label_transition_camera_clipping_unconfirmed_entries": 0
+        },
+        "gn4_entries": 0
+      }
+    },
+    {
+      "leg": "D3D12-1280-near-floor",
+      "result": "PASS",
+      "crashed": false,
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 594589,
+            "sha256": "bf609a802bc7233ff6ba44745eb34abdba76e268afe851ace6f404d042c60909",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6633,
+            "sha256": "bbf232d67de5fd6755d8991e08a46e903e254d915fa87332b1dfb3b7910ce1fc",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "receipt": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\result.json",
+      "frames_root": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-near-floor\\01\\plugin-frames\\epoch01",
+      "reader": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\reader.json",
+      "c_before_GiB": 23.226303100585938,
+      "c_after_GiB": 23.225177764892578,
+      "c_drop_GiB": 0.001125335693359375,
+      "exit_utc": "2026-11-05T05:16:43.183033+00:00",
+      "exit_code": 0,
+      "frames": 2352,
+      "drops": 0,
+      "masks": 780,
+      "events": {
+        "blinking": 15,
+        "lod_corruption": 19,
+        "missing_texture": 22,
+        "corrupted_texture": 13
+      },
+      "h4_components": {
+        "mask_check": "PASS",
+        "wall_strip": "PASS",
+        "census": "PASS",
+        "custom_depth": "PASS",
+        "annotation": "PASS",
+        "self_check": "PASS",
+        "ui_pixels": "PASS",
+        "view": "PASS",
+        "lod_guard": "PASS",
+        "session_start": "PASS"
+      },
+      "lod_min_event_peak": 68061,
+      "textures": {
+        "missing_texture": {
+          "events": 22,
+          "skeletal_events": 0,
+          "static_events": 22,
+          "iou": {
+            "count": 286,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        },
+        "corrupted_texture": {
+          "events": 13,
+          "skeletal_events": 0,
+          "static_events": 13,
+          "iou": {
+            "count": 157,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        }
+      },
+      "strict_texture_result": "PASS",
+      "texture_fallback_frames": 0,
+      "texture_edge_frames": 140,
+      "texture_bad_edges": 0,
+      "residual_reverts": 35,
+      "residual_max": 0,
+      "texture_spill_max": 0,
+      "unavailable": 0,
+      "depth_modes": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "camera": {
+        "result": "PASS",
+        "requested": true,
+        "baseline": false,
+        "far_only": true,
+        "frames": 2352,
+        "positive_frames": 0,
+        "spans": [],
+        "start": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 100,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "start_frame": 5886,
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": true
+        },
+        "summary": {
+          "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+          "camera_clipping_bounds_candidate_frames": 2352,
+          "camera_clipping_confirmed_positive_frames": 0,
+          "camera_clipping_unconfirmed_frames": 0,
+          "camera_clipping_bounds_rejected_by_triangles_frames": 2352,
+          "camera_clipping_confirm_traces_total": 338688,
+          "camera_clipping_confirm_traces_max": 144,
+          "camera_clipping_confirm_unconfirmable_candidates": 0,
+          "camera_clipping_confirm_over_cap_candidates": 0,
+          "camera_clipping_confirm_trace_capped_candidates": 0,
+          "camera_clipping_confirm_no_ray_candidates": 0,
+          "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+          "camera_clipping_confirm_full_slab_fallback_traces": 0,
+          "camera_clipping_confirm_invalid_segments": 0,
+          "camera_clipping_confirm_landscape_candidates": 0,
+          "camera_clipping_confirm_skinned_unconfirmable": 0,
+          "camera_clipping_confirm_no_collision_unconfirmable": 0,
+          "camera_clipping_confirm_no_complex_unconfirmable": 0,
+          "camera_clipping_confirm_welded_unconfirmable": 0,
+          "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+          "camera_clipping_confirm_us_mean_per_labelled_frame": 0,
+          "camera_clipping_confirm_us_mean_per_candidate_frame": 113.87376700680267,
+          "camera_clipping_confirm_us_max": 675.4,
+          "camera_clipping_confirm_budget_us": 500,
+          "camera_clipping_clipped_ray_fraction_mean_confirmed": 0,
+          "camera_clipping_baseline_near": 10,
+          "camera_clipping_anomalous_near": 100,
+          "camera_clipping_frames_evaluated": 2352,
+          "camera_clipping_slab_positive_frames": 0,
+          "camera_clipping_sphere_proxy_positive_frames": 0,
+          "camera_clipping_slab_only_frames": 0,
+          "camera_clipping_sphere_proxy_only_frames": 0,
+          "camera_clipping_eye_inside_box_frames": 2352,
+          "camera_clipping_near_overridden_frames": 0,
+          "camera_clipping_box_fallbacks": 0,
+          "camera_clipping_fx_excluded_max": 0,
+          "camera_clipping_primitives_enumerated_mean": 14,
+          "camera_clipping_candidates_mean": 1,
+          "camera_clipping_instances_tested_total": 0,
+          "camera_clipping_eval_ms_total": 376.79389999999904,
+          "camera_clipping_eval_us_mean": 160.20148809523766,
+          "camera_clipping_eval_us_max": 712.8,
+          "camera_clipping_first_hits": [],
+          "session_global_baseline_near": 10,
+          "session_global_restored_near": 10,
+          "session_global_near_restored": true,
+          "label_transition_camera_clipping_unconfirmed_entries": 0
+        },
+        "gn4_entries": 0
+      }
+    },
+    {
+      "leg": "D3D12-1280-positive",
+      "result": "FAIL",
+      "crashed": false,
+      "upload": {
+        "result": "PASS",
+        "logs": [
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\session\\Runtime.log",
+            "exists": true,
+            "size": 637338,
+            "sha256": "8e4006d05e14a739f29c2e6030db5467d80b9cad1c7baab14bdf1e350e994cda",
+            "hits": []
+          },
+          {
+            "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\session\\CrashClient.log",
+            "exists": true,
+            "size": 6631,
+            "sha256": "1774d9826d81487be098df253e80c0a3812de60aaa318558a9a49820e8076984",
+            "hits": []
+          }
+        ],
+        "scope": "Both session logs; upload/send/POST evidence. Absence is not network packet capture."
+      },
+      "receipt": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\result.json",
+      "frames_root": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-positive\\01\\plugin-frames\\epoch01",
+      "reader": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\reader.json",
+      "c_before_GiB": 23.227642059326172,
+      "c_after_GiB": 23.228599548339844,
+      "c_drop_GiB": -0.000957489013671875,
+      "exit_utc": "2026-11-05T05:33:06.546398+00:00",
+      "exit_code": 0,
+      "frames": 2640,
+      "drops": 0,
+      "masks": 780,
+      "events": {
+        "blinking": 15,
+        "lod_corruption": 19,
+        "missing_texture": 22,
+        "corrupted_texture": 13
+      },
+      "h4_components": {
+        "mask_check": "PASS",
+        "wall_strip": "PASS",
+        "census": "PASS",
+        "custom_depth": "PASS",
+        "annotation": "PASS",
+        "self_check": "PASS",
+        "ui_pixels": "PASS",
+        "view": "PASS",
+        "lod_guard": "PASS",
+        "session_start": "PASS"
+      },
+      "lod_min_event_peak": 68061,
+      "textures": {
+        "missing_texture": {
+          "events": 22,
+          "skeletal_events": 0,
+          "static_events": 22,
+          "iou": {
+            "count": 286,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        },
+        "corrupted_texture": {
+          "events": 13,
+          "skeletal_events": 0,
+          "static_events": 13,
+          "iou": {
+            "count": 157,
+            "min": 1.0,
+            "mean": 1.0,
+            "p95": 1.0,
+            "max": 1.0
+          }
+        }
+      },
+      "strict_texture_result": "PASS",
+      "texture_fallback_frames": 0,
+      "texture_edge_frames": 140,
+      "texture_bad_edges": 0,
+      "residual_reverts": 35,
+      "residual_max": 0,
+      "texture_spill_max": 0,
+      "unavailable": 0,
+      "depth_modes": {
+        "result": "PASS",
+        "readings": [
+          "1",
+          "1",
+          "1"
+        ]
+      },
+      "camera": {
+        "result": "PASS",
+        "requested": true,
+        "baseline": false,
+        "far_only": false,
+        "frames": 2640,
+        "positive_frames": 144,
+        "spans": [
+          [
+            2352,
+            2400
+          ],
+          [
+            2448,
+            2496
+          ],
+          [
+            2544,
+            2592
+          ]
+        ],
+        "start": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 100,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "start_frame": 6083,
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": false
+        },
+        "summary": {
+          "camera_clipping_label_rule": "view_slab_bounds_then_triangle_confirm_v4",
+          "camera_clipping_bounds_candidate_frames": 2640,
+          "camera_clipping_confirmed_positive_frames": 144,
+          "camera_clipping_unconfirmed_frames": 0,
+          "camera_clipping_bounds_rejected_by_triangles_frames": 2496,
+          "camera_clipping_confirm_traces_total": 380160,
+          "camera_clipping_confirm_traces_max": 144,
+          "camera_clipping_confirm_unconfirmable_candidates": 0,
+          "camera_clipping_confirm_over_cap_candidates": 0,
+          "camera_clipping_confirm_trace_capped_candidates": 0,
+          "camera_clipping_confirm_no_ray_candidates": 0,
+          "camera_clipping_confirm_too_few_valid_trace_candidates": 0,
+          "camera_clipping_confirm_full_slab_fallback_traces": 0,
+          "camera_clipping_confirm_invalid_segments": 0,
+          "camera_clipping_confirm_landscape_candidates": 0,
+          "camera_clipping_confirm_skinned_unconfirmable": 0,
+          "camera_clipping_confirm_no_collision_unconfirmable": 0,
+          "camera_clipping_confirm_no_complex_unconfirmable": 0,
+          "camera_clipping_confirm_welded_unconfirmable": 0,
+          "camera_clipping_confirm_instance_transform_unconfirmable": 0,
+          "camera_clipping_confirm_us_mean_per_labelled_frame": 187.33541666666676,
+          "camera_clipping_confirm_us_mean_per_candidate_frame": 115.4708333333332,
+          "camera_clipping_confirm_us_max": 2558.8999999999996,
+          "camera_clipping_confirm_budget_us": 500,
+          "camera_clipping_clipped_ray_fraction_mean_confirmed": 1,
+          "camera_clipping_baseline_near": 10,
+          "camera_clipping_anomalous_near": 100,
+          "camera_clipping_frames_evaluated": 2640,
+          "camera_clipping_slab_positive_frames": 144,
+          "camera_clipping_sphere_proxy_positive_frames": 144,
+          "camera_clipping_slab_only_frames": 0,
+          "camera_clipping_sphere_proxy_only_frames": 0,
+          "camera_clipping_eye_inside_box_frames": 2496,
+          "camera_clipping_near_overridden_frames": 0,
+          "camera_clipping_box_fallbacks": 0,
+          "camera_clipping_fx_excluded_max": 0,
+          "camera_clipping_primitives_enumerated_mean": 14,
+          "camera_clipping_candidates_mean": 1,
+          "camera_clipping_instances_tested_total": 0,
+          "camera_clipping_eval_ms_total": 417.68499999999955,
+          "camera_clipping_eval_us_mean": 158.21401515151499,
+          "camera_clipping_eval_us_max": 2597.6,
+          "camera_clipping_first_hits": [
+            "EA_LOD.StaticMeshComponent0=144"
+          ],
+          "session_global_baseline_near": 10,
+          "session_global_restored_near": 10,
+          "session_global_near_restored": true,
+          "label_transition_camera_clipping_unconfirmed_entries": 0
+        },
+        "gn4_entries": 0
+      }
+    }
+  ],
+  "floors": {
+    "D3D11-1280-combined": {
+      "result": "PASS",
+      "sealed_utc": "2026-11-05T04:38:23.164081+00:00",
+      "thresholds": {
+        "max_delta": 2,
+        "max_count_at_max_delta": 255
+      },
+      "rule": "GO2 larger maximum delta; count from that level, max count only if levels tie",
+      "floors": [
+        {
+          "path": "D:\\IA_Europa\\Receipts\\09446\\floors\\D3D11-1280.json",
+          "sha256": "79d01f09c03a3cad3b98bf7a0da3a4ced4be071897018760e30a1ae36816a57d",
+          "thresholds": {
+            "max_delta": 1,
+            "max_count_at_max_delta": 560155
+          }
+        },
+        {
+          "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D11-1280-near-plane.json",
+          "sha256": "82f1d8df73b52e11bb20f44142f46a202bfd6e45f582dd0757bfbeca912c8e7f",
+          "thresholds": {
+            "max_delta": 2,
+            "max_count_at_max_delta": 255
+          }
+        }
+      ],
+      "control": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-control-a\\01\\plugin-frames\\epoch01",
+      "control_labels_sha256": "06bd669381fed02dfb8eba6a4b68cb42cef6f5d6bf05da5922294a1958925c8f",
+      "rejudge_existing_authority": "GO4"
+    },
+    "D3D11-1280-near-plane": {
+      "result": "PASS",
+      "sealed_utc": "2026-11-05T04:37:58.545547+00:00",
+      "kind": "near_plane",
+      "rule": "GO2/GN2 full-frame per-pixel maximum absolute RGB delta; maximum over controls, then maximum pixel count at that level over all control frames",
+      "thresholds": {
+        "max_delta": 2,
+        "max_count_at_max_delta": 255
+      },
+      "control_a": "E:\\IA_BuildCache\\09446r-evidence\\D3D11-1280-near-floor\\01\\plugin-frames\\epoch01",
+      "control_b": "E:\\IA_BuildCache\\09446-evidence\\D3D11-1280-control-a\\01\\plugin-frames\\epoch01",
+      "control_labels_sha256": [
+        "0840a6cd72974bff1d90988250f3cc0b2050cb98a839e0ea8ce941dead6b1f2e",
+        "06bd669381fed02dfb8eba6a4b68cb42cef6f5d6bf05da5922294a1958925c8f"
+      ],
+      "reader_sha256": "44ee547309236db6b93bb1414949a3469e1d3dff8f6e6fb5b14439051e871597",
+      "frames": 2352,
+      "provenance": {
+        "spec": [
+          "D3D11",
+          1280,
+          720
+        ],
+        "seed": 4242,
+        "routes": [
+          "blinking",
+          "lod_corruption",
+          "missing_texture",
+          "corrupted_texture",
+          "camera_clipping"
+        ],
+        "settings": {
+          "map": "EA_Core",
+          "bench": true,
+          "runtime_only": true,
+          "calibration": false,
+          "frozen_exposure": -1.875,
+          "view_target": "EA_Camera",
+          "locked_location": "X=-550.000 Y=0.000 Z=480.000",
+          "locked_rotation": "P=-12.000000 Y=0.000000 R=0.000000",
+          "locked_fov": 50,
+          "cvars": [
+            {
+              "name": "r.BloomQuality",
+              "before": 5,
+              "after": 0
+            },
+            {
+              "name": "r.EyeAdaptationQuality",
+              "before": 0,
+              "after": 2
+            },
+            {
+              "name": "r.EyeAdaptation.MethodOverride",
+              "before": -1,
+              "after": 3
+            },
+            {
+              "name": "r.ExposureOffset",
+              "before": 0,
+              "after": -1.875
+            }
+          ],
+          "physical_camera_exposure_off_volumes": 1,
+          "custom_depth": 1,
+          "base_parent": "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial",
+          "base_color": "(R=0.050000,G=0.200000,B=0.500000,A=1.000000)",
+          "base_targets": [
+            {
+              "actor": "EA_Floor",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_HideCube",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_HideCube.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_BlinkCube",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_LOD",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_LOD.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial",
+                "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            }
+          ],
+          "point_lights": [
+            {
+              "actor": "EA_Light",
+              "before": 5000,
+              "after": 0
+            }
+          ],
+          "shadowless_fills": [
+            {
+              "actor": "DirectionalLight_0",
+              "rotation": "P=-45.999996 Y=0.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_1",
+              "rotation": "P=-45.999989 Y=-179.999969 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_2",
+              "rotation": "P=-46.000004 Y=89.999992 R=-0.000002",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_3",
+              "rotation": "P=-45.999989 Y=-90.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_4",
+              "rotation": "P=43.999996 Y=0.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_5",
+              "rotation": "P=-43.999973 Y=-179.999985 R=-179.999985",
+              "intensity": 3,
+              "shadows": false
+            }
+          ],
+          "texture_exclusions": false
+        },
+        "pose": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 100,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": true
+        },
+        "kind": "near_plane",
+        "matched_indices": [
+          0,
+          2352
+        ],
+        "control_raw_evidence": [
+          "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\raw-evidence.json",
+          "D:\\IA_Europa\\Receipts\\09446\\H4\\D3D11-1280-control-a\\01\\raw-evidence.json"
+        ],
+        "sources": [
+          "15cea3826e1c700d7719a56196ebe1377c123e71",
+          "afa3ea08d63e6f4d134ced83b97b4bd4d7cd9b0b"
+        ],
+        "binary_manifests": [
+          [
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+              "size": 67891200,
+              "mtime_ns": 1792856876102942400,
+              "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "prior_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+              "size": 44176,
+              "mtime_ns": 1792856869118730500,
+              "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "prior_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+              "size": 81852,
+              "mtime_ns": 1792856869121713700,
+              "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "prior_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+              "size": 100036608,
+              "mtime_ns": 1792856876141486000,
+              "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "prior_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+              "size": 43520,
+              "mtime_ns": 1792856876322274200,
+              "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "prior_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+              "size": 139573248,
+              "mtime_ns": 1793852437286539600,
+              "sha256": "bb1a650c7eba9cfe2fd7d69e5df4f98e75e06519d0b32416b8ea8a1708b2b8a8",
+              "prior_sha256": "5b14a10a3383e5234c91a7f400426c0ccff32be56fe98bfa1b2af4fae5e74a24",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+              "size": 44147,
+              "mtime_ns": 1793852421748851100,
+              "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "prior_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+              "size": 77016,
+              "mtime_ns": 1792856563243921000,
+              "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "prior_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+              "size": 189624320,
+              "mtime_ns": 1793852441220749700,
+              "sha256": "534f773b966d2bbe77a3e1fd331c61ef7df4325dc1778ff2c69271b7e1a3d296",
+              "prior_sha256": "82b7d98b7dc80ecbf3f2db2f173db901ed4170d1f504f00b5ac0d8431ac60a39",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+              "size": 43738,
+              "mtime_ns": 1793852441889428100,
+              "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "prior_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+              "size": 163036,
+              "mtime_ns": 1793852343103034000,
+              "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "prior_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+              "size": 477696,
+              "mtime_ns": 1793846929984306300,
+              "sha256": "d2d14a80460102591c01ed4c7a5a6bdbf475d3ab97dcc9c14cb4e77bc3aa9e04",
+              "prior_sha256": "7a9f5f93de451c2b5eabb7c8abfac49c42569a1db949e70a2bc2c4eecbb4d58e",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+              "size": 25522176,
+              "mtime_ns": 1793846930036009300,
+              "sha256": "194e5a1d4f5faf6c6aa4ad25278421c8cad925295bc975cbe6876791b68bfb8d",
+              "prior_sha256": "10bdb3b8b1e4a89d9ac161056b258d82fef573180de35f314e5716eed73f51a9",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+              "size": 91648,
+              "mtime_ns": 1792856064011728400,
+              "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "prior_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+              "size": 34131968,
+              "mtime_ns": 1792856064040537400,
+              "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "prior_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 172,
+              "mtime_ns": 1792856065819873800,
+              "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "prior_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+              "size": 124416,
+              "mtime_ns": 1792856065137811700,
+              "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "prior_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+              "size": 6082560,
+              "mtime_ns": 1792856065154796200,
+              "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "prior_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+              "size": 1147392,
+              "mtime_ns": 1793852342158638000,
+              "sha256": "dd44fd0be5248725c8433aa8239c5c5d1fd13b52db30b27f32497a02b562a40a",
+              "prior_sha256": "9627b803fdb4e94c4e80678176c7478435c092b1c7f993b3024cc936bb50c36c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+              "size": 40611840,
+              "mtime_ns": 1793852342196177600,
+              "sha256": "17bbb5eaf2cf5d43b77ded7f62d0a4aa6d587af997708a7e0a9a551fa3ee5346",
+              "prior_sha256": "b6bd73d01b96f64d5591d6f923a0b3884596b06dc7fee9d5a104cab8b7539c3b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+              "size": 126464,
+              "mtime_ns": 1792856064746738600,
+              "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "prior_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+              "size": 13881344,
+              "mtime_ns": 1792856064764274600,
+              "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "prior_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+              "size": 1000448,
+              "mtime_ns": 1793797731556529400,
+              "sha256": "00b2e8f49f0f5394eab3b8c027ec908d7a0af9efbc574e625ffb905b2e6a256d",
+              "prior_sha256": "9c9bb82daf01ed85900b6794d75570ea38d447e911285c989153e5ec01700f0a",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+              "size": 30494720,
+              "mtime_ns": 1793797731575969100,
+              "sha256": "2457a4e9730de8fd925a11ecb04a44bdf9afd89628f79b814fa3d5c379ad8ec0",
+              "prior_sha256": "b1f556c0a25b7f173a94c9fc2e91ef5d5e9d4ca52a4b867e41228385ae0f8051",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+              "size": 125440,
+              "mtime_ns": 1793745133220984800,
+              "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb",
+              "prior_sha256": "c3db764fc6566f01ca1f425d3bde0469ca8d1ae88ceb01bfb8f5a82f5e8cfd96",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+              "size": 16388096,
+              "mtime_ns": 1793745133238983800,
+              "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d",
+              "prior_sha256": "aea44fa77e930f1c9971f039dd1f58cee11be0b5a08339fb91f254bdfcd84869",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 325,
+              "mtime_ns": 1792856065818869300,
+              "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "prior_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            }
+          ],
+          [
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+              "size": 67891200,
+              "mtime_ns": 1792856876102942400,
+              "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "prior_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+              "size": 44176,
+              "mtime_ns": 1792856869118730500,
+              "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "prior_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+              "size": 81852,
+              "mtime_ns": 1792856869121713700,
+              "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "prior_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+              "size": 100036608,
+              "mtime_ns": 1792856876141486000,
+              "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "prior_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+              "size": 43520,
+              "mtime_ns": 1792856876322274200,
+              "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "prior_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+              "size": 139572736,
+              "mtime_ns": 1793847052757865800,
+              "sha256": "b3dd0a5ee29e55a788be1cd42265a7b17d90b43ba2ce20b845e730fba4ee8333",
+              "prior_sha256": "5b14a10a3383e5234c91a7f400426c0ccff32be56fe98bfa1b2af4fae5e74a24",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+              "size": 44147,
+              "mtime_ns": 1793847038180856700,
+              "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "prior_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+              "size": 77016,
+              "mtime_ns": 1792856563243921000,
+              "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "prior_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+              "size": 189624320,
+              "mtime_ns": 1793847052848145400,
+              "sha256": "b8bd9f104c1cdb2b73b895165dc1426577b2e6cf10e2e79fe7f0da1dd91fed16",
+              "prior_sha256": "82b7d98b7dc80ecbf3f2db2f173db901ed4170d1f504f00b5ac0d8431ac60a39",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+              "size": 43738,
+              "mtime_ns": 1793847053068359700,
+              "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "prior_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+              "size": 163036,
+              "mtime_ns": 1793846930673457000,
+              "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "prior_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+              "size": 477696,
+              "mtime_ns": 1793846929984306300,
+              "sha256": "d2d14a80460102591c01ed4c7a5a6bdbf475d3ab97dcc9c14cb4e77bc3aa9e04",
+              "prior_sha256": "7a9f5f93de451c2b5eabb7c8abfac49c42569a1db949e70a2bc2c4eecbb4d58e",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+              "size": 25522176,
+              "mtime_ns": 1793846930036009300,
+              "sha256": "194e5a1d4f5faf6c6aa4ad25278421c8cad925295bc975cbe6876791b68bfb8d",
+              "prior_sha256": "10bdb3b8b1e4a89d9ac161056b258d82fef573180de35f314e5716eed73f51a9",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+              "size": 91648,
+              "mtime_ns": 1792856064011728400,
+              "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "prior_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+              "size": 34131968,
+              "mtime_ns": 1792856064040537400,
+              "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "prior_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 172,
+              "mtime_ns": 1792856065819873800,
+              "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "prior_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+              "size": 124416,
+              "mtime_ns": 1792856065137811700,
+              "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "prior_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+              "size": 6082560,
+              "mtime_ns": 1792856065154796200,
+              "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "prior_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+              "size": 1146880,
+              "mtime_ns": 1793846926768242800,
+              "sha256": "9c5a4846cdc17435168fe0b26344982e36431953c8c647a3e3c00f0ae17ba6e6",
+              "prior_sha256": "9627b803fdb4e94c4e80678176c7478435c092b1c7f993b3024cc936bb50c36c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+              "size": 40611840,
+              "mtime_ns": 1793846926852301700,
+              "sha256": "0d14485328b27d6675e1b00ae7d59ff0a8ab7ad6c529560191fa8ff6e2ed443c",
+              "prior_sha256": "b6bd73d01b96f64d5591d6f923a0b3884596b06dc7fee9d5a104cab8b7539c3b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+              "size": 126464,
+              "mtime_ns": 1792856064746738600,
+              "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "prior_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+              "size": 13881344,
+              "mtime_ns": 1792856064764274600,
+              "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "prior_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+              "size": 1000448,
+              "mtime_ns": 1793797731556529400,
+              "sha256": "00b2e8f49f0f5394eab3b8c027ec908d7a0af9efbc574e625ffb905b2e6a256d",
+              "prior_sha256": "9c9bb82daf01ed85900b6794d75570ea38d447e911285c989153e5ec01700f0a",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+              "size": 30494720,
+              "mtime_ns": 1793797731575969100,
+              "sha256": "2457a4e9730de8fd925a11ecb04a44bdf9afd89628f79b814fa3d5c379ad8ec0",
+              "prior_sha256": "b1f556c0a25b7f173a94c9fc2e91ef5d5e9d4ca52a4b867e41228385ae0f8051",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+              "size": 125440,
+              "mtime_ns": 1793745133220984800,
+              "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb",
+              "prior_sha256": "c3db764fc6566f01ca1f425d3bde0469ca8d1ae88ceb01bfb8f5a82f5e8cfd96",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+              "size": 16388096,
+              "mtime_ns": 1793745133238983800,
+              "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d",
+              "prior_sha256": "aea44fa77e930f1c9971f039dd1f58cee11be0b5a08339fb91f254bdfcd84869",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 325,
+              "mtime_ns": 1792856065818869300,
+              "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "prior_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            }
+          ]
+        ],
+        "same_binaries": false,
+        "difference": "D3D11 reuses accepted control; new guarded far-only switch and additive start receipt are the only native changes"
+      }
+    },
+    "D3D12-1280-combined": {
+      "result": "PASS",
+      "sealed_utc": "2026-11-05T05:28:32.754364+00:00",
+      "thresholds": {
+        "max_delta": 2,
+        "max_count_at_max_delta": 240
+      },
+      "rule": "GO2 larger maximum delta; count from that level, max count only if levels tie",
+      "floors": [
+        {
+          "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D12-1280-session.json",
+          "sha256": "5aab9821aec18e8b4f96bca0ba4a0db6b92936fa2f8518757bf03117d493ee3e",
+          "thresholds": {
+            "max_delta": 1,
+            "max_count_at_max_delta": 559838
+          }
+        },
+        {
+          "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D12-1280-near-plane.json",
+          "sha256": "c79f2ac6ee3aac7127a1df31f1b8cbcbace234da75e662ca817c25db47ade30f",
+          "thresholds": {
+            "max_delta": 2,
+            "max_count_at_max_delta": 240
+          }
+        }
+      ],
+      "control": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-control-a\\01\\plugin-frames\\epoch01",
+      "control_labels_sha256": "278ffb29f048b16fc45e339cdcac9d6908338a7a35d98069c7c61cf501db75ab",
+      "rejudge_existing_authority": null
+    },
+    "D3D12-1280-near-plane": {
+      "result": "PASS",
+      "sealed_utc": "2026-11-05T05:28:23.274805+00:00",
+      "kind": "near_plane",
+      "rule": "GO2/GN2 full-frame per-pixel maximum absolute RGB delta; maximum over controls, then maximum pixel count at that level over all control frames",
+      "thresholds": {
+        "max_delta": 2,
+        "max_count_at_max_delta": 240
+      },
+      "control_a": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-near-floor\\01\\plugin-frames\\epoch01",
+      "control_b": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-control-a\\01\\plugin-frames\\epoch01",
+      "control_labels_sha256": [
+        "4b024afc3d7c327bc7d32db3d9b7d7d8dd2e924939ba6b8317d5426dd6ed45fc",
+        "278ffb29f048b16fc45e339cdcac9d6908338a7a35d98069c7c61cf501db75ab"
+      ],
+      "reader_sha256": "44ee547309236db6b93bb1414949a3469e1d3dff8f6e6fb5b14439051e871597",
+      "frames": 2352,
+      "provenance": {
+        "spec": [
+          "D3D12",
+          1280,
+          720
+        ],
+        "seed": 4242,
+        "routes": [
+          "blinking",
+          "lod_corruption",
+          "missing_texture",
+          "corrupted_texture",
+          "camera_clipping"
+        ],
+        "settings": {
+          "map": "EA_Core",
+          "bench": true,
+          "runtime_only": true,
+          "calibration": false,
+          "frozen_exposure": -1.875,
+          "view_target": "EA_Camera",
+          "locked_location": "X=-550.000 Y=0.000 Z=480.000",
+          "locked_rotation": "P=-12.000000 Y=0.000000 R=0.000000",
+          "locked_fov": 50,
+          "cvars": [
+            {
+              "name": "r.BloomQuality",
+              "before": 5,
+              "after": 0
+            },
+            {
+              "name": "r.EyeAdaptationQuality",
+              "before": 0,
+              "after": 2
+            },
+            {
+              "name": "r.EyeAdaptation.MethodOverride",
+              "before": -1,
+              "after": 3
+            },
+            {
+              "name": "r.ExposureOffset",
+              "before": 0,
+              "after": -1.875
+            }
+          ],
+          "physical_camera_exposure_off_volumes": 1,
+          "custom_depth": 1,
+          "base_parent": "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial",
+          "base_color": "(R=0.050000,G=0.200000,B=0.500000,A=1.000000)",
+          "base_targets": [
+            {
+              "actor": "EA_Floor",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_HideCube",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_HideCube.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_BlinkCube",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_LOD",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_LOD.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial",
+                "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            }
+          ],
+          "point_lights": [
+            {
+              "actor": "EA_Light",
+              "before": 5000,
+              "after": 0
+            }
+          ],
+          "shadowless_fills": [
+            {
+              "actor": "DirectionalLight_0",
+              "rotation": "P=-45.999996 Y=0.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_1",
+              "rotation": "P=-45.999989 Y=-179.999969 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_2",
+              "rotation": "P=-46.000004 Y=89.999992 R=-0.000002",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_3",
+              "rotation": "P=-45.999989 Y=-90.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_4",
+              "rotation": "P=43.999996 Y=0.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_5",
+              "rotation": "P=-43.999973 Y=-179.999985 R=-179.999985",
+              "intensity": 3,
+              "shadows": false
+            }
+          ],
+          "texture_exclusions": false
+        },
+        "pose": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 100,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": true
+        },
+        "kind": "near_plane",
+        "matched_indices": [
+          0,
+          2352
+        ],
+        "control_raw_evidence": [
+          "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\raw-evidence.json",
+          "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\raw-evidence.json"
+        ],
+        "sources": [
+          "15cea3826e1c700d7719a56196ebe1377c123e71",
+          "15cea3826e1c700d7719a56196ebe1377c123e71"
+        ],
+        "binary_manifests": [
+          [
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+              "size": 67891200,
+              "mtime_ns": 1792856876102942400,
+              "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "prior_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+              "size": 44176,
+              "mtime_ns": 1792856869118730500,
+              "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "prior_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+              "size": 81852,
+              "mtime_ns": 1792856869121713700,
+              "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "prior_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+              "size": 100036608,
+              "mtime_ns": 1792856876141486000,
+              "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "prior_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+              "size": 43520,
+              "mtime_ns": 1792856876322274200,
+              "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "prior_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+              "size": 139573248,
+              "mtime_ns": 1793852437286539600,
+              "sha256": "bb1a650c7eba9cfe2fd7d69e5df4f98e75e06519d0b32416b8ea8a1708b2b8a8",
+              "prior_sha256": "5b14a10a3383e5234c91a7f400426c0ccff32be56fe98bfa1b2af4fae5e74a24",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+              "size": 44147,
+              "mtime_ns": 1793852421748851100,
+              "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "prior_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+              "size": 77016,
+              "mtime_ns": 1792856563243921000,
+              "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "prior_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+              "size": 189624320,
+              "mtime_ns": 1793852441220749700,
+              "sha256": "534f773b966d2bbe77a3e1fd331c61ef7df4325dc1778ff2c69271b7e1a3d296",
+              "prior_sha256": "82b7d98b7dc80ecbf3f2db2f173db901ed4170d1f504f00b5ac0d8431ac60a39",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+              "size": 43738,
+              "mtime_ns": 1793852441889428100,
+              "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "prior_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+              "size": 163036,
+              "mtime_ns": 1793852343103034000,
+              "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "prior_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+              "size": 477696,
+              "mtime_ns": 1793846929984306300,
+              "sha256": "d2d14a80460102591c01ed4c7a5a6bdbf475d3ab97dcc9c14cb4e77bc3aa9e04",
+              "prior_sha256": "7a9f5f93de451c2b5eabb7c8abfac49c42569a1db949e70a2bc2c4eecbb4d58e",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+              "size": 25522176,
+              "mtime_ns": 1793846930036009300,
+              "sha256": "194e5a1d4f5faf6c6aa4ad25278421c8cad925295bc975cbe6876791b68bfb8d",
+              "prior_sha256": "10bdb3b8b1e4a89d9ac161056b258d82fef573180de35f314e5716eed73f51a9",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+              "size": 91648,
+              "mtime_ns": 1792856064011728400,
+              "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "prior_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+              "size": 34131968,
+              "mtime_ns": 1792856064040537400,
+              "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "prior_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 172,
+              "mtime_ns": 1792856065819873800,
+              "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "prior_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+              "size": 124416,
+              "mtime_ns": 1792856065137811700,
+              "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "prior_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+              "size": 6082560,
+              "mtime_ns": 1792856065154796200,
+              "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "prior_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+              "size": 1147392,
+              "mtime_ns": 1793852342158638000,
+              "sha256": "dd44fd0be5248725c8433aa8239c5c5d1fd13b52db30b27f32497a02b562a40a",
+              "prior_sha256": "9627b803fdb4e94c4e80678176c7478435c092b1c7f993b3024cc936bb50c36c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+              "size": 40611840,
+              "mtime_ns": 1793852342196177600,
+              "sha256": "17bbb5eaf2cf5d43b77ded7f62d0a4aa6d587af997708a7e0a9a551fa3ee5346",
+              "prior_sha256": "b6bd73d01b96f64d5591d6f923a0b3884596b06dc7fee9d5a104cab8b7539c3b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+              "size": 126464,
+              "mtime_ns": 1792856064746738600,
+              "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "prior_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+              "size": 13881344,
+              "mtime_ns": 1792856064764274600,
+              "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "prior_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+              "size": 1000448,
+              "mtime_ns": 1793797731556529400,
+              "sha256": "00b2e8f49f0f5394eab3b8c027ec908d7a0af9efbc574e625ffb905b2e6a256d",
+              "prior_sha256": "9c9bb82daf01ed85900b6794d75570ea38d447e911285c989153e5ec01700f0a",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+              "size": 30494720,
+              "mtime_ns": 1793797731575969100,
+              "sha256": "2457a4e9730de8fd925a11ecb04a44bdf9afd89628f79b814fa3d5c379ad8ec0",
+              "prior_sha256": "b1f556c0a25b7f173a94c9fc2e91ef5d5e9d4ca52a4b867e41228385ae0f8051",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+              "size": 125440,
+              "mtime_ns": 1793745133220984800,
+              "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb",
+              "prior_sha256": "c3db764fc6566f01ca1f425d3bde0469ca8d1ae88ceb01bfb8f5a82f5e8cfd96",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+              "size": 16388096,
+              "mtime_ns": 1793745133238983800,
+              "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d",
+              "prior_sha256": "aea44fa77e930f1c9971f039dd1f58cee11be0b5a08339fb91f254bdfcd84869",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 325,
+              "mtime_ns": 1792856065818869300,
+              "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "prior_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            }
+          ],
+          [
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+              "size": 67891200,
+              "mtime_ns": 1792856876102942400,
+              "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "prior_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+              "size": 44176,
+              "mtime_ns": 1792856869118730500,
+              "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "prior_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+              "size": 81852,
+              "mtime_ns": 1792856869121713700,
+              "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "prior_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+              "size": 100036608,
+              "mtime_ns": 1792856876141486000,
+              "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "prior_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+              "size": 43520,
+              "mtime_ns": 1792856876322274200,
+              "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "prior_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+              "size": 139573248,
+              "mtime_ns": 1793852437286539600,
+              "sha256": "bb1a650c7eba9cfe2fd7d69e5df4f98e75e06519d0b32416b8ea8a1708b2b8a8",
+              "prior_sha256": "5b14a10a3383e5234c91a7f400426c0ccff32be56fe98bfa1b2af4fae5e74a24",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+              "size": 44147,
+              "mtime_ns": 1793852421748851100,
+              "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "prior_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+              "size": 77016,
+              "mtime_ns": 1792856563243921000,
+              "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "prior_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+              "size": 189624320,
+              "mtime_ns": 1793852441220749700,
+              "sha256": "534f773b966d2bbe77a3e1fd331c61ef7df4325dc1778ff2c69271b7e1a3d296",
+              "prior_sha256": "82b7d98b7dc80ecbf3f2db2f173db901ed4170d1f504f00b5ac0d8431ac60a39",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+              "size": 43738,
+              "mtime_ns": 1793852441889428100,
+              "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "prior_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+              "size": 163036,
+              "mtime_ns": 1793852343103034000,
+              "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "prior_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+              "size": 477696,
+              "mtime_ns": 1793846929984306300,
+              "sha256": "d2d14a80460102591c01ed4c7a5a6bdbf475d3ab97dcc9c14cb4e77bc3aa9e04",
+              "prior_sha256": "7a9f5f93de451c2b5eabb7c8abfac49c42569a1db949e70a2bc2c4eecbb4d58e",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+              "size": 25522176,
+              "mtime_ns": 1793846930036009300,
+              "sha256": "194e5a1d4f5faf6c6aa4ad25278421c8cad925295bc975cbe6876791b68bfb8d",
+              "prior_sha256": "10bdb3b8b1e4a89d9ac161056b258d82fef573180de35f314e5716eed73f51a9",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+              "size": 91648,
+              "mtime_ns": 1792856064011728400,
+              "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "prior_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+              "size": 34131968,
+              "mtime_ns": 1792856064040537400,
+              "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "prior_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 172,
+              "mtime_ns": 1792856065819873800,
+              "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "prior_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+              "size": 124416,
+              "mtime_ns": 1792856065137811700,
+              "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "prior_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+              "size": 6082560,
+              "mtime_ns": 1792856065154796200,
+              "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "prior_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+              "size": 1147392,
+              "mtime_ns": 1793852342158638000,
+              "sha256": "dd44fd0be5248725c8433aa8239c5c5d1fd13b52db30b27f32497a02b562a40a",
+              "prior_sha256": "9627b803fdb4e94c4e80678176c7478435c092b1c7f993b3024cc936bb50c36c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+              "size": 40611840,
+              "mtime_ns": 1793852342196177600,
+              "sha256": "17bbb5eaf2cf5d43b77ded7f62d0a4aa6d587af997708a7e0a9a551fa3ee5346",
+              "prior_sha256": "b6bd73d01b96f64d5591d6f923a0b3884596b06dc7fee9d5a104cab8b7539c3b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+              "size": 126464,
+              "mtime_ns": 1792856064746738600,
+              "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "prior_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+              "size": 13881344,
+              "mtime_ns": 1792856064764274600,
+              "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "prior_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+              "size": 1000448,
+              "mtime_ns": 1793797731556529400,
+              "sha256": "00b2e8f49f0f5394eab3b8c027ec908d7a0af9efbc574e625ffb905b2e6a256d",
+              "prior_sha256": "9c9bb82daf01ed85900b6794d75570ea38d447e911285c989153e5ec01700f0a",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+              "size": 30494720,
+              "mtime_ns": 1793797731575969100,
+              "sha256": "2457a4e9730de8fd925a11ecb04a44bdf9afd89628f79b814fa3d5c379ad8ec0",
+              "prior_sha256": "b1f556c0a25b7f173a94c9fc2e91ef5d5e9d4ca52a4b867e41228385ae0f8051",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+              "size": 125440,
+              "mtime_ns": 1793745133220984800,
+              "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb",
+              "prior_sha256": "c3db764fc6566f01ca1f425d3bde0469ca8d1ae88ceb01bfb8f5a82f5e8cfd96",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+              "size": 16388096,
+              "mtime_ns": 1793745133238983800,
+              "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d",
+              "prior_sha256": "aea44fa77e930f1c9971f039dd1f58cee11be0b5a08339fb91f254bdfcd84869",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 325,
+              "mtime_ns": 1792856065818869300,
+              "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "prior_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            }
+          ]
+        ],
+        "same_binaries": true,
+        "difference": "none"
+      }
+    },
+    "D3D12-1280-session": {
+      "result": "PASS",
+      "sealed_utc": "2026-11-05T05:12:03.205188+00:00",
+      "kind": "session",
+      "rule": "GO2/GN2 full-frame per-pixel maximum absolute RGB delta; maximum over controls, then maximum pixel count at that level over all control frames",
+      "thresholds": {
+        "max_delta": 1,
+        "max_count_at_max_delta": 559838
+      },
+      "control_a": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-control-a\\01\\plugin-frames\\epoch01",
+      "control_b": "E:\\IA_BuildCache\\09446r-evidence\\D3D12-1280-control-b\\01\\plugin-frames\\epoch01",
+      "control_labels_sha256": [
+        "278ffb29f048b16fc45e339cdcac9d6908338a7a35d98069c7c61cf501db75ab",
+        "97d976aee8b415ebc86d56b0f0c83e3b6dbaea066345f85319c71f663136b9c0"
+      ],
+      "reader_sha256": "44ee547309236db6b93bb1414949a3469e1d3dff8f6e6fb5b14439051e871597",
+      "frames": 2640,
+      "provenance": {
+        "spec": [
+          "D3D12",
+          1280,
+          720
+        ],
+        "seed": 4242,
+        "routes": [
+          "blinking",
+          "lod_corruption",
+          "missing_texture",
+          "corrupted_texture",
+          "camera_clipping"
+        ],
+        "settings": {
+          "map": "EA_Core",
+          "bench": true,
+          "runtime_only": true,
+          "calibration": false,
+          "frozen_exposure": -1.875,
+          "view_target": "EA_Camera",
+          "locked_location": "X=-550.000 Y=0.000 Z=480.000",
+          "locked_rotation": "P=-12.000000 Y=0.000000 R=0.000000",
+          "locked_fov": 50,
+          "cvars": [
+            {
+              "name": "r.BloomQuality",
+              "before": 5,
+              "after": 0
+            },
+            {
+              "name": "r.EyeAdaptationQuality",
+              "before": 0,
+              "after": 2
+            },
+            {
+              "name": "r.EyeAdaptation.MethodOverride",
+              "before": -1,
+              "after": 3
+            },
+            {
+              "name": "r.ExposureOffset",
+              "before": 0,
+              "after": -1.875
+            }
+          ],
+          "physical_camera_exposure_off_volumes": 1,
+          "custom_depth": 1,
+          "base_parent": "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial",
+          "base_color": "(R=0.050000,G=0.200000,B=0.500000,A=1.000000)",
+          "base_targets": [
+            {
+              "actor": "EA_Floor",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_Floor.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_HideCube",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_HideCube.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_BlinkCube",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_BlinkCube.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            },
+            {
+              "actor": "EA_LOD",
+              "component": "/Game/EuropaPhaseA/EA_Core.EA_Core:PersistentLevel.EA_LOD.StaticMeshComponent0",
+              "original_slots": [
+                "/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial",
+                "/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"
+              ],
+              "session_base": "/Game/EuropaPhaseA/EA_Core.EA_Core:MaterialInstanceDynamic_0"
+            }
+          ],
+          "point_lights": [
+            {
+              "actor": "EA_Light",
+              "before": 5000,
+              "after": 0
+            }
+          ],
+          "shadowless_fills": [
+            {
+              "actor": "DirectionalLight_0",
+              "rotation": "P=-45.999996 Y=0.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_1",
+              "rotation": "P=-45.999989 Y=-179.999969 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_2",
+              "rotation": "P=-46.000004 Y=89.999992 R=-0.000002",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_3",
+              "rotation": "P=-45.999989 Y=-90.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_4",
+              "rotation": "P=43.999996 Y=0.000000 R=0.000000",
+              "intensity": 3,
+              "shadows": false
+            },
+            {
+              "actor": "DirectionalLight_5",
+              "rotation": "P=-43.999973 Y=-179.999985 R=-179.999985",
+              "intensity": 3,
+              "shadows": false
+            }
+          ],
+          "texture_exclusions": false
+        },
+        "pose": {
+          "held": true,
+          "bench": true,
+          "baseline_near": 10,
+          "held_near": 10,
+          "pose_rule": "near_start far frames; six pose_hold-frame alternating near/far holds, starting near; near eye 50cm before EA_LOD front bounds",
+          "near_position": "X=600.000 Y=0.000 Z=160.000",
+          "far_position": "X=-550.000 Y=0.000 Z=480.000",
+          "near_start": 2352,
+          "pose_hold": 48,
+          "far_only": false
+        },
+        "kind": "session",
+        "matched_indices": [
+          0,
+          2640
+        ],
+        "control_raw_evidence": [
+          "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\raw-evidence.json",
+          "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\raw-evidence.json"
+        ],
+        "sources": [
+          "15cea3826e1c700d7719a56196ebe1377c123e71",
+          "15cea3826e1c700d7719a56196ebe1377c123e71"
+        ],
+        "binary_manifests": [
+          [
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+              "size": 67891200,
+              "mtime_ns": 1792856876102942400,
+              "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "prior_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+              "size": 44176,
+              "mtime_ns": 1792856869118730500,
+              "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "prior_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+              "size": 81852,
+              "mtime_ns": 1792856869121713700,
+              "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "prior_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+              "size": 100036608,
+              "mtime_ns": 1792856876141486000,
+              "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "prior_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+              "size": 43520,
+              "mtime_ns": 1792856876322274200,
+              "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "prior_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+              "size": 139573248,
+              "mtime_ns": 1793852437286539600,
+              "sha256": "bb1a650c7eba9cfe2fd7d69e5df4f98e75e06519d0b32416b8ea8a1708b2b8a8",
+              "prior_sha256": "5b14a10a3383e5234c91a7f400426c0ccff32be56fe98bfa1b2af4fae5e74a24",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+              "size": 44147,
+              "mtime_ns": 1793852421748851100,
+              "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "prior_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+              "size": 77016,
+              "mtime_ns": 1792856563243921000,
+              "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "prior_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+              "size": 189624320,
+              "mtime_ns": 1793852441220749700,
+              "sha256": "534f773b966d2bbe77a3e1fd331c61ef7df4325dc1778ff2c69271b7e1a3d296",
+              "prior_sha256": "82b7d98b7dc80ecbf3f2db2f173db901ed4170d1f504f00b5ac0d8431ac60a39",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+              "size": 43738,
+              "mtime_ns": 1793852441889428100,
+              "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "prior_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+              "size": 163036,
+              "mtime_ns": 1793852343103034000,
+              "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "prior_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+              "size": 477696,
+              "mtime_ns": 1793846929984306300,
+              "sha256": "d2d14a80460102591c01ed4c7a5a6bdbf475d3ab97dcc9c14cb4e77bc3aa9e04",
+              "prior_sha256": "7a9f5f93de451c2b5eabb7c8abfac49c42569a1db949e70a2bc2c4eecbb4d58e",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+              "size": 25522176,
+              "mtime_ns": 1793846930036009300,
+              "sha256": "194e5a1d4f5faf6c6aa4ad25278421c8cad925295bc975cbe6876791b68bfb8d",
+              "prior_sha256": "10bdb3b8b1e4a89d9ac161056b258d82fef573180de35f314e5716eed73f51a9",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+              "size": 91648,
+              "mtime_ns": 1792856064011728400,
+              "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "prior_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+              "size": 34131968,
+              "mtime_ns": 1792856064040537400,
+              "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "prior_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 172,
+              "mtime_ns": 1792856065819873800,
+              "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "prior_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+              "size": 124416,
+              "mtime_ns": 1792856065137811700,
+              "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "prior_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+              "size": 6082560,
+              "mtime_ns": 1792856065154796200,
+              "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "prior_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+              "size": 1147392,
+              "mtime_ns": 1793852342158638000,
+              "sha256": "dd44fd0be5248725c8433aa8239c5c5d1fd13b52db30b27f32497a02b562a40a",
+              "prior_sha256": "9627b803fdb4e94c4e80678176c7478435c092b1c7f993b3024cc936bb50c36c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+              "size": 40611840,
+              "mtime_ns": 1793852342196177600,
+              "sha256": "17bbb5eaf2cf5d43b77ded7f62d0a4aa6d587af997708a7e0a9a551fa3ee5346",
+              "prior_sha256": "b6bd73d01b96f64d5591d6f923a0b3884596b06dc7fee9d5a104cab8b7539c3b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+              "size": 126464,
+              "mtime_ns": 1792856064746738600,
+              "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "prior_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+              "size": 13881344,
+              "mtime_ns": 1792856064764274600,
+              "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "prior_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+              "size": 1000448,
+              "mtime_ns": 1793797731556529400,
+              "sha256": "00b2e8f49f0f5394eab3b8c027ec908d7a0af9efbc574e625ffb905b2e6a256d",
+              "prior_sha256": "9c9bb82daf01ed85900b6794d75570ea38d447e911285c989153e5ec01700f0a",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+              "size": 30494720,
+              "mtime_ns": 1793797731575969100,
+              "sha256": "2457a4e9730de8fd925a11ecb04a44bdf9afd89628f79b814fa3d5c379ad8ec0",
+              "prior_sha256": "b1f556c0a25b7f173a94c9fc2e91ef5d5e9d4ca52a4b867e41228385ae0f8051",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+              "size": 125440,
+              "mtime_ns": 1793745133220984800,
+              "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb",
+              "prior_sha256": "c3db764fc6566f01ca1f425d3bde0469ca8d1ae88ceb01bfb8f5a82f5e8cfd96",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+              "size": 16388096,
+              "mtime_ns": 1793745133238983800,
+              "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d",
+              "prior_sha256": "aea44fa77e930f1c9971f039dd1f58cee11be0b5a08339fb91f254bdfcd84869",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 325,
+              "mtime_ns": 1792856065818869300,
+              "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "prior_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            }
+          ],
+          [
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+              "size": 67891200,
+              "mtime_ns": 1792856876102942400,
+              "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "prior_sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+              "size": 44176,
+              "mtime_ns": 1792856869118730500,
+              "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "prior_sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+              "size": 81852,
+              "mtime_ns": 1792856869121713700,
+              "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "prior_sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+              "size": 100036608,
+              "mtime_ns": 1792856876141486000,
+              "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "prior_sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+              "size": 43520,
+              "mtime_ns": 1792856876322274200,
+              "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "prior_sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+              "size": 139573248,
+              "mtime_ns": 1793852437286539600,
+              "sha256": "bb1a650c7eba9cfe2fd7d69e5df4f98e75e06519d0b32416b8ea8a1708b2b8a8",
+              "prior_sha256": "5b14a10a3383e5234c91a7f400426c0ccff32be56fe98bfa1b2af4fae5e74a24",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+              "size": 44147,
+              "mtime_ns": 1793852421748851100,
+              "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "prior_sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+              "size": 77016,
+              "mtime_ns": 1792856563243921000,
+              "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "prior_sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+              "size": 189624320,
+              "mtime_ns": 1793852441220749700,
+              "sha256": "534f773b966d2bbe77a3e1fd331c61ef7df4325dc1778ff2c69271b7e1a3d296",
+              "prior_sha256": "82b7d98b7dc80ecbf3f2db2f173db901ed4170d1f504f00b5ac0d8431ac60a39",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+              "size": 43738,
+              "mtime_ns": 1793852441889428100,
+              "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "prior_sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+              "size": 163036,
+              "mtime_ns": 1793852343103034000,
+              "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "prior_sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+              "size": 477696,
+              "mtime_ns": 1793846929984306300,
+              "sha256": "d2d14a80460102591c01ed4c7a5a6bdbf475d3ab97dcc9c14cb4e77bc3aa9e04",
+              "prior_sha256": "7a9f5f93de451c2b5eabb7c8abfac49c42569a1db949e70a2bc2c4eecbb4d58e",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+              "size": 25522176,
+              "mtime_ns": 1793846930036009300,
+              "sha256": "194e5a1d4f5faf6c6aa4ad25278421c8cad925295bc975cbe6876791b68bfb8d",
+              "prior_sha256": "10bdb3b8b1e4a89d9ac161056b258d82fef573180de35f314e5716eed73f51a9",
+              "byte_identical_to_A5": false,
+              "build_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "probe_source_commit": "40a8eaf983518fe1992e172434aa8caf347654f1",
+              "origin": "09421 EV5 probe rebuild"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+              "size": 91648,
+              "mtime_ns": 1792856064011728400,
+              "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "prior_sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+              "size": 34131968,
+              "mtime_ns": 1792856064040537400,
+              "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "prior_sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 172,
+              "mtime_ns": 1792856065819873800,
+              "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "prior_sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+              "size": 124416,
+              "mtime_ns": 1792856065137811700,
+              "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "prior_sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+              "size": 6082560,
+              "mtime_ns": 1792856065154796200,
+              "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "prior_sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+              "size": 1147392,
+              "mtime_ns": 1793852342158638000,
+              "sha256": "dd44fd0be5248725c8433aa8239c5c5d1fd13b52db30b27f32497a02b562a40a",
+              "prior_sha256": "9627b803fdb4e94c4e80678176c7478435c092b1c7f993b3024cc936bb50c36c",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+              "size": 40611840,
+              "mtime_ns": 1793852342196177600,
+              "sha256": "17bbb5eaf2cf5d43b77ded7f62d0a4aa6d587af997708a7e0a9a551fa3ee5346",
+              "prior_sha256": "b6bd73d01b96f64d5591d6f923a0b3884596b06dc7fee9d5a104cab8b7539c3b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+              "size": 126464,
+              "mtime_ns": 1792856064746738600,
+              "sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "prior_sha256": "0b0dc378b5fa47f65eff3246eebd7c03d4b4bcf9bce4515f993ec9f253bc772b",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+              "size": 13881344,
+              "mtime_ns": 1792856064764274600,
+              "sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "prior_sha256": "361add630160d2a5942f25044f4c207198ab5026bc14dbb1e9029cf3e50abdc6",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+              "size": 1000448,
+              "mtime_ns": 1793797731556529400,
+              "sha256": "00b2e8f49f0f5394eab3b8c027ec908d7a0af9efbc574e625ffb905b2e6a256d",
+              "prior_sha256": "9c9bb82daf01ed85900b6794d75570ea38d447e911285c989153e5ec01700f0a",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+              "size": 30494720,
+              "mtime_ns": 1793797731575969100,
+              "sha256": "2457a4e9730de8fd925a11ecb04a44bdf9afd89628f79b814fa3d5c379ad8ec0",
+              "prior_sha256": "b1f556c0a25b7f173a94c9fc2e91ef5d5e9d4ca52a4b867e41228385ae0f8051",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+              "size": 125440,
+              "mtime_ns": 1793745133220984800,
+              "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb",
+              "prior_sha256": "c3db764fc6566f01ca1f425d3bde0469ca8d1ae88ceb01bfb8f5a82f5e8cfd96",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+              "size": 16388096,
+              "mtime_ns": 1793745133238983800,
+              "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d",
+              "prior_sha256": "aea44fa77e930f1c9971f039dd1f58cee11be0b5a08339fb91f254bdfcd84869",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            },
+            {
+              "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+              "size": 325,
+              "mtime_ns": 1792856065818869300,
+              "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "prior_sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0",
+              "byte_identical_to_A5": true,
+              "build_source_commit": "489c82817108ac791171a20e2203df3e89f9027e",
+              "probe_source_commit": "550e9b79e4d60b553cceb4f7b7dba6b22c2386a7",
+              "origin": "retained bound A5 artifact"
+            }
+          ]
+        ],
+        "same_binaries": true,
+        "difference": "none"
+      }
+    }
+  },
+  "D4": {
+    "D3D11": {
+      "result": "PASS",
+      "thresholds": {
+        "max_delta": 2,
+        "max_count_at_max_delta": 255
+      },
+      "frames": 2640,
+      "labelled": 144,
+      "unlabelled": 2496,
+      "mismatches": 0,
+      "labelled_min_changed": 921600,
+      "unlabelled_max_delta": 2,
+      "unlabelled_max_count": 254,
+      "count_bound_failures": 0,
+      "delta_bound_failures": 0,
+      "early_label_canfail_mismatches": 6,
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\D3D11-rejudged-full.json",
+      "comparison_utc": "2026-11-05T04:40:23.608239+00:00"
+    },
+    "D3D12": {
+      "result": "FAIL",
+      "thresholds": {
+        "max_delta": 2,
+        "max_count_at_max_delta": 240
+      },
+      "frames": 2640,
+      "labelled": 144,
+      "unlabelled": 2496,
+      "mismatches": 6,
+      "labelled_min_changed": 921600,
+      "unlabelled_max_delta": 2,
+      "unlabelled_max_count": 255,
+      "count_bound_failures": 6,
+      "delta_bound_failures": 0,
+      "early_label_canfail_mismatches": 6,
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\paired-pixels.json",
+      "comparison_utc": "2026-11-05T05:39:16.035594+00:00"
+    }
+  },
+  "other_gates": {},
+  "accepted_D3D11": "D:/IA_Europa/Receipts/09446/result-summary.json",
+  "defaults": [
+    "blinking",
+    "lod_corruption",
+    "missing_texture",
+    "corrupted_texture"
+  ],
+  "camera_opt_in": true,
+  "no_push": true,
+  "no_tags": true
+}

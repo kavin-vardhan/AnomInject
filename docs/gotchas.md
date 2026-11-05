@@ -10634,3 +10634,6 @@ The09446 control pair has a maximum RGB delta of1, while2440 unlabelled positive
 ### G554 - A near-plane floor must contain no clipped frame
 
 GO2 adds a separate near100/near10 floor with the same far view. The full2352-frame default section can be paired by exact index with the existing control prefix; its near-wall tail is excluded by a guarded bench switch, never by filtering labelled pixels. Require zero camera labels and constant far camera pose before measuring. For floors at different delta levels, use the count measured at the larger level; a lower-level count must not silently inflate that bound.
+
+
+G554 outcome (094-46r): D3D11 passes its independently measured2/255 floor. D3D12 stays at delta2 but exceeds its own240-pixel count cap on six frames (255each). Do not borrow D3D11's count, import the level1 count or retune after the positive. The job stopped with both odd-width runs unrun; raw distributions and failed indices are retained.

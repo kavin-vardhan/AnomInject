@@ -1,0 +1,514 @@
+{
+  "result": "NEEDS-DECISION",
+  "utc": "2026-11-05T05:46:54.980336+00:00",
+  "entry": "eea2acdae04b933fe3188fb4bc0d160e3581ed47",
+  "native": "cd2d60c8889e589bba118655ebff2d8eb7f2420f",
+  "runtime": "15cea3826e1c700d7719a56196ebe1377c123e71",
+  "origin": "c5d0919e5074404d26da8c16ccf845b360bde383",
+  "evidence_root": "E:/IA_BuildCache/09446r-evidence",
+  "accepted_D3D11": "E:/IA_BuildCache/09446-evidence",
+  "files": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\all-owned-processes-closed.json",
+      "bytes": 8752,
+      "sha256": "dd8977c7782dec4756462c4da992739af6fcd1550b307cc4e3621f7c5b41b4a9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\build-audit.json",
+      "bytes": 4343,
+      "sha256": "df8016a147a9649d62762e22ec867058d2d972f8ce37933f826831835f9cba0e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\builds-and-archive.json",
+      "bytes": 16106,
+      "sha256": "92e05b1668ec6d94c703651a776b6716ebc7e181f93367b98ff00f7494989804"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\c5-job-config.json",
+      "bytes": 822,
+      "sha256": "0489ced2b99ee41689fa361531dc8b589c61486ac0ea6fd6a7aa14c8876d94b4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\D3D11-rejudged-full.json",
+      "bytes": 8983858,
+      "sha256": "ab9ce9473028164cd8b8904495e14c10706c8cc9e760f990a6d156a7a2479d69"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\D3D11-rejudged.json",
+      "bytes": 841,
+      "sha256": "a5c102210eb3755ed39cb43629626303c4ad0ca2ea8c53b95c15f0a49958960e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\entry-job-config.json",
+      "bytes": 390,
+      "sha256": "468bf5edb0ffe8ddb8095ef8d6a18c6bd6d83529f7b5f060bf2b640a964893cc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\entry.json",
+      "bytes": 499740,
+      "sha256": "de81270338a53561b8457ee3d8b80c09de7216d4257e63c3faf05705f70f7fc6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\exe-dll-inventory.json",
+      "bytes": 13202,
+      "sha256": "0c9fd5844fd3510cab9d1c857c5f207b0d6787c73f54cbff70d550cbd55ea655"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\exit-before-commit.json",
+      "bytes": 495788,
+      "sha256": "e5ebf74fc3c884fbf2bd7dfe143a5a410ae6ef4e601ad6fd18d9387e33894d9f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\final-narrative.json",
+      "bytes": 5761,
+      "sha256": "04f35fd09d86cb909b5ed8a6bccf6b44697c203d48f4d115547999234f7b2b28"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D11-1280-combined.json",
+      "bytes": 1062,
+      "sha256": "a72c0422d1f34ff0b1db72bd7e8827aa7e351f5d0bd423c21c7b09c10ee59d70"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D11-1280-near-plane.json",
+      "bytes": 14924252,
+      "sha256": "82f1d8df73b52e11bb20f44142f46a202bfd6e45f582dd0757bfbeca912c8e7f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D12-1280-combined.json",
+      "bytes": 1071,
+      "sha256": "3ceccf0a37cad9c2bfb07c03a22e071c94cebc5145603c0ceceb06e858bde6bc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D12-1280-near-plane.json",
+      "bytes": 14925343,
+      "sha256": "c79f2ac6ee3aac7127a1df31f1b8cbcbace234da75e662ca817c25db47ade30f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\floors\\D3D12-1280-session.json",
+      "bytes": 16743950,
+      "sha256": "5aab9821aec18e8b4f96bca0ba4a0db6b92936fa2f8518757bf03117d493ee3e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\focused-tests.json",
+      "bytes": 345,
+      "sha256": "574bab4a87b85d268fffc31e1b2e6fc55410d7f4548f778a1850574461956cc8"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\freeze.json",
+      "bytes": 5699,
+      "sha256": "311c66817745d9af1770131a918d48d2b2a6109ac3e82e61ef9d7793dd607c96"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\c-space-after.json",
+      "bytes": 3255,
+      "sha256": "b28830a59353926aa3db62b1db58cb07b1cd2db4279ec05aa05ca3d829fd8721"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\c-space-before.json",
+      "bytes": 1015,
+      "sha256": "5e9ca92ec536c154aa30f743f9111a11a4834b8408998bb14a93e5e3a685615d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\execution.json",
+      "bytes": 136630,
+      "sha256": "9d17688ee3ade0aa3862bd3840206b4356b556a17bfbf9704f5c79abb531ec25"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\raw-evidence.json",
+      "bytes": 2053502,
+      "sha256": "32cc4c3580014b6de6e52b70cab2246ba164c32e78e019c1130a93f33f20397c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\reader.json",
+      "bytes": 740603,
+      "sha256": "b82a842866524ea209a253856a9e2c5fcbc1fcf6807aa099b22c4c1d0f7d11f3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D11-1280-near-floor\\01\\result.json",
+      "bytes": 937148,
+      "sha256": "80a1bd422d1c8c6223b0e4ee7914bbd1021f33bb68e5fc6c88753588bbb5f6c4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\c-space-after.json",
+      "bytes": 3257,
+      "sha256": "d4a0998b11b31eeb24ca907be5730f28eae4182e3a264525aef7dfaf0e4d2369"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\c-space-before.json",
+      "bytes": 1015,
+      "sha256": "b6dca3c37182a82a9d8939a65b6bdf4ae9c1c425192cf2c9af4fb7e341521fc2"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\execution.json",
+      "bytes": 151944,
+      "sha256": "695ce21ad6bddb889966a272d30b8ed5f3dcbc79a651cad0734c075f5209b577"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\raw-evidence.json",
+      "bytes": 2257566,
+      "sha256": "2bf4047add8e1ccfd359aec277084a1e5158c109556929145987b241325c3d58"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\reader.json",
+      "bytes": 779723,
+      "sha256": "1b03708a343aef10f2232c014d3df12a5cd9dd49dc9b7d216d394e2afe9feafc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-a\\01\\result.json",
+      "bytes": 995036,
+      "sha256": "4b210e6571a92f773c7bdb95ffe1a30ecdfcb1cd7656d6dd2add923d3e45e0b1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\c-space-after.json",
+      "bytes": 3254,
+      "sha256": "36e87f8bddc80738010df820bddae50b9f9b95ec0e2ad0d746d1f32b43a85dcd"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\c-space-before.json",
+      "bytes": 1015,
+      "sha256": "53e33886df004d506a5fbb2450f7adb8b1ef82f57a8ad1bdbe8ff477cbe75bfd"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\execution.json",
+      "bytes": 147740,
+      "sha256": "c464d3e716c596801ca83c0777dd5def5ee1a48f65a478fc37f9e87bc4c132f5"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\raw-evidence.json",
+      "bytes": 2257566,
+      "sha256": "03d66e308c9cf720ad85ebab2fcd2b438cb7e5a8fc4335f7329ced72a1920384"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\reader.json",
+      "bytes": 780064,
+      "sha256": "96b1cb3c127d2108575818f4680854633747444a839ce7225aec4068e1101701"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-control-b\\01\\result.json",
+      "bytes": 991173,
+      "sha256": "d494eb2ac4614d89b48698e38b98b16ab8c710a28f7fdbc7d9ee5c013cec8d4a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\c-space-after.json",
+      "bytes": 3255,
+      "sha256": "405f65e2979ccef36d8708cea9bd390ea10432f9dd20f9f16002d6ee76dc10fb"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\c-space-before.json",
+      "bytes": 1015,
+      "sha256": "59570a159b0598aa6dea71279698cc80f1654011d73d122bb376124f2458f164"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\execution.json",
+      "bytes": 147990,
+      "sha256": "38724c4a178963129c7b2b214d0a08926b82d585ad45138ad7866c9dfae3a708"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\raw-evidence.json",
+      "bytes": 2053503,
+      "sha256": "86868e6655c68e086a2944681e8dbaad03362cbb96dbdbea7d154ebd86643c65"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\reader.json",
+      "bytes": 740605,
+      "sha256": "186f94e9f1a8da1e3b06502d9d9da794094e8d8e36d486344d08ac7b5a3aae43"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-near-floor\\01\\result.json",
+      "bytes": 948510,
+      "sha256": "8559009fc02b2bcb41a1378da1c090534a366d134d2308a46380b975264e4aa9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\c-space-after.json",
+      "bytes": 3257,
+      "sha256": "96903756c36c47a8609f2f644f8c28fd6f35c8e6bcba95cb0186554834624104"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\c-space-before.json",
+      "bytes": 1015,
+      "sha256": "62dbeed95b5ba868fd005ed97192af9c79cd64fdb60f2d95202a4c8f28f6d540"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\execution.json",
+      "bytes": 146855,
+      "sha256": "e2176283a0da74bd69f8c37629da95b5b568c7e7717fe42fb470dc4508753946"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\paired-pixels.json",
+      "bytes": 8983675,
+      "sha256": "14e757af3fb3d5d9740c4078e7f1f59b4b1b795f1fed727fdcfd7a96bb0fdfd0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\raw-evidence.json",
+      "bytes": 2248443,
+      "sha256": "e653e45b4192c2849624e99dfa22dd1e2c375cf53f3a7df80dd45813d09195bc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\reader.json",
+      "bytes": 781202,
+      "sha256": "2b98a15b85b30a7c9d88322537ecca6a4751663dc6486eeac611ec8a91369cf1"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4\\D3D12-1280-positive\\01\\result.json",
+      "bytes": 991553,
+      "sha256": "616b994a82eb71e97f4dc9d7c206ffd93f9c850fd233ece14f9aa8c9852ba760"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-arming-D3D11-1280-near-floor-01.json",
+      "bytes": 649804,
+      "sha256": "998f4b67fbc48446d00c4713bbac9cdf5376f513644bee9cdd1e638dc1ec3f5e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-arming-D3D12-1280-control-a-01.json",
+      "bytes": 649801,
+      "sha256": "e9773922a187b685453460c7294fb7179323d9a729b37cf709361e4b0ab76464"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-arming-D3D12-1280-control-b-01.json",
+      "bytes": 649801,
+      "sha256": "b3675ad6fe3f7ddfd64c32eb9b16b27069e6bc500707adce8221cbcc99706eb3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-arming-D3D12-1280-near-floor-01.json",
+      "bytes": 649804,
+      "sha256": "9f26ba83db4d9fe158fda89d9180b0e317ead979124c6946b995b1319e84f5c2"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-arming-D3D12-1280-positive-01.json",
+      "bytes": 649798,
+      "sha256": "5b8de26c5ad213a861c44de4e28393f64c7e70603561bce97b50eb26b2b05929"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-job-config.json",
+      "bytes": 1019,
+      "sha256": "2ee30107f4d458bbc4a2e83074156101bc49be32326539ea3d4a23095ebb3968"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-manifest-D3D11-1280-near-floor-01.json",
+      "bytes": 18679,
+      "sha256": "0e091b6a80bb7546ecf5a6209caedb740747a43e86492719ab4e213179cfd4ef"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-manifest-D3D12-1280-control-a-01.json",
+      "bytes": 18682,
+      "sha256": "7895ce5ffff85c921eed080668446e8cdd2c1564770ac38ed552424b64cc3b42"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-manifest-D3D12-1280-control-b-01.json",
+      "bytes": 18681,
+      "sha256": "37955e76c8b81704df9b814ee03bd9e9cc9a029836befbb4486039309ad4dd74"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-manifest-D3D12-1280-near-floor-01.json",
+      "bytes": 18681,
+      "sha256": "85036d99f1214d1714012a8550a0bfe798d0eec5f19cdc1ab4bc04059eddcf07"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-manifest-D3D12-1280-positive-01.json",
+      "bytes": 18682,
+      "sha256": "6ccc670096c97bed6d7866d64a3c19039785046a7d2c3f56a07d1509ae8e428a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-prior-default-D3D11-1280-near-floor-01.json",
+      "bytes": 610004,
+      "sha256": "df4b392fe28d87665f213253970fabce6aeeac840cc8e906b711f70cae4f1ee4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-prior-default-D3D12-1280-control-a-01.json",
+      "bytes": 649804,
+      "sha256": "998f4b67fbc48446d00c4713bbac9cdf5376f513644bee9cdd1e638dc1ec3f5e"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-prior-default-D3D12-1280-control-b-01.json",
+      "bytes": 649801,
+      "sha256": "e9773922a187b685453460c7294fb7179323d9a729b37cf709361e4b0ab76464"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-prior-default-D3D12-1280-near-floor-01.json",
+      "bytes": 649801,
+      "sha256": "b3675ad6fe3f7ddfd64c32eb9b16b27069e6bc500707adce8221cbcc99706eb3"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\H4-prior-default-D3D12-1280-positive-01.json",
+      "bytes": 649804,
+      "sha256": "9f26ba83db4d9fe158fda89d9180b0e317ead979124c6946b995b1319e84f5c2"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\kit-commit.json",
+      "bytes": 657,
+      "sha256": "f20549ff8a0bd64a8c5615456d977a52d3383b6e55bd353531863860a0f6b80b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\kit-restore.json",
+      "bytes": 993,
+      "sha256": "96fc7a1b9d8db5a372404ad10021ff43d6a2005fa03dc13730db96ad9c670b10"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\native-commit.json",
+      "bytes": 509,
+      "sha256": "c5002c98f169b5634bec3abc715de4f93497908511a853e5b3bc6252a0400fd4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\owned-processes-closed.json",
+      "bytes": 4492,
+      "sha256": "1ecbb028bbff5c055f01d68bcfd9c876631222f02dabc190340f9efa9a0bda6d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\owner-p9-result.json",
+      "bytes": 244,
+      "sha256": "c93900e81595bb66dd408f31f33b61321967287ad608b0fe76d889a48dd32aef"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\paris-build-job.json",
+      "bytes": 835,
+      "sha256": "d9bcf222842d34e8eabfb92f55bcc62b6e4a1baa6784f33d5a9e67bc8256fd29"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\prediction.json",
+      "bytes": 2421,
+      "sha256": "a4b7771bb041a90ba09e28772332784aeac4150cd1082e1aa3be9cd0838935fb"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\reader-selftests.json",
+      "bytes": 497,
+      "sha256": "2078e898851b41448f12c9d6aca29d6f4af6ad3424c86b4871bdd102b55739c0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\receipt-compression-20261105T044329Z.json",
+      "bytes": 3290,
+      "sha256": "14d8eb642b507f73ec4adadd4cb001ac3d9af23b8bbc35358612513eb068d369"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\receipt-compression-20261105T045513Z.json",
+      "bytes": 1544,
+      "sha256": "0a0897ae705a87be62f6efd929d99a3e28ce2cf21a9d2e2bbf68502a387fbaad"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\receipt-compression-20261105T050712Z.json",
+      "bytes": 1544,
+      "sha256": "0f19d49996b70e63494795a438238c6e92ee645853b3bfe3633c182df6e920f9"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\receipt-compression-20261105T051213Z.json",
+      "bytes": 877,
+      "sha256": "8ac9b9cb9b142a7dabbb28f66787facbafdf6f4363e2f9f5bf2b670dd6197176"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\receipt-compression-20261105T052340Z.json",
+      "bytes": 1548,
+      "sha256": "5a7ce6ce001e68262fba52ccf639cbca81cf21de116c80409b167f8f2973dce4"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\receipt-compression-20261105T052840Z.json",
+      "bytes": 883,
+      "sha256": "61f81111711c20d02cf2ab2a2007e4bf12abc3e342b8ebf833e35694bfc9cec0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\receipt-storage.json",
+      "bytes": 462,
+      "sha256": "2fd44ac02765c1c3b5d46042e8f96892f954744aedc7e8770f703e7f4bf2e9b6"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\result-summary.json",
+      "bytes": 168980,
+      "sha256": "26e716a540cdeef4e265e04a5662917b9bcd601ebf889a9beb13ef043a15da94"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\reused-binary-rehash.json",
+      "bytes": 3451,
+      "sha256": "3baec481a31f45aa15035afdb893c6ae67b0bc75572e398a340fe118b45af806"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\setup-invocation.json",
+      "bytes": 488,
+      "sha256": "2aa9d2e8d6614f530d64c9df73658e917d04bbe1f0aefd8bccf01029592fad44"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\source-audit.json",
+      "bytes": 3817,
+      "sha256": "8e11d8390df6773b01f245f22df6442faf7161a216a6c23a4ce70860b065cc3c"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09446r\\stop.json",
+      "bytes": 1800,
+      "sha256": "a3c87f5394a7fc325a753246420a7a424b696feac764043ddaad5bfc0ce87260"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\additive_reader09446r.py",
+      "bytes": 2900,
+      "sha256": "ad52839b84da6278c60f02f864644a21b8012df8485d8ea9111d1220d87d7fb7"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\camera_reader09446r.py",
+      "bytes": 10354,
+      "sha256": "44ee547309236db6b93bb1414949a3469e1d3dff8f6e6fb5b14439051e871597"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\card_reads09446r.py",
+      "bytes": 1925,
+      "sha256": "958666f27f3717e99c8220151c327ae229725622f70d2197be107b8d07f7869c"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\h4_reader09446r.py",
+      "bytes": 18375,
+      "sha256": "0fde4850da86903d70af97f06ec4c8415116c62f2a41008d7fbf02110e2580b4"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\host_reader09446r.py",
+      "bytes": 2178,
+      "sha256": "f24e5e346fbd6ca48ab3fd9d7fb2d3dde834f73af26cdaa922ae14d14f522611"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\kit09446r.py",
+      "bytes": 15285,
+      "sha256": "8478650ecd1da6364f16a3455131bb89e8169070eb0f042b8e36ca60b768dfc5"
+    },
+    {
+      "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\tools\\europa\\seal_floor09446r.py",
+      "bytes": 4758,
+      "sha256": "30de37d7b7fbdb81a273df14915e7809deef1ca381621bb3b02180a5899566a1"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\audit_all_owned09446r.py",
+      "bytes": 2061,
+      "sha256": "0052f90061d0ec612094ce0569a2ac0c1958fc8d94e382cf5353e4085a43d36c"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\audit_owned09446r.py",
+      "bytes": 2100,
+      "sha256": "429a26fd9d2101ccddeba669cf213b2864fa3490339ac40b628db5f8b5d38b4c"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\binary_table09446r.py",
+      "bytes": 1305,
+      "sha256": "ddb856682746299e5cdd041843caba01554cf749338e319a3836605ffdf1841b"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\closeout09446r.py",
+      "bytes": 4688,
+      "sha256": "4fcee32b5fc8af4415f57f93936610f80c05cc8f1b44adb1729997ca96e5e565"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\compact_receipts09446r.py",
+      "bytes": 1965,
+      "sha256": "5fabd501b43a3d5562063f7b1750b5a0ba74093a531a6b21338bc42aed3ef0c4"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\compatibility09446r.py",
+      "bytes": 1623,
+      "sha256": "bd711eaefb5024467644f7c0336b3c3714e255b6e35bae89dc66505c9d0dea7b"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\restore_kit09446r.py",
+      "bytes": 1377,
+      "sha256": "2da000880e4ba06b7c01a4a5f4ccc19057ff57b4d5052786cb2314d7bb48b670"
+    },
+    {
+      "path": "D:\\IntrusiveAnomalies\\_relay\\runs\\2026-10-16-094-01-europa-phase-a-plan\\summarize09446r.py",
+      "bytes": 3978,
+      "sha256": "429c0922a2c2b7c29cd006dd5bea32002799a153cda01b815bd76d1eb75ce9de"
+    }
+  ],
+  "no_push": true,
+  "no_tags": true
+}

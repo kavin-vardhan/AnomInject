@@ -226,3 +226,6 @@ The texture release remains c5d0919 on origin. The camera port plus GN4 counter 
 
 
 094-46r kit ready: native Editor/Game pass attempt1; the27-file archive rehashes. Seven bounded launches cover one reused-prefix D3D11 near-plane pair, the D3D12 session and near-plane floors/positive, the odd-width combined leg and one default-only comparison. Far-only sessions require0 camera labels and a fixed far pose. The larger-floor count and key/type readers pass their can-fails. No runtime result is claimed yet; no push/tags.
+
+
+094-46r NEEDS-DECISION: the guarded far-only near-plane floors are sealed. D3D11 D4 passes at delta2/count255, reusing the accepted sessions. D3D12 seals session delta1/count559838 and near-plane delta2/count240 before its positive. All144 labelled frames change921600pixels and the three spans are exact, but six of2496 unlabelled frames each have255pixels at delta2, exceeding240. H4, strict texture IoU1.000, G5 and zero-drop checks pass on all five new sessions. Both odd-width legs and GO3/card reads remain unrun under the failed-gate stop rule. No threshold retune, retry, push or tag. Exit fast checks and archive rehash pass; all owned processes ended; launcher disabled; no crash/upload/protected change.
