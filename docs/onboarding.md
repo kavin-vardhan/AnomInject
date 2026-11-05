@@ -238,3 +238,6 @@ The texture release remains c5d0919 on origin. The camera port plus GN4 counter 
 
 
 094-47 local development begins atf3fbba7 over shippedc5d0919. Read OD1-OD6 and GQ1-GQ5. Transport helper543checks and4mutants pass. Do not treat source readiness as packaged qualification. Camera remains unqualified/opt-in and plugin pushes remain held. Current shipped instructions remain094-45r.
+
+
+094-47 Editor attempt1 failed with C4668: the new engine guards lacked AnomalyEngineVersion.h in the public capture header and transport boundary. Both now include the existing compat header explicitly. No behavior change, runtime launch or push; attempt2 follows within FM1. Failed receipt retained.

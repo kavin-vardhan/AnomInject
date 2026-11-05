@@ -2032,3 +2032,6 @@ The4.25 summary emits label_transition_camera_clipping_unconfirmed_entries by su
 
 
 094-47 local development: AnomalyControlServer now selects a private transport by engine. The 4.25 implementation binds127.0.0.1 and queues complete raw binary messages after lws_service; bounds are1MiB inbound,16MiB outbound,512 queued messages and8 peers. The5.1 wrapper preserves factory/socket calls. StartC5Run owns one cancellable warmup generation and is shared by console/dashboard; dashboard requests keep the listener alive. Compilation/runtime qualification pending; Shipping remains excluded.
+
+
+094-47 Editor attempt1 failed with C4668: the new engine guards lacked AnomalyEngineVersion.h in the public capture header and transport boundary. Both now include the existing compat header explicitly. No behavior change, runtime launch or push; attempt2 follows within FM1. Failed receipt retained.

@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Compat/AnomalyEngineVersion.h"
 #if ANOMALY_CONTROL_SERVER
 struct FAnomalyControlCallbacks
 {

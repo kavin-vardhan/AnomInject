@@ -1006,3 +1006,6 @@ The texture fixture setup, exposure, references, metrics and can-fails are fixed
 
 
 094-47 sequence: commit source,4.25 Editor/Game compile, ReGate51 Development compile without launching5.1, then armed editor-game protocol smoke. Packaging and desktop work remain gated. All tokens stay masked in receipts; no host Config change. C/D/E floors10/50/50GiB and3GiB launch reserve remain. New physical work stops at20:30IST after safely finishing active workers. No deletion or archive compression to fit.
+
+
+094-47 Editor attempt1 failed with C4668: the new engine guards lacked AnomalyEngineVersion.h in the public capture header and transport boundary. Both now include the existing compat header explicitly. No behavior change, runtime launch or push; attempt2 follows within FM1. Failed receipt retained.

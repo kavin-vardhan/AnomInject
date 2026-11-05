@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Compat/AnomalyEngineVersion.h"
 #include "Compat/AnomalyStatsIncludes.h"
 #include "Compat/AnomalySharedPointerIncludes.h"
 #include "Templates/SharedPointerInternals.h"
