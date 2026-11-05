@@ -10657,3 +10657,8 @@ G555 result: GP3 allowed transfer of D3D12's measured 2-level floor, but the odd
 ### G558. Binary lever inventories require the compiled engine profile
 
 The prior32 missing registrations are inactive in4.25 and active in5.1. Include ANOMALY_BENCH, engine/capture guards and actual target macros in the source evaluator; unknown conditions stay conservative. Bind binary checks to a pinned passing build, exact source/profile and artifact hashes. A mutant in compiled-out code is INVALID evidence. Source audit and synthetic can-fail passes do not qualify a native binary or runtime. OD7/OD8 now authorize the precise include-order and narrow bench-predicate corrections described in the09447t journal.
+
+
+### G559. Allocation reads must account for live compiler output replacement
+
+The first09447t Editor attempt was stopped by an enumerated file vanishing before its allocation handle opened. That is a failed measurement, not a disk-floor or compiler diagnostic. Preserve it. The new job helper samples allocations during traversal; only a specifically bound disappearing owned-output read can trigger up to3 complete rechecks while running. Preserve partial high-water charges; unstable start, persistent read failure, permission error, reparse or nonmutable loss still stops. Never turn a write error into an ignored exception.

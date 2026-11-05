@@ -7,3 +7,8 @@ Implementation scope: fourteen first-include moves; the twelve exact raw IAIBenc
 Forward EG1 collects all allowed metadata hashes before/after each ledger operation, validates class/path/hash/size/time/identity and exact changed-path set, pins parent/operation receipts and charges the cumulative100MB cap. The actual selected-source5.1 build, Baseline51 zero-engine-action query and full exitP9 remain required. No5.1 runtime.
 
 After fullA, dashboard LOD visibility/tests/desktop build precede the full package/five-session capacity decision. Strict textureIoU1.000/zero spill, zero drops, lifecycle/auth and actual desktop gates remain. No plugin or dashboard push by the worker.
+
+
+094-47t r2 Editor attempt1 stopped safely: the allocation read hit WinError2 while opening an enumerated file during compilation. The exact vanished path was not retained by that old helper. Owned UBT/compiler children ended; full operation ledger PASS with331776 incidental C bytes and zero engine51 changes. No build pass is claimed. A separate pinned sampler now reads files during traversal, binds a vanished owned-output path, retries a complete running snapshot at most3 times, and refuses unstable admission, persistent/permission/protected/reparse failures. Eight sampler controls and two cumulative-overrun tests pass. Limits,512MiB proof scope and source/native behavior are unchanged. Original helper/config/failed attempt stay preserved; Editor attempt2 remains within the three-attempt bound.
+
+The source-driven predicate table passes16 cases plus3 widening/Shipping/OR mutants; native verification remains pending.

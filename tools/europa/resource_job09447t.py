@@ -12,7 +12,10 @@ CACHE={}
 def floors(scope,start=False):
     if Path(scope['job_root'])!=ROOT or scope.get('resource_policy')!='09447t-OD16-r2':
         raise RuntimeError('Wrong OD16 job/resource binding')
-    expected={'resource09447t_r2.py','allocation09447t_r2.py','stage_budget09447t_r2.py'}
+    module_name=scope.get('resource_guard_module','stage_budget09447t_r2')
+    if module_name not in ('stage_budget09447t_r2','stage_budget_fast09447t_r2'):
+        raise RuntimeError('Unapproved current-job resource helper')
+    expected={'resource09447t_r2.py','allocation09447t_r2.py',module_name+'.py'}
     if set(scope.get('resource_helpers',{}))!=expected:
         raise RuntimeError('Missing pinned OD16 helpers')
     for name,pin in scope['resource_helpers'].items():
@@ -26,8 +29,9 @@ def floors(scope,start=False):
     budget=json.loads(path.read_text(encoding='utf-8'))
     if budget['operation']!=scope.get('resource_operation') or budget['kind']!=scope.get('resource_kind'):
         raise RuntimeError('Budget is for a different operation or write class')
-    if pin not in CACHE:
+    key=(pin,module_name)
+    if key not in CACHE:
         sys.path.insert(0,str(RUN))
-        module=importlib.import_module('stage_budget09447t_r2')
-        CACHE[pin]=module.Guard(path,pin,budget['operation'],budget['kind'])
-    return CACHE[pin].sample(start)
+        module=importlib.import_module(module_name)
+        CACHE[key]=module.Guard(path,pin,budget['operation'],budget['kind'])
+    return CACHE[key].sample(start)
