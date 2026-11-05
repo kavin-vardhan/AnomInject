@@ -10648,3 +10648,7 @@ G555 result: GP3 allowed transfer of D3D12's measured 2-level floor, but the odd
 ### G556. A control transport enable does not select C5
 
 4.25 generic StartRun is C1; network capture needs the shared C5 owner, route/private-pass admission, cancellable warmup and completion policy. A successful dispatch acknowledgement does not establish capture admission. An early stop remains partial and cannot report the planned count as requested. Native/runtime verification is still pending at the source checkpoint.
+
+### G557. UBT exit zero does not clear first-header errors
+
+094-47 compiled and linked AnomalyCapture and AnomalyControlServer on ReGate51, but UBT emitted fourteen first-header errors in the existing capture translation units. Their first three lines match the entry revision. The unchanged error gate rejected the build despite exit zero; no live protocol or package followed. GQ2 permits only the shared transport changes on the 5.1 path, so a broader include-order correction needs a separate scope decision. The retained lever audit also fails: twelve inline bench guards and thirty-two registrations absent from the tested 4.25 binary union. Do not describe these audits as passing or use native compile success as runtime qualification.

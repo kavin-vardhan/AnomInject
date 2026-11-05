@@ -1,0 +1,857 @@
+{
+  "result": "NEEDS-DECISION",
+  "source_commit": "a231a577905b3ea6163500b5a5982f108c8c2183",
+  "stop": {
+    "result": "NEEDS-DECISION",
+    "gate": "Stage A / GQ2 / A1",
+    "utc": "2026-11-05T09:53:01.202042+00:00",
+    "UBT_exit_code": 0,
+    "build_duration_seconds": 213.3057817000008,
+    "error_count": 14,
+    "errors": [
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyAsyncWriter.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "1b25cd215f2fa71e9a36f3ecbd7f667e04918e2578a7436b51104c3d83317542",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyAsyncWriter.cpp(1): error: Expected AnomalyAsyncWriter.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "0d771b37c7dfefd7ffbf8f86bd1b72bf7f9359728ca5cc892bfded83aa8a88b9",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyCaptureSubsystem.cpp(1): error: Expected AnomalyCaptureSubsystem.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyCensus.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "13c5d9cd10c600b05480fd540992483b2c560abfea8c8dbb66e58583283fa27a",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyCensus.cpp(1): error: Expected AnomalyCensus.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyChangeFamilyData.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "27631f0e568d5d7c6d04d25d148e1c28d99ff05017ec4c3abd750380b5067968",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyChangeFamilyData.cpp(1): error: Expected AnomalyChangeFamilyData.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyChangeStage.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "c0ee28a637e998473d92003df71841a63bffd78f22b83002eb8fc944a2ee7bd5",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyChangeStage.cpp(1): error: Expected AnomalyChangeStage.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyLabelWriter.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "573817ff29dd60116b346ade75aabf8a20f056d5674b591f9e91e3a61d4dc046",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyLabelWriter.cpp(1): error: Expected AnomalyLabelWriter.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyMaskMeasure.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "4db52821e34ee1c8ee2c14f941e5e9281df6080de59c73465fb4e18dc1299b51",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyMaskMeasure.cpp(1): error: Expected AnomalyMaskMeasure.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyMaskSceneViewExtension.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "b10829934fe426698b0ad735b927be7ac803834c0f192da6921a24233bce7635",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyMaskSceneViewExtension.cpp(1): error: Expected AnomalyMaskSceneViewExtension.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyMeasurability.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "773f9a8d59ad3d5fadc678fc5e40971df4386a71a50bdcf945870c16270abd4e",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyMeasurability.cpp(1): error: Expected AnomalyMeasurability.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyPreviewTee.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "5418c1f142c11b2475d606c166428bb2dacb4aa67cec5b8a83d0a51c1d0c82c1",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyPreviewTee.cpp(1): error: Expected AnomalyPreviewTee.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalySceneViewExtension.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "0b3aa268760789795c6e07a149e9386ed9b083d06ea73c0b5a67e82bace40449",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalySceneViewExtension.cpp(1): error: Expected AnomalySceneViewExtension.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalyStencilTag.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "f94d797e6efde82a99be61fb4fd8516bd09c120e4829687f28dfba0d7e92b47a",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyStencilTag.cpp(1): error: Expected AnomalyStencilTag.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalySveCapturer.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "553abb54bf29a112dbb077b87d2e9b3cec028e622f27ffd420fff37dbb4926c2",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalySveCapturer.cpp(1): error: Expected AnomalySveCapturer.h to be first header included."
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/AnomalySveKeyRing.cpp",
+        "first_three_lines_unchanged": true,
+        "sha256": "4c8c3166a0d9dee62aed0a6da3c268df44e6c24f8027831ebfcde346aa843841",
+        "diagnostic": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalySveKeyRing.cpp(1): error: Expected AnomalySveKeyRing.h to be first header included."
+      }
+    ],
+    "reason": "Existing first-header diagnostics rejected by the unchanged error gate; broader 5.1 source corrections exceed GQ2 shared-transport scope",
+    "engine_actions": 0,
+    "next_unrun": [
+      "editor-game protocol smoke",
+      "Stage B packaging and packaged console C5",
+      "dashboard branch/test/desktop build",
+      "Stage C equivalence/lifecycle/desktop connection"
+    ],
+    "runtime_launches": 0,
+    "pushed": false
+  },
+  "builds": [
+    {
+      "commit": "2af16c00932c61dea86ce827d2d88388093cca7f",
+      "host": "425",
+      "target": "StylizedParisStreetEditor",
+      "started_utc": "2026-11-05T09:32:30.813578+00:00",
+      "exit_code": 6,
+      "action_counts": {
+        "project": 4,
+        "plugin": 6,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "ended_utc": "2026-11-05T09:34:47.023114+00:00",
+      "duration_seconds": 136.20736079999915,
+      "label": "editor-01",
+      "path": "D:\\IA_Europa\\Receipts\\09447\\builds\\editor-01\\result.json",
+      "sha256": "3d65ddb9339499a4ff99528a1d1be02611042064a538966bc485614c92faae1b",
+      "error_lines": [
+        "ParallelExecutor.ExecuteActions:   D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture/Public/AnomalyCaptureSubsystem.h(88): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Public\\AnomalyCaptureSubsystem.h(88): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyControlServer/Private/AnomalyControlServerSubsystem.cpp(378): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyControlServer/Private/AnomalyControlServerSubsystem.cpp(673): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyControlServer/Private/Compat/AnomalyControlTransport425.cpp(2): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:/IA_Europa/StylizedParisStreet/Plugins/AnomalyInjector/Source/AnomalyControlServer/Private/Compat/AnomalyControlTransport51.cpp(2): error C4668: 'ANOMALY_ENGINE_51' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Public\\AnomalyCaptureSubsystem.h(88): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Public\\AnomalyCaptureSubsystem.h(88): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'",
+        "ParallelExecutor.ExecuteActions:   D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Public\\AnomalyCaptureSubsystem.h(88): error C4668: 'ANOMALY_ENGINE_425' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'"
+      ],
+      "new_text_warning": false
+    },
+    {
+      "commit": "dfd11cadc7ca194cf47900e01c9718a791286ad9",
+      "host": "425",
+      "target": "StylizedParisStreetEditor",
+      "started_utc": "2026-11-05T09:35:54.458541+00:00",
+      "exit_code": 0,
+      "action_counts": {
+        "project": 6,
+        "plugin": 9,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "gate_result": "PASS",
+      "ended_utc": "2026-11-05T09:37:35.666225+00:00",
+      "duration_seconds": 101.20677140000043,
+      "label": "editor-02",
+      "path": "D:\\IA_Europa\\Receipts\\09447\\builds\\editor-02\\result.json",
+      "sha256": "3539206c4302d221b287cbb5f1c5a051ccaa68ecb9e7b7ded9bfbcbd9422e086",
+      "error_lines": [],
+      "new_text_warning": true
+    },
+    {
+      "commit": "a231a577905b3ea6163500b5a5982f108c8c2183",
+      "host": "425",
+      "target": "StylizedParisStreetEditor",
+      "started_utc": "2026-11-05T09:41:51.004807+00:00",
+      "exit_code": 0,
+      "action_counts": {
+        "project": 1,
+        "plugin": 3,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "gate_result": "PASS",
+      "ended_utc": "2026-11-05T09:42:13.656222+00:00",
+      "duration_seconds": 22.6489001000009,
+      "label": "editor-03",
+      "path": "D:\\IA_Europa\\Receipts\\09447\\builds\\editor-03\\result.json",
+      "sha256": "2ef83f584cb9204d40cf1b02031ecadfd7a6e5f6a18b1e191b9033a3487b4411",
+      "error_lines": [],
+      "new_text_warning": false
+    },
+    {
+      "commit": "dfd11cadc7ca194cf47900e01c9718a791286ad9",
+      "host": "425",
+      "target": "StylizedParisStreet",
+      "started_utc": "2026-11-05T09:38:26.356591+00:00",
+      "exit_code": 0,
+      "action_counts": {
+        "project": 6,
+        "plugin": 6,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "gate_result": "PASS",
+      "ended_utc": "2026-11-05T09:40:16.792465+00:00",
+      "duration_seconds": 110.43520510000235,
+      "label": "game-01",
+      "path": "D:\\IA_Europa\\Receipts\\09447\\builds\\game-01\\result.json",
+      "sha256": "0f0a5f7d0d9b00b18079e076b6bc7b72eb6cea06352ef899d4e4045e7c942128",
+      "error_lines": [],
+      "new_text_warning": true
+    },
+    {
+      "commit": "a231a577905b3ea6163500b5a5982f108c8c2183",
+      "host": "425",
+      "target": "StylizedParisStreet",
+      "started_utc": "2026-11-05T09:42:54.023778+00:00",
+      "exit_code": 0,
+      "action_counts": {
+        "project": 2,
+        "plugin": 1,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "gate_result": "PASS",
+      "ended_utc": "2026-11-05T09:43:27.139544+00:00",
+      "duration_seconds": 33.11520250000103,
+      "label": "game-02",
+      "path": "D:\\IA_Europa\\Receipts\\09447\\builds\\game-02\\result.json",
+      "sha256": "c3e00934bdedd6c84cc225659828b5f4c762b7b6dfcead95707ac46f6f21908a",
+      "error_lines": [],
+      "new_text_warning": false
+    },
+    {
+      "commit": "a231a577905b3ea6163500b5a5982f108c8c2183",
+      "host": "51port",
+      "target": "StackOBotEditor",
+      "started_utc": "2026-11-05T09:44:49.148018+00:00",
+      "exit_code": 0,
+      "action_counts": {
+        "project": 0,
+        "plugin": 12,
+        "engine_source_in_host": 0,
+        "engine": 0,
+        "engine_plugin": 0
+      },
+      "ended_utc": "2026-11-05T09:48:22.454588+00:00",
+      "duration_seconds": 213.3057817000008,
+      "label": "regate51-01",
+      "path": "D:\\IA_Europa\\Receipts\\09447\\builds\\regate51-01\\result.json",
+      "sha256": "9cf6aacbbd99a961635b42792743639536b4706f2dc1a7b85496b9247cc4b6a2",
+      "error_lines": [
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyAsyncWriter.cpp(1): error: Expected AnomalyAsyncWriter.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyCaptureSubsystem.cpp(1): error: Expected AnomalyCaptureSubsystem.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyCensus.cpp(1): error: Expected AnomalyCensus.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyChangeFamilyData.cpp(1): error: Expected AnomalyChangeFamilyData.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyChangeStage.cpp(1): error: Expected AnomalyChangeStage.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyLabelWriter.cpp(1): error: Expected AnomalyLabelWriter.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyMaskMeasure.cpp(1): error: Expected AnomalyMaskMeasure.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyMaskSceneViewExtension.cpp(1): error: Expected AnomalyMaskSceneViewExtension.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyMeasurability.cpp(1): error: Expected AnomalyMeasurability.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyPreviewTee.cpp(1): error: Expected AnomalyPreviewTee.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalySceneViewExtension.cpp(1): error: Expected AnomalySceneViewExtension.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalyStencilTag.cpp(1): error: Expected AnomalyStencilTag.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalySveCapturer.cpp(1): error: Expected AnomalySveCapturer.h to be first header included.",
+        "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Source\\AnomalyCapture\\Private\\AnomalySveKeyRing.cpp(1): error: Expected AnomalySveKeyRing.h to be first header included."
+      ],
+      "new_text_warning": false
+    }
+  ],
+  "focused_tests": {
+    "result": "PASS",
+    "transport": [
+      {
+        "test": "wire",
+        "expected": "PASS",
+        "exit_code": 0,
+        "output": "PASS 543 framing, fragmentation, teardown and bounds checks\n",
+        "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\wire\\test.exe",
+        "sha256": "c1d8846b8a1555e0ad4bccd91ef465c756e2e02fb9ec58edbe27af3d92d9bc85"
+      },
+      {
+        "test": "length-prefix",
+        "expected": "FAIL",
+        "exit_code": 1,
+        "output": "FAILED check 2\n",
+        "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\length-prefix\\test.exe",
+        "sha256": "f9b19736f727a04e4d0b2a3510f05210e7d0551063d33c3fcba0fccd4d6062e4"
+      },
+      {
+        "test": "early-fragment",
+        "expected": "FAIL",
+        "exit_code": 1,
+        "output": "FAILED check 4\n",
+        "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\early-fragment\\test.exe",
+        "sha256": "b7bfcd66fca4a12deac6ffb55464d8868e1df82ed3bfa8291537c3ca22a096ea"
+      },
+      {
+        "test": "unbounded-queue",
+        "expected": "FAIL",
+        "exit_code": 1,
+        "output": "FAILED check 27\n",
+        "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\unbounded-queue\\test.exe",
+        "sha256": "cdf6063807dc7ea88fde98952fc2f4aa07e47e235e83bd029f06acf99a41d9d1"
+      },
+      {
+        "test": "after-stop",
+        "expected": "FAIL",
+        "exit_code": 1,
+        "output": "FAILED check 9\n",
+        "exe": "D:\\IA_Europa\\Receipts\\09447\\transport-tests\\after-stop\\test.exe",
+        "sha256": "09f7db8a6c84461f73ae79ad3fe6d5b40847bf3a38874f1338bcee1439d4e390"
+      }
+    ],
+    "scope": [
+      {
+        "config": "paris-build-job.json",
+        "result": "PASS",
+        "weaker_floor_refused": true
+      },
+      {
+        "config": "regate51-build-job.json",
+        "result": "PASS",
+        "weaker_floor_refused": true
+      }
+    ],
+    "comments": "nochange",
+    "live_protocol": "pending"
+  },
+  "lever_audit": {
+    "result": "FAIL",
+    "failures": 44,
+    "R6": 12,
+    "B2": 32,
+    "failure_lines": [
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyCameraSession425.cpp:23 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyCameraSession425.cpp:40 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp:423 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp:467 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp:479 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp:482 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyCaptureSession425.cpp:167 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyHostDepth425.cpp:80 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyHostDepth425.cpp:97 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyMasks425.cpp:39 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyMasks425.cpp:196 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL R6 Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp:293 tests -IAIBench inline; use AnomalyBenchGate::IsEnabled()",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.CameraSchedule in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.ChangeEvidenceCases in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.ChangeGate in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.ChangeTeardownAt in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.ForceAnomalyShaderRecompile in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.Letterbox in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.ProbeSceneTextureUsage in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.ProxyBlurSharedSource in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.StuckMipLegacyPurity in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.StuckMipLegacyTiming in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.StuckMipNoHold in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.StuckMipUnlinkLock in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.StuckMipVirtualProbe in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TagPoolLimit in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptAllReasonsFirstOnly in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptAssetSlotMid in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptCensus in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptCollateralDetail in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptCommitDelay in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptFailStep in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptForceMissingAsset in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptForeignReplace in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptHostTexBias in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptIdentity in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptIdentityRedraw in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptNoApply in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptNoPartScope in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptRestoreDelay in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptRtSamplerBias in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptSrcMipCompensation in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptTileProbe in Development but the binary does not carry it (stale build)",
+      "G-LEVER-AUDIT FAIL B2 source registers IAI.Bench.TexCorruptWrongCopy in Development but the binary does not carry it (stale build)"
+    ],
+    "entry_comparison": [
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyCameraSession425.cpp",
+        "line": 23,
+        "current_line": "FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\")) && FParse::Param(FCommandLine::Get(),TEXT(\"IAICameraSlabBench\")) &&",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 2
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyCameraSession425.cpp",
+        "line": 40,
+        "current_line": "Bench=World->GetMapName()==TEXT(\"EA_Core\") && FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\")) &&",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 2
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp",
+        "line": 423,
+        "current_line": "if (!World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"))) { Error=TEXT(\"C5 requires a game world and IAIBench\"); return false; }",
+        "identical_line_at_entry": false,
+        "entry_inline_gates": 4
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp",
+        "line": 467,
+        "current_line": "!FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"))) { return; }",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 4
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp",
+        "line": 479,
+        "current_line": "if (CaptureLive425 || (Args.Num()!=3 && Args.Num()!=4) || !World || !World->IsGameWorld() || !FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"))) { return; }",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 4
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp",
+        "line": 482,
+        "current_line": "if (CaptureBenchCamera425 && FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"))) { for (TActorIterator<ACameraActor> It(World); It; ++It) { PC->SetViewTarget(*It); break; } }",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 4
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyCaptureSession425.cpp",
+        "line": 167,
+        "current_line": "if (FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\")) && BenchCamera && BenchCamera->GetInt())",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 1
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyHostDepth425.cpp",
+        "line": 80,
+        "current_line": "const bool Bench=FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"));",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 2
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyHostDepth425.cpp",
+        "line": 97,
+        "current_line": "if (!World || !FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"))) { return false; }",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 2
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyMasks425.cpp",
+        "line": 39,
+        "current_line": "if (FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"))) { CensusOff425=Enabled?0:1; }",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 2
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyMasks425.cpp",
+        "line": 196,
+        "current_line": "if (CensusOff425 && FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"))) { return; }",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 2
+      },
+      {
+        "file": "Source/AnomalyCapture/Private/Compat/AnomalyPrivatePass425.cpp",
+        "line": 293,
+        "current_line": "const bool Costs=FParse::Param(FCommandLine::Get(),TEXT(\"IAIBench\"));",
+        "identical_line_at_entry": true,
+        "entry_inline_gates": 1
+      }
+    ],
+    "scope": "Read-only repository audit; unfiltered 5.1 source registrations compared to 4.25 binary union. No exemptions applied; not a passing qualification."
+  },
+  "archive": {
+    "result": "HASH_PASS",
+    "files": [
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "size": 67891200,
+        "mtime_ns": 1792856876102942400,
+        "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exp",
+        "size": 44176,
+        "mtime_ns": 1792856869118730500,
+        "sha256": "44cd0afd18b89127162bdc508c9584181a16c5531ff15361cc5a18a8251fe46b"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.lib",
+        "size": 81852,
+        "mtime_ns": 1792856869121713700,
+        "sha256": "f6922002f53bcad9ef4ce9f482316e9e4b4a5f0c70825c981ce4704ff60bef5b"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.pdb",
+        "size": 100036608,
+        "mtime_ns": 1792856876141486000,
+        "sha256": "3ef83ad22cfb81c37d72441149e074ea9f8349660ff814e5bc60a59452b898b2"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.target",
+        "size": 43520,
+        "mtime_ns": 1792856876322274200,
+        "sha256": "43dd426abc1ac9aa08203335d2747da297be340c8639cb0171b1b7ca9d01a3cc"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "size": 139662336,
+        "mtime_ns": 1793871806188787100,
+        "sha256": "b5c1a94fb79d292af07a1354957b1252be5cc47d599546e5a33381af36a13ea2"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exp",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet.exp",
+        "size": 44147,
+        "mtime_ns": 1793871791643782200,
+        "sha256": "308cc163262c4c52eab4b1848ff9430940458a3b86f090f03d2170ba52cdc672"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.lib",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet.lib",
+        "size": 77016,
+        "mtime_ns": 1792856563243921000,
+        "sha256": "bf2cb2c1b76b5700e776fb6368d2db7763cd0d73dd42e4a0c7efa7b83565e323"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet.pdb",
+        "size": 190550016,
+        "mtime_ns": 1793871806288879100,
+        "sha256": "974a830b7cc2cb1342a6e174d699f8349dad1ba6f1f20bcac6dc1813eb129ded"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.target",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreet.target",
+        "size": 43738,
+        "mtime_ns": 1793871806635917000,
+        "sha256": "1771cd6c0641e0bf586b772c44fce7fed5b820a7b4cb278184441cf8ca6f25a0"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\StylizedParisStreetEditor.target",
+        "size": 163036,
+        "mtime_ns": 1793871733168073400,
+        "sha256": "4af399c8d25968f7b7b35d0e975d87c25fb800e35a223370d09971eeff5ec7d8"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.dll",
+        "size": 477696,
+        "mtime_ns": 1793871454198883200,
+        "sha256": "2b19de1d4f1628d5dac9b8968bed9ea62cfef6326d6d4f7edac7e932bb682595"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\UE4Editor-EuropaPhaseAProbe.pdb",
+        "size": 25522176,
+        "mtime_ns": 1793871454216992700,
+        "sha256": "d43a4ea5ae19aaa86f5e5e97d244cad2d0608357007bc3402508848343409bc2"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.dll",
+        "size": 91648,
+        "mtime_ns": 1792856064011728400,
+        "sha256": "8c553e7fc999ef9ca995a933d8d573a7c67791d116f328842f9f3c95d91a6f2c"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\UE4Editor-StylizedParisStreet.pdb",
+        "size": 34131968,
+        "mtime_ns": 1792856064040537400,
+        "sha256": "784af385f5373c93f075ad6d0b4ec49c8a66c4fd0746e50446fa1624ebadcaa3"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\UE4Editor.modules",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Binaries\\Win64\\UE4Editor.modules",
+        "size": 172,
+        "mtime_ns": 1792856065819873800,
+        "sha256": "c50255a7b1498ffadf67359ed0968313a15c5a91dafc548150dcf6ed1b7d1edc"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.dll",
+        "size": 124416,
+        "mtime_ns": 1792856065137811700,
+        "sha256": "2bf4268777f3c459b6812bdf56f24d6624fe0b6d282b0e7ae2f31a53f55ad940"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyBench.pdb",
+        "size": 6082560,
+        "mtime_ns": 1792856065154796200,
+        "sha256": "f38d86d274977b9832c9ea83fb7b0628ff57ccd4ab430e513ddf0450619e7c45"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "size": 1156608,
+        "mtime_ns": 1793871442594422500,
+        "sha256": "8036d3cda8b4a91fab5ef101eac938b892f5284e0478c64ff57d6dee42a3bf4f"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.pdb",
+        "size": 40710144,
+        "mtime_ns": 1793871442615406700,
+        "sha256": "6007737862d8561f4661f8a0f41557e221413fcbb7d40aa9ef9310b71261fa59"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "size": 2994688,
+        "mtime_ns": 1793871732960874100,
+        "sha256": "ddf6af9816e8a75b22b642438bf90077030392468c3d8a2173656bb79a25aa8e"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.pdb",
+        "size": 18853888,
+        "mtime_ns": 1793871732979071500,
+        "sha256": "68aa5768381a868abe7cc3f053f0f9fab2b40dd898e70cab9fc48214cfff8c55"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.dll",
+        "size": 1000448,
+        "mtime_ns": 1793797731556529400,
+        "sha256": "00b2e8f49f0f5394eab3b8c027ec908d7a0af9efbc574e625ffb905b2e6a256d"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyInjector.pdb",
+        "size": 30494720,
+        "mtime_ns": 1793797731575969100,
+        "sha256": "2457a4e9730de8fd925a11ecb04a44bdf9afd89628f79b814fa3d5c379ad8ec0"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.dll",
+        "size": 125440,
+        "mtime_ns": 1793745133220984800,
+        "sha256": "3d0ff3bdd2a721f48573124a0ceaa79870fdae460bd0a01c90df2220cc7cb0fb"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyShaders.pdb",
+        "size": 16388096,
+        "mtime_ns": 1793745133238983800,
+        "sha256": "3a3500d50c017e29e5ce37cb7280289a771455c81392a62eddf0a6dd6d17b96d"
+      },
+      {
+        "host": "425",
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\425\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor.modules",
+        "size": 325,
+        "mtime_ns": 1792856065818869300,
+        "sha256": "ff06bd3c17450f18d989cee19119b1c561d325bd109aac1c06e9997538da73d0"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyBench.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyBench.dll",
+        "size": 155136,
+        "mtime_ns": 1792879825202368200,
+        "sha256": "128e48761dfc075662200648667725e426f8e978d8400a8aedbab9c66612c33c"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyBench.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyBench.pdb",
+        "size": 52662272,
+        "mtime_ns": 1792879825207375100,
+        "sha256": "b73c20c9653b976f48c162e6f333f34a2e7bd87a536ece60079d6375a7fd65b2"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyCapture.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyCapture.dll",
+        "size": 2054656,
+        "mtime_ns": 1793872100241055100,
+        "sha256": "dc3195fdb4cb212fef0a2e3e28813aaf2b8d0a8ae52fa3e955ccfc441df344d2"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyCapture.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyCapture.pdb",
+        "size": 68358144,
+        "mtime_ns": 1793872100244093400,
+        "sha256": "38bda23c06ce9a36afe0aa355d17311f4ffa86852d24826189f3e9d89ae53722"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyControlServer.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyControlServer.dll",
+        "size": 271360,
+        "mtime_ns": 1793872099487182600,
+        "sha256": "4e83f6cac88f6e99fc4dec598f574f455020d390d16c02a94e2e6cd234726aeb"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyControlServer.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyControlServer.pdb",
+        "size": 54210560,
+        "mtime_ns": 1793872099489179300,
+        "sha256": "a3c974763e30c2ca1eca4053b181b6730856f1361377365075f2c292d6573e66"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyInjector.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyInjector.dll",
+        "size": 1772544,
+        "mtime_ns": 1792879823687334100,
+        "sha256": "88f288eed3763402f91fc5e38fe8612451df8cc3f54db95a6f391f0aefa7e4b5"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyInjector.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyInjector.pdb",
+        "size": 66260992,
+        "mtime_ns": 1792879823689841100,
+        "sha256": "95694e426b3915c479ad37bb9582deb9a4d6277d726bdc22bcaf25c8cc639a9a"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyShaders.dll",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyShaders.dll",
+        "size": 68096,
+        "mtime_ns": 1792879768308784700,
+        "sha256": "f8736404b31745068a78638807114d25a4f42a3df093f4f2e8c8e28aa7c93c9c"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor-AnomalyShaders.pdb",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor-AnomalyShaders.pdb",
+        "size": 51736576,
+        "mtime_ns": 1792879768311792000,
+        "sha256": "8dcde28b3946d7abfc058455d835eebe356f9ababb78ec4c26edf07f8614c60c"
+      },
+      {
+        "host": "ReGate51",
+        "path": "D:\\IA_Europa\\ReGate51\\StackOBot\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor.modules",
+        "archive": "E:\\IA_BuildCache\\09447-evidence\\binary-archive\\ReGate51\\Binaries\\Win64\\UnrealEditor.modules",
+        "size": 368,
+        "mtime_ns": 1793134561725800800,
+        "sha256": "114d0f3967350c0c30d14abfa5f554b5d934e2bbaef1fe3ad7c66b3419cbb701"
+      }
+    ],
+    "bytes": 974343342,
+    "engine425_qualification": "Development Editor and Game compile PASS",
+    "ReGate51_qualification": "UNQUALIFIED: A1 rejects 14 first-header errors despite UBT exit0",
+    "compression": false
+  },
+  "exit": {
+    "result": "PASS",
+    "feature": {
+      "head": "a231a577905b3ea6163500b5a5982f108c8c2183",
+      "branch": "feat/europa-port",
+      "status": ""
+    },
+    "free_GiB": {
+      "C:": 22.242626190185547,
+      "D:": 53.21065902709961,
+      "E:": 51.3168830871582
+    },
+    "archive_rehashed": 38,
+    "owned_processes": {
+      "result": "PASS",
+      "owned_identities": 156,
+      "live_owned": [],
+      "reused_pids": [],
+      "foreign_activity": "Recorded only; no foreign process stopped",
+      "runtime_launches": 0
+    },
+    "source_equal_built": true
+  },
+  "package": {
+    "path": "E:/IA_BuildCache/09447-package",
+    "created": false,
+    "bytes": 0,
+    "files": 0,
+    "cooked_evidence": "unrun"
+  },
+  "runtime_launches": 0,
+  "pushes": [],
+  "camera_qualification": "failed; OD4 hold unchanged",
+  "strict_include_audit": "not completed; GQ2 error gate stopped Stage A",
+  "binary_markers": {
+    "result": "PASS",
+    "files": [
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet.exe",
+        "sha256": "b5c1a94fb79d292af07a1354957b1252be5cc47d599546e5a33381af36a13ea2",
+        "counts": {
+          "127.0.0.1": 8,
+          "IAI.Server.Start": 4,
+          "C5 warmup cancelled; pending start removed": 1,
+          "C5 requires a game world and IAIBench": 1
+        },
+        "expected_present": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyControlServer.dll",
+        "sha256": "ddf6af9816e8a75b22b642438bf90077030392468c3d8a2173656bb79a25aa8e",
+        "counts": {
+          "127.0.0.1": 3,
+          "IAI.Server.Start": 4
+        },
+        "expected_present": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UE4Editor-AnomalyCapture.dll",
+        "sha256": "8036d3cda8b4a91fab5ef101eac938b892f5284e0478c64ff57d6dee42a3bf4f",
+        "counts": {
+          "C5 warmup cancelled; pending start removed": 1,
+          "C5 requires a game world and IAIBench": 1
+        },
+        "expected_present": true
+      },
+      {
+        "path": "D:\\IA_Europa\\StylizedParisStreet\\Binaries\\Win64\\StylizedParisStreet-Win64-Shipping.exe",
+        "sha256": "6f669b6337eebf97d9b6343557b596f7ab25fa7c03273abebb5621599a24c861",
+        "counts": {
+          "IAI.Server.Start": 0,
+          "C5 warmup cancelled; pending start removed": 0,
+          "C5 requires a game world and IAIBench": 0
+        },
+        "expected_present": false
+      }
+    ],
+    "limitation": "String presence confirms compiled changes only. The unchanged Shipping file is a negative reference, not a new Shipping build or listener test."
+  },
+  "audit_note": "Lever audit retains 44 failures: 12 R6 guards (11 source lines identical at entry, one at the extracted C5 guard) and 32 B2 registrations absent from the 4.25 binary union. No exception was added.",
+  "fixture_exit_correction": "An extra exit check initially used the older 09442c map hash. It was corrected to the newer 09444r asset receipt already verified at entry; current map and all entry-checked assets match. Original mismatch audit retained."
+}
