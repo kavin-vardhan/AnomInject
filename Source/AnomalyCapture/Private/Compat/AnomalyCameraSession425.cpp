@@ -1,6 +1,7 @@
 #include "AnomalyCameraSession425.h"
 #include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
+#include "AnomalyCaptureLabels425.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStreetBench425.h"
@@ -72,7 +73,7 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
     Receipt->SetNumberField(TEXT("near_start"),NearStart); Receipt->SetNumberField(TEXT("pose_hold"),PoseHold);
     Receipt->SetBoolField(TEXT("far_only"),FarOnly);
     FString Text; auto W=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(Receipt,W);
-    FFileHelper::SaveStringToFile(Text,*(Output/TEXT("camera-session-start.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    if (AnomalyCaptureC2::Evidence()) { FFileHelper::SaveStringToFile(Text,*(Output/TEXT("camera-session-start.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM); }
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 camera_clipping session held=%d baseline=%.3f near=%.3f bench=%d"),Active,Baseline,GNearClippingPlane,Bench);
     return Active;
 }

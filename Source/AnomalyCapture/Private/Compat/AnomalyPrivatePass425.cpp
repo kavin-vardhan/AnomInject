@@ -1,6 +1,7 @@
 #include "AnomalyPrivatePass425.h"
 #include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
+#include "AnomalyCaptureLabels425.h"
 #include "AnomalyPrivatePolicy425.h"
 #include "AnomalyPrivate425Shader.h"
 #include "AnomalyHostDepth425.h"
@@ -291,7 +292,7 @@ void Start(UWorld* World,const FString& Output)
         }
     }
     { FScopeLock Lock(&Guard); Pending.Reset(); Bound.Reset(); }
-    const bool Costs=AnomalyBenchGate::IsCapture425Enabled();
+    const bool Costs=AnomalyBenchGate::IsCapture425Enabled() && AnomalyCaptureC2::Evidence();
     ENQUEUE_RENDER_COMMAND(AnomalyPrivateBegin425)([Output,Costs](FRHICommandListImmediate& Cmd)
     { Poll_RenderThread(Cmd); Slots.Reset(); RenderDirectory=Output; Measure=Costs; });
 }

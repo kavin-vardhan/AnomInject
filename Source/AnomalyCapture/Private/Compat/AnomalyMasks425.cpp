@@ -395,7 +395,7 @@ bool FAnomalyMasks425::Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& F
     if (Request == 1) { UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425 C3: shaders_loaded=visible425,reduce local_rdg=1 output=native_view depth_bias=0.000001")); }
     return true;
 }
-bool FAnomalyMasks425::Save(const FAnomalyCapturedFrame& Frame, const FString& Output, bool Flat)
+bool FAnomalyMasks425::Save(const FAnomalyCapturedFrame& Frame, const FString& Output, bool Flat, bool Evidence)
 {
     if (Frame.MaskData425.Num() != Frame.Width * Frame.Height * 16 || Frame.MaskTable425.Num() != 1536) { return false; }
     const uint32* Data = reinterpret_cast<const uint32*>(Frame.MaskData425.GetData());
@@ -418,12 +418,13 @@ bool FAnomalyMasks425::Save(const FAnomalyCapturedFrame& Frame, const FString& O
     uint32 MaskPixels = 0;
     for (int32 Tag = 1; Tag <= 255; ++Tag) { MaskPixels += Cpu[Tag*6]; }
     if (!Frame.LabelKey425.MaskTarget && MaskPixels) { return false; }
-    if (MaskPixels || Flat)
+    if (MaskPixels)
     {
         TArray<uint8> Png;
         if (!AnomalyPreview::EncodePixels(AnomalyPreview::EImageFormat::PNG,Pixels,Frame.Width,Frame.Height,Png,0) ||
             !FFileHelper::SaveArrayToFile(Png,*(Output/(Flat ? FString::Printf(TEXT("target_mask/frame_%05llu.png"),Frame.RequestId-1) : TEXT("mask-")+Stem+TEXT(".png"))))) { return false; }
     }
+    if (!Evidence) { return true; }
     TArray<uint8> Planes;
     const uint8* Bytes=Frame.MaskData425.GetData();
     const bool Planar=AnomalyCaptureC2::Street();

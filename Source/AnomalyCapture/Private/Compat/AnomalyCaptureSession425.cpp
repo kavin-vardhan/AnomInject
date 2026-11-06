@@ -86,9 +86,9 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
         WriterDrains += AnomalyWriteQueue425::MakeRoom(Writes,[this](bool Good) { if (Good) { ++Completed; } else { ++Failures; } });
-        Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path, MaskOutput, Flat=FreePlay]()
+        Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path, MaskOutput, Flat=FreePlay, Evidence=AnomalyCaptureC2::Evidence()]()
         {
-            if (!MaskOutput.IsEmpty() && !FAnomalyMasks425::Save(Frame,MaskOutput,Flat)) { return false; }
+            if (!MaskOutput.IsEmpty() && !FAnomalyMasks425::Save(Frame,MaskOutput,Flat,Evidence)) { return false; }
             TArray<FColor> Pixels; Pixels.SetNumUninitialized(Frame.Width * Frame.Height);
             for (int32 I = 0; I < Pixels.Num(); ++I)
             {
@@ -175,7 +175,7 @@ void FAnomalyCaptureSession425::Stop()
     if (FreePlay) { Json.RemoveAt(Json.Len()-1); Json+=FString::Printf(TEXT(",\"stopped_by_user\":%s}"),UserStopped ? TEXT("true") : TEXT("false")); }
     if (AnomalyCaptureC2::Masks()) { Json.ReplaceInline(TEXT("\"masks\":\"unavailable\""),TEXT("\"masks\":\"stencil-depth-rdg425\"")); }
 
-    bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    bool Saved = !AnomalyCaptureC2::Evidence() || FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     if (FreePlay && Saved && LabelsPassed)
     {
         Saved=IFileManager::Get().Move(*(Output/TEXT("run_summary.json")),*(Output/TEXT("run_summary.pending.json")),false,true,false,true);

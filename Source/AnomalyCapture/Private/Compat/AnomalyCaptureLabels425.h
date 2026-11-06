@@ -46,6 +46,7 @@ private:
     double Started = 0;
     TMap<uint64, TSharedPtr<FJsonObject>> Pending;
     TMap<int32, TSharedPtr<FJsonObject>> Frames;
+    TMap<FString,TSharedPtr<FJsonObject>> MaskMap;
     TArray<TSharedPtr<FJsonValue>> Commands;
     TMap<FString,TSharedPtr<FJsonObject>> Events;
     TSet<FString> PreviousFires;
@@ -66,6 +67,7 @@ namespace AnomalyCaptureC2
     bool Enabled();
     bool Street();
     bool FreePlay();
+    bool Evidence();
     bool Boundary();
     bool Masks();
     void Finished(UWorld* World, bool Success);

@@ -49,6 +49,11 @@ namespace
     bool CaptureGeometry425 = false;
     bool CaptureExit425 = true;
     bool CaptureFreePlay425 = false;
+    bool CaptureEvidence425 = false;
+#if !UE_BUILD_SHIPPING
+    int32 CaptureEvidenceSetting425 = 0;
+    FAutoConsoleVariableRef CaptureEvidenceCommand425(TEXT("IAI.Capture.Evidence"),CaptureEvidenceSetting425,TEXT("Dev-only dashboard verification files; default off"));
+#endif
     bool CaptureStarting425 = false;
     TWeakObjectPtr<UWorld> CaptureOwner425;
     FDelegateHandle CaptureWarmup425;
@@ -96,7 +101,7 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     UAnomalyAutoInjectorSubsystem* Auto = World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
     if (!Auto || Auto->IsRunning() || Auto->GetLiveFireCount()) { return false; }
     auto Routes=MakeShared<FJsonObject>(); Routes->SetArrayField(TEXT("routes"),RouteRows425());
-    if (!FFileHelper::SaveStringToFile(Json425(Routes),*(Directory/TEXT("routes.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { return false; }
+    if (AnomalyCaptureC2::Evidence() && !FFileHelper::SaveStringToFile(Json425(Routes),*(Directory/TEXT("routes.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { return false; }
     if (!AnomalyHostDepth425::Admit(World,Directory)) { return false; }
     AnomalyPrivate425::Start(World,Directory);
     Owner = World; Output = Directory; RunEpoch = ++CaptureEpoch425; Size = World->GetGameViewport()->Viewport->GetSizeXY();
@@ -274,7 +279,29 @@ bool FAnomalyCaptureLabels425::Observe(const FAnomalyCapturedFrame& Frame)
     for (const auto& Value:Row->GetArrayField(TEXT("sampled_states")))
     {
         auto State=Value->AsObject(); uint32 Pixels=0,Drawn=0;
-        for (const auto& Tag:State->GetArrayField(TEXT("target_tags"))) { Pixels+=Counts[int32(Tag->AsNumber())]; Drawn+=Frame.MaskTable425[int32(Tag->AsNumber())*6+5]; }
+        for (const auto& Tag:State->GetArrayField(TEXT("target_tags")))
+        {
+            const int32 V=int32(Tag->AsNumber()); Pixels+=Counts[V]; Drawn+=Frame.MaskTable425[V*6+5];
+            if (CaptureFreePlay425)
+            {
+                const FString Key=State->GetStringField(TEXT("event_id"))+FString::Printf(TEXT("|%d"),V);
+                auto& Entry=MaskMap.FindOrAdd(Key);
+                if (!Entry)
+                {
+                    Entry=MakeShared<FJsonObject>(); Entry->SetNumberField(TEXT("mask_value"),V);
+                    Entry->SetStringField(TEXT("event_id"),State->GetStringField(TEXT("event_id")));
+                    Entry->SetStringField(TEXT("target_name"),State->GetStringField(TEXT("target_name")));
+                    Entry->SetStringField(TEXT("anomaly_type"),State->GetStringField(TEXT("id")));
+                    Entry->SetNumberField(TEXT("first_frame"),-1); Entry->SetNumberField(TEXT("last_frame"),-1);
+                }
+                if (Counts[V])
+                {
+                    const double Index=double(Frame.RequestId-1),First=Entry->GetNumberField(TEXT("first_frame"));
+                    Entry->SetNumberField(TEXT("first_frame"),First<0 ? Index : FMath::Min(First,Index));
+                    Entry->SetNumberField(TEXT("last_frame"),FMath::Max(Entry->GetNumberField(TEXT("last_frame")),Index));
+                }
+            }
+        }
         const bool Whole=State->GetBoolField(TEXT("whole_frame"));
         const bool Injected=State->GetBoolField(TEXT("injected")),Visible=Injected && (Whole || Pixels>0);
         State->SetBoolField(TEXT("labelled"),Visible); State->SetBoolField(TEXT("affected"),Visible); State->SetNumberField(TEXT("mask_pixels"),Pixels); State->SetNumberField(TEXT("drawn_pixels"),Drawn);
@@ -314,7 +341,7 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
             Row->SetField(TEXT("mask"),MakeShared<FJsonValueNull>());
             Row->SetStringField(TEXT("mask_state"),TEXT("empty"));
         }
-        Row->SetStringField(TEXT("mask_evidence"),FString::Printf(TEXT("evidence-%06d.u32x4.zlib"),Key.SessionIndex));
+        if (AnomalyCaptureC2::Evidence()) { Row->SetStringField(TEXT("mask_evidence"),FString::Printf(TEXT("evidence-%06d.u32x4.zlib"),Key.SessionIndex)); }
         Row->SetNumberField(TEXT("mask_target_tag"),Key.MaskTarget);
     }
     if (CaptureFreePlay425)
@@ -375,7 +402,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete,bo
         }
     }
     const FString PrivateState=Json425(AnomalyPrivate425::State(true));
-    FFileHelper::SaveStringToFile(PrivateState,*(Output/TEXT("private-availability.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    if (AnomalyCaptureC2::Evidence()) { FFileHelper::SaveStringToFile(PrivateState,*(Output/TEXT("private-availability.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM); }
     const bool Restored = !MaskOwner || MaskOwner->Restore();
     if (!Restored || (Street && !Street->Stop())) { Failure = TEXT("Stencil restoration failed"); }
     FApp::SetFixedDeltaTime(SavedDelta); FApp::SetUseFixedTimeStep(SavedFixed); CapturePace425 = SavedPace;
@@ -409,12 +436,32 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete,bo
     Result->SetArrayField(TEXT("events"),EventRows); Result->SetArrayField(TEXT("stencil_owners"),Owners);
     const bool Saved = FFileHelper::SaveStringToFile(Lines,*(Output/TEXT("labels.jsonl")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM) &&
         AnomalyAnnotation425::WriteSessionAnnotation(Output,Annotation) &&
-        FFileHelper::SaveStringToFile(Json425(Result),*(Output/TEXT("labels-receipt.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+        (!AnomalyCaptureC2::Evidence() || FFileHelper::SaveStringToFile(Json425(Result),*(Output/TEXT("labels-receipt.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
     if (!Saved) { Failure = TEXT("Label write failed"); }
+    if (CaptureFreePlay425 && Saved)
+    {
+        auto Map=MakeShared<FJsonObject>(); Map->SetStringField(TEXT("type"),TEXT("target_mask_map"));
+        Map->SetStringField(TEXT("note"),
+			TEXT("One entry per (mask_value, event). Stencil tag values are REUSED across events, so a "
+				 "value alone does not identify an event - key on mask_value together with the frame range. "
+				 "m49-A2: first_frame/last_frame are now scoped to THIS EVENT. Before m49-A2 they were keyed "
+				 "on the stencil VALUE alone, so two events sharing a reused value reported one merged range "
+				 "for both - which broke the very disambiguation this note asks you to perform. -1 on both "
+				 "means the event's tag was never counted non-zero in any measured mask. "
+				 "Values are the 8-bit pixel values in target_mask/frame_NNNNN.png; 0 is background. Only "
+				 "ANOMALY TARGETS appear - this is not a mask of every object in the scene."));
+        TArray<FString> Keys; MaskMap.GetKeys(Keys); Keys.Sort(); TArray<TSharedPtr<FJsonValue>> Entries;
+        for (const auto& Key:Keys) { Entries.Add(MakeShared<FJsonValueObject>(MaskMap[Key])); }
+        Map->SetArrayField(TEXT("entries"),Entries);
+        if (!FFileHelper::SaveStringToFile(Json425(Map),*(Output/TEXT("mask_map.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { Failure=TEXT("Mask map write failed"); }
+    }
     if (CaptureFreePlay425 && Saved && !Failed() && Complete && !Dropped && Written==Frames.Num() && !Pending.Num())
     {
         Summary->SetNumberField(TEXT("total_frames"),Written);
-        Summary->SetNumberField(TEXT("target_mask_frames_measured"),Written);
+        int32 Measured=0;
+        for (const auto& Pair:Frames) { Measured+=Pair.Value->GetBoolField(TEXT("mask_nonempty")) ? 1 : 0; }
+        Summary->SetNumberField(TEXT("target_mask_frames_measured"),Measured);
+        Summary->SetNumberField(TEXT("target_mask_frames_hidden_blank"),Written-Measured);
         Summary->SetNumberField(TEXT("dropped_frames"),Dropped);
         Summary->SetBoolField(TEXT("stopped_by_user"),StoppedByUser);
         Summary->SetStringField(TEXT("result"),TEXT("PASS"));
@@ -425,6 +472,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete,bo
 
 bool AnomalyCaptureC2::Street() { return CaptureStreet425; }
 bool AnomalyCaptureC2::FreePlay() { return CaptureFreePlay425; }
+bool AnomalyCaptureC2::Evidence() { return !CaptureFreePlay425 || CaptureEvidence425; }
 bool AnomalyCaptureC2::Enabled() { return CaptureLive425; }
 bool AnomalyCaptureC2::Boundary() { return false; }
 bool AnomalyCaptureC2::Masks() { return CaptureLive425; }
@@ -474,6 +522,11 @@ bool AnomalyCaptureC2::StartFreePlay(UWorld* World,const FString& Root,int32 See
     });
     CaptureSeed425=Seed; CaptureCount425=Count; CaptureOwner425=World;
     CaptureLive425=true; CaptureStreet425=false; CaptureGeometry425=false; CaptureFreePlay425=true;
+#if !UE_BUILD_SHIPPING
+    CaptureEvidence425=CaptureEvidenceSetting425!=0;
+#else
+    CaptureEvidence425=false;
+#endif
     return true;
 }
 bool AnomalyCaptureC2::StartC5(UWorld* World,const FString& Root,int32 Seed,const TArray<FString>& Routes,bool ExitOnFinish,FString& Error)

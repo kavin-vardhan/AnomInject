@@ -1,5 +1,6 @@
 #include "AnomalyCaptureDiagnostic425.h"
 #if ANOMALY_CAPTURE_FRAMES425
+#include "AnomalyCaptureLabels425.h"
 #include "AnomalyUiMarker425.h"
 #include "AnomalyPixel425.h"
 #include "AnomalyPreviewCapture.h"
@@ -141,6 +142,7 @@ bool FAnomalyCaptureDiagnostic425::Stop()
     Enabled=false; UDebugDrawService::Unregister(DrawHandle);
     if (FSlateApplication::IsInitialized()) { FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().Remove(BackbufferHandle); }
     FlushRenderingCommands();
+    if (!AnomalyCaptureC2::Evidence()) { return true; }
     bool Saved=true;
     for (int32 I=0;I<ControlPixels.Num();++I)
     {

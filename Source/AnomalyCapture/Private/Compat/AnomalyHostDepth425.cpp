@@ -1,6 +1,7 @@
 #include "AnomalyHostDepth425.h"
 #include "AnomalyBenchGate.h"
 #if ANOMALY_CAPTURE_FRAMES425
+#include "AnomalyCaptureLabels425.h"
 #include "AnomalyCaptureLog.h"
 #include "AnomalyStencilTag.h"
 #include "AnomalyPrivatePass425.h"
@@ -88,7 +89,7 @@ bool AnomalyHostDepth425::Admit(UWorld* World,const FString& Directory)
     const auto* Mode=IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
     R->SetNumberField(TEXT("custom_depth_mode"),Mode ? Mode->GetInt() : -1);
     FString Text; auto Writer=TJsonWriterFactory<>::Create(&Text); FJsonSerializer::Serialize(R.ToSharedRef(),Writer);
-    const bool Saved=FFileHelper::SaveStringToFile(Text,*(Directory/TEXT("host-custom-depth.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    const bool Saved=!AnomalyCaptureC2::Evidence() || FFileHelper::SaveStringToFile(Text,*(Directory/TEXT("host-custom-depth.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
     UE_LOG(LogAnomalyCapture,Log,TEXT("Capture425 host custom-depth %s readers=%d writers=%d unknown=%d tagged=%d bench_bypass=%d"),ScanResult.Name(),ScanResult.Readers,ScanResult.Writers,ScanResult.Unknown,Tagged.Num(),Bypass?1:0);
     if (!Allowed) { UE_LOG(LogAnomalyCapture,Warning,TEXT("C5 refused: host custom-depth %s"),ScanResult.Name()); }
     return Saved && Allowed && Tagged.Num()==0;

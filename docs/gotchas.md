@@ -10723,3 +10723,8 @@ Dashboard 4.25 capture uses StartFreePlayRun, not StartC5Run. Do not restore a 2
 ## G572 ? Library completion and flat 4.25 sessions
 
 Dashboard captures need annotation.json, labels.jsonl and run_summary.json directly under session_<timestamp>. Actual_Frames/frame_00000.png and target_mask/frame_00000.png match the desktop reader. Emit session_index, mask_file, mask_value and projected bbox_px [x,y,width,height] without changing target-mask pixels or label identity. Publish run_summary only after drained writers, labels, annotation, restoration and capture receipt succeed. Clean until-stop is complete for the accepted frame count. Console C4/C5 keep epoch01 and old paths. Verify with the actual sessions.rs/overlay.rs and desktop Library, not a replacement parser. The ordinary scene still fails the exact texture-change silhouette requirement; flat layout does not waive it.
+
+
+## G573 - Delivery files and verification files are different output policies
+
+Dashboard425 evidence is opt-in per session through IAI.Capture.Evidence1; consoleC4/C5 retain their evidence regardless. Omit empty target-mask PNGs, leave their mask_file null, and count only written PNGs in target_mask_frames_measured. Otherwise Library finalization waits for files that should not exist. Write the5.1 mask_map schema from event-scoped measured tags before the terminal summary. Never leave mask_evidence pointing at an omitted file. A Library observer must require the exact new session id and capture root, not a generic frame count that an old session can also satisfy. GR6 does not clear measured non-whole-frame IoU failures.
