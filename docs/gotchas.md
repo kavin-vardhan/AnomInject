@@ -10692,3 +10692,24 @@ A drive-prefixed absolute frontend path can select the URL variant and build an 
 ### G565. Pixel qualification does not replace exact protocol or lifecycle qualification
 
 A2352-frame dashboard capture can pass independent H4/texture/depth gates while its console-equivalence receipts differ. A successful stop response can still leave requested frames dropped. Preserve exact failed rows and honest FAIL artifacts; do not normalize extra fields, sort a failed route order, shrink the capture or relabel dropped partial output as a pass.
+
+
+### G566. A libwebsockets context is not proof of a bound listener
+
+The 4.25 occupied-port case announced LISTENING with an exclusive blocker present. Verify the actual owned loopback TCP listener after context creation; destroy a deferred/unbound context on refusal so it cannot bind after the blocker disappears. The repaired native cases refuse the blocker, permit exclusive rebinding after release, and require an explicit restart.
+
+### G567. Normal capture stop must retain accepted readbacks
+
+Destroying the backend at Stop discarded four accepted requests in the parent39/35 case. Normal stop now retains ownership and drains across ticks, then publishes final immutable counts. Test the actual accepted/written/paired indices and restoration; never hide dropped requests or shorten the planned2352 schedule. Keep failure/teardown separate from normal stop.
+
+### G568. Close the native dashboard window, not every visible owned window
+
+The owned process also exposes a visible Tao Thread Event Target. The corrected close harness selects the unique Anomaly Dashboard main window and posts native SC_CLOSE. All five current desktop processes exit0 without forced cleanup. The parent's two-window WM_CLOSE failure remains preserved; no tray behavior is inferred.
+
+### G569. A posted console query is not an observed CVar reply
+
+The new B run posted its index2300 query0.622 seconds after C5 completion. Both posts succeeded but only two direct r.CustomDepth replies exist. The unchanged three-observation gate remains failed, despite passing pixels and zero drops. Budget inventory work in a monitoring loop can delay observations; its exact per-call latency was not measured here. Do not substitute a posted-message receipt for the missing reading or spend an unapproved full-capture retry.
+
+### G570. Keep discovery observation inside its bounded readiness window
+
+The first configured D11 observation stopped when an extra injected discovery query rejected; the old observer discarded its exception details. The source frontend catches discovery errors and polls again. The corrected observer records a rejection without credentials and continues within the same90-second deadline, while still requiring native PID/credential discovery, welcome, catalog, snapshots, Connected state and LOD visibility. A rejected query never counts as a pass; permanent or wrong-PID results still fail. The native rejection's original cause is not established.
