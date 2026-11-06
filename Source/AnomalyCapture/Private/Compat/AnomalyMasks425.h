@@ -28,7 +28,7 @@ public:
     static FString Diagnostic(UWorld* World);
     static bool Render(FRHICommandListImmediate& Cmd, FSceneViewFamily& Family, uint64 Request, uint64 Selected,
         FAnomalyFrameCapturer& Capturer);
-    static bool Save(const FAnomalyCapturedFrame& Frame, const FString& Output);
+    static bool Save(const FAnomalyCapturedFrame& Frame, const FString& Output, bool Flat=false);
 private:
     FAnomalyStencilTagLedger Ledger;
     TWeakObjectPtr<UWorld> Owner;

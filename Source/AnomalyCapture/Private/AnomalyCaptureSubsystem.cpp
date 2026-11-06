@@ -3607,7 +3607,7 @@ bool UAnomalyCaptureSubsystem::StartFreePlayRun(const FString& RunDirectory,int3
     if (!AnomalyCaptureC2::StartFreePlay(GetWorld(),RunDirectory,InSeed,InFrameCap,Routes,OutError)) { return false; }
     Frames425=MakeUnique<FAnomalyCaptureSession425>();
     Seed=InSeed; FrameCap=InFrameCap; FramesWritten=0; SessionFrameIndex=0;
-    LastRunDir=RunDirectory/TEXT("epoch01"); RunDir=LastRunDir; SessionId=FPaths::GetCleanFilename(RunDirectory);
+    LastRunDir=RunDirectory; RunDir=LastRunDir; SessionId=FPaths::GetCleanFilename(RunDirectory);
     bRunning=Frames425->Start(GetWorld(),LastRunDir,InFrameCap);
     if (!bRunning) { OutError=TEXT("Free-play capture initialization refused"); AnomalyCaptureC2::Finished(GetWorld(),false); }
     return bRunning;

@@ -198,10 +198,20 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
         const bool FoundBox=Actor && AnomalyViewport::GetActorLabelBounds(Actor,Box);
         const auto Geometry=AnomalyFrozenGeometry::Freeze(Fire.bWholeFrameExtent,Actor!=nullptr,!Fire.Target.IsEmpty(),FoundBox,Box);
         FVector2D Min,Max;
-        AnomalyFrozenGeometry::Resolve(Geometry,View,[](const FAnomalyViewInfo& V,const FBox& B,FVector2D& A,FVector2D& Z)
+        const bool BoxValid=AnomalyFrozenGeometry::Resolve(Geometry,View,[](const FAnomalyViewInfo& V,const FBox& B,FVector2D& A,FVector2D& Z)
         { return AnomalyViewport::ProjectBoxToScreenRect(V,B,A,Z); },Min,Max);
         const double Coverage=FMath::Max(0.0,double(FMath::Clamp(Max.X,0.0f,1.0f)-FMath::Clamp(Min.X,0.0f,1.0f)))*FMath::Max(0.0,double(FMath::Clamp(Max.Y,0.0f,1.0f)-FMath::Clamp(Min.Y,0.0f,1.0f)));
         State->SetNumberField(TEXT("projected_screen_share"),Coverage);
+        if (CaptureFreePlay425)
+        {
+            auto Num=[](double V) { return MakeShared<FJsonValueNumber>(V); };
+            const double X0=FMath::Clamp(double(Min.X)*Size.X,0.0,double(Size.X)),Y0=FMath::Clamp(double(Min.Y)*Size.Y,0.0,double(Size.Y));
+            const double X1=FMath::Clamp(double(Max.X)*Size.X,0.0,double(Size.X)),Y1=FMath::Clamp(double(Max.Y)*Size.Y,0.0,double(Size.Y));
+            State->SetBoolField(TEXT("bbox_valid"),BoxValid);
+            State->SetArrayField(TEXT("bbox_norm"),{Num(Min.X),Num(Min.Y),Num(Max.X),Num(Max.Y)});
+            State->SetArrayField(TEXT("bbox_px"),{Num(X0),Num(Y0),Num(X1-X0),Num(Y1-Y0)});
+            State->SetNumberField(TEXT("mask_value"),Tags.Num()==1 ? Tags[0] : 0);
+        }
         bool Unconfirmed=false;
         if (Fire.Id==FName(TEXT("camera_clipping")) && Row->TryGetBoolField(TEXT("camera_clipping.unconfirmed"),Unconfirmed) && Unconfirmed)
         { auto& T=Transitions.FindOrAdd(Key+TEXT("|")+Fire.Target); T.Frames.Add(int32(Request-1)); ++T.Reasons.FindOrAdd(TEXT("camera_clipping_unconfirmed")); }
@@ -296,7 +306,7 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
         Row->SetNumberField(TEXT("eye_adaptation_quality"),EyeAdaptation ? EyeAdaptation->GetInt() : -1);
         if (Row->GetBoolField(TEXT("mask_nonempty")))
         {
-            Row->SetStringField(TEXT("mask"),FString::Printf(TEXT("mask-%06d.png"),Key.SessionIndex));
+            Row->SetStringField(TEXT("mask"),CaptureFreePlay425 ? FString::Printf(TEXT("target_mask/frame_%05d.png"),Key.SessionIndex) : FString::Printf(TEXT("mask-%06d.png"),Key.SessionIndex));
             Row->SetStringField(TEXT("mask_state"),TEXT("present"));
         }
         else
@@ -306,6 +316,11 @@ bool FAnomalyCaptureLabels425::Pair(const FAnomalyLabelKey425& Key, const FStrin
         }
         Row->SetStringField(TEXT("mask_evidence"),FString::Printf(TEXT("evidence-%06d.u32x4.zlib"),Key.SessionIndex));
         Row->SetNumberField(TEXT("mask_target_tag"),Key.MaskTarget);
+    }
+    if (CaptureFreePlay425)
+    {
+        Row->SetNumberField(TEXT("session_index"),Key.SessionIndex);
+        Row->SetField(TEXT("mask_file"),Row->Values[TEXT("mask")]);
     }
     Row->SetStringField(TEXT("image"), File); Row->SetNumberField(TEXT("family_frame"), Key.FamilyFrame);
     Row->SetNumberField(TEXT("aa"), Key.AA); Row->SetStringField(TEXT("pairing"), TEXT("post_actor_tick_to_post_render_family"));
@@ -349,7 +364,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete,bo
     if (!SessionGlobals.Stop()) { Failure=TEXT("Session global restoration failed"); }
     auto Summary=SessionGlobals.Summary();
     Summary->SetNumberField(TEXT("label_transition_camera_clipping_unconfirmed_entries"),AnomalyTransitionCounts425::CameraUnconfirmedEntries(Transitions));
-    FFileHelper::SaveStringToFile(Json425(Summary),*(Output/TEXT("run_summary.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    if (!CaptureFreePlay425) { FFileHelper::SaveStringToFile(Json425(Summary),*(Output/TEXT("run_summary.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM); }
     TArray<TSharedPtr<FJsonValue>> Owners;
     if (MaskOwner)
     {
@@ -373,7 +388,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete,bo
     SortedEvents.Sort([](const TSharedPtr<FJsonObject>& A,const TSharedPtr<FJsonObject>& B) { return A->GetNumberField(TEXT("start_frame")) < B->GetNumberField(TEXT("start_frame")); });
     for (const auto& Event : SortedEvents) { EventRows.Add(MakeShared<FJsonValueObject>(Event)); }
     AnomalyAnnotation425::FSessionAnnotation Annotation; Annotation.SessionId=FPaths::GetCleanFilename(Output);
-    Annotation.Video.FramesDir=TEXT("."); Annotation.Video.ResolutionW=Size.X; Annotation.Video.ResolutionH=Size.Y;
+    Annotation.Video.FramesDir=CaptureFreePlay425 ? TEXT("Actual_Frames") : TEXT("."); Annotation.Video.ResolutionW=Size.X; Annotation.Video.ResolutionH=Size.Y;
     Annotation.Transitions=Transitions;
     Annotation.Video.TotalFrames=Written; Annotation.Video.Fps=30; Annotation.Video.TargetFps=30;
     for (const auto& Event:SortedEvents)
@@ -395,7 +410,17 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete,bo
     const bool Saved = FFileHelper::SaveStringToFile(Lines,*(Output/TEXT("labels.jsonl")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM) &&
         AnomalyAnnotation425::WriteSessionAnnotation(Output,Annotation) &&
         FFileHelper::SaveStringToFile(Json425(Result),*(Output/TEXT("labels-receipt.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    if (!Saved) { Failure = TEXT("Label write failed"); } Pending.Empty();
+    if (!Saved) { Failure = TEXT("Label write failed"); }
+    if (CaptureFreePlay425 && Saved && !Failed() && Complete && !Dropped && Written==Frames.Num() && !Pending.Num())
+    {
+        Summary->SetNumberField(TEXT("total_frames"),Written);
+        Summary->SetNumberField(TEXT("target_mask_frames_measured"),Written);
+        Summary->SetNumberField(TEXT("dropped_frames"),Dropped);
+        Summary->SetBoolField(TEXT("stopped_by_user"),StoppedByUser);
+        Summary->SetStringField(TEXT("result"),TEXT("PASS"));
+        if (!FFileHelper::SaveStringToFile(Json425(Summary),*(Output/TEXT("run_summary.pending.json")),FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM)) { Failure=TEXT("Summary write failed"); }
+    }
+    Pending.Empty();
 }
 
 bool AnomalyCaptureC2::Street() { return CaptureStreet425; }
@@ -437,7 +462,7 @@ bool AnomalyCaptureC2::StartFreePlay(UWorld* World,const FString& Root,int32 See
     if (!AnomalyCaptureAdmission425::Routes(TCHAR_TO_UTF8(*FString::Join(Routes,TEXT(","))),true,
         [&Pool](const std::string& Id) { return Pool.Contains(UTF8_TO_TCHAR(Id.c_str())); },Validated)) { Error=TEXT("Invalid capture routes"); return false; }
     if (Root.IsEmpty() || FPaths::IsRelative(Root) || IFileManager::Get().DirectoryExists(*Root) ||
-        !IFileManager::Get().MakeDirectory(*Root,true)) { Error=TEXT("Capture requires a fresh absolute run directory"); return false; }
+        !IFileManager::Get().MakeDirectory(*FPaths::GetPath(Root),true)) { Error=TEXT("Capture requires a fresh absolute run directory"); return false; }
     CaptureExit425=false;
     CaptureRoutes425=Routes;
     const TArray<FString> Order={TEXT("blinking"),TEXT("lod_corruption"),TEXT("missing_texture"),TEXT("corrupted_texture")};

@@ -35,6 +35,7 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     FreePlay=AnomalyCaptureC2::FreePlay();
     if (Running || !World || !World->IsGameWorld() || (FreePlay ? InCount<0 : InCount<1 || InCount>8192) || FPaths::IsRelative(Directory) || IFileManager::Get().DirectoryExists(*Directory)) { return false; }
     if (!IFileManager::Get().MakeDirectory(*Directory, true)) { return false; }
+    if (FreePlay && (!IFileManager::Get().MakeDirectory(*(Directory/TEXT("Actual_Frames")),true) || !IFileManager::Get().MakeDirectory(*(Directory/TEXT("target_mask")),true))) { return false; }
     FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     Backend = AnomalyCompat::CreateCaptureBackend425();
     SessionWorld = World;
@@ -68,7 +69,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
             ++Failures; continue;
         }
         LastProgress=FPlatformTime::Seconds();
-        const FString Name = FString::Printf(TEXT("frame-%06llu.png"), Frame.RequestId - 1);
+        const FString Name = FreePlay ? FString::Printf(TEXT("Actual_Frames/frame_%05llu.png"),Frame.RequestId-1) : FString::Printf(TEXT("frame-%06llu.png"), Frame.RequestId - 1);
         const FString Path = Output / Name;
         const FString MaskOutput = AnomalyCaptureC2::Masks() ? Output : FString();
         if (Labels) { FAnomalyMasks425::Observe(Frame); if (!Labels->Observe(Frame)) { ++Failures; continue; } }
@@ -85,9 +86,9 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
         Rows.Add(FString::Printf(TEXT("{\"index\":%llu,\"request\":%llu,\"file\":\"%s\",\"width\":%d,\"height\":%d,\"format\":%d,\"aa\":%d}"),
             Frame.RequestId - 1, Frame.RequestId, *Name, Frame.Width, Frame.Height, int32(Frame.Format), Frame.TemporalAaMethod));
         WriterDrains += AnomalyWriteQueue425::MakeRoom(Writes,[this](bool Good) { if (Good) { ++Completed; } else { ++Failures; } });
-        Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path, MaskOutput]()
+        Writes.Add(Async(EAsyncExecution::ThreadPool, [Frame = MoveTemp(Frame), Path, MaskOutput, Flat=FreePlay]()
         {
-            if (!MaskOutput.IsEmpty() && !FAnomalyMasks425::Save(Frame,MaskOutput)) { return false; }
+            if (!MaskOutput.IsEmpty() && !FAnomalyMasks425::Save(Frame,MaskOutput,Flat)) { return false; }
             TArray<FColor> Pixels; Pixels.SetNumUninitialized(Frame.Width * Frame.Height);
             for (int32 I = 0; I < Pixels.Num(); ++I)
             {
@@ -174,7 +175,11 @@ void FAnomalyCaptureSession425::Stop()
     if (FreePlay) { Json.RemoveAt(Json.Len()-1); Json+=FString::Printf(TEXT(",\"stopped_by_user\":%s}"),UserStopped ? TEXT("true") : TEXT("false")); }
     if (AnomalyCaptureC2::Masks()) { Json.ReplaceInline(TEXT("\"masks\":\"unavailable\""),TEXT("\"masks\":\"stencil-depth-rdg425\"")); }
 
-    const bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    if (FreePlay && Saved && LabelsPassed)
+    {
+        Saved=IFileManager::Get().Move(*(Output/TEXT("run_summary.json")),*(Output/TEXT("run_summary.pending.json")),false,true,false,true);
+    }
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: finish RHI=%s written=%d requested=%d dropped=%d receipt=%d"), *RHI, Completed, Requested, Dropped, Saved ? 1 : 0);
     UE_LOG(LogAnomalyCapture, Log, TEXT("Capture425: writer peak=%d limit=%d drains=%d"),PeakPendingWrites,AnomalyWriteQueue425::MaxPending,WriterDrains);
     Backend.Reset();

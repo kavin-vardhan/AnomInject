@@ -10718,3 +10718,8 @@ The first configured D11 observation stopped when an extra injected discovery qu
 ## G571 — Free-play capture is not the qualified street fixture
 
 Dashboard 4.25 capture uses StartFreePlayRun, not StartC5Run. Do not restore a 2352-only or IAIBench check on this path. Zero frames means until stopped; terminal stop drains accepted work and reports PASS with stopped_by_user. The normal game remains open. C4/C5 console bodies retain their original gates and exit policy. Native snapshot.capture uses framesWritten; capture_status replies use frames. A plain scene may have target pixels unchanged by a texture swap, so full-silhouette IoU1 cannot be claimed from counts or masks alone. The measured F1/F3 texture failures remain open; never force them green with the C5 camera/material fixture.
+
+
+## G572 ? Library completion and flat 4.25 sessions
+
+Dashboard captures need annotation.json, labels.jsonl and run_summary.json directly under session_<timestamp>. Actual_Frames/frame_00000.png and target_mask/frame_00000.png match the desktop reader. Emit session_index, mask_file, mask_value and projected bbox_px [x,y,width,height] without changing target-mask pixels or label identity. Publish run_summary only after drained writers, labels, annotation, restoration and capture receipt succeed. Clean until-stop is complete for the accepted frame count. Console C4/C5 keep epoch01 and old paths. Verify with the actual sessions.rs/overlay.rs and desktop Library, not a replacement parser. The ordinary scene still fails the exact texture-change silhouette requirement; flat layout does not waive it.
