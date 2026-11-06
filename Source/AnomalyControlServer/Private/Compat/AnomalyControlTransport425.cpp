@@ -5,6 +5,7 @@
 #define UI UI_ST
 THIRD_PARTY_INCLUDES_START
 #include "libwebsockets.h"
+#include <iphlpapi.h>
 THIRD_PARTY_INCLUDES_END
 #undef UI
 #include "Windows/HideWindowsPlatformTypes.h"
@@ -32,6 +33,35 @@ class FAnomalyControlTransport425 final : public IAnomalyControlTransport
     uint64 NextId=1;
     size_t QueuedInbound=0;
     bool Stopping=true;
+
+    static int32 OwnedListeners(int32 Port,bool& LoopbackOnly)
+    {
+        LoopbackOnly=true;
+        DWORD Size=0;
+        DWORD Result=GetExtendedTcpTable(nullptr,&Size,false,AF_INET,TCP_TABLE_OWNER_PID_LISTENER,0);
+        for (int32 Attempt=0;Attempt<3 && Result==ERROR_INSUFFICIENT_BUFFER;++Attempt)
+        {
+            if (!Size || Size>16*1024*1024) { return -1; }
+            TArray<uint8> Buffer; Buffer.SetNumUninitialized(int32(Size));
+            Result=GetExtendedTcpTable(Buffer.GetData(),&Size,false,AF_INET,TCP_TABLE_OWNER_PID_LISTENER,0);
+            if (Result==NO_ERROR)
+            {
+                const auto* Table=reinterpret_cast<const MIB_TCPTABLE_OWNER_PID*>(Buffer.GetData());
+                int32 Count=0;
+                for (DWORD I=0;I<Table->dwNumEntries;++I)
+                {
+                    const auto& Row=Table->table[I];
+                    if (Row.dwOwningPid==GetCurrentProcessId() && ntohs(u_short(Row.dwLocalPort))==Port)
+                    {
+                        ++Count;
+                        LoopbackOnly=LoopbackOnly && ntohl(Row.dwLocalAddr)==0x7f000001;
+                    }
+                }
+                return Count;
+            }
+        }
+        return -1;
+    }
 
     static int Callback(lws* Socket,lws_callback_reasons Reason,void* User,void* Input,size_t Size)
     {
@@ -98,13 +128,15 @@ public:
     {
         check(IsInGameThread());
         if (Context || Port<1 || Port>65535) { return false; }
+        bool LoopbackOnly=false;
+        if (OwnedListeners(Port,LoopbackOnly)!=0) { return false; }
         Callbacks=MoveTemp(InCallbacks); Stopping=false;
         Protocols[0].name="anomaly-control"; Protocols[0].callback=&Callback;
         Protocols[0].per_session_data_size=sizeof(FSession); Protocols[0].rx_buffer_size=64*1024;
         lws_context_creation_info Info{}; Info.port=Port; Info.iface="127.0.0.1";
         Info.protocols=Protocols; Info.gid=-1; Info.uid=-1; Info.user=this; Info.options=LWS_SERVER_OPTION_DISABLE_IPV6;
         Context=lws_create_context(&Info);
-        if (!Context) { Stop(); return false; }
+        if (!Context || OwnedListeners(Port,LoopbackOnly)!=1 || !LoopbackOnly) { Stop(); return false; }
         return true;
     }
     void Tick() override

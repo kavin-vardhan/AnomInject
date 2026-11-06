@@ -225,6 +225,37 @@ void UAnomalyControlServerSubsystem::Tick(float DeltaTime)
 		return;
 	}
 
+#if ANOMALY_ENGINE_425
+    for (FControlConn& Conn:Transport->Conns)
+    {
+        if (!Conn.bPendingCaptureStop) { continue; }
+        auto* World=GetWorld();
+        auto* Cap=World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
+        bool Running=false; int32 Frames=0,Seed=0; FString Directory;
+        if (Cap) { Cap->GetStatus(Running,Frames,Directory,Seed); }
+        if (Running) { continue; }
+        Conn.bPendingCaptureStop=false;
+        if (!Cap || Cap->GetSessionId()!=Conn.PendingStopSession) { continue; }
+        const TSharedRef<FJsonObject> Reply=MakeShared<FJsonObject>();
+        Reply->SetStringField(TEXT("type"),TEXT("capture_stopped"));
+        Reply->SetBoolField(TEXT("running"),false);
+        Reply->SetStringField(TEXT("runDir"),Directory);
+        Reply->SetStringField(TEXT("sessionId"),Cap->GetSessionId());
+        Reply->SetNumberField(TEXT("frames"),Frames);
+        Reply->SetNumberField(TEXT("maxFrames"),Cap->GetFrameCap());
+        Reply->SetNumberField(TEXT("seed"),Seed);
+        const auto Pacing=Cap->GetLastRunPacing();
+        if (Pacing.bValid)
+        {
+            Reply->SetNumberField(TEXT("targetFps"),Pacing.TargetFps);
+            Reply->SetNumberField(TEXT("stampedFps"),Pacing.StampedFps);
+            Reply->SetNumberField(TEXT("speedRatio"),Pacing.SpeedRatio);
+            Reply->SetBoolField(TEXT("paced"),Pacing.bPaced);
+        }
+        SendJson(Conn.Id,Reply);
+    }
+#endif
+
 	Transport->Server->Tick();
 
 	if (UWorld* PumpWorld = GetWorld())
@@ -772,6 +803,15 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
 			SessionId = Cap->GetSessionId();
 			Pacing = Cap->GetLastRunPacing();
 		}
+
+#if ANOMALY_ENGINE_425
+        if (bRun)
+        {
+            Conn.bPendingCaptureStop=true;
+            Conn.PendingStopSession=SessionId;
+            return;
+        }
+#endif
 		const TSharedRef<FJsonObject> Reply = MakeShared<FJsonObject>();
 		Reply->SetStringField(TEXT("type"), TEXT("capture_stopped"));
 		Reply->SetBoolField(TEXT("running"), bRun);

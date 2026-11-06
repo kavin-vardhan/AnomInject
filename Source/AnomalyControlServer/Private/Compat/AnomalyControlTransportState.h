@@ -12,6 +12,10 @@ struct FControlConn
 	double ConnectTime = 0.0;
 	bool bSubSnapshot = false;
 	bool bSubFrames = false;
+#if ANOMALY_ENGINE_425
+    bool bPendingCaptureStop = false;
+    FString PendingStopSession;
+#endif
 };
 
 struct FAnomalyControlTransportState

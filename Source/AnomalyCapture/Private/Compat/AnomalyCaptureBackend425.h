@@ -11,6 +11,7 @@ public:
     bool PollFrame(FAnomalyCapturedFrame& Frame) override;
     void Stop() override;
     int32 Dropped() const;
+    int32 PendingFrames() const { return PendingAA.Num(); }
     FAnomalyReadbackLayout Layout() const;
     int32 PostRenderCount() const { return View.IsValid() ? View->PostRenderCount() : 0; }
     void Labelled(uint64 Epoch) { LabelEpoch = Epoch; }

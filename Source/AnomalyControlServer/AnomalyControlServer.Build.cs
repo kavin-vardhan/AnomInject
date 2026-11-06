@@ -16,6 +16,7 @@ public class AnomalyControlServer : ModuleRules
             else
             {
                 PrivateDependencyModuleNames.Add("Sockets");
+                PublicSystemLibraries.Add("Iphlpapi.lib");
                 AddEngineThirdPartyPrivateStaticDependencies(Target, "libWebSockets", "OpenSSL", "zlib");
             }
         }

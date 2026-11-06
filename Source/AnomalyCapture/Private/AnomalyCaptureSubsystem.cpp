@@ -4515,8 +4515,12 @@ void UAnomalyCaptureSubsystem::StopRun()
 {
 #if ANOMALY_CAPTURE_FRAMES425
     AnomalyCaptureC2::Cancel(GetWorld());
-    if (Frames425) { Frames425->Stop(); FramesWritten=Frames425->Written(); SessionFrameIndex=Frames425->RequestedFrames(); }
-    bRunning = false;
+    if (Frames425)
+    {
+        if (bDeinitializing) { Frames425->Stop(); } else { Frames425->RequestStop(); }
+        FramesWritten=Frames425->Written(); SessionFrameIndex=Frames425->RequestedFrames();
+    }
+    bRunning = Frames425 && Frames425->IsRunning();
 #endif
 #if ANOMALY_CAPTURE_ADVANCED
 	if (!bRunning)

@@ -430,7 +430,15 @@ bool AnomalyCaptureC2::StartC5(UWorld* World,const FString& Root,int32 Seed,cons
     if (Root.IsEmpty() || FPaths::IsRelative(Root) || IFileManager::Get().DirectoryExists(*(Root/TEXT("epoch01"))) ||
         !IFileManager::Get().MakeDirectory(*Root,true)) { Error=TEXT("C5 requires a fresh absolute run directory"); return false; }
     if (!AnomalyHostDepth425::Admit(World,Root)) { Error=TEXT("C5 host-depth/private-pass admission refused"); return false; }
-    CaptureRoutes425=Routes; CaptureSeed425=Seed;
+    CaptureRoutes425=Routes;
+    const TArray<FString> RouteOrder={TEXT("blinking"),TEXT("lod_corruption"),TEXT("missing_texture"),TEXT("corrupted_texture")};
+    CaptureRoutes425.Sort([&RouteOrder](const FString& A,const FString& B)
+    {
+        const int32 AI=RouteOrder.Find(A),BI=RouteOrder.Find(B);
+        const int32 AR=AI==INDEX_NONE ? RouteOrder.Num() : AI,BR=BI==INDEX_NONE ? RouteOrder.Num() : BI;
+        return AR==BR ? A<B : AR<BR;
+    });
+    CaptureSeed425=Seed;
     CaptureLive425=true; CaptureStreet425=true; CaptureGeometry425=false; CaptureExit425=ExitOnFinish;
     CaptureOwner425=World; CaptureCount425=FAnomalyCameraSession425::FrameCount(World,Routes);
     const uint64 Generation=++CaptureGeneration425;

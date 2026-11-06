@@ -12,6 +12,7 @@ public:
     bool Start(UWorld* World, const FString& Directory, int32 Count);
     void Tick(UWorld* World,ELevelTick TickType,FName Hook);
     void Stop();
+    void RequestStop();
     bool IsRunning() const { return Running; }
     int32 Written() const { return Completed; }
     int32 RequestedFrames() const { return Requested; }
@@ -33,6 +34,8 @@ private:
     int32 PeakPendingWrites = 0;
     int32 WriterDrains = 0;
     bool Running = false;
+    bool Draining = false;
+    double DrainStarted = 0;
     double Started = 0;
 };
 #else

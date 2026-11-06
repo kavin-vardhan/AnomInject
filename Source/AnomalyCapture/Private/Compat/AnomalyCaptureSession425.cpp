@@ -45,6 +45,7 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     }
     Output = Directory; Count = InCount; Requested = Completed = Failures = 0; NextId = 1;
     Writes.Empty(); Rows.Empty(); Running = true; Started = FPlatformTime::Seconds();
+    Draining = false; DrainStarted = 0;
     PeakPendingWrites = WriterDrains = 0;
     RHI = GDynamicRHI ? GDynamicRHI->GetName() : TEXT("unknown");
     Diagnostic=MakeUnique<FAnomalyCaptureDiagnostic425>(); Diagnostic->Start(World,Output);
@@ -56,7 +57,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
 {
     if (!Running) { return; }
     Diagnostic->Tick(TickType,Hook);
-    if (FPlatformTime::Seconds() - Started < 3.0) { return; }
+    if (!Draining && FPlatformTime::Seconds() - Started < 3.0) { return; }
     FAnomalyCapturedFrame Frame;
     while (Backend->PollFrame(Frame))
     {
@@ -111,6 +112,18 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
     {
         Stop(); return;
     }
+    if (Draining)
+    {
+        const int32 Pending=static_cast<FAnomalyCaptureBackend425*>(Backend.Get())->PendingFrames();
+        if (!Pending && !Writes.Num()) { Stop(); }
+        else if (FPlatformTime::Seconds()-DrainStarted>=10.0)
+        {
+            ++Failures;
+            UE_LOG(LogAnomalyCapture,Error,TEXT("Capture425: stop drain timeout pending=%d writers=%d"),Pending,Writes.Num());
+            Stop();
+        }
+        return;
+    }
     if (Requested < Count && (!Labels || Labels->Ready()) && Backend->RequestFrame(World, NextId))
     {
         Diagnostic->Requested(NextId,GFrameCounter);
@@ -118,6 +131,12 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
         ++NextId; ++Requested;
         if (Labels) { Labels->SetNext(Requested); }
     }
+}
+
+void FAnomalyCaptureSession425::RequestStop()
+{
+    if (!Running || Draining) { return; }
+    Draining=true; DrainStarted=FPlatformTime::Seconds();
 }
 
 void FAnomalyCaptureSession425::Stop()
