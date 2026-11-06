@@ -30,7 +30,7 @@ int32 FAnomalyCameraSession425::FrameCount(UWorld* World,const TArray<FString>& 
     return FAnomalyStreetBench425::TotalFrames;
 }
 FAnomalyCameraSession425::~FAnomalyCameraSession425() { Stop(); }
-bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes,const FString& Directory)
+bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes,const FString& Directory,bool AllowBench)
 {
     Owner=World; Output=Directory; Baseline=GNearClippingPlane;
     if (!Routes.Contains(TEXT("camera_clipping"))) { return true; }
@@ -38,7 +38,7 @@ bool FAnomalyCameraSession425::Start(UWorld* World,const TArray<FString>& Routes
     if (!Injector) { return false; }
     TArray<FString> Args;
 #if !UE_BUILD_SHIPPING
-    Bench=World->GetMapName()==TEXT("EA_Core") && AnomalyBenchGate::IsCapture425Enabled() &&
+    Bench=AllowBench && World->GetMapName()==TEXT("EA_Core") && AnomalyBenchGate::IsCapture425Enabled() &&
         FParse::Param(FCommandLine::Get(),TEXT("IAICameraSlabBench"));
     if (Bench)
     {

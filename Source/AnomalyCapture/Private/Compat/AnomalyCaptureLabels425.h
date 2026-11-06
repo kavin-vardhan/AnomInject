@@ -19,7 +19,7 @@ public:
     bool Observe(const FAnomalyCapturedFrame& Frame);
     bool Ready() const { return Prepared == Next && (!Street || Street->Ready(Next)); }
     bool Pair(const FAnomalyLabelKey425& Key, const FString& File);
-    void Stop(int32 Written, int32 Dropped, bool Complete);
+    void Stop(int32 Written, int32 Dropped, bool Complete, bool StoppedByUser=false);
     void Abort();
     uint64 Epoch() const { return RunEpoch; }
     bool Failed() const { return !Failure.IsEmpty(); }
@@ -65,10 +65,12 @@ namespace AnomalyCaptureC2
 {
     bool Enabled();
     bool Street();
+    bool FreePlay();
     bool Boundary();
     bool Masks();
     void Finished(UWorld* World, bool Success);
     bool StartC5(UWorld* World,const FString& Root,int32 Seed,const TArray<FString>& Routes,bool ExitOnFinish,FString& Error);
+    bool StartFreePlay(UWorld* World,const FString& Root,int32 Seed,int32 Count,const TArray<FString>& Routes,FString& Error);
     bool Pending(UWorld* World);
     bool Starting(UWorld* World);
     void Cancel(UWorld* World);

@@ -48,6 +48,7 @@ namespace
     bool CaptureStreet425 = false;
     bool CaptureGeometry425 = false;
     bool CaptureExit425 = true;
+    bool CaptureFreePlay425 = false;
     bool CaptureStarting425 = false;
     TWeakObjectPtr<UWorld> CaptureOwner425;
     FDelegateHandle CaptureWarmup425;
@@ -113,7 +114,7 @@ bool FAnomalyCaptureLabels425::Start(UWorld* World,const FString& Directory,bool
     Auto->SetAllAnomaliesEnabled(false);
     for (const FString& Id : CaptureRoutes425) { if (!Auto->SetAnomalyEnabled(FName(*Id),true)) { Failure = TEXT("Auto pool admission failed"); } }
     Auto->SetSeed(CaptureSeed425); Auto->SetIntervalRange(0.8f,0.8f); Auto->SetHoldRange(0.4f,0.4f); Auto->SetMaxConcurrent(1); Auto->SetPersist(false); Auto->SetEnabled(true);
-    if (!SessionGlobals.Start(World,CaptureRoutes425,Directory)) { Failure=TEXT("Session global apply failed"); }
+    if (!SessionGlobals.Start(World,CaptureRoutes425,Directory,!CaptureFreePlay425)) { Failure=TEXT("Session global apply failed"); }
     FApp::SetFixedDeltaTime(1.0/30.0); FApp::SetUseFixedTimeStep(true); CapturePace425 = 1;
     PrepareHandle = FWorldDelegates::OnWorldPreActorTick.AddRaw(this,&FAnomalyCaptureLabels425::Prepare);
     return !Failed();
@@ -145,7 +146,7 @@ void FAnomalyCaptureLabels425::Prepare(UWorld* World,ELevelTick TickType,float D
     else
     {
         if (!AutoStarted && Next>=3) { AutoStarted=true; Auto->SetRunning(true); }
-        if (Next>=CaptureCount425-24 && Auto->IsRunning()) { Auto->SetRunning(false); }
+        if ((!CaptureFreePlay425 || CaptureCount425>0) && Next>=CaptureCount425-24 && Auto->IsRunning()) { Auto->SetRunning(false); }
     }
 }
 
@@ -161,6 +162,12 @@ bool FAnomalyCaptureLabels425::Snapshot(UWorld* World,uint64 Request)
     Row->SetNumberField(TEXT("sample_frame"),double(GFrameCounter)); Row->SetNumberField(TEXT("t"),World->GetTimeSeconds());
     Row->SetNumberField(TEXT("t_wall"),FPlatformTime::Seconds()-Started);
     Row->SetNumberField(TEXT("width"),Size.X); Row->SetNumberField(TEXT("height"),Size.Y);
+    if (CaptureFreePlay425)
+    {
+        const APlayerController* PC=World->GetFirstPlayerController();
+        Row->SetBoolField(TEXT("move_input_ignored"),!PC || PC->IsMoveInputIgnored());
+        Row->SetBoolField(TEXT("look_input_ignored"),!PC || PC->IsLookInputIgnored());
+    }
     Row->SetNumberField(TEXT("pace"),CapturePace425); Row->SetNumberField(TEXT("tick_order"),0);
     Row->SetBoolField(TEXT("fixed_step"),FApp::UseFixedTimeStep());
     Row->SetObjectField(TEXT("census"),MaskOwner->State());
@@ -324,7 +331,7 @@ void FAnomalyCaptureLabels425::Abort()
 {
     Failure=TEXT("Label initialization failed"); Stop(0,0,false);
 }
-void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete)
+void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete,bool StoppedByUser)
 {
     if (!Initialized) { return; }
     Initialized=false;
@@ -377,6 +384,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete)
     }
     auto Result = MakeShared<FJsonObject>();
     Result->SetStringField(TEXT("result"),Failed() || Dropped || (Complete && (Pending.Num() || Written != Frames.Num())) ? TEXT("FAIL") : Complete ? TEXT("PASS") : TEXT("PARTIAL"));
+    if (CaptureFreePlay425) { Result->SetBoolField(TEXT("stopped_by_user"),StoppedByUser); }
     Result->SetStringField(TEXT("failure"),Failure); Result->SetNumberField(TEXT("paired"),Frames.Num());
     Result->SetNumberField(TEXT("unmatched_dropped"),Pending.Num()); Result->SetNumberField(TEXT("dropped"),Dropped);
     Result->SetBoolField(TEXT("mask_state_restored"),Restored);
@@ -391,6 +399,7 @@ void FAnomalyCaptureLabels425::Stop(int32 Written,int32 Dropped,bool Complete)
 }
 
 bool AnomalyCaptureC2::Street() { return CaptureStreet425; }
+bool AnomalyCaptureC2::FreePlay() { return CaptureFreePlay425; }
 bool AnomalyCaptureC2::Enabled() { return CaptureLive425; }
 bool AnomalyCaptureC2::Boundary() { return false; }
 bool AnomalyCaptureC2::Masks() { return CaptureLive425; }
@@ -413,10 +422,34 @@ void AnomalyCaptureC2::Finished(UWorld* World,bool Success)
     if (CaptureGeometry425) { CaptureGeometry425=false; return; }
     if (CaptureWarmup425.IsValid()) { FTicker::GetCoreTicker().RemoveTicker(CaptureWarmup425); CaptureWarmup425.Reset(); }
     const bool Exit=CaptureExit425;
-    CaptureOwner425.Reset(); CaptureStreet425=false; CaptureStarting425=false; ++CaptureGeneration425;
+    CaptureOwner425.Reset(); CaptureStreet425=false; CaptureFreePlay425=false; CaptureStarting425=false; ++CaptureGeneration425;
     UE_LOG(LogAnomalyCapture,Log,TEXT("C5 transaction finished success=%d exit=%d"),Success?1:0,Exit?1:0);
     CaptureExit425=true;
     if (Exit) { FPlatformMisc::RequestExit(false); }
+}
+bool AnomalyCaptureC2::StartFreePlay(UWorld* World,const FString& Root,int32 Seed,int32 Count,const TArray<FString>& Routes,FString& Error)
+{
+    if (CaptureLive425 || CaptureWarmup425.IsValid()) { Error=TEXT("A capture owns the process"); return false; }
+    if (!World || !World->IsGameWorld() || !World->GetFirstPlayerController() || Count<0) { Error=TEXT("Free-play requires a player game world and nonnegative frame count"); return false; }
+    auto* Auto=World->GetSubsystem<UAnomalyAutoInjectorSubsystem>();
+    if (!Auto || Auto->IsRunning() || Auto->GetLiveFireCount()) { Error=TEXT("Auto injection must be idle before capture"); return false; }
+    const auto Pool=Auto->GetPoolIds(); std::vector<std::string> Validated;
+    if (!AnomalyCaptureAdmission425::Routes(TCHAR_TO_UTF8(*FString::Join(Routes,TEXT(","))),true,
+        [&Pool](const std::string& Id) { return Pool.Contains(UTF8_TO_TCHAR(Id.c_str())); },Validated)) { Error=TEXT("Invalid capture routes"); return false; }
+    if (Root.IsEmpty() || FPaths::IsRelative(Root) || IFileManager::Get().DirectoryExists(*Root) ||
+        !IFileManager::Get().MakeDirectory(*Root,true)) { Error=TEXT("Capture requires a fresh absolute run directory"); return false; }
+    CaptureExit425=false;
+    CaptureRoutes425=Routes;
+    const TArray<FString> Order={TEXT("blinking"),TEXT("lod_corruption"),TEXT("missing_texture"),TEXT("corrupted_texture")};
+    CaptureRoutes425.Sort([&Order](const FString& A,const FString& B)
+    {
+        const int32 AI=Order.Find(A),BI=Order.Find(B);
+        const int32 AR=AI==INDEX_NONE ? Order.Num() : AI,BR=BI==INDEX_NONE ? Order.Num() : BI;
+        return AR==BR ? A<B : AR<BR;
+    });
+    CaptureSeed425=Seed; CaptureCount425=Count; CaptureOwner425=World;
+    CaptureLive425=true; CaptureStreet425=false; CaptureGeometry425=false; CaptureFreePlay425=true;
+    return true;
 }
 bool AnomalyCaptureC2::StartC5(UWorld* World,const FString& Root,int32 Seed,const TArray<FString>& Routes,bool ExitOnFinish,FString& Error)
 {

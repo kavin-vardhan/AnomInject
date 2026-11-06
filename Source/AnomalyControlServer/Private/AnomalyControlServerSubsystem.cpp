@@ -705,23 +705,27 @@ void UAnomalyControlServerSubsystem::HandleMessage(FControlConn& Conn, const TSh
         FString Directory,Format,Anomaly,Target,Error;
         Msg->TryGetStringField(TEXT("dir"),Directory); Msg->TryGetStringField(TEXT("format"),Format);
         Msg->TryGetStringField(TEXT("anomaly"),Anomaly); Msg->TryGetStringField(TEXT("target"),Target);
-        double Seed=4242,MaxFrames=0,Height=0;
-        Msg->TryGetNumberField(TEXT("seed"),Seed); Msg->TryGetNumberField(TEXT("maxFrames"),MaxFrames);
+        double Seed=0,MaxFrames=0,Height=0;
+        const bool HasSeed=Msg->HasTypedField<EJson::Number>(TEXT("seed")) && Msg->TryGetNumberField(TEXT("seed"),Seed);
+        const bool HasFrames=Msg->HasTypedField<EJson::Number>(TEXT("maxFrames")) && Msg->TryGetNumberField(TEXT("maxFrames"),MaxFrames);
         Msg->TryGetNumberField(TEXT("outputHeight"),Height);
         auto* Capture=World ? World->GetSubsystem<UAnomalyCaptureSubsystem>() : nullptr;
         auto* Auto=World ? World->GetSubsystem<UAnomalyAutoInjectorSubsystem>() : nullptr;
+        if (!HasSeed && Auto) { Seed=Auto->GetSeed(); }
         TArray<FString> Routes=Auto ? Auto->GetEnabledIds() : TArray<FString>();
         if (!Capture || !Auto) { Error=TEXT("Capture subsystem unavailable"); }
         else if ((!Format.IsEmpty() && !Format.Equals(TEXT("png"),ESearchCase::IgnoreCase)) ||
             !Anomaly.IsEmpty() || !Target.IsEmpty() || Height!=0 || Msg->HasField(TEXT("targetArgs")) ||
             Msg->HasField(TEXT("outputWidth"))) { Error=TEXT("4.25 requires native PNG auto capture"); }
         else if (!FMath::IsFinite(Seed) || Seed<MIN_int32 || Seed>MAX_int32 || Seed!=double(int32(Seed))) { Error=TEXT("Invalid seed"); }
-        else if (MaxFrames!=Capture->GetC5FrameCount(Routes)) { Error=TEXT("maxFrames must equal the C5 schedule"); }
+        else if (!FMath::IsFinite(MaxFrames) || MaxFrames<0 || MaxFrames>MAX_int32 || MaxFrames!=double(int32(MaxFrames)) ||
+            (Msg->HasField(TEXT("maxFrames")) && !HasFrames) ||
+            (Msg->HasField(TEXT("seed")) && !HasSeed)) { Error=TEXT("Invalid capture frame count or seed type"); }
         else if (Directory.IsEmpty() || FPaths::IsRelative(Directory)) { Error=TEXT("Absolute capture base directory required"); }
         else
         {
             const FString Session=Directory/FString::Printf(TEXT("session_%s_%lld"),*FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")),FDateTime::UtcNow().GetTicks());
-            Capture->StartC5Run(Session,int32(Seed),Routes,false,Error);
+            Capture->StartFreePlayRun(Session,int32(Seed),int32(MaxFrames),Routes,Error);
         }
         if (!Error.IsEmpty())
         {

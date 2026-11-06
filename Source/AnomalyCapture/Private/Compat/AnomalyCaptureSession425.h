@@ -37,6 +37,8 @@ private:
     bool Draining = false;
     double DrainStarted = 0;
     double Started = 0;
+    double LastProgress = 0;
+    bool FreePlay = false;
 };
 #else
 class FAnomalyCaptureSession425 {};

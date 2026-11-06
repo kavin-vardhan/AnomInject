@@ -10713,3 +10713,8 @@ The new B run posted its index2300 query0.622 seconds after C5 completion. Both 
 ### G570. Keep discovery observation inside its bounded readiness window
 
 The first configured D11 observation stopped when an extra injected discovery query rejected; the old observer discarded its exception details. The source frontend catches discovery errors and polls again. The corrected observer records a rejection without credentials and continues within the same90-second deadline, while still requiring native PID/credential discovery, welcome, catalog, snapshots, Connected state and LOD visibility. A rejected query never counts as a pass; permanent or wrong-PID results still fail. The native rejection's original cause is not established.
+
+
+## G571 — Free-play capture is not the qualified street fixture
+
+Dashboard 4.25 capture uses StartFreePlayRun, not StartC5Run. Do not restore a 2352-only or IAIBench check on this path. Zero frames means until stopped; terminal stop drains accepted work and reports PASS with stopped_by_user. The normal game remains open. C4/C5 console bodies retain their original gates and exit policy. Native snapshot.capture uses framesWritten; capture_status replies use frames. A plain scene may have target pixels unchanged by a texture swap, so full-silhouette IoU1 cannot be claimed from counts or masks alone. The measured F1/F3 texture failures remain open; never force them green with the C5 camera/material fixture.

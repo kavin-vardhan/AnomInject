@@ -3599,6 +3599,19 @@ void UAnomalyCaptureSubsystem::SetFocusGate(bool bInGate)
 }
 
 #if ANOMALY_CAPTURE_FRAMES425
+bool UAnomalyCaptureSubsystem::StartFreePlayRun(const FString& RunDirectory,int32 InSeed,int32 InFrameCap,const TArray<FString>& Routes,FString& OutError)
+{
+    OutError.Empty();
+    if (bDeinitializing || bRunning || !Frames425 || Frames425->IsRunning()) { OutError=TEXT("Capture is active or shutting down"); return false; }
+    if (bSveCapture || bMaskMeasure || bTargetMask || bCensus || bMaskProbe || !bAsyncCapture) { OutError=TEXT("Free-play requires native asynchronous capture"); return false; }
+    if (!AnomalyCaptureC2::StartFreePlay(GetWorld(),RunDirectory,InSeed,InFrameCap,Routes,OutError)) { return false; }
+    Frames425=MakeUnique<FAnomalyCaptureSession425>();
+    Seed=InSeed; FrameCap=InFrameCap; FramesWritten=0; SessionFrameIndex=0;
+    LastRunDir=RunDirectory/TEXT("epoch01"); RunDir=LastRunDir; SessionId=FPaths::GetCleanFilename(RunDirectory);
+    bRunning=Frames425->Start(GetWorld(),LastRunDir,InFrameCap);
+    if (!bRunning) { OutError=TEXT("Free-play capture initialization refused"); AnomalyCaptureC2::Finished(GetWorld(),false); }
+    return bRunning;
+}
 int32 UAnomalyCaptureSubsystem::GetC5FrameCount(const TArray<FString>& Routes) const
 {
     return FAnomalyCameraSession425::FrameCount(GetWorld(),Routes);

@@ -88,6 +88,7 @@ public:
 
 #if ANOMALY_ENGINE_425
     bool StartC5Run(const FString& RunDirectory,int32 InSeed,const TArray<FString>& Routes,bool bExitOnFinish,FString& OutError);
+    bool StartFreePlayRun(const FString& RunDirectory,int32 InSeed,int32 InFrameCap,const TArray<FString>& Routes,FString& OutError);
     int32 GetC5FrameCount(const TArray<FString>& Routes) const;
 #endif
 	void StopRun();

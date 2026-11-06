@@ -32,7 +32,8 @@
 
 bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, int32 InCount)
 {
-    if (Running || !World || !World->IsGameWorld() || InCount < 1 || InCount > 8192 || FPaths::IsRelative(Directory) || IFileManager::Get().DirectoryExists(*Directory)) { return false; }
+    FreePlay=AnomalyCaptureC2::FreePlay();
+    if (Running || !World || !World->IsGameWorld() || (FreePlay ? InCount<0 : InCount<1 || InCount>8192) || FPaths::IsRelative(Directory) || IFileManager::Get().DirectoryExists(*Directory)) { return false; }
     if (!IFileManager::Get().MakeDirectory(*Directory, true)) { return false; }
     FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
     Backend = AnomalyCompat::CreateCaptureBackend425();
@@ -45,7 +46,7 @@ bool FAnomalyCaptureSession425::Start(UWorld* World, const FString& Directory, i
     }
     Output = Directory; Count = InCount; Requested = Completed = Failures = 0; NextId = 1;
     Writes.Empty(); Rows.Empty(); Running = true; Started = FPlatformTime::Seconds();
-    Draining = false; DrainStarted = 0;
+    Draining = false; DrainStarted = 0; LastProgress=Started;
     PeakPendingWrites = WriterDrains = 0;
     RHI = GDynamicRHI ? GDynamicRHI->GetName() : TEXT("unknown");
     Diagnostic=MakeUnique<FAnomalyCaptureDiagnostic425>(); Diagnostic->Start(World,Output);
@@ -61,11 +62,12 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
     FAnomalyCapturedFrame Frame;
     while (Backend->PollFrame(Frame))
     {
-        if (Frame.RequestId < 1 || Frame.RequestId > uint64(Count) || Frame.Width <= 0 || Frame.Height <= 0 ||
+        if (Frame.RequestId < 1 || (Count>0 && Frame.RequestId > uint64(Count)) || Frame.Width <= 0 || Frame.Height <= 0 ||
             Frame.BytesPerPixel != 4 || !AnomalyPixel425::Accept(Frame.Format) || Frame.RawBytes.Num() != Frame.Width * Frame.Height * 4)
         {
             ++Failures; continue;
         }
+        LastProgress=FPlatformTime::Seconds();
         const FString Name = FString::Printf(TEXT("frame-%06llu.png"), Frame.RequestId - 1);
         const FString Path = Output / Name;
         const FString MaskOutput = AnomalyCaptureC2::Masks() ? Output : FString();
@@ -108,7 +110,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
             Writes.RemoveAt(I);
         }
     }
-    if (Completed + Failures >= Count || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - Started >= (AnomalyCaptureC2::Street() ? 2000.0 : Labels ? 480.0 : 80.0))
+    if ((Count>0 && Completed + Failures >= Count) || Failures || (Labels && Labels->Failed()) || FPlatformTime::Seconds() - (FreePlay ? LastProgress : Started) >= (AnomalyCaptureC2::Street() ? 2000.0 : Labels ? 480.0 : 80.0))
     {
         Stop(); return;
     }
@@ -124,7 +126,7 @@ void FAnomalyCaptureSession425::Tick(UWorld* World,ELevelTick TickType,FName Hoo
         }
         return;
     }
-    if (Requested < Count && (!Labels || Labels->Ready()) && Backend->RequestFrame(World, NextId))
+    if ((Count==0 || Requested < Count) && (!Labels || Labels->Ready()) && Backend->RequestFrame(World, NextId))
     {
         Diagnostic->Requested(NextId,GFrameCounter);
         if (Labels && !Labels->Snapshot(World, NextId)) { ++Failures; }
@@ -154,11 +156,13 @@ void FAnomalyCaptureSession425::Stop()
     bool LabelsPassed = true;
     bool LabelsFailed = false;
     const bool HadLabels = bool(Labels);
+    const bool UserStopped=FreePlay && Draining;
+    const bool NormalEnd=(Count>0 && Completed==Count) || (UserStopped && Completed==Requested);
     if (Labels)
     {
-        Labels->Stop(Completed, Dropped, Completed==Count);
+        Labels->Stop(Completed, Dropped, NormalEnd, UserStopped);
         LabelsFailed = Labels->Failed();
-        LabelsPassed = !Labels->Failed() && Dropped == 0 && Completed == Count;
+        LabelsPassed = !Labels->Failed() && Dropped == 0 && NormalEnd;
         Labels.Reset();
     }
     FString Json = FString::Printf(TEXT("{\"rhi\":\"%s\",\"backbuffer_format\":%d,\"requested\":%d,\"written\":%d,\"dropped\":%d,\"pitch\":%d,\"mapped_height\":%d,\"elapsed_seconds\":%.6f,\"labels\":\"unqualified\",\"masks\":\"unavailable\",\"frames\":["),
@@ -166,7 +170,8 @@ void FAnomalyCaptureSession425::Stop()
     Json += FString::Join(Rows, TEXT(",")) + FString::Printf(TEXT("],\"peak_pending_writes\":%d,\"writer_drains\":%d,\"writer_limit\":%d}"),PeakPendingWrites,WriterDrains,AnomalyWriteQueue425::MaxPending);
     Json.RemoveAt(Json.Len()-1);
     Json+=FString::Printf(TEXT(",\"planned\":%d,\"complete\":%s,\"result\":\"%s\"}"),Count,
-        Completed==Count && !Dropped && !LabelsFailed ? TEXT("true") : TEXT("false"),Dropped || LabelsFailed ? TEXT("FAIL") : Completed==Count ? TEXT("PASS") : TEXT("PARTIAL"));
+        Count>0 && Completed==Count && !Dropped && !LabelsFailed ? TEXT("true") : TEXT("false"),Dropped || LabelsFailed || (FreePlay && !NormalEnd) ? TEXT("FAIL") : NormalEnd ? TEXT("PASS") : TEXT("PARTIAL"));
+    if (FreePlay) { Json.RemoveAt(Json.Len()-1); Json+=FString::Printf(TEXT(",\"stopped_by_user\":%s}"),UserStopped ? TEXT("true") : TEXT("false")); }
     if (AnomalyCaptureC2::Masks()) { Json.ReplaceInline(TEXT("\"masks\":\"unavailable\""),TEXT("\"masks\":\"stencil-depth-rdg425\"")); }
 
     const bool Saved = FFileHelper::SaveStringToFile(Json, *(Output / TEXT("capture.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
