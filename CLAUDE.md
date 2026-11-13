@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-05, 2026-11-13 — m56 CAPTURE CONTINUITY: PLUGIN COMMITS 1–4 WRITTEN, EDITOR-COMPILED, SELFTESTS PASSED. NO ENGINE
+> LEG RUN YET. GAME TARGET NOT BUILT. READERS NOT YET UPDATED. Branch `fix/m56-capture-continuity`, NOT merged, no tag.**
+> - The settle ticks after every onset and offset are now captured and flagged `transition_reason: settle` (reason bit 9);
+>   rows gain `tick_index` / `t_wall_run`; `run_summary` gains `frames_dropped` with ticks and causes and
+>   `capture_span_ticks`; `ticks_per_captured_frame` = span / written; `annotation.json` `label_schema_minor` 2; the writer
+>   finishes every job at run end, counts failures and blocks at 1 GiB of pending pixels (floor 4 jobs).
+> - Commits `b2b5116` (cherry-pick of m51 F1 `6713f51`), `26e5f4b`, `2ef529c`, `28fa39e`, + docs. Editor compile after
+>   commits 2, 3 and 4: 0 errors, 0 warnings each. Selftests 29/46/27/316, 0 failures. Lever audit PASS (55), selftest 12.
+> - ⛔ **`verify_capture.py`, `label_sync_check.py` and `annotation_transition_check.py` reject sessions from this build
+>   until plan commit 5 lands (next brief).** Predictions frozen: `code-receipts-095-05\predictions-095-05.txt`.
+> - Journal: `docs/sessions/2026-11-13-095-05-m56-capture-continuity.md`. No gotcha minted. Next free gotcha across all
+>   refs: **G575** (`feat/m58-terrain-blink-subtype` holds G574).
+
+> ---
+
 > **095-01 / 095-01b, 2026-11-13 — BACK ON THE MAIN LINE. `master` IS THE DELIVERED RELEASE AGAIN.**
 > - `master` was fast-forwarded `b5f15a3` → `d7eee97` (= `release/2026-10-05`, the client's M3 on 5.1) and pushed.
 >   The primary checkout moved from `m51` to `master`; the `m51` ref is unmoved at `53bf725`.
