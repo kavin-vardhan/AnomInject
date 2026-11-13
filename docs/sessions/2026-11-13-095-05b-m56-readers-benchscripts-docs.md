@@ -131,6 +131,10 @@ table (plan §8). The continuity check's after-offset window for stuck_low_mip b
 5. The kit's READ BACK line is unchanged; the settle count is a separate session line (the office read gains a line).
 6. Old-schema proof on m47-era and 4.25-port sessions (no 5.1 release-era session remains).
 7. CaptureBench has no remote: committed locally, not pushed.
+8. The pre-push scrub of `verify_capture.py` reported terms present at `586a0fd` already: a two-letter local variable
+   in the m55 change-oracle selftest matches the scrub's abbreviation rule (found by bisection, line numbers only;
+   earlier scans covered only changed files). Renamed in its own commit `338e4cb`; the 35-case selftest and its unit
+   tests still pass. G578 applies to reading the scrub's output.
 
 ## Next
 
