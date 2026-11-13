@@ -151,6 +151,10 @@ labels, annotation schema, observable predicate, auto pool and veto remain uncha
 >   **reserved for the future separate `flickering` anomaly class** (unbuilt). Blink events may still
 >   contain multiple visibility toggles — that is intended behaviour, not a defect, and does not change
 >   the subtype. The `anomaly_subtype` field is retained in the schema for that future class.
+>   **m58 (2026-11-13, branch `feat/m58-terrain-blink-subtype`, not yet merged):** the pin gains ONE second
+>   value. A blink event whose target is **terrain** reads `terrain_disappear_reappear`; every other blink
+>   event still reads `disappear_reappear`. Terrain is decided once per event at the anchor freeze, by the
+>   `AnomalyTerrain` rule below. `flicker` stays reserved. No schema bump.
 > - **`affected_objects.nodes[]` carries `asset_name`, `component_class` and `bounds {origin, extent}`**
 >   (m22/B1) so an auto-named level actor (`StaticMeshActor_###`) is identifiable. ⚠ **These four values
 >   are sampled ONCE, at the event's ANCHOR FRAME** (the first captured frame of the event), exactly like
@@ -302,6 +306,25 @@ target set** (one apply spanning static + skeletal components, dispatched per ty
 | `camera_clipping` | global (near-clip) | no | global capture/restore via a console **command** (no cvar, no new dep) |
 
 ## Shared helpers
+
+### Terrain rule — `AnomalyTerrain` + `AnomalyTerrainRule`  (m58, on `feat/m58-terrain-blink-subtype`)
+- `Public/AnomalyTerrainRule.h` is the **pure** rule (no engine types) that the plugin compiles and
+  `tools/terrain_rule_selftest.cpp` tests (C-G1; `tools/terrain_rule_mutants.py` makes the three mutants).
+  **Class rule:** the actor's class chain holds `LandscapeProxy`, or a primitive component's chain holds
+  `LandscapeComponent` (exact names, subclasses included). **Pattern rule:** a case-insensitive substring
+  of the actor name, the actor's **own** class name, or a primitive component's name, own class name or
+  mesh asset name (parent class names are never matched). The class rule wins; patterns apply in list
+  order; an actor is terrain if the actor or ANY of its components matches (ruling 095-02 Q5).
+- `AnomalyTerrain::Classify(Actor)` builds those facts from the live actor and returns `bTerrain`,
+  `bEngineLandscape`, `bRefuseBlink` and the rule text (`class:<Class>[@component=<Name>]` or
+  `pattern:<p>@<field>=<value>`). The two classes are looked up by path (`/Script/Landscape.*`,
+  `FindObject`, never loaded) at use time; if either is missing the class rule is **INERT and says so**
+  on the run banner's `TERRAIN RULES` line, never a silent no-match. No new module dependency.
+- Patterns: `[AnomalyInjector] TerrainNamePatterns` (compiled default **empty**; set per host at the
+  office, never at home) and `IAI.SetTerrainPatterns <p...> | clear` (console beats ini beats compiled, G88).
+- Consumers: the capture module's `FreezeEventAnchor` (blinking only) and `FAnomaly_Blinking::Apply`
+  (the refusal). Bench levers `IAI.Bench.TerrainRefusalOff` and `IAI.Bench.TerrainClassRuleInert`
+  (non-Shipping, swept by the bench gate).
 
 ### Targeting — `AnomalyTargeting`  (`Public/AnomalyTargeting.h`)
 Free functions (deliberately not a base class). Single source of truth for the label-free match rule.
@@ -618,7 +641,7 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
 | id | shape | usage | effect | revert | status |
 |----|-------|-------|--------|--------|--------|
 | `missing_object` | static, actor-scoped | `IAI.Apply missing_object <sub>` | `SetActorHiddenInGame(true)` on matches | un-hide / RevertAll / teardown | **as-built (M1)** |
-| `blinking` | ticking, actor-scoped | `IAI.Apply blinking <sub> [hz]` | toggle hidden each half-period (default 5 Hz, clamp 60) | restore visible (any phase) | **as-built (M1)** |
+| `blinking` | ticking, actor-scoped | `IAI.Apply blinking <sub> [hz]` | toggle hidden each half-period (default 5 Hz, clamp 60). **m58 (branch, not merged):** a target the terrain CLASS rule marks as engine landscape is refused (`terrain_unlabelable`, `REFUSED-TERRAIN`, `run_summary.terrain_unlabelable_refusals`) because its event would carry no mask and a wrong box; a terrain target (class or pattern) that fires is labelled `terrain_disappear_reappear` | restore visible (any phase) | **as-built (M1)** |
 | `time_dilation` | world-global, no tick | `IAI.Apply time_dilation <scale>` | `SetGlobalTimeDilation(scale)` (clamped — G11) | restore captured baseline (AMB-3) | **as-built (M1)** |
 | `lighting_mismatch` | component (ULightComponent) | `IAI.Apply lighting_mismatch <sub> [off\|dim <f>\|recolor <r g b>\|noshadow]` | per mode: `SetVisibility(false)` / `SetIntensity(orig*f)` (def 0.1) / `SetLightColor(r,g,b)` (def magenta) / `SetCastShadows(false)`; default mode `dim` | restore captured intensity/color/visibility/cast-shadow per live comp; skip stale | **as-built (M2)** |
 | `lod_corruption` | component (static **+ skeletal** mesh) | `IAI.Apply lod_corruption <sub> [lod-index]` | force each matched comp to a LOD via `AnomalyLod` (1-based; default worst per comp; explicit index clamped per comp). Static `SetForcedLodModel` / skinned `SetForcedLOD` | restore captured forced-LOD per live comp; skip stale | **as-built (M3)** — static + skeletal (G19; was static-only in M2, G16) |

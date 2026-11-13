@@ -11,6 +11,21 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-04 / 095-04e, 2026-11-13 — m58 TERRAIN BLINK SUBTYPE: WRITTEN, EDITOR-COMPILED, SELFTEST PASSED. NO ENGINE LEG RUN
+> YET. GAME TARGET NOT BUILT. Branch `feat/m58-terrain-blink-subtype`, NOT merged, no tag.**
+> - A `blinking` event on terrain reads `blink` / `terrain_disappear_reappear`; every other blink stays `disappear_reappear`.
+>   Terrain = engine landscape by class (actor IsA `LandscapeProxy`, or a component IsA `LandscapeComponent`) OR a host pattern
+>   in `[AnomalyInjector] TerrainNamePatterns` (default EMPTY, set per host at the office) / `IAI.SetTerrainPatterns`.
+>   Blinking on ENGINE LANDSCAPE is refused (`terrain_unlabelable`): it would ship with no mask and a wrong box.
+> - Commits `a1fa6b1` (rule + setting + selftest + two bench levers), `8dc8d58` (capture subtype), `db9b072` (refusal), + docs.
+> - Editor compile (2 parallel actions, free memory ≥ 7.28 GiB throughout): **exit 0, 0 errors, 0 warnings**. C-G1 **42/0**;
+>   mutants fail 8/11/11. Lever audit source + Editor binary + selftest PASS.
+> - **Still owed (095-07, when the owner frees the PC):** Game build, the cook, gates C-G2..C-G6 (predictions frozen in
+>   `code-receipts-095-04\predictions-095-04.txt`). Host plugin Editor DLLs match `db9b072`; the Game exe (24 Sep) does not.
+> - Journal: `docs/sessions/2026-11-13-095-04-m58-terrain-blink-subtype.md`. Next free gotcha: **G575**.
+
+> ---
+
 > **095-01 / 095-01b, 2026-11-13 — BACK ON THE MAIN LINE. `master` IS THE DELIVERED RELEASE AGAIN.**
 > - `master` was fast-forwarded `b5f15a3` → `d7eee97` (= `release/2026-10-05`, the client's M3 on 5.1) and pushed.
 >   The primary checkout moved from `m51` to `master`; the `m51` ref is unmoved at `53bf725`.

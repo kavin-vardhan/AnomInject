@@ -10203,3 +10203,15 @@ the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero mis
 deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
 existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
 the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
+
+## G574 — Non-Nanite runtime landscape grass reports zero instances while it draws
+
+Found reading UE 5.1.1 source for m58 (095-02 plan section 4.1, ruling 095-02 C-R2); not measured on the bench.
+`UGrassInstancedStaticMeshComponent` receives its instances only through `AcceptPrebuiltTree`
+(`Runtime/Landscape/Private/LandscapeGrass.cpp:3317`), which copies them into `PerInstanceSMData` **only for a
+Nanite proxy** (`Runtime/Engine/Private/HierarchicalInstancedStaticMesh.cpp:2774-2778`). `GetInstanceCount()`
+returns `PerInstanceSMData.Num()` (`InstancedStaticMesh.cpp:4103-4106`), so non-Nanite grass reads **0** while it
+is plainly drawing, and fails the plugin's empty-instance guard in `IsRenderableComponent`. Consequences: the
+auto pool and the census can never select a landscape tile through its grass (and the landscape component itself
+is not a mesh component), and the m5 note "zero-instance-grass LandscapeStreamingProxy" on MainWorld most likely
+recorded this artefact, not empty grass. Do not read a zero instance count on runtime grass as "nothing drawn".
