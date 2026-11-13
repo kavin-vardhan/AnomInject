@@ -93,6 +93,22 @@ a packaged build"), and the finalize log always states pacing/target/sustained/r
 dashboard shows a post-run badge when the stamp fell back ("couldn't hold F fps — video stamped at
 X fps (true speed)").
 
+## m56: every tick is a frame, and the stamp follows written frames (branch `fix/m56-capture-continuity`)
+
+Before m56 the burst machine rendered the K settle ticks after every onset and offset and did not capture them, so
+a healthy paced run wrote **12 frames per 16 ticks**, stamped the target fps, and the assembled video was about
+25 % shorter than the time it covered. `run_summary.ticks_per_captured_frame` read 1.33–1.35 on every capture (it
+divided every tick since the run began, warm-up and drain included, by frames written).
+
+From m56 the settle ticks are captured (flagged `transition_reason: settle`), so a healthy run writes one frame per
+tick: `tick_index` rises by exactly 1 per row and `ticks_per_captured_frame` is redefined as
+`capture_span_ticks / frames written` = **1.0**. `capture_game_ticks` keeps its old meaning. Let N = frames written and
+S = span ticks. When N = S the stamp is exactly today's (game clock → target; wall clock → target, or the sustained
+rate when `speed_ratio` exceeds the tolerance). When a frame is lost (`frames_dropped` = S − N > 0) the stamp follows
+the written frames — game clock: target × (N − 1) / (S − 1); wall clock above the tolerance: (N − 1) / wall span — so
+the video still lasts as long as the time it covers. `speed_ratio` stays tick-based (pacing health, not frame
+count). ⚠ No engine leg has run on m56 yet; the numbers above are the code's contract, not a measurement.
+
 ## The content-clock setting (m14) — which clock the honest stamp follows
 
 The one-sided stamp above is only correct when the video's playback rate should equal the SUSTAINED

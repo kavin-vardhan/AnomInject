@@ -673,9 +673,22 @@ it **cannot start** (`Missing global shader … permutation 0`). The shader-pres
       exposure movement; zero-and-non-zero is the rule doing its job.*** ⛔ **A zero dip count on a
       leg with the game's auto-exposure LIVE is a failure of the detector, not a quiet success** —
       that is `m48`'s own prove-it-can-fire gate and phase B does not retire it.
-- [ ] **`run_summary` key count is 68** (`65` at `m50`, plus `target_drawn_pixels_measured`,
-      `frames_drawn_unexpected`, `frames_exposure_dip_suppressed`) **and `annotation.json`'s key set
-      matches the README's own field table.** *Phase B adds NOTHING to `annotation.json`.*
+- [ ] **`run_summary` carries every key the README's field tables name, and `annotation.json`'s key set
+      matches the README's own field table — checked CATEGORICALLY, never against a literal count.**
+      🔻 *This box used to read "key count is 68" (`65` at `m50` plus the three phase-B keys). That literal
+      was already stale before m56 (m52/m53/m55 added keys) and m56 adds sixteen more, so it would fail a
+      correct build (095-05b).* m56 adds: `capture_span_ticks`, `frames_armed`, `frames_dropped`,
+      `frames_dropped_ticks`, `frames_dropped_ticks_truncated`, `frames_dropped_by_cause`,
+      `orphan_completions`, `label_rows_failed`, `settle_frames`, `label_transition_settle_entries`,
+      `writer_pending_byte_cap`, `writer_pending_count_floor`, `writer_pending_bytes_peak`,
+      `writer_backpressure_waits`, `writer_backpressure_seconds`, `writer_flush_complete`; and redefines
+      `ticks_per_captured_frame` (README §8.5a, §8.6c).
+- [ ] 🆕 **m56 (schema 2.2) — only for a build that contains `fix/m56-capture-continuity`:** a delivered-shape
+      capture reads `frames_dropped 0`, `ticks_per_captured_frame 1.0`, `annotation.json`
+      `label_schema_minor 2`, and CaptureBench `m56_continuity_check.py` PASS on it. ⛔ **No client drop with
+      m56 until the dashboard's encode step reports frame gaps and the bundle ships kit 1.6
+      (`label_sync_check.py`) with the matching `verify_capture.py`** (ruling 095-02 A-R4): kit 1.5 refuses every
+      2.2 session as `annotation transitions mismatch`.
 
 - [ ] 🚨 **THE EDITOR TARGET BUILDS, EXIT 0 — RUN IT BEFORE THE COOK, NOT AFTER.**
       `Build.bat StackOBotEditor Win64 Development -Project=<uproject> -WaitMutex`

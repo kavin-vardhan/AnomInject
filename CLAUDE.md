@@ -11,6 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-05b, 2026-11-13 — m56: PLAN COMMITS 5 (READERS) AND 6 (DOCS) DONE; BENCH CHECK SCRIPTS PROVEN OFFLINE. STILL NO
+> ENGINE LEG, NO GAME BUILD. Branch `fix/m56-capture-continuity` (`325a3e7` readers + docs), NOT merged, no tag.**
+> - Readers read schema 2.2 and still read older sessions with identical verdicts: `verify_capture.py` (minor 1/2;
+>   `settle` a reason of every type; new SETTLE-INCONSISTENT / -MISPLACED / -COUNT, TICK-CONTINUITY, DROP-COUNT;
+>   vetoed events' transition entries tolerated up to `vetoed_events`, G575), office kit **1.6** (settle excused both
+>   ways, gaps read on `tick_index`), `measure_label_offset.py`, `exclusion_gate.py` (C++ counter already aligned: no
+>   C++ change). Tests: label rule 83, pixel gate 101, kit 102, annotation 8, all OK.
+> - CaptureBench `m56-gates` `1d1e119` (local, no remote; checkout left on `master`): `m56_continuity_check.py` FAILs
+>   the banked release-era AE1 session (15 `frame_index` jumps of 3 in 90 rows, `ticks_per_captured_frame` 1.344) and
+>   PASSes its doctored continuous copy; `m56_nonsettle_compare.py` PASS / FAIL on the doctored pairs; a54 flank rule;
+>   `run_leg.ps1` schedule predictions; `tools/m56_gate_predictions.md`.
+> - ⛔ **Not proven:** no engine leg; K = 2 still flags two frames per edge; the dashboard encode step and the bundled
+>   kit are not updated (A-R4: no client drop with m56 before they are).
+> - Journal: `docs/sessions/2026-11-13-095-05b-m56-readers-benchscripts-docs.md`. Gotchas G575–G578. Next free gotcha
+>   across all refs: **G579**. Next: 095-06 review, then 095-07 on the owner's word.
+
+> ---
+
 > **095-05, 2026-11-13 — m56 CAPTURE CONTINUITY: PLUGIN COMMITS 1–4 WRITTEN, EDITOR-COMPILED, SELFTESTS PASSED. NO ENGINE
 > LEG RUN YET. GAME TARGET NOT BUILT. READERS NOT YET UPDATED. Branch `fix/m56-capture-continuity`, NOT merged, no tag.**
 > - The settle ticks after every onset and offset are now captured and flagged `transition_reason: settle` (reason bit 9);

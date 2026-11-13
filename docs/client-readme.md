@@ -143,6 +143,8 @@ The overlay window tells you exactly what it did after each capture, in the form
 | **`NON-MANIFESTED`** | ~0 % | The anomaly was triggered but never reached the picture, so it carries no positive frames. Not seen in any measured session; the tool reports it if it ever occurs. |
 | **`UNMATCHED`** | ~0 % | Unexpected. If you see this, it is worth telling us. |
 
+🆕 **Schema 2.2 adds amber on two frames after every anomaly ends:** those `settle` frames carry an entry for the anomaly that just ended but no label (§8.6c), so the overlay draws them amber as `OUTSIDE-SUBSET`. Expected; the shares above were measured before 2.2.
+
 So the short version: **red is what you were given; the overwhelming majority of amber is the normal shape of a hide-type anomaly's window, and the rest is the system correctly declining to label something invisible.** Nothing is being quietly discarded — every dropped event is visible to you as an amber box.
 
 **Two things it never does:** it never changes a captured frame (every annotated image is a new file in `annotated/`), and it never changes a label. The labels come from the game engine and are the authority; this tool only reads them and draws what is already there.
@@ -508,6 +510,8 @@ first.
 | Field | Type | Since | Meaning |
 | --- | --- | --- | --- |
 | `label_schema` | int | **v2** | Always `2`. Absent in v1 files. |
+| `label_schema_minor` | int | **2.1** | `1` = transition export (schema 2.1). 🆕 `2` = schema 2.2: every engine tick of the capture is a frame, the frames right after each anomaly starts and stops carry the reason `settle`, and rows carry `tick_index` (§8.5a, §8.6c). |
+| `transition_frame_count` | int | **2.1** | Distinct frames carrying a transition flag. 🆕 In 2.2 it also counts every `settle` frame, including one with no anomaly entry. |
 | `session_id` | string | v1 | The session folder's name. |
 | `video` | object | v1 | See below. |
 | `anomalies` | array | v1 | One object per anomaly **event**. May be empty — see §8.4. |
@@ -519,9 +523,9 @@ first.
 | `path` | string | v1 | Where the MP4 is written. |
 | `frames_dir` | string | v1 | Where the source frames are (`Actual_Frames`). |
 | `resolution` | `[w, h]` | v1 | The size of the **written frames**, read from the first frame actually written — not from the window size. |
-| `fps` | number | v1 | The frame rate the MP4 is stamped at. May be fractional if the machine could not sustain the requested rate; the video still plays at natural speed. |
+| `fps` | number | v1 | The frame rate the MP4 is stamped at. May be fractional if the machine could not sustain the requested rate; the video still plays at natural speed. 🆕 2.2: if a frame was lost (`run_summary.json` `frames_dropped` above 0), the stamp follows the frames actually written, so the video still lasts as long as the time it covers. |
 | `target_fps` | number | v1 | The rate that was *requested* (`IAI.Capture.Fps`). |
-| `total_frames` | int | v1 | How many frames were captured. |
+| `total_frames` | int | v1 | How many frames were captured (written). A frame that was lost is not counted here; 2.2 counts it in `run_summary.json` `frames_dropped`. |
 
 **Each entry of `anomalies` — one anomaly event**
 
@@ -871,6 +875,31 @@ and nothing changes.* Then adopt `affected_frames` when you want the visible sub
 
 ⛔ **Nothing was removed and nothing was renamed.** Every v1 key is still present with its v1 type.
 
+### 8.5a 2.1 → 2.2 changelog (capture continuity)
+
+Schema 2.2 sessions say `label_schema_minor: 2`. **Branch on that key.** What changed, in plain words: older
+builds rendered two engine frames right after every anomaly appeared and two right after it disappeared, and did
+not save them. The saved frames were numbered without gaps, so the hole did not show in the file names, but motion
+jumped exactly where the label changed. Schema 2.2 saves every frame and flags those frames `settle`.
+
+| Key | 2.1 | 2.2 | Additive? |
+| --- | --- | --- | --- |
+| `annotation.json` → `label_schema_minor` | `1` | `2` | value change |
+| `labels.jsonl` → `tick_index` | *absent* | engine ticks since the capture's first frame; 0 on the first row, +1 on every row | **Added** |
+| `labels.jsonl` → `t_wall_run` | *absent* | wall-clock seconds since the capture's first frame | **Added** |
+| `labels.jsonl` → `t_wall` | documented as "seconds since the run started" | unchanged value; **the documentation was wrong**: it is an absolute wall clock. Use `t_wall_run` for run-relative time | doc fix |
+| reason `settle` (row-level `transition_reason` and entry `transition_reason`) | *absent* | the K frames after every anomaly onset and offset (§8.6c) | **Added** value |
+| `labels.jsonl` → `transition_present` / row-level `transition_reason` | only on rows with a flagged entry / only `capture_unpaired` | also on every `settle` frame, even one with no entry | widened |
+| `annotation.json` → `transition_frames`, `transition_reasons`, `transition_frame_count` | transition entries | also the `settle` frames (a `settle` count appears in `transition_reasons`) | widened |
+| `annotation.json` frame lists | every armed frame listed | a frame that was armed but never written is **removed** from every list (its file number stays missing) | behaviour |
+| `run_summary.json` → `ticks_per_captured_frame` | every tick since the run began ÷ frames written (1.33 to 1.35 at the defaults) | **span ticks ÷ frames written: exactly 1.0 on a healthy capture**. `capture_game_ticks` keeps its old meaning, so the old ratio is still derivable | ⚠ **MEANING CHANGED** |
+| `run_summary.json` → `capture_span_ticks`, `frames_armed`, `frames_dropped`, `frames_dropped_ticks`, `frames_dropped_ticks_truncated`, `frames_dropped_by_cause`, `orphan_completions`, `label_rows_failed`, `settle_frames`, `label_transition_settle_entries`, `writer_pending_byte_cap`, `writer_pending_count_floor`, `writer_pending_bytes_peak`, `writer_backpressure_waits`, `writer_backpressure_seconds`, `writer_flush_complete` | *absent* | see §8.6c | **Added** |
+| `run_summary.json` → `target_mask_frames_measured` / `_unavailable` | a mask whose PNG failed to save counted as measured | counted as unavailable, so the three mask counts still add up to the frame count | behaviour |
+| `video.fps` / `run_summary.json` → `stamped_fps` | the target rate, or the sustained wall rate when the machine fell behind | the same on a capture that lost no frame; when frames were lost, the stamp follows the frames actually written | behaviour (lossy runs only) |
+
+🔑 **The one-line migration:** keep dropping every frame that carries a transition flag (it already covers
+`settle`), and read time with `t_wall_run` instead of `t_wall`. Nothing was removed and nothing was renamed.
+
 ### 8.6 `labels.jsonl` — every field
 
 One JSON object per line, one line per captured frame.
@@ -880,11 +909,14 @@ One JSON object per line, one line per captured frame.
 | `session_index` | int | v1 | **The frame number, and the only join key.** `session_index` N is `Actual_Frames/frame_000NN.png`, frame N of the video, and frame N in `annotation.json`'s frame indices. |
 | `frame_index` | int | v1 | The game engine's own internal frame counter. **Never join on this** — see the ordering note below. |
 | `t` | number | v1 | Game-clock seconds since the run started. |
-| `t_wall` | number | v1 | Real-world seconds since the run started. |
+| `t_wall` | number | v1 | Real-world clock reading when the frame was armed. 🆕 **Corrected:** it is an **absolute** clock (a large number such as 16801504.5), not seconds since the run started, which this table said until 2.2. Differences between rows are real seconds. |
+| **`tick_index`** | int | **2.2** | Engine ticks since the capture's first frame (0 on the first row). Sorted by `session_index`, every row is the previous row's plus 1 on a healthy capture; a step of 2 or more means a frame was lost, and `run_summary.json` names the missing tick and its cause (§8.6c). |
+| **`t_wall_run`** | number | **2.2** | Real-world seconds since the capture's first frame was armed. |
 | `image` | string | v1 | The frame's filename. |
 | `width`, `height` | int | v1 | The written frame's size in pixels. |
 | `anomaly_present` | bool | v1 | Whether any anomaly was active on this frame. 🆕 **For the `stuck_low_mip` hold route, only a frame that is labelled for it counts** (it is in the event's `annotation.json` frame list); its frames before the blur takes hold and after the texture is back carry no positive entry. `camera_clipping`, a whole-session anomaly, adds its entry only on the frames where it is positive (§8.6b). Every other anomaly keeps the v1 meaning (an event is running). A transition-only entry (§8.6a) never sets it. Per anomaly: §8.7. |
-| **`transition_present`** | `true` | **new** | **Only present when true.** At least one entry on this frame carries `transition: 1` — see §8.6a. |
+| **`transition_present`** | `true` | **new** | **Only present when true.** At least one entry on this frame carries `transition: 1` — see §8.6a. 🆕 2.2: also on every `settle` frame, even one with no entry. |
+| **`transition_reason`** (row level) | array of string | **090-10**, widened in **2.2** | **Only present when set.** `capture_unpaired` (§8.6a) and, from 2.2, `settle` (§8.6c): the reason applies to the whole frame. A `settle` frame carries it whether or not it has an anomaly entry, so "drop every frame with a transition flag" needs no exception. |
 | `visible_positive` | bool | v1, 🆕 **changed** | `anomaly_present` **and** at least one entry that is **labelled on this frame** (`labelled: true`, i.e. the frame is in that event's `annotation.json` frame list) has a valid box. 🆕 Before this build it only needed an active entry with a box, so a `blinking` frame whose object was visible, or a `lod_popping` frame between pops, read `true`; it now reads `false` there (see "Rows where an event is active but not in the picture" below). ⚠ **Sessions delivered before this build use the old rule.** Tell them apart by the entries: a file whose anomaly entries carry a `labelled` key uses the new rule; a file with no `labelled` key anywhere uses the old one, and for it the per-frame truth comes from `annotation.json`'s frame lists (§8.7). |
 | `anomalies` | array | v1 | One object per active anomaly — see below. |
 | **`label_rule`** | string | **new** | **Only present on a row written by the single-shot console command `IAI.Capture.Shot`**, and then always `"legacy_shot"`. Such a row is not part of a capture run: it has no `labelled` key and its `visible_positive` keeps the **old** meaning (an active entry with a valid box), because a single shot has no render record and no transition history to apply the run rule with. Capture-run rows never carry this key. |
@@ -912,7 +944,7 @@ One JSON object per line, one line per captured frame.
 | **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
 | `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
 | **`transition`** | `1` | **new** | **Only present when set.** This frame is uncertain for this event — why is in `transition_reason`; see §8.6a. |
-| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable`, `capture_unpaired`, `pie_end_settle` — see §8.6a. |
+| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable`, `capture_unpaired`, `pie_end_settle`, and from 2.2 `settle` — see §8.6a and §8.6c. ⚠ `settle` and `pie_end_settle` are different reasons; match reason names exactly, never by substring. |
 | **`capture_unpaired`** | `true` | **090-10** | **Row-level, only present when set** (with a row-level `transition_reason: ["capture_unpaired"]`). The frame was captured by the **synchronous** path, so its picture is not paired with its label: drop it (§8.6a). Never present with the shipped settings. |
 | **`labelled`** | bool | **new** | Whether this frame is in this event's `annotation.json` frame list (`injected_frames`) — the anomaly is in the picture on this frame by the label's own rule. It is written by the same rule, per anomaly, that builds that frame list (for `missing_texture` / `corrupted_texture`: the object's projected box is on screen **and at least one slot the anomaly replaced still renders its material on this frame** — see `effect_interrupted`, §8.6a; for `blinking` / `missing_object`: the object is hidden; for `lod_popping` / `camera_clipping`: the anomaly is in its anomalous state; for `stuck_low_mip`: the frame's render record shows the hold). `false` on an entry means the event is running but its effect is not applied on this frame, or the entry is a transition-only one (§8.6a). What "applied" means for each anomaly is in §8.7. Absent on files from earlier builds and on single shots taken with `IAI.Capture.Shot` (those rows carry `label_rule: "legacy_shot"`). A frame captured by the synchronous path (`capture_unpaired`) never has a labelled entry. `run_summary.json` names the rule as `label_labelled_rule: "annotation_membership_per_policy_v4_sample_bound"` (090-10: the on-screen test uses the bounds frozen for this picture, and synchronous frames are never labelled). Earlier names: `"…_v3_effect_rendered_nanite_gated"` (090-09: partial replacement stays labelled, Nanite-drawing frames are not), `"…_v2_effect_installed"` (090-05), `"annotation_membership_per_policy_v1"` (before 090-05, which did not check that the texture anomaly's material was still on the object). |
 
@@ -956,6 +988,7 @@ When a transition is flagged, the anomaly's entry carries **`transition: 1`**, a
 | any anomaly on an object | `nanite_unmaskable` | with `IAI.Targets.AllowNanite 0` (the default), every frame on which the object draws a Nanite part — one that appeared while the event ran (a component added or made visible, a mesh change). The event is reverted at the next tick. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
 | any anomaly | `capture_unpaired` | every frame captured by the **synchronous** path: `IAI.Capture.Async 0`, or, with `IAI.Capture.SVE 0` (the UI-on option), a frame on which the game-viewport rectangle could not be found. That path reads the picture the game presented **before** the current tick while the anomaly state is read **during** it, so a change made in that tick is in the label and not in the picture. **With or without anti-aliasing. Never with the shipped settings** (asynchronous capture on, scene-colour capture on). | a transition-only entry on every anomaly of the frame (`labelled: false`, no target mask), plus row-level `capture_unpaired: true`; the frame is excluded from positive lists and included in schema 2.1 `transition_frames` | **no** | **no** |
 | `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption`, proxy-route `stuck_low_mip` (every fire-window type) | `pie_end_settle` | **Play In Editor only:** the first captured frame after each labelled run of the event. It is a precaution, not a correction: an earlier reading suggested that in PIE the picture stayed changed one frame after the label ended, and that reading was traced to the checking tool, not the labels (it compared against `affected_frames`, which leaves out a labelled frame whose target mask was not measured; against `injected_frames` no event ended late). The flag only marks a frame that is already unlabelled, so keeping it costs one frame per event in PIE and nothing else. **Never in a packaged or staged game**; `run_summary.json` says whether the capture ran in PIE (`pie_end_settle_active`) and counts the frames (`pie_end_settle_frames`). | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
+| every anomaly (schema 2.2) | `settle` | the K captured frames right after every anomaly onset, and the K right after every offset (K = 2 by default, the first number of `IAI.Capture.Config`; see §8.6c). **With or without anti-aliasing.** | after an onset: the normal entry, plus `transition: 1` (still labelled when the frame is labelled); after an offset: a transition-only entry for the anomaly that just ended (`labelled: false`, no target mask). The row itself carries `transition_present: true` and `transition_reason: ["settle"]`, also when it has no entry (a burst that fired nothing) | after an onset: yes; after an offset: **no** | after an onset: yes (in the frame lists, and also in `transition_frames`); after an offset: **no** |
 | every other anomaly | — | none | — | — | — |
 
 - **`partial` is not an anti-aliasing effect.** A blurry-texture event holds several textures of one object (for
@@ -988,7 +1021,7 @@ When a transition is flagged, the anomaly's entry carries **`transition: 1`**, a
 
 **What to do with each reason:**
 
-| `transition_reason` | What the frame is | Training use (schema 2.1) |
+| `transition_reason` | What the frame is | Training use (schema 2.1 and 2.2) |
 | --- | --- | --- |
 | `temporal_aa` | the anti-aliasing history may still show the previous state (onset) or a fading copy during an optional off window (0 frames by default) | drop the frame |
 | `hide_return` | optional frames after a hidden object reappears (0 by default); the history may still show it missing | drop the frame |
@@ -999,9 +1032,11 @@ When a transition is flagged, the anomaly's entry carries **`transition: 1`**, a
 | `nanite_unmaskable` | the object now draws a Nanite part, so no mask can be made for it; the effect is reverted at the next tick | drop the frame |
 | `capture_unpaired` | captured by the synchronous path: the picture may be one game tick older than the label | drop the frame |
 | `pie_end_settle` | Play In Editor only: the frame right after a label ends, which may still show the effect | drop the frame |
+| `settle` | schema 2.2: one of the frames right after an anomaly starts or stops; the picture may still be settling (for example a blurry texture streaming down, or anti-aliasing history) | drop the frame |
 
 A frame can carry more than one reason. Drop every transition frame from training: never use it as a positive or a negative.
-All the transition rows above appear in schema 2.1 `transition_frames`, including rows outside the positive lists.
+All the transition rows above appear in `transition_frames` (schema 2.1 and 2.2), including rows outside the positive lists;
+in 2.2 the root `transition_frame_count` also counts a `settle` frame that carries no entry.
 
 **The synchronous capture path is unsupported for delivery.** The shipped defaults (asynchronous capture and
 scene-colour capture both on, no ini key needed) never reach it; it is reached only by `IAI.Capture.Async 0`, or by
@@ -1035,7 +1070,8 @@ were changed: restore them and capture again.
   `label_entries_suppressed` (entries withheld because they were not labelled on that frame), the entries per
   reason (`label_transition_temporal_aa_entries`, `_hide_return_entries`, `_partial_entries`,
   `_camera_clipping_unconfirmed_entries`, `_unresolved_entries`, `_effect_interrupted_entries`,
-  `_nanite_unmaskable_entries`, `_capture_unpaired_entries`, `_pie_end_settle_entries`), `pie_end_settle_active` and
+  `_nanite_unmaskable_entries`, `_capture_unpaired_entries`, `_pie_end_settle_entries`, and from 2.2
+  `_settle_entries`, with `settle_frames` counting the frames), `pie_end_settle_active` and
   `pie_end_settle_frames` (Play In Editor only, see the table above), `label_active_unlabelled_entries` (the rows of the
   table above), `label_effect_partial_frames` (labelled frames on which the game had replaced some, not all, of a
   texture event's slots), `nanite_midevent_reverts`, `refused_nanite_probe_missing` and `capture_unpaired_frames`
@@ -1093,6 +1129,72 @@ touch the slab, the plugin traces a grid of rays **inside the slab only** agains
   confirmed / unconfirmed / rejected frame counts, the per-cause unconfirmed counts (including
   `camera_clipping_confirm_too_few_valid_trace_candidates`, `_welded_unconfirmable` and
   `_instance_transform_unconfirmable`) and the cost.
+
+### 8.6c Capture continuity — every engine frame is saved (schema 2.2)
+
+> **Status of this section (2026-11-13):** written from the code; **no capture has been made with it yet**, so none
+> of the numbers below has been measured on a real game. The default K = 2 still flags two frames at every edge;
+> whether those frames are exact enough to keep is measured later. The dashboard's video encoder and the check kit
+> bundled with it are **not updated yet**; until they are, do not use a schema 2.2 capture with an older bundle
+> (kit 1.5 refuses every 2.2 session as `annotation transitions mismatch`).
+
+**What you get.** From schema 2.2, every engine frame from the capture's first frame to its last is saved. Older
+builds skipped the two engine frames right after each anomaly appeared and the two right after it disappeared; the
+saved files were numbered without gaps, so the hole was invisible in the names, but motion jumped exactly where the
+label changed.
+
+**The flagged frames.** The first K saved frames after each onset and the first K after each offset carry the reason
+`settle` (K is the first number of `IAI.Capture.Config`, default 2; K = 0 flags none, and nothing is ever skipped
+either way). After an onset they are labelled with the anomaly as usual; after an offset they carry a transition-only
+entry and no label. Your existing rule — drop every frame with a transition flag from both positives and negatives —
+already removes them. No new rule is needed.
+
+**One cycle at the defaults** (`IAI.Capture.Config 2 4 8 4 0`) is now **16 frames instead of 12**. For a texture-type
+anomaly (labelled on every frame it runs): 8 unflagged labelled frames, 2 labelled frames flagged `settle`, 2 unlabelled
+frames flagged `settle`, and 4 clean frames; a blinking or LOD anomaly is labelled only on its hidden or popped frames
+inside the same window. A
+capture with a frame limit therefore holds about a quarter fewer anomaly events for the same limit (a 90-frame capture:
+5 complete events instead of 7). The assembled video now plays in real time; before, it was about 25 % shorter than
+the time it covered. A blinking object now hides and shows on a regular rhythm in the frame sequence; the old
+irregular pattern came from the skipped frames.
+
+**Checking continuity yourself.** Sort `labels.jsonl` by `session_index`: every row's `tick_index` is the previous
+row's plus 1, `run_summary.json` reads `frames_dropped: 0` and `ticks_per_captured_frame: 1.0`, and
+`capture_span_ticks` equals `total_frames`. If a frame is ever lost, its tick and the reason are named:
+
+| `run_summary.json` key | Meaning |
+| --- | --- |
+| `capture_span_ticks` | Engine ticks from the first captured frame to the last, inclusive. |
+| `frames_armed` | Frames that were given a frame number (`session_index`). |
+| `frames_dropped` | Ticks of the span with no saved frame (`capture_span_ticks` − `total_frames`). 0 on a healthy capture. |
+| `frames_dropped_ticks` | The `tick_index` of every missing frame, ascending; at most 4096 are listed. |
+| `frames_dropped_ticks_truncated` | `true` if the list above hit its limit. |
+| `frames_dropped_by_cause` | Missing frames per cause; always lists every cause below, and the values add up to `frames_dropped`. |
+| `orphan_completions` | Pictures that came back with no frame record to match them to. They are not lost ticks and are counted separately. Expected 0. |
+| `label_rows_failed` | Frames whose image was saved but whose `labels.jsonl` row could not be appended. Expected 0. |
+| `settle_frames` | Frames saved with the `settle` flag. |
+| `label_transition_settle_entries` | Anomaly entries carrying `settle`. |
+| `ticks_per_captured_frame` | ⚠ **Meaning changed in 2.2:** `capture_span_ticks` ÷ `total_frames`, exactly 1.0 when nothing was lost. (`capture_game_ticks` keeps its old meaning — every tick since the run began, warm-up and drain included — so the old ratio can still be computed.) |
+| `writer_pending_byte_cap` | The image writer's limit on pixels waiting to be saved, in bytes (1 GiB). When it is reached the capture **waits** for the writer; it never drops a frame. |
+| `writer_pending_count_floor` | The writer always accepts at least this many images in flight (4), however large. |
+| `writer_pending_bytes_peak` | The most pixel bytes that were ever waiting at once. |
+| `writer_backpressure_waits`, `writer_backpressure_seconds` | How often, and for how long in total, the capture waited for the writer. Waiting costs real time only, never a frame and never game time. |
+| `writer_flush_complete` | `true` = every image finished saving before this summary was written. At the end of a capture the writer waits up to 120 s; anything still unsaved after that is counted as `writer_timeout`. |
+
+The causes in `frames_dropped_by_cause`:
+
+| Cause | What happened |
+| --- | --- |
+| `unresolved_at_end` | The frame was requested but its picture never came back before the capture ended (this includes a picture the capture path could not deliver; the log line names the specific reason). |
+| `cancelled_epoch` | The frame belonged to a scene that changed underneath it (a new target, scene or level), so it was cancelled. |
+| `write_failed` | The image could not be encoded or saved. |
+| `writer_timeout` | The writer was still busy with it 120 s after the capture ended. |
+| `not_armed` | A tick passed without a frame being requested at all. |
+| `bench_gate`, `bench_drop` | Test-bench tools only; never in a delivered capture. |
+| `unknown` | None of the above. Should always be 0; tell us if it is not. |
+
+A frame that was requested but never saved keeps its file number missing (nothing is renumbered) and is removed from
+every `annotation.json` frame list, because that frame does not exist.
 
 ### 8.7 The per-frame label, anomaly by anomaly — and how to build a training label from it
 
