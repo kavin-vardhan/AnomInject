@@ -13,6 +13,9 @@ INVALID = 2
 
 
 def is_m52_entry(entry):
+    """An m52 entry occupies its frame if it is labelled or carries any transition flag, settle (m56) included: the
+    C++ counter (NoteTexCorruptM52Overlap) runs after StepSettleFlags, so it counts a settle-flagged m52 entry the
+    same way (bTransition = transition-only or any reason bit)."""
     return entry.get("id", "") in M52_IDS and (entry.get("labelled") is True or bool(entry.get("transition")))
 
 
@@ -102,13 +105,13 @@ def describe(result):
                                                    result["reason"]))
 
 
-def _entry(aid, labelled=None, transition=False):
+def _entry(aid, labelled=None, transition=False, reason="temporal_aa"):
     e = {"id": aid, "target_name": "T"}
     if labelled is not None:
         e["labelled"] = labelled
     if transition:
         e["transition"] = 1
-        e["transition_reason"] = ["temporal_aa"]
+        e["transition_reason"] = [reason]
     return e
 
 
@@ -144,6 +147,11 @@ def selftest():
         ("no m53 entry", [_entry(m52, True), _entry("missing_texture", True, True)], False),
         ("m53 only", [_entry(uv, True), _entry(nm, False)], False),
         ("an empty frame", [], False),
+        ("m56: an m52 settle-only (after-offset) entry + m53 entry is a co-entry",
+         [_entry(m52, False, True, "settle"), _entry(uv, True)], True),
+        ("m56: an m52 labelled settle (after-onset) entry + m53 entry is a co-entry",
+         [_entry(m52, True, True, "settle"), _entry(nm, False)], True),
+        ("m56: an m53 settle entry alone is not one", [_entry(uv, False, True, "settle")], False),
     ]
     for name, ents, want in cases:
         expect(is_coentry_row({"session_index": 0, "anomalies": ents}) == want, "row: " + name)

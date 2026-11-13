@@ -67,6 +67,42 @@ class TransitionTests(unittest.TestCase):
         self.rows[-1]['anomalies'][0]['event_id'] = 'doctored'
         self.assertTrue(self.check())
 
+    def settle_fixture(self):
+        rows = copy.deepcopy(self.rows)
+        rows.append(dict(session_index=11, transition_present=True, transition_reason=['settle'], anomalies=[
+            dict(id='stuck_low_mip', target_name='Target', start_frame=20, event_id='stuck_low_mip@20|Target',
+                 transition=1, transition_reason=['settle'], labelled=True)]))
+        rows.append(dict(session_index=12, transition_present=True, transition_reason=['settle'], anomalies=[]))
+        a = copy.deepcopy(self.annotation)
+        a['label_schema_minor'] = 2
+        a['anomalies'][1]['transition_frames'] = [10, 11]
+        a['anomalies'][1]['transition_reasons'] = {'temporal_aa': 1, 'settle': 1}
+        a['transition_frame_count'] = 12
+        return a, rows
+
+    def test_schema_2_2_settle_and_settle_only_row(self):
+        a, rows = self.settle_fixture()
+        self.assertEqual([], self.check(a, rows))
+
+    def test_schema_2_2_doctored_fail(self):
+        for kind in ('settle_only_row_not_counted', 'settle_frame_not_listed', 'settle_reason_count', 'minor_1', 'minor_3'):
+            a, rows = self.settle_fixture()
+            if kind == 'settle_only_row_not_counted': a['transition_frame_count'] = 11
+            if kind == 'settle_frame_not_listed': a['anomalies'][1]['transition_frames'] = [10]
+            if kind == 'settle_reason_count': a['anomalies'][1]['transition_reasons'].pop('settle')
+            if kind == 'minor_1': a['label_schema_minor'] = 1
+            if kind == 'minor_3': a['label_schema_minor'] = 3
+            with self.subTest(kind=kind): self.assertTrue(self.check(a, rows))
+
+    def test_vetoed_event_transitions_tolerated_only_with_a_veto(self):
+        a, rows = self.settle_fixture()
+        a['anomalies'].pop()
+        self.assertTrue(self.check(a, rows))
+        (self.root / 'run_summary.json').write_text(json.dumps(dict(vetoed_events=1)))
+        self.assertEqual([], self.check(a, rows))
+        (self.root / 'run_summary.json').write_text(json.dumps(dict(vetoed_events=0)))
+        self.assertTrue(self.check(a, rows))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,8 +26,8 @@ import tempfile
 import time
 import zlib
 
-KIT_VERSION = "1.5"
-EVALUATOR = "091-03"
+KIT_VERSION = "1.6"
+EVALUATOR = "095-05b"
 METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local references, stuck_low_mip "
           "sharpness path and transition-aware gate; 084-07 labelled and partial rules; 090-07 effect_interrupted "
           "run edges read against the picture at the interruption; 090-09 a labelled run with an image it cannot "
@@ -39,7 +39,9 @@ METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local r
           "labelled run of a fire-window type in a Play-In-Editor capture) is left out of its event and is never a "
           "reference or an anti-aliasing excuse, the run end is still judged on the next frame, which must read "
           "clean or meet the temporal flag and measured-decay rules; the flag outside a PIE capture refuses the session while one on a labelled frame, on another "
-          "type or anywhere but the first frame after a run fails the event")
+          "type or anywhere but the first frame after a run fails the event; 095-05b schema 2.2 (m56): a settle frame (one of the K frames "
+          "captured after every onset and every offset) is excused in both directions, never as an anti-aliasing tail and outside the decay "
+          "rule, and a tick_index step other than 1 marks an uncaptured gap")
 
 TYPE_MAP = {"blink": "blinking", "flicker": "blinking"}
 DELIVERED = ("blinking", "missing_object", "missing_texture", "corrupted_texture", "lod_popping",
@@ -56,11 +58,12 @@ INTERRUPT_REASON = "effect_interrupted"
 NANITE_REASON = "nanite_unmaskable"
 UNPAIRED_REASON = "capture_unpaired"
 PIE_REASON = "pie_end_settle"
+SETTLE_REASON = "settle"
 PIE_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption", "lighting_mismatch",
              "lod_corruption", "null_effect", "solid_swap", "time_dilation")
 NO_AA_EXCUSE = (INTERRUPT_REASON, NANITE_REASON, UNPAIRED_REASON, PIE_REASON)
 KNOWN_REASONS = AA_ONLY_REASONS + ("partial", "camera_clipping_unconfirmed", "unresolved", INTERRUPT_REASON,
-                                   NANITE_REASON, UNPAIRED_REASON, PIE_REASON)
+                                   NANITE_REASON, UNPAIRED_REASON, PIE_REASON, SETTLE_REASON)
 PIE_OUTSIDE = "pie_end_settle outside a PIE capture"
 PIE_LABELLED = "pie_end_settle on a labelled frame"
 PIE_TYPE = "pie_end_settle on a type without a fire window"
@@ -496,6 +499,13 @@ def _has_pie(rs):
     return isinstance(rs, list) and any(str(q) == PIE_REASON for q in rs)
 
 
+def row_settle(r):
+    if isinstance(r.get("transition_reason"), list) and SETTLE_REASON in r["transition_reason"]:
+        return True
+    return any(isinstance(x, dict) and isinstance(x.get("transition_reason"), list) and SETTLE_REASON in x["transition_reason"]
+               for x in (r.get("anomalies") or []))
+
+
 def pie_outside(d):
     summ = jload(os.path.join(d, "run_summary.json"), None)
     if isinstance(summ, dict) and summ.get("pie_end_settle_active") is True:
@@ -544,6 +554,7 @@ class Session(object):
         self.ce_rows = [r for r in read_jsonl(os.path.join(d, "change_evidence.jsonl")) if r.get("kind") == "pair"]
         self.sis = sorted(self.rows)
         self.unpaired = set(si for si, r in self.rows.items() if row_unpaired(r))
+        self.settle = set(si for si, r in self.rows.items() if row_settle(r))
         self.invalid = set()
         self._full = collections.OrderedDict()
         self._mask = collections.OrderedDict()
@@ -617,12 +628,21 @@ class Session(object):
         v = (self.rows.get(si) or {}).get("view") or {}
         return v.get("origin"), v.get("rot")
 
+    @staticmethod
+    def _step(ra, rb):
+        ta, tb = ra.get("tick_index"), rb.get("tick_index")
+        if isinstance(ta, int) and isinstance(tb, int) and not isinstance(ta, bool) and not isinstance(tb, bool):
+            return tb - ta
+        fa, fb = ra.get("frame_index"), rb.get("frame_index")
+        if fa is None or fb is None:
+            return None
+        return fb - fa
+
     def brk(self, a):
         ra, rb = self.rows.get(a), self.rows.get(a + 1)
         if ra is None or rb is None:
             return "session_index missing"
-        fa, fb = ra.get("frame_index"), rb.get("frame_index")
-        if fa is None or fb is None or fb - fa != 1:
+        if self._step(ra, rb) != 1:
             return "engine-frame jump"
         for si in (a, a + 1):
             if not os.path.isfile(self.frame_path(si)):
@@ -633,10 +653,10 @@ class Session(object):
         ra, rb = self.rows.get(a), self.rows.get(a + 1)
         if ra is None or rb is None:
             return "session_index missing"
-        fa, fb = ra.get("frame_index"), rb.get("frame_index")
-        if fa is None or fb is None:
+        st = self._step(ra, rb)
+        if st is None:
             return "no frame_index"
-        if fb - fa != 1:
+        if st != 1:
             return "engine-frame jump"
         return None
 
@@ -1051,8 +1071,13 @@ def transition_gate(L, runs, V, span, reasons, drop, sigma, taa, partial_class=N
         for si in range(a, b + 1):
             run_of[si] = (a, b)
     unbacked = []
+    settle_unl = set()
     for si in lnv:
         rs = reasons.get(si) or ()
+        if SETTLE_REASON in rs:
+            exc_lnv.add(si)
+            stats["settle_excused"] += 1
+            continue
         a, b = run_of.get(si, (si, si))
         onset_taa = "temporal_aa" in rs and si <= (a + b) / 2.0 and not (set(rs) & set(NO_AA_EXCUSE))
         if "partial" in rs and partial_class is not None:
@@ -1075,6 +1100,11 @@ def transition_gate(L, runs, V, span, reasons, drop, sigma, taa, partial_class=N
     starts = sorted(a for a, _b in runs)
     for si in unl:
         rs = set(reasons.get(si) or ())
+        if SETTLE_REASON in rs:
+            exc_unl.add(si)
+            settle_unl.add(si)
+            stats["settle_excused"] += 1
+            continue
         if rs & set(NO_AA_EXCUSE) or not (rs & set(AA_ONLY_REASONS)):
             continue
         prior = [b for b in ends if b < si]
@@ -1089,7 +1119,7 @@ def transition_gate(L, runs, V, span, reasons, drop, sigma, taa, partial_class=N
             stats["tail_excused"] += 1
     decay = []
     for a, b in runs:
-        after = [si for si in exc_unl if si > b and not any(a2 > b and a2 <= si for a2 in starts)]
+        after = [si for si in exc_unl if si not in settle_unl and si > b and not any(a2 > b and a2 <= si for a2 in starts)]
         if not after or drop is None or sigma is None:
             continue
         first_tail = b + 2 if b + 1 in pie_excluded and b + 1 not in sp else b + 1
@@ -2228,6 +2258,8 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
     w("sessions without target masks (box used, lower confidence) %d" % si["nomask"])
     w("unpaired frames (written on the sync path, picture not paired with its label; left out of every check) %d in "
       "%d session(s)" % (si.get("unpaired", 0), si.get("unpaired_sessions", 0)))
+    w("settle frames (schema 2.2: the frames captured right after an anomaly starts or stops, flagged settle; excused "
+      "in both directions, never a failure) %d in %d session(s)" % (si.get("settle", 0), si.get("settle_sessions", 0)))
     aggs = aggregate(rows)
     pie_bad = collections.Counter()
     for a in aggs.values():
@@ -2284,9 +2316,10 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
             w("post-edge residual (share of the effect on the first frame after the label) median %s max %s" % (
                 _pct(median(p)), _pct(p[-1])))
         st = a.stats
-        w("transition frames excused %d (onset %d, after the end %d) | partial confirmed %d, flagged-invisible %d, "
+        w("transition frames excused %d (onset %d, after the end %d, settle %d) | partial confirmed %d, flagged-invisible %d, "
           "unbacked %d | unresolved-only off frames %d" % (
-              a.excused, st.get("onset_excused", 0), st.get("tail_excused", 0), st.get("partial_confirmed", 0),
+              a.excused, st.get("onset_excused", 0), st.get("tail_excused", 0), st.get("settle_excused", 0),
+              st.get("partial_confirmed", 0),
               st.get("partial_invisible", 0), st.get("partial_unbacked", 0), st.get("unresolved_off", 0)))
         if t == M52:
             w("partial frames per edge %s | warm-up events %s | edges over %d partial frames %d" % (
@@ -2402,7 +2435,7 @@ def refuse_reason(d):
 def run(paths, decoder, types=None):
     t0 = time.time()
     info = dict(read=0, refused=collections.Counter(), dups=0, res=collections.Counter(), rule=collections.Counter(),
-                taa=collections.Counter(), nomask=0, unpaired=0, unpaired_sessions=0, pie=0)
+                taa=collections.Counter(), nomask=0, unpaired=0, unpaired_sessions=0, pie=0, settle=0, settle_sessions=0)
     rows = []
     seen = set()
     frames = 0
@@ -2426,6 +2459,9 @@ def run(paths, decoder, types=None):
         if s.unpaired:
             info["unpaired"] += len(s.unpaired)
             info["unpaired_sessions"] += 1
+        if s.settle:
+            info["settle"] += len(s.settle)
+            info["settle_sessions"] += 1
         if s.pie_active:
             info["pie"] += 1
         if s.size:
@@ -2621,6 +2657,8 @@ def st_make(root, name, spec):
                    "mask_value": ST_MV, "target_pixels": -1}
             if spec.get("rule", "new") == "new":
                 ent["labelled"] = si in L and si not in unp
+            if spec.get("schema22"):
+                ent["event_id"] = "%s@%d|%s" % (lab_id, ent["start_frame"], ent["target_name"])
             fl = ev.get("flags", {}).get(si)
             if si in unp:
                 ent["transition"] = 1
@@ -2659,6 +2697,13 @@ def st_make(root, name, spec):
                         "visible_positive": False})
             if entries:
                 row["transition_present"] = True
+        if spec.get("schema22"):
+            tick = si + (spec.get("tick_jump", 0) if spec.get("tick_jump_at") is not None and si >= spec["tick_jump_at"] else 0)
+            row["tick_index"] = tick
+            row["t_wall_run"] = tick / 30.0
+            if any(SETTLE_REASON in (x.get("transition_reason") or []) for x in entries) or si in spec.get("settle_rows", ()):
+                row["transition_present"] = True
+                row["transition_reason"] = [SETTLE_REASON]
         labels.append(row)
     omit_rows = set(spec.get("omit_rows", ()))
     labels = [r for r in labels if r["session_index"] not in omit_rows]
@@ -2666,8 +2711,29 @@ def st_make(root, name, spec):
     with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
         for r in random_order:
             fh.write(json.dumps(r) + "\n")
+    anno = {"label_schema": 2, "session_id": "st_" + name, "anomalies": anomalies}
+    if spec.get("schema22"):
+        union = set()
+        for k, a in enumerate(anomalies):
+            key = "%s@%d|%s" % (lab_id, 5000 + k, "T%d" % k)
+            a["event_id"] = key
+            tf, tr = [], {}
+            for r in labels:
+                for x in r["anomalies"]:
+                    if x.get("event_id") == key and x.get("transition") == 1:
+                        tf.append(r["session_index"])
+                        union.add(r["session_index"])
+                        for q in x.get("transition_reason") or []:
+                            tr[q] = tr.get(q, 0) + 1
+            a["transition_frames"] = sorted(tf)
+            a["transition_reasons"] = tr
+        for r in labels:
+            if SETTLE_REASON in (r.get("transition_reason") or []):
+                union.add(r["session_index"])
+        anno["label_schema_minor"] = 2
+        anno["transition_frame_count"] = len(union) + spec.get("doctor_transition_count", 0)
     with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
-        json.dump({"label_schema": 2, "session_id": "st_" + name, "anomalies": anomalies}, fh)
+        json.dump(anno, fh)
     summ = {}
     if spec.get("rule", "new") in ("new", "flags"):
         summ.update({"label_temporal_aa": bool(spec.get("taa", False)), "label_transition_on_frames": 3,
@@ -2885,6 +2951,21 @@ def st_cases():
     m52("m52_labels_row_missing", p, omit_rows=(65,))
     m52("m52_frame_invalid", _full(L52), damage={65: "tail"})
     m52("m52_unpaired_end", _full(L52), unpaired={70: "prev"})
+    st_flags = {si: (SETTLE_REASON,) for si in (41, 42, 49, 50)}
+    tex("settle_exact", _full(L), schema22=True, ev={"flags": st_flags})
+    resid = _full(L)
+    resid.update({49: 0.6, 50: 0.3})
+    tex("settle_residue_excused", resid, schema22=True, ev={"flags": st_flags})
+    tex("settle_residue_unflagged", resid, schema22=True, ev={"flags": {41: (SETTLE_REASON,), 42: (SETTLE_REASON,)}})
+    lagged = _full(L)
+    lagged.pop(41)
+    tex("settle_onset_lag_excused", lagged, schema22=True, ev={"flags": st_flags})
+    tex("settle_label_late_1", _full(L), labels=list(range(41, 49)), schema22=True,
+        ev={"flags": {si: (SETTLE_REASON,) for si in (42, 43, 50, 51)}})
+    tex("settle_label_early_1", _full(L), labels=list(range(39, 47)), schema22=True,
+        ev={"flags": {si: (SETTLE_REASON,) for si in (40, 41, 48, 49)}})
+    tex("settle_tick_gap", _full(L), schema22=True, tick_jump_at=40, tick_jump=2, ev={"flags": st_flags})
+    tex("settle_annotation_doctored", _full(L), schema22=True, doctor_transition_count=1, ev={"flags": st_flags})
     return cases
 
 
@@ -2956,6 +3037,21 @@ def st_expect():
             lambda r: verdict(r) == "FAIL" and "excused tail did not decay" in r["per"]["t50"]["fails"], True)
     add("late_1_flag_covering", "label late by 1 with the flag wrongly covering it FAILS at 50 %",
         lambda r: verdict(r) == "FAIL", True)
+    add("settle_exact", "schema 2.2 settle flags, exact labels: PASS 0/0, not refused",
+        lambda r: verdict(r) == "PASS" and _edge(r)["start_ta"] == 0 and _edge(r)["end_ta"] == 0)
+    add("settle_residue_excused", "residue only on settle-flagged frames: transition-aware PASS end 0, raw FAIL",
+        lambda r: verdict(r) == "PASS" and _edge(r)["end_ta"] == 0 and raw(r) == "FAIL"
+        and r["per"]["t50"]["stats"].get("settle_excused", 0) >= 1)
+    add("settle_residue_unflagged", "the same residue without the settle flag FAILS",
+        lambda r: verdict(r) == "FAIL" and not r["per"]["t50"]["stats"].get("settle_excused"), True)
+    add("settle_onset_lag_excused", "a labelled settle frame not yet showing the effect is excused (labelled not visible)",
+        lambda r: verdict(r) == "PASS" and r["per"]["t50"]["stats"].get("settle_excused", 0) >= 1 and raw(r) == "FAIL")
+    add("settle_label_late_1", "settle flags present, label late by 1: FAILS (settle never covers the onset frame)",
+        lambda r: verdict(r) == "FAIL", True)
+    add("settle_label_early_1", "settle flags present, label early by 1: FAILS",
+        lambda r: verdict(r) == "FAIL", True)
+    add("settle_tick_gap", "a tick_index jump beside the onset reads as an uncaptured gap (frame_index continuous)",
+        lambda r: verdict(r) == "PASS" and _edge(r)["gs"])
     def all_edges_zero(r):
         return all(e["start_ta"] == 0 and e["end_ta"] == 0 for e in r["per"]["t50"]["edges"])
 
@@ -3189,6 +3285,22 @@ def selftest(force_stdlib=False):
         lines.append("SELFTEST %-66s %s" % ("transition gate: a pie_end_settle frame is never an anti-aliasing excuse",
                                           "ok" if pgate_ok else "*** WRONG ***"))
         ok_all = ok_all and pgate_ok
+        tg_s = transition_gate(Lg, [[40, 47]], vis_g, span_g, {48: (SETTLE_REASON,)}, drop_g, 0.01, False)
+        tg_n = transition_gate(Lg, [[40, 47]], vis_g, span_g, {48: ()}, drop_g, 0.01, False)
+        vis_l = set(vis_g) - {41, 48}
+        tg_l = transition_gate(Lg, [[40, 47]], vis_l, span_g, {41: (SETTLE_REASON,)}, drop_g, 0.01, False)
+        tg_l0 = transition_gate(Lg, [[40, 47]], vis_l, span_g, {}, drop_g, 0.01, False)
+        sgate_ok = (48 in tg_s["exc_unl"] and 48 not in tg_s["unl_x"] and not tg_s["fails"] and not tg_s["decay"]
+                    and tg_s["stats"].get("settle_excused") == 1 and 48 in tg_n["unl_x"]
+                    and 41 in tg_l["exc_lnv"] and not tg_l["fails"] and 41 in tg_l0["lnv_x"])
+        lines.append("SELFTEST %-66s %s" % ("transition gate: settle excuses both directions, outside the decay rule; unflagged it does not",
+                                          "ok" if sgate_ok else "*** WRONG ***"))
+        ok_all = ok_all and sgate_ok
+        ref_ok = (refuse_reason(made["settle_exact"]) is None
+                  and refuse_reason(made["settle_annotation_doctored"]) == "annotation transitions mismatch")
+        lines.append("SELFTEST %-66s %s" % ("schema 2.2 session read, not refused; its doctored transition count is refused",
+                                          "ok" if ref_ok else "*** WRONG ***"))
+        ok_all = ok_all and ref_ok
         results = {}
         for dec in decs:
             res = {}
