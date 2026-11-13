@@ -4192,6 +4192,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	bFixedTimeStepOverridden = true;
 
 	AnomalyViewport::ResetTargetExclusionStats();
+	AnomalyTerrain::ResetRunStats();
 	PatternExcludedTargets = 0;
 	TranslucentOnlyExcludedTargets = 0;
 
@@ -9093,6 +9094,13 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				PatternExcludedTargets, *AnomalyDefaults::DescribeExcludedTargetPatterns());
 		}
 
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m58): TERRAIN SUMMARY blink_terrain_events=%d terrain_unlabelable_refusals=%d (rules: %s). ")
+			TEXT("A refusal is a blinking fire on ENGINE LANDSCAPE that was not applied because its event could not be ")
+			TEXT("labelled to the product standard (no mask, wrong box); see the REFUSED-TERRAIN lines. A zero is a READING ")
+			TEXT("only if a terrain target was fired at all."),
+			BlinkTerrainEvents, AnomalyTerrain::GetUnlabelableRefusalCount(), *AnomalyTerrain::DescribeRules());
+
 		TranslucentOnlyExcludedTargets = AnomalyViewport::GetTranslucentOnlyExclusionCount();
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m49): TRANSLUCENT-ONLY EXCLUSION = %d distinct actor(s) refused as AUTO-POOL candidates ")
@@ -9680,7 +9688,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async.IsValid() ? &LabelSyncReport : nullptr,
 			CameraClipAccum.FramesEvaluated > 0 ? &CameraClipAccum : nullptr,
 			AnomalyViewport::GetNaniteRefusalCount(), AnomalyDefaults::DescribeAllowNaniteTargets(),
-			BlinkTerrainEvents);
+			BlinkTerrainEvents, AnomalyTerrain::GetUnlabelableRefusalCount());
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")

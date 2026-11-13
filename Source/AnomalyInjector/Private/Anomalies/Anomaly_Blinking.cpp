@@ -6,10 +6,12 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyHiddenClass.h"
+#include "AnomalyTerrain.h"
 #include "GameFramework/Actor.h"
 
 bool FAnomaly_Blinking::Apply(UWorld* World, const TArray<FString>& Args)
 {
+	LastRefusal.Reset();
 	if (!World)
 	{
 		return false;
@@ -62,12 +64,32 @@ bool FAnomaly_Blinking::Apply(UWorld* World, const TArray<FString>& Args)
 	Targets = UAnomalyInjectorSubsystem::IsViewportScopingEnabled(World)
 		? AnomalyViewport::FindVisibleActorsMatching(World, Args[0])
 		: AnomalyTargeting::FindActorsMatching(World, Args[0]);
+	int32 TerrainRefused = 0;
+	for (int32 i = 0; i < Targets.Num(); )
+	{
+		const AActor* Actor = Targets[i].Get();
+		const AnomalyTerrain::FTerrainVerdict Terrain = Actor ? AnomalyTerrain::Classify(Actor) : AnomalyTerrain::FTerrainVerdict();
+		if (Terrain.bRefuseBlink)
+		{
+			AnomalyTerrain::NoteUnlabelableRefusal(Actor, Terrain.Rule);
+			Targets.RemoveAt(i);
+			++TerrainRefused;
+			continue;
+		}
+		++i;
+	}
+	if (TerrainRefused > 0 && Targets.Num() == 0)
+	{
+		LastRefusal = AnomalyTerrain::UnlabelableReason();
+	}
 	FramesSinceToggle = 0;
 	bHiddenPhase = false;
 	bActive = Targets.Num() > 0;
 
-	UE_LOG(LogAnomaly, Log, TEXT("blinking: matched %d actor(s) for '%s' at half-period %d frame(s)."),
-		Targets.Num(), *Args[0], HalfPeriodFrames);
+	UE_LOG(LogAnomaly, Log, TEXT("blinking: matched %d actor(s) for '%s' at half-period %d frame(s)%s."),
+		Targets.Num(), *Args[0], HalfPeriodFrames,
+		TerrainRefused > 0 ? *FString::Printf(TEXT(" after refusing %d engine-landscape target(s) as %s"),
+			TerrainRefused, *AnomalyTerrain::UnlabelableReason()) : TEXT(""));
 	return bActive;
 }
 

@@ -1102,7 +1102,7 @@ namespace AnomalyLabel
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip,
 		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy,
-		int32 BlinkTerrainEvents)
+		int32 BlinkTerrainEvents, int32 TerrainUnlabelableRefusals)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -1139,6 +1139,7 @@ namespace AnomalyLabel
 		}
 		Root->SetNumberField(TEXT("unmeasurable_targets_admitted"), UnmeasurableTargetsAdmitted);
 		Root->SetNumberField(TEXT("blink_terrain_events"), BlinkTerrainEvents);
+		Root->SetNumberField(TEXT("terrain_unlabelable_refusals"), TerrainUnlabelableRefusals);
 		if (StuckMip)
 		{
 			Root->SetNumberField(TEXT("stuck_mip_fires_applied"), StuckMip->FiresApplied);

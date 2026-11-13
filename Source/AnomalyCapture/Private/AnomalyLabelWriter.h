@@ -284,7 +284,7 @@ namespace AnomalyLabel
 		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr,
 		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr,
 		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString(),
-		int32 BlinkTerrainEvents = 0);
+		int32 BlinkTerrainEvents = 0, int32 TerrainUnlabelableRefusals = 0);
 
 	struct FLabelSyncTelemetry
 	{
