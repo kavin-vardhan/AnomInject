@@ -473,6 +473,8 @@ private:
 	int32 SettleFramesWritten = 0;
 	int32 FramesArmed = 0;
 	int32 OrphanCompletions = 0;
+	int32 SyncLabelRowsFailed = 0;
+	bool bWriterFlushComplete = true;
 	TMap<int32, int32> ArmedTickBySession;
 	TMap<int32, FString> DropCauseBySession;
 	TMap<int32, FString> UnarmedTickCause;

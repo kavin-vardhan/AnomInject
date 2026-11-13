@@ -124,6 +124,18 @@
 static TAutoConsoleVariable<int32> GChangeTeardownAt(TEXT("IAI.Bench.ChangeTeardownAt"), -1,
 	TEXT("Fixture-only actual world teardown after N captures; -IAIBenchFixture and CB_GateLevel required. Default off."));
 static bool GChangeTeardownIssued = false;
+static TAutoConsoleVariable<int32> GBenchDropFrameAt(TEXT("IAI.Bench.DropFrameAt"), -1,
+	TEXT("BENCH DEVICE, default -1 (OFF), console only - no ini key, never in a client payload; needs -IAIBench. The completed ")
+	TEXT("frame with session_index=<si> is discarded just before the writer, after its label row was built, so the m56 drop ")
+	TEXT("accounting must count it (cause bench_drop), list its tick in frames_dropped_ticks, leave its file number missing and ")
+	TEXT("remove it from every annotation.json frame list. Usage: IAI.Bench.DropFrameAt <session_index>"));
+static TAutoConsoleVariable<int32> GBenchSkipArmAt(TEXT("IAI.Bench.SkipArmAt"), -1,
+	TEXT("BENCH DEVICE, default -1 (OFF), console only - no ini key, never in a client payload; needs -IAIBench. The capture ")
+	TEXT("tick with tick_index=<t> passes without arming a frame, so no session_index is allocated; the m56 drop accounting ")
+	TEXT("must count it (cause not_armed) and the rows on either side must differ by 2 in tick_index. ")
+	TEXT("Usage: IAI.Bench.SkipArmAt <tick_index>"));
+static constexpr int64 GWriterPendingByteCap = 1024ll * 1024ll * 1024ll;
+static constexpr int32 GWriterPendingCountFloor = 4;
 static TAutoConsoleVariable<int32> GStuckMipSettleTailFrames(TEXT("IAI.StuckMip.SettleTailFrames"), 0,
 	TEXT("stuck_low_mip: captured frames that stay LABELLED after the render record shows every held texture back at ")
 	TEXT("its baseline. Default 0. It exists for one measured case only: a residual that temporal history (anti-")
@@ -1003,7 +1015,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 		Async->SveCapturer.Reset();
 		if (Async->Writer.IsValid())
 		{
-			Async->Writer->FlushPending(2.0);
+			Async->Writer->FlushPending(120.0);
 			Async->Writer.Reset();
 		}
 	}
@@ -3690,6 +3702,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	SettleFramesWritten = 0;
 	FramesArmed = 0;
 	OrphanCompletions = 0;
+	SyncLabelRowsFailed = 0;
+	bWriterFlushComplete = true;
 	ArmedTickBySession.Reset();
 	DropCauseBySession.Reset();
 	UnarmedTickCause.Reset();
@@ -4344,7 +4358,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	ApplySessionGlobals();
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d(settle frames captured and flagged) L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s lodMaxDist=%s lodMinCov=%s lodHighestOnly=%s clipRadius=%s | excludePatterns=%s | labelsInDelivery=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d(settle frames captured and flagged) L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s lodMaxDist=%s lodMinCov=%s lodHighestOnly=%s clipRadius=%s | excludePatterns=%s | labelsInDelivery=%s | writerCap=%lldMiB(min %d jobs in flight; blocks, never drops) ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		bDeliveryMode ? TEXT("on") : TEXT("off"),
@@ -4361,7 +4375,8 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		*AnomalyDefaults::DescribeLodPoppingRequireHighestLod(),
 		*AnomalyDefaults::DescribeCameraClippingTriggerRadius(),
 		*AnomalyDefaults::DescribeExcludedTargetPatterns(),
-		*DescribeLabelsInDelivery());
+		*DescribeLabelsInDelivery(),
+		(long long)(GWriterPendingByteCap / (1024ll * 1024ll)), GWriterPendingCountFloor);
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m52): DEFERRED-ONSET TIMEOUT = %d captured pre-roll frame(s); stuck_low_mip RESTORE TIMEOUT = ")
@@ -5033,7 +5048,21 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		Job.Record = Record;
 		Job.bPositive = EntryCounts.bPresent;
 		Job.bSettle = bSettleFrame;
+		Job.SessionIndex = Snap->SessionIndex;
 		Job.bWriteLabels = !bDeliveryMode || bLabelsInDelivery;
+		if (AnomalyBenchGate::IsEnabled() && GBenchDropFrameAt.GetValueOnGameThread() >= 0
+			&& Snap->SessionIndex == GBenchDropFrameAt.GetValueOnGameThread())
+		{
+			NoteDroppedSession(Snap->SessionIndex, TEXT("bench_drop"));
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m56-bench): DROP-FRAME-AT si=%d - the completed frame is discarded before the writer (its label ")
+				TEXT("row was built). Expected: frames_dropped 1, cause bench_drop, its tick listed, frame_%05d missing, and the ")
+				TEXT("index absent from every annotation.json frame list."),
+				Snap->SessionIndex, Snap->SessionIndex);
+			Async->PendingSnapshots.Remove(Frame.RequestId);
+			continue;
+		}
+		Async->Writer->WaitForCapacity(Job.RawBytes.Num(), GWriterPendingByteCap, GWriterPendingCountFloor);
 		Async->Writer->Enqueue(MoveTemp(Job));
 
 		Async->PendingSnapshots.Remove(Frame.RequestId);
@@ -5128,7 +5157,24 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 		Async->PendingSnapshots.Empty();
 	}
 
-	Async->Writer->FlushPending(5.0);
+	bWriterFlushComplete = Async->Writer->FlushPending(120.0);
+	if (!bWriterFlushComplete)
+	{
+		TArray<int32> Unfinished;
+		Async->Writer->GetInFlightSessions(Unfinished);
+		for (int32 Si : Unfinished)
+		{
+			NoteDroppedSession(Si, TEXT("writer_timeout"));
+		}
+	}
+	{
+		TArray<int32> Failed;
+		Async->Writer->TakeFailedSessions(Failed);
+		for (int32 Si : Failed)
+		{
+			NoteDroppedSession(Si, TEXT("write_failed"));
+		}
+	}
 	FramesWritten = Async->Writer->GetFramesWritten();
 	PositiveFramesWritten = Async->Writer->GetPositiveWritten();
 	if (Async->Writer->GetDropped() > 0)
@@ -5420,6 +5466,16 @@ void UAnomalyCaptureSubsystem::BeginRevert()
 void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 {
 	const bool bSettleRole = AnomalyLabelSync::IsSettleRole((AnomalyLabelSync::EFrameRole)FrameRole);
+	if (AnomalyBenchGate::IsEnabled() && GBenchSkipArmAt.GetValueOnGameThread() >= 0
+		&& CurrentTickIndex() == GBenchSkipArmAt.GetValueOnGameThread())
+	{
+		NoteUnarmedTick(TEXT("not_armed"));
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m56-bench): SKIP-ARM-AT tick_index=%d - this tick passes without arming a frame. Expected: frames_dropped 1, ")
+			TEXT("cause not_armed, the tick listed, no file missing, and a tick_index step of 2 between two consecutive rows."),
+			CurrentTickIndex());
+		return;
+	}
 	UWorld* World = GetWorld();
 	const AnomalyPreview::EImageFormat Format =
 		bFormatPng ? AnomalyPreview::EImageFormat::PNG : AnomalyPreview::EImageFormat::JPEG;
@@ -5621,10 +5677,15 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 	const double NowWall = FPlatformTime::Seconds();
 	SyncFrame.TickIndex = TicksAtFirstArm < 0 ? 0 : CurrentTickIndex();
 	SyncFrame.WallRun = FirstArmWallSeconds < 0.0 ? 0.0 : NowWall - FirstArmWallSeconds;
+	bool bSyncLabelFailed = false;
 	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall,
 		EffectiveOutputHeight, ImagePath, SidecarPath, NumLabels, NativeW, NativeH, WrittenW, WrittenH, bResampled,
-		false, !bDeliveryMode || bLabelsInDelivery, &SyncFrame))
+		false, !bDeliveryMode || bLabelsInDelivery, &SyncFrame, &bSyncLabelFailed))
 	{
+		if (bSyncLabelFailed)
+		{
+			++SyncLabelRowsFailed;
+		}
 		if (bResampled)
 		{
 			++SyncResamplesPerformed;
@@ -9444,9 +9505,10 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			}
 			AnomalyLabel::WriteTargetMaskMap(RunDir, MapEntries);
 
-			TargetMaskReport.Measured = TargetMaskMeasured;
+			const int32 MaskPngsDropped = (Async.IsValid() && Async->Writer.IsValid()) ? Async->Writer->GetMasksDropped() : 0;
+			TargetMaskReport.Measured = FMath::Max(0, TargetMaskMeasured - MaskPngsDropped);
 			TargetMaskReport.HiddenBlank = TargetMaskHiddenBlank;
-			TargetMaskReport.Unavailable = TargetMaskUnavailable;
+			TargetMaskReport.Unavailable = TargetMaskUnavailable + MaskPngsDropped;
 
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m43): TARGET MASK SUMMARY measured=%d hiddenBlank=%d unavailable=%d tagFlips=%d ")
@@ -9857,6 +9919,17 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			ContinuityReport.SpanTicks = Span;
 			ContinuityReport.FramesArmed = FramesArmed;
 			ContinuityReport.OrphanCompletions = OrphanCompletions;
+			ContinuityReport.LabelRowsFailed = SyncLabelRowsFailed;
+			ContinuityReport.WriterPendingByteCap = GWriterPendingByteCap;
+			ContinuityReport.WriterPendingCountFloor = GWriterPendingCountFloor;
+			ContinuityReport.bWriterFlushComplete = bWriterFlushComplete;
+			if (Async.IsValid() && Async->Writer.IsValid())
+			{
+				ContinuityReport.LabelRowsFailed += Async->Writer->GetLabelRowsFailed();
+				ContinuityReport.WriterPendingBytesPeak = Async->Writer->GetPendingBytesPeak();
+				ContinuityReport.WriterBackpressureWaits = Async->Writer->GetBackpressureWaits();
+				ContinuityReport.WriterBackpressureSeconds = Async->Writer->GetBackpressureSeconds();
+			}
 			static const TCHAR* GKnownCauses[] = { TEXT("unresolved_at_end"), TEXT("cancelled_epoch"), TEXT("bench_gate"),
 				TEXT("bench_drop"), TEXT("write_failed"), TEXT("writer_timeout"), TEXT("not_armed"), TEXT("unknown") };
 			for (const TCHAR* Known : GKnownCauses) { ContinuityReport.DroppedByCause.Add(FString(Known), 0); }

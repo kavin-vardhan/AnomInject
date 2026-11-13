@@ -412,7 +412,7 @@ namespace
 
 	bool AppendRecordAndImage(const FString& OutputDir, const TArray<uint8>& ImageBytes,
 		const FString& Record, const FString& ImageRelName, FString& OutImagePath, FString& OutSidecarPath, bool bLog,
-		bool bWriteLabels)
+		bool bWriteLabels, bool* bOutLabelFailed = nullptr)
 	{
 		const FString ImagePath = FPaths::Combine(OutputDir, ImageRelName);
 		const FString SidecarPath = FPaths::Combine(OutputDir, TEXT("labels.jsonl"));
@@ -429,8 +429,9 @@ namespace
 
 		if (bWriteLabels)
 		{
-			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
+			const bool bAppended = FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
 				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+			if (!bAppended && bOutLabelFailed) { *bOutLabelFailed = true; }
 		}
 
 		OutImagePath = ImagePath;
@@ -656,8 +657,9 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog, bool bWriteLabels, const FCaptureSnapshot* SyncFrame)
+		bool& bOutResampled, bool bLog, bool bWriteLabels, const FCaptureSnapshot* SyncFrame, bool* bOutLabelFailed)
 	{
+		if (bOutLabelFailed) { *bOutLabelFailed = false; }
 		OutNumLabels = 0;
 		OutNativeW = 0;
 		OutNativeH = 0;
@@ -715,7 +717,8 @@ namespace AnomalyLabel
 			: BuildLegacyShotRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
 				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
-		if (!AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels))
+		if (!AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels,
+			bOutLabelFailed))
 		{
 			return false;
 		}
@@ -955,9 +958,10 @@ namespace AnomalyLabel
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
 		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
 		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled,
-		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels)
+		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels, bool* bOutLabelFailed)
 	{
 		bOutResampled = false;
+		if (bOutLabelFailed) { *bOutLabelFailed = false; }
 
 		if (Width <= 0 || Height <= 0 || BytesPerPixel <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
 		{
@@ -986,8 +990,9 @@ namespace AnomalyLabel
 		if (bWriteLabels)
 		{
 			FScopeLock Lock(&JsonlLock);
-			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
+			const bool bAppended = FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
 				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+			if (!bAppended && bOutLabelFailed) { *bOutLabelFailed = true; }
 		}
 
 		return true;
@@ -1127,6 +1132,13 @@ namespace AnomalyLabel
 			for (const TPair<FString, int32>& KV : Continuity->DroppedByCause) { ByCause->SetNumberField(KV.Key, KV.Value); }
 			Root->SetObjectField(TEXT("frames_dropped_by_cause"), ByCause);
 			Root->SetNumberField(TEXT("orphan_completions"), Continuity->OrphanCompletions);
+			Root->SetNumberField(TEXT("label_rows_failed"), Continuity->LabelRowsFailed);
+			Root->SetNumberField(TEXT("writer_pending_byte_cap"), (double)Continuity->WriterPendingByteCap);
+			Root->SetNumberField(TEXT("writer_pending_count_floor"), Continuity->WriterPendingCountFloor);
+			Root->SetNumberField(TEXT("writer_pending_bytes_peak"), (double)Continuity->WriterPendingBytesPeak);
+			Root->SetNumberField(TEXT("writer_backpressure_waits"), Continuity->WriterBackpressureWaits);
+			Root->SetNumberField(TEXT("writer_backpressure_seconds"), Continuity->WriterBackpressureSeconds);
+			Root->SetBoolField(TEXT("writer_flush_complete"), Continuity->bWriterFlushComplete);
 		}
 		Root->SetNumberField(TEXT("schema_version"), SchemaVersion);
 		Root->SetNumberField(TEXT("total_frames"), TotalFrames);

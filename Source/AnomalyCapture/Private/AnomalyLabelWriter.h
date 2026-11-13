@@ -197,7 +197,8 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true, const FCaptureSnapshot* SyncFrame = nullptr);
+		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true, const FCaptureSnapshot* SyncFrame = nullptr,
+		bool* bOutLabelFailed = nullptr);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
@@ -206,7 +207,7 @@ namespace AnomalyLabel
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
 		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
 		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled,
-		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels = nullptr);
+		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels = nullptr, bool* bOutLabelFailed = nullptr);
 
 	struct FRunManifest
 	{
@@ -300,6 +301,13 @@ namespace AnomalyLabel
 		bool bDroppedTicksTruncated = false;
 		TMap<FString, int32> DroppedByCause;
 		int32 OrphanCompletions = 0;
+		int32 LabelRowsFailed = 0;
+		int64 WriterPendingByteCap = 0;
+		int32 WriterPendingCountFloor = 0;
+		int64 WriterPendingBytesPeak = 0;
+		int32 WriterBackpressureWaits = 0;
+		double WriterBackpressureSeconds = 0.0;
+		bool bWriterFlushComplete = true;
 	};
 
 	static constexpr int32 GDroppedTicksCap = 4096;

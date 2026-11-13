@@ -32,6 +32,7 @@ public:
 		FString Record;
 		bool bPositive = false;
 		bool bSettle = false;
+		int32 SessionIndex = -1;
 		bool bWriteLabels = true;
 		bool bGrayMask = false;
 		FAnomalyChangeReceiptPtr ChangeReceipt;
@@ -39,8 +40,16 @@ public:
 	};
 
 	void Enqueue(FJob&& Job);
-	void FlushPending(double TimeoutSeconds);
+	bool FlushPending(double TimeoutSeconds);
 	void ResetCounters();
+	bool WaitForCapacity(int64 IncomingBytes, int64 ByteCap, int32 CountFloor);
+	void TakeFailedSessions(TArray<int32>& OutSessions);
+	void GetInFlightSessions(TArray<int32>& OutSessions) const;
+	int64 GetPendingBytes() const;
+	int64 GetPendingBytesPeak() const;
+	int32 GetBackpressureWaits() const { return BackpressureWaits.GetValue(); }
+	double GetBackpressureSeconds() const;
+	int32 GetLabelRowsFailed() const { return LabelRowsFailed.GetValue(); }
 
 	int32 GetFramesWritten() const { return FramesWritten.GetValue(); }
 	int32 GetPositiveWritten() const { return PositiveWritten.GetValue(); }
@@ -67,7 +76,16 @@ private:
 	FThreadSafeCounter DimMismatches;
 	FThreadSafeCounter MasksWritten;
 	FThreadSafeCounter MasksDropped;
+	FThreadSafeCounter BackpressureWaits;
+	FThreadSafeCounter LabelRowsFailed;
 	FCriticalSection JsonlCS;
+
+	mutable FCriticalSection TrackCS;
+	TSet<int32> InFlightSessions;
+	TArray<int32> FailedSessions;
+	int64 PendingBytes = 0;
+	int64 PendingBytesPeak = 0;
+	double BackpressureSeconds = 0.0;
 
 	mutable FCriticalSection DimCS;
 	int32 FirstWrittenW = 0;
