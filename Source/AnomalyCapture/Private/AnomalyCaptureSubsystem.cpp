@@ -47,6 +47,7 @@
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyHiddenClass.h"
+#include "AnomalyTerrain.h"
 #include "AnomalyRunLog.h"
 #include "AnomalyFrameCapturer.h"
 #include "AnomalySveCapturer.h"
@@ -440,6 +441,8 @@ struct FAnomalyCaptureAsyncState
 		FVector BoundsOrigin = FVector::ZeroVector;
 		FVector BoundsExtent = FVector::ZeroVector;
 		FSelectionProvenance Provenance;
+		bool bTerrain = false;
+		FString TerrainRule;
 	};
 	TMap<FString, FFrozenAnchor> FrozenAnchors;
 
@@ -649,12 +652,12 @@ namespace
 		}
 	}
 
-	void MapAnomalyToClient(FName Id, FString& OutType, FString& OutSubtype)
+	void MapAnomalyToClient(FName Id, bool bTerrain, FString& OutType, FString& OutSubtype)
 	{
 		if (Id == FName(TEXT("blinking")))
 		{
 			OutType = TEXT("blink");
-			OutSubtype = TEXT("disappear_reappear");
+			OutSubtype = bTerrain ? AnomalyTerrain::TerrainBlinkSubtype() : AnomalyTerrain::DefaultBlinkSubtype();
 		}
 		else
 		{
@@ -3671,6 +3674,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	ZeroMatchBursts = 0;
 	NonManifestedEvents = 0;
 	VetoedEvents = 0;
+	BlinkTerrainEvents = 0;
 	SessionFrameIndex = 0;
 	CameraClipAccum = FCameraClipRunAccum();
 	SyncResamplesPerformed = 0;
@@ -4342,6 +4346,13 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		*AnomalyDefaults::DescribeCameraClippingTriggerRadius(),
 		*AnomalyDefaults::DescribeExcludedTargetPatterns(),
 		*DescribeLabelsInDelivery());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m58): TERRAIN RULES %s. EFFECTIVE READ-BACK, not the values requested. Terrain is decided ONCE per ")
+		TEXT("blinking event, at its anchor freeze, while the target is alive: an actor is terrain if the actor or ANY of ")
+		TEXT("its primitive components matches a rule, and the rule text in TERRAIN-SUBTYPE and selection_provenance.json ")
+		TEXT("says which. Selection and eligibility are unchanged by these rules."),
+		*AnomalyTerrain::DescribeRules());
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m52): DEFERRED-ONSET TIMEOUT = %d captured pre-roll frame(s); stuck_low_mip RESTORE TIMEOUT = ")
@@ -8534,6 +8545,12 @@ void UAnomalyCaptureSubsystem::FreezeEventAnchor(const FAutoLiveFireInfo& F)
 		Anchor.NodePath = FActor->GetPathName();
 		ResolveNodeIdentity(FActor, Anchor.AssetName, Anchor.ComponentClass, Anchor.BoundsOrigin, Anchor.BoundsExtent);
 		AnomalyViewport::EvaluateSelectionProvenance(World, FActor, Anchor.Provenance);
+		if (F.Id == FName(TEXT("blinking")))
+		{
+			const AnomalyTerrain::FTerrainVerdict Terrain = AnomalyTerrain::Classify(FActor);
+			Anchor.bTerrain = Terrain.bTerrain;
+			Anchor.TerrainRule = Terrain.Rule;
+		}
 	}
 }
 
@@ -9662,7 +9679,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr, TexCorruptSummary,
 			Async.IsValid() ? &LabelSyncReport : nullptr,
 			CameraClipAccum.FramesEvaluated > 0 ? &CameraClipAccum : nullptr,
-			AnomalyViewport::GetNaniteRefusalCount(), AnomalyDefaults::DescribeAllowNaniteTargets());
+			AnomalyViewport::GetNaniteRefusalCount(), AnomalyDefaults::DescribeAllowNaniteTargets(),
+			BlinkTerrainEvents);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -10005,6 +10023,22 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		return;
 	}
 
+	BlinkTerrainEvents = 0;
+	auto ResolveTerrainSubtype = [this](const FString& EventId, FName Id, const FString& Target) -> bool
+	{
+		const FAnomalyCaptureAsyncState::FFrozenAnchor* Anchor = Async->FrozenAnchors.Find(EventId);
+		if (!Anchor || !Anchor->bTerrain || Id != FName(TEXT("blinking")))
+		{
+			return false;
+		}
+		++BlinkTerrainEvents;
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("TERRAIN-SUBTYPE event=%s target=%s rule=%s -> anomaly_subtype %s. The terrain verdict was taken ONCE, at ")
+			TEXT("the event's anchor freeze while the target was alive; selection and eligibility are unchanged."),
+			*EventId, *Target, *Anchor->TerrainRule, *AnomalyTerrain::TerrainBlinkSubtype());
+		return true;
+	};
+
 	AnomalyLabel::FSessionAnnotation A;
 	A.Transitions = Async->SessionTransitions;
 	A.SessionId = SessionId;
@@ -10067,7 +10101,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 
 		AnomalyLabel::FSessionEvent Out;
 		Out.EventId = FString::Printf(TEXT("%s@%llu|%s"), *Ev.Id.ToString(), Ev.StartFrame, *Ev.Target);
-		MapAnomalyToClient(Ev.Id, Out.AnomalyType, Out.AnomalySubtype);
+		MapAnomalyToClient(Ev.Id, ResolveTerrainSubtype(Out.EventId, Ev.Id, Ev.Target), Out.AnomalyType, Out.AnomalySubtype);
 		Out.StuckMipRoute = Ev.StuckMipRoute;
 		if (!Ev.Subtype.IsEmpty())
 		{
@@ -10228,6 +10262,11 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 			R.OcclusionSamplesTotal = Ev.Provenance.OcclusionSamplesTotal;
 			R.PollDistance = Ev.Provenance.PollDistance;
 			R.bValid = Ev.Provenance.bValid;
+			if (const FAnomalyCaptureAsyncState::FFrozenAnchor* Anchor = Async->FrozenAnchors.Find(
+				FString::Printf(TEXT("%s@%llu|%s"), *Ev.Id.ToString(), Ev.StartFrame, *Ev.Target)))
+			{
+				R.TerrainRule = Anchor->TerrainRule;
+			}
 			Prov.Add(MoveTemp(R));
 		}
 		AnomalyLabel::WriteSelectionProvenance(RunDir, Prov);
@@ -10241,7 +10280,8 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		}
 		AnomalyLabel::FSessionEvent Out;
 		Out.EventId = KV.Key;
-		MapAnomalyToClient(KV.Value.Fire.Id, Out.AnomalyType, Out.AnomalySubtype);
+		MapAnomalyToClient(KV.Value.Fire.Id, ResolveTerrainSubtype(KV.Key, KV.Value.Fire.Id, KV.Value.Fire.Target),
+			Out.AnomalyType, Out.AnomalySubtype);
 		Out.bManifested = false;
 		Out.bObservabilityMeasured = false;
 		AnomalyLabel::FSessionNode Node;

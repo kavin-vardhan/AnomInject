@@ -283,7 +283,8 @@ namespace AnomalyLabel
 		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr,
 		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr,
-		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString());
+		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString(),
+		int32 BlinkTerrainEvents = 0);
 
 	struct FLabelSyncTelemetry
 	{
@@ -465,6 +466,7 @@ namespace AnomalyLabel
 		int32 OcclusionSamplesTotal = 0;
 		float PollDistance = -1.0f;
 		bool bValid = false;
+		FString TerrainRule;
 	};
 
 	bool WriteSelectionProvenance(const FString& RunDir, const TArray<FProvenanceRecord>& Records);
