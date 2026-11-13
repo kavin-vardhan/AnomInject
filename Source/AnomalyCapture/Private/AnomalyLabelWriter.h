@@ -117,6 +117,8 @@ namespace AnomalyLabel
 		TArray<FFrozenFireGeometry> CandidateGeometry;
 		bool bCaptureUnpaired = false;
 		uint8 FrameRole = 0;
+		int32 TickIndex = -1;
+		double WallRun = -1.0;
 
 		bool bViewGlobalPending = false;
 		bool bGlobalEarlyPositive = false;
@@ -286,7 +288,21 @@ namespace AnomalyLabel
 		const struct FStuckMipTelemetry* StuckMip = nullptr, const TSharedPtr<FJsonObject>& ChangeSummary = nullptr,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr,
 		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr,
-		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString());
+		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString(),
+		const struct FContinuityTelemetry* Continuity = nullptr);
+
+	struct FContinuityTelemetry
+	{
+		int32 SpanTicks = 0;
+		int32 FramesArmed = 0;
+		int32 FramesDropped = 0;
+		TArray<int32> DroppedTicks;
+		bool bDroppedTicksTruncated = false;
+		TMap<FString, int32> DroppedByCause;
+		int32 OrphanCompletions = 0;
+	};
+
+	static constexpr int32 GDroppedTicksCap = 4096;
 
 	struct FLabelSyncTelemetry
 	{

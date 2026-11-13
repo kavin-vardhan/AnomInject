@@ -471,6 +471,14 @@ private:
 	int32 SettleFrames = 2;
 	int32 SettleFramesArmed = 0;
 	int32 SettleFramesWritten = 0;
+	int32 FramesArmed = 0;
+	int32 OrphanCompletions = 0;
+	TMap<int32, int32> ArmedTickBySession;
+	TMap<int32, FString> DropCauseBySession;
+	TMap<int32, FString> UnarmedTickCause;
+	void NoteDroppedSession(int32 InSessionIndex, const TCHAR* Cause);
+	void NoteUnarmedTick(const TCHAR* Cause);
+	int32 CurrentTickIndex() const;
 	int32 PreFrames = 4;
 	int32 PositiveFrames = 8;
 	int32 PostFrames = 4;

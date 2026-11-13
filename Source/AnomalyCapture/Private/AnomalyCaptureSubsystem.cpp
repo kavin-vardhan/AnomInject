@@ -3688,6 +3688,11 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	ZeroMatchBursts = 0;
 	SettleFramesArmed = 0;
 	SettleFramesWritten = 0;
+	FramesArmed = 0;
+	OrphanCompletions = 0;
+	ArmedTickBySession.Reset();
+	DropCauseBySession.Reset();
+	UnarmedTickCause.Reset();
 	NonManifestedEvents = 0;
 	VetoedEvents = 0;
 	SessionFrameIndex = 0;
@@ -4728,6 +4733,7 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 				TEXT("never labelled by guess (pendingSnapshots=%d). This drop used to log at Verbose, which made a ")
 				TEXT("broken pairing indistinguishable from a path that never submitted."),
 				Frame.RequestId, Async->PendingSnapshots.Num());
+			++OrphanCompletions;
 			continue;
 		}
 
@@ -5111,8 +5117,14 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 
 	if (Async->PendingSnapshots.Num() > 0)
 	{
-		UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture(async): %d frame(s) did not resolve by run end (dropped)."),
+		UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture(async): %d frame(s) did not resolve by run end (dropped). Each is ")
+			TEXT("counted in run_summary.frames_dropped with cause unresolved_at_end, and its tick is listed in ")
+			TEXT("frames_dropped_ticks; its file number stays missing."),
 			Async->PendingSnapshots.Num());
+		for (const TPair<uint64, AnomalyLabel::FCaptureSnapshot>& KV : Async->PendingSnapshots)
+		{
+			NoteDroppedSession(KV.Value.SessionIndex, TEXT("unresolved_at_end"));
+		}
 		Async->PendingSnapshots.Empty();
 	}
 
@@ -5439,6 +5451,10 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 			LastFrameTimeSeconds = Snap.TimeSeconds;
 			Snap.WallSeconds = FPlatformTime::Seconds();
 			StampArmWallClock(Snap.WallSeconds);
+			Snap.TickIndex = CurrentTickIndex();
+			Snap.WallRun = Snap.WallSeconds - FirstArmWallSeconds;
+			ArmedTickBySession.Add(Snap.SessionIndex, Snap.TickIndex);
+			++FramesArmed;
 			Snap.ShadersPending = GetShaderJobsPending();
 			Snap.AnomalyMaterialsIncomplete = CountIncompleteAnomalyMaterials();
 			if (Snap.AnomalyMaterialsIncomplete > 0)
@@ -5473,7 +5489,14 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 				TArray<uint64> CancelledColour, CancelledMask;
 				if (Async->SveCapturer.IsValid()) { Async->SveCapturer->CancelPendingOtherGeneration(ChangeIssue, CancelledColour); }
 				if (Async->MaskExtension.IsValid()) { Async->MaskExtension->CancelPendingOtherGeneration(ChangeIssue, CancelledMask); }
-				for (uint64 Id : CancelledColour) { Async->PendingSnapshots.Remove(Id); }
+				for (uint64 Id : CancelledColour)
+				{
+					if (const AnomalyLabel::FCaptureSnapshot* Cancelled = Async->PendingSnapshots.Find(Id))
+					{
+						NoteDroppedSession(Cancelled->SessionIndex, TEXT("cancelled_epoch"));
+					}
+					Async->PendingSnapshots.Remove(Id);
+				}
 				for (uint64 Id : CancelledMask)
 				{
 					if (const int32* OldIndex = TargetMaskPendingSessionIndex.Find(Id))
@@ -5500,6 +5523,7 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 			{
 				if (Async->ChangeStage.IsValid() && Async->ChangeStage->Gate(2, SessionFrameIndex))
 				{
+					NoteDroppedSession(SessionFrameIndex, TEXT("bench_gate"));
 					Async->PendingSnapshots.Remove(RequestId);
 					Async->ChangeStage->Diagnostic(TEXT("capture_arm_dropped"));
 				}
@@ -5595,6 +5619,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 	int32 NativeW = 0, NativeH = 0, WrittenW = 0, WrittenH = 0;
 	bool bResampled = false;
 	const double NowWall = FPlatformTime::Seconds();
+	SyncFrame.TickIndex = TicksAtFirstArm < 0 ? 0 : CurrentTickIndex();
+	SyncFrame.WallRun = FirstArmWallSeconds < 0.0 ? 0.0 : NowWall - FirstArmWallSeconds;
 	if (AnomalyLabel::CaptureLabeledShot(World, RunDir, Format, ProjView, ImageName, SessionFrameIndex, NowWall,
 		EffectiveOutputHeight, ImagePath, SidecarPath, NumLabels, NativeW, NativeH, WrittenW, WrittenH, bResampled,
 		false, !bDeliveryMode || bLabelsInDelivery, &SyncFrame))
@@ -5651,6 +5677,8 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 		}
 		LastFrameTimeSeconds = NowT;
 		StampArmWallClock(NowWall);
+		ArmedTickBySession.Add(SessionFrameIndex, CurrentTickIndex());
+		++FramesArmed;
 
 		++SessionFrameIndex;
 		++FramesWritten;
@@ -5659,6 +5687,32 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 			++PositiveFramesWritten;
 		}
 		CheckEarlyPacingWarning();
+	}
+	else
+	{
+		NoteUnarmedTick(TEXT("not_armed"));
+	}
+}
+
+int32 UAnomalyCaptureSubsystem::CurrentTickIndex() const
+{
+	return TicksAtFirstArm < 0 ? -1 : CaptureGameTicks - TicksAtFirstArm;
+}
+
+void UAnomalyCaptureSubsystem::NoteDroppedSession(int32 InSessionIndex, const TCHAR* Cause)
+{
+	if (!DropCauseBySession.Contains(InSessionIndex))
+	{
+		DropCauseBySession.Add(InSessionIndex, FString(Cause));
+	}
+}
+
+void UAnomalyCaptureSubsystem::NoteUnarmedTick(const TCHAR* Cause)
+{
+	const int32 Tick = CurrentTickIndex();
+	if (Tick >= 0 && !UnarmedTickCause.Contains(Tick))
+	{
+		UnarmedTickCause.Add(Tick, FString(Cause));
 	}
 }
 
@@ -8834,9 +8888,24 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 		GameClockSpeedRatio = WallSpan / GameClockSpan;
 	}
 
+	const int32 SpanTicks = TicksAtLastArm - TicksAtFirstArm + 1;
+	const int32 WrittenFrames = FramesWritten;
+	const bool bLossy = WrittenFrames >= 2 && SpanTicks >= 2 && WrittenFrames != SpanTicks;
+	const double GameStamp = bLossy
+		? FMath::RoundToDouble((double)VideoFps * (double)(WrittenFrames - 1) / (double)(SpanTicks - 1) * 1000.0) / 1000.0
+		: (double)VideoFps;
+	if (bLossy)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m56): %d frame(s) written over a span of %d tick(s) - the fps stamp follows the WRITTEN frames ")
+			TEXT("(game clock: target x (written-1)/(span-1) = %.3f), so the assembled video still lasts as long as the time it ")
+			TEXT("covers. run_summary.frames_dropped names every missing tick and its cause."),
+			WrittenFrames, SpanTicks, GameStamp);
+	}
+
 	if (ContentClock == EContentClock::Game)
 	{
-		LastRunPacing.StampedFps = (double)VideoFps;
+		LastRunPacing.StampedFps = GameStamp;
 		if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
 		{
 			UE_LOG(LogAnomalyCapture, Warning,
@@ -8846,9 +8915,12 @@ void UAnomalyCaptureSubsystem::ComputeRunPacing()
 	}
 	else
 	{
+		LastRunPacing.StampedFps = GameStamp;
 		if (LastRunPacing.SpeedRatio > 1.0 + GFpsStampTolerance)
 		{
-			LastRunPacing.StampedFps = FMath::RoundToDouble(LastRunPacing.SustainedWallFps * 1000.0) / 1000.0;
+			LastRunPacing.StampedFps = bLossy
+				? FMath::RoundToDouble((double)(WrittenFrames - 1) / WallSpan * 1000.0) / 1000.0
+				: FMath::RoundToDouble(LastRunPacing.SustainedWallFps * 1000.0) / 1000.0;
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture: could not hold %d fps wall-clock (sustained %.3f fps, ratio %.3f) Ã¢â‚¬â€ video.fps stamped at the true rate %.3f."),
 				VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps);
@@ -9779,6 +9851,51 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				LabelSyncReport.SuppressedEntries, LabelSyncReport.OutOfOrderFrames, LabelSyncReport.MaskTagRecycles,
 				LabelSyncReport.MaskTagPeakLive, LabelSyncReport.MaskTagExhausted);
 		}
+		AnomalyLabel::FContinuityTelemetry ContinuityReport;
+		{
+			const int32 Span = TicksAtFirstArm >= 0 ? (TicksAtLastArm - TicksAtFirstArm + 1) : 0;
+			ContinuityReport.SpanTicks = Span;
+			ContinuityReport.FramesArmed = FramesArmed;
+			ContinuityReport.OrphanCompletions = OrphanCompletions;
+			static const TCHAR* GKnownCauses[] = { TEXT("unresolved_at_end"), TEXT("cancelled_epoch"), TEXT("bench_gate"),
+				TEXT("bench_drop"), TEXT("write_failed"), TEXT("writer_timeout"), TEXT("not_armed"), TEXT("unknown") };
+			for (const TCHAR* Known : GKnownCauses) { ContinuityReport.DroppedByCause.Add(FString(Known), 0); }
+			TMap<int32, FString> TickCause;
+			TSet<int32> WrittenTicks;
+			for (const TPair<int32, int32>& KV : ArmedTickBySession)
+			{
+				if (const FString* Cause = DropCauseBySession.Find(KV.Key)) { TickCause.Add(KV.Value, *Cause); }
+				else { WrittenTicks.Add(KV.Value); }
+			}
+			for (int32 T = 0; T < Span; ++T)
+			{
+				if (WrittenTicks.Contains(T)) { continue; }
+				const FString* Cause = TickCause.Find(T);
+				if (!Cause) { Cause = UnarmedTickCause.Find(T); }
+				++ContinuityReport.DroppedByCause.FindOrAdd(Cause ? *Cause : FString(TEXT("unknown")));
+				++ContinuityReport.FramesDropped;
+				if (ContinuityReport.DroppedTicks.Num() < AnomalyLabel::GDroppedTicksCap) { ContinuityReport.DroppedTicks.Add(T); }
+				else { ContinuityReport.bDroppedTicksTruncated = true; }
+			}
+			FString CauseText;
+			for (const TPair<FString, int32>& KV : ContinuityReport.DroppedByCause)
+			{
+				if (KV.Value > 0) { CauseText += FString::Printf(TEXT("%s=%d "), *KV.Key, KV.Value); }
+			}
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m56): CONTINUITY span_ticks=%d frames_armed=%d frames_written=%d frames_dropped=%d settle_frames_armed=%d ")
+				TEXT("orphan_completions=%d causes=[ %s] - on a healthy run frames_dropped is 0 and every row's tick_index is the ")
+				TEXT("previous row's plus one."),
+				Span, FramesArmed, FramesWritten, ContinuityReport.FramesDropped, SettleFramesArmed, OrphanCompletions, *CauseText);
+			if (ContinuityReport.FramesDropped != Span - FramesWritten)
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m56): CONTINUITY ACCOUNTING DISAGREES - span %d minus written %d is %d, but %d missing tick(s) were ")
+					TEXT("attributed. A frame was counted written that the accounting thinks was lost, or the reverse; read the ")
+					TEXT("causes above before trusting frames_dropped."),
+					Span, FramesWritten, Span - FramesWritten, ContinuityReport.FramesDropped);
+			}
+		}
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,
@@ -9798,7 +9915,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr, TexCorruptSummary,
 			Async.IsValid() ? &LabelSyncReport : nullptr,
 			CameraClipAccum.FramesEvaluated > 0 ? &CameraClipAccum : nullptr,
-			AnomalyViewport::GetNaniteRefusalCount(), AnomalyDefaults::DescribeAllowNaniteTargets());
+			AnomalyViewport::GetNaniteRefusalCount(), AnomalyDefaults::DescribeAllowNaniteTargets(), &ContinuityReport);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -10144,6 +10261,23 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	AnomalyLabel::FSessionAnnotation A;
 	A.Transitions = Async->SessionTransitions;
 	A.SettleFrames = Async->SettleFrameSet;
+	if (DropCauseBySession.Num() > 0)
+	{
+		int32 Removed = 0;
+		for (const TPair<int32, FString>& KV : DropCauseBySession)
+		{
+			Removed += A.SettleFrames.Remove(KV.Key);
+		}
+		for (TPair<FString, AnomalyLabel::FSessionTransition>& KV : A.Transitions)
+		{
+			Removed += KV.Value.Frames.RemoveAll([this](int32 Frame) { return DropCauseBySession.Contains(Frame); });
+		}
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m56): %d frame(s) of this session were armed but never written; they are removed from every ")
+			TEXT("annotation.json frame list (%d transition/settle listing(s) removed here, event lists below) and counted in ")
+			TEXT("run_summary.frames_dropped. Their file numbers stay missing; nothing is renumbered."),
+			DropCauseBySession.Num(), Removed);
+	}
 	A.SessionId = SessionId;
 	A.Video.FramesDir = TEXT("Actual_Frames");
 	A.Video.VideoPath = FString::Printf(TEXT("Video_Clip/%s.mp4"), *SessionId);
@@ -10199,7 +10333,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		for (int32 Key : ActiveKeys)
 		{
 			const uint8* Member = Ev.MemberByIndex.Find(Key);
-			if (Member && *Member) { MemberIdx.Add(Key); }
+			if (Member && *Member && !DropCauseBySession.Contains(Key)) { MemberIdx.Add(Key); }
 		}
 
 		AnomalyLabel::FSessionEvent Out;

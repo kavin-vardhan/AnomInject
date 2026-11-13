@@ -129,7 +129,7 @@ namespace
 		const TArray<uint8>* FireInstalled = nullptr,
 		const TArray<AnomalyLabel::FFrozenFireGeometry>* FireGeometry = nullptr,
 		const TArray<AnomalyLabel::FFrozenFireGeometry>* TransitionGeometry = nullptr,
-		bool bCaptureUnpaired = false, uint8 FrameRole = 0)
+		bool bCaptureUnpaired = false, uint8 FrameRole = 0, int32 TickIndex = -1, double WallRun = -1.0)
 	{
 		OutNumLabels = 0;
 		int32 NumLabelledWithBox = 0;
@@ -144,6 +144,11 @@ namespace
 		Root->SetNumberField(TEXT("session_index"), (double)SessionIndex);
 		Root->SetNumberField(TEXT("t"), TimeSeconds);
 		Root->SetNumberField(TEXT("t_wall"), WallSeconds);
+		if (TickIndex >= 0)
+		{
+			Root->SetNumberField(TEXT("tick_index"), TickIndex);
+			Root->SetNumberField(TEXT("t_wall_run"), WallRun >= 0.0 ? WallRun : 0.0);
+		}
 		Root->SetStringField(TEXT("image"), ImageName);
 		Root->SetNumberField(TEXT("width"), W);
 		Root->SetNumberField(TEXT("height"), H);
@@ -706,7 +711,7 @@ namespace AnomalyLabel
 				&SyncFrame->EntryEmit, &SyncFrame->EntryTransition, &SyncFrame->TransitionFires, &SyncFrame->CameraClip,
 				&SyncFrame->FireActive, &SyncFrame->TransitionFireReasons, &SyncFrame->FirePolicy, &SyncFrame->FireOnScreen,
 				&SyncFrame->ConditionHeld, &SyncFrame->FireGeometry, &SyncFrame->TransitionGeometry, SyncFrame->bCaptureUnpaired,
-				SyncFrame->FrameRole)
+				SyncFrame->FrameRole, SyncFrame->TickIndex, SyncFrame->WallRun)
 			: BuildLegacyShotRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
 				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
@@ -732,7 +737,7 @@ namespace AnomalyLabel
 			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip,
 			&Snapshot.FireActive, &Snapshot.TransitionFireReasons, &Snapshot.FirePolicy, &Snapshot.FireOnScreen,
 			&Snapshot.ConditionHeld, &Snapshot.FireGeometry, &Snapshot.TransitionGeometry, Snapshot.bCaptureUnpaired,
-			Snapshot.FrameRole);
+			Snapshot.FrameRole, Snapshot.TickIndex, Snapshot.WallRun);
 	}
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
@@ -1105,10 +1110,24 @@ namespace AnomalyLabel
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip,
-		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy)
+		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy, const FContinuityTelemetry* Continuity)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
+		if (Continuity)
+		{
+			Root->SetNumberField(TEXT("capture_span_ticks"), Continuity->SpanTicks);
+			Root->SetNumberField(TEXT("frames_armed"), Continuity->FramesArmed);
+			Root->SetNumberField(TEXT("frames_dropped"), Continuity->FramesDropped);
+			TArray<TSharedPtr<FJsonValue>> Ticks;
+			for (int32 T : Continuity->DroppedTicks) { Ticks.Add(MakeShared<FJsonValueNumber>(T)); }
+			Root->SetArrayField(TEXT("frames_dropped_ticks"), Ticks);
+			Root->SetBoolField(TEXT("frames_dropped_ticks_truncated"), Continuity->bDroppedTicksTruncated);
+			TSharedRef<FJsonObject> ByCause = MakeShared<FJsonObject>();
+			for (const TPair<FString, int32>& KV : Continuity->DroppedByCause) { ByCause->SetNumberField(KV.Key, KV.Value); }
+			Root->SetObjectField(TEXT("frames_dropped_by_cause"), ByCause);
+			Root->SetNumberField(TEXT("orphan_completions"), Continuity->OrphanCompletions);
+		}
 		Root->SetNumberField(TEXT("schema_version"), SchemaVersion);
 		Root->SetNumberField(TEXT("total_frames"), TotalFrames);
 		Root->SetNumberField(TEXT("positive_frames"), PositiveFrames);
@@ -1308,8 +1327,9 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("tickpin_saved"), TickPin->Saved);
 			Root->SetNumberField(TEXT("tickpin_reasserts"), TickPin->Reasserts);
 			Root->SetNumberField(TEXT("capture_game_ticks"), TickPin->GameTicks);
+			const double PerFrameTicks = Continuity ? (double)Continuity->SpanTicks : (double)TickPin->GameTicks;
 			Root->SetNumberField(TEXT("ticks_per_captured_frame"),
-				TotalFrames > 0 ? ((double)TickPin->GameTicks / (double)TotalFrames) : 0.0);
+				TotalFrames > 0 ? (PerFrameTicks / (double)TotalFrames) : 0.0);
 		}
 
 		if (ReadbackLayout)
