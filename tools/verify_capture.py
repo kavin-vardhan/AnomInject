@@ -3098,10 +3098,10 @@ def _change_oracle_selftest():
                    "exit %d uninterpretable %d mismatched %d" % (ci, di["summary"]["uninterpretable"], di["summary"]["mismatched"]))
 
         def expect_unavailable(name, path, fragment):
-            _c2, _l2, ud = run(path)
-            rec2 = _oracle_row_of(ud, 4)
+            _c2, _l2, unav = run(path)
+            rec2 = _oracle_row_of(unav, 4)
             ok = (rec2 is not None and rec2["status"] == CHANGE_ORACLE_UNAVAILABLE and fragment in rec2["reason"]
-                  and ud["summary"]["mismatched"] == 0)
+                  and unav["summary"]["mismatched"] == 0)
             record(name, ok, "%s" % (rec2["reason"][:44] if rec2 else "row missing"))
         expect_unavailable("unsupported_jpeg", _oracle_baseline(root, "jpeg", jpeg=(4,)), "jpeg delivery")
 
