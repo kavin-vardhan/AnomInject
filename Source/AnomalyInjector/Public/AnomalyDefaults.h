@@ -33,6 +33,13 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API void ClearExcludedTargetPatternsOverride();
 	ANOMALYINJECTOR_API FString ExcludedTargetPatternsSource();
 
+	ANOMALYINJECTOR_API const TCHAR* TerrainPatternsKey();
+	ANOMALYINJECTOR_API const TArray<FString>& GetTerrainPatterns();
+	ANOMALYINJECTOR_API FString DescribeTerrainPatterns();
+	ANOMALYINJECTOR_API void SetTerrainPatternsOverride(const TArray<FString>& Patterns);
+	ANOMALYINJECTOR_API void ClearTerrainPatternsOverride();
+	ANOMALYINJECTOR_API FString TerrainPatternsSource();
+
 	inline constexpr float LodPoppingMaxDistanceCompiled = 200.0f;
 	inline constexpr float MaxDistanceMin = 0.0f;
 	inline constexpr float MaxDistanceMax = 1000000.0f;
