@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-01 / 095-01b, 2026-11-13 — BACK ON THE MAIN LINE. `master` IS THE DELIVERED RELEASE AGAIN.**
+> - `master` was fast-forwarded `b5f15a3` → `d7eee97` (= `release/2026-10-05`, the client's M3 on 5.1) and pushed.
+>   The primary checkout moved from `m51` to `master`; the `m51` ref is unmoved at `53bf725`.
+> - **Binding plan: `_reviews\095-00-ruling.md`** (with `_reviews\095-01-ruling.md`). The client's three review topics are
+>   units **A = m56** capture continuity (`fix/m56-capture-continuity`), **B = m57** `lod_popping` spatial trigger
+>   (`feat/m57-lod-spatial-trigger`), **C = m58** terrain blink subtype (`feat/m58-terrain-blink-subtype`).
+>   Next free gotcha: **G574**. Frozen: `fix/followup-capture`, `feat/europa-port`, `D:\IA_Europa`. No Codex until the owner says.
+> - ⛔ **No build and no capture happened.** The rebuild stopped at pre-flight on the disk floor: E: 22.69 GiB free against
+>   the standing **50 GiB** floor, D: 51.36 (floor 50), C: 20.84 (floor 10). The host `Intermediate` is empty, so the
+>   rebuild is a full one (~14.5 GB on E:).
+> - ⛔ **Until the deferred rebuild, the primary host's `Binaries` do NOT match its source. No bench leg may run on it**
+>   (095-01 ruling D5). The rebuild, the host/fixture comparison and the baseline cadence legs are a later brief,
+>   after the owner frees E:.
+> - Journal: `docs/sessions/2026-11-13-095-01-return-to-main.md`.
+
+> ---
+
 > **091-07, 2026-10-04 — RELEASE FREEZE, `release/2026-10-05`.**
 > Base: `d660b5d6e67c7af8b0f264e59cf66ed02f433968`. The single behavior change is temporal
 > transition defaults On/Off/Hide = **0/0/0**, by the owner's choice. Explicit nonnegative CVar
