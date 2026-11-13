@@ -31,6 +31,7 @@ public:
 		FString ImageRelPath;
 		FString Record;
 		bool bPositive = false;
+		bool bSettle = false;
 		bool bWriteLabels = true;
 		bool bGrayMask = false;
 		FAnomalyChangeReceiptPtr ChangeReceipt;
@@ -43,6 +44,7 @@ public:
 
 	int32 GetFramesWritten() const { return FramesWritten.GetValue(); }
 	int32 GetPositiveWritten() const { return PositiveWritten.GetValue(); }
+	int32 GetSettleWritten() const { return SettleWritten.GetValue(); }
 	int32 GetPending() const { return Pending.GetValue(); }
 	int32 GetDropped() const { return Dropped.GetValue(); }
 
@@ -58,6 +60,7 @@ private:
 
 	FThreadSafeCounter FramesWritten;
 	FThreadSafeCounter PositiveWritten;
+	FThreadSafeCounter SettleWritten;
 	FThreadSafeCounter Pending;
 	FThreadSafeCounter Dropped;
 	FThreadSafeCounter ResamplesPerformed;

@@ -95,6 +95,10 @@ void FAnomalyAsyncWriter::Run(FJob& Job)
 		{
 			PositiveWritten.Increment();
 		}
+		if (Job.bSettle)
+		{
+			SettleWritten.Increment();
+		}
 	}
 	else
 	{
@@ -156,6 +160,7 @@ void FAnomalyAsyncWriter::ResetCounters()
 {
 	FramesWritten.Reset();
 	PositiveWritten.Reset();
+	SettleWritten.Reset();
 	Dropped.Reset();
 	ResamplesPerformed.Reset();
 	DimMismatches.Reset();

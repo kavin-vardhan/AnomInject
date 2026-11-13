@@ -176,8 +176,8 @@ static std::string Str(const std::vector<int>& V)
 
 static void TestReasonBit()
 {
-	Check(ReasonPieEndSettle == 256 && NumReasons == 9 && std::string(DescribeReasonBit(8)) == "pie_end_settle",
-		"reason: pie_end_settle is the ninth reason bit (256)");
+	Check(ReasonPieEndSettle == 256 && NumReasons == 10 && std::string(DescribeReasonBit(8)) == "pie_end_settle",
+		"reason: pie_end_settle is the ninth reason bit (256); the tenth is settle (512)");
 	const unsigned short Others[] = { ReasonTemporal, ReasonHideReturn, ReasonPartial, ReasonCameraUnconfirmed, ReasonUnresolved,
 		ReasonEffectInterrupted, ReasonNaniteUnmaskable, ReasonCaptureUnpaired };
 	bool bDisjoint = true;
@@ -190,6 +190,42 @@ static void TestReasonBit()
 		"reason: pie_end_settle is never rewritten as a legacy temporal (anti-aliasing) flag");
 	Check(ReasonsOrLegacy((unsigned short)(ReasonPieEndSettle | ReasonEffectInterrupted)) == (ReasonPieEndSettle | ReasonEffectInterrupted),
 		"reason: pie_end_settle keeps a second reason beside it");
+}
+
+static void TestSettleReason()
+{
+	Check(ReasonSettle == 512 && NumReasons == 10 && std::string(DescribeReasonBit(9)) == "settle"
+		&& std::string(DescribeReasonBit(9)) != std::string(DescribeReasonBit(8)),
+		"settle: the tenth reason bit (512), named settle and not pie_end_settle");
+	const unsigned short Others[] = { ReasonTemporal, ReasonHideReturn, ReasonPartial, ReasonCameraUnconfirmed, ReasonUnresolved,
+		ReasonEffectInterrupted, ReasonNaniteUnmaskable, ReasonCaptureUnpaired, ReasonPieEndSettle };
+	bool bDisjoint = true;
+	for (unsigned short O : Others)
+	{
+		bDisjoint = bDisjoint && (O & ReasonSettle) == 0;
+	}
+	Check(bDisjoint, "settle: shares no bit with any other reason, pie_end_settle included");
+	Check(ReasonsOrLegacy(ReasonSettle) == ReasonSettle && (ReasonsOrLegacy(ReasonSettle) & ReasonTemporal) == 0,
+		"settle: never rewritten as a legacy temporal (anti-aliasing) flag");
+	Check(IsSettleRole(EFrameRole::SettleAfterOnset) && IsSettleRole(EFrameRole::SettleAfterOffset) && !IsSettleRole(EFrameRole::Normal),
+		"settle: both settle roles flag, a normal frame does not");
+
+	unsigned short Bits = 0;
+	Check(DecideSettleEntry(EEntryEmit::Normal, EFrameRole::SettleAfterOnset, Bits) == EEntryEmit::Normal && Bits == ReasonSettle,
+		"settle: an after-onset entry stays normal (labelled) and gains settle");
+	Check(IsEntryLabelled(DecideSettleEntry(EEntryEmit::Normal, EFrameRole::SettleAfterOnset, Bits) == EEntryEmit::Normal,
+		EAnnotationPolicy::FireWindow, true, true, true),
+		"settle: an on-screen, installed fire-window entry flagged settle is still labelled (label meaning unchanged)");
+	Bits = ReasonHideReturn;
+	Check(DecideSettleEntry(EEntryEmit::TransitionOnly, EFrameRole::SettleAfterOffset, Bits) == EEntryEmit::TransitionOnly
+		&& Bits == (ReasonHideReturn | ReasonSettle),
+		"settle: an after-offset transition-only entry stays transition-only and keeps its other reason");
+	Bits = 0;
+	Check(DecideSettleEntry(EEntryEmit::Suppress, EFrameRole::SettleAfterOnset, Bits) == EEntryEmit::Suppress && Bits == 0,
+		"settle: a suppressed entry stays suppressed and gains no reason");
+	Bits = ReasonTemporal;
+	Check(DecideSettleEntry(EEntryEmit::Normal, EFrameRole::Normal, Bits) == EEntryEmit::Normal && Bits == ReasonTemporal,
+		"settle: a non-settle frame is untouched");
 }
 
 static void TestEntry()
@@ -293,6 +329,7 @@ static void TestNeverOnLabelled()
 int main()
 {
 	TestReasonBit();
+	TestSettleReason();
 	TestEntry();
 	TestPieGone();
 	TestPiePresentUnlabelled();

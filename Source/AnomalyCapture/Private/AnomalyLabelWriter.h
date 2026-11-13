@@ -116,6 +116,7 @@ namespace AnomalyLabel
 		TArray<FFrozenFireGeometry> TransitionGeometry;
 		TArray<FFrozenFireGeometry> CandidateGeometry;
 		bool bCaptureUnpaired = false;
+		uint8 FrameRole = 0;
 
 		bool bViewGlobalPending = false;
 		bool bGlobalEarlyPositive = false;
@@ -310,7 +311,8 @@ namespace AnomalyLabel
 		int32 MaskTagRetireHostFlagKept = 0;
 		int32 MaskPriorCollisions = 0;
 		int32 MaskPriorCollisionQuarantined = 0;
-		int32 ReasonEntries[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		int32 ReasonEntries[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		int32 SettleFrames = 0;
 		bool bPieEndSettleActive = false;
 		int32 PieEndSettleFrames = 0;
 		int32 LabelEffectPartialFrames = 0;
@@ -523,6 +525,7 @@ namespace AnomalyLabel
 		FSessionVideo Video;
 		TArray<FSessionEvent> Events;
 		TMap<FString, FSessionTransition> Transitions;
+		TSet<int32> SettleFrames;
 	};
 
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& Annotation);

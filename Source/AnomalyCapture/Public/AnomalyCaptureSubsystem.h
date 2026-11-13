@@ -250,6 +250,8 @@ private:
 	void StepHideTransitions(AnomalyLabel::FCaptureSnapshot& Snap);
 	void StepProxyBlurTransitions(AnomalyLabel::FCaptureSnapshot& Snap, bool bUnpaired);
 	void StepPieEndSettle(AnomalyLabel::FCaptureSnapshot& Snap, bool bUnpaired);
+	void AddSettleRevertedFires(AnomalyLabel::FCaptureSnapshot& Snap);
+	void StepSettleFlags(AnomalyLabel::FCaptureSnapshot& Snap);
 	bool IsSampledFireLabelled(const AnomalyLabel::FCaptureSnapshot& Snap, int32 FireIndex) const;
 	void AddDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
 	void ResolveDetachedTransitionCandidates(AnomalyLabel::FCaptureSnapshot& Snap);
@@ -320,7 +322,7 @@ private:
 	bool IsGameWindowFocused(UWorld* World) const;
 	void BeginFire();
 	void BeginRevert();
-	void CaptureCurrentFrame();
+	void CaptureCurrentFrame(uint8 FrameRole = 0);
 	void FinalizeArmedLabel();
 	void SampleDeferredActiveState();
 	uint8 ComputeFireActive(const struct FAutoLiveFireInfo& F) const;
@@ -467,6 +469,8 @@ private:
 	FString EngineProject;
 
 	int32 SettleFrames = 2;
+	int32 SettleFramesArmed = 0;
+	int32 SettleFramesWritten = 0;
 	int32 PreFrames = 4;
 	int32 PositiveFrames = 8;
 	int32 PostFrames = 4;

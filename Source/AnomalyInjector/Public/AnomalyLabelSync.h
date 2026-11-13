@@ -23,7 +23,8 @@ namespace AnomalyLabelSync
 	static constexpr unsigned short ReasonNaniteUnmaskable = 64;
 	static constexpr unsigned short ReasonCaptureUnpaired = 128;
 	static constexpr unsigned short ReasonPieEndSettle = 256;
-	static constexpr int NumReasons = 9;
+	static constexpr unsigned short ReasonSettle = 512;
+	static constexpr int NumReasons = 10;
 
 	inline const char* DescribeReasonBit(int Bit)
 	{
@@ -38,6 +39,7 @@ namespace AnomalyLabelSync
 		case 6: return "nanite_unmaskable";
 		case 7: return "capture_unpaired";
 		case 8: return "pie_end_settle";
+		case 9: return "settle";
 		default: return "unknown";
 		}
 	}
@@ -46,8 +48,30 @@ namespace AnomalyLabelSync
 	{
 		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed
 			| ReasonUnresolved | ReasonEffectInterrupted | ReasonNaniteUnmaskable | ReasonCaptureUnpaired
-			| ReasonPieEndSettle)) == 0)
+			| ReasonPieEndSettle | ReasonSettle)) == 0)
 			? ReasonTemporal : Value;
+	}
+
+	enum class EFrameRole : unsigned char
+	{
+		Normal = 0,
+		SettleAfterOnset = 1,
+		SettleAfterOffset = 2
+	};
+
+	inline bool IsSettleRole(EFrameRole Role)
+	{
+		return Role == EFrameRole::SettleAfterOnset || Role == EFrameRole::SettleAfterOffset;
+	}
+
+	inline EEntryEmit DecideSettleEntry(EEntryEmit Current, EFrameRole Role, unsigned short& InOutReasons)
+	{
+		if (!IsSettleRole(Role) || Current == EEntryEmit::Suppress)
+		{
+			return Current;
+		}
+		InOutReasons = (unsigned short)(InOutReasons | ReasonSettle);
+		return Current;
 	}
 
 	enum class EAnnotationPolicy : unsigned char

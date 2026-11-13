@@ -129,7 +129,7 @@ namespace
 		const TArray<uint8>* FireInstalled = nullptr,
 		const TArray<AnomalyLabel::FFrozenFireGeometry>* FireGeometry = nullptr,
 		const TArray<AnomalyLabel::FFrozenFireGeometry>* TransitionGeometry = nullptr,
-		bool bCaptureUnpaired = false)
+		bool bCaptureUnpaired = false, uint8 FrameRole = 0)
 	{
 		OutNumLabels = 0;
 		int32 NumLabelledWithBox = 0;
@@ -149,14 +149,20 @@ namespace
 		Root->SetNumberField(TEXT("height"), H);
 		const AnomalyLabel::FLabelEntryCounts Counts = CountEntries(Fires.Num(), EntryEmit, EntryTransition, TransitionFires);
 		Root->SetBoolField(TEXT("anomaly_present"), Counts.bPresent);
-		if (Counts.TransitionEntries > 0)
+		const bool bSettleFrame = AnomalyLabelSync::IsSettleRole((AnomalyLabelSync::EFrameRole)FrameRole);
+		if (Counts.TransitionEntries > 0 || bSettleFrame)
 		{
 			Root->SetBoolField(TEXT("transition_present"), true);
 		}
 		if (bCaptureUnpaired)
 		{
 			Root->SetBoolField(TEXT("capture_unpaired"), true);
-			Root->SetArrayField(TEXT("transition_reason"), ReasonValues(AnomalyLabelSync::ReasonCaptureUnpaired));
+		}
+		const uint16 RowReasons = (uint16)((bCaptureUnpaired ? AnomalyLabelSync::ReasonCaptureUnpaired : 0)
+			| (bSettleFrame ? AnomalyLabelSync::ReasonSettle : 0));
+		if (RowReasons != 0)
+		{
+			Root->SetArrayField(TEXT("transition_reason"), ReasonValues(RowReasons));
 		}
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
@@ -699,7 +705,8 @@ namespace AnomalyLabel
 				EAnomalyMaskState::Unmeasured, 0, 0, false, nullptr, nullptr, nullptr, nullptr, false, nullptr,
 				&SyncFrame->EntryEmit, &SyncFrame->EntryTransition, &SyncFrame->TransitionFires, &SyncFrame->CameraClip,
 				&SyncFrame->FireActive, &SyncFrame->TransitionFireReasons, &SyncFrame->FirePolicy, &SyncFrame->FireOnScreen,
-				&SyncFrame->ConditionHeld, &SyncFrame->FireGeometry, &SyncFrame->TransitionGeometry, SyncFrame->bCaptureUnpaired)
+				&SyncFrame->ConditionHeld, &SyncFrame->FireGeometry, &SyncFrame->TransitionGeometry, SyncFrame->bCaptureUnpaired,
+				SyncFrame->FrameRole)
 			: BuildLegacyShotRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
 				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
@@ -724,7 +731,8 @@ namespace AnomalyLabel
 			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry,
 			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip,
 			&Snapshot.FireActive, &Snapshot.TransitionFireReasons, &Snapshot.FirePolicy, &Snapshot.FireOnScreen,
-			&Snapshot.ConditionHeld, &Snapshot.FireGeometry, &Snapshot.TransitionGeometry, Snapshot.bCaptureUnpaired);
+			&Snapshot.ConditionHeld, &Snapshot.FireGeometry, &Snapshot.TransitionGeometry, Snapshot.bCaptureUnpaired,
+			Snapshot.FrameRole);
 	}
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
@@ -1353,6 +1361,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_nanite_unmaskable_entries"), LabelSync->ReasonEntries[6]);
 			Root->SetNumberField(TEXT("label_transition_capture_unpaired_entries"), LabelSync->ReasonEntries[7]);
 			Root->SetNumberField(TEXT("label_transition_pie_end_settle_entries"), LabelSync->ReasonEntries[8]);
+			Root->SetNumberField(TEXT("label_transition_settle_entries"), LabelSync->ReasonEntries[9]);
+			Root->SetNumberField(TEXT("settle_frames"), LabelSync->SettleFrames);
 			Root->SetBoolField(TEXT("pie_end_settle_active"), LabelSync->bPieEndSettleActive);
 			Root->SetNumberField(TEXT("pie_end_settle_frames"), LabelSync->PieEndSettleFrames);
 			Root->SetNumberField(TEXT("capture_unpaired_frames"), LabelSync->SyncFramesWritten);
@@ -1458,13 +1468,14 @@ namespace AnomalyLabel
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("label_schema"), 2);
-		Root->SetNumberField(TEXT("label_schema_minor"), 1);
+		Root->SetNumberField(TEXT("label_schema_minor"), 2);
 		Root->SetStringField(TEXT("session_id"), A.SessionId);
 		TSet<int32> TransitionFrames;
 		for (const TPair<FString, FSessionTransition>& KV : A.Transitions)
 		{
 			for (int32 Frame : KV.Value.Frames) { TransitionFrames.Add(Frame); }
 		}
+		for (int32 Frame : A.SettleFrames) { TransitionFrames.Add(Frame); }
 		Root->SetNumberField(TEXT("transition_frame_count"), TransitionFrames.Num());
 
 		{
