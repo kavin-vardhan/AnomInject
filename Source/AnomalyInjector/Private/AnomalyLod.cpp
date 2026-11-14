@@ -233,6 +233,30 @@ AnomalyLod::FCurrentLod AnomalyLod::GetCurrentLod(UWorld* World, const UMeshComp
 	return Out;
 }
 
+AnomalyLod::FForcedLodContrast AnomalyLod::GetForcedLodContrast(UWorld* World, const UMeshComponent* Component, int32 ForcedLodModel)
+{
+	FForcedLodContrast Out;
+	const FLodFacts Facts = GetLodFacts(Component);
+	const FCurrentLod Current = GetCurrentLod(World, Component);
+	Out.Source = Current.Source;
+	Out.ScreenSize = Current.ScreenSize;
+	if (Facts.NumLods > 0)
+	{
+		Out.ForcedLod = AnomalyLodPolicy::EffectiveForcedLod(ForcedLodModel, Facts.FirstUsable, Facts.NumLods, Facts.FirstResident);
+		if (Current.bKnown)
+		{
+			Out.ShownLod = AnomalyLodPolicy::EffectiveShownLod(Current.Level, Facts.FirstUsable, Facts.NumLods, Facts.FirstResident);
+		}
+	}
+	Out.bCurrentKnown = Current.bKnown && Facts.NumLods > 0 && Facts.bResidentKnown;
+	if (Current.bKnown && !Facts.bResidentKnown)
+	{
+		Out.Source = TEXT("resident-lod-unknown");
+	}
+	Out.Refusal = AnomalyLodPolicy::DecideContrast(Out.bCurrentKnown, Out.ShownLod, Out.ForcedLod);
+	return Out;
+}
+
 int32 AnomalyLod::ResolveTargetLod(const UMeshComponent* Component, int32 RequestedOrSentinel)
 {
 	const int32 Worst = GetWorstLod(Component);

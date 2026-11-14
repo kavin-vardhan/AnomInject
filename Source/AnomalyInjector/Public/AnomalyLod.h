@@ -50,4 +50,16 @@ namespace AnomalyLod
 	};
 
 	ANOMALYINJECTOR_API FCurrentLod GetCurrentLod(UWorld* World, const UMeshComponent* Component);
+
+	struct FForcedLodContrast
+	{
+		AnomalyLodPolicy::EForcedLodRefusal Refusal = AnomalyLodPolicy::EForcedLodRefusal::None;
+		bool bCurrentKnown = false;
+		int32 ShownLod = -1;
+		int32 ForcedLod = -1;
+		float ScreenSize = -1.0f;
+		const TCHAR* Source = TEXT("undetermined");
+	};
+
+	ANOMALYINJECTOR_API FForcedLodContrast GetForcedLodContrast(UWorld* World, const UMeshComponent* Component, int32 ForcedLodModel);
 }

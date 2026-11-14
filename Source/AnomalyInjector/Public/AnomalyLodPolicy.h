@@ -2,13 +2,17 @@
 
 namespace AnomalyLodPolicy
 {
-	enum class EForcedLodRefusal : unsigned char { None = 0, HierarchicalInstanced = 1, SingleLod = 2, SkeletalUnmeasured = 3 };
+	enum class EForcedLodRefusal : unsigned char { None = 0, HierarchicalInstanced = 1, SingleLod = 2, SkeletalUnmeasured = 3, NotCoarser = 4, CurrentLodUndetermined = 5 };
+
+	static constexpr int NumRefusalKinds = 6;
 
 	inline const char* DescribeRefusal(EForcedLodRefusal Refusal)
 	{
 		return Refusal == EForcedLodRefusal::HierarchicalInstanced ? "hism_ignores_forced_lod"
 			: Refusal == EForcedLodRefusal::SingleLod ? "single_lod"
-			: Refusal == EForcedLodRefusal::SkeletalUnmeasured ? "skeletal_unmeasured" : "";
+			: Refusal == EForcedLodRefusal::SkeletalUnmeasured ? "skeletal_unmeasured"
+			: Refusal == EForcedLodRefusal::NotCoarser ? "not_coarser_than_current"
+			: Refusal == EForcedLodRefusal::CurrentLodUndetermined ? "current_lod_undetermined" : "";
 	}
 
 	inline int FirstUsableLod(int NumLods, int EffectiveMinLod, unsigned int LodsWithVertices)
@@ -37,18 +41,40 @@ namespace AnomalyLodPolicy
 			: NumLods < 2 ? EForcedLodRefusal::SingleLod : EForcedLodRefusal::None;
 	}
 
-	inline const char* DominantRefusal(int NumHierarchicalInstanced, int NumSingleLod, int NumSkeletal, int NumOther)
+	inline int EffectiveForcedLod(int ForcedLodModel, int FirstUsable, int NumLods, int FirstResident)
 	{
-		const int Counts[3] = { NumHierarchicalInstanced, NumSingleLod, NumSkeletal };
-		const EForcedLodRefusal Kinds[3] = { EForcedLodRefusal::HierarchicalInstanced, EForcedLodRefusal::SingleLod, EForcedLodRefusal::SkeletalUnmeasured };
+		const int Lod = ForcedLodModel < FirstUsable + 1 ? FirstUsable : (ForcedLodModel > NumLods ? NumLods - 1 : ForcedLodModel - 1);
+		return Lod < FirstResident ? FirstResident : Lod;
+	}
+
+	inline int EffectiveShownLod(int PredictedLod, int FirstUsable, int NumLods, int FirstResident)
+	{
+		const int Lod = PredictedLod < FirstUsable ? FirstUsable : (PredictedLod > NumLods - 1 ? NumLods - 1 : PredictedLod);
+		return FirstResident > Lod ? FirstResident : Lod;
+	}
+
+	inline EForcedLodRefusal DecideContrast(bool bCurrentKnown, int ShownLod, int ForcedLod)
+	{
+		return !bCurrentKnown ? EForcedLodRefusal::CurrentLodUndetermined
+			: ForcedLod <= ShownLod ? EForcedLodRefusal::NotCoarser : EForcedLodRefusal::None;
+	}
+
+	inline const char* DominantRefusalOf(const int* Counts, int NumKinds, int NumOther)
+	{
 		int Best = -1;
-		for (int i = 0; i < 3; ++i)
+		for (int i = 1; i < NumKinds && i < NumRefusalKinds; ++i)
 		{
 			if (Counts[i] > 0 && Counts[i] > NumOther && (Best < 0 || Counts[i] > Counts[Best]))
 			{
 				Best = i;
 			}
 		}
-		return Best < 0 ? "" : DescribeRefusal(Kinds[Best]);
+		return Best < 0 ? "" : DescribeRefusal(static_cast<EForcedLodRefusal>(Best));
+	}
+
+	inline const char* DominantRefusal(int NumHierarchicalInstanced, int NumSingleLod, int NumSkeletal, int NumOther)
+	{
+		const int ByKind[4] = { 0, NumHierarchicalInstanced, NumSingleLod, NumSkeletal };
+		return DominantRefusalOf(ByKind, 4, NumOther);
 	}
 }
