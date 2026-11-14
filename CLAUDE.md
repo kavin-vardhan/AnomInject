@@ -24,6 +24,11 @@ and is the single source of truth for the project.
 > - ⚠ **Skeletal not changed:** `SetForcedLOD` reaches the render one frame late (native order; both orders for Apply and
 >   Revert), so labels can disagree with the picture by a frame at LOD edges. Derived, never measured. Recommendation to
 >   chat: refuse skeletal for both anomalies until a leg measures it.
+> - 🔻 **SUPERSEDED BY 095-09b (ruling 095-08 addendum H2): skeletal targets ARE now refused by both LOD anomalies with
+>   `skeletal_unmeasured` unless `IAI.Anomaly.LodAllowSkeletal 1` (ini `[AnomalyInjector] LodAllowSkeletal`, default 0,
+>   latched at capture run start, banner `lodSkeletal=`). Switch on = the 095-09 behaviour plus an "unmeasured" warning per
+>   skinned component. Selftest 63/0, five mutants fail; Editor 0/0 on the fix branch and on the merged integ tip. Journal §8;
+>   predictions AMENDMENT 1 (L59-7).**
 > - Legs for 095-07 frozen: `code-receipts-095-09\predictions-095-09.txt`. Journal
 >   `docs/sessions/2026-11-14-095-09-m59-forced-lod-refusals.md`. Gotcha **G579**; next free **G580**.
 
