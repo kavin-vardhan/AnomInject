@@ -43,6 +43,18 @@ namespace AnomalyLodTrigger
 
 	ANOMALYINJECTOR_API ECaptureRenderRecord GetCaptureRenderRecord();
 
+	struct FPredictStats
+	{
+		int32 Calls = 0;
+		int32 Candidates = 0;
+		double MsTotal = 0.0;
+		double MsMax = 0.0;
+	};
+
+	ANOMALYINJECTOR_API void ResetPredictStats();
+
+	ANOMALYINJECTOR_API FPredictStats GetPredictStats();
+
 	ANOMALYINJECTOR_API AnomalyLodTriggerRule::FSettings GetSettings();
 
 	ANOMALYINJECTOR_API void RecordViewSample(UWorld* World);

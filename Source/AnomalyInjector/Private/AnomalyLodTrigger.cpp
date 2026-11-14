@@ -9,6 +9,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "UObject/UObjectIterator.h"
+#include "HAL/PlatformTime.h"
 
 namespace
 {
@@ -33,6 +34,21 @@ namespace
 	};
 
 	AnomalyLodTrigger::ECaptureRenderRecord GRenderRecord = AnomalyLodTrigger::ECaptureRenderRecord::Unknown;
+	AnomalyLodTrigger::FPredictStats GPredictStats;
+
+	struct FPredictTimer
+	{
+		double Start = FPlatformTime::Seconds();
+		int32 Candidates = 0;
+		~FPredictTimer()
+		{
+			const double Ms = (FPlatformTime::Seconds() - Start) * 1000.0;
+			++GPredictStats.Calls;
+			GPredictStats.Candidates += Candidates;
+			GPredictStats.MsTotal += Ms;
+			GPredictStats.MsMax = FMath::Max(GPredictStats.MsMax, Ms);
+		}
+	};
 
 	FViewRing& Ring()
 	{
@@ -46,6 +62,16 @@ namespace
 		const double H = FMath::Clamp((double)Max.Y, 0.0, 1.0) - FMath::Clamp((double)Min.Y, 0.0, 1.0);
 		return (float)(FMath::Max(0.0, W) * FMath::Max(0.0, H) * 100.0);
 	}
+}
+
+void AnomalyLodTrigger::ResetPredictStats()
+{
+	GPredictStats = FPredictStats();
+}
+
+AnomalyLodTrigger::FPredictStats AnomalyLodTrigger::GetPredictStats()
+{
+	return GPredictStats;
 }
 
 void AnomalyLodTrigger::SetCaptureRenderRecord(ECaptureRenderRecord State)
@@ -383,6 +409,7 @@ AnomalyLodTrigger::FArmEvaluation AnomalyLodTrigger::EvaluateArm(UWorld* World, 
 
 TArray<TWeakObjectPtr<AActor>> AnomalyLodTrigger::CollectArmableActors(UWorld* World, TMap<FString, int32>& OutRefusals)
 {
+	FPredictTimer Timer;
 	TArray<TWeakObjectPtr<AActor>> Out;
 	if (GetCaptureRenderRecord() == ECaptureRenderRecord::Unavailable)
 	{
@@ -424,6 +451,7 @@ TArray<TWeakObjectPtr<AActor>> AnomalyLodTrigger::CollectArmableActors(UWorld* W
 		{
 			continue;
 		}
+		++Timer.Candidates;
 		const FArmEvaluation E = EvaluateArm(World, Scope, C, AnomalyLodTriggerRule::EMode::Auto, Settings);
 		if (E.bArmable)
 		{

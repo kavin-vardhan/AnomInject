@@ -3882,6 +3882,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	DeferredOnsetClockFrames = 0;
 	bDeferredOnsetClockRestarted = false;
 	DeferredOnsetClockRestarts = 0;
+	AnomalyLodTrigger::ResetPredictStats();
 	bPositivesExtending = false;
 	PositivesExtensionFramesThisBurst = 0;
 	LodWindowExtensionFrames = 0;
@@ -10244,6 +10245,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		LodReport.ArmTimeouts = DeferredOnsetTimeoutsById.FindRef(FName(TEXT("lod_popping")));
 		LodReport.WindowExtensionFrames = LodWindowExtensionFrames;
 		LodReport.ArmClockRestarts = DeferredOnsetClockRestarts;
+		{
+			const AnomalyLodTrigger::FPredictStats Predict = AnomalyLodTrigger::GetPredictStats();
+			LodReport.PredictCalls = Predict.Calls;
+			LodReport.PredictCandidates = Predict.Candidates;
+			LodReport.PredictMsMean = Predict.Calls > 0 ? Predict.MsTotal / Predict.Calls : 0.0;
+			LodReport.PredictMsMax = Predict.MsMax;
+			LodReport.bAny = LodReport.bAny || Predict.Calls > 0;
+		}
 		LodReport.RenderCheckedFrames = LodRenderCheckedFrames;
 		LodReport.RenderMismatchFrames = LodRenderMismatchFrames;
 		LodReport.Settings = AnomalyDefaults::DescribeLodTriggerSettings();

@@ -1247,6 +1247,10 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("lod_arm_timeouts"), Lod->ArmTimeouts);
 			Root->SetNumberField(TEXT("lod_window_extension_frames"), Lod->WindowExtensionFrames);
 			Root->SetNumberField(TEXT("lod_arm_clock_restarts"), Lod->ArmClockRestarts);
+			Root->SetNumberField(TEXT("lod_predict_calls"), Lod->PredictCalls);
+			Root->SetNumberField(TEXT("lod_predict_candidates"), Lod->PredictCandidates);
+			Root->SetNumberField(TEXT("lod_predict_ms_mean"), Lod->PredictMsMean);
+			Root->SetNumberField(TEXT("lod_predict_ms_max"), Lod->PredictMsMax);
 			Root->SetNumberField(TEXT("lod_render_checked_frames"), Lod->RenderCheckedFrames);
 			Root->SetNumberField(TEXT("lod_render_mismatch_frames"), Lod->RenderMismatchFrames);
 			Root->SetStringField(TEXT("lod_trigger_settings"), Lod->Settings);
