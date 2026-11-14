@@ -3406,8 +3406,8 @@ def _lr_settle_placement(rows, run_json, rs):
     settle entry for the reverted event. Read in tick space (tick_index); a session without tick_index is not judged.
     K comes from run.json settle_frames, else from the data. stuck_low_mip events (deferred onset, restore trail) are
     judged after their onset only; session globals (camera_clipping, time_dilation) anchor nothing. A settle row in no
-    window is a stray, unless run_summary counts zero-match bursts (a burst that fired nothing still has its settle
-    frames, with no event to anchor them)."""
+    window is a stray. Strays are excused only for zero-match bursts (a burst that fired nothing still has its settle
+    frames, with no event to anchor them), at their schedule positions and at most 2K per burst (_lr_zero_match_strays)."""
     out = {"fails": [], "summary": "not judged (no settle and no tick_index)", "k": None}
     have_settle = any(isinstance(r.get("transition_reason"), list) and LABEL_RULE_SETTLE in r["transition_reason"]
                       for r in rows)
@@ -3478,15 +3478,67 @@ def _lr_settle_placement(rows, run_json, rs):
             out["fails"].append(("SETTLE-MISPLACED", row_at[t_rv]["session_index"]))
     stray = sorted(t for t, r in row_at.items() if rsettle(r) and t not in covered)
     zero_match = rs.get("zero_match_bursts", 0) if isinstance(rs, dict) else 0
-    if stray and not (_lr_int(zero_match) and zero_match > 0):
-        for t in stray:
-            out["fails"].append(("SETTLE-MISPLACED", row_at[t]["session_index"]))
+    pos = run_json.get("positive_frames") if isinstance(run_json, dict) else None
+    dropped = rs.get("frames_dropped_ticks") if isinstance(rs, dict) else None
+    excused, unexcused = _lr_zero_match_strays(stray, k, zero_match, pos if _lr_int(pos) else None, last,
+                                               set(d for d in dropped if _lr_int(d)) if isinstance(dropped, list) else set())
+    for t in unexcused:
+        out["fails"].append(("SETTLE-MISPLACED", row_at[t]["session_index"]))
     out["summary"] = ("K=%d (%s), %d onset(s) judged, %d settle row(s) outside an event window%s%s; %s"
                       % (k, k_src, len(onsets), len(stray),
-                         " (zero-match bursts %d: allowed)" % zero_match if stray and _lr_int(zero_match) and zero_match > 0 else "",
+                         " (zero-match bursts %d: %d allowed at schedule positions, at most 2K per burst)"
+                         % (zero_match, len(excused)) if excused else "",
                          ", %d stuck_low_mip event(s) judged after onset only" % deferred_skipped if deferred_skipped else "",
                          "%d misplaced" % len(set(si for _c, si in out["fails"])) if out["fails"] else "in place"))
     return out
+
+
+def _lr_zero_match_strays(stray, k, zero_match, pos, last, dropped):
+    """m56 N7: a burst that fired nothing still captures its settle ticks, as row-only settle frames with no event to
+    anchor them: one run of K ticks after its would-be onset and one run of K ticks after its would-be revert, whose
+    starts are K + positive_frames apart (a zero-match burst has no deferred onset and no restore trail). Such a stray
+    run is excused only when it has exactly K ticks (shorter only when the session ends inside it; dropped ticks fill
+    gaps), pairs with its partner run (unless the partner lies past the last tick; not checked when run.json gives no
+    positive_frames), and only up to 2K rows per zero-match burst. Returns (excused, unexcused) tick lists."""
+    if not stray:
+        return [], []
+    if not (_lr_int(zero_match) and zero_match > 0) or not _lr_int(k) or k <= 0:
+        return [], list(stray)
+    runs = []
+    for t in stray:
+        if runs and all((g in dropped) for g in range(runs[-1][-1] + 1, t)) and t - runs[-1][-1] <= k:
+            runs[-1].append(t)
+        else:
+            runs.append([t])
+    ok_runs, bad = [], []
+    for r in runs:
+        span = r[-1] - r[0] + 1
+        if span == k or (span < k and all((g in dropped) or g > last for g in range(r[-1] + 1, r[0] + k))):
+            ok_runs.append(r)
+        else:
+            bad.extend(r)
+    excused = []
+    if pos is None:
+        excused = [t for r in ok_runs for t in r]
+    else:
+        starts = {r[0]: r for r in ok_runs}
+        paired = set()
+        for r in ok_runs:
+            s = r[0]
+            if s in paired:
+                continue
+            partner = s + k + pos
+            if partner in starts and partner not in paired:
+                paired.update((s, partner))
+            elif partner > last:
+                paired.add(s)
+        for r in ok_runs:
+            (excused if r[0] in paired else bad).extend(r)
+    limit = 2 * k * zero_match
+    if len(excused) > limit:
+        bad.extend(excused[limit:])
+        excused = excused[:limit]
+    return excused, sorted(bad)
 
 
 def _lr_continuity(rows, rs):
@@ -4604,8 +4656,29 @@ def _label_rule_selftest():
             return rows_
         case56("S56_e_settle_rows_with_no_event_and_no_zero_match_FAILS",
                _m56_write(root, "s56e", zero_match(_m56_rows())), 1, "SETTLE-MISPLACED")
-        case56("S56_e2_same_with_zero_match_bursts_clean",
-               _m56_write(root, "s56e2", zero_match(_m56_rows()), rs_extra={"zero_match_bursts": 1}), 0)
+        case56("S56_e2_off_schedule_strays_with_zero_match_bursts_FAILS",
+               _m56_write(root, "s56e2", zero_match(_m56_rows()), rs_extra={"zero_match_bursts": 1}), 1, "SETTLE-MISPLACED")
+
+        def zero_match_burst(rows_, onset):
+            for r in rows_:
+                if onset <= r["tick_index"] <= onset + 2 + 8 + 2:
+                    r["anomalies"] = []
+                    r["anomaly_present"] = r["visible_positive"] = False
+            return rows_
+        case56("S56_e3_zero_match_burst_at_its_schedule_clean",
+               _m56_write(root, "s56e3", zero_match_burst(_m56_rows(), 19), rs_extra={"zero_match_bursts": 1}), 0,
+               extra=lambda d, l: "4 allowed at schedule positions" in d["settle_placement"])
+        case56("S56_e4_two_zero_match_bursts_counted_as_one_FAILS",
+               _m56_write(root, "s56e4", zero_match_burst(zero_match_burst(_m56_rows(), 19), 35),
+                          rs_extra={"zero_match_bursts": 1}), 1, "SETTLE-MISPLACED")
+        case56("S56_e5_two_zero_match_bursts_clean",
+               _m56_write(root, "s56e5", zero_match_burst(zero_match_burst(_m56_rows(), 19), 35),
+                          rs_extra={"zero_match_bursts": 2}), 0)
+        r56 = zero_match_burst(_m56_rows(), 19)
+        r56[31]["transition_reason"] = []
+        r56[31].pop("transition_present")
+        case56("S56_e6_zero_match_revert_run_short_one_tick_FAILS",
+               _m56_write(root, "s56e6", r56, rs_extra={"zero_match_bursts": 1}), 1, "SETTLE-MISPLACED")
         r56 = [r for r in _m56_rows() if r["tick_index"] != 18]
         case56("S56_f_tick_missing_counted_as_no_drop_FAILS",
                _m56_write(root, "s56f", r56, rs_extra={"frames_dropped": 0, "frames_dropped_by_cause": {"unknown": 0},
