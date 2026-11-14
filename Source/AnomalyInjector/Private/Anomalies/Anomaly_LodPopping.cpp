@@ -11,6 +11,15 @@
 #include "Components/SkinnedMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 
+namespace
+{
+	bool GLodReleaseLag = false;
+	bool GLodForceTrigger = false;
+	bool GLodSkipOnScreen = false;
+	bool GLodPredictStaleView = false;
+	bool GLodSkipRestore = false;
+}
+
 bool FAnomaly_LodPopping::ApplyPeriodic(UWorld* World, const TArray<FString>& Args)
 {
 	LastRefusal.Reset();
@@ -386,6 +395,36 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 			E.ClosingSpeedCmPerS, E.AngleOutsideFrustumDeg);
 	}
 
+	if (!Best && GLodForceTrigger)
+	{
+		for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
+		{
+			UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Weak.Get());
+			if (!Static || AnomalyLod::GetForcedLodRefusal(Static) != AnomalyLodPolicy::EForcedLodRefusal::None
+				|| AnomalyLodTrigger::GetStaticRefusal(Static))
+			{
+				continue;
+			}
+			const AnomalyLod::FEngineLodPrediction Pred = AnomalyLod::PredictEngineLod(Scope.GetView(), Static);
+			const int32 Coarsest = AnomalyLod::GetWorstLod(Static) - 1;
+			if (!Pred.bValid || Coarsest <= Pred.EngineLod)
+			{
+				continue;
+			}
+			Best = Static;
+			BestEval = AnomalyLodTrigger::FArmEvaluation();
+			BestEval.bArmable = true;
+			BestEval.Mode = EMode::ViewEntry;
+			BestEval.HeldLod = Coarsest;
+			BestEval.Prediction = Pred;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: BENCH FORCE-TRIGGER - '%s' armed at its coarsest LOD %d with no camera motion, as view_entry, so ")
+				TEXT("the still-camera leg can show that a 'no event' reading is not blindness. Never in a capture for a client."),
+				*Static->GetName(), Coarsest);
+			break;
+		}
+	}
+
 	if (!Best)
 	{
 		FString Dominant(TEXT("none"));
@@ -471,8 +510,24 @@ const FAnomaly_LodPopping::FTickEndEval& FAnomaly_LodPopping::EvaluateNow() cons
 	E.Input.TemporalLod0 = Pred.bValid ? Pred.TemporalLod0 : -1;
 	E.Input.TemporalLod1 = Pred.bValid ? Pred.TemporalLod1 : -1;
 	E.Input.BoundsScreenSize = Pred.BoundsScreenSize;
-	E.Input.bContrast = ContrastPasses(Triangles, NumLods, Tracker.HeldLod, E.Input.EngineLod, Settings.TriangleRatio);
 	E.DistanceCm = AnomalyLodTrigger::GetDistanceToBoundsCm(View.Origin, Mesh);
+	if (GLodPredictStaleView && HistoryCount > 0 && Pred.bValid)
+	{
+		float Sizes[AnomalyLod::MaxLodEntries];
+		int32 Tris[AnomalyLod::MaxLodEntries];
+		const int32 Entries = AnomalyLod::GetLodScreenSizes(Mesh, Sizes, Tris) > 0 ? AnomalyLod::MaxLodEntries : 0;
+		const float Radius = (float)Mesh->Bounds.SphereRadius;
+		const float StaleSize = Pred.BoundsScreenSize * (E.DistanceCm + Radius) / FMath::Max(1.0f, DistanceHistory[0] + Radius);
+		E.Input.EngineLod = FMath::Clamp(EngineLodFromScreenSize(Sizes, Entries, StaleSize, Pred.Scale, Pred.MinLod), Pred.MinLod, Pred.NumLods - 1);
+		E.Input.TemporalLod0 = E.Input.EngineLod;
+		E.Input.TemporalLod1 = E.Input.EngineLod;
+	}
+	if (GLodSkipOnScreen)
+	{
+		E.Input.bOnScreen = true;
+		E.Input.CoveragePct = FMath::Max(E.Input.CoveragePct, Settings.CoverageMinPct);
+	}
+	E.Input.bContrast = ContrastPasses(Triangles, NumLods, Tracker.HeldLod, E.Input.EngineLod, Settings.TriangleRatio);
 	if (HistoryCount > 0)
 	{
 		const int32 Oldest = FMath::Min(HistoryCount, 8) - 1;
@@ -536,8 +591,18 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 		{
 			return;
 		}
+		if (bLaggedRelease)
+		{
+			bLaggedRelease = false;
+			Mesh->SetForcedLodModel(SavedForcedLod);
+			UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: BENCH RELEASE-LAG - the release reaches the mesh one tick after the recorded swap."));
+		}
 		const AnomalyLodTriggerRule::ETickAction Action = AnomalyLodTriggerRule::DecideTick(Tracker, Settings);
-		if (Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible || Action == AnomalyLodTriggerRule::ETickAction::ReleaseInvisible)
+		if (Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible && GLodReleaseLag)
+		{
+			bLaggedRelease = true;
+		}
+		else if (Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible || Action == AnomalyLodTriggerRule::ETickAction::ReleaseInvisible)
 		{
 			Mesh->SetForcedLodModel(SavedForcedLod);
 			UE_LOG(LogAnomaly, Log, TEXT("lod_popping: RELEASE (%s) '%s' -> forced_lod_model=%d; the engine draws its own LOD from this frame."),
@@ -580,7 +645,7 @@ void FAnomaly_LodPopping::ReleaseSpatial()
 	{
 		const bool bWasHeld = Tracker.bHeld;
 		const bool bVisible = bWasHeld && Tracker.bHasLast && Tracker.LastClass == AnomalyLodTriggerRule::EFrameClass::Positive;
-		if (Mesh->ForcedLodModel != SavedForcedLod)
+		if (Mesh->ForcedLodModel != SavedForcedLod && !GLodSkipRestore)
 		{
 			Mesh->SetForcedLodModel(SavedForcedLod);
 		}
@@ -593,6 +658,7 @@ void FAnomaly_LodPopping::ReleaseSpatial()
 	}
 	SpatialMesh.Reset();
 	WorldRef.Reset();
+	bLaggedRelease = false;
 	Tracker = AnomalyLodTriggerRule::FTracker();
 	Eval = FTickEndEval();
 	HistoryCount = 0;
@@ -711,3 +777,76 @@ void FAnomaly_LodPopping::OnWorldTeardown()
 		Revert();
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+
+static FAutoConsoleCommand GLodReleaseLagCmd(
+	TEXT("IAI.Bench.LodReleaseLag"),
+	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON delays every visible lod_popping release by one tick after the recorded swap frame, so the swap-frame gate (L2) must FAIL. Usage: IAI.Bench.LodReleaseLag <0|1>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.LodReleaseLag <0|1>  (current: %d)"), GLodReleaseLag ? 1 : 0);
+			return;
+		}
+		GLodReleaseLag = FCString::Atoi(*Args[0]) != 0;
+		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodReleaseLag -> %d. BENCH DEVICE."), GLodReleaseLag ? 1 : 0);
+	}));
+
+static FAutoConsoleCommand GLodForceTriggerCmd(
+	TEXT("IAI.Bench.LodForceTrigger"),
+	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON arms a lod_popping target at its coarsest LOD with no camera motion (as view_entry), so the still-camera gate (L3) must produce events: its 'no event' reading is then shown not to be blindness. Usage: IAI.Bench.LodForceTrigger <0|1>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.LodForceTrigger <0|1>  (current: %d)"), GLodForceTrigger ? 1 : 0);
+			return;
+		}
+		GLodForceTrigger = FCString::Atoi(*Args[0]) != 0;
+		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodForceTrigger -> %d. BENCH DEVICE."), GLodForceTrigger ? 1 : 0);
+	}));
+
+static FAutoConsoleCommand GLodSkipOnScreenCmd(
+	TEXT("IAI.Bench.LodSkipOnScreen"),
+	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON drops the on-screen term (and lifts coverage to the minimum) from lod_popping's label rule, so the unseen gate (L4) must produce labelled off-screen frames. Usage: IAI.Bench.LodSkipOnScreen <0|1>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.LodSkipOnScreen <0|1>  (current: %d)"), GLodSkipOnScreen ? 1 : 0);
+			return;
+		}
+		GLodSkipOnScreen = FCString::Atoi(*Args[0]) != 0;
+		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodSkipOnScreen -> %d. BENCH DEVICE."), GLodSkipOnScreen ? 1 : 0);
+	}));
+
+static FAutoConsoleCommand GLodPredictStaleViewCmd(
+	TEXT("IAI.Bench.LodPredictStaleView"),
+	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON makes lod_popping's tick-end prediction use the previous frame's camera distance, so the render-record gate (L5) must produce lod_unconfirmed mismatches on moving legs. Usage: IAI.Bench.LodPredictStaleView <0|1>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.LodPredictStaleView <0|1>  (current: %d)"), GLodPredictStaleView ? 1 : 0);
+			return;
+		}
+		GLodPredictStaleView = FCString::Atoi(*Args[0]) != 0;
+		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodPredictStaleView -> %d. BENCH DEVICE."), GLodPredictStaleView ? 1 : 0);
+	}));
+
+static FAutoConsoleCommand GLodSkipRestoreCmd(
+	TEXT("IAI.Bench.LodSkipRestore"),
+	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON skips restoring the saved forced LOD at a spatial lod_popping revert, so the revert read-back gate (L6) must FAIL. Usage: IAI.Bench.LodSkipRestore <0|1>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Bench.LodSkipRestore <0|1>  (current: %d)"), GLodSkipRestore ? 1 : 0);
+			return;
+		}
+		GLodSkipRestore = FCString::Atoi(*Args[0]) != 0;
+		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodSkipRestore -> %d. BENCH DEVICE."), GLodSkipRestore ? 1 : 0);
+	}));
+#endif

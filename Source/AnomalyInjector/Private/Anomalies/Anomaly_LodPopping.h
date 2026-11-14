@@ -81,6 +81,7 @@ private:
 	int32 HistoryCount = 0;
 	int32 SwapsRecorded = 0;
 	bool bHoldOpenAtLastTickEnd = false;
+	bool bLaggedRelease = false;
 	mutable FTickEndEval Eval;
 
 	static constexpr int32 DefaultHalfPeriodFrames = 8;

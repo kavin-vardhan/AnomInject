@@ -78,6 +78,82 @@ namespace
 		if (I < 20) { return CcFixedPose(FVector(-1700.0, -700.0, CcEyeZ), TEXT("pawn_mesh"), bPawnMesh ? 1 : 0); }
 		return CcFixedPose(Control, TEXT("control_end"), 0);
 	}
+
+	enum class ELodPath : uint8 { Approach = 0, ApproachRetreat = 1, TurnIn = 2, TurnAway = 3, Still = 4 };
+
+	static constexpr double LodEyeZ = 200.0;
+	static constexpr double LodCopyX = 2100.0;
+	static constexpr double LodCopyY = 60.0;
+
+	const TCHAR* LodPathName(ELodPath Path)
+	{
+		return Path == ELodPath::Approach ? TEXT("approach") : Path == ELodPath::ApproachRetreat ? TEXT("approach_retreat")
+			: Path == ELodPath::TurnIn ? TEXT("turn_in") : Path == ELodPath::TurnAway ? TEXT("turn_away") : TEXT("still");
+	}
+
+	bool ParseLodPath(const FString& Text, ELodPath& Out)
+	{
+		for (int32 i = 0; i <= (int32)ELodPath::Still; ++i)
+		{
+			if (Text == LodPathName((ELodPath)i))
+			{
+				Out = (ELodPath)i;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	int32 LodPathFrames(ELodPath Path)
+	{
+		return Path == ELodPath::Approach ? 260 : Path == ELodPath::ApproachRetreat ? 318 : Path == ELodPath::TurnIn ? 85
+			: Path == ELodPath::TurnAway ? 51 : 1;
+	}
+
+	bool LodPathSpawnsCopies(ELodPath Path)
+	{
+		return Path == ELodPath::Approach || Path == ELodPath::ApproachRetreat || Path == ELodPath::Still;
+	}
+
+	FCcPose LodPose(double X, double Yaw, const TCHAR* Segment)
+	{
+		FCcPose P;
+		P.Location = FVector(X, 0.0, LodEyeZ);
+		P.Yaw = (float)Yaw;
+		P.Segment = Segment;
+		P.Designed = 0;
+		return P;
+	}
+
+	FCcPose LodPoseAt(ELodPath Path, int32 FrameIndex)
+	{
+		const int32 K = FMath::Max(0, FrameIndex);
+		switch (Path)
+		{
+		case ELodPath::Approach:
+			if (K < 20) { return LodPose(0.0, 0.0, TEXT("still_start")); }
+			if (K < 260) { return LodPose(7.5 * (K - 20), 0.0, TEXT("approach")); }
+			return LodPose(1800.0, 0.0, TEXT("hold_near"));
+		case ELodPath::ApproachRetreat:
+			if (K < 20) { return LodPose(0.0, 0.0, TEXT("still_start")); }
+			if (K < 164) { return LodPose(12.5 * (K - 20), 0.0, TEXT("approach")); }
+			if (K < 174) { return LodPose(1800.0, 0.0, TEXT("hold_near")); }
+			if (K < 318) { return LodPose(1800.0 - 12.5 * (K - 174), 0.0, TEXT("retreat")); }
+			return LodPose(0.0, 0.0, TEXT("hold_far"));
+		case ELodPath::TurnIn:
+			if (K < 30) { return LodPose(0.0, -100.0, TEXT("still_away")); }
+			if (K < 85) { return LodPose(0.0, -100.0 + 2.0 * (K - 30), TEXT("turn_in")); }
+			return LodPose(0.0, 10.0, TEXT("hold_facing"));
+		case ELodPath::TurnAway:
+			if (K < 30) { return LodPose(0.0, -100.0, TEXT("still_away")); }
+			if (K < 36) { return LodPose(0.0, -100.0 + 2.0 * (K - 30), TEXT("turn_toward")); }
+			if (K < 40) { return LodPose(0.0, -88.0, TEXT("pause")); }
+			if (K < 51) { return LodPose(0.0, -88.0 - 2.0 * (K - 40), TEXT("turn_away")); }
+			return LodPose(0.0, -110.0, TEXT("hold_away"));
+		default:
+			return LodPose(0.0, 0.0, TEXT("still"));
+		}
+	}
 }
 
 class FAnomalyBenchModule final : public IModuleInterface
@@ -88,6 +164,8 @@ class FAnomalyBenchModule final : public IModuleInterface
 	TUniquePtr<FAutoConsoleCommandWithWorldAndArgs> ScheduleCommand;
 	bool bScheduleArmed = false;
 	bool bSchedulePawnMesh = false;
+	bool bScheduleLod = false;
+	ELodPath ScheduleLodPath = ELodPath::Still;
 	FVector ScheduleLocalOffset = FVector::ZeroVector;
 	TWeakObjectPtr<UWorld> ScheduleWorld;
 	TArray<TWeakObjectPtr<AActor>> ScheduleActors;
@@ -110,7 +188,8 @@ class FAnomalyBenchModule final : public IModuleInterface
 	{
 		if (!World) { return TEXT("no_world"); }
 		if (!FParse::Param(FCommandLine::Get(), TEXT("IAIBenchFixture"))) { return TEXT("fixture_flag_missing"); }
-		if (!World->GetMapName().Contains(TEXT("CB_GateLevel")) && !World->GetMapName().Contains(TEXT("L_ShooterGym"))) { return TEXT("map_not_allowed"); }
+		if (!World->GetMapName().Contains(TEXT("CB_GateLevel")) && !World->GetMapName().Contains(TEXT("L_ShooterGym"))
+			&& !World->GetMapName().Contains(TEXT("CB_LodFixture"))) { return TEXT("map_not_allowed"); }
 		if (!Cap) { return TEXT("no_capture_subsystem"); }
 		if (Cap->IsCaptureActive()) { return TEXT("capture_active"); }
 		if (!PC) { return TEXT("no_controller"); }
@@ -140,7 +219,7 @@ class FAnomalyBenchModule final : public IModuleInterface
 		if (UStaticMeshComponent* Probe = SchedulePawnProbe.Get()) { Probe->DestroyComponent(); }
 		SchedulePawnProbe.Reset();
 		UE_LOG(LogTemp, Log, TEXT("IAI-CC-SCHEDULE DISARMED reason=%s last_logged_k=%d gfc=%llu"), Reason, ScheduleLastLogged, GFrameCounter);
-		bScheduleArmed = false; bSchedulePawnMesh = false; ScheduleWorld.Reset(); SchedulePreIndex = -1; ScheduleLastLogged = -1;
+		bScheduleArmed = false; bSchedulePawnMesh = false; bScheduleLod = false; ScheduleWorld.Reset(); SchedulePreIndex = -1; ScheduleLastLogged = -1;
 		FlushLog();
 	}
 	void ApplySchedulePose(APlayerController* PC, int32 FrameIndex)
@@ -148,7 +227,7 @@ class FAnomalyBenchModule final : public IModuleInterface
 		APawn* Owner = Cast<APawn>(PC->GetViewTarget());
 		if (!Owner) { Owner = PC->GetPawnOrSpectator(); }
 		if (!Owner) { return; }
-		const FCcPose Pose = CcPoseAt(FrameIndex, bSchedulePawnMesh);
+		const FCcPose Pose = bScheduleLod ? LodPoseAt(ScheduleLodPath, FrameIndex) : CcPoseAt(FrameIndex, bSchedulePawnMesh);
 		const FRotator Rotation(0.0, Pose.Yaw, 0.0);
 		PC->SetControlRotation(Rotation);
 		Owner->SetActorLocation(Pose.Location - Rotation.Quaternion().RotateVector(ScheduleLocalOffset), false, nullptr,
@@ -156,7 +235,7 @@ class FAnomalyBenchModule final : public IModuleInterface
 	}
 	void LogSchedulePose(APlayerController* PC, int32 FrameIndex)
 	{
-		const FCcPose Pose = CcPoseAt(FrameIndex, bSchedulePawnMesh);
+		const FCcPose Pose = bScheduleLod ? LodPoseAt(ScheduleLodPath, FrameIndex) : CcPoseAt(FrameIndex, bSchedulePawnMesh);
 		FVector Got = FVector::ZeroVector;
 		FRotator GotRot = FRotator::ZeroRotator;
 		if (PC->PlayerCameraManager)
@@ -171,7 +250,7 @@ class FAnomalyBenchModule final : public IModuleInterface
 		UE_LOG(LogTemp, Log,
 			TEXT("IAI-CC-SCHEDULE FRAME k=%d seg=%s designed=%d pawn_mesh=%d want=(%.3f,%.3f,%.3f,yaw %.3f) got=(%.3f,%.3f,%.3f,yaw %.3f) err_cm=%.4f err_deg=%.4f exhausted=%d gfc=%llu"),
 			FrameIndex, Pose.Segment, Pose.Designed, bSchedulePawnMesh, Pose.Location.X, Pose.Location.Y, Pose.Location.Z, Pose.Yaw,
-			Got.X, Got.Y, Got.Z, GotRot.Yaw, ErrCm, ErrDeg, FrameIndex >= CcTotalFrames, GFrameCounter);
+			Got.X, Got.Y, Got.Z, GotRot.Yaw, ErrCm, ErrDeg, FrameIndex >= (bScheduleLod ? LodPathFrames(ScheduleLodPath) : CcTotalFrames), GFrameCounter);
 	}
 	void WorldPreTick(UWorld* World, ELevelTick, float)
 	{
@@ -264,7 +343,8 @@ public:
 			ScheduleCommand = MakeUnique<FAutoConsoleCommandWithWorldAndArgs>(TEXT("IAI.Bench.CameraSchedule"),
 				TEXT("BENCH DEVICE (bench gate only: -IAIBench or -IAIBenchFixture; compiled out of Shipping). cc_v1 arms the B-CC camera_clipping pose schedule on CB_GateLevel: ")
 				TEXT("spawns a wall, a colliding prop beside the lens path, a non-colliding prop and (if a pawn is possessed) a pawn-owned mesh, then ")
-				TEXT("drives the view through 200 poses keyed by the capture session frame index. off disarms outside capture. Requires InputLock."),
+				TEXT("drives the view through 200 poses keyed by the capture session frame index. lod_v1 <approach|approach_retreat|turn_in|turn_away|still> ")
+				TEXT("arms the m57 lod_popping camera path on CB_LodFixture (distance paths spawn scale-1 copies IAIBenchLodCopyN/D at x=2100). off disarms outside capture. Requires InputLock."),
 				FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::CameraSchedule));
 		}
 		TickHandle = FWorldDelegates::OnWorldPostActorTick.AddRaw(this, &FAnomalyBenchModule::WorldTick);
@@ -321,6 +401,11 @@ public:
 			DisarmSchedule(TEXT("command")); return;
 		}
 		if (const TCHAR* Failure = FixtureFailure(World, Cap, PC)) { Refuse(TEXT("IAI-CC-SCHEDULE"), Failure); return; }
+		if (Args.Num() >= 1 && Args[0] == TEXT("lod_v1"))
+		{
+			LodSchedule(Args, World, PC);
+			return;
+		}
 		if (!World->GetMapName().Contains(TEXT("CB_GateLevel"))) { Refuse(TEXT("IAI-CC-SCHEDULE"), TEXT("cb_only")); return; }
 		if (!bOwnInputLock || LockedController.Get() != PC || LockedWorld.Get() != World) { Refuse(TEXT("IAI-CC-SCHEDULE"), TEXT("input_lock_required")); return; }
 		if (Args.Num() != 1 || Args[0] != TEXT("cc_v1")) { Refuse(TEXT("IAI-CC-SCHEDULE"), TEXT("invalid_mode")); return; }
@@ -368,6 +453,70 @@ public:
 			if (K == 0 || FCString::Strcmp(Pose.Segment, CcPoseAt(K - 1, bSchedulePawnMesh).Segment) != 0)
 			{
 				UE_LOG(LogTemp, Log, TEXT("IAI-CC-SCHEDULE SEGMENT start_k=%d seg=%s"), K, Pose.Segment);
+			}
+		}
+		ApplySchedulePose(PC, 0);
+		FlushLog();
+	}
+	AActor* SpawnLodCopy(UWorld* World, const TCHAR* Name, const FVector& Center, UStaticMeshComponent* Source)
+	{
+		FActorSpawnParameters Spawn; Spawn.Name = FName(Name); Spawn.ObjectFlags |= RF_Transient; Spawn.bDeferConstruction = true;
+		Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		const FTransform Transform(FQuat::Identity, Center - Source->GetStaticMesh()->GetBounds().Origin, FVector::OneVector);
+		auto* Actor = Cast<AStaticMeshActor>(World->SpawnActor(AStaticMeshActor::StaticClass(), &Transform, Spawn));
+		if (!Actor) { return nullptr; }
+		auto* Mesh = Actor->GetStaticMeshComponent();
+		Mesh->SetMobility(EComponentMobility::Static);
+		Mesh->SetStaticMesh(Source->GetStaticMesh());
+		for (int32 I = 0; I < Source->GetNumMaterials(); ++I) { Mesh->SetMaterial(I, Source->GetMaterial(I)); }
+		Mesh->SetCastShadow(false);
+		Actor->FinishSpawning(Transform);
+		ScheduleActors.Add(Actor);
+		UE_LOG(LogTemp, Log, TEXT("IAI-LOD-SCHEDULE COPY actor=%s mesh=%s center=%s scale=1 mobility=static bounds=%s"),
+			*Actor->GetName(), *Source->GetStaticMesh()->GetName(), *Center.ToString(), *Mesh->Bounds.GetBox().ToString());
+		return Actor;
+	}
+	void LodSchedule(const TArray<FString>& Args, UWorld* World, APlayerController* PC)
+	{
+		if (!World->GetMapName().Contains(TEXT("CB_LodFixture"))) { Refuse(TEXT("IAI-LOD-SCHEDULE"), TEXT("lod_fixture_only")); return; }
+		if (!bOwnInputLock || LockedController.Get() != PC || LockedWorld.Get() != World) { Refuse(TEXT("IAI-LOD-SCHEDULE"), TEXT("input_lock_required")); return; }
+		ELodPath Path = ELodPath::Still;
+		if (Args.Num() != 2 || !ParseLodPath(Args[1], Path)) { Refuse(TEXT("IAI-LOD-SCHEDULE"), TEXT("invalid_path")); return; }
+		if (bScheduleArmed || ScheduleActors.Num() > 0) { Refuse(TEXT("IAI-LOD-SCHEDULE"), TEXT("already_armed")); return; }
+		UStaticMeshComponent* SourceN = nullptr;
+		UStaticMeshComponent* SourceD = nullptr;
+		for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+		{
+			UStaticMeshComponent* C = It->GetStaticMeshComponent();
+			const FString MeshName = C && C->GetStaticMesh() ? C->GetStaticMesh()->GetName() : FString();
+			if (MeshName.Contains(TEXT("LodFix_N")) && !SourceN) { SourceN = C; }
+			if (MeshName.Contains(TEXT("LodFix_D")) && !SourceD) { SourceD = C; }
+		}
+		if (LodPathSpawnsCopies(Path) && (!SourceN || !SourceD)) { Refuse(TEXT("IAI-LOD-SCHEDULE"), TEXT("no_lod_fixture_meshes")); return; }
+		APawn* Owner = Cast<APawn>(PC->GetViewTarget());
+		if (!Owner) { Owner = PC->GetPawnOrSpectator(); }
+		if (!Owner) { Refuse(TEXT("IAI-LOD-SCHEDULE"), TEXT("no_view_owner")); return; }
+		FAnomalyViewInfo View;
+		if (!AnomalyViewport::GetActiveViewInfo(World, View)) { Refuse(TEXT("IAI-LOD-SCHEDULE"), TEXT("no_active_view")); return; }
+		ScheduleLocalOffset = PC->GetControlRotation().Quaternion().UnrotateVector(View.Origin - Owner->GetActorLocation());
+		ScheduleWorld = World;
+		if (LodPathSpawnsCopies(Path))
+		{
+			SpawnLodCopy(World, TEXT("IAIBenchLodCopyN"), FVector(LodCopyX, -LodCopyY, LodEyeZ), SourceN);
+			SpawnLodCopy(World, TEXT("IAIBenchLodCopyD"), FVector(LodCopyX, LodCopyY, LodEyeZ), SourceD);
+		}
+		bScheduleLod = true; ScheduleLodPath = Path; bSchedulePawnMesh = false;
+		bScheduleArmed = true; SchedulePreIndex = -1; ScheduleLastLogged = -1;
+		UE_LOG(LogTemp, Log,
+			TEXT("IAI-LOD-SCHEDULE ARMED version=lod_v1 path=%s frames=%d eye_z=%.1f copies=%d view_owner=%s local_offset=%s gfc=%llu"),
+			LodPathName(Path), LodPathFrames(Path), LodEyeZ, LodPathSpawnsCopies(Path) ? 2 : 0, *Owner->GetName(),
+			*ScheduleLocalOffset.ToString(), GFrameCounter);
+		for (int32 K = 0; K < LodPathFrames(Path); ++K)
+		{
+			const FCcPose Pose = LodPoseAt(Path, K);
+			if (K == 0 || FCString::Strcmp(Pose.Segment, LodPoseAt(Path, K - 1).Segment) != 0)
+			{
+				UE_LOG(LogTemp, Log, TEXT("IAI-LOD-SCHEDULE SEGMENT start_k=%d seg=%s"), K, Pose.Segment);
 			}
 		}
 		ApplySchedulePose(PC, 0);
