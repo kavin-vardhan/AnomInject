@@ -249,7 +249,7 @@ AnomalyLodTrigger::FArmEvaluation AnomalyLodTrigger::EvaluateArm(UWorld* World, 
 	FMotion Motion;
 	AnomalyLodTrigger::GetMotion(World, Motion);
 	bool bOnScreen = false;
-	GetComponentCoveragePct(World, Component, &bOnScreen);
+	const float CoveragePct = GetComponentCoveragePct(World, Component, &bOnScreen);
 	const FVector Target = Component->Bounds.Origin;
 	const float Radius = (float)Component->Bounds.SphereRadius;
 
@@ -266,13 +266,14 @@ AnomalyLodTrigger::FArmEvaluation AnomalyLodTrigger::EvaluateArm(UWorld* World, 
 		D.BoundsScreenSize = E.Prediction.BoundsScreenSize;
 		D.ReleaseScreenSize = ReleaseScreenSize(Sizes, AnomalyLod::MaxLodEntries, Triangles, NumLods, E.Prediction.EngineLod,
 			E.Prediction.Scale, Settings);
+		D.CoveragePct = CoveragePct;
+		D.DistanceCm = FMath::Max(1.0f, (float)FVector::Dist(View.Origin, Target));
 		if (Motion.bValid)
 		{
 			const float DistNow = FMath::Max(1.0f, (float)FVector::Dist(Motion.CameraNow, Target));
 			const float DistOld = FMath::Max(1.0f, (float)FVector::Dist(Motion.CameraOld, Target));
 			D.ClosingSpeedCmPerS = (DistOld - DistNow) / FMath::Max(0.001f, Motion.Seconds);
-			const float OldScreenSize = D.BoundsScreenSize * DistNow / DistOld;
-			D.ScreenSizeRatePerFrame = (D.BoundsScreenSize - OldScreenSize) / (float)FMath::Max(1, Motion.FramesBack);
+			D.FrameSeconds = Motion.FrameSeconds;
 			const FVector Travel = Motion.CameraNow - Motion.CameraOld;
 			const FVector ToTarget = Target - Motion.CameraNow;
 			if (!Travel.IsNearlyZero() && !ToTarget.IsNearlyZero())
@@ -283,7 +284,10 @@ AnomalyLodTrigger::FArmEvaluation AnomalyLodTrigger::EvaluateArm(UWorld* World, 
 		}
 		E.ClosingSpeedCmPerS = D.ClosingSpeedCmPerS;
 		int32 Ahead = -1;
-		const char* Why = DistanceArmRefusal(D, Settings, Ahead);
+		float LookAhead = -1.0f;
+		const char* Why = DistanceArmRefusal(D, Settings, Ahead, &LookAhead);
+		E.LookAheadScreenSize = LookAhead;
+		E.FramesAhead = Ahead;
 		if (Why)
 		{
 			return FString(UTF8_TO_TCHAR(Why));

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 namespace AnomalyLodTriggerRule
 {
 	enum class EMode : unsigned char { Periodic = 0, DistanceThreshold = 1, ViewEntry = 2, Auto = 3 };
@@ -133,14 +135,43 @@ namespace AnomalyLodTriggerRule
 		int TemporalLod1 = -1;
 		float BoundsScreenSize = 0.0f;
 		float ReleaseScreenSize = -1.0f;
-		float ScreenSizeRatePerFrame = 0.0f;
+		float CoveragePct = 0.0f;
+		float DistanceCm = 0.0f;
+		float FrameSeconds = 0.0f;
 		float ClosingSpeedCmPerS = 0.0f;
 		float ApproachAngleDeg = 180.0f;
 	};
 
-	inline const char* DistanceArmRefusal(const FDistanceArmInput& In, const FSettings& Settings, int& OutFramesAhead)
+	inline float CoverageScreenSize(float BoundsScreenSize, float CoveragePct, float CoverageMinPct)
+	{
+		if (BoundsScreenSize <= 0.0f)
+		{
+			return -1.0f;
+		}
+		if (CoveragePct >= CoverageMinPct)
+		{
+			return BoundsScreenSize;
+		}
+		if (CoveragePct <= 0.0f)
+		{
+			return -1.0f;
+		}
+		return BoundsScreenSize * std::sqrt(CoverageMinPct / CoveragePct);
+	}
+
+	inline float DistanceLookAheadScreenSize(float ReleaseScreenSize, float CoverageSize)
+	{
+		return ReleaseScreenSize > CoverageSize ? ReleaseScreenSize : CoverageSize;
+	}
+
+	inline const char* DistanceArmRefusal(const FDistanceArmInput& In, const FSettings& Settings, int& OutFramesAhead,
+		float* OutLookAheadScreenSize = nullptr)
 	{
 		OutFramesAhead = -1;
+		if (OutLookAheadScreenSize)
+		{
+			*OutLookAheadScreenSize = -1.0f;
+		}
 		if (!FreezeIsInvisible(In.EngineLod, In.TemporalLod0, In.TemporalLod1))
 		{
 			return In.EngineLod < 1 ? "at_finest_lod" : "mid_dither";
@@ -149,11 +180,21 @@ namespace AnomalyLodTriggerRule
 		{
 			return "no_contrast_lod";
 		}
-		if (In.ReleaseScreenSize <= In.BoundsScreenSize)
+		const float CoverageSize = CoverageScreenSize(In.BoundsScreenSize, In.CoveragePct, Settings.CoverageMinPct);
+		if (CoverageSize <= 0.0f)
+		{
+			return "no_coverage";
+		}
+		const float Target = DistanceLookAheadScreenSize(In.ReleaseScreenSize, CoverageSize);
+		if (OutLookAheadScreenSize)
+		{
+			*OutLookAheadScreenSize = Target;
+		}
+		if (Target <= In.BoundsScreenSize)
 		{
 			return "already_past_release";
 		}
-		if (In.ClosingSpeedCmPerS < Settings.MinClosingSpeedCmPerS || In.ScreenSizeRatePerFrame <= 0.0f)
+		if (In.ClosingSpeedCmPerS < Settings.MinClosingSpeedCmPerS || In.FrameSeconds <= 0.0f || In.DistanceCm <= 0.0f)
 		{
 			return "not_approaching";
 		}
@@ -161,7 +202,8 @@ namespace AnomalyLodTriggerRule
 		{
 			return "off_motion_axis";
 		}
-		const float Frames = (In.ReleaseScreenSize - In.BoundsScreenSize) / In.ScreenSizeRatePerFrame;
+		const float TargetDistanceCm = In.DistanceCm * In.BoundsScreenSize / Target;
+		const float Frames = (In.DistanceCm - TargetDistanceCm) / (In.ClosingSpeedCmPerS * In.FrameSeconds);
 		OutFramesAhead = (int)(Frames + 0.999f);
 		if (OutFramesAhead > Settings.AheadFrames)
 		{

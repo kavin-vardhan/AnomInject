@@ -30,6 +30,7 @@ namespace AnomalyLodTrigger
 		FString Refusal;
 		int32 HeldLod = -1;
 		float ReleaseScreenSize = -1.0f;
+		float LookAheadScreenSize = -1.0f;
 		int32 FramesAhead = -1;
 		float ClosingSpeedCmPerS = 0.0f;
 		float AngleOutsideFrustumDeg = -1.0f;

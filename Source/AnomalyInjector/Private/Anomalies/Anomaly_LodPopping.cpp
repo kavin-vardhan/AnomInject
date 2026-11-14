@@ -478,11 +478,11 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 	bActive = true;
 	UE_LOG(LogAnomaly, Log,
 		TEXT("lod_popping: ARMED '%s' mode=%s held_lod=%d (forced_lod_model=%d, saved %d) engine_lod=%d screen_size=%.6f ")
-		TEXT("release_screen_size=%.6f frames_ahead=%d closing_cm_s=%.1f angle_outside_deg=%.2f settings[%s] coverage_min=%.2f. ")
+		TEXT("release_screen_size=%.6f look_ahead_screen_size=%.6f frames_ahead=%d closing_cm_s=%.1f angle_outside_deg=%.2f settings[%s] coverage_min=%.2f. ")
 		TEXT("Arming changes nothing visible (the held LOD equals the engine's, or the target is off screen); labels start ")
 		TEXT("only when the held LOD is visibly wrong."),
 		*Best->GetName(), UTF8_TO_TCHAR(DescribeMode(Mode)), BestEval.HeldLod, BestEval.HeldLod + 1, SavedForcedLod,
-		BestEval.Prediction.EngineLod, BestEval.Prediction.BoundsScreenSize, BestEval.ReleaseScreenSize, BestEval.FramesAhead,
+		BestEval.Prediction.EngineLod, BestEval.Prediction.BoundsScreenSize, BestEval.ReleaseScreenSize, BestEval.LookAheadScreenSize, BestEval.FramesAhead,
 		BestEval.ClosingSpeedCmPerS, BestEval.AngleOutsideFrustumDeg, *AnomalyDefaults::DescribeLodTriggerSettings(),
 		Settings.CoverageMinPct);
 	return true;

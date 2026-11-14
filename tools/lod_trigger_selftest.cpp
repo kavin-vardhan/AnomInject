@@ -114,21 +114,41 @@ static void TestArmRules()
 	int Ahead = 0;
 	FDistanceArmInput D;
 	D.EngineLod = 1; D.TemporalLod0 = 1; D.TemporalLod1 = 1; D.BoundsScreenSize = 0.03f; D.ReleaseScreenSize = 0.055f;
-	D.ScreenSizeRatePerFrame = 0.001f; D.ClosingSpeedCmPerS = 150.0f; D.ApproachAngleDeg = 5.0f;
-	Check(DistanceArmRefusal(D, S, Ahead) == nullptr && Ahead == 25, "approach arms with 25 frames ahead, got " + std::to_string(Ahead));
+	D.CoveragePct = 9.0f; D.DistanceCm = 1000.0f; D.FrameSeconds = 1.0f / 30.0f; D.ClosingSpeedCmPerS = 225.0f; D.ApproachAngleDeg = 5.0f;
+	float LookAhead = 0.0f;
+	Check(DistanceArmRefusal(D, S, Ahead, &LookAhead) == nullptr && Ahead == 61,
+		"approach arms 61 frames ahead (1000 cm to 545 cm at 7.5 cm/frame), got " + std::to_string(Ahead));
+	Check(LookAhead > 0.0549f && LookAhead < 0.0551f, "covered target: the look-ahead is the contrast release size");
 	FDistanceArmInput Slow = D; Slow.ClosingSpeedCmPerS = 20.0f;
 	Check(Is(DistanceArmRefusal(Slow, S, Ahead), "not_approaching"), "slow approach refused");
-	FDistanceArmInput Away = D; Away.ScreenSizeRatePerFrame = -0.001f;
-	Check(Is(DistanceArmRefusal(Away, S, Ahead), "not_approaching"), "shrinking screen size refused");
+	FDistanceArmInput Away = D; Away.ClosingSpeedCmPerS = -100.0f;
+	Check(Is(DistanceArmRefusal(Away, S, Ahead), "not_approaching"), "retreating camera refused");
 	FDistanceArmInput Side = D; Side.ApproachAngleDeg = 45.0f;
 	Check(Is(DistanceArmRefusal(Side, S, Ahead), "off_motion_axis"), "target off the motion axis refused");
-	FDistanceArmInput Far = D; Far.ScreenSizeRatePerFrame = 0.0001f;
-	Check(Is(DistanceArmRefusal(Far, S, Ahead), "too_far_ahead"), "release 250 frames ahead refused");
+	FDistanceArmInput Far = D; Far.ClosingSpeedCmPerS = 50.0f;
+	Check(Is(DistanceArmRefusal(Far, S, Ahead), "too_far_ahead"), "release 273 frames ahead at 50 cm/s refused");
+	FDistanceArmInput CovSmall = D; CovSmall.CoveragePct = 1.0f;
+	Check(DistanceArmRefusal(CovSmall, S, Ahead, &LookAhead) == nullptr && Ahead == 83,
+		"coverage-limited target arms 83 frames ahead (looks ahead to the 7 % size), got " + std::to_string(Ahead));
+	Check(LookAhead > 0.0793f && LookAhead < 0.0795f, "look-ahead = the size at which coverage reaches 7 % (0.03 x sqrt 7), got " + std::to_string(LookAhead));
+	FDistanceArmInput Tiny = D; Tiny.CoveragePct = 0.1f;
+	Check(Is(DistanceArmRefusal(Tiny, S, Ahead), "too_far_ahead"), "coverage 0.1 %: the 7 % size is out of reach, refused at the arm");
+	FDistanceArmInput NoCov = D; NoCov.CoveragePct = 0.0f;
+	Check(Is(DistanceArmRefusal(NoCov, S, Ahead), "no_coverage"), "no coverage refused");
+	Check(CoverageScreenSize(0.1f, 7.0f, 7.0f) == 0.1f, "coverage already at the minimum: the current size");
+	const float Cov4 = CoverageScreenSize(0.1f, 1.75f, 7.0f);
+	Check(Cov4 > 0.1999f && Cov4 < 0.2001f, "a quarter of the coverage needs twice the screen size");
+	Check(CoverageScreenSize(0.1f, 0.0f, 7.0f) < 0.0f, "zero coverage has no coverage size");
+	FDistanceArmInput C3;
+	C3.EngineLod = 1; C3.TemporalLod0 = 1; C3.TemporalLod1 = 1; C3.BoundsScreenSize = 0.0428f; C3.ReleaseScreenSize = 0.055f;
+	C3.CoveragePct = 0.1083f; C3.DistanceCm = 2075.9f; C3.FrameSeconds = 1.0f / 30.0f; C3.ClosingSpeedCmPerS = 224.7f; C3.ApproachAngleDeg = 1.7f;
+	Check(Is(DistanceArmRefusal(C3, S, Ahead), "too_far_ahead") && Ahead > 230,
+		"review C3 at si 51 (copy 2076 cm away, 0.11 % coverage): refused at the arm instead of arming and timing out, " + std::to_string(Ahead) + " frames ahead");
 	FDistanceArmInput Fine = D; Fine.EngineLod = 0; Fine.TemporalLod0 = 0; Fine.TemporalLod1 = 0;
 	Check(Is(DistanceArmRefusal(Fine, S, Ahead), "at_finest_lod"), "target at LOD0 refused");
 	FDistanceArmInput Dither = D; Dither.TemporalLod1 = 0;
 	Check(Is(DistanceArmRefusal(Dither, S, Ahead), "mid_dither"), "mid-dither refused");
-	FDistanceArmInput Past = D; Past.BoundsScreenSize = 0.06f;
+	FDistanceArmInput Past = D; Past.BoundsScreenSize = 0.06f; Past.CoveragePct = 9.0f;
 	Check(Is(DistanceArmRefusal(Past, S, Ahead), "already_past_release"), "already past the release refused");
 	FDistanceArmInput NoContrast = D; NoContrast.ReleaseScreenSize = -1.0f;
 	Check(Is(DistanceArmRefusal(NoContrast, S, Ahead), "no_contrast_lod"), "no contrast refused");
