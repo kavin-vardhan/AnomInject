@@ -338,7 +338,9 @@ python host-tools\label_sync_check.py <a session folder, or a folder of sessions
   claim and reads `censored`.
 - **Known limit:** a one-frame interruption between two labelled runs, or a gap too short to measure, reads
   `censored`, not failed. A censored count is therefore not proof of correct timing.
-- **It cannot judge** `camera_clipping` (no target mask; its label is a whole-frame proxy), moving-camera
+- **It cannot judge** `camera_clipping` (no target mask; its label is a whole-frame proxy), spatial `lod_popping`
+  events (m57 `distance_threshold` and `view_entry`: the onset is a flag boundary, not a picture change; the kit
+  prints `not judgeable (spatial lod)` with that reason for each one), moving-camera
   events, effects too faint to measure, or frames the capture never saves. Its wrong-object count is an
   upper bound (shadows and reflections trip it too).
 
@@ -510,7 +512,7 @@ first.
 | Field | Type | Since | Meaning |
 | --- | --- | --- | --- |
 | `label_schema` | int | **v2** | Always `2`. Absent in v1 files. |
-| `label_schema_minor` | int | **2.1** | `1` = transition export (schema 2.1). 🆕 `2` = schema 2.2: every engine tick of the capture is a frame, the frames right after each anomaly starts and stops carry the reason `settle`, and rows carry `tick_index` (§8.5a, §8.6c). |
+| `label_schema_minor` | int | **2.1** | `1` = transition export (schema 2.1). 🆕 `2` = schema 2.2: every engine tick of the capture is a frame, the frames right after each anomaly starts and stops carry the reason `settle`, and rows carry `tick_index` (§8.5a, §8.6c). `3` = schema 2.3 (m57): `lod_popping` pops on a camera trigger, with the reasons `lod_subvisible` and `lod_unconfirmed` and new `lod_*` keys (§8.5b). |
 | `transition_frame_count` | int | **2.1** | Distinct frames carrying a transition flag. 🆕 In 2.2 it also counts every `settle` frame, including one with no anomaly entry. |
 | `session_id` | string | v1 | The session folder's name. |
 | `video` | object | v1 | See below. |
@@ -944,6 +946,27 @@ jumped exactly where the label changed. Schema 2.2 saves every frame and flags t
 🔑 **The one-line migration:** keep dropping every frame that carries a transition flag (it already covers
 `settle`), and read time with `t_wall_run` instead of `t_wall`. Nothing was removed and nothing was renamed.
 
+### 8.5b 2.2 → 2.3 changelog (m57: `lod_popping` pops on a camera trigger)
+
+Schema 2.3 sessions say `label_schema_minor: 3`. Nothing was removed or renamed; every change is additive and appears
+only on `lod_popping`.
+
+| Key | 2.2 | 2.3 | Additive? |
+| --- | --- | --- | --- |
+| `annotation.json` → `label_schema_minor` | `2` | `3` | value change |
+| `anomaly_subtype` on a `lod_popping` event | the type | `distance_threshold` or `view_entry` (`periodic` on the test bench only) | **Added values** |
+| `annotation.json` event keys `lod_trigger`, `lod_held_lod`, `lod_swaps`, `lod_swap_frames`, `lod_spatial_swap_visible`, `lod_event_kind`, `lod_trigger_screen_size`, `lod_trigger_distance_cm` | *absent* | on every `lod_popping` event (§8.7a) | **Added** |
+| `labels.jsonl` entry keys `lod.trigger`, `lod.state` (`armed`, `labelled`, `subvisible`, `occluded`, `past_held`, `swapped`), `lod.held`, `lod.held_lod`, `lod.engine_lod`, `lod.screen_size`, `lod.distance_cm`, `lod.coverage_pct`, `lod.on_screen`, `lod.in_frustum`, `lod.subvisible`, `lod.swap` (with `lod.swap_from_lod`, `lod.swap_to_lod`, `lod.swap_cause`, `lod.swap_direction` on a swap frame), `lod.cap_reached`, `lod.component`, `lod.probe`, `lod.dithered`, `lod.min_lod`, `lod.temporal0`, `lod.temporal1`, `lod.engine_lod_render`, `lod.min_lod_render`, `lod.temporal_render0`, `lod.temporal_render1`, `lod.unconfirmed_why` | *absent* | on `lod_popping` entries only | **Added** |
+| reasons `lod_subvisible`, `lod_unconfirmed` (entry `transition_reason`) | *absent* | §8.6a | **Added** values |
+| `run_summary.json` → `lod_events_by_kind`, `lod_swaps_by_cause`, `lod_untriggered`, `lod_untriggered_event_ids`, `lod_arm_timeouts`, `lod_arm_clock_restarts`, `lod_window_extension_frames`, `lod_render_checked_frames`, `lod_render_mismatch_frames`, `lod_trigger_settings`, `lod_predict_calls`, `lod_predict_candidates`, `lod_predict_ms_mean`, `lod_predict_ms_max` | *absent* | written when a `lod_popping` fire ran or the auto pool looked for one | **Added** |
+| `run_summary.json` → `label_transition_lod_subvisible_entries`, `label_transition_lod_unconfirmed_entries` | *absent* | always (0 when no `lod_popping` ran) | **Added** |
+| Positive window of a burst | fixed length | a `lod_popping` burst stays open while the object is visibly wrong, up to the hold cap (§8.7a) | behaviour (`lod_popping` only) |
+| Events in `annotation.json` | one per fire | a spatial fire that never showed a labelled frame writes **no event** (its id is in `lod_untriggered_event_ids`); every other event is kept except zero-pixel vetoed events (`vetoed_event_ids`) | behaviour (`lod_popping` only) |
+
+🔑 **The one-line migration:** keep dropping every frame that carries a transition flag (it now also covers
+`lod_subvisible` and `lod_unconfirmed`), and filter `lod_popping` events on `lod_spatial_swap_visible` if you want only
+visible spatial pops.
+
 ### 8.6 `labels.jsonl` — every field
 
 One JSON object per line, one line per captured frame.
@@ -988,7 +1011,7 @@ One JSON object per line, one line per captured frame.
 | **`observable`** | bool \| null | **v2** | See §8.4. `null` = unmeasured. |
 | `mask_value` | int | since target masks | This anomaly's pixel value in `target_mask/`. |
 | **`transition`** | `1` | **new** | **Only present when set.** This frame is uncertain for this event — why is in `transition_reason`; see §8.6a. |
-| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable`, `capture_unpaired`, `pie_end_settle`, and from 2.2 `settle` — see §8.6a and §8.6c. ⚠ `settle` and `pie_end_settle` are different reasons; match reason names exactly, never by substring. |
+| **`transition_reason`** | array of string | **new** | **Only present with `transition`.** One or more of `temporal_aa`, `hide_return`, `partial`, `unresolved`, `camera_clipping_unconfirmed`, `effect_interrupted`, `nanite_unmaskable`, `capture_unpaired`, `pie_end_settle`, from 2.2 `settle`, and from 2.3 `lod_subvisible` and `lod_unconfirmed` — see §8.6a and §8.6c. ⚠ `settle` and `pie_end_settle` are different reasons; match reason names exactly, never by substring. |
 | **`capture_unpaired`** | `true` | **090-10** | **Row-level, only present when set** (with a row-level `transition_reason: ["capture_unpaired"]`). The frame was captured by the **synchronous** path, so its picture is not paired with its label: drop it (§8.6a). Never present with the shipped settings. |
 | **`labelled`** | bool | **new** | Whether this frame is in this event's `annotation.json` frame list (`injected_frames`) — the anomaly is in the picture on this frame by the label's own rule. It is written by the same rule, per anomaly, that builds that frame list (for `missing_texture` / `corrupted_texture`: the object's projected box is on screen **and at least one slot the anomaly replaced still renders its material on this frame** — see `effect_interrupted`, §8.6a; for `blinking` / `missing_object`: the object is hidden; for `lod_popping` / `camera_clipping`: the anomaly is in its anomalous state; for `stuck_low_mip`: the frame's render record shows the hold). `false` on an entry means the event is running but its effect is not applied on this frame, or the entry is a transition-only one (§8.6a). What "applied" means for each anomaly is in §8.7. Absent on files from earlier builds and on single shots taken with `IAI.Capture.Shot` (those rows carry `label_rule: "legacy_shot"`). A frame captured by the synchronous path (`capture_unpaired`) never has a labelled entry. `run_summary.json` names the rule as `label_labelled_rule: "annotation_membership_per_policy_v4_sample_bound"` (090-10: the on-screen test uses the bounds frozen for this picture, and synchronous frames are never labelled). Earlier names: `"…_v3_effect_rendered_nanite_gated"` (090-09: partial replacement stays labelled, Nanite-drawing frames are not), `"…_v2_effect_installed"` (090-05), `"annotation_membership_per_policy_v1"` (before 090-05, which did not check that the texture anomaly's material was still on the object). |
 
@@ -1033,6 +1056,8 @@ When a transition is flagged, the anomaly's entry carries **`transition: 1`**, a
 | any anomaly | `capture_unpaired` | every frame captured by the **synchronous** path: `IAI.Capture.Async 0`, or, with `IAI.Capture.SVE 0` (the UI-on option), a frame on which the game-viewport rectangle could not be found. That path reads the picture the game presented **before** the current tick while the anomaly state is read **during** it, so a change made in that tick is in the label and not in the picture. **With or without anti-aliasing. Never with the shipped settings** (asynchronous capture on, scene-colour capture on). | a transition-only entry on every anomaly of the frame (`labelled: false`, no target mask), plus row-level `capture_unpaired: true`; the frame is excluded from positive lists and included in schema 2.1 `transition_frames` | **no** | **no** |
 | `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption`, proxy-route `stuck_low_mip` (every fire-window type) | `pie_end_settle` | **Play In Editor only:** the first captured frame after each labelled run of the event. It is a precaution, not a correction: an earlier reading suggested that in PIE the picture stayed changed one frame after the label ended, and that reading was traced to the checking tool, not the labels (it compared against `affected_frames`, which leaves out a labelled frame whose target mask was not measured; against `injected_frames` no event ended late). The flag only marks a frame that is already unlabelled, so keeping it costs one frame per event in PIE and nothing else. **Never in a packaged or staged game**; `run_summary.json` says whether the capture ran in PIE (`pie_end_settle_active`) and counts the frames (`pie_end_settle_frames`). | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
 | every anomaly (schema 2.2) | `settle` | the K captured frames right after every anomaly onset, and the K right after every offset (K = 2 by default, the first number of `IAI.Capture.Config`; see §8.6c). **With or without anti-aliasing.** | after an onset: the normal entry, plus `transition: 1` (still labelled when the frame is labelled); after an offset: a transition-only entry for the anomaly that just ended (`labelled: false`, no target mask). The row itself carries `transition_present: true` and `transition_reason: ["settle"]`, also when it has no entry (a burst that fired nothing) | after an onset: yes; after an offset: **no** | after an onset: yes (in the frame lists, and also in `transition_frames`); after an offset: **no** |
+| `lod_popping` (schema 2.3) | `lod_subvisible` | a held frame that is visibly wrong but not a usable positive: smaller than 7 % of the frame, without the triangle contrast, behind something the visibility test cannot see through (`lod.state` `occluded`), or the one frame on which the engine already wants a coarser level than the held one (`past_held`). **With or without anti-aliasing.** | a transition-only entry (`labelled: false`; no target mask) | **no** | **no** |
+| `lod_popping` (schema 2.3) | `lod_unconfirmed` | a frame on which the render thread disagrees with the label: another detail level or streamed-in level for the captured view, or a dithered crossfade still running after the snap; checked while held and for `lod.TemporalLag` after the snap. **With or without anti-aliasing.** | a transition-only entry (`labelled: false`); a target mask PNG may still exist for it | **no** | **no** |
 | every other anomaly | — | none | — | — | — |
 
 - **`partial` is not an anti-aliasing effect.** A blurry-texture event holds several textures of one object (for
@@ -1077,6 +1102,8 @@ When a transition is flagged, the anomaly's entry carries **`transition: 1`**, a
 | `capture_unpaired` | captured by the synchronous path: the picture may be one game tick older than the label | drop the frame |
 | `pie_end_settle` | Play In Editor only: the frame right after a label ends, which may still show the effect | drop the frame |
 | `settle` | schema 2.2: one of the frames right after an anomaly starts or stops; the picture may still be settling (for example a blurry texture streaming down, or anti-aliasing history) | drop the frame |
+| `lod_subvisible` | schema 2.3, `lod_popping`: the held low-detail version is wrong but not a usable positive (too small, too little contrast, seen through glass, or one frame past the held level) | drop the frame |
+| `lod_unconfirmed` | schema 2.3, `lod_popping`: the render thread disagrees with the label, or a dithered crossfade is still running | drop the frame |
 
 A frame can carry more than one reason. Drop every transition frame from training: never use it as a positive or a negative.
 All the transition rows above appear in `transition_frames` (schema 2.1 and 2.2), including rows outside the positive lists;
@@ -1282,7 +1309,7 @@ Five fields answer five different questions about one frame. Keep them apart:
 | `blinking` | every burst frame | the frames on which the object is **hidden**, as the plugin's own hidden state stands after every game system has ticked for that frame | the burst's visible phases | the object's projected box, also on hidden frames (where it would be) | labelled frames (the would-be silhouette) | `hide_return` |
 | `missing_object` | every burst frame | the hidden frames — normally the whole burst | none expected | as `blinking` | labelled frames | `hide_return` (after the event) |
 | `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption` | every burst frame | burst frames on which the object's projected box is on screen **and** at least one slot the event replaced still renders its material (partial replacement stays labelled) | frames with the box off screen; `effect_interrupted` frames | projected box | labelled frames | `effect_interrupted`, `nanite_unmaskable` |
-| `lod_popping` | every burst frame | the frames on which the held low-detail version is visibly wrong: on screen, the engine would draw a finer detail level for this view, and the object covers at least 7 % of the frame | armed frames; wrong-but-smaller frames are flagged `lod_subvisible`; the swap frame and after | projected box | labelled frames | none |
+| `lod_popping` | every burst frame | the frames on which the held low-detail version is visibly wrong: on screen, the engine would draw a finer detail level for this view, and the object covers at least 7 % of the frame | armed frames; wrong-but-smaller, low-contrast, occluded and past-held frames are flagged `lod_subvisible`; the swap frame and after | projected box (the held mesh only, on an object with several meshes) | labelled frames (and possibly a `lod_unconfirmed` frame) | `lod_subvisible`, `lod_unconfirmed` |
 | `camera_clipping` | only the frames on which it is positive (§8.6b) — a whole-session anomaly whose entry appears only then | the same frames | none | the whole frame | never (`null` / `-1`) | `camera_clipping_unconfirmed` |
 | `stuck_low_mip`, hold route | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; an optional temporal off window after the last held frame (0 frames by default) carries **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
 | `stuck_low_mip`, proxy route | every burst frame | burst frames with an installed proxy rendering on the target (§8.3aa) | off-screen or `effect_interrupted` frames | admitted components only | labelled frames | `effect_interrupted`, `temporal_aa`, `pie_end_settle` (PIE only) |
@@ -1421,34 +1448,6 @@ What each row leaves open, stated rather than implied:
   apply, so a skeletal mesh with one usable detail level, which earlier builds forced, is still refused (as
   `single_lod`). With the setting at `0` every skeletal mesh is refused as `skeletal_unmeasured`, a single-level one
   included, because the skeletal check comes first.
-- **`lod_popping` pops because the player moved (m57, label schema 2.3).** Two triggers, both on plain static meshes
-  with several detail levels (skeletal, instanced, hierarchical-instanced and Nanite meshes are refused by name):
-  - `distance_threshold`: the object is frozen at the detail level it already shows (nothing changes), keeps it while
-    you walk toward it, and snaps to full detail once it is clearly past the point where the engine would have switched.
-    Walking away again past 85 % of that size can pop it back down (a second swap, direction `down`).
-  - `view_entry`: an object just outside the view, on the side you are turning toward, is prepared at a low-detail
-    version while unseen, enters the view showing it, and snaps after 4 frames on screen.
-  No movement means no LOD event: the burst fires another anomaly instead. `anomaly_subtype` is the trigger
-  (`distance_threshold`, `view_entry`; `periodic` is the old timed pop, now a test-bench mode only).
-  - **Labelled frames** are the frames where the low-detail version is visibly wrong: on screen, the engine would
-    draw a finer level for this view, and the object covers at least 7 % of the frame. Wrong-but-smaller frames carry
-    the new reason `lod_subvisible`; a frame whose detail level the render thread computed differently from the label
-    carries `lod_unconfirmed` and is not labelled. Drop both, like every other flagged frame.
-  - **Every event that has labelled frames stays in `annotation.json`**, marked: `lod_trigger`, `lod_held_lod`,
-    `lod_swaps` (each with `frame`, `tick_index`, `cause` = `distance`, `view_entry` or `hold_cap`, `direction`,
-    `from_lod`, `to_lod`, `screen_size`, `distance_cm`, `coverage_pct`, `on_screen`), `lod_swap_frames`,
-    `lod_spatial_swap_visible` and `lod_event_kind` (`spatial_swap`, `hold_cap_only`, `no_swap`, `periodic`).
-    **To keep only events with a visible spatial pop, keep those whose `lod_spatial_swap_visible` is `true`.**
-    `hold_cap` is the one pop the schedule can cause: a target that stays visibly wrong for 150 frames is released by
-    the capture, rarely, and always marked. `no_swap` events showed the wrong detail level but were never seen to snap
-    (for example the view turned away first): their labelled frames are true positives.
-  - A fire that never became visibly wrong writes **no event**; its id is listed in `run_summary.json`
-    `lod_untriggered_event_ids`. `run_summary` also counts `lod_events_by_kind` and `lod_swaps_by_cause`.
-  - Settings (console beats `[AnomalyInjector]` in DefaultGame.ini, which beats the default): `IAI.Anomaly.LodArmTimeout`
-    / `LodPoppingArmTimeoutFrames` (90), `IAI.Anomaly.LodHoldCap` / `LodPoppingHoldCapFrames` (150),
-    `IAI.Anomaly.LodEntryFrames` / `LodPoppingEntryFrames` (4), `IAI.Anomaly.LodDownPop` / `LodPoppingDownPop` (1).
-    The 7 % minimum is the existing `IAI.Anomaly.LodMinCoverage` / `LodPoppingMinCoveragePct`.
-  - **Not yet proven on the bench:** the m57 gates have not run (as of this build).
 
   | Console command | ini key (`[AnomalyInjector]`) | Default | Allowed | What it sets |
   | --- | --- | --- | --- | --- |
@@ -1459,6 +1458,66 @@ What each row leaves open, stated rather than implied:
   (an injection from the console or the selector) a change applies at once. The capture's start line prints it as
   `lodSkeletal=allowed(...)` or `lodSkeletal=refused(...)` with where it came from, and the console's read-back during
   a capture shows the value in use with its source and, if a change is waiting, the value for the next capture.
+- **`lod_popping` pops because the player moved (m57, label schema 2.3).** Two triggers, both on plain static meshes
+  with at least two usable detail levels (skeletal, instanced, hierarchical-instanced and Nanite meshes are refused by
+  name):
+  - `view_entry` (the main case, as in your reference clip): you turn toward an object just outside the view; it is
+    prepared at a low-detail version while unseen, enters the view showing it, and snaps to full detail after
+    **30 frames on screen (about one second at 30 fps)**. An object qualifies when, at the current turning speed, it
+    would enter the view within 3 seconds (it may be 20 to 120 degrees outside the view edge).
+  - `distance_threshold`: the object is frozen at the detail level it already shows (nothing changes), keeps it while
+    you walk toward it, and snaps to full detail once it is clearly past both the point where the engine would have
+    switched and the point where it covers 7 % of the frame. It is armed only when, at your walking speed, it will
+    reach that size within 3 seconds. Walking away again can pop it back down (a second swap, direction `down`); at
+    the default settings a straight walk away does not reach that point, and it stays switched on until you tell us
+    whether you want it.
+  No movement means no LOD event: the burst fires another anomaly instead. `anomaly_subtype` is the trigger
+  (`distance_threshold`, `view_entry`; `periodic` is the old timed pop, now a test-bench mode only).
+  - **Labelled frames** are the frames where the low-detail version is visibly wrong: on screen, the engine would
+    draw a finer level for this view, the object covers at least 7 % of the frame, and the low-detail version has at
+    most a quarter of the triangles of the level the engine wants (a faint pop is not labelled).
+  - **Flagged, not labelled, reason `lod_subvisible`:** wrong but covering less than 7 %; wrong but without that
+    triangle contrast; wrong but behind something the visibility test cannot see through, such as glass or a fence
+    (`lod.state` `occluded`); and the single frame on which the engine already wants a coarser level than the held one
+    (`lod.state` `past_held`; the hold is released at once and the engine's own level shows from the next frame).
+  - **Flagged, not labelled, reason `lod_unconfirmed`:** the render thread worked out another detail level for the
+    captured view than the label did, or another streamed-in level, or, on a mesh with dithered detail transitions, a
+    crossfade still running after the snap. The check runs while the object is held and for 0.5 s after the snap
+    (`lod.TemporalLag`). Drop both reasons, like every other flagged frame. A `lod_unconfirmed` frame can still have
+    a target mask PNG; drop the mask with the frame.
+  - **Every event that has labelled frames stays in `annotation.json`**, except an event whose object the mask
+    measured at zero drawn pixels (the standard veto; its id is in `run_summary.json` `vetoed_event_ids`). Kept
+    events are marked: `lod_trigger`, `lod_held_lod`, `lod_swaps` (each with `frame`, `tick_index`, `cause` =
+    `distance`, `view_entry` or `hold_cap`, `direction`, `from_lod`, `to_lod`, `screen_size`, `distance_cm`,
+    `coverage_pct`, `on_screen`), `lod_swap_frames`, `lod_spatial_swap_visible`, `lod_event_kind` (`spatial_swap`,
+    `hold_cap_only`, `no_swap`, `periodic`), `lod_trigger_screen_size` and `lod_trigger_distance_cm`.
+    **To keep only events with a visible spatial pop, keep those whose `lod_spatial_swap_visible` is `true`.**
+    `hold_cap` is the one pop the schedule can cause: a target that stays visibly wrong for 150 frames is released by
+    the capture, rarely, and always marked; if the capture ends on that frame, no swap is recorded and the event reads
+    `no_swap`. `no_swap` events showed the wrong detail level but were never seen to snap (for example the view
+    turned away first): their labelled frames are true positives.
+  - **Burst length:** while the low-detail version is visibly wrong, the capture keeps the burst open, one frame per
+    tick, up to the 150-frame hold cap (`lod_window_extension_frames` counts those frames); on a mesh with dithered
+    detail transitions it also stays open for the 0.5 s after the snap, so those frames are checked.
+  - A fire that never became visibly wrong writes **no event**; its id is listed in `run_summary.json`
+    `lod_untriggered_event_ids`. The 90-frame arm timeout counts from the arm to the first wrong frame, then again to
+    the first labelled frame. An event whose labelled frames all failed to save is listed there too (rare; those
+    frames are missing from the folder).
+  - **Default capture path only:** with `IAI.Capture.SVE 0` (the UI-on option) or a synchronous capture, a spatial
+    fire is refused `render_record_unavailable`, because its labels could not be confirmed on the render thread.
+  - When an object has several meshes, the label box, the mask and the visibility count cover only the held mesh.
+  - **Known limits:** an object whose shadow could fall into the view while it is held off screen is refused
+    (`lod_shadow_in_view`); the test uses the first shadow-casting sun and the object's box swept along the light, so
+    it refuses more than it needs to (the safe side) and ignores point and spot light shadows. Auto-pool candidates
+    skip translucent-only and name-excluded objects like every other anomaly, but not the census, the coverage cull or
+    the poll radius (the trigger tests coverage itself, and a view-entry object is outside the view).
+  - Settings (console beats `[AnomalyInjector]` in DefaultGame.ini, which beats the default): `IAI.Anomaly.LodArmTimeout`
+    / `LodPoppingArmTimeoutFrames` (90), `IAI.Anomaly.LodHoldCap` / `LodPoppingHoldCapFrames` (150),
+    `IAI.Anomaly.LodEntryFrames` / `LodPoppingEntryFrames` (**30**, allowed 1 to 90), `IAI.Anomaly.LodDownPop` /
+    `LodPoppingDownPop` (1). The 7 % minimum is the existing `IAI.Anomaly.LodMinCoverage` / `LodPoppingMinCoveragePct`.
+    New keys are listed in §8.5b.
+  - **The office check kit cannot judge these events** (§3): it prints `not judgeable (spatial lod)` with the reason.
+  - **Not yet proven on the bench:** the m57 gates have not run (as of this build).
 - **Masks:** long captures re-use mask values (the `m43` section below). In a capture on our large test level built to
   force it, two events held values at the same time and values were recycled 6 times; all 199 labelled frames had
   their mask, and no frame carried two events under one value.

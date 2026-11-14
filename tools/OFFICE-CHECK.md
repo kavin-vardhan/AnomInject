@@ -74,12 +74,14 @@ prints (numbers only).
 - **Many `confounded reference`** events: the `IAI.Capture.Config` line was not applied, so the anomalies came
   too close together to measure. Type it again (Step 1.2) and capture again.
 - **`camera_clipping`** always says **not judgeable by this kit**. That is expected.
+- **`lod_popping`** events from the camera triggers (m57) say **not judgeable (spatial lod)**, one line per event,
+  with the reason (their onset is a flag boundary, not a picture change). That is expected (kit 1.7).
 - **`refused`** on the `sessions read` line: the frames were JPEG or the labels were switched off. Capture
   again with PNG. If it says **`sync-path capture`**, the capture ran on the unsupported sync path (for example
   `IAI.Capture.Async 0` was typed); restart the game so the default settings return, and capture again.
 - **`annotation transitions mismatch`** means the settling-frame lists in `annotation.json` disagree with
   `labels.jsonl`. Keep both original files together and read back this refusal; the kit does not judge that session.
-  Kit 1.6 checks schema 2.1 and 2.2 sessions automatically (kit 1.5 refuses every 2.2 session as `annotation
+  Kit 1.7 checks schema 2.1, 2.2 and 2.3 sessions automatically (kit 1.5 refuses every 2.2 session as `annotation
   transitions mismatch`). Keep `verify_capture.py` beside `label_sync_check.py` in host-tools.
 - In PIE, the kit drops the first settling frame after a fire-window event, including a recorded proxy-route blur.
   Later temporal-AA frames still need their own flags and measured decay; the PIE flag alone never excuses them.

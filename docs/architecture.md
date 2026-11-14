@@ -1807,7 +1807,7 @@ data serves every pending arm (counted as `familiesWithoutBound`). The rule is `
 (`mask_serve_selftest`); the run log ends with `ARM HOLD SUMMARY holds=<n> familiesWithoutBound=<n>`. Where game and
 render already agree, nothing is held and nothing changes; the final build's staged legs log 0-3 holds each.
 
-## m57 - `lod_popping` spatial trigger (built 095-10, not yet gated)
+## m57 - `lod_popping` spatial trigger (built 095-10, review fixes 095-13, not yet gated)
 
 - **Modes.** `lod_popping <substring> [auto|distance_threshold|view_entry|periodic] [half_period_frames]`. No mode (the
   auto pool, a bare targeted fire, the selector) = `auto`: distance if armable, else view entry, else refused
@@ -1816,37 +1816,60 @@ render already agree, nothing is held and nothing changes; the final build's sta
 - **Mechanism: plugin-timed forced LOD on one plain `UStaticMeshComponent`** (the largest armable one of the target).
   Spatial refusals: `skeletal_not_supported` (whatever `LodAllowSkeletal` says), `instanced_not_supported`,
   `nanite_no_discrete_lods`, `forced_lod_present`, `force_lod_cvar_active`, `single_lod`, plus m59's; view entry also
-  `lod_shadow_in_view`.
+  `lod_shadow_in_view`; any spatial fire `render_record_unavailable` when the capture runs without the SVE render
+  record (backbuffer or sync path; `AnomalyLodTrigger::SetCaptureRenderRecord`, set at `BeginActualRun`).
+  The event's component scope is set to the forced component at Apply (`AnomalyLod::ScopeEventToForcedComponents`)
+  and cleared at Revert, so the box, the mask and `target_pixels` cover what changed.
 - **Pure rule `Public/AnomalyLodTriggerRule.h`** (selftest `tools/lod_trigger_selftest.cpp`, mutants
   `tools/lod_trigger_mutants.py`): engine LOD replica, contrast (triangle ratio 4), release screen size, freeze rule,
-  frame class (positive / subvisible / negative), arm refusals, and the tracker: observe a frame, decide in Tick
-  (release when past both the contrast switch x1.1 and the first positive size x1.1, re-hold on retreat past 0.85,
-  invisible release when the hold matches again, view-entry release after `EntryFrames` positives, hold cap).
+  arm refusals, frame classes (positive = held, on screen, engine finer, coverage >= 7 % **and** contrast; subvisible;
+  occluded = in the frustum with every trace blocked; past_held = engine coarser than held; negative), the arm clock,
+  and the tracker: observe a frame, decide in Tick (distance release past both the contrast switch x1.1 and the first
+  positive size x1.1; view-entry release after `EntryFrames` positives (default 30); invisible release as soon as the
+  engine is past the held LOD, or matches it after a re-hold; re-hold on retreat past 0.85; hold cap).
+  - **View-entry arm:** margin = clamp(yaw rate x 90 frames, 20 deg, 120 deg); the arming window at the minimum yaw
+    rate (30 deg/s) is 90 frames, longer than a burst cycle plus the motion lag (selftest).
+  - **Distance arm:** looks ahead to max(contrast release size, the size at which coverage reaches the minimum;
+    square law from the current coverage); frames ahead from the closing speed in distance (S is proportional to
+    1 / distance to the bounds centre).
+  - **Arm clock** (`StepArmClock`): the pre-roll timeout restarts once at the first wrong frame.
 - **Engine-exact prediction `AnomalyLod::PredictEngineLod`**: `ULocalPlayer::CalcSceneView` + `ComputeStaticMeshLOD`
   and both temporal samples, factor `r.StaticMeshLODDistanceScale`, MinLOD with the first-resident clamp
   (`FLodViewScope` builds the view once for many targets).
 - **`AnomalyLodTrigger`**: a 16-sample camera ring fed once per tick from `UAnomalyInjectorSubsystem::DispatchAnomalyTicks`,
-  the arm evaluation, and `CollectArmableActors` (static mesh components within 100 m, sorted by actor name), which
-  the auto pool uses as lod_popping's candidate list and as its eligibility pre-check.
+  the arm evaluation, and `CollectArmableActors` (static mesh components within 100 m that pass `IsRenderableComponent`
+  (foliage and name-pattern exclusions) and the translucent-only exclusion, sorted by actor name), which the auto pool
+  uses as lod_popping's candidate list and eligibility pre-check; each scan is timed (`lod_predict_*`).
 - **Labels.** `IsCurrentlyAnomalous()` = the positive class for the camera at the time of the call (cached on camera
-  pose, hold state and commit); the frame is committed to the tracker in the next `Tick` with the same input, so swaps
-  and labels agree. Telemetry `lod.*` on every entry; `lod.swap` (+ cause, direction, from, to) on the swap frame.
-- **Two additive `IAnomaly` hooks** (defaults keep every other anomaly unchanged): `GetDeferredOnsetTimeoutFrames()`
-  (-1 = the global timeout; lod = `LodPoppingArmTimeoutFrames`) and `IsHoldingEventOpen()` (false; lod = visibly wrong
-  at the last tick end, below `LodPoppingHoldCapFrames`). The capture keeps the Positives phase open while any live
-  fire holds it (one frame per tick, `lod_window_extension_frames`) and reverts in the tick it closes.
+  pose, hold state and commit). The capture's tick-end call (`NoteCapturedFrame`) stores the evaluation, and the next
+  `Tick` commits that stored evaluation to the tracker unconditionally (falls back to evaluating when no capture
+  sampled the frame). Telemetry `lod.*` on every entry; `lod.swap` (+ cause, direction, from, to) on the swap frame.
+- **Three additive `IAnomaly` hooks** (defaults keep every other anomaly unchanged): `GetDeferredOnsetTimeoutFrames()`
+  (-1 = the global timeout; lod = `LodPoppingArmTimeoutFrames`), `IsHoldingEventOpen()` (false; lod = visibly wrong at
+  the last tick end below `LodPoppingHoldCapFrames`, or a dithered mesh within `lod.TemporalLag` after the release) and
+  `HasDeferredOnsetBegun()` (false; lod = a positive or subvisible frame has been seen; restarts the arm clock). The
+  capture keeps the Positives phase open while any live fire holds it (`lod_window_extension_frames`).
 - **Capture.** `lod_subvisible` (1024) and `lod_unconfirmed` (2048) reasons, `NumReasons` 12. Render-side record: the
-  tick-end sample registers a probe per held target on the armed SVE request; the colour pass computes the engine LOD on
-  the captured view; the drain marks a disagreeing labelled or subvisible frame `lod_unconfirmed` (not labelled).
-  `annotation.json` minor 3: untriggered fires write no event (ids in `lod_untriggered_event_ids`); every event with
-  labelled frames is kept and marked (`lod_trigger`, `lod_swaps`, `lod_swap_frames`, `lod_spatial_swap_visible`,
-  `lod_event_kind`, `lod_held_lod`, `lod_trigger_screen_size`, `lod_trigger_distance_cm`); a hold-cap release is
-  inferred from the last `lod.cap_reached` frame. run_summary `lod_*` block only when a lod fire ran.
+  tick-end sample registers a probe while the target is held or within `lod.TemporalLag` of its release (`lod.probe`);
+  the colour pass reads the first resident LOD on the render thread and computes the engine LOD and both temporal
+  samples on the captured view; the drain flags `lod_unconfirmed` on any probed frame whose engine LOD or resident
+  MinLOD differ from the tick end, or whose two temporal samples differ on a released dithered mesh
+  (`lod.unconfirmed_why`). `annotation.json` minor 3: untriggered fires write no event (ids in
+  `lod_untriggered_event_ids`); every event with labelled frames is kept and marked (`lod_trigger`, `lod_swaps`,
+  `lod_swap_frames`, `lod_spatial_swap_visible`, `lod_event_kind`, `lod_held_lod`, `lod_trigger_screen_size`,
+  `lod_trigger_distance_cm`), except zero-pixel m26-vetoed events; a hold-cap release is inferred at the next captured
+  frame after the last `lod.cap_reached` frame, and none when no such frame exists. run_summary `lod_*` block when a
+  lod fire ran or the candidate scan ran.
 - **Bench.** `IAI.Bench.CameraSchedule lod_v1 <approach|approach_retreat|turn_in|turn_away|still>` on CB_LodFixture
-  (AnomalyBench); levers `IAI.Bench.LodReleaseLag`, `LodForceTrigger`, `LodSkipOnScreen`, `LodPredictStaleView`,
-  `LodSkipRestore`.
-- **Known limits.** A `lod_unconfirmed` frame can still carry a mask PNG (masks are armed at tick end). The kit
-  (`label_sync_check.py`) does not judge spatial events (onset is a flag boundary); the bench null-pair check does.
+  (AnomalyBench; 095-13 paths: distance from x=600 to x=1450 at 7.5 cm/frame, turn_in from yaw -160, turn_away from
+  -170, both 2 deg/frame from frame 30; copies at (1700, -/+180)); levers `IAI.Bench.LodReleaseLag`, `LodForceTrigger`,
+  `LodSkipOnScreen`, `LodPredictStaleView`, `LodSkipRestore`.
+- **Known limits.** A `lod_unconfirmed` frame can still carry a mask PNG (masks are armed at tick end). The shadow test
+  uses the first shadow-casting directional light and the AABB of the swept box (over-refuses; ignores point and spot
+  lights). An event whose labelled frames all failed to write is listed as untriggered. The kit
+  (`label_sync_check.py` 1.7) does not judge spatial events and says so (`not judgeable (spatial lod)`); the bench
+  null-pair check does. The down-pop re-hold needs coverage >= 7 % at 0.85 x the swap size, which a straight retreat
+  does not reach at the default settings (095-13 journal).
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
