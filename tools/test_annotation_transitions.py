@@ -94,14 +94,49 @@ class TransitionTests(unittest.TestCase):
             if kind == 'minor_3': a['label_schema_minor'] = 3
             with self.subTest(kind=kind): self.assertTrue(self.check(a, rows))
 
-    def test_vetoed_event_transitions_tolerated_only_with_a_veto(self):
+    def summary(self, **fields):
+        (self.root / 'run_summary.json').write_text(json.dumps(fields))
+
+    def vetoed_fixture(self):
         a, rows = self.settle_fixture()
+        rows[9]['anomalies'][0]['transition_reason'] = ['settle']
         a['anomalies'].pop()
+        return a, rows
+
+    def test_vetoed_event_excused_only_by_its_listed_id(self):
+        a, rows = self.vetoed_fixture()
+        vid = 'stuck_low_mip@20|Target'
         self.assertTrue(self.check(a, rows))
-        (self.root / 'run_summary.json').write_text(json.dumps(dict(vetoed_events=1)))
+        self.summary(vetoed_events=1)
+        self.assertTrue(self.check(a, rows))
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@10|Target'])
+        self.assertTrue(self.check(a, rows))
+        self.summary(vetoed_events=1, vetoed_event_ids=[vid])
         self.assertEqual([], self.check(a, rows))
-        (self.root / 'run_summary.json').write_text(json.dumps(dict(vetoed_events=0)))
+        self.summary(vetoed_events=0, vetoed_event_ids=[vid])
+        self.assertEqual([], self.check(a, rows))
+
+    def test_vetoed_id_with_a_non_settle_reason_fails(self):
+        a, rows = self.vetoed_fixture()
+        rows[9]['anomalies'][0]['transition_reason'] = ['temporal_aa']
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@20|Target'])
         self.assertTrue(self.check(a, rows))
+
+    def test_schema_2_1_is_judged_as_before_m56(self):
+        rows = copy.deepcopy(self.rows)
+        a = copy.deepcopy(self.annotation)
+        a['anomalies'].pop()
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@20|Target'])
+        self.assertTrue(self.check(a, rows))
+        self.summary(vetoed_events=1)
+        self.assertTrue(self.check(a, rows))
+
+    def test_lost_event_beside_a_vetoed_one_fails(self):
+        a, rows = self.vetoed_fixture()
+        a['anomalies'].pop()
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@20|Target'])
+        errors = self.check(a, rows)
+        self.assertTrue(any('stuck_low_mip@10|Target' in e for e in errors))
 
 
 if __name__ == '__main__':

@@ -3306,8 +3306,10 @@ def annotation_transition_check(directory, require_schema=True):
     """Schema 2.1 / 2.2: every event's transition_frames and transition_reasons, and the root transition_frame_count,
     must equal what labels.jsonl carries. 2.2 (m56) adds the reason settle and rows whose only transition is the
     row-level settle flag (a settle frame with no entry); those rows count in transition_frame_count. A 2.1 session
-    carrying settle is refused. Transition entries of an event missing from annotation.json are allowed only up to
-    run_summary vetoed_events (the m26 veto removes the event, labels.jsonl keeps its rows)."""
+    carrying settle is refused. Transition entries of an event missing from annotation.json fail, except on 2.2 when the
+    event id is listed in run_summary vetoed_event_ids and every one of its transition reasons is settle (the m26 veto
+    removes the event; labels.jsonl keeps its after-offset settle rows). A 2.1 session is judged as before m56: every
+    unlisted transition event fails."""
     from collections import Counter, defaultdict
     from pathlib import Path
     root = Path(directory)
@@ -3324,8 +3326,8 @@ def annotation_transition_check(directory, require_schema=True):
             summary = json.loads((root / 'run_summary.json').read_text(encoding='utf-8-sig'))
         except (OSError, ValueError):
             summary = {}
-        vetoed = summary.get('vetoed_events', 0) if isinstance(summary, dict) else 0
-        vetoed = vetoed if type(vetoed) is int and vetoed > 0 else 0
+        vetoed_ids = summary.get('vetoed_event_ids') if isinstance(summary, dict) else None
+        vetoed_ids = set(i for i in vetoed_ids if isinstance(i, str)) if isinstance(vetoed_ids, list) else set()
         expected_frames = defaultdict(set)
         expected_reasons = defaultdict(Counter)
         union = set()
@@ -3372,15 +3374,18 @@ def annotation_transition_check(directory, require_schema=True):
             if not isinstance(reasons, dict) or not all(type(n) is int and n > 0 for n in reasons.values()) or reasons != dict(expected_reasons[key]):
                 errors.append('transition_reasons mismatch: %s' % key)
         unlisted = sorted(k for k in expected_frames.keys() - seen if expected_frames[k])
-        if len(unlisted) > vetoed:
-            for key in unlisted:
-                errors.append('transition event missing from annotation: %s' % key)
+        excused = 0
+        for key in unlisted:
+            if minor == 2 and key in vetoed_ids and set(expected_reasons[key]) == {LABEL_RULE_SETTLE}:
+                excused += 1
+                continue
+            errors.append('transition event missing from annotation: %s' % key)
         count = annotation.get('transition_frame_count')
         if type(count) is not int or count != len(union):
             errors.append('transition_frame_count mismatch')
         return errors, dict(legacy=False, transition_frame_count=len(union), minor=minor,
                             transition_events=sum(bool(f) for f in expected_frames.values()),
-                            unlisted_vetoed=len(unlisted) if len(unlisted) <= vetoed else 0)
+                            unlisted_vetoed=excused)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return errors + ['cannot compare transitions: %s' % exc], {}
 
@@ -3607,12 +3612,15 @@ def label_rule_check(cap_dir, quiet=False):
         rule = RULE_NEW if with_key == len(entries) else RULE_OLD
     temporal = rs.get("label_temporal_aa")
     vetoed = int(rs.get("vetoed_events", 0) or 0)
+    vetoed_ids_raw = rs.get("vetoed_event_ids")
+    vetoed_ids = set(i for i in vetoed_ids_raw if isinstance(i, str)) if isinstance(vetoed_ids_raw, list) else None
 
     fails = {}
 
     def fail(cat, si):
         fails.setdefault(cat, []).append(si)
 
+    transition_detail = {}
     if not shot_rows:
         transition_errors, transition_detail = annotation_transition_check(cap_dir, require_schema=False)
         if transition_errors:
@@ -3732,7 +3740,13 @@ def label_rule_check(cap_dir, quiet=False):
         if rule == RULE_NEW:
             for a in ents:
                 if a.get("labelled") is True and not listed(a, si):
-                    if vetoed > 0:
+                    if vetoed_ids is not None and transition_detail.get("minor") == 2:
+                        a_id = a.get("event_id") or "%s@%s|%s" % (a.get("id"), a.get("start_frame"), a.get("target_name"))
+                        if a_id in vetoed_ids:
+                            n_vetoed_labelled += 1
+                        else:
+                            fail("LABELLED-EXTRA", si)
+                    elif vetoed > 0:
                         n_vetoed_labelled += 1
                     else:
                         fail("LABELLED-EXTRA", si)
@@ -4612,11 +4626,46 @@ def _label_rule_selftest():
 
         def drop_event(ann):
             ann["anomalies"] = ann["anomalies"][1:]
+        veto_id = "missing_texture@103|Rock"
         case56("S56_k_vetoed_event_settle_entries_unlisted_clean",
-               _m56_write(root, "s56k", _m56_rows(), ann_post=drop_event, rs_extra={"vetoed_events": 1}), 0,
+               _m56_write(root, "s56k", _m56_rows(), ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id]}), 0,
                extra=lambda d, _l: d["vetoed_labelled"] > 0)
         case56("S56_k2_same_without_a_veto_FAILS",
                _m56_write(root, "s56k2", _m56_rows(), ann_post=drop_event), 1, "ANNOTATION-TRANSITIONS")
+        case56("S56_k3_veto_count_without_ids_no_longer_excuses_FAILS",
+               _m56_write(root, "s56k3", _m56_rows(), ann_post=drop_event, rs_extra={"vetoed_events": 1}), 1,
+               "ANNOTATION-TRANSITIONS")
+        case56("S56_k4_vetoed_id_listed_for_another_event_FAILS",
+               _m56_write(root, "s56k4", _m56_rows(), ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": ["missing_texture@119|Rock"]}), 1,
+               "ANNOTATION-TRANSITIONS")
+
+        def shell_first_drop_second(ann):
+            ev0 = ann["anomalies"][0]
+            ev0["injected_frames"] = {"frame_indices": []}
+            ev0["affected_frames"] = {"frame_indices": []}
+            ev0["manifested"] = False
+            del ann["anomalies"][1]
+        case56("S56_k5_reviewer_probe_shell_plus_lost_event_FAILS",
+               _m56_write(root, "s56k5", _m56_rows(), ann_post=shell_first_drop_second, rs_extra={"vetoed_events": 1}),
+               1, "ANNOTATION-TRANSITIONS")
+
+        def drop_first_and_second(ann):
+            del ann["anomalies"][0:2]
+        case56("S56_k6_lost_event_beside_an_id_listed_veto_FAILS",
+               _m56_write(root, "s56k6", _m56_rows(), ann_post=drop_first_and_second,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id]}), 1, "ANNOTATION-TRANSITIONS",
+               extra=lambda d, _l: "LABELLED-EXTRA" in d["fails"])
+        r56 = _m56_rows()
+        for r in r56:
+            for e in r["anomalies"]:
+                if e["event_id"] == veto_id and e.get("transition") == 1 and r["tick_index"] > 10:
+                    e["transition_reason"] = [LABEL_RULE_SETTLE, "temporal_aa"]
+        case56("S56_k7_vetoed_id_with_a_non_settle_reason_FAILS",
+               _m56_write(root, "s56k7", r56, ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id], "label_temporal_aa": True}), 1,
+               "ANNOTATION-TRANSITIONS")
         r56 = _m56_rows()
         r56[20].pop("tick_index")
         case56("S56_l_row_without_tick_index_FAILS", _m56_write(root, "s56l", r56), 1, "TICK-CONTINUITY")
