@@ -472,6 +472,8 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 	SwapsRecorded = 0;
 	bHoldOpenAtLastTickEnd = false;
 	Eval = FTickEndEval();
+	StoredTickEnd = FTickEndEval();
+	StoredTickEndFrame = 0;
 	AppliedFrame = GFrameCounter;
 	LastCommittedFrame = 0;
 	Best->SetForcedLodModel(BestEval.HeldLod + 1);
@@ -563,7 +565,8 @@ void FAnomaly_LodPopping::CommitPreviousFrame()
 	{
 		return;
 	}
-	const FTickEndEval E = EvaluateNow();
+	const bool bStored = StoredTickEnd.bValid && StoredTickEndFrame + 1 == GFrameCounter;
+	const FTickEndEval E = bStored ? StoredTickEnd : EvaluateNow();
 	LastCommittedFrame = GFrameCounter;
 	if (!E.bValid)
 	{
@@ -672,6 +675,8 @@ void FAnomaly_LodPopping::ReleaseSpatial()
 	bLaggedRelease = false;
 	Tracker = AnomalyLodTriggerRule::FTracker();
 	Eval = FTickEndEval();
+	StoredTickEnd = FTickEndEval();
+	StoredTickEndFrame = 0;
 	HistoryCount = 0;
 	SwapsRecorded = 0;
 	bHoldOpenAtLastTickEnd = false;
@@ -721,13 +726,21 @@ bool FAnomaly_LodPopping::HasDeferredOnsetBegun() const
 	{
 		return true;
 	}
-	const AnomalyLodTriggerRule::EFrameClass Class = EvaluateNow().Observation.Class;
+	const bool bStored = StoredTickEnd.bValid && StoredTickEndFrame + 1 >= GFrameCounter;
+	const AnomalyLodTriggerRule::EFrameClass Class = bStored ? StoredTickEnd.Observation.Class : EvaluateNow().Observation.Class;
 	return Class == AnomalyLodTriggerRule::EFrameClass::Positive || Class == AnomalyLodTriggerRule::EFrameClass::Subvisible;
 }
 
 void FAnomaly_LodPopping::NoteCapturedFrame(bool bAnomalousThisFrame)
 {
-	bHoldOpenAtLastTickEnd = bActive && Mode != AnomalyLodTriggerRule::EMode::Periodic && EvaluateNow().bHoldOpen;
+	if (!bActive || Mode == AnomalyLodTriggerRule::EMode::Periodic)
+	{
+		bHoldOpenAtLastTickEnd = false;
+		return;
+	}
+	StoredTickEnd = EvaluateNow();
+	StoredTickEndFrame = GFrameCounter;
+	bHoldOpenAtLastTickEnd = StoredTickEnd.bHoldOpen;
 }
 
 bool FAnomaly_LodPopping::IsCurrentlyAnomalous() const

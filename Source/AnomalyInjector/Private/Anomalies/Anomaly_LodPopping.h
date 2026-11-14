@@ -86,6 +86,8 @@ private:
 	bool bHoldOpenAtLastTickEnd = false;
 	bool bLaggedRelease = false;
 	mutable FTickEndEval Eval;
+	FTickEndEval StoredTickEnd;
+	uint64 StoredTickEndFrame = 0;
 
 	static constexpr int32 DefaultHalfPeriodFrames = 8;
 	static constexpr int32 MinHalfPeriodFrames = 1;
