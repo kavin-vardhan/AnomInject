@@ -78,6 +78,7 @@ class TransitionTests(unittest.TestCase):
         a['anomalies'][1]['transition_frames'] = [10, 11]
         a['anomalies'][1]['transition_reasons'] = {'temporal_aa': 1, 'settle': 1}
         a['transition_frame_count'] = 12
+        a['transition_frames'] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12]
         return a, rows
 
     def test_schema_2_2_settle_and_settle_only_row(self):
@@ -85,8 +86,12 @@ class TransitionTests(unittest.TestCase):
         self.assertEqual([], self.check(a, rows))
 
     def test_schema_2_2_doctored_fail(self):
-        for kind in ('settle_only_row_not_counted', 'settle_frame_not_listed', 'settle_reason_count', 'minor_1', 'minor_3'):
+        for kind in ('settle_only_row_not_counted', 'settle_frame_not_listed', 'settle_reason_count', 'minor_1', 'minor_3',
+                     'root_list_missing', 'root_list_without_settle_only_row', 'root_list_unsorted'):
             a, rows = self.settle_fixture()
+            if kind == 'root_list_missing': a.pop('transition_frames')
+            if kind == 'root_list_without_settle_only_row': a['transition_frames'].remove(12)
+            if kind == 'root_list_unsorted': a['transition_frames'].reverse()
             if kind == 'settle_only_row_not_counted': a['transition_frame_count'] = 11
             if kind == 'settle_frame_not_listed': a['anomalies'][1]['transition_frames'] = [10]
             if kind == 'settle_reason_count': a['anomalies'][1]['transition_reasons'].pop('settle')

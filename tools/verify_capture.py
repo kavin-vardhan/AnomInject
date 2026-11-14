@@ -3306,7 +3306,8 @@ def annotation_transition_check(directory, require_schema=True):
     """Schema 2.1 / 2.2: every event's transition_frames and transition_reasons, and the root transition_frame_count,
     must equal what labels.jsonl carries. 2.2 (m56) adds the reason settle and rows whose only transition is the
     row-level settle flag (a settle frame with no entry); those rows count in transition_frame_count. A 2.1 session
-    carrying settle is refused. Transition entries of an event missing from annotation.json fail, except on 2.2 when the
+    carrying settle is refused. 2.2 also carries the root transition_frames list (the sorted union whose size is
+    transition_frame_count; it names the row-only settle frames that no event lists). Transition entries of an event missing from annotation.json fail, except on 2.2 when the
     event id is listed in run_summary vetoed_event_ids and every one of its transition reasons is settle (the m26 veto
     removes the event; labels.jsonl keeps its after-offset settle rows). A 2.1 session is judged as before m56: every
     unlisted transition event fails."""
@@ -3383,6 +3384,10 @@ def annotation_transition_check(directory, require_schema=True):
         count = annotation.get('transition_frame_count')
         if type(count) is not int or count != len(union):
             errors.append('transition_frame_count mismatch')
+        if minor == 2:
+            listed = annotation.get('transition_frames')
+            if not isinstance(listed, list) or not all(type(i) is int for i in listed) or listed != sorted(union):
+                errors.append('root transition_frames mismatch (schema 2.2 lists every transition frame of the session)')
         return errors, dict(legacy=False, transition_frame_count=len(union), minor=minor,
                             transition_events=sum(bool(f) for f in expected_frames.values()),
                             unlisted_vetoed=excused)
@@ -4085,6 +4090,8 @@ def _m56_write(root, name, rows, ticks=40, k=2, minor=2, rs_extra=None, ann_post
         ev["transition_reasons"] = ev.pop("_r")
         anomalies.append(ev)
     ann = {"label_schema": 2, "label_schema_minor": minor, "transition_frame_count": len(union), "anomalies": anomalies}
+    if minor == 2:
+        ann["transition_frames"] = sorted(union)
     if ann_post:
         ann_post(ann)
     with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:

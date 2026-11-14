@@ -1514,6 +1514,13 @@ namespace AnomalyLabel
 		}
 		for (int32 Frame : A.SettleFrames) { TransitionFrames.Add(Frame); }
 		Root->SetNumberField(TEXT("transition_frame_count"), TransitionFrames.Num());
+		{
+			TArray<int32> SortedTransitionFrames = TransitionFrames.Array();
+			SortedTransitionFrames.Sort();
+			TArray<TSharedPtr<FJsonValue>> TransitionFrameValues;
+			for (int32 Frame : SortedTransitionFrames) { TransitionFrameValues.Add(LabelNum(Frame)); }
+			Root->SetArrayField(TEXT("transition_frames"), TransitionFrameValues);
+		}
 
 		{
 			TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();

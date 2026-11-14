@@ -2732,6 +2732,7 @@ def st_make(root, name, spec):
                 union.add(r["session_index"])
         anno["label_schema_minor"] = 2
         anno["transition_frame_count"] = len(union) + spec.get("doctor_transition_count", 0)
+        anno["transition_frames"] = sorted(union)
     with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
         json.dump(anno, fh)
     summ = {}
