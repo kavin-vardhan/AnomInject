@@ -661,6 +661,26 @@ def selftest():
                d.get("magenta_frac", -1.0), d.get("sat_mean", -1.0), d.get("edge", -1.0))
         )
     print("-" * 100)
+
+    class _S(object):
+        pass
+
+    s = _S()
+    s.events = [{"affected_frames": {"frame_indices": [3, 4, 5, 6]}, "transition_frames": [4, 5, 12, 13]}]
+    s.labels = {si: {"session_index": si} for si in range(30)}
+    for si in (4, 5, 12, 13, 21):
+        s.labels[si]["transition_present"] = True
+    png = list(range(30))
+    elig, _g, _sp = eligible_baseline_frames(s, png)
+    t_ok = not ({12, 13, 21} & set(elig)) and 20 in elig
+    for si in (12, 13, 21):
+        s.labels[si].pop("transition_present")
+    s.events[0]["transition_frames"] = [4, 5]
+    elig2, _g2, _sp2 = eligible_baseline_frames(s, png)
+    t_ok = t_ok and {12, 13, 21} <= set(elig2)
+    ok = ok and t_ok
+    print("  %-60s %s" % ("baseline excludes transition / settle frames (m56), unflagged they are eligible",
+                          "PASS" if t_ok else "**FAIL**"))
     print("SELFTEST: %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 3
 
@@ -1072,11 +1092,27 @@ def collect_region(sess, ev, indices, frame_w, frame_h):
     return per_frame, modal, source or "labels", jitter
 
 
+def transition_frame_set(sess):
+    """Frames the session itself flags as transition frames: every event's transition_frames (schema 2.1+) and every
+    labels.jsonl row with transition_present (schema 2.2 adds settle rows that carry no entry). None of them is a clean
+    frame, so none may enter a baseline, whatever the guard relaxes to."""
+    out = set()
+    for ev in sess.events:
+        tf = (ev or {}).get("transition_frames")
+        if isinstance(tf, list):
+            out.update(int(v) for v in tf if isinstance(v, (int, float)) and not isinstance(v, bool))
+    for si, row in (sess.labels or {}).items():
+        if isinstance(row, dict) and row.get("transition_present") is True:
+            out.add(int(si))
+    return out
+
+
 def eligible_baseline_frames(sess, png_idx):
     n_png = max(1, len(png_idx))
     spanning = 0
+    flagged = transition_frame_set(sess)
     for guard in range(BASELINE_GUARD, -1, -1):
-        blocked = set()
+        blocked = set(flagged)
         spanning = 0
         for ev in sess.events:
             idxs, _ = event_indices(ev)
@@ -2096,12 +2132,14 @@ def main():
 
         eligible, guard_used, spanning = eligible_baseline_frames(sess, png_idx)
         index_check.append(
-            "baseline %d eligible frame(s) outside every annotated window (guard=%d%s%s): %s"
+            "baseline %d eligible frame(s) outside every annotated window (guard=%d%s%s%s): %s"
             % (
                 len(eligible),
                 guard_used,
                 "" if guard_used == BASELINE_GUARD else ", RELAXED from %d - dense burst schedule" % BASELINE_GUARD,
                 "" if not spanning else ", %d session-spanning event(s) excluded from blocking" % spanning,
+                (", %d transition/settle frame(s) never eligible" % len(transition_frame_set(sess)))
+                if transition_frame_set(sess) else "",
                 compress_indices(eligible) if len(eligible) <= 16 else compress_indices(eligible)[:90] + "...",
             )
         )

@@ -129,7 +129,7 @@ namespace
 		const TArray<uint8>* FireInstalled = nullptr,
 		const TArray<AnomalyLabel::FFrozenFireGeometry>* FireGeometry = nullptr,
 		const TArray<AnomalyLabel::FFrozenFireGeometry>* TransitionGeometry = nullptr,
-		bool bCaptureUnpaired = false)
+		bool bCaptureUnpaired = false, uint8 FrameRole = 0, int32 TickIndex = -1, double WallRun = -1.0)
 	{
 		OutNumLabels = 0;
 		int32 NumLabelledWithBox = 0;
@@ -144,19 +144,30 @@ namespace
 		Root->SetNumberField(TEXT("session_index"), (double)SessionIndex);
 		Root->SetNumberField(TEXT("t"), TimeSeconds);
 		Root->SetNumberField(TEXT("t_wall"), WallSeconds);
+		if (TickIndex >= 0)
+		{
+			Root->SetNumberField(TEXT("tick_index"), TickIndex);
+			Root->SetNumberField(TEXT("t_wall_run"), WallRun >= 0.0 ? WallRun : 0.0);
+		}
 		Root->SetStringField(TEXT("image"), ImageName);
 		Root->SetNumberField(TEXT("width"), W);
 		Root->SetNumberField(TEXT("height"), H);
 		const AnomalyLabel::FLabelEntryCounts Counts = CountEntries(Fires.Num(), EntryEmit, EntryTransition, TransitionFires);
 		Root->SetBoolField(TEXT("anomaly_present"), Counts.bPresent);
-		if (Counts.TransitionEntries > 0)
+		const bool bSettleFrame = AnomalyLabelSync::IsSettleRole((AnomalyLabelSync::EFrameRole)FrameRole);
+		if (Counts.TransitionEntries > 0 || bSettleFrame)
 		{
 			Root->SetBoolField(TEXT("transition_present"), true);
 		}
 		if (bCaptureUnpaired)
 		{
 			Root->SetBoolField(TEXT("capture_unpaired"), true);
-			Root->SetArrayField(TEXT("transition_reason"), ReasonValues(AnomalyLabelSync::ReasonCaptureUnpaired));
+		}
+		const uint16 RowReasons = (uint16)((bCaptureUnpaired ? AnomalyLabelSync::ReasonCaptureUnpaired : 0)
+			| (bSettleFrame ? AnomalyLabelSync::ReasonSettle : 0));
+		if (RowReasons != 0)
+		{
+			Root->SetArrayField(TEXT("transition_reason"), ReasonValues(RowReasons));
 		}
 
 		TArray<TSharedPtr<FJsonValue>> Anoms;
@@ -401,7 +412,7 @@ namespace
 
 	bool AppendRecordAndImage(const FString& OutputDir, const TArray<uint8>& ImageBytes,
 		const FString& Record, const FString& ImageRelName, FString& OutImagePath, FString& OutSidecarPath, bool bLog,
-		bool bWriteLabels)
+		bool bWriteLabels, bool* bOutLabelFailed = nullptr)
 	{
 		const FString ImagePath = FPaths::Combine(OutputDir, ImageRelName);
 		const FString SidecarPath = FPaths::Combine(OutputDir, TEXT("labels.jsonl"));
@@ -418,8 +429,9 @@ namespace
 
 		if (bWriteLabels)
 		{
-			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
+			const bool bAppended = FFileHelper::SaveStringToFile(Record + TEXT("\n"), *SidecarPath,
 				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+			if (!bAppended && bOutLabelFailed) { *bOutLabelFailed = true; }
 		}
 
 		OutImagePath = ImagePath;
@@ -645,8 +657,9 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog, bool bWriteLabels, const FCaptureSnapshot* SyncFrame)
+		bool& bOutResampled, bool bLog, bool bWriteLabels, const FCaptureSnapshot* SyncFrame, bool* bOutLabelFailed)
 	{
+		if (bOutLabelFailed) { *bOutLabelFailed = false; }
 		OutNumLabels = 0;
 		OutNativeW = 0;
 		OutNativeH = 0;
@@ -699,11 +712,13 @@ namespace AnomalyLabel
 				EAnomalyMaskState::Unmeasured, 0, 0, false, nullptr, nullptr, nullptr, nullptr, false, nullptr,
 				&SyncFrame->EntryEmit, &SyncFrame->EntryTransition, &SyncFrame->TransitionFires, &SyncFrame->CameraClip,
 				&SyncFrame->FireActive, &SyncFrame->TransitionFireReasons, &SyncFrame->FirePolicy, &SyncFrame->FireOnScreen,
-				&SyncFrame->ConditionHeld, &SyncFrame->FireGeometry, &SyncFrame->TransitionGeometry, SyncFrame->bCaptureUnpaired)
+				&SyncFrame->ConditionHeld, &SyncFrame->FireGeometry, &SyncFrame->TransitionGeometry, SyncFrame->bCaptureUnpaired,
+				SyncFrame->FrameRole, SyncFrame->TickIndex, SyncFrame->WallRun)
 			: BuildLegacyShotRecord(Fires, ProjectionView, OutW, OutH, GFrameCounter, SessionIndex,
 				World->GetTimeSeconds(), WallSeconds, ImageRelName, OutNumLabels);
 
-		if (!AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels))
+		if (!AppendRecordAndImage(OutputDir, ImageBytes, Record, ImageRelName, OutImagePath, OutSidecarPath, bLog, bWriteLabels,
+			bOutLabelFailed))
 		{
 			return false;
 		}
@@ -724,7 +739,8 @@ namespace AnomalyLabel
 			&Snapshot.TargetDrawnPixels, Snapshot.bExposureDipScopeExcluded, &Snapshot.Telemetry,
 			&Snapshot.EntryEmit, &Snapshot.EntryTransition, &Snapshot.TransitionFires, &Snapshot.CameraClip,
 			&Snapshot.FireActive, &Snapshot.TransitionFireReasons, &Snapshot.FirePolicy, &Snapshot.FireOnScreen,
-			&Snapshot.ConditionHeld, &Snapshot.FireGeometry, &Snapshot.TransitionGeometry, Snapshot.bCaptureUnpaired);
+			&Snapshot.ConditionHeld, &Snapshot.FireGeometry, &Snapshot.TransitionGeometry, Snapshot.bCaptureUnpaired,
+			Snapshot.FrameRole, Snapshot.TickIndex, Snapshot.WallRun);
 	}
 
 	FLabelEntryCounts CountLabelEntries(const FCaptureSnapshot& Snapshot)
@@ -942,9 +958,10 @@ namespace AnomalyLabel
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
 		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
 		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled,
-		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels)
+		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels, bool* bOutLabelFailed)
 	{
 		bOutResampled = false;
+		if (bOutLabelFailed) { *bOutLabelFailed = false; }
 
 		if (Width <= 0 || Height <= 0 || BytesPerPixel <= 0 || RawBytes.Num() < (int64)Width * Height * BytesPerPixel)
 		{
@@ -973,8 +990,9 @@ namespace AnomalyLabel
 		if (bWriteLabels)
 		{
 			FScopeLock Lock(&JsonlLock);
-			FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
+			const bool bAppended = FFileHelper::SaveStringToFile(Record + TEXT("\n"), *FPaths::Combine(OutputDir, TEXT("labels.jsonl")),
 				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+			if (!bAppended && bOutLabelFailed) { *bOutLabelFailed = true; }
 		}
 
 		return true;
@@ -1102,10 +1120,37 @@ namespace AnomalyLabel
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip,
 		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy,
-		int32 BlinkTerrainEvents, int32 TerrainUnlabelableRefusals)
+		int32 BlinkTerrainEvents, int32 TerrainUnlabelableRefusals, const FContinuityTelemetry* Continuity)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
+		if (Continuity)
+		{
+			Root->SetNumberField(TEXT("capture_span_ticks"), Continuity->SpanTicks);
+			Root->SetNumberField(TEXT("frames_armed"), Continuity->FramesArmed);
+			Root->SetNumberField(TEXT("frames_dropped"), Continuity->FramesDropped);
+			TArray<TSharedPtr<FJsonValue>> Ticks;
+			for (int32 T : Continuity->DroppedTicks) { Ticks.Add(MakeShared<FJsonValueNumber>(T)); }
+			Root->SetArrayField(TEXT("frames_dropped_ticks"), Ticks);
+			Root->SetBoolField(TEXT("frames_dropped_ticks_truncated"), Continuity->bDroppedTicksTruncated);
+			TSharedRef<FJsonObject> ByCause = MakeShared<FJsonObject>();
+			for (const TPair<FString, int32>& KV : Continuity->DroppedByCause) { ByCause->SetNumberField(KV.Key, KV.Value); }
+			Root->SetObjectField(TEXT("frames_dropped_by_cause"), ByCause);
+			Root->SetNumberField(TEXT("orphan_completions"), Continuity->OrphanCompletions);
+			Root->SetNumberField(TEXT("label_rows_failed"), Continuity->LabelRowsFailed);
+			Root->SetNumberField(TEXT("writer_pending_byte_cap"), (double)Continuity->WriterPendingByteCap);
+			Root->SetNumberField(TEXT("writer_pending_count_floor"), Continuity->WriterPendingCountFloor);
+			Root->SetNumberField(TEXT("writer_pending_bytes_peak"), (double)Continuity->WriterPendingBytesPeak);
+			Root->SetNumberField(TEXT("writer_backpressure_waits"), Continuity->WriterBackpressureWaits);
+			Root->SetNumberField(TEXT("writer_backpressure_seconds"), Continuity->WriterBackpressureSeconds);
+			Root->SetBoolField(TEXT("writer_flush_complete"), Continuity->bWriterFlushComplete);
+			Root->SetBoolField(TEXT("writer_stalled"), Continuity->bWriterStalled);
+			TArray<FString> VetoedIds = Continuity->VetoedEventIds;
+			VetoedIds.Sort();
+			TArray<TSharedPtr<FJsonValue>> VetoedIdValues;
+			for (const FString& Id : VetoedIds) { VetoedIdValues.Add(MakeShared<FJsonValueString>(Id)); }
+			Root->SetArrayField(TEXT("vetoed_event_ids"), VetoedIdValues);
+		}
 		Root->SetNumberField(TEXT("schema_version"), SchemaVersion);
 		Root->SetNumberField(TEXT("total_frames"), TotalFrames);
 		Root->SetNumberField(TEXT("positive_frames"), PositiveFrames);
@@ -1307,8 +1352,9 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("tickpin_saved"), TickPin->Saved);
 			Root->SetNumberField(TEXT("tickpin_reasserts"), TickPin->Reasserts);
 			Root->SetNumberField(TEXT("capture_game_ticks"), TickPin->GameTicks);
+			const double PerFrameTicks = Continuity ? (double)Continuity->SpanTicks : (double)TickPin->GameTicks;
 			Root->SetNumberField(TEXT("ticks_per_captured_frame"),
-				TotalFrames > 0 ? ((double)TickPin->GameTicks / (double)TotalFrames) : 0.0);
+				TotalFrames > 0 ? (PerFrameTicks / (double)TotalFrames) : 0.0);
 		}
 
 		if (ReadbackLayout)
@@ -1360,6 +1406,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_nanite_unmaskable_entries"), LabelSync->ReasonEntries[6]);
 			Root->SetNumberField(TEXT("label_transition_capture_unpaired_entries"), LabelSync->ReasonEntries[7]);
 			Root->SetNumberField(TEXT("label_transition_pie_end_settle_entries"), LabelSync->ReasonEntries[8]);
+			Root->SetNumberField(TEXT("label_transition_settle_entries"), LabelSync->ReasonEntries[9]);
+			Root->SetNumberField(TEXT("settle_frames"), LabelSync->SettleFrames);
 			Root->SetBoolField(TEXT("pie_end_settle_active"), LabelSync->bPieEndSettleActive);
 			Root->SetNumberField(TEXT("pie_end_settle_frames"), LabelSync->PieEndSettleFrames);
 			Root->SetNumberField(TEXT("capture_unpaired_frames"), LabelSync->SyncFramesWritten);
@@ -1465,14 +1513,22 @@ namespace AnomalyLabel
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("label_schema"), 2);
-		Root->SetNumberField(TEXT("label_schema_minor"), 1);
+		Root->SetNumberField(TEXT("label_schema_minor"), 2);
 		Root->SetStringField(TEXT("session_id"), A.SessionId);
 		TSet<int32> TransitionFrames;
 		for (const TPair<FString, FSessionTransition>& KV : A.Transitions)
 		{
 			for (int32 Frame : KV.Value.Frames) { TransitionFrames.Add(Frame); }
 		}
+		for (int32 Frame : A.SettleFrames) { TransitionFrames.Add(Frame); }
 		Root->SetNumberField(TEXT("transition_frame_count"), TransitionFrames.Num());
+		{
+			TArray<int32> SortedTransitionFrames = TransitionFrames.Array();
+			SortedTransitionFrames.Sort();
+			TArray<TSharedPtr<FJsonValue>> TransitionFrameValues;
+			for (int32 Frame : SortedTransitionFrames) { TransitionFrameValues.Add(LabelNum(Frame)); }
+			Root->SetArrayField(TEXT("transition_frames"), TransitionFrameValues);
+		}
 
 		{
 			TSharedRef<FJsonObject> V = MakeShared<FJsonObject>();

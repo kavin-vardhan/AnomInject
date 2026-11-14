@@ -67,6 +67,82 @@ class TransitionTests(unittest.TestCase):
         self.rows[-1]['anomalies'][0]['event_id'] = 'doctored'
         self.assertTrue(self.check())
 
+    def settle_fixture(self):
+        rows = copy.deepcopy(self.rows)
+        rows.append(dict(session_index=11, transition_present=True, transition_reason=['settle'], anomalies=[
+            dict(id='stuck_low_mip', target_name='Target', start_frame=20, event_id='stuck_low_mip@20|Target',
+                 transition=1, transition_reason=['settle'], labelled=True)]))
+        rows.append(dict(session_index=12, transition_present=True, transition_reason=['settle'], anomalies=[]))
+        a = copy.deepcopy(self.annotation)
+        a['label_schema_minor'] = 2
+        a['anomalies'][1]['transition_frames'] = [10, 11]
+        a['anomalies'][1]['transition_reasons'] = {'temporal_aa': 1, 'settle': 1}
+        a['transition_frame_count'] = 12
+        a['transition_frames'] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12]
+        return a, rows
+
+    def test_schema_2_2_settle_and_settle_only_row(self):
+        a, rows = self.settle_fixture()
+        self.assertEqual([], self.check(a, rows))
+
+    def test_schema_2_2_doctored_fail(self):
+        for kind in ('settle_only_row_not_counted', 'settle_frame_not_listed', 'settle_reason_count', 'minor_1', 'minor_3',
+                     'root_list_missing', 'root_list_without_settle_only_row', 'root_list_unsorted'):
+            a, rows = self.settle_fixture()
+            if kind == 'root_list_missing': a.pop('transition_frames')
+            if kind == 'root_list_without_settle_only_row': a['transition_frames'].remove(12)
+            if kind == 'root_list_unsorted': a['transition_frames'].reverse()
+            if kind == 'settle_only_row_not_counted': a['transition_frame_count'] = 11
+            if kind == 'settle_frame_not_listed': a['anomalies'][1]['transition_frames'] = [10]
+            if kind == 'settle_reason_count': a['anomalies'][1]['transition_reasons'].pop('settle')
+            if kind == 'minor_1': a['label_schema_minor'] = 1
+            if kind == 'minor_3': a['label_schema_minor'] = 3
+            with self.subTest(kind=kind): self.assertTrue(self.check(a, rows))
+
+    def summary(self, **fields):
+        (self.root / 'run_summary.json').write_text(json.dumps(fields))
+
+    def vetoed_fixture(self):
+        a, rows = self.settle_fixture()
+        rows[9]['anomalies'][0]['transition_reason'] = ['settle']
+        a['anomalies'].pop()
+        return a, rows
+
+    def test_vetoed_event_excused_only_by_its_listed_id(self):
+        a, rows = self.vetoed_fixture()
+        vid = 'stuck_low_mip@20|Target'
+        self.assertTrue(self.check(a, rows))
+        self.summary(vetoed_events=1)
+        self.assertTrue(self.check(a, rows))
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@10|Target'])
+        self.assertTrue(self.check(a, rows))
+        self.summary(vetoed_events=1, vetoed_event_ids=[vid])
+        self.assertEqual([], self.check(a, rows))
+        self.summary(vetoed_events=0, vetoed_event_ids=[vid])
+        self.assertEqual([], self.check(a, rows))
+
+    def test_vetoed_id_with_a_non_settle_reason_fails(self):
+        a, rows = self.vetoed_fixture()
+        rows[9]['anomalies'][0]['transition_reason'] = ['temporal_aa']
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@20|Target'])
+        self.assertTrue(self.check(a, rows))
+
+    def test_schema_2_1_is_judged_as_before_m56(self):
+        rows = copy.deepcopy(self.rows)
+        a = copy.deepcopy(self.annotation)
+        a['anomalies'].pop()
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@20|Target'])
+        self.assertTrue(self.check(a, rows))
+        self.summary(vetoed_events=1)
+        self.assertTrue(self.check(a, rows))
+
+    def test_lost_event_beside_a_vetoed_one_fails(self):
+        a, rows = self.vetoed_fixture()
+        a['anomalies'].pop()
+        self.summary(vetoed_events=1, vetoed_event_ids=['stuck_low_mip@20|Target'])
+        errors = self.check(a, rows)
+        self.assertTrue(any('stuck_low_mip@10|Target' in e for e in errors))
+
 
 if __name__ == '__main__':
     unittest.main()

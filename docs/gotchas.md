@@ -10215,3 +10215,35 @@ is plainly drawing, and fails the plugin's empty-instance guard in `IsRenderable
 auto pool and the census can never select a landscape tile through its grass (and the landscape component itself
 is not a mesh component), and the m5 note "zero-instance-grass LandscapeStreamingProxy" on MainWorld most likely
 recorded this artefact, not empty grass. Do not read a zero instance count on runtime grass as "nothing drawn".
+
+## G575 — A flag every event now carries turns a rare reader path into a routine refusal
+*(095-05b, source read of the m56 writer against `verify_capture.annotation_transition_check`.)* The annotation
+check treated "an event has transition entries in labels.jsonl but is missing from annotation.json" as an error.
+Under the release defaults (0/0/0) almost no event carried a transition entry, so a vetoed event (the m26 veto
+removes the event from annotation.json while labels.jsonl keeps its rows, L3) almost never tripped it. m56 gives
+**every** event `settle` entries, so every vetoed event would have tripped it, and office kit 1.5/1.6 refuses a
+session on that error ("annotation transitions mismatch"). The check now tolerates unlisted transition events up to
+`run_summary.vetoed_events` and still fails above it (pinned both ways in `test_annotation_transitions.py` and the
+label-rule selftest). Rule: when a schema change attaches a flag to every event, re-read every reader branch that
+fires on "an event carries a flag" — its old trigger frequency is no longer evidence that it is harmless.
+
+## G576 — Gap detection keyed on frame_index went quiet the day the gaps went away
+*(095-05b.)* The office kit's `brk` censored an edge on any `frame_index` step other than 1, and on every release
+session it fired at every onset and offset because the settle ticks were skipped. After m56 those steps are gone,
+so the censoring stops — correct, but the kit must still see a real gap (a lost frame). `brk` / `brk52` now read
+`tick_index` when both rows carry it and fall back to `frame_index` otherwise (selftest `settle_tick_gap`). A
+detector that fired constantly for a reason that disappears is worth a fresh positive control on the new data.
+
+## G577 — Name the reader that must catch each mutant; a pixel reader cannot see a moved settle flag
+*(095-05b.)* At AA-off a settle frame is pixel-clean, so moving its flag one frame changes nothing the office kit
+(or the pixel gate) can measure. The moved-flag mutant is caught structurally: `verify_capture --label-rule`
+SETTLE-MISPLACED (the K ticks after each onset row and each revert, in tick space) and CaptureBench
+`m56_continuity_check.py` clause C7. A shifted label is caught by the pixel readers (kit FAIL, pixel gate
+OFFSET-NOTE by design) and by the label rule only when labels.jsonl and annotation.json disagree. A missing tick is
+caught by the continuity check and DROP-COUNT; the kit reads it as an uncaptured gap (censored, never excused). A
+"must fail" claim without the reader's name is not checkable.
+
+## G578 — The codename scrub verifier prints its own term list when it runs
+*(095-05, 095-05b.)* `CaptureBench/tools/m36_scrub_hostname.py` runs a self-test first and echoes the mapping it
+tests against, which names real titles. Its VERDICT line is the only line to keep. Never paste its stdout into a
+receipt, a journal or a report; filter for `VERDICT` (as `prepush_scan.py` does).

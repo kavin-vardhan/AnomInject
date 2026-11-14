@@ -69,6 +69,8 @@ namespace AnomalyLabel
 		FAnomalyViewInfo View;
 		TArray<FAutoLiveFireInfo> Fires;
 		bool bTargetMask = false;
+		bool bAwaitingTargetMask = false;
+		int32 TargetMaskHeldTicks = 0;
 		int32 ShadersPending = 0;
 		int32 AnomalyMaterialsIncomplete = 0;
 		FString MaskFileRel;
@@ -114,6 +116,9 @@ namespace AnomalyLabel
 		TArray<FFrozenFireGeometry> TransitionGeometry;
 		TArray<FFrozenFireGeometry> CandidateGeometry;
 		bool bCaptureUnpaired = false;
+		uint8 FrameRole = 0;
+		int32 TickIndex = -1;
+		double WallRun = -1.0;
 
 		bool bViewGlobalPending = false;
 		bool bGlobalEarlyPositive = false;
@@ -192,7 +197,8 @@ namespace AnomalyLabel
 		const FAnomalyViewInfo& ProjectionView, const FString& ImageRelName, int32 SessionIndex,
 		double WallSeconds, int32 TargetOutputHeight, FString& OutImagePath, FString& OutSidecarPath,
 		int32& OutNumLabels, int32& OutNativeW, int32& OutNativeH, int32& OutWrittenW, int32& OutWrittenH,
-		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true, const FCaptureSnapshot* SyncFrame = nullptr);
+		bool& bOutResampled, bool bLog = true, bool bWriteLabels = true, const FCaptureSnapshot* SyncFrame = nullptr,
+		bool* bOutLabelFailed = nullptr);
 
 	FString BuildLabelRecordForSnapshot(const FCaptureSnapshot& Snapshot, int32 Width, int32 Height,
 		const FString& ImageName, int32& OutNumLabels);
@@ -201,7 +207,7 @@ namespace AnomalyLabel
 		const TArray<uint8>& RawBytes, EPixelFormat SrcFormat, int32 BytesPerPixel, int32 Width, int32 Height,
 		int32 OutWidth, int32 OutHeight, const FString& ImageRelPath, const FString& Record,
 		FCriticalSection& JsonlLock, bool bWriteLabels, bool& bOutResampled,
-		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels = nullptr);
+		TSharedPtr<const TArray<FColor>, ESPMode::ThreadSafe>* CanonicalPixels = nullptr, bool* bOutLabelFailed = nullptr);
 
 	struct FRunManifest
 	{
@@ -284,7 +290,30 @@ namespace AnomalyLabel
 		const TSharedPtr<FJsonObject>& TexCorruptSummary = nullptr,
 		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr,
 		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString(),
-		int32 BlinkTerrainEvents = 0, int32 TerrainUnlabelableRefusals = 0);
+		int32 BlinkTerrainEvents = 0, int32 TerrainUnlabelableRefusals = 0,
+		const struct FContinuityTelemetry* Continuity = nullptr);
+
+	struct FContinuityTelemetry
+	{
+		int32 SpanTicks = 0;
+		int32 FramesArmed = 0;
+		int32 FramesDropped = 0;
+		TArray<int32> DroppedTicks;
+		bool bDroppedTicksTruncated = false;
+		TMap<FString, int32> DroppedByCause;
+		int32 OrphanCompletions = 0;
+		int32 LabelRowsFailed = 0;
+		int64 WriterPendingByteCap = 0;
+		int32 WriterPendingCountFloor = 0;
+		int64 WriterPendingBytesPeak = 0;
+		int32 WriterBackpressureWaits = 0;
+		double WriterBackpressureSeconds = 0.0;
+		bool bWriterFlushComplete = true;
+		bool bWriterStalled = false;
+		TArray<FString> VetoedEventIds;
+	};
+
+	static constexpr int32 GDroppedTicksCap = 4096;
 
 	struct FLabelSyncTelemetry
 	{
@@ -309,7 +338,8 @@ namespace AnomalyLabel
 		int32 MaskTagRetireHostFlagKept = 0;
 		int32 MaskPriorCollisions = 0;
 		int32 MaskPriorCollisionQuarantined = 0;
-		int32 ReasonEntries[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		int32 ReasonEntries[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		int32 SettleFrames = 0;
 		bool bPieEndSettleActive = false;
 		int32 PieEndSettleFrames = 0;
 		int32 LabelEffectPartialFrames = 0;
@@ -523,6 +553,7 @@ namespace AnomalyLabel
 		FSessionVideo Video;
 		TArray<FSessionEvent> Events;
 		TMap<FString, FSessionTransition> Transitions;
+		TSet<int32> SettleFrames;
 	};
 
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& Annotation);

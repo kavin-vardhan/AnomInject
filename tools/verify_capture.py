@@ -215,6 +215,11 @@ with transition 1, and nowhere else (PIE-SETTLE-OUTSIDE-PIE / -MISSING / -MISPLA
 against run_summary pie_end_settle_frames and label_transition_pie_end_settle_entries). It is a reason of fire-window
 types only, unlabelled-only, never listed and never an anti-aliasing reason; such frames are dropped (never a
 positive, never a negative, never a reference) and it excuses at most its own frame.
+Schema 2.2 (m56): the K frames after every onset and every offset are captured and carry the reason settle - on the
+row (transition_present true, transition_reason ["settle"]) and on every entry of that row. settle is a reason of every
+type, labelled (after an onset) or not (after an offset), never an anti-aliasing reason; such frames are dropped from
+positives and negatives alike (SETTLE-INCONSISTENT / -MISPLACED / -COUNT). Rows carry tick_index and t_wall_run; the
+ticks missing from the rows must be exactly run_summary frames_dropped_ticks (TICK-CONTINUITY, DROP-COUNT).
 Exit 0 no mismatch, 1 mismatch, 3 cannot run or not judged. --label-rule --selftest (and bare --selftest) prove it
 can fail both ways on synthetic sessions.
 
@@ -1414,6 +1419,43 @@ def _synth_session(root, name, shift=0, end_shift=0, blank_region=False, with_ma
     return d
 
 
+def _m56_convert_synth(d, k=2):
+    """Rewrite a _synth_session folder into the schema-2.2 shape m56 writes: the K rows after the onset row carry
+    settle on the row and on their (labelled) entry, the K rows after the revert row carry settle and a transition-only
+    entry, every row carries tick_index / t_wall_run, annotation.json says label_schema_minor 2."""
+    p = os.path.join(d, "labels.jsonl")
+    with open(p, "r", encoding="utf-8") as fh:
+        rows = [json.loads(x) for x in fh if x.strip()]
+    rows.sort(key=lambda r: r["session_index"])
+    lab = [r["session_index"] for r in rows if r.get("anomalies")]
+    lo, hi = min(lab), max(lab)
+    proto = dict(next(r for r in rows if r["session_index"] == hi)["anomalies"][0])
+    for r in rows:
+        si = r["session_index"]
+        r["tick_index"] = si
+        r["t_wall_run"] = si / 30.0
+        if lo + 1 <= si <= lo + k or hi + 2 <= si <= hi + 1 + k:
+            r["transition_present"] = True
+            r["transition_reason"] = [LABEL_RULE_SETTLE]
+            if not r["anomalies"]:
+                e = dict(proto)
+                r["anomalies"] = [e]
+            for e in r["anomalies"]:
+                e["transition"] = 1
+                e["transition_reason"] = [LABEL_RULE_SETTLE]
+    with open(p, "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    ap = os.path.join(d, "annotation.json")
+    with open(ap, "r", encoding="utf-8") as fh:
+        ann = json.load(fh)
+    ann["label_schema"] = 2
+    ann["label_schema_minor"] = 2
+    with open(ap, "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    return d
+
+
 def _codex07_fixture(root, name, runs=((60, 67),), label_runs=None, burst_at=None, onset_delta=0,
                      full_boxes=(), total=100, patch_sides=None, mask=None, mask_runs=None,
                      full_masks=(), drop_frames=()):
@@ -1744,6 +1786,10 @@ def _label_pixel_selftest(thresh, edge_w, min_visible_px, source_dir=None):
         ]
         for name, args, expected in original:
             check(name, _synth_session(root, name, with_mask=True, **args), expected)
+        for name, args, expected in (("m56_settle_clean", {}, (R_CONSISTENT,)),
+                                     ("m56_settle_label_late_1", {"shift": 1}, (R_OFFSET,)),
+                                     ("m56_settle_end_early_1", {"end_shift": -1}, (R_OFFSET,))):
+            check(name, _m56_convert_synth(_synth_session(root, name, with_mask=True, **args)), expected)
         for name, shift in (("bboxonly_clean", 0), ("bboxonly_label_late_1", 1)):
             check(name, _synth_session(root, name, shift=shift), (R_READING,))
         older = [
@@ -3052,10 +3098,10 @@ def _change_oracle_selftest():
                    "exit %d uninterpretable %d mismatched %d" % (ci, di["summary"]["uninterpretable"], di["summary"]["mismatched"]))
 
         def expect_unavailable(name, path, fragment):
-            _c2, _l2, ud = run(path)
-            rec2 = _oracle_row_of(ud, 4)
+            _c2, _l2, unav = run(path)
+            rec2 = _oracle_row_of(unav, 4)
             ok = (rec2 is not None and rec2["status"] == CHANGE_ORACLE_UNAVAILABLE and fragment in rec2["reason"]
-                  and ud["summary"]["mismatched"] == 0)
+                  and unav["summary"]["mismatched"] == 0)
             record(name, ok, "%s" % (rec2["reason"][:44] if rec2 else "row missing"))
         expect_unavailable("unsupported_jpeg", _oracle_baseline(root, "jpeg", jpeg=(4,)), "jpeg delivery")
 
@@ -3154,9 +3200,17 @@ def _emit(line):
 
 LABEL_RULE_UNPAIRED = "capture_unpaired"
 LABEL_RULE_PIE_SETTLE = "pie_end_settle"
+LABEL_RULE_SETTLE = "settle"
 LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved",
-                      "effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED, LABEL_RULE_PIE_SETTLE)
-LABEL_RULE_ANY_TYPE = (LABEL_RULE_UNPAIRED,)
+                      "effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED, LABEL_RULE_PIE_SETTLE,
+                      LABEL_RULE_SETTLE)
+LABEL_RULE_ROW_REASONS = (LABEL_RULE_UNPAIRED, LABEL_RULE_SETTLE)
+LABEL_RULE_ANY_TYPE = (LABEL_RULE_UNPAIRED, LABEL_RULE_SETTLE)
+LABEL_RULE_SESSION_GLOBALS = ("camera_clipping", "time_dilation")
+LABEL_RULE_DEFERRED_TYPES = ("stuck_low_mip",)
+LABEL_RULE_SETTLE_SENTENCE = ("m56: the K frames after every onset and every offset are captured and flagged settle "
+                              "(row and entry); drop them from positives and negatives alike, like every other "
+                              "transition frame.")
 LABEL_RULE_FIRE_WINDOW_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_corruption",
                                 "lighting_mismatch", "lod_corruption", "null_effect", "solid_swap", "time_dilation")
 LABEL_RULE_REASON_TYPES = {
@@ -3189,7 +3243,8 @@ LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSI
                      "LABELLED-EXTRA", "LABELLED-MISSING", "ENTRY-MISSING", "FRAME-MISSING",
                      "UNPAIRED-POSITIVE", "UNPAIRED-LABELLED", "UNPAIRED-LISTED", "UNPAIRED-INCONSISTENT",
                      "UNPAIRED-COUNT", "PIE-SETTLE-OUTSIDE-PIE", "PIE-SETTLE-MISSING", "PIE-SETTLE-MISPLACED",
-                     "PIE-SETTLE-LISTED", "PIE-SETTLE-COUNT", "ANNOTATION-TRANSITIONS")
+                     "PIE-SETTLE-LISTED", "PIE-SETTLE-COUNT", "SETTLE-INCONSISTENT", "SETTLE-MISPLACED",
+                     "SETTLE-COUNT", "TICK-CONTINUITY", "DROP-COUNT", "ANNOTATION-TRANSITIONS")
 
 
 def _lr_read_rows(cap_dir):
@@ -3248,6 +3303,14 @@ def _lr_first(sis, n=8):
 
 
 def annotation_transition_check(directory, require_schema=True):
+    """Schema 2.1 / 2.2: every event's transition_frames and transition_reasons, and the root transition_frame_count,
+    must equal what labels.jsonl carries. 2.2 (m56) adds the reason settle and rows whose only transition is the
+    row-level settle flag (a settle frame with no entry); those rows count in transition_frame_count. A 2.1 session
+    carrying settle is refused. 2.2 also carries the root transition_frames list (the sorted union whose size is
+    transition_frame_count; it names the row-only settle frames that no event lists). Transition entries of an event missing from annotation.json fail, except on 2.2 when the
+    event id is listed in run_summary vetoed_event_ids and every one of its transition reasons is settle (the m26 veto
+    removes the event; labels.jsonl keeps its after-offset settle rows). A 2.1 session is judged as before m56: every
+    unlisted transition event fails."""
     from collections import Counter, defaultdict
     from pathlib import Path
     root = Path(directory)
@@ -3257,11 +3320,19 @@ def annotation_transition_check(directory, require_schema=True):
         if not require_schema and 'label_schema_minor' not in annotation and not any(
                 'transition_frames' in e for e in annotation.get('anomalies', [])):
             return [], {'legacy': True}
-        if annotation.get('label_schema') != 2 or annotation.get('label_schema_minor') != 1:
-            errors.append('expected annotation schema 2.1')
+        minor = annotation.get('label_schema_minor')
+        if annotation.get('label_schema') != 2 or minor not in (1, 2):
+            errors.append('expected annotation schema 2.1 or 2.2')
+        try:
+            summary = json.loads((root / 'run_summary.json').read_text(encoding='utf-8-sig'))
+        except (OSError, ValueError):
+            summary = {}
+        vetoed_ids = summary.get('vetoed_event_ids') if isinstance(summary, dict) else None
+        vetoed_ids = set(i for i in vetoed_ids if isinstance(i, str)) if isinstance(vetoed_ids, list) else set()
         expected_frames = defaultdict(set)
         expected_reasons = defaultdict(Counter)
         union = set()
+        settle_seen = 0
         with (root / 'labels.jsonl').open(encoding='utf-8-sig') as stream:
             for line in stream:
                 if not line.strip():
@@ -3270,6 +3341,10 @@ def annotation_transition_check(directory, require_schema=True):
                 si = row['session_index']
                 if type(si) is not int:
                     raise ValueError('non-integer session index')
+                row_why = row.get('transition_reason')
+                if isinstance(row_why, list) and LABEL_RULE_SETTLE in row_why:
+                    union.add(si)
+                    settle_seen += 1
                 for entry in row.get('anomalies', []):
                     key = '%s@%d|%s' % (entry['id'], entry['start_frame'], entry['target_name'])
                     if entry.get('event_id') != key:
@@ -3279,9 +3354,13 @@ def annotation_transition_check(directory, require_schema=True):
                     reasons = entry.get('transition_reason')
                     if not isinstance(reasons, list) or not reasons or not all(isinstance(r, str) for r in reasons):
                         raise ValueError('invalid transition reasons at %d' % si)
+                    if LABEL_RULE_SETTLE in reasons:
+                        settle_seen += 1
                     expected_frames[key].add(si)
                     expected_reasons[key].update(reasons)
                     union.add(si)
+        if settle_seen and minor == 1:
+            errors.append('settle (schema 2.2) found in a session that says schema 2.1')
         seen = set()
         for event in annotation['anomalies']:
             key = event.get('event_id')
@@ -3295,15 +3374,238 @@ def annotation_transition_check(directory, require_schema=True):
             reasons = event.get('transition_reasons')
             if not isinstance(reasons, dict) or not all(type(n) is int and n > 0 for n in reasons.values()) or reasons != dict(expected_reasons[key]):
                 errors.append('transition_reasons mismatch: %s' % key)
-        for key in expected_frames.keys() - seen:
+        unlisted = sorted(k for k in expected_frames.keys() - seen if expected_frames[k])
+        excused = 0
+        for key in unlisted:
+            if minor == 2 and key in vetoed_ids and set(expected_reasons[key]) == {LABEL_RULE_SETTLE}:
+                excused += 1
+                continue
             errors.append('transition event missing from annotation: %s' % key)
         count = annotation.get('transition_frame_count')
         if type(count) is not int or count != len(union):
             errors.append('transition_frame_count mismatch')
-        return errors, dict(legacy=False, transition_frame_count=len(union), transition_events=sum(bool(f) for f in expected_frames.values()))
+        if minor == 2:
+            listed = annotation.get('transition_frames')
+            if not isinstance(listed, list) or not all(type(i) is int for i in listed) or listed != sorted(union):
+                errors.append('root transition_frames mismatch (schema 2.2 lists every transition frame of the session)')
+        return errors, dict(legacy=False, transition_frame_count=len(union), minor=minor,
+                            transition_events=sum(bool(f) for f in expected_frames.values()),
+                            unlisted_vetoed=excused)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return errors + ['cannot compare transitions: %s' % exc], {}
 
+
+
+def _lr_int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _lr_settle_placement(rows, run_json, rs):
+    """m56: settle frames sit on the K ticks after every onset (the row whose frame_index is an event's start_frame)
+    and on the K ticks after every revert (the tick after the event's last live tick); the after-offset rows carry a
+    settle entry for the reverted event. Read in tick space (tick_index); a session without tick_index is not judged.
+    K comes from run.json settle_frames, else from the data. stuck_low_mip events (deferred onset, restore trail) are
+    judged after their onset only; session globals (camera_clipping, time_dilation) anchor nothing. A settle row in no
+    window is a stray. Strays are excused only for zero-match bursts (a burst that fired nothing still has its settle
+    frames, with no event to anchor them), at their schedule positions and at most 2K per burst (_lr_zero_match_strays)."""
+    out = {"fails": [], "summary": "not judged (no settle and no tick_index)", "k": None}
+    have_settle = any(isinstance(r.get("transition_reason"), list) and LABEL_RULE_SETTLE in r["transition_reason"]
+                      for r in rows)
+    if not rows or not all(_lr_int(r.get("tick_index")) for r in rows):
+        if have_settle:
+            out["summary"] = "not judged (settle rows without tick_index on every row)"
+        return out
+    row_at = {r["tick_index"]: r for r in rows}
+    last = max(row_at)
+    frame_tick = {r["frame_index"]: r["tick_index"] for r in rows if _lr_int(r.get("frame_index"))}
+
+    def rsettle(r):
+        return isinstance(r.get("transition_reason"), list) and LABEL_RULE_SETTLE in r["transition_reason"]
+
+    events = {}
+    for r in rows:
+        t = r["tick_index"]
+        for a in r.get("anomalies") or []:
+            if not isinstance(a, dict) or a.get("id") in LABEL_RULE_SESSION_GLOBALS or not _lr_int(a.get("start_frame")):
+                continue
+            key = (a.get("id", ""), a.get("target_name", ""), a["start_frame"])
+            ev = events.setdefault(key, {"on": frame_tick.get(a["start_frame"]), "ents": {}})
+            ev["ents"][t] = a
+    onsets = sorted(set(ev["on"] for ev in events.values() if ev["on"] is not None))
+    k = run_json.get("settle_frames") if isinstance(run_json, dict) else None
+    k_src = "run.json"
+    if not _lr_int(k) or k < 0:
+        runs = {}
+        for t_on in onsets:
+            n = 0
+            while (t_on + n + 1) in row_at and rsettle(row_at[t_on + n + 1]):
+                n += 1
+            runs[n] = runs.get(n, 0) + 1
+        k = max(runs.items(), key=lambda kv: (kv[1], kv[0]))[0] if runs else None
+        k_src = "inferred from the data"
+    out["k"] = k
+    if k is None:
+        out["summary"] = "not judged (no onset in the data and no run.json settle_frames)"
+        return out
+    covered = set()
+    deferred_skipped = 0
+    for t_on in onsets:
+        if t_on in row_at and rsettle(row_at[t_on]):
+            out["fails"].append(("SETTLE-MISPLACED", row_at[t_on]["session_index"]))
+        for t in range(t_on + 1, t_on + k + 1):
+            covered.add(t)
+            if t in row_at and not rsettle(row_at[t]):
+                out["fails"].append(("SETTLE-MISPLACED", row_at[t]["session_index"]))
+    for key, ev in events.items():
+        on = ev["on"]
+        off = sorted(t for t, a in ev["ents"].items()
+                     if LABEL_RULE_SETTLE in (a.get("transition_reason") or []) and (on is None or t > on + k))
+        live = [t for t, a in ev["ents"].items() if t not in off]
+        if key[0] in LABEL_RULE_DEFERRED_TYPES:
+            deferred_skipped += 1
+            covered.update(off)
+            continue
+        if not off or not live:
+            continue
+        t_rv = max(live) + 1
+        want = [t for t in range(t_rv + 1, t_rv + k + 1) if t <= last]
+        covered.update(want)
+        if off != want:
+            for t in sorted(set(off) ^ set(want)):
+                if t in row_at:
+                    out["fails"].append(("SETTLE-MISPLACED", row_at[t]["session_index"]))
+        if t_rv in row_at and rsettle(row_at[t_rv]):
+            out["fails"].append(("SETTLE-MISPLACED", row_at[t_rv]["session_index"]))
+    stray = sorted(t for t, r in row_at.items() if rsettle(r) and t not in covered)
+    zero_match = rs.get("zero_match_bursts", 0) if isinstance(rs, dict) else 0
+    pos = run_json.get("positive_frames") if isinstance(run_json, dict) else None
+    dropped = rs.get("frames_dropped_ticks") if isinstance(rs, dict) else None
+    excused, unexcused = _lr_zero_match_strays(stray, k, zero_match, pos if _lr_int(pos) else None, last,
+                                               set(d for d in dropped if _lr_int(d)) if isinstance(dropped, list) else set())
+    for t in unexcused:
+        out["fails"].append(("SETTLE-MISPLACED", row_at[t]["session_index"]))
+    out["summary"] = ("K=%d (%s), %d onset(s) judged, %d settle row(s) outside an event window%s%s; %s"
+                      % (k, k_src, len(onsets), len(stray),
+                         " (zero-match bursts %d: %d allowed at schedule positions, at most 2K per burst)"
+                         % (zero_match, len(excused)) if excused else "",
+                         ", %d stuck_low_mip event(s) judged after onset only" % deferred_skipped if deferred_skipped else "",
+                         "%d misplaced" % len(set(si for _c, si in out["fails"])) if out["fails"] else "in place"))
+    return out
+
+
+def _lr_zero_match_strays(stray, k, zero_match, pos, last, dropped):
+    """m56 N7: a burst that fired nothing still captures its settle ticks, as row-only settle frames with no event to
+    anchor them: one run of K ticks after its would-be onset and one run of K ticks after its would-be revert, whose
+    starts are K + positive_frames apart (a zero-match burst has no deferred onset and no restore trail). Such a stray
+    run is excused only when it has exactly K ticks (shorter only when the session ends inside it; dropped ticks fill
+    gaps), pairs with its partner run (unless the partner lies past the last tick; not checked when run.json gives no
+    positive_frames), and only up to 2K rows per zero-match burst. Returns (excused, unexcused) tick lists."""
+    if not stray:
+        return [], []
+    if not (_lr_int(zero_match) and zero_match > 0) or not _lr_int(k) or k <= 0:
+        return [], list(stray)
+    runs = []
+    for t in stray:
+        if runs and all((g in dropped) for g in range(runs[-1][-1] + 1, t)) and t - runs[-1][-1] <= k:
+            runs[-1].append(t)
+        else:
+            runs.append([t])
+    ok_runs, bad = [], []
+    for r in runs:
+        span = r[-1] - r[0] + 1
+        if span == k or (span < k and all((g in dropped) or g > last for g in range(r[-1] + 1, r[0] + k))):
+            ok_runs.append(r)
+        else:
+            bad.extend(r)
+    excused = []
+    if pos is None:
+        excused = [t for r in ok_runs for t in r]
+    else:
+        starts = {r[0]: r for r in ok_runs}
+        paired = set()
+        for r in ok_runs:
+            s = r[0]
+            if s in paired:
+                continue
+            partner = s + k + pos
+            if partner in starts and partner not in paired:
+                paired.update((s, partner))
+            elif partner > last:
+                paired.add(s)
+        for r in ok_runs:
+            (excused if r[0] in paired else bad).extend(r)
+    limit = 2 * k * zero_match
+    if len(excused) > limit:
+        bad.extend(excused[limit:])
+        excused = excused[:limit]
+    return excused, sorted(bad)
+
+
+def _lr_continuity(rows, rs):
+    """m56: tick_index on every row, strictly increasing; t_wall_run never decreasing; the ticks missing from the rows
+    are exactly run_summary frames_dropped_ticks plus one per failed label row; frames_dropped = the sum of
+    frames_dropped_by_cause; total_frames + frames_dropped = capture_span_ticks. A session with no tick_index anywhere
+    (a build before m56) is not judged."""
+    out = {"fails": [], "summary": "not judged (no tick_index: a build before m56)"}
+    with_tick = [r for r in rows if "tick_index" in r]
+    if not with_tick:
+        if isinstance(rs, dict) and "capture_span_ticks" in rs:
+            out["fails"].append(("TICK-CONTINUITY", -1))
+            out["summary"] = "run_summary carries capture_span_ticks but no row carries tick_index"
+        return out
+    bad_rows = [r["session_index"] for r in rows if not (_lr_int(r.get("tick_index")) and r["tick_index"] >= 0)]
+    for si in bad_rows:
+        out["fails"].append(("TICK-CONTINUITY", si))
+    good = [r for r in rows if _lr_int(r.get("tick_index")) and r["tick_index"] >= 0]
+    steps = {}
+    for a, b in zip(good, good[1:]):
+        d = b["tick_index"] - a["tick_index"]
+        steps[d] = steps.get(d, 0) + 1
+        if d <= 0:
+            out["fails"].append(("TICK-CONTINUITY", b["session_index"]))
+    wr = [r.get("t_wall_run") for r in good]
+    for r, a, b in zip(good[1:], wr, wr[1:]):
+        if not isinstance(b, (int, float)) or isinstance(b, bool) or (isinstance(a, (int, float)) and b < a):
+            out["fails"].append(("TICK-CONTINUITY", r["session_index"]))
+    if good and not isinstance(wr[0], (int, float)):
+        out["fails"].append(("TICK-CONTINUITY", good[0]["session_index"]))
+    ticks = set(r["tick_index"] for r in good)
+    rs = rs if isinstance(rs, dict) else {}
+    need = ("capture_span_ticks", "frames_dropped", "frames_dropped_ticks", "frames_dropped_by_cause")
+    if not all(k in rs for k in need):
+        out["fails"].append(("DROP-COUNT", -1))
+        out["summary"] = "rows carry tick_index but run_summary lacks %s" % ", ".join(k for k in need if k not in rs)
+        return out
+    span = rs.get("capture_span_ticks")
+    dropped = rs.get("frames_dropped")
+    dticks = rs.get("frames_dropped_ticks") or []
+    trunc = rs.get("frames_dropped_ticks_truncated") is True
+    by_cause = rs.get("frames_dropped_by_cause") or {}
+    lrf = rs.get("label_rows_failed", 0) or 0
+    probs = []
+    if not (_lr_int(span) and _lr_int(dropped)):
+        probs.append("capture_span_ticks / frames_dropped not integers")
+    else:
+        missing = set(range(span)) - ticks
+        if ticks and max(ticks) >= span:
+            probs.append("a row's tick_index %d is outside the span %d" % (max(ticks), span))
+        if not trunc and not set(dticks) <= missing:
+            probs.append("frames_dropped_ticks lists tick(s) that have a row: %s" % sorted(set(dticks) - missing)[:6])
+        if len(missing) != dropped + lrf:
+            probs.append("%d tick(s) have no row (first %s) but frames_dropped %d + label_rows_failed %d"
+                         % (len(missing), sorted(missing)[:6], dropped, lrf))
+        if isinstance(by_cause, dict) and sum(v for v in by_cause.values() if _lr_int(v)) != dropped:
+            probs.append("frames_dropped_by_cause sums to %d, frames_dropped %d"
+                         % (sum(v for v in by_cause.values() if _lr_int(v)), dropped))
+        tf = rs.get("total_frames")
+        if _lr_int(tf) and tf + dropped != span:
+            probs.append("total_frames %d + frames_dropped %d != capture_span_ticks %d" % (tf, dropped, span))
+    if probs:
+        out["fails"].append(("DROP-COUNT", -1))
+    out["summary"] = ("tick steps %s; capture_span_ticks %s, frames_dropped %s, ticks_per_captured_frame %s%s"
+                      % ({str(k): v for k, v in sorted(steps.items())}, span, dropped,
+                         rs.get("ticks_per_captured_frame"), ("; " + "; ".join(probs)) if probs else ""))
+    return out
 
 
 def label_rule_check(cap_dir, quiet=False):
@@ -3328,8 +3630,13 @@ def label_rule_check(cap_dir, quiet=False):
     it labelled false with transition 1 and pie_end_settle among its reasons, and no other row does; it is a reason of
     fire-window types only, unlabelled-only, never listed by its event and never an anti-aliasing reason, so it excuses
     at most its own frame. A run ending on the last row is not checked, and run_summary pie_end_settle_frames /
-    label_transition_pie_end_settle_entries must count its rows and entries when present. Exit 0 no mismatch,
-    1 mismatch, 3 cannot run or not judged (every row on the sync path).
+    label_transition_pie_end_settle_entries must count its rows and entries when present. Schema 2.2 (m56): the
+    reason settle is a reason of every type, labelled or not, never an anti-aliasing reason; a row with the row-level
+    transition_reason settle carries transition_present true and every one of its entries carries settle, and an entry
+    carrying settle sits only on such a row; settle rows sit on the K ticks after every onset and every revert
+    (_lr_settle_placement); run_summary settle_frames / label_transition_settle_entries count them; tick_index rises on
+    every row and the ticks missing from the rows are exactly run_summary's dropped ticks (_lr_continuity). Exit 0 no
+    mismatch, 1 mismatch, 3 cannot run or not judged (every row on the sync path).
     """
     lines = ["LABEL-RULE (084-07b): anomaly_present / labelled / visible_positive / transition, read from the session"]
     rows, err = _lr_read_rows(cap_dir)
@@ -3362,12 +3669,15 @@ def label_rule_check(cap_dir, quiet=False):
         rule = RULE_NEW if with_key == len(entries) else RULE_OLD
     temporal = rs.get("label_temporal_aa")
     vetoed = int(rs.get("vetoed_events", 0) or 0)
+    vetoed_ids_raw = rs.get("vetoed_event_ids")
+    vetoed_ids = set(i for i in vetoed_ids_raw if isinstance(i, str)) if isinstance(vetoed_ids_raw, list) else None
 
     fails = {}
 
     def fail(cat, si):
         fails.setdefault(cat, []).append(si)
 
+    transition_detail = {}
     if not shot_rows:
         transition_errors, transition_detail = annotation_transition_check(cap_dir, require_schema=False)
         if transition_errors:
@@ -3390,6 +3700,9 @@ def label_rule_check(cap_dir, quiet=False):
     n_unpaired_rows = 0
     n_unpaired_entries = 0
     unpaired_sis = set()
+    n_settle_rows = 0
+    n_settle_entries = 0
+    settle_sis = set()
     reason_counts = {}
     per_type = {}
 
@@ -3436,10 +3749,25 @@ def label_rule_check(cap_dir, quiet=False):
             if rule_vp and a.get("labelled") is True and a.get("bbox_valid") is True:
                 pt[2] += 1
         flagged = [a for a in ents if a.get("transition")]
-        if flagged:
+        row_why = r.get("transition_reason")
+        row_settle = isinstance(row_why, list) and LABEL_RULE_SETTLE in row_why
+        if flagged or row_settle:
             n_transition_rows += 1
-        if (r.get("transition_present") is True) != bool(flagged):
+        if (r.get("transition_present") is True) != (bool(flagged) or row_settle):
             fail("TRANSITION-PRESENT-MISMATCH", si)
+        if isinstance(row_why, list) and any(x not in LABEL_RULE_ROW_REASONS for x in row_why):
+            fail("REASON-UNKNOWN", si)
+        if row_settle:
+            n_settle_rows += 1
+            settle_sis.add(si)
+            for a in ents:
+                if a.get("transition") != 1 or LABEL_RULE_SETTLE not in (a.get("transition_reason") or []):
+                    fail("SETTLE-INCONSISTENT", si)
+        for a in ents:
+            if LABEL_RULE_SETTLE in (a.get("transition_reason") or []):
+                n_settle_entries += 1
+                if not row_settle:
+                    fail("SETTLE-INCONSISTENT", si)
         for a in ents:
             has_t = bool(a.get("transition"))
             reasons = a.get("transition_reason")
@@ -3469,7 +3797,13 @@ def label_rule_check(cap_dir, quiet=False):
         if rule == RULE_NEW:
             for a in ents:
                 if a.get("labelled") is True and not listed(a, si):
-                    if vetoed > 0:
+                    if vetoed_ids is not None and transition_detail.get("minor") == 2:
+                        a_id = a.get("event_id") or "%s@%s|%s" % (a.get("id"), a.get("start_frame"), a.get("target_name"))
+                        if a_id in vetoed_ids:
+                            n_vetoed_labelled += 1
+                        else:
+                            fail("LABELLED-EXTRA", si)
+                    elif vetoed > 0:
                         n_vetoed_labelled += 1
                     else:
                         fail("LABELLED-EXTRA", si)
@@ -3570,6 +3904,26 @@ def label_rule_check(cap_dir, quiet=False):
             elif rule == RULE_NEW and not any(a.get("labelled") is True for a in mine):
                 fail("LABELLED-MISSING", si)
 
+    exact_counts = (rs.get("frames_dropped", 0) or 0) == 0 and (rs.get("label_rows_failed", 0) or 0) == 0
+    for key, have in (("settle_frames", n_settle_rows), ("label_transition_settle_entries", n_settle_entries)):
+        v = rs.get(key)
+        if key in rs and (not isinstance(v, int) or isinstance(v, bool) or (v != have if exact_counts else v < have)):
+            fail("SETTLE-COUNT", have)
+    if (n_settle_rows or n_settle_entries) and "settle_frames" not in rs and rs:
+        fail("SETTLE-COUNT", n_settle_rows)
+    run_json = {}
+    try:
+        with open(os.path.join(cap_dir, "run.json"), "r", encoding="utf-8-sig") as fh:
+            run_json = json.load(fh) or {}
+    except (OSError, ValueError):
+        run_json = {}
+    placement = _lr_settle_placement(rows, run_json, rs)
+    for cat, si in placement["fails"]:
+        fail(cat, si)
+    continuity = _lr_continuity(rows, rs)
+    for cat, si in continuity["fails"]:
+        fail(cat, si)
+
     lines.append("  session                : %s" % cap_dir)
     if rule == RULE_NEW:
         lines.append("  rule                   : NEW - every anomaly entry carries `labelled`; visible_positive = anomaly_present "
@@ -3614,6 +3968,11 @@ def label_rule_check(cap_dir, quiet=False):
     lines.append("  pie_end_settle (PIE)   : %d row(s), %d entr(ies) carry pie_end_settle (run_summary pie_end_settle_active "
                  "%s, pie_end_settle_frames %s, label_transition_pie_end_settle_entries %s) - %s"
                  % (n_pie_rows, n_pie_entries, pie_rs[0], pie_rs[1], pie_rs[2], LABEL_RULE_PIE_SETTLE_SENTENCE))
+    lines.append("  settle (m56)           : %d row(s), %d entr(ies) carry settle (run_summary settle_frames %s, "
+                 "label_transition_settle_entries %s); placement %s - %s"
+                 % (n_settle_rows, n_settle_entries, rs.get("settle_frames", "absent"),
+                    rs.get("label_transition_settle_entries", "absent"), placement["summary"], LABEL_RULE_SETTLE_SENTENCE))
+    lines.append("  continuity (m56)       : %s" % continuity["summary"])
     if legacy_sync:
         lines.append("  unpaired, not flagged  : run_summary sync_frames_written %d but no row carries capture_unpaired (a "
                      "build before 090-10); this reader cannot tell which rows were on the sync path, and their labels "
@@ -3658,6 +4017,8 @@ def label_rule_check(cap_dir, quiet=False):
               "unpaired_rows": n_unpaired_rows, "unpaired_entries": n_unpaired_entries,
               "legacy_sync": legacy_sync, "all_sync": all_sync, "judged": not all_sync,
               "pie_settle_active": pie_active, "pie_settle_rows": n_pie_rows, "pie_settle_entries": n_pie_entries,
+              "settle_rows": n_settle_rows, "settle_entries": n_settle_entries, "settle_placement": placement["summary"],
+              "settle_k": placement.get("k"), "continuity": continuity["summary"],
               "reasons": {"%s/%s" % k: v for k, v in reason_counts.items()}}
     return code, lines, detail
 
@@ -3713,6 +4074,97 @@ def _lr_unpaired_row(si, ents):
     if ents:
         row["transition_present"] = True
     return row
+
+
+def _m56_rows(ticks=40, k=2, pre=4, positive=8, post=4, f0=100, aid="missing_texture", target="Rock"):
+    """A synthetic schema-2.2 session: one fire-window event per burst, every tick written, settle flags placed."""
+    live, settle_on, settle_off = {}, {}, {}
+    t_on = pre - 1
+    while t_on < ticks:
+        for t in range(t_on, t_on + k + positive):
+            live[t] = t_on
+        for t in range(t_on + 1, t_on + k + 1):
+            settle_on[t] = t_on
+        t_rv = t_on + k + positive
+        for t in range(t_rv + 1, t_rv + k + 1):
+            settle_off[t] = t_on
+        t_on = t_rv + k + post
+    rows = []
+    for t in range(ticks):
+        ents = []
+        on = live.get(t, settle_off.get(t))
+        if on is not None:
+            e = {"id": aid, "target_name": target, "start_frame": f0 + on, "event_id": "%s@%d|%s" % (aid, f0 + on, target),
+                 "bbox_valid": True, "labelled": t in live}
+            if t in settle_on or t in settle_off:
+                e["transition"] = 1
+                e["transition_reason"] = [LABEL_RULE_SETTLE]
+            ents.append(e)
+        present = any(e["labelled"] for e in ents)
+        r = {"session_index": t, "frame_index": f0 + t, "tick_index": t, "t_wall_run": round(t / 30.0, 6),
+             "anomaly_present": present, "anomalies": ents, "visible_positive": present}
+        if t in settle_on or t in settle_off:
+            r["transition_present"] = True
+            r["transition_reason"] = [LABEL_RULE_SETTLE]
+        rows.append(r)
+    return rows
+
+
+def _m56_write(root, name, rows, ticks=40, k=2, minor=2, rs_extra=None, ann_post=None, run_json=True):
+    d = os.path.join(root, name)
+    os.makedirs(d)
+    with open(os.path.join(d, "labels.jsonl"), "w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    events = {}
+    union = set()
+    for r in rows:
+        si = r["session_index"]
+        if isinstance(r.get("transition_reason"), list) and LABEL_RULE_SETTLE in r["transition_reason"]:
+            union.add(si)
+        for e in r.get("anomalies") or []:
+            ev = events.setdefault(e["event_id"], {"event_id": e["event_id"], "anomaly_type": client_type(e["id"]),
+                                                   "manifested": True, "affected_objects": {"nodes": [{"name": e["target_name"]}]},
+                                                   "_frames": set(), "_t": set(), "_r": {}})
+            if e.get("labelled"):
+                ev["_frames"].add(si)
+            if e.get("transition") == 1:
+                ev["_t"].add(si)
+                union.add(si)
+                for q in e.get("transition_reason") or []:
+                    ev["_r"][q] = ev["_r"].get(q, 0) + 1
+    anomalies = []
+    for ev in events.values():
+        fl = sorted(ev.pop("_frames"))
+        ev["injected_frames"] = {"frame_indices": fl}
+        ev["affected_frames"] = {"frame_indices": fl}
+        ev["transition_frames"] = sorted(ev.pop("_t"))
+        ev["transition_reasons"] = ev.pop("_r")
+        anomalies.append(ev)
+    ann = {"label_schema": 2, "label_schema_minor": minor, "transition_frame_count": len(union), "anomalies": anomalies}
+    if minor == 2:
+        ann["transition_frames"] = sorted(union)
+    if ann_post:
+        ann_post(ann)
+    with open(os.path.join(d, "annotation.json"), "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    n = len(rows)
+    rs = {"label_temporal_aa": False, "vetoed_events": 0, "zero_match_bursts": 0, "total_frames": n,
+          "settle_frames": sum(1 for r in rows if isinstance(r.get("transition_reason"), list)
+                               and LABEL_RULE_SETTLE in r["transition_reason"]),
+          "label_transition_settle_entries": sum(1 for r in rows for e in r.get("anomalies") or []
+                                                 if LABEL_RULE_SETTLE in (e.get("transition_reason") or [])),
+          "capture_span_ticks": ticks, "frames_dropped": ticks - n, "frames_dropped_ticks": [],
+          "frames_dropped_ticks_truncated": False, "frames_dropped_by_cause": {"unknown": 0, "bench_drop": ticks - n},
+          "label_rows_failed": 0, "ticks_per_captured_frame": round(ticks / float(max(1, n)), 6)}
+    if rs_extra:
+        rs.update(rs_extra)
+    with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
+        json.dump(rs, fh)
+    if run_json:
+        with open(os.path.join(d, "run.json"), "w", encoding="utf-8") as fh:
+            json.dump({"settle_frames": k, "pre_frames": 4, "positive_frames": 8, "post_frames": 4}, fh)
+    return d
 
 
 def _lr_blink_session(labelled_keys=True, vp_override=None):
@@ -4150,6 +4602,174 @@ def _label_rule_selftest():
         rows, ev = _lr_blink_session()
         rows[5]["anomalies"][0].pop("labelled")
         case("mixed_rules_refused", rows, ev, 3)
+
+        def case56(name, d, want_code, want_fail=None, extra=None, only=None):
+            code, lines, detail = label_rule_check(d, quiet=True)
+            ok = code == want_code
+            if want_fail is not None:
+                ok = ok and want_fail in detail.get("fails", {})
+            if only is not None:
+                ok = ok and set(detail.get("fails", {})) == set(only)
+            if extra is not None:
+                ok = ok and extra(detail, lines)
+            results.append(ok)
+            print("LABEL-RULE SELFTEST %-44s -> exit %d rule %-4s %s" % (name, code, detail.get("rule"),
+                                                                         "ok" if ok else "BROKEN"), flush=True)
+            if not ok:
+                for line in lines:
+                    print("    " + line, flush=True)
+
+        case56("S56_a_healthy_schema_2_2_with_settle_clean", _m56_write(root, "s56a", _m56_rows()), 0,
+               extra=lambda d, l: d["settle_rows"] == 10 and d["settle_entries"] == 10 and d["settle_k"] == 2
+               and d["reasons"].get("missing_texture/settle") == 10 and any(LABEL_RULE_SETTLE_SENTENCE in x for x in l))
+        case56("S56_a2_k0_no_settle_clean", _m56_write(root, "s56a2", _m56_rows(k=0), k=0), 0,
+               extra=lambda d, _l: d["settle_rows"] == 0)
+
+        def moved(rows_, a, b):
+            ra, rb = rows_[a], rows_[b]
+            for key in ("transition_present", "transition_reason"):
+                rb[key] = ra.pop(key)
+            for e in ra["anomalies"]:
+                e.pop("transition", None)
+                e.pop("transition_reason", None)
+            for e in rb["anomalies"]:
+                e["transition"] = 1
+                e["transition_reason"] = [LABEL_RULE_SETTLE]
+            return rows_
+        case56("S56_b_settle_flag_moved_one_tick_later_FAILS", _m56_write(root, "s56b", moved(_m56_rows(), 5, 6)), 1,
+               "SETTLE-MISPLACED", only={"SETTLE-MISPLACED"})
+        case56("S56_b2_offset_settle_moved_onto_revert_tick_FAILS",
+               _m56_write(root, "s56b2", moved(_m56_rows(), 15, 14)), 1, "SETTLE-MISPLACED")
+        r56 = _m56_rows()
+        r56[4]["transition_reason"] = []
+        r56[4].pop("transition_present")
+        case56("S56_c_entry_settle_without_row_flag_FAILS", _m56_write(root, "s56c", r56), 1, "SETTLE-INCONSISTENT")
+        r56 = _m56_rows()
+        r56[14].pop("transition_present")
+        case56("S56_d_settle_row_without_transition_present_FAILS", _m56_write(root, "s56d", r56), 1,
+               "TRANSITION-PRESENT-MISMATCH")
+
+        def zero_match(rows_):
+            for t in (16, 17):
+                rows_[t]["transition_present"] = True
+                rows_[t]["transition_reason"] = [LABEL_RULE_SETTLE]
+            return rows_
+        case56("S56_e_settle_rows_with_no_event_and_no_zero_match_FAILS",
+               _m56_write(root, "s56e", zero_match(_m56_rows())), 1, "SETTLE-MISPLACED")
+        case56("S56_e2_off_schedule_strays_with_zero_match_bursts_FAILS",
+               _m56_write(root, "s56e2", zero_match(_m56_rows()), rs_extra={"zero_match_bursts": 1}), 1, "SETTLE-MISPLACED")
+
+        def zero_match_burst(rows_, onset):
+            for r in rows_:
+                if onset <= r["tick_index"] <= onset + 2 + 8 + 2:
+                    r["anomalies"] = []
+                    r["anomaly_present"] = r["visible_positive"] = False
+            return rows_
+        case56("S56_e3_zero_match_burst_at_its_schedule_clean",
+               _m56_write(root, "s56e3", zero_match_burst(_m56_rows(), 19), rs_extra={"zero_match_bursts": 1}), 0,
+               extra=lambda d, l: "4 allowed at schedule positions" in d["settle_placement"])
+        case56("S56_e4_two_zero_match_bursts_counted_as_one_FAILS",
+               _m56_write(root, "s56e4", zero_match_burst(zero_match_burst(_m56_rows(), 19), 35),
+                          rs_extra={"zero_match_bursts": 1}), 1, "SETTLE-MISPLACED")
+        case56("S56_e5_two_zero_match_bursts_clean",
+               _m56_write(root, "s56e5", zero_match_burst(zero_match_burst(_m56_rows(), 19), 35),
+                          rs_extra={"zero_match_bursts": 2}), 0)
+        r56 = zero_match_burst(_m56_rows(), 19)
+        r56[31]["transition_reason"] = []
+        r56[31].pop("transition_present")
+        case56("S56_e6_zero_match_revert_run_short_one_tick_FAILS",
+               _m56_write(root, "s56e6", r56, rs_extra={"zero_match_bursts": 1}), 1, "SETTLE-MISPLACED")
+        r56 = [r for r in _m56_rows() if r["tick_index"] != 18]
+        case56("S56_f_tick_missing_counted_as_no_drop_FAILS",
+               _m56_write(root, "s56f", r56, rs_extra={"frames_dropped": 0, "frames_dropped_by_cause": {"unknown": 0},
+                                                         "total_frames": 40}), 1, "DROP-COUNT")
+        case56("S56_f2_tick_missing_honestly_counted_clean",
+               _m56_write(root, "s56f2", [r for r in _m56_rows() if r["tick_index"] != 18],
+                          rs_extra={"frames_dropped_ticks": [18]}), 0,
+               extra=lambda d, _l: "frames_dropped 1" in d["continuity"])
+        case56("S56_g_settle_frames_count_disagrees_FAILS",
+               _m56_write(root, "s56g", _m56_rows(), rs_extra={"settle_frames": 9}), 1, "SETTLE-COUNT", only={"SETTLE-COUNT"})
+        case56("S56_h_settle_in_a_schema_2_1_annotation_FAILS", _m56_write(root, "s56h", _m56_rows(), minor=1), 1,
+               "ANNOTATION-TRANSITIONS")
+        shifted = _m56_rows()
+        lab = [r["tick_index"] for r in shifted if any(e.get("labelled") for e in r["anomalies"])]
+        for r in shifted:
+            for e in r["anomalies"]:
+                e["labelled"] = (r["tick_index"] - 1) in lab
+            r["anomaly_present"] = r["visible_positive"] = any(e["labelled"] for e in r["anomalies"])
+        case56("S56_i_labels_shifted_one_frame_against_annotation_FAILS",
+               _m56_write(root, "s56i", shifted, ann_post=lambda a: [ev.update(injected_frames={"frame_indices": sorted(
+                   x - 1 for x in ev["injected_frames"]["frame_indices"])}) for ev in a["anomalies"]]), 1, "LABELLED-EXTRA")
+        r56 = _m56_rows()
+        r56[4]["transition_reason"] = [LABEL_RULE_SETTLE, "warmup"]
+        case56("S56_j_unknown_row_level_reason_FAILS", _m56_write(root, "s56j", r56), 1, "REASON-UNKNOWN")
+
+        def drop_event(ann):
+            ann["anomalies"] = ann["anomalies"][1:]
+        veto_id = "missing_texture@103|Rock"
+        case56("S56_k_vetoed_event_settle_entries_unlisted_clean",
+               _m56_write(root, "s56k", _m56_rows(), ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id]}), 0,
+               extra=lambda d, _l: d["vetoed_labelled"] > 0)
+        case56("S56_k2_same_without_a_veto_FAILS",
+               _m56_write(root, "s56k2", _m56_rows(), ann_post=drop_event), 1, "ANNOTATION-TRANSITIONS")
+        case56("S56_k3_veto_count_without_ids_no_longer_excuses_FAILS",
+               _m56_write(root, "s56k3", _m56_rows(), ann_post=drop_event, rs_extra={"vetoed_events": 1}), 1,
+               "ANNOTATION-TRANSITIONS")
+        case56("S56_k4_vetoed_id_listed_for_another_event_FAILS",
+               _m56_write(root, "s56k4", _m56_rows(), ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": ["missing_texture@119|Rock"]}), 1,
+               "ANNOTATION-TRANSITIONS")
+
+        def shell_first_drop_second(ann):
+            ev0 = ann["anomalies"][0]
+            ev0["injected_frames"] = {"frame_indices": []}
+            ev0["affected_frames"] = {"frame_indices": []}
+            ev0["manifested"] = False
+            del ann["anomalies"][1]
+        case56("S56_k5_reviewer_probe_shell_plus_lost_event_FAILS",
+               _m56_write(root, "s56k5", _m56_rows(), ann_post=shell_first_drop_second, rs_extra={"vetoed_events": 1}),
+               1, "ANNOTATION-TRANSITIONS")
+
+        def drop_first_and_second(ann):
+            del ann["anomalies"][0:2]
+        case56("S56_k6_lost_event_beside_an_id_listed_veto_FAILS",
+               _m56_write(root, "s56k6", _m56_rows(), ann_post=drop_first_and_second,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id]}), 1, "ANNOTATION-TRANSITIONS",
+               extra=lambda d, _l: "LABELLED-EXTRA" in d["fails"])
+        r56 = _m56_rows()
+        for r in r56:
+            for e in r["anomalies"]:
+                if e["event_id"] == veto_id and e.get("transition") == 1 and r["tick_index"] > 10:
+                    e["transition_reason"] = [LABEL_RULE_SETTLE, "temporal_aa"]
+        case56("S56_k7_vetoed_id_with_a_non_settle_reason_FAILS",
+               _m56_write(root, "s56k7", r56, ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id], "label_temporal_aa": True}), 1,
+               "ANNOTATION-TRANSITIONS")
+        def held_global_rows(flag_schedule):
+            rows_ = []
+            sched = _m56_rows()
+            for t in range(40):
+                lab = t % 7 in (2, 3, 4)
+                e = {"id": "camera_clipping", "target_name": "Wall", "start_frame": 100,
+                     "event_id": "camera_clipping@100|Wall", "bbox_valid": True, "labelled": lab}
+                r = {"session_index": t, "frame_index": 100 + t, "tick_index": t, "t_wall_run": round(t / 30.0, 6),
+                     "anomaly_present": lab, "anomalies": [e], "visible_positive": lab}
+                if flag_schedule and isinstance(sched[t].get("transition_reason"), list):
+                    r["transition_present"] = True
+                    r["transition_reason"] = [LABEL_RULE_SETTLE]
+                rows_.append(r)
+            return rows_
+        case56("S56_n_targeted_held_global_camera_clipping_no_settle_clean",
+               _m56_write(root, "s56n", held_global_rows(False)), 0,
+               extra=lambda d, _l: d["settle_rows"] == 0)
+        case56("S56_n2_held_global_with_settle_on_the_burst_schedule_FAILS",
+               _m56_write(root, "s56n2", held_global_rows(True)), 1, "SETTLE-MISPLACED")
+        r56 = _m56_rows()
+        r56[20].pop("tick_index")
+        case56("S56_l_row_without_tick_index_FAILS", _m56_write(root, "s56l", r56), 1, "TICK-CONTINUITY")
+        case56("S56_m_no_run_json_infers_k_clean", _m56_write(root, "s56m", _m56_rows(), run_json=False), 0,
+               extra=lambda d, _l: d["settle_k"] == 2 and "inferred" in d["settle_placement"])
     finally:
         shutil.rmtree(root, ignore_errors=True)
     if all(results):
@@ -4217,8 +4837,10 @@ def main():
                          "against annotation.json; sync-path rows (capture_unpaired) are dropped and checked to be "
                          "unlabelled and unlisted; PIE end-settle frames (pie_end_settle) are checked to sit only on the "
                          "first frame after each fire-window label run of a Play-In-Editor capture, unlabelled and "
-                         "unlisted, and are dropped. Exit 0 no mismatch, 1 mismatch, 3 cannot run or not judged (every row "
-                         "on the sync path). With --selftest it proves the reader can fail both ways.")
+                         "unlisted, and are dropped; schema 2.2 (m56) settle frames are checked to sit on the K ticks after "
+                         "every onset and offset, and tick_index against run_summary's drop count. Exit 0 no mismatch, 1 "
+                         "mismatch, 3 cannot run or not judged (every row on the sync path). With --selftest it proves the "
+                         "reader can fail both ways.")
     args = ap.parse_args()
 
     if args.selftest:

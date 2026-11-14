@@ -607,7 +607,7 @@ separate real-Play eyeball shell). `Step`/`FireOnce` drive the deterministic cor
 Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `AnomalyControlServer` module; only when
 `ANOMALY_CONTROL_SERVER=1`). Narrow the fired types via `IAI.Auto.Pool` first; the auto-injector's `Run` must be OFF:
 - `IAI.Capture.Shot [outDir] [png|jpeg]` — capture ONE labeled frame now (default dir `<ProjectSaved>/AnomalyCaptures/manual`).
-- `IAI.Capture.Config <settleK> <preFrames> <positiveFrames> <postFrames> <burstCount>` — set the burst schedule (burstCount 0 = until Stop).
+- `IAI.Capture.Config <settleK> <preFrames> <positiveFrames> <postFrames> <burstCount>` — set the burst schedule (burstCount 0 = until Stop). m56: `settleK` = captured frames after each onset and offset flagged `settle` (default 2; 0 flags none; no tick is skipped).
   ⚠ **`preFrames` is a ONE-TIME LEAD-IN — it runs once per RUN, not once per burst. The CLEAN GAP between
   annotated windows is governed by `postFrames` (`G160`).** Measured: `2 14 8 4 0` leaves the gap at **4**;
   `2 4 8 14 0` gives **14**. The schedule applies identically on the TARGETED and the AUTO-POOL paths — the
@@ -628,7 +628,8 @@ Capture & Labeling (m7) — drive the `UAnomalyCaptureSubsystem` (in the `Anomal
   and compiles out entirely on stock engines, so the core module stays fork-blind. Exactly one greppable
   `TICKPIN` line per run states the effective value and its source; `run_summary` carries
   `tickpin_compiled/applied/saved/reasserts`, `capture_game_ticks` and `ticks_per_captured_frame`
-  (**`annotation.json`'s field set does NOT move** — the m27 precedent).
+  (**`annotation.json`'s field set does NOT move** — the m27 precedent). m56: `ticks_per_captured_frame` =
+  `capture_span_ticks` / frames written (1.0 when continuous); `capture_game_ticks` keeps its meaning.
 - `IAI.Capture.ViewLag <frames>` — bbox-projection view-lag L (default **0**; see "Capture & Labeling" below).
 - `IAI.Capture.Start [outDir] [png|jpeg] [seed]` — start a burst run (default dir `<ProjectSaved>/AnomalyCaptures`; png; seed = auto-injector's current).
 - `IAI.Capture.Stop` — stop the run (reverts in-flight fire, writes `run_summary.json`; cancels an armed-pending run cleanly).
@@ -1184,7 +1185,10 @@ activity in a packaged Development/Test build, never a retail Shipping build, sa
   burst's pre-roll); `BurstCount 0` = until Stop. The **settle-K is SYMMETRIC at BOTH boundaries** because a game-thread
   mutation reaches the rendered frame >=1 frame later (`r.OneFrameThreadLag`); skipping K frames after both the fire and
   the revert keeps boundary frames from mislabeling (gotcha G37, default K=2). One frame per tick; each captured frame is
-  stamped with `GFrameCounter`.
+  stamped with `GFrameCounter`. ⚠ **m56 (branch `fix/m56-capture-continuity`, not merged) supersedes "settle K
+  skipped":** the K settle ticks are captured and flagged `settle`; K now means "flagged frames after each edge", and
+  nothing is skipped (see "m56 capture continuity — schema v2.2" below; G78 had already refuted the skip's premise on
+  the async path).
 - **Per-frame labeling (same-tick, exact alignment — L3/Q6).** In one game-thread call: snapshot `Auto->GetLiveFires()` +
   synchronous `FViewport::ReadPixels` (native resolution, opaque-alpha — gotcha G39) + project each fired actor's bounds →
   write `frame_<GFrameCounter>.png` + append one JSONL record. The label falls out of the live-fire set: `anomaly_present`
@@ -1653,6 +1657,39 @@ The writer uses the same emission/reason predicates as the per-frame labels. `ve
 office kit 1.5 compare the two files. Temporal evidence travels with each SVE readback from the postprocess view;
 missing evidence fails safe and temporal protection stays latched through run end. Fire-window types share the
 3/40 onset/offset policy, with unfinished fire-window tracks carried into a following capture using their frozen geometry. The home pixel proof for this release is recorded separately in session 091-03.
+
+**m56 capture continuity — schema v2.2** (`label_schema_minor: 2`; branch `fix/m56-capture-continuity`, not merged; plan
+`_reviews\095-02-plan-A1-capture-continuity.md`). **Every engine tick from the first captured frame to the last is a
+written frame.** `SettleAfterFire` / `SettleAfterRevert` now call `CaptureCurrentFrame` with a frame role
+(`AnomalyLabelSync::EFrameRole::SettleAfterOnset` / `SettleAfterOffset`) before decrementing; phase lengths,
+`BeginFire` / `BeginRevert` and `FinalizeArmedLabel` are unchanged, so at `2 4 8 4 0` a cycle is 16 ticks and 16
+frames. Reason bit 9 `settle` (`ReasonSettle = 512`, `NumReasons` 10): `StepSettleFlags` ORs it into every emitted
+entry of a settle frame (it never changes an emit mode, so labels do not move); `BeginRevert` copies the live fires
+and freezes their geometry before `RevertAllLiveFires`, and the tick-end sample of an after-offset settle frame adds
+each copied fire that is no longer live as a transition-only `settle` entry with that frozen geometry (R4 rule kept).
+Every settle row carries row-level `transition_present` and `transition_reason: ["settle"]`, with or without an
+entry; `transition_frame_count` includes it. Rows gain `tick_index` (`CaptureGameTicks − TicksAtFirstArm`) and
+`t_wall_run`; `run_summary` gains `capture_span_ticks`, `frames_armed`, `frames_dropped`, `frames_dropped_ticks`
+(cap 4096) `_truncated`, `frames_dropped_by_cause` (`unresolved_at_end`, `cancelled_epoch`, `bench_gate`,
+`bench_drop`, `write_failed`, `writer_timeout`, `not_armed`, `unknown`; capturer-level causes roll into
+`unresolved_at_end`, ruling 095-05), `orphan_completions`, `label_rows_failed`, `settle_frames`,
+`label_transition_settle_entries` and the writer keys (`writer_pending_byte_cap` 1 GiB, `_count_floor` 4,
+`_bytes_peak`, `writer_backpressure_waits` / `_seconds`, `writer_flush_complete`); `ticks_per_captured_frame` is
+span / written (1.0 when continuous). A frame armed but never written leaves every `annotation.json` list. The fps
+stamp follows written frames on a lossy run (unchanged when continuous). The writer finishes every job at run end
+and blocks, never drops, above 1 GiB of pending pixels; every wait (back-pressure, end-of-run and teardown flush) is
+bounded by progress, not time: no job completing for 120 s marks the writer stalled (`writer_stalled`), stops the run
+and counts every unwritten frame `writer_timeout`. Writer jobs carry a run generation, so a late job of an earlier run
+touches none of the next run's counts (095-06b S4/N2). Sync-fallback frames count as written (N1). A vetoed event
+leaves no event in `annotation.json`; `run_summary.vetoed_event_ids` names it (S1); the root `transition_frames` lists
+every transition frame (N10). A held session-global anomaly flags no `settle` frame (S3). The optional temporal
+windows skip `settle` frames when they count (`FEventTransitionTrack` settle-aware distance; S5). Readers (commit 5,
+`325a3e7`): `verify_capture.py` (2.1/2.2; SETTLE-*, TICK-CONTINUITY, DROP-COUNT), office kit 1.6
+(`label_sync_check.py`: settle excused both ways), `measure_label_offset.py`, `exclusion_gate.py`; bench checks in
+CaptureBench `m56-gates` (`m56_continuity_check.py`, `m56_nonsettle_compare.py`). ⚠ **Not yet proven: no engine
+leg has run; the default K = 2 still flags two frames per edge (the settle-exactness table decides K later); the
+dashboard's encode step and the client's bundled kit are not updated** (ruling A-R4: no client drop with m56 before
+they are).
 
 `affected_frames` is the **OBSERVABLE subset**
 (+ `span_frame_count`); **`injected_frames`** keeps the pre-m49 subset unchanged; plus

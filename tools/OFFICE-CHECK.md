@@ -10,7 +10,10 @@ It changes nothing, and it prints no folder, object or frame names, so the resul
 
        IAI.Capture.Config 2 40 8 30 0
 
-   (It gives 40 quiet frames before the first anomaly and 30 quiet frames after each one.)
+   (It gives 40 quiet frames before the first anomaly and 30 quiet frames after each one. On builds that write
+   schema 2.2, the 2 frames right after an anomaly starts and the 2 right after it stops are also captured and
+   flagged `settle`, so one cycle is 42 frames: 2 settle, 8 anomaly, 2 settle, 30 quiet. A 3000-frame capture then
+   holds about 70 anomalies, against about 78 on older builds.)
 3. In the dashboard: **Auto-pool**. In **Capture pool**, tick every anomaly **except `camera_clipping`**.
    Leave format **PNG** and size **native**. Set **frames** to **3000**.
 4. Press **Start capture**, click once into the game window, then **take your hands off the keyboard and
@@ -36,7 +39,12 @@ Read the lines under **READ BACK**, one per anomaly, for example:
 
 For each anomaly read: **judged**, **start**, **end**, **wrong-object** (both numbers), **censored**, **fail**,
 **interrupted**, **nanite**, **unjudged**, **unpaired**. Also read the **`sessions read`** line, the
-**`unpaired frames`** line and the **`decoder:`** line. That is all; `numbers.txt` holds the same text.
+**`unpaired frames`** line, the **`settle frames`** line and the **`decoder:`** line. That is all; `numbers.txt`
+holds the same text.
+
+**`settle frames`** counts the frames flagged `settle` (schema 2.2): the frames captured right after an anomaly
+starts or stops. The kit leaves them out of both edges, exactly as the client's rule drops them from training, so a
+picture still settling there is not a failure. Older captures read `0 in 0 session(s)`.
 
 **`interrupted`** counts anomalies the game removed partway through (for example by swapping the material back);
 their labels stop at that frame and are checked there, so it is not a failure by itself.
@@ -71,7 +79,8 @@ prints (numbers only).
   `IAI.Capture.Async 0` was typed); restart the game so the default settings return, and capture again.
 - **`annotation transitions mismatch`** means the settling-frame lists in `annotation.json` disagree with
   `labels.jsonl`. Keep both original files together and read back this refusal; the kit does not judge that session.
-  Kit 1.5 checks schema 2.1 sessions automatically. Keep `verify_capture.py` beside `label_sync_check.py` in host-tools.
+  Kit 1.6 checks schema 2.1 and 2.2 sessions automatically (kit 1.5 refuses every 2.2 session as `annotation
+  transitions mismatch`). Keep `verify_capture.py` beside `label_sync_check.py` in host-tools.
 - In PIE, the kit drops the first settling frame after a fire-window event, including a recorded proxy-route blur.
   Later temporal-AA frames still need their own flags and measured decay; the PIE flag alone never excuses them.
 
