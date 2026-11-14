@@ -1872,7 +1872,9 @@ render already agree, nothing is held and nothing changes; the final build's sta
   null-pair check does. The down-pop (`IAI.Anomaly.LodDownPop` / `LodPoppingDownPop`) is **experimental and off by
   default** (ruling 095-13 D1): the re-hold needs coverage >= 7 % at 0.85 x the swap size while the engine is still
   finer than the held LOD, a band that is empty whenever the release follows the engine's own switch closely (on the
-  bench paths; 095-13 journal, and the selftest's approach_retreat simulation with the switch on).
+  bench paths; 095-13 journal, and the selftest's approach_retreat simulation with the switch on). A mesh whose switch
+  lies under the 7 % size gives no distance event at walking speed (refused `at_finest_lod` / `too_far_ahead`); the
+  yield depends on the host's LOD settings (ruling 095-13 D2; `lod_swaps_by_cause` and the `Auto.Yield` refusals).
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:

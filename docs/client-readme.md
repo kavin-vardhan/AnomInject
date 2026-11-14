@@ -1469,7 +1469,12 @@ What each row leaves open, stated rather than implied:
   - `distance_threshold`: the object is frozen at the detail level it already shows (nothing changes), keeps it while
     you walk toward it, and snaps to full detail once it is clearly past both the point where the engine would have
     switched and the point where it covers 7 % of the frame. It is armed only when, at your walking speed, it will
-    reach that size within 3 seconds.
+    reach that size within 3 seconds. **A mesh whose detail switch happens while it is still under the 7 %
+    minimum gives no `distance_threshold` event at walking speed:** the low-detail version would have to be held far
+    longer than the 150-frame cap before anyone could see it. That is deliberate (no label for a change nobody can
+    see), and it means the number of distance events depends on your game's LOD settings. `run_summary.json`
+    `lod_swaps_by_cause` counts the pops per trigger (`distance`, `view_entry`), each event's `anomaly_subtype` names
+    its trigger, and the capture log's `Auto.Yield` line counts the refused bursts by reason (`lod_not_armable:...`).
     **Pop back down on walking away (experimental, off by default):** `IAI.Anomaly.LodDownPop 1` lets a
     `distance_threshold` object that already snapped to full detail be held at the low-detail version again when you
     walk away past 0.85 of the size at which it snapped (a second swap, direction `down`). It has never been seen to
