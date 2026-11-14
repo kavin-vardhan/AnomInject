@@ -415,6 +415,11 @@ TArray<TWeakObjectPtr<AActor>> AnomalyLodTrigger::CollectArmableActors(UWorld* W
 		{
 			continue;
 		}
+		if (!AnomalyDefaults::GetAllowTranslucentOnlyTargets() && AnomalyViewport::IsTranslucentOnlyComponent(C, true))
+		{
+			OutRefusals.FindOrAdd(TEXT("translucent_only")) += 1;
+			continue;
+		}
 		if (GetDistanceToBoundsCm(View.Origin, C) > CandidateMaxDistanceCm)
 		{
 			continue;
