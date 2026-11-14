@@ -835,7 +835,8 @@ bool FAnomaly_LodPopping::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddBool(TEXT("lod.dithered"), bDithered);
 	Out.AddInt(TEXT("lod.min_lod"), E.MinLod);
 	Out.AddInt(TEXT("lod.temporal0"), E.Input.TemporalLod0);
-	Out.AddInt(TEXT("lod.temporal1"), E.Input.TemporalLod1);	Out.AddBool(TEXT("lod.in_frustum"), E.Input.bInFrustum);
+	Out.AddInt(TEXT("lod.temporal1"), E.Input.TemporalLod1);
+	Out.AddBool(TEXT("lod.in_frustum"), E.Input.bInFrustum);
 	Out.AddBool(TEXT("lod.subvisible"), IsFlaggedClass(Class));
 	Out.AddBool(TEXT("lod.swap"), E.Observation.bSwap);
 	Out.AddBool(TEXT("lod.cap_reached"), E.bCapReached);
