@@ -516,6 +516,7 @@ const FAnomaly_LodPopping::FTickEndEval& FAnomaly_LodPopping::EvaluateNow() cons
 	bool bOnScreen = false;
 	E.Input.CoveragePct = AnomalyLodTrigger::GetComponentCoveragePct(World, Mesh, &bOnScreen);
 	E.Input.bOnScreen = bOnScreen;
+	E.Input.bInFrustum = bOnScreen || AnomalyViewport::IsComponentInFrustum(View, Mesh);
 	E.Input.EngineLod = Pred.bValid ? Pred.EngineLod : -1;
 	E.Input.TemporalLod0 = Pred.bValid ? Pred.TemporalLod0 : -1;
 	E.Input.TemporalLod1 = Pred.bValid ? Pred.TemporalLod1 : -1;
@@ -759,6 +760,7 @@ bool FAnomaly_LodPopping::GetTelemetry(FAnomalyTelemetry& Out) const
 	const EFrameClass Class = E.Observation.Class;
 	const TCHAR* State = Class == EFrameClass::Positive ? TEXT("labelled")
 		: Class == EFrameClass::Subvisible ? TEXT("subvisible")
+		: Class == EFrameClass::Occluded ? TEXT("occluded")
 		: Tracker.bHeld ? TEXT("armed") : TEXT("swapped");
 	Out.AddInt(TEXT("lod.held_lod"), Tracker.HeldLod);
 	Out.AddInt(TEXT("lod.engine_lod"), E.Input.EngineLod);
@@ -767,7 +769,8 @@ bool FAnomaly_LodPopping::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddFloat(TEXT("lod.coverage_pct"), E.Input.CoveragePct);
 	Out.AddBool(TEXT("lod.on_screen"), E.Input.bOnScreen);
 	Out.AddBool(TEXT("lod.held"), Tracker.bHeld);
-	Out.AddBool(TEXT("lod.subvisible"), Class == EFrameClass::Subvisible);
+	Out.AddBool(TEXT("lod.in_frustum"), E.Input.bInFrustum);
+	Out.AddBool(TEXT("lod.subvisible"), IsFlaggedClass(Class));
 	Out.AddBool(TEXT("lod.swap"), E.Observation.bSwap);
 	Out.AddBool(TEXT("lod.cap_reached"), E.bCapReached);
 	Out.AddString(TEXT("lod.trigger"), UTF8_TO_TCHAR(DescribeMode(Mode)));

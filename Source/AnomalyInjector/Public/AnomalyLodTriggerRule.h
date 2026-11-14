@@ -5,7 +5,7 @@
 namespace AnomalyLodTriggerRule
 {
 	enum class EMode : unsigned char { Periodic = 0, DistanceThreshold = 1, ViewEntry = 2, Auto = 3 };
-	enum class EFrameClass : unsigned char { Negative = 0, Positive = 1, Subvisible = 2 };
+	enum class EFrameClass : unsigned char { Negative = 0, Positive = 1, Subvisible = 2, Occluded = 3 };
 	enum class ESwapCause : unsigned char { None = 0, Distance = 1, ViewEntry = 2, HoldCap = 3 };
 	enum class EState : unsigned char { Armed = 0, Labelled = 1, Swapped = 2, Released = 3 };
 	enum class ETickAction : unsigned char { None = 0, ReleaseVisible = 1, ReHold = 2, ReleaseInvisible = 3 };
@@ -35,7 +35,8 @@ namespace AnomalyLodTriggerRule
 
 	inline const char* DescribeFrameClass(EFrameClass Class)
 	{
-		return Class == EFrameClass::Positive ? "positive" : Class == EFrameClass::Subvisible ? "subvisible" : "negative";
+		return Class == EFrameClass::Positive ? "positive" : Class == EFrameClass::Subvisible ? "subvisible"
+			: Class == EFrameClass::Occluded ? "occluded" : "negative";
 	}
 
 	struct FSettings
@@ -119,12 +120,21 @@ namespace AnomalyLodTriggerRule
 		return TemporalLod0 >= 0 && TemporalLod0 == TemporalLod1;
 	}
 
-	inline EFrameClass ClassifyFrame(bool bHeld, bool bOnScreen, int HeldLod, int EngineLod, float CoveragePct, float CoverageMinPct,
-		bool bContrast)
+	inline bool IsFlaggedClass(EFrameClass Class)
 	{
-		if (!bHeld || !bOnScreen || EngineLod < 0 || EngineLod >= HeldLod)
+		return Class == EFrameClass::Subvisible || Class == EFrameClass::Occluded;
+	}
+
+	inline EFrameClass ClassifyFrame(bool bHeld, bool bOnScreen, bool bInFrustum, int HeldLod, int EngineLod, float CoveragePct,
+		float CoverageMinPct, bool bContrast)
+	{
+		if (!bHeld || EngineLod < 0 || EngineLod >= HeldLod)
 		{
 			return EFrameClass::Negative;
+		}
+		if (!bOnScreen)
+		{
+			return bInFrustum ? EFrameClass::Occluded : EFrameClass::Negative;
 		}
 		return (CoveragePct >= CoverageMinPct && bContrast) ? EFrameClass::Positive : EFrameClass::Subvisible;
 	}
@@ -270,6 +280,7 @@ namespace AnomalyLodTriggerRule
 	struct FFrameInput
 	{
 		bool bOnScreen = false;
+		bool bInFrustum = false;
 		int EngineLod = -1;
 		int TemporalLod0 = -1;
 		int TemporalLod1 = -1;
@@ -313,7 +324,8 @@ namespace AnomalyLodTriggerRule
 	inline FObservation ObserveFrame(FTracker& T, const FFrameInput& In, const FSettings& Settings)
 	{
 		FObservation O;
-		O.Class = ClassifyFrame(T.bHeld, In.bOnScreen, T.HeldLod, In.EngineLod, In.CoveragePct, Settings.CoverageMinPct, In.bContrast);
+		O.Class = ClassifyFrame(T.bHeld, In.bOnScreen, In.bInFrustum || In.bOnScreen, T.HeldLod, In.EngineLod, In.CoveragePct,
+			Settings.CoverageMinPct, In.bContrast);
 		if (T.PendingCause != ESwapCause::None)
 		{
 			if (In.bOnScreen && In.EngineLod >= 0 && In.EngineLod != T.HeldLod)

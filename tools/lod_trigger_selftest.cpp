@@ -38,6 +38,7 @@ static FFrameInput Frame(bool bOnScreen, int EngineLod, float BoundsScreenSize, 
 {
 	FFrameInput In;
 	In.bOnScreen = bOnScreen;
+	In.bInFrustum = bOnScreen;
 	In.EngineLod = EngineLod;
 	In.TemporalLod0 = T0 == -2 ? EngineLod : T0;
 	In.TemporalLod1 = T1 == -2 ? EngineLod : T1;
@@ -99,17 +100,22 @@ static void TestFreezeAndClassify()
 	Check(!FreezeIsInvisible(0, 0, 0), "freezing LOD0 is not a held coarse LOD");
 	Check(!FreezeIsInvisible(1, 1, 0), "mid-dither freeze refused");
 	Check(!FreezeIsInvisible(2, 1, 2), "a sample disagreeing with the engine LOD refuses");
-	Check(ClassifyFrame(true, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Positive, "held, on screen, wrong, big = positive");
-	Check(ClassifyFrame(true, true, 1, 0, 3.0f, 7.0f, true) == EFrameClass::Subvisible, "held, wrong, small = subvisible");
-	Check(ClassifyFrame(true, true, 1, 0, 7.0f, 7.0f, true) == EFrameClass::Positive, "coverage equal to the minimum is positive");
-	Check(ClassifyFrame(true, false, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "off screen is negative");
-	Check(ClassifyFrame(true, true, 1, 1, 9.0f, 7.0f, true) == EFrameClass::Negative, "held equals engine is negative");
-	Check(ClassifyFrame(true, true, 1, 2, 9.0f, 7.0f, true) == EFrameClass::Negative, "engine coarser than held is negative");
-	Check(ClassifyFrame(false, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "released is negative");
-	Check(ClassifyFrame(true, true, 1, -1, 9.0f, 7.0f, true) == EFrameClass::Negative, "unknown engine LOD is negative");
-	Check(ClassifyFrame(true, true, 1, 0, 9.0f, 7.0f, false) == EFrameClass::Subvisible,
+	Check(ClassifyFrame(true, true, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Positive, "held, on screen, wrong, big = positive");
+	Check(ClassifyFrame(true, true, true, 1, 0, 3.0f, 7.0f, true) == EFrameClass::Subvisible, "held, wrong, small = subvisible");
+	Check(ClassifyFrame(true, true, true, 1, 0, 7.0f, 7.0f, true) == EFrameClass::Positive, "coverage equal to the minimum is positive");
+	Check(ClassifyFrame(true, false, false, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "off screen is negative");
+	Check(ClassifyFrame(true, true, true, 1, 1, 9.0f, 7.0f, true) == EFrameClass::Negative, "held equals engine is negative");
+	Check(ClassifyFrame(true, true, true, 1, 2, 9.0f, 7.0f, true) == EFrameClass::Negative, "engine coarser than held is negative");
+	Check(ClassifyFrame(false, true, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "released is negative");
+	Check(ClassifyFrame(true, true, true, 1, -1, 9.0f, 7.0f, true) == EFrameClass::Negative, "unknown engine LOD is negative");
+	Check(ClassifyFrame(true, false, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Occluded,
+		"held, in the frustum, engine finer, every visibility trace blocked = occluded (flagged, never a plain negative)");
+	Check(ClassifyFrame(true, false, true, 1, 1, 9.0f, 7.0f, true) == EFrameClass::Negative, "in the frustum but held equals engine = negative");
+	Check(ClassifyFrame(false, false, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "released and occluded = negative");
+	Check(IsFlaggedClass(EFrameClass::Occluded) && IsFlaggedClass(EFrameClass::Subvisible) && !IsFlaggedClass(EFrameClass::Positive),
+		"occluded and subvisible are the flagged classes");	Check(ClassifyFrame(true, true, true, 1, 0, 9.0f, 7.0f, false) == EFrameClass::Subvisible,
 		"held, wrong, big but without triangle contrast = subvisible (a faint pop is not a usable positive)");
-	Check(ClassifyFrame(true, true, 3, 2, 30.0f, 7.0f, false) == EFrameClass::Subvisible, "rock held 3 vs engine 2 with no contrast = subvisible");}
+	Check(ClassifyFrame(true, true, true, 3, 2, 30.0f, 7.0f, false) == EFrameClass::Subvisible, "rock held 3 vs engine 2 with no contrast = subvisible");}
 
 static void TestArmRules()
 {
@@ -332,7 +338,11 @@ static void TestTurnAwayAndCap()
 	Check(O.Class == EFrameClass::Negative && T.bHeld && T.State == EState::Armed, "turned away before the snap: held, armed, negative");
 	Check(!IsHoldingEventOpen(T), "turned away: the event is not held open");
 	Check(DecideTick(T, S) == ETickAction::None, "no visible release while unseen");
-
+	FFrameInput Glass = Frame(false, 0, 0.3f, 12.0f);
+	Glass.bInFrustum = true;
+	O = ObserveFrame(T, Glass, S);
+	Check(O.Class == EFrameClass::Occluded && !IsHoldingEventOpen(T) && T.bHeld, "behind glass: occluded, held, does not hold the event open");
+	Check(DecideTick(T, S) == ETickAction::None, "no release while occluded");
 	FSettings Cap;
 	Cap.HoldCapFrames = 5;
 	FTracker C;
@@ -570,7 +580,7 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 		{
 			const FSimFrame F = SimMeasure(Path(Tick), T);
 			FFrameInput In;
-			In.bOnScreen = F.bOn; In.EngineLod = F.Eng; In.TemporalLod0 = F.Eng; In.TemporalLod1 = F.Eng;
+			In.bOnScreen = F.bOn; In.bInFrustum = F.bOn; In.EngineLod = F.Eng; In.TemporalLod0 = F.Eng; In.TemporalLod1 = F.Eng;
 			In.BoundsScreenSize = F.S; In.CoveragePct = F.Cov;
 			In.bContrast = ContrastPasses(T.Tris, T.NumLods, Tr.HeldLod, F.Eng, S.TriangleRatio);
 			In.bRetreating = Tick >= 8 && (F.D - DistHistory[(Tick - 8) % 64]) / (8.0 * Dt) >= S.MinClosingSpeedCmPerS;

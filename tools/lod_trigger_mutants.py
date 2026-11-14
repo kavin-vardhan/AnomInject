@@ -23,6 +23,7 @@ MUTATIONS = {
                                    "const float Target = In.ReleaseScreenSize;"),
     "positive_ignores_contrast": ("return (CoveragePct >= CoverageMinPct && bContrast) ? EFrameClass::Positive",
                                   "return (CoveragePct >= CoverageMinPct) ? EFrameClass::Positive"),
+    "occluded_reads_negative": ("return bInFrustum ? EFrameClass::Occluded : EFrameClass::Negative;", "return EFrameClass::Negative;"),
     "arm_clock_no_restart": ("if (bWrongSeen && !Clock.bRestarted)", "if (bWrongSeen && !Clock.bRestarted && TimeoutFrames < 0)"),
     "view_margin_fixed": ("if (In.AngleOutsideFrustumDeg > ViewEntryMarginForRate(Settings, In.YawRateDegPerS, In.FrameSeconds))",
                           "if (In.AngleOutsideFrustumDeg > Settings.ViewEntryMarginDeg)"),
