@@ -4321,10 +4321,11 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		}
 	}
 
+	AnomalyDefaults::LatchLodAllowSkeletalForRun();
 	ApplySessionGlobals();
 
 	UE_LOG(LogAnomalyCapture, Log,
-		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s lodMaxDist=%s lodMinCov=%s lodHighestOnly=%s clipRadius=%s | excludePatterns=%s | labelsInDelivery=%s ==="),
+		TEXT("=== Capture run STARTED: %s | mode=%s | delivery=%s | clock=%s | seed=%d fmt=%s capture=%s fps=%d(fixed-step%s) | K=%d L=%d pre=%d positive=%d post=%d bursts=%s frameCap=%s | blinkHalf=%s lodHalf=%s lodMaxDist=%s lodMinCov=%s lodHighestOnly=%s lodSkeletal=%s clipRadius=%s | excludePatterns=%s | labelsInDelivery=%s ==="),
 		*RunDir,
 		bTargetedMode ? *FString::Printf(TEXT("targeted[%s on %s]"), *TargetAnomalyId.ToString(), *TargetActorName) : TEXT("auto-pool"),
 		bDeliveryMode ? TEXT("on") : TEXT("off"),
@@ -4339,6 +4340,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		*AnomalyDefaults::DescribeLodPoppingMaxDistance(),
 		*AnomalyDefaults::DescribeLodPoppingMinCoverage(),
 		*AnomalyDefaults::DescribeLodPoppingRequireHighestLod(),
+		*AnomalyDefaults::DescribeLodAllowSkeletal(),
 		*AnomalyDefaults::DescribeCameraClippingTriggerRadius(),
 		*AnomalyDefaults::DescribeExcludedTargetPatterns(),
 		*DescribeLabelsInDelivery());
@@ -8896,6 +8898,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		}
 
 		RevertSessionGlobals();
+		AnomalyDefaults::ReleaseLodAllowSkeletalLatch();
 
 		ComputeRunPacing();
 

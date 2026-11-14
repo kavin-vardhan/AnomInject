@@ -140,6 +140,30 @@ namespace
 		return bSet;
 	}
 
+	bool& AllowSkeletalOverride()
+	{
+		static bool bValue = false;
+		return bValue;
+	}
+
+	bool& AllowSkeletalOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
+	}
+
+	bool& AllowSkeletalLatched()
+	{
+		static bool bLatched = false;
+		return bLatched;
+	}
+
+	bool& AllowSkeletalLatchValue()
+	{
+		static bool bValue = false;
+		return bValue;
+	}
+
 	bool& AllowTranslucentOnlyOverride()
 	{
 		static bool bValue = false;
@@ -979,6 +1003,82 @@ namespace AnomalyDefaults
 		return FString::Printf(TEXT("%s(%s)"), bV ? TEXT("on") : TEXT("off"), Src);
 	}
 
+	const TCHAR* LodAllowSkeletalKey()
+	{
+		return TEXT("LodAllowSkeletal");
+	}
+
+	static bool ResolveLodAllowSkeletal(const TCHAR*& OutSource)
+	{
+		if (AllowSkeletalOverrideSet())
+		{
+			OutSource = TEXT("console");
+			return AllowSkeletalOverride();
+		}
+		bool bFromIni = false;
+		if (GConfig && GConfig->GetBool(SectionName(), LodAllowSkeletalKey(), bFromIni, GGameIni))
+		{
+			OutSource = TEXT("ini");
+			return bFromIni;
+		}
+		OutSource = TEXT("compiled");
+		return LodAllowSkeletalCompiled;
+	}
+
+	bool GetLodAllowSkeletal()
+	{
+		if (AllowSkeletalLatched())
+		{
+			return AllowSkeletalLatchValue();
+		}
+		const TCHAR* Source = TEXT("compiled");
+		return ResolveLodAllowSkeletal(Source);
+	}
+
+	void LatchLodAllowSkeletalForRun()
+	{
+		const TCHAR* Source = TEXT("compiled");
+		AllowSkeletalLatchValue() = ResolveLodAllowSkeletal(Source);
+		AllowSkeletalLatched() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_corruption/lod_popping: skeletal targets %s for this run (%s; IAI.Anomaly.LodAllowSkeletal, ini [%s] %s). %s"),
+			AllowSkeletalLatchValue() ? TEXT("ALLOWED") : TEXT("REFUSED (skeletal_unmeasured)"), Source, SectionName(),
+			LodAllowSkeletalKey(),
+			AllowSkeletalLatchValue()
+				? TEXT("A skeletal mesh applies a forced LOD one frame late, so its edge frames may be one frame off the picture. This is UNMEASURED.")
+				: TEXT("A skeletal mesh applies a forced LOD one frame late and that has never been measured, so both LOD anomalies refuse it."));
+	}
+
+	void ReleaseLodAllowSkeletalLatch()
+	{
+		AllowSkeletalLatched() = false;
+	}
+
+	void SetLodAllowSkeletalOverride(bool bAllow)
+	{
+		AllowSkeletalOverride() = bAllow;
+		AllowSkeletalOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("LodAllowSkeletal set to %s by console override (beats DefaultGame.ini [%s] %s). It takes effect at the next capture run%s."),
+			bAllow ? TEXT("1") : TEXT("0"), SectionName(), LodAllowSkeletalKey(),
+			AllowSkeletalLatched() ? TEXT("; the run in progress keeps its value") : TEXT(""));
+	}
+
+	void ClearLodAllowSkeletalOverride()
+	{
+		AllowSkeletalOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log, TEXT("LodAllowSkeletal console override cleared; the ini value or the compiled default 0 takes over at the next capture run."));
+	}
+
+	FString DescribeLodAllowSkeletal()
+	{
+		const TCHAR* Source = TEXT("compiled");
+		const bool bLive = ResolveLodAllowSkeletal(Source);
+		const bool bV = AllowSkeletalLatched() ? AllowSkeletalLatchValue() : bLive;
+		return FString::Printf(TEXT("%s(%s)%s"), bV ? TEXT("allowed") : TEXT("refused"), Source,
+			AllowSkeletalLatched() && bLive != bV ? TEXT("[pending next run]") : TEXT(""));
+	}
+
 	const TCHAR* AllowTranslucentOnlyTargetsKey()
 	{
 		return TEXT("AllowTranslucentOnlyTargets");
@@ -1406,6 +1506,31 @@ namespace
 			*AnomalyDefaults::DescribeLodPoppingRequireHighestLod());
 	}
 
+	void HandleLodAllowSkeletal(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Anomaly.LodAllowSkeletal <0|1|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeLodAllowSkeletal());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearLodAllowSkeletalOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetLodAllowSkeletalOverride(FCString::Atoi(*Args[0]) != 0);
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("IAI.Anomaly.LodAllowSkeletal: '%s' is not 0, 1 or 'default'."), *Args[0]);
+			return;
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Anomaly.LodAllowSkeletal: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeLodAllowSkeletal());
+	}
+
 	void HandleAllowTranslucentOnlyTargets(const TArray<FString>& Args)
 	{
 		if (Args.Num() < 1)
@@ -1681,6 +1806,17 @@ static FAutoConsoleCommand GLodRequireHighestLodCmd(
 	     "compiled default ON. Setting it OFF restores the previous auto-pool candidate set exactly. "
 	     "Usage: IAI.Anomaly.LodRequireHighestLod <0|1|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodRequireHighestLod));
+
+static FAutoConsoleCommand GLodAllowSkeletalCmd(
+	TEXT("IAI.Anomaly.LodAllowSkeletal"),
+	TEXT("Allow lod_corruption and lod_popping to force a LOD on a SKELETAL (skinned) mesh. DEFAULT 0: refused with "
+	     "reason skeletal_unmeasured. A skinned mesh reads a forced LOD in its own component tick, so the change "
+	     "reaches the render one frame after the anomaly sets it; read from UE 5.1 source, never measured. The labels "
+	     "at both edges of an event can then be one frame off the picture. 1 restores the previous behaviour exactly, "
+	     "with that caveat. The value is read when a capture run starts and holds for the whole run. PRECEDENCE: "
+	     "console beats DefaultGame.ini [AnomalyInjector] LodAllowSkeletal, which beats the compiled default 0. "
+	     "Usage: IAI.Anomaly.LodAllowSkeletal <0|1|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodAllowSkeletal));
 
 static FAutoConsoleCommand GAllowTranslucentOnlyTargetsCmd(
 	TEXT("IAI.Select.AllowTranslucentOnlyTargets"),
