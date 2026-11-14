@@ -3709,6 +3709,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	UnarmedTickCause.Reset();
 	NonManifestedEvents = 0;
 	VetoedEvents = 0;
+	VetoedEventIds.Reset();
 	SessionFrameIndex = 0;
 	CameraClipAccum = FCameraClipRunAccum();
 	SyncResamplesPerformed = 0;
@@ -9206,6 +9207,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		}
 
 		VetoedEvents = 0;
+		VetoedEventIds.Reset();
 		TranslucentVetoes = 0;
 		TranslucencyUnknownVetoes = 0;
 		int32 CountedEventsBefore = Async.IsValid() ? Async->SessionEvents.Num() : 0;
@@ -9288,6 +9290,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					TEXT("small it is - the rule is zero-only and there is no ratio or threshold."),
 					*Ev.Id.ToString(), *Ev.Target, Ev.StartFrame,
 					LexToStringAnomalyMaskState(Rec->State));
+				VetoedEventIds.Add(FString::Printf(TEXT("%s@%llu|%s"), *Ev.Id.ToString(), Ev.StartFrame, *Ev.Target));
 				Async->SessionEvents.RemoveAt(i);
 				++VetoedEvents;
 			}
@@ -9923,6 +9926,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			ContinuityReport.WriterPendingByteCap = GWriterPendingByteCap;
 			ContinuityReport.WriterPendingCountFloor = GWriterPendingCountFloor;
 			ContinuityReport.bWriterFlushComplete = bWriterFlushComplete;
+			ContinuityReport.VetoedEventIds = VetoedEventIds;
 			if (Async.IsValid() && Async->Writer.IsValid())
 			{
 				ContinuityReport.LabelRowsFailed += Async->Writer->GetLabelRowsFailed();
@@ -10577,10 +10581,16 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		AnomalyLabel::WriteSelectionProvenance(RunDir, Prov);
 	}
 
+	int32 VetoedTransitionKeysSkipped = 0;
 	for (const TPair<FString, AnomalyLabel::FSessionTransition>& KV : A.Transitions)
 	{
 		if (A.Events.ContainsByPredicate([&](const AnomalyLabel::FSessionEvent& E) { return E.EventId == KV.Key; }))
 		{
+			continue;
+		}
+		if (VetoedEventIds.Contains(KV.Key))
+		{
+			++VetoedTransitionKeysSkipped;
 			continue;
 		}
 		AnomalyLabel::FSessionEvent Out;
@@ -10592,6 +10602,14 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		Node.Name = KV.Value.Fire.Target;
 		Out.Nodes.Add(Node);
 		A.Events.Add(MoveTemp(Out));
+	}
+	if (VetoedTransitionKeysSkipped > 0)
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m56): %d vetoed event(s) carried transition-only entries (their settle frames); no event is written for ")
+			TEXT("them, so a vetoed event still leaves no event in annotation.json. Their frames stay in the session transition ")
+			TEXT("list, and run_summary.vetoed_event_ids names them for the readers."),
+			VetoedTransitionKeysSkipped);
 	}
 	if (AnomalyLabel::WriteSessionAnnotation(RunDir, A))
 	{

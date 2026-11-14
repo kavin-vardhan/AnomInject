@@ -1139,6 +1139,11 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("writer_backpressure_waits"), Continuity->WriterBackpressureWaits);
 			Root->SetNumberField(TEXT("writer_backpressure_seconds"), Continuity->WriterBackpressureSeconds);
 			Root->SetBoolField(TEXT("writer_flush_complete"), Continuity->bWriterFlushComplete);
+			TArray<FString> VetoedIds = Continuity->VetoedEventIds;
+			VetoedIds.Sort();
+			TArray<TSharedPtr<FJsonValue>> VetoedIdValues;
+			for (const FString& Id : VetoedIds) { VetoedIdValues.Add(MakeShared<FJsonValueString>(Id)); }
+			Root->SetArrayField(TEXT("vetoed_event_ids"), VetoedIdValues);
 		}
 		Root->SetNumberField(TEXT("schema_version"), SchemaVersion);
 		Root->SetNumberField(TEXT("total_frames"), TotalFrames);
