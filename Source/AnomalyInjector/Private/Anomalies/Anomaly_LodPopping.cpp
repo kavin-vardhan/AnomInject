@@ -497,6 +497,9 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 	LastCommittedFrame = 0;
 	Best->SetForcedLodModel(BestEval.HeldLod + 1);
 	bActive = true;
+	TArray<UMeshComponent*> Forced;
+	Forced.Add(Best);
+	AnomalyLod::ScopeEventToForcedComponents(Forced, ScopedOwners, TEXT("lod_popping"));
 	UE_LOG(LogAnomaly, Log,
 		TEXT("lod_popping: ARMED '%s' mode=%s held_lod=%d (forced_lod_model=%d, saved %d) engine_lod=%d screen_size=%.6f ")
 		TEXT("release_screen_size=%.6f look_ahead_screen_size=%.6f frames_ahead=%d closing_cm_s=%.1f angle_outside_deg=%.2f settings[%s] coverage_min=%.2f. ")
