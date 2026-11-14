@@ -1,0 +1,43 @@
+import argparse
+import json
+from pathlib import Path
+
+
+MUTATIONS = {
+    "coverage_ignored": ("return CoveragePct >= CoverageMinPct ? EFrameClass::Positive : EFrameClass::Subvisible;",
+                         "return EFrameClass::Positive;"),
+    "release_ignores_dither": ("if (T.Mode == EMode::DistanceThreshold && T.LastClass == EFrameClass::Positive && In.bContrast && bAgree",
+                               "if (T.Mode == EMode::DistanceThreshold && T.LastClass == EFrameClass::Positive && In.bContrast"),
+    "invisible_swap_counted": ("if (In.bOnScreen && In.EngineLod >= 0 && In.EngineLod != T.HeldLod)",
+                               "if (In.bOnScreen && In.EngineLod >= 0)"),
+    "freeze_ignores_temporal": ("return EngineLod >= 1 && TemporalLod0 == EngineLod && TemporalLod1 == EngineLod;",
+                                "return EngineLod >= 1;"),
+    "downpop_without_retreat": ("In.bOnScreen && In.bRetreating\n", "In.bOnScreen\n"),
+    "strict_engine_compare": ("if (MeshRadius * MeshRadius > RadiusSquared)", "if (MeshRadius * MeshRadius >= RadiusSquared)"),
+    "subvisible_holds_open": ("return T.bHeld && T.bHasLast && T.LastClass == EFrameClass::Positive && !T.bCapReached",
+                              "return T.bHeld && T.bHasLast && T.LastClass != EFrameClass::Negative && !T.bCapReached"),
+    "entry_frames_off_by_one": ("&& T.PositiveFramesSeen >= Settings.EntryFrames)", "&& T.PositiveFramesSeen > Settings.EntryFrames)"),
+}
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Write one mutated copy of AnomalyLodTriggerRule.h per mutation; the selftest must FAIL on each.")
+    ap.add_argument("header")
+    ap.add_argument("output")
+    args = ap.parse_args()
+    source = Path(args.header).read_text(encoding="utf-8").replace("\r\n", "\n")
+    created = []
+    for name, (old, new) in MUTATIONS.items():
+        if source.count(old) != 1:
+            raise RuntimeError("mutation anchor changed: " + name)
+        path = Path(args.output) / name / "AnomalyLodTriggerRule.h"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            raise RuntimeError("refusing overwrite: " + str(path))
+        path.write_text(source.replace(old, new), encoding="utf-8")
+        created.append(str(path))
+    print(json.dumps(created, indent=1))
+
+
+if __name__ == "__main__":
+    main()

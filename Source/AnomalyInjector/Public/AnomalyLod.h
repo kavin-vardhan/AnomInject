@@ -5,9 +5,55 @@
 
 class UWorld;
 class UMeshComponent;
+class UStaticMeshComponent;
+class FSceneView;
+class FSceneViewFamilyContext;
 
 namespace AnomalyLod
 {
+	static constexpr int32 MaxLodEntries = 8;
+
+	struct FEngineLodPrediction
+	{
+		bool bValid = false;
+		int32 EngineLod = -1;
+		int32 TemporalLod0 = -1;
+		int32 TemporalLod1 = -1;
+		float BoundsScreenSize = -1.0f;
+		float Scale = 1.0f;
+		int32 MinLod = 0;
+		int32 NumLods = 0;
+		const TCHAR* Refusal = TEXT("");
+	};
+
+	class ANOMALYINJECTOR_API FLodViewScope
+	{
+	public:
+		explicit FLodViewScope(UWorld* World);
+		~FLodViewScope();
+		FLodViewScope(const FLodViewScope&) = delete;
+		FLodViewScope& operator=(const FLodViewScope&) = delete;
+		const FSceneView* GetView() const { return View; }
+		bool IsValid() const { return View != nullptr; }
+
+	private:
+		TUniquePtr<FSceneViewFamilyContext> Family;
+		const FSceneView* View = nullptr;
+	};
+
+	ANOMALYINJECTOR_API bool IsForceLodCvarActive();
+
+	ANOMALYINJECTOR_API float GetStaticMeshLodDistanceScale();
+
+	ANOMALYINJECTOR_API FEngineLodPrediction PredictEngineLod(const FSceneView* View, const UStaticMeshComponent* Component);
+
+	ANOMALYINJECTOR_API FEngineLodPrediction PredictEngineLod(UWorld* World, const UStaticMeshComponent* Component);
+
+	ANOMALYINJECTOR_API int32 GetLodTriangleCount(const UStaticMeshComponent* Component, int32 LodIndex);
+
+	ANOMALYINJECTOR_API int32 GetLodScreenSizes(const UStaticMeshComponent* Component, float (&OutSizes)[MaxLodEntries],
+		int32 (&OutTriangles)[MaxLodEntries]);
+
 	static constexpr int32 WorstLodSentinel = -1;
 
 	ANOMALYINJECTOR_API TArray<TWeakObjectPtr<UMeshComponent>> ResolveLodComponents(UWorld* World, const FString& Substring);

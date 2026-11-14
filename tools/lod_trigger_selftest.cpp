@@ -1,0 +1,312 @@
+#ifndef LOD_TRIGGER_HEADER
+#define LOD_TRIGGER_HEADER "../Source/AnomalyInjector/Public/AnomalyLodTriggerRule.h"
+#endif
+#include LOD_TRIGGER_HEADER
+
+#include <cstdio>
+#include <cstring>
+#include <string>
+
+using namespace AnomalyLodTriggerRule;
+
+static int GFailures = 0;
+static int GChecks = 0;
+
+static void Check(bool bOk, const std::string& What)
+{
+	++GChecks;
+	if (!bOk)
+	{
+		++GFailures;
+		std::printf("FAIL %s\n", What.c_str());
+	}
+}
+
+static bool Is(const char* Got, const char* Want)
+{
+	return Got && std::strcmp(Got, Want) == 0;
+}
+
+static const float GFixtureSS[8] = { 1.0f, 0.05f, 0, 0, 0, 0, 0, 0 };
+static const int GFixtureTris[2] = { 960, 48 };
+static const float GRockSS[8] = { 1.0f, 0.5f, 0.25f, 0.1f, 0, 0, 0, 0 };
+static const int GRockTris[4] = { 4000, 2000, 400, 90 };
+
+static FFrameInput Frame(bool bOnScreen, int EngineLod, float BoundsScreenSize, float CoveragePct, bool bContrast = true,
+	bool bRetreating = false, int T0 = -2, int T1 = -2)
+{
+	FFrameInput In;
+	In.bOnScreen = bOnScreen;
+	In.EngineLod = EngineLod;
+	In.TemporalLod0 = T0 == -2 ? EngineLod : T0;
+	In.TemporalLod1 = T1 == -2 ? EngineLod : T1;
+	In.BoundsScreenSize = BoundsScreenSize;
+	In.CoveragePct = CoveragePct;
+	In.bContrast = bContrast;
+	In.bRetreating = bRetreating;
+	return In;
+}
+
+static void TestEngineFormula()
+{
+	Check(EngineLodFromScreenSize(GFixtureSS, 8, 0.04f, 1.0f, 0) == 1, "fixture far is LOD1");
+	Check(EngineLodFromScreenSize(GFixtureSS, 8, 0.06f, 1.0f, 0) == 0, "fixture near is LOD0");
+	Check(EngineLodFromScreenSize(GFixtureSS, 8, 0.05f, 1.0f, 0) == 0, "equal screen size leaves the coarse LOD (strict >)");
+	Check(EngineLodFromScreenSize(GFixtureSS, 8, 0.0499f, 1.0f, 0) == 1, "just below the switch keeps LOD1");
+	Check(EngineLodFromScreenSize(GFixtureSS, 8, 0.06f, 2.0f, 0) == 1, "scale 2 keeps the coarse LOD at twice the size");
+	Check(EngineLodFromScreenSize(GFixtureSS, 8, 0.5f, 1.0f, 1) == 1, "MinLOD clamps up");
+	Check(EngineLodFromScreenSize(GRockSS, 8, 0.05f, 1.0f, 0) == 3, "rock tiny is LOD3");
+	Check(EngineLodFromScreenSize(GRockSS, 8, 0.2f, 1.0f, 0) == 2, "rock 0.2 is LOD2");
+	Check(EngineLodFromScreenSize(GRockSS, 8, 0.4f, 1.0f, 0) == 1, "rock 0.4 is LOD1");
+	Check(EngineLodFromScreenSize(GRockSS, 8, 0.9f, 1.0f, 0) == 0, "rock 0.9 is LOD0");
+	Check(EngineLodFromScreenSize(GRockSS, 8, 1.5f, 1.0f, 0) == 0, "larger than every screen size is LOD0");
+}
+
+static void TestContrast()
+{
+	Check(FinestContrastLod(GFixtureTris, 2, 1, 4) == 0, "fixture LOD1 contrasts with LOD0 (48*4 <= 960)");
+	Check(FinestContrastLod(GRockTris, 4, 3, 4) == 2, "rock held LOD3 contrasts first with LOD2 (90*4 <= 400)");
+	Check(FinestContrastLod(GRockTris, 4, 1, 4) == -1, "rock held LOD1 has no contrast LOD (2000*4 > 4000)");
+	Check(FinestContrastLod(GRockTris, 4, 0, 4) == -1, "held LOD0 has nothing finer");
+	Check(FinestContrastLod(GRockTris, 4, 2, 10) == 0, "ratio 10: held LOD2 contrasts only with LOD0");
+	Check(ContrastPasses(GRockTris, 4, 3, 2, 4), "contrast 3 vs 2 passes");
+	Check(!ContrastPasses(GRockTris, 4, 3, 3, 4), "same LOD never contrasts");
+	Check(ContrastPasses(GRockTris, 4, 2, 1, 4), "2 vs 1 passes (400*4 <= 2000)");
+	Check(!ContrastPasses(GRockTris, 4, 2, 1, 6), "2 vs 1 fails at ratio 6 (400*6 > 2000)");
+	Check(ContrastPasses(GRockTris, 4, 2, 0, 4), "2 vs 0 passes");
+	Check(!ContrastPasses(GRockTris, 4, 1, 0, 4), "1 vs 0 fails");
+	Check(ContrastPasses(GFixtureTris, 2, 1, 0, 20), "fixture ratio 20 passes exactly (48*20 = 960)");
+	Check(!ContrastPasses(GFixtureTris, 2, 1, 0, 21), "fixture ratio 21 fails");
+}
+
+static void TestThresholds()
+{
+	FSettings S;
+	Check(ScreenSizeForEngineLodAtMost(GFixtureSS, 8, 0, 1.0f) == 0.05f, "fixture switch to LOD0 at 0.05");
+	Check(ScreenSizeForEngineLodAtMost(GRockSS, 8, 2, 1.0f) == 0.1f, "rock LOD<=2 from 0.1");
+	Check(ScreenSizeForEngineLodAtMost(GRockSS, 8, -1, 1.0f) < 0.0f, "no contrast LOD gives no threshold");
+	const float R = ReleaseScreenSize(GFixtureSS, 8, GFixtureTris, 2, 1, 1.0f, S);
+	Check(R > 0.0549f && R < 0.0551f, "fixture release = 0.05 * 1.10 got " + std::to_string(R));
+	const float RockR = ReleaseScreenSize(GRockSS, 8, GRockTris, 4, 3, 1.0f, S);
+	Check(RockR > 0.1099f && RockR < 0.1101f, "rock held 3 release = 0.1 * 1.10 got " + std::to_string(RockR));
+	Check(ReleaseScreenSize(GRockSS, 8, GRockTris, 4, 1, 1.0f, S) < 0.0f, "rock held 1 has no release");
+}
+
+static void TestFreezeAndClassify()
+{
+	Check(FreezeIsInvisible(1, 1, 1), "freeze at LOD1 with agreeing samples is invisible");
+	Check(!FreezeIsInvisible(0, 0, 0), "freezing LOD0 is not a held coarse LOD");
+	Check(!FreezeIsInvisible(1, 1, 0), "mid-dither freeze refused");
+	Check(!FreezeIsInvisible(2, 1, 2), "a sample disagreeing with the engine LOD refuses");
+	Check(ClassifyFrame(true, true, 1, 0, 9.0f, 7.0f) == EFrameClass::Positive, "held, on screen, wrong, big = positive");
+	Check(ClassifyFrame(true, true, 1, 0, 3.0f, 7.0f) == EFrameClass::Subvisible, "held, wrong, small = subvisible");
+	Check(ClassifyFrame(true, true, 1, 0, 7.0f, 7.0f) == EFrameClass::Positive, "coverage equal to the minimum is positive");
+	Check(ClassifyFrame(true, false, 1, 0, 9.0f, 7.0f) == EFrameClass::Negative, "off screen is negative");
+	Check(ClassifyFrame(true, true, 1, 1, 9.0f, 7.0f) == EFrameClass::Negative, "held equals engine is negative");
+	Check(ClassifyFrame(true, true, 1, 2, 9.0f, 7.0f) == EFrameClass::Negative, "engine coarser than held is negative");
+	Check(ClassifyFrame(false, true, 1, 0, 9.0f, 7.0f) == EFrameClass::Negative, "released is negative");
+	Check(ClassifyFrame(true, true, 1, -1, 9.0f, 7.0f) == EFrameClass::Negative, "unknown engine LOD is negative");
+}
+
+static void TestArmRules()
+{
+	FSettings S;
+	int Ahead = 0;
+	FDistanceArmInput D;
+	D.EngineLod = 1; D.TemporalLod0 = 1; D.TemporalLod1 = 1; D.BoundsScreenSize = 0.03f; D.ReleaseScreenSize = 0.055f;
+	D.ScreenSizeRatePerFrame = 0.001f; D.ClosingSpeedCmPerS = 150.0f; D.ApproachAngleDeg = 5.0f;
+	Check(DistanceArmRefusal(D, S, Ahead) == nullptr && Ahead == 25, "approach arms with 25 frames ahead, got " + std::to_string(Ahead));
+	FDistanceArmInput Slow = D; Slow.ClosingSpeedCmPerS = 20.0f;
+	Check(Is(DistanceArmRefusal(Slow, S, Ahead), "not_approaching"), "slow approach refused");
+	FDistanceArmInput Away = D; Away.ScreenSizeRatePerFrame = -0.001f;
+	Check(Is(DistanceArmRefusal(Away, S, Ahead), "not_approaching"), "shrinking screen size refused");
+	FDistanceArmInput Side = D; Side.ApproachAngleDeg = 45.0f;
+	Check(Is(DistanceArmRefusal(Side, S, Ahead), "off_motion_axis"), "target off the motion axis refused");
+	FDistanceArmInput Far = D; Far.ScreenSizeRatePerFrame = 0.0001f;
+	Check(Is(DistanceArmRefusal(Far, S, Ahead), "too_far_ahead"), "release 250 frames ahead refused");
+	FDistanceArmInput Fine = D; Fine.EngineLod = 0; Fine.TemporalLod0 = 0; Fine.TemporalLod1 = 0;
+	Check(Is(DistanceArmRefusal(Fine, S, Ahead), "at_finest_lod"), "target at LOD0 refused");
+	FDistanceArmInput Dither = D; Dither.TemporalLod1 = 0;
+	Check(Is(DistanceArmRefusal(Dither, S, Ahead), "mid_dither"), "mid-dither refused");
+	FDistanceArmInput Past = D; Past.BoundsScreenSize = 0.06f;
+	Check(Is(DistanceArmRefusal(Past, S, Ahead), "already_past_release"), "already past the release refused");
+	FDistanceArmInput NoContrast = D; NoContrast.ReleaseScreenSize = -1.0f;
+	Check(Is(DistanceArmRefusal(NoContrast, S, Ahead), "no_contrast_lod"), "no contrast refused");
+
+	FViewEntryArmInput V;
+	V.AngleOutsideFrustumDeg = 10.0f; V.bYawTowardTarget = true; V.YawRateDegPerS = 60.0f; V.FrameSeconds = 1.0f / 30.0f;
+	V.bContrastAtHeld = true; V.CoverageAsIfInViewPct = 12.0f;
+	Check(ViewEntryArmRefusal(V, S, Ahead) == nullptr && Ahead == 5, "turn arms with 5 frames ahead, got " + std::to_string(Ahead));
+	FViewEntryArmInput In = V; In.AngleOutsideFrustumDeg = -3.0f;
+	Check(Is(ViewEntryArmRefusal(In, S, Ahead), "already_in_view"), "in view refused");
+	FViewEntryArmInput Wide = V; Wide.AngleOutsideFrustumDeg = 25.0f;
+	Check(Is(ViewEntryArmRefusal(Wide, S, Ahead), "too_far_outside_view"), "25 degrees outside refused");
+	FViewEntryArmInput Wrong = V; Wrong.bYawTowardTarget = false;
+	Check(Is(ViewEntryArmRefusal(Wrong, S, Ahead), "not_turning_toward"), "turning away refused");
+	FViewEntryArmInput Lazy = V; Lazy.YawRateDegPerS = 10.0f;
+	Check(Is(ViewEntryArmRefusal(Lazy, S, Ahead), "not_turning_toward"), "slow turn refused");
+	FViewEntryArmInput Shadow = V; Shadow.bShadowInView = true;
+	Check(Is(ViewEntryArmRefusal(Shadow, S, Ahead), "lod_shadow_in_view"), "shadow in view refused");
+	FViewEntryArmInput Small = V; Small.CoverageAsIfInViewPct = 2.0f;
+	Check(Is(ViewEntryArmRefusal(Small, S, Ahead), "too_small_in_view"), "too small in view refused");
+}
+
+static void TestApproach()
+{
+	FSettings S;
+	FTracker T;
+	T.Mode = EMode::DistanceThreshold;
+	T.HeldLod = 1;
+	T.ReleaseScreenSize = ReleaseScreenSize(GFixtureSS, 8, GFixtureTris, 2, 1, 1.0f, S);
+	FObservation O = ObserveFrame(T, Frame(true, 1, 0.04f, 2.0f), S);
+	Check(O.Class == EFrameClass::Negative && T.State == EState::Armed, "frozen far: negative, armed");
+	Check(DecideTick(T, S) == ETickAction::None, "no release while held equals engine");
+	O = ObserveFrame(T, Frame(true, 0, 0.051f, 3.0f), S);
+	Check(O.Class == EFrameClass::Subvisible, "wrong but small: subvisible");
+	Check(!IsHoldingEventOpen(T), "subvisible does not hold the event open");
+	Check(DecideTick(T, S) == ETickAction::None, "no release while subvisible");
+	O = ObserveFrame(T, Frame(true, 0, 0.053f, 8.0f), S);
+	Check(O.Class == EFrameClass::Positive && T.State == EState::Labelled, "wrong and big: positive, labelled");
+	Check(IsHoldingEventOpen(T), "positive holds the event open");
+	Check(DecideTick(T, S) == ETickAction::None, "below the release margin: still held");
+	O = ObserveFrame(T, Frame(true, 0, 0.0552f, 8.4f, true, false, 0, 1), S);
+	Check(DecideTick(T, S) == ETickAction::None, "past the release but mid-dither: release deferred");
+	O = ObserveFrame(T, Frame(true, 0, 0.056f, 8.6f), S);
+	Check(O.Class == EFrameClass::Positive, "still positive before the release");
+	Check(DecideTick(T, S) == ETickAction::ReleaseVisible && !T.bHeld, "release at the threshold");
+	Check(T.SwapScreenSize > 0.0559f && T.SwapScreenSize < 0.0561f, "swap screen size recorded");
+	O = ObserveFrame(T, Frame(true, 0, 0.058f, 9.0f), S);
+	Check(O.bSwap && O.Cause == ESwapCause::Distance && !O.bDown && O.FromLod == 1 && O.ToLod == 0, "swap frame: distance up 1->0");
+	Check(O.Class == EFrameClass::Negative && T.State == EState::Swapped, "swap frame is negative");
+	Check(!IsHoldingEventOpen(T), "swapped does not hold open");
+	O = ObserveFrame(T, Frame(true, 0, 0.06f, 9.4f), S);
+	Check(!O.bSwap, "a swap is recorded once");
+	Check(DecideTick(T, S) == ETickAction::None, "approaching after the swap: nothing");
+
+	O = ObserveFrame(T, Frame(true, 0, 0.05f, 8.0f, true, true), S);
+	Check(DecideTick(T, S) == ETickAction::None, "retreat inside the hysteresis band: no re-hold");
+	O = ObserveFrame(T, Frame(true, 0, 0.047f, 7.5f, true, true), S);
+	Check(DecideTick(T, S) == ETickAction::ReHold && T.bHeld, "retreat past 0.85 of the swap size: re-hold (down-pop)");
+	O = ObserveFrame(T, Frame(true, 0, 0.046f, 7.4f, true, true), S);
+	Check(O.bSwap && O.bDown && O.Cause == ESwapCause::Distance && O.FromLod == 0 && O.ToLod == 1, "down-pop swap recorded 0->1");
+	Check(O.Class == EFrameClass::Positive, "after a down-pop the frames are positive");
+	O = ObserveFrame(T, Frame(true, 1, 0.045f, 7.3f, true, true), S);
+	Check(O.Class == EFrameClass::Negative, "engine coarsened to the held LOD: negative");
+	Check(DecideTick(T, S) == ETickAction::ReleaseInvisible && !T.bHeld, "hold matches the engine: invisible release");
+	O = ObserveFrame(T, Frame(true, 1, 0.044f, 7.2f, true, true), S);
+	Check(!O.bSwap, "an invisible release is not a swap");
+
+	FTracker U;
+	U.Mode = EMode::DistanceThreshold;
+	U.HeldLod = 1;
+	U.ReleaseScreenSize = 0.055f;
+	ObserveFrame(U, Frame(true, 0, 0.056f, 9.0f), S);
+	Check(DecideTick(U, S) == ETickAction::ReleaseVisible, "release fires");
+	O = ObserveFrame(U, Frame(true, 1, 0.04f, 4.0f), S);
+	Check(!O.bSwap, "a release whose next frame already shows the held LOD is not a visible swap");
+	O = ObserveFrame(U, Frame(true, 0, 0.06f, 9.0f), S);
+	Check(!O.bSwap, "a later engine change is not a plugin swap");
+}
+
+static void TestNoDownPopWhenOff()
+{
+	FSettings S;
+	S.bDownPop = false;
+	FTracker T;
+	T.HeldLod = 1;
+	T.bHeld = false;
+	T.SwapScreenSize = 0.056f;
+	T.State = EState::Swapped;
+	ObserveFrame(T, Frame(true, 0, 0.04f, 7.5f, true, true), S);
+	Check(DecideTick(T, S) == ETickAction::None, "down-pop switch off: no re-hold");
+	S.bDownPop = true;
+	ObserveFrame(T, Frame(true, 0, 0.04f, 7.5f, true, false), S);
+	Check(DecideTick(T, S) == ETickAction::None, "not retreating: no re-hold even below the band");
+	ObserveFrame(T, Frame(true, 0, 0.04f, 3.0f, true, true), S);
+	Check(DecideTick(T, S) == ETickAction::None, "too small for a visible down-pop: no re-hold");
+}
+
+static void TestViewEntry()
+{
+	FSettings S;
+	FTracker T;
+	T.Mode = EMode::ViewEntry;
+	T.HeldLod = 1;
+	FObservation O = ObserveFrame(T, Frame(false, 0, 0.3f, 0.0f), S);
+	Check(O.Class == EFrameClass::Negative && T.State == EState::Armed, "off screen: negative, armed");
+	Check(DecideTick(T, S) == ETickAction::None, "no release off screen");
+	O = ObserveFrame(T, Frame(true, 0, 0.3f, 2.0f), S);
+	Check(O.Class == EFrameClass::Subvisible, "partly entered: subvisible");
+	for (int i = 1; i <= 4; ++i)
+	{
+		O = ObserveFrame(T, Frame(true, 0, 0.3f, 12.0f), S);
+		Check(O.Class == EFrameClass::Positive, "entered frame " + std::to_string(i) + " positive");
+		const ETickAction A = DecideTick(T, S);
+		Check((i < 4) ? A == ETickAction::None : A == ETickAction::ReleaseVisible,
+			"view entry releases after exactly 4 positive frames, frame " + std::to_string(i));
+	}
+	O = ObserveFrame(T, Frame(true, 0, 0.3f, 12.0f), S);
+	Check(O.bSwap && O.Cause == ESwapCause::ViewEntry && O.FromLod == 1 && O.ToLod == 0, "view-entry swap recorded");
+	Check(T.PositiveFramesSeen == 4, "four positive frames before the snap");
+}
+
+static void TestTurnAwayAndCap()
+{
+	FSettings S;
+	FTracker T;
+	T.Mode = EMode::ViewEntry;
+	T.HeldLod = 1;
+	ObserveFrame(T, Frame(true, 0, 0.3f, 12.0f), S);
+	ObserveFrame(T, Frame(true, 0, 0.3f, 12.0f), S);
+	FObservation O = ObserveFrame(T, Frame(false, 0, 0.3f, 0.0f), S);
+	Check(O.Class == EFrameClass::Negative && T.bHeld && T.State == EState::Armed, "turned away before the snap: held, armed, negative");
+	Check(!IsHoldingEventOpen(T), "turned away: the event is not held open");
+	Check(DecideTick(T, S) == ETickAction::None, "no visible release while unseen");
+
+	FSettings Cap;
+	Cap.HoldCapFrames = 5;
+	FTracker C;
+	C.Mode = EMode::DistanceThreshold;
+	C.HeldLod = 1;
+	C.ReleaseScreenSize = 1.0f;
+	for (int i = 1; i <= 4; ++i)
+	{
+		ObserveFrame(C, Frame(true, 0, 0.06f, 9.0f), Cap);
+		Check(IsHoldingEventOpen(C), "below the cap the event is held open, frame " + std::to_string(i));
+	}
+	ObserveFrame(C, Frame(true, 0, 0.06f, 9.0f), Cap);
+	Check(C.bCapReached && !IsHoldingEventOpen(C), "the cap closes the event after 5 frames");
+
+	FTracker P;
+	P.Mode = EMode::Periodic;
+	ObserveFrame(P, Frame(true, 0, 0.06f, 9.0f), S);
+	Check(!IsHoldingEventOpen(P), "periodic never holds the event open");
+	Check(DecideTick(P, S) == ETickAction::None, "periodic is not driven by the trigger");
+}
+
+static void TestDescribe()
+{
+	Check(std::strcmp(DescribeCause(ESwapCause::Distance), "distance") == 0, "cause distance");
+	Check(std::strcmp(DescribeCause(ESwapCause::ViewEntry), "view_entry") == 0, "cause view_entry");
+	Check(std::strcmp(DescribeCause(ESwapCause::HoldCap), "hold_cap") == 0, "cause hold_cap");
+	Check(std::strcmp(DescribeMode(EMode::DistanceThreshold), "distance_threshold") == 0, "mode distance_threshold");
+	Check(std::strcmp(DescribeMode(EMode::ViewEntry), "view_entry") == 0, "mode view_entry");
+	Check(std::strcmp(DescribeMode(EMode::Periodic), "periodic") == 0, "mode periodic");
+	Check(std::strcmp(DescribeState(EState::Labelled), "labelled") == 0, "state labelled");
+}
+
+int main()
+{
+	TestEngineFormula();
+	TestContrast();
+	TestThresholds();
+	TestFreezeAndClassify();
+	TestArmRules();
+	TestApproach();
+	TestNoDownPopWhenOff();
+	TestViewEntry();
+	TestTurnAwayAndCap();
+	TestDescribe();
+	std::printf("lod_trigger_selftest: %d checks, %d failures\n", GChecks, GFailures);
+	return GFailures == 0 ? 0 : 1;
+}

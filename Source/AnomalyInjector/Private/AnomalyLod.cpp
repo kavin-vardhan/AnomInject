@@ -9,6 +9,125 @@
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "StaticMeshResources.h"
+#include "SceneView.h"
+#include "SceneManagement.h"
+#include "UnrealClient.h"
+#include "Engine/World.h"
+#include "Engine/LocalPlayer.h"
+#include "Engine/GameViewportClient.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
+
+AnomalyLod::FLodViewScope::FLodViewScope(UWorld* World)
+{
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	ULocalPlayer* Player = PC ? PC->GetLocalPlayer() : nullptr;
+	UGameViewportClient* Client = World ? World->GetGameViewport() : nullptr;
+	if (!World || !World->Scene || !Player || !Client || !Client->Viewport)
+	{
+		return;
+	}
+	Family = MakeUnique<FSceneViewFamilyContext>(FSceneViewFamily::ConstructionValues(
+		Client->Viewport, World->Scene, Client->EngineShowFlags).SetRealtimeUpdate(true));
+	FVector Location;
+	FRotator Rotation;
+	View = Player->CalcSceneView(Family.Get(), Location, Rotation, Client->Viewport);
+}
+
+AnomalyLod::FLodViewScope::~FLodViewScope()
+{
+}
+
+bool AnomalyLod::IsForceLodCvarActive()
+{
+	static IConsoleVariable* ForceLod = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ForceLOD"));
+	return ForceLod && ForceLod->GetInt() >= 0;
+}
+
+float AnomalyLod::GetStaticMeshLodDistanceScale()
+{
+	static IConsoleVariable* Scale = IConsoleManager::Get().FindConsoleVariable(TEXT("r.StaticMeshLODDistanceScale"));
+	return Scale ? Scale->GetFloat() : 1.0f;
+}
+
+AnomalyLod::FEngineLodPrediction AnomalyLod::PredictEngineLod(const FSceneView* View, const UStaticMeshComponent* Component)
+{
+	FEngineLodPrediction Out;
+	const UStaticMesh* Mesh = Component ? Component->GetStaticMesh() : nullptr;
+	const FStaticMeshRenderData* Data = Mesh ? Mesh->GetRenderData() : nullptr;
+	if (!View)
+	{
+		Out.Refusal = TEXT("no_view");
+		return Out;
+	}
+	if (!Data || Data->LODResources.Num() < 1)
+	{
+		Out.Refusal = TEXT("no_render_data");
+		return Out;
+	}
+	if (IsForceLodCvarActive())
+	{
+		Out.Refusal = TEXT("force_lod_cvar_active");
+		return Out;
+	}
+	Out.NumLods = Data->LODResources.Num();
+	const int32 RequestedMin = Component->bOverrideMinLOD ? Component->MinLOD : Mesh->GetMinLODIdx();
+	Out.MinLod = Data->GetCurrentFirstLODIdx(FMath::Clamp(RequestedMin, 0, Out.NumLods - 1));
+	Out.Scale = GetStaticMeshLodDistanceScale();
+	const FBoxSphereBounds& Bounds = Component->Bounds;
+	Out.EngineLod = FMath::Clamp((int32)ComputeStaticMeshLOD(Data, Bounds.Origin, (float)Bounds.SphereRadius, *View, Out.MinLod, Out.Scale),
+		Out.MinLod, Out.NumLods - 1);
+	Out.TemporalLod0 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(Data, Bounds.Origin, (float)Bounds.SphereRadius, *View, Out.MinLod,
+		Out.Scale, 0), Out.MinLod, Out.NumLods - 1);
+	Out.TemporalLod1 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(Data, Bounds.Origin, (float)Bounds.SphereRadius, *View, Out.MinLod,
+		Out.Scale, 1), Out.MinLod, Out.NumLods - 1);
+	Out.BoundsScreenSize = ComputeBoundsScreenSize(Bounds.Origin, (float)Bounds.SphereRadius, *View);
+	Out.bValid = true;
+	return Out;
+}
+
+AnomalyLod::FEngineLodPrediction AnomalyLod::PredictEngineLod(UWorld* World, const UStaticMeshComponent* Component)
+{
+	const FLodViewScope Scope(World);
+	return PredictEngineLod(Scope.GetView(), Component);
+}
+
+int32 AnomalyLod::GetLodTriangleCount(const UStaticMeshComponent* Component, int32 LodIndex)
+{
+	const UStaticMesh* Mesh = Component ? Component->GetStaticMesh() : nullptr;
+	const FStaticMeshRenderData* Data = Mesh ? Mesh->GetRenderData() : nullptr;
+	if (!Data || !Data->LODResources.IsValidIndex(LodIndex))
+	{
+		return 0;
+	}
+	return (int32)Data->LODResources[LodIndex].GetNumTriangles();
+}
+
+int32 AnomalyLod::GetLodScreenSizes(const UStaticMeshComponent* Component, float (&OutSizes)[MaxLodEntries],
+	int32 (&OutTriangles)[MaxLodEntries])
+{
+	for (int32 i = 0; i < MaxLodEntries; ++i)
+	{
+		OutSizes[i] = 0.0f;
+		OutTriangles[i] = 0;
+	}
+	const UStaticMesh* Mesh = Component ? Component->GetStaticMesh() : nullptr;
+	const FStaticMeshRenderData* Data = Mesh ? Mesh->GetRenderData() : nullptr;
+	if (!Data)
+	{
+		return 0;
+	}
+	const int32 NumLods = FMath::Min(Data->LODResources.Num(), (int32)MaxLodEntries);
+	for (int32 i = 0; i < MaxLodEntries && i < MAX_STATIC_MESH_LODS; ++i)
+	{
+		OutSizes[i] = Data->ScreenSize[i].GetValue();
+	}
+	for (int32 i = 0; i < NumLods; ++i)
+	{
+		OutTriangles[i] = (int32)Data->LODResources[i].GetNumTriangles();
+	}
+	return NumLods;
+}
 
 TArray<TWeakObjectPtr<UMeshComponent>> AnomalyLod::ResolveLodComponents(UWorld* World, const FString& Substring)
 {
