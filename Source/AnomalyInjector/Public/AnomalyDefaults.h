@@ -78,6 +78,14 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API void LatchLodAllowSkeletalForRun();
 	ANOMALYINJECTOR_API void ReleaseLodAllowSkeletalLatch();
 
+	enum class ELodTriggerSetting : uint8 { ArmTimeoutFrames = 0, HoldCapFrames = 1, EntryFrames = 2, DownPop = 3, Num = 4 };
+
+	ANOMALYINJECTOR_API const TCHAR* LodTriggerSettingKey(ELodTriggerSetting Setting);
+	ANOMALYINJECTOR_API int32 GetLodTriggerSetting(ELodTriggerSetting Setting);
+	ANOMALYINJECTOR_API FString DescribeLodTriggerSettings();
+	ANOMALYINJECTOR_API bool SetLodTriggerSettingOverride(ELodTriggerSetting Setting, int32 Value);
+	ANOMALYINJECTOR_API void ClearLodTriggerSettingOverride(ELodTriggerSetting Setting);
+
 	inline constexpr bool AllowTranslucentOnlyTargetsCompiled = false;
 
 	ANOMALYINJECTOR_API const TCHAR* AllowTranslucentOnlyTargetsKey();

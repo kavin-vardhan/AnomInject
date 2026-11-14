@@ -2078,3 +2078,200 @@ static FAutoConsoleCommand GLodHalfPeriodCmd(
 	     "default is 8. Pass 'default' to clear the override. "
 	     "Usage: IAI.Anomaly.LodHalfPeriod <frames|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodHalfPeriod));
+
+ï»¿
+namespace AnomalyDefaults
+{
+	namespace
+	{
+		struct FLodTriggerSettingSpec
+		{
+			const TCHAR* Key;
+			const TCHAR* Console;
+			int32 Compiled;
+			int32 Min;
+			int32 Max;
+		};
+
+		const FLodTriggerSettingSpec& LodTriggerSpec(ELodTriggerSetting Setting)
+		{
+			static const FLodTriggerSettingSpec Specs[4] = {
+				{ TEXT("LodPoppingArmTimeoutFrames"), TEXT("IAI.Anomaly.LodArmTimeout"), 90, 1, 600 },
+				{ TEXT("LodPoppingHoldCapFrames"), TEXT("IAI.Anomaly.LodHoldCap"), 150, 1, 3000 },
+				{ TEXT("LodPoppingEntryFrames"), TEXT("IAI.Anomaly.LodEntryFrames"), 4, 1, 30 },
+				{ TEXT("LodPoppingDownPop"), TEXT("IAI.Anomaly.LodDownPop"), 1, 0, 1 }
+			};
+			return Specs[FMath::Clamp((int32)Setting, 0, 3)];
+		}
+
+		int32* LodTriggerOverrideValues()
+		{
+			static int32 Values[4] = { 0, 0, 0, 0 };
+			return Values;
+		}
+
+		bool* LodTriggerOverrideFlags()
+		{
+			static bool Flags[4] = { false, false, false, false };
+			return Flags;
+		}
+
+		int32 ResolveLodTriggerSetting(ELodTriggerSetting Setting, const TCHAR*& OutSource)
+		{
+			const int32 Index = FMath::Clamp((int32)Setting, 0, 3);
+			const FLodTriggerSettingSpec& Spec = LodTriggerSpec(Setting);
+			if (LodTriggerOverrideFlags()[Index])
+			{
+				OutSource = TEXT("console");
+				return LodTriggerOverrideValues()[Index];
+			}
+			if (GConfig)
+			{
+				if (Setting == ELodTriggerSetting::DownPop)
+				{
+					bool bFromIni = true;
+					if (GConfig->GetBool(SectionName(), Spec.Key, bFromIni, GGameIni))
+					{
+						OutSource = TEXT("ini");
+						return bFromIni ? 1 : 0;
+					}
+				}
+				else
+				{
+					int32 FromIni = 0;
+					if (GConfig->GetInt(SectionName(), Spec.Key, FromIni, GGameIni))
+					{
+						if (FromIni >= Spec.Min && FromIni <= Spec.Max)
+						{
+							OutSource = TEXT("ini");
+							return FromIni;
+						}
+						UE_LOG(LogAnomaly, Warning,
+							TEXT("lod_popping: DefaultGame.ini [%s] %s=%d is outside [%d..%d] and is IGNORED; the compiled default %d is used."),
+							SectionName(), Spec.Key, FromIni, Spec.Min, Spec.Max, Spec.Compiled);
+					}
+				}
+			}
+			OutSource = TEXT("compiled");
+			return Spec.Compiled;
+		}
+	}
+
+	const TCHAR* LodTriggerSettingKey(ELodTriggerSetting Setting)
+	{
+		return LodTriggerSpec(Setting).Key;
+	}
+
+	int32 GetLodTriggerSetting(ELodTriggerSetting Setting)
+	{
+		const TCHAR* Source = TEXT("compiled");
+		return ResolveLodTriggerSetting(Setting, Source);
+	}
+
+	FString DescribeLodTriggerSettings()
+	{
+		static const TCHAR* Names[4] = { TEXT("armTimeout"), TEXT("holdCap"), TEXT("entryFrames"), TEXT("downPop") };
+		FString Out;
+		for (int32 i = 0; i < 4; ++i)
+		{
+			const TCHAR* Source = TEXT("compiled");
+			const int32 Value = ResolveLodTriggerSetting((ELodTriggerSetting)i, Source);
+			Out += FString::Printf(TEXT("%s%s=%d(%s)"), i == 0 ? TEXT("") : TEXT(" "), Names[i], Value, Source);
+		}
+		return Out;
+	}
+
+	bool SetLodTriggerSettingOverride(ELodTriggerSetting Setting, int32 Value)
+	{
+		const int32 Index = FMath::Clamp((int32)Setting, 0, 3);
+		const FLodTriggerSettingSpec& Spec = LodTriggerSpec(Setting);
+		if (Value < Spec.Min || Value > Spec.Max)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("%s: REFUSED %d - the range is [%d..%d]; a value outside it is refused, never clamped."),
+				Spec.Console, Value, Spec.Min, Spec.Max);
+			return false;
+		}
+		LodTriggerOverrideValues()[Index] = Value;
+		LodTriggerOverrideFlags()[Index] = true;
+		UE_LOG(LogAnomaly, Log, TEXT("%s set to %d by console override (beats DefaultGame.ini [%s] %s). It applies to the next lod_popping fire."),
+			Spec.Console, Value, SectionName(), Spec.Key);
+		return true;
+	}
+
+	void ClearLodTriggerSettingOverride(ELodTriggerSetting Setting)
+	{
+		const int32 Index = FMath::Clamp((int32)Setting, 0, 3);
+		LodTriggerOverrideFlags()[Index] = false;
+		UE_LOG(LogAnomaly, Log, TEXT("%s console override cleared; the ini value or the compiled default %d takes over."),
+			LodTriggerSpec(Setting).Console, LodTriggerSpec(Setting).Compiled);
+	}
+}
+
+namespace
+{
+	void HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting Setting, const TArray<FString>& Args)
+	{
+		const TCHAR* Console = AnomalyDefaults::LodTriggerSettingKey(Setting);
+		if (Args.Num() == 0)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: <value|default>. lod_popping trigger settings now: %s"),
+				*AnomalyDefaults::DescribeLodTriggerSettings());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearLodTriggerSettingOverride(Setting);
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetLodTriggerSettingOverride(Setting, FCString::Atoi(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("lod_popping (%s): '%s' is not a whole number or 'default'."), Console, *Args[0]);
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("lod_popping trigger settings: EFFECTIVE READ-BACK = %s."), *AnomalyDefaults::DescribeLodTriggerSettings());
+	}
+}
+
+static FAutoConsoleCommand GLodArmTimeoutCmd(
+	TEXT("IAI.Anomaly.LodArmTimeout"),
+	TEXT("m57: frames lod_popping's spatial modes wait for the held target to become visibly wrong (the camera must approach ")
+	TEXT("or turn toward it) before the burst gives up with no event. Console beats DefaultGame.ini [AnomalyInjector] ")
+	TEXT("LodPoppingArmTimeoutFrames, which beats the compiled default 90. Range [1..600], refused not clamped. ")
+	TEXT("Usage: IAI.Anomaly.LodArmTimeout <frames|default>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::ArmTimeoutFrames, Args);
+	}));
+
+static FAutoConsoleCommand GLodHoldCapCmd(
+	TEXT("IAI.Anomaly.LodHoldCap"),
+	TEXT("m57: the most frames a visibly wrong lod_popping target may hold its burst open, counted from its first positive ")
+	TEXT("frame. At the cap the burst reverts and that release is recorded as a hold_cap swap, the one pop the schedule ")
+	TEXT("can cause. Console beats DefaultGame.ini [AnomalyInjector] LodPoppingHoldCapFrames, which beats the compiled ")
+	TEXT("default 150. Range [1..3000]. Usage: IAI.Anomaly.LodHoldCap <frames|default>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::HoldCapFrames, Args);
+	}));
+
+static FAutoConsoleCommand GLodEntryFramesCmd(
+	TEXT("IAI.Anomaly.LodEntryFrames"),
+	TEXT("m57: how many positive frames a view_entry target shows its coarse LOD after it enters the view before it snaps ")
+	TEXT("to full detail. Console beats DefaultGame.ini [AnomalyInjector] LodPoppingEntryFrames, which beats the compiled ")
+	TEXT("default 4. Range [1..30]. Usage: IAI.Anomaly.LodEntryFrames <frames|default>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::EntryFrames, Args);
+	}));
+
+static FAutoConsoleCommand GLodDownPopCmd(
+	TEXT("IAI.Anomaly.LodDownPop"),
+	TEXT("m57: 1 lets a distance_threshold event pop back down to the held LOD when the camera retreats past 0.85 of the ")
+	TEXT("release screen size (hysteresis); 0 turns that off. Console beats DefaultGame.ini [AnomalyInjector] ")
+	TEXT("LodPoppingDownPop, which beats the compiled default 1. Usage: IAI.Anomaly.LodDownPop <0|1|default>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::DownPop, Args);
+	}));

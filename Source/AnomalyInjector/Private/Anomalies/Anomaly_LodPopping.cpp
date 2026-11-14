@@ -1,14 +1,17 @@
 #include "Anomalies/Anomaly_LodPopping.h"
 
 #include "AnomalyLod.h"
+#include "AnomalyLodTrigger.h"
+#include "AnomalyBenchGate.h"
 #include "AnomalyViewport.h"
 #include "AnomalyDefaults.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "Components/MeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 
-bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
+bool FAnomaly_LodPopping::ApplyPeriodic(UWorld* World, const TArray<FString>& Args)
 {
 	LastRefusal.Reset();
 	if (!World)
@@ -17,13 +20,8 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 	if (Args.Num() == 0 || Args[0].IsEmpty())
 	{
-		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: usage <substring> [half_period_frames]"));
+		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: usage <substring> periodic [half_period_frames]"));
 		return false;
-	}
-
-	if (bActive)
-	{
-		Revert();
 	}
 
 	static_assert(DefaultHalfPeriodFrames == AnomalyDefaults::LodPoppingHalfPeriodCompiled,
@@ -243,6 +241,7 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 
 	FramesSinceToggle = 0;
 	bPoppedPhase = false;
+	Mode = AnomalyLodTriggerRule::EMode::Periodic;
 	bActive = Targets.Num() > 0;
 
 	if (!bActive)
@@ -265,10 +264,291 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	return bActive;
 }
 
+bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
+{
+	LastRefusal.Reset();
+	if (!World)
+	{
+		return false;
+	}
+	if (Args.Num() == 0 || Args[0].IsEmpty())
+	{
+		UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: usage %s"), *GetUsage());
+		return false;
+	}
+	if (bActive)
+	{
+		Revert();
+	}
+
+	using namespace AnomalyLodTriggerRule;
+	EMode Requested = EMode::Auto;
+	TArray<FString> PeriodicArgs;
+	PeriodicArgs.Add(Args[0]);
+	if (Args.Num() >= 2)
+	{
+		const FString& M = Args[1];
+		if (M.IsNumeric())
+		{
+			Requested = EMode::Periodic;
+			PeriodicArgs.Add(M);
+		}
+		else if (M.Equals(TEXT("periodic"), ESearchCase::IgnoreCase))
+		{
+			Requested = EMode::Periodic;
+			if (Args.Num() >= 3)
+			{
+				PeriodicArgs.Add(Args[2]);
+			}
+		}
+		else if (M.Equals(TEXT("distance_threshold"), ESearchCase::IgnoreCase) || M.Equals(TEXT("distance"), ESearchCase::IgnoreCase))
+		{
+			Requested = EMode::DistanceThreshold;
+		}
+		else if (M.Equals(TEXT("view_entry"), ESearchCase::IgnoreCase))
+		{
+			Requested = EMode::ViewEntry;
+		}
+		else if (!M.Equals(TEXT("auto"), ESearchCase::IgnoreCase))
+		{
+			LastRefusal = TEXT("mode_invalid");
+			UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: REFUSED - unknown mode '%s' (mode_invalid). Usage: %s"), *M, *GetUsage());
+			return false;
+		}
+	}
+
+	if (Requested == EMode::Periodic)
+	{
+		if (!AnomalyBenchGate::IsEnabled())
+		{
+			LastRefusal = TEXT("periodic_bench_only");
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: REFUSED periodic mode (periodic_bench_only) - the timed pop has no spatial cause, so it runs only ")
+				TEXT("with the bench gate open (-IAIBench). Captures use distance_threshold or view_entry (no mode = auto)."));
+			return false;
+		}
+		return ApplyPeriodic(World, PeriodicArgs);
+	}
+	return ApplySpatial(World, Args[0], Requested);
+}
+
+bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, AnomalyLodTriggerRule::EMode Requested)
+{
+	using namespace AnomalyLodTriggerRule;
+	Settings = AnomalyLodTrigger::GetSettings();
+	const TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
+	if (Meshes.Num() == 0)
+	{
+		UE_LOG(LogAnomaly, Log, TEXT("lod_popping: matched 0 mesh component(s) for '%s'."), *Substring);
+		return false;
+	}
+
+	const AnomalyLod::FLodViewScope Scope(World);
+	TMap<FString, int32> Refusals;
+	UStaticMeshComponent* Best = nullptr;
+	AnomalyLodTrigger::FArmEvaluation BestEval;
+	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
+	{
+		UMeshComponent* Mesh = Weak.Get();
+		if (!Mesh)
+		{
+			continue;
+		}
+		FString Why;
+		const AnomalyLodPolicy::EForcedLodRefusal Policy = AnomalyLod::GetForcedLodRefusal(Mesh);
+		AnomalyLodTrigger::FArmEvaluation E;
+		if (Policy != AnomalyLodPolicy::EForcedLodRefusal::None)
+		{
+			Why = UTF8_TO_TCHAR(AnomalyLodPolicy::DescribeRefusal(Policy));
+		}
+		else if (UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Mesh))
+		{
+			E = AnomalyLodTrigger::EvaluateArm(World, Scope, Static, Requested, Settings);
+			if (E.bArmable)
+			{
+				if (!Best || Static->Bounds.SphereRadius > Best->Bounds.SphereRadius)
+				{
+					Best = Static;
+					BestEval = E;
+				}
+				continue;
+			}
+			Why = E.Refusal;
+		}
+		else
+		{
+			Why = AnomalyLodTrigger::GetStaticRefusal(Mesh);
+		}
+		Refusals.FindOrAdd(Why.IsEmpty() ? FString(TEXT("refused")) : Why) += 1;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: NOT ARMABLE '%s' (%s) [requested %s] engine_lod=%d screen_size=%.6f closing_cm_s=%.1f angle_outside_deg=%.2f."),
+			*Mesh->GetName(), *Why, UTF8_TO_TCHAR(DescribeMode(Requested)), E.Prediction.EngineLod, E.Prediction.BoundsScreenSize,
+			E.ClosingSpeedCmPerS, E.AngleOutsideFrustumDeg);
+	}
+
+	if (!Best)
+	{
+		FString Dominant(TEXT("none"));
+		int32 DominantCount = 0;
+		for (const TPair<FString, int32>& KV : Refusals)
+		{
+			if (KV.Value > DominantCount || (KV.Value == DominantCount && KV.Key < Dominant))
+			{
+				Dominant = KV.Key;
+				DominantCount = KV.Value;
+			}
+		}
+		LastRefusal = FString(TEXT("lod_not_armable:")) + Dominant;
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("lod_popping: matched %d component(s) for '%s' but NONE CAN BE ARMED NOW [%s] - a spatial pop needs a plain static ")
+			TEXT("multi-LOD mesh the camera is approaching (distance_threshold) or turning toward (view_entry). Applying nothing, ")
+			TEXT("so no fire and no label."),
+			Meshes.Num(), *Substring, *LastRefusal);
+		return false;
+	}
+
+	Targets.Reset();
+	Mode = BestEval.Mode;
+	SpatialMesh = Best;
+	WorldRef = World;
+	SavedForcedLod = Best->ForcedLodModel;
+	float Sizes[AnomalyLod::MaxLodEntries];
+	NumLods = AnomalyLod::GetLodScreenSizes(Best, Sizes, Triangles);
+	Tracker = FTracker();
+	Tracker.Mode = Mode;
+	Tracker.HeldLod = BestEval.HeldLod;
+	Tracker.ReleaseScreenSize = BestEval.ReleaseScreenSize;
+	Tracker.bHeld = true;
+	HistoryCount = 0;
+	SwapsRecorded = 0;
+	Eval = FTickEndEval();
+	AppliedFrame = GFrameCounter;
+	LastCommittedFrame = 0;
+	Best->SetForcedLodModel(BestEval.HeldLod + 1);
+	bActive = true;
+	UE_LOG(LogAnomaly, Log,
+		TEXT("lod_popping: ARMED '%s' mode=%s held_lod=%d (forced_lod_model=%d, saved %d) engine_lod=%d screen_size=%.6f ")
+		TEXT("release_screen_size=%.6f frames_ahead=%d closing_cm_s=%.1f angle_outside_deg=%.2f settings[%s] coverage_min=%.2f. ")
+		TEXT("Arming changes nothing visible (the held LOD equals the engine's, or the target is off screen); labels start ")
+		TEXT("only when the held LOD is visibly wrong."),
+		*Best->GetName(), UTF8_TO_TCHAR(DescribeMode(Mode)), BestEval.HeldLod, BestEval.HeldLod + 1, SavedForcedLod,
+		BestEval.Prediction.EngineLod, BestEval.Prediction.BoundsScreenSize, BestEval.ReleaseScreenSize, BestEval.FramesAhead,
+		BestEval.ClosingSpeedCmPerS, BestEval.AngleOutsideFrustumDeg, *AnomalyDefaults::DescribeLodTriggerSettings(),
+		Settings.CoverageMinPct);
+	return true;
+}
+
+const FAnomaly_LodPopping::FTickEndEval& FAnomaly_LodPopping::EvaluateNow() const
+{
+	UWorld* World = WorldRef.Get();
+	UStaticMeshComponent* Mesh = SpatialMesh.Get();
+	FAnomalyViewInfo View;
+	if (!World || !Mesh || !AnomalyViewport::GetActiveViewInfo(World, View) || !View.bValid)
+	{
+		Eval = FTickEndEval();
+		return Eval;
+	}
+	if (Eval.bValid && Eval.CameraLocation.Equals(View.Origin, 0.0f) && Eval.CameraRotation.Equals(View.Rotation, 0.0f)
+		&& Eval.BoundsOrigin.Equals(Mesh->Bounds.Origin, 0.0f) && Eval.bHeld == Tracker.bHeld && Eval.Frame == LastCommittedFrame)
+	{
+		return Eval;
+	}
+	using namespace AnomalyLodTriggerRule;
+	FTickEndEval E;
+	E.bValid = true;
+	E.Frame = LastCommittedFrame;
+	E.CameraLocation = View.Origin;
+	E.CameraRotation = View.Rotation;
+	E.BoundsOrigin = Mesh->Bounds.Origin;
+	E.bHeld = Tracker.bHeld;
+	const AnomalyLod::FLodViewScope Scope(World);
+	const AnomalyLod::FEngineLodPrediction Pred = AnomalyLod::PredictEngineLod(Scope.GetView(), Mesh);
+	bool bOnScreen = false;
+	E.Input.CoveragePct = AnomalyLodTrigger::GetComponentCoveragePct(World, Mesh, &bOnScreen);
+	E.Input.bOnScreen = bOnScreen;
+	E.Input.EngineLod = Pred.bValid ? Pred.EngineLod : -1;
+	E.Input.TemporalLod0 = Pred.bValid ? Pred.TemporalLod0 : -1;
+	E.Input.TemporalLod1 = Pred.bValid ? Pred.TemporalLod1 : -1;
+	E.Input.BoundsScreenSize = Pred.BoundsScreenSize;
+	E.Input.bContrast = ContrastPasses(Triangles, NumLods, Tracker.HeldLod, E.Input.EngineLod, Settings.TriangleRatio);
+	E.DistanceCm = AnomalyLodTrigger::GetDistanceToBoundsCm(View.Origin, Mesh);
+	if (HistoryCount > 0)
+	{
+		const int32 Oldest = FMath::Min(HistoryCount, 8) - 1;
+		const double Seconds = World->GetTimeSeconds() - TimeHistory[Oldest];
+		if (Seconds > 0.0)
+		{
+			const float Speed = (float)((E.DistanceCm - DistanceHistory[Oldest]) / Seconds);
+			E.Input.bRetreating = Speed >= Settings.MinClosingSpeedCmPerS;
+		}
+	}
+	FTracker Copy = Tracker;
+	E.Observation = ObserveFrame(Copy, E.Input, Settings);
+	E.bHoldOpen = IsHoldingEventOpen(Copy);
+	E.bCapReached = Copy.bCapReached;
+	Eval = E;
+	return Eval;
+}
+
+void FAnomaly_LodPopping::CommitPreviousFrame()
+{
+	if (GFrameCounter <= AppliedFrame || LastCommittedFrame == GFrameCounter)
+	{
+		return;
+	}
+	const FTickEndEval E = EvaluateNow();
+	LastCommittedFrame = GFrameCounter;
+	if (!E.bValid)
+	{
+		return;
+	}
+	const AnomalyLodTriggerRule::FObservation O = AnomalyLodTriggerRule::ObserveFrame(Tracker, E.Input, Settings);
+	for (int32 i = FMath::Min(HistoryCount, 7); i > 0; --i)
+	{
+		DistanceHistory[i] = DistanceHistory[i - 1];
+		TimeHistory[i] = TimeHistory[i - 1];
+	}
+	DistanceHistory[0] = E.DistanceCm;
+	TimeHistory[0] = WorldRef.IsValid() ? WorldRef->GetTimeSeconds() : 0.0;
+	HistoryCount = FMath::Min(HistoryCount + 1, 8);
+	if (O.bSwap)
+	{
+		++SwapsRecorded;
+		UE_LOG(LogAnomaly, Log, TEXT("lod_popping: SWAP %d cause=%s direction=%s lod %d -> %d screen_size=%.6f distance_cm=%.1f coverage_pct=%.3f."),
+			SwapsRecorded, UTF8_TO_TCHAR(AnomalyLodTriggerRule::DescribeCause(O.Cause)), O.bDown ? TEXT("down") : TEXT("up"),
+			O.FromLod, O.ToLod, E.Input.BoundsScreenSize, E.DistanceCm, E.Input.CoveragePct);
+	}
+}
+
 void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 {
 	if (!bActive)
 	{
+		return;
+	}
+
+	if (Mode != AnomalyLodTriggerRule::EMode::Periodic)
+	{
+		CommitPreviousFrame();
+		UStaticMeshComponent* Mesh = SpatialMesh.Get();
+		if (!Mesh)
+		{
+			return;
+		}
+		const AnomalyLodTriggerRule::ETickAction Action = AnomalyLodTriggerRule::DecideTick(Tracker, Settings);
+		if (Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible || Action == AnomalyLodTriggerRule::ETickAction::ReleaseInvisible)
+		{
+			Mesh->SetForcedLodModel(SavedForcedLod);
+			UE_LOG(LogAnomaly, Log, TEXT("lod_popping: RELEASE (%s) '%s' -> forced_lod_model=%d; the engine draws its own LOD from this frame."),
+				Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible ? TEXT("trigger, visible") : TEXT("hold matches the engine, invisible"),
+				*Mesh->GetName(), SavedForcedLod);
+		}
+		else if (Action == AnomalyLodTriggerRule::ETickAction::ReHold)
+		{
+			Mesh->SetForcedLodModel(Tracker.HeldLod + 1);
+			UE_LOG(LogAnomaly, Log, TEXT("lod_popping: RE-HOLD (retreat past the hysteresis band) '%s' -> forced_lod_model=%d."),
+				*Mesh->GetName(), Tracker.HeldLod + 1);
+		}
 		return;
 	}
 
@@ -292,6 +572,34 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 	}
 }
 
+void FAnomaly_LodPopping::ReleaseSpatial()
+{
+	UStaticMeshComponent* Mesh = SpatialMesh.Get();
+	if (Mesh)
+	{
+		const bool bWasHeld = Tracker.bHeld;
+		const bool bVisible = bWasHeld && Tracker.bHasLast && Tracker.LastClass == AnomalyLodTriggerRule::EFrameClass::Positive;
+		if (Mesh->ForcedLodModel != SavedForcedLod)
+		{
+			Mesh->SetForcedLodModel(SavedForcedLod);
+		}
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: REVERT '%s' mode=%s forced_lod_model read back %d (saved %d) %s; swaps=%d, last state %s%s."),
+			*Mesh->GetName(), UTF8_TO_TCHAR(AnomalyLodTriggerRule::DescribeMode(Mode)), Mesh->ForcedLodModel, SavedForcedLod,
+			Mesh->ForcedLodModel == SavedForcedLod ? TEXT("RESTORED") : TEXT("NOT RESTORED"), SwapsRecorded,
+			UTF8_TO_TCHAR(AnomalyLodTriggerRule::DescribeState(Tracker.State)),
+			bVisible ? TEXT(", released while visibly wrong (hold_cap)") : (bWasHeld ? TEXT(", released while unseen or matching (invisible)") : TEXT("")));
+	}
+	SpatialMesh.Reset();
+	WorldRef.Reset();
+	Tracker = AnomalyLodTriggerRule::FTracker();
+	Eval = FTickEndEval();
+	HistoryCount = 0;
+	SwapsRecorded = 0;
+	AppliedFrame = 0;
+	LastCommittedFrame = 0;
+}
+
 void FAnomaly_LodPopping::Revert()
 {
 	for (const FPoppingTarget& Target : Targets)
@@ -301,9 +609,86 @@ void FAnomaly_LodPopping::Revert()
 			AnomalyLod::SetForcedLod(Mesh, Target.BaselineLod);
 		}
 	}
+	if (SpatialMesh.IsValid() || WorldRef.IsValid())
+	{
+		ReleaseSpatial();
+	}
 
 	Targets.Reset();
 	FramesSinceToggle = 0;
 	bPoppedPhase = false;
 	bActive = false;
+}
+
+bool FAnomaly_LodPopping::IsCurrentlyAnomalous() const
+{
+	if (!bActive)
+	{
+		return false;
+	}
+	if (Mode == AnomalyLodTriggerRule::EMode::Periodic)
+	{
+		return bPoppedPhase;
+	}
+	return EvaluateNow().Observation.Class == AnomalyLodTriggerRule::EFrameClass::Positive;
+}
+
+bool FAnomaly_LodPopping::GetTelemetry(FAnomalyTelemetry& Out) const
+{
+	if (!bActive)
+	{
+		return false;
+	}
+	using namespace AnomalyLodTriggerRule;
+	if (Mode == EMode::Periodic)
+	{
+		Out.AddString(TEXT("lod.trigger"), TEXT("periodic"));
+		Out.AddString(TEXT("lod.state"), bPoppedPhase ? TEXT("popped") : TEXT("baseline"));
+		return true;
+	}
+	const FTickEndEval& E = EvaluateNow();
+	const EFrameClass Class = E.Observation.Class;
+	const TCHAR* State = Class == EFrameClass::Positive ? TEXT("labelled")
+		: Class == EFrameClass::Subvisible ? TEXT("subvisible")
+		: Tracker.bHeld ? TEXT("armed") : TEXT("swapped");
+	Out.AddInt(TEXT("lod.held_lod"), Tracker.HeldLod);
+	Out.AddInt(TEXT("lod.engine_lod"), E.Input.EngineLod);
+	Out.AddFloat(TEXT("lod.screen_size"), E.Input.BoundsScreenSize);
+	Out.AddFloat(TEXT("lod.distance_cm"), E.DistanceCm);
+	Out.AddFloat(TEXT("lod.coverage_pct"), E.Input.CoveragePct);
+	Out.AddBool(TEXT("lod.on_screen"), E.Input.bOnScreen);
+	Out.AddBool(TEXT("lod.held"), Tracker.bHeld);
+	Out.AddBool(TEXT("lod.subvisible"), Class == EFrameClass::Subvisible);
+	Out.AddBool(TEXT("lod.swap"), E.Observation.bSwap);
+	Out.AddBool(TEXT("lod.cap_reached"), E.bCapReached);
+	Out.AddString(TEXT("lod.trigger"), UTF8_TO_TCHAR(DescribeMode(Mode)));
+	Out.AddString(TEXT("lod.state"), State);
+	if (E.Observation.bSwap)
+	{
+		Out.AddInt(TEXT("lod.swap_from_lod"), E.Observation.FromLod);
+		Out.AddInt(TEXT("lod.swap_to_lod"), E.Observation.ToLod);
+		Out.AddString(TEXT("lod.swap_cause"), UTF8_TO_TCHAR(DescribeCause(E.Observation.Cause)));
+		Out.AddString(TEXT("lod.swap_direction"), E.Observation.bDown ? TEXT("down") : TEXT("up"));
+	}
+	return true;
+}
+
+void FAnomaly_LodPopping::OnTargetLost(AActor* Actor, bool bWorldEnding)
+{
+	const UStaticMeshComponent* Mesh = SpatialMesh.Get();
+	if (!bActive || (Mesh && Mesh->GetOwner() != Actor))
+	{
+		return;
+	}
+	UE_LOG(LogAnomaly, Log, TEXT("lod_popping: TARGET LOST '%s'%s - releasing the hold and ending the event."),
+		*GetNameSafe(Actor), bWorldEnding ? TEXT(" (world ending)") : TEXT(""));
+	Revert();
+}
+
+void FAnomaly_LodPopping::OnWorldTeardown()
+{
+	if (bActive)
+	{
+		Revert();
+	}
 }

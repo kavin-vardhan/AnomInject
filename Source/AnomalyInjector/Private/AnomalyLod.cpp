@@ -73,14 +73,15 @@ AnomalyLod::FEngineLodPrediction AnomalyLod::PredictEngineLod(const FSceneView* 
 	Out.NumLods = Data->LODResources.Num();
 	const int32 RequestedMin = Component->bOverrideMinLOD ? Component->MinLOD : Mesh->GetMinLODIdx();
 	Out.MinLod = Data->GetCurrentFirstLODIdx(FMath::Clamp(RequestedMin, 0, Out.NumLods - 1));
-	Out.Scale = GetStaticMeshLodDistanceScale();
+	const float FactorScale = GetStaticMeshLodDistanceScale();
+	Out.Scale = FactorScale * View->LODDistanceFactor;
 	const FBoxSphereBounds& Bounds = Component->Bounds;
-	Out.EngineLod = FMath::Clamp((int32)ComputeStaticMeshLOD(Data, Bounds.Origin, (float)Bounds.SphereRadius, *View, Out.MinLod, Out.Scale),
+	Out.EngineLod = FMath::Clamp((int32)ComputeStaticMeshLOD(Data, Bounds.Origin, (float)Bounds.SphereRadius, *View, Out.MinLod, FactorScale),
 		Out.MinLod, Out.NumLods - 1);
 	Out.TemporalLod0 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(Data, Bounds.Origin, (float)Bounds.SphereRadius, *View, Out.MinLod,
-		Out.Scale, 0), Out.MinLod, Out.NumLods - 1);
+		FactorScale, 0), Out.MinLod, Out.NumLods - 1);
 	Out.TemporalLod1 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(Data, Bounds.Origin, (float)Bounds.SphereRadius, *View, Out.MinLod,
-		Out.Scale, 1), Out.MinLod, Out.NumLods - 1);
+		FactorScale, 1), Out.MinLod, Out.NumLods - 1);
 	Out.BoundsScreenSize = ComputeBoundsScreenSize(Bounds.Origin, (float)Bounds.SphereRadius, *View);
 	Out.bValid = true;
 	return Out;

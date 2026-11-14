@@ -1,4 +1,5 @@
 #include "AnomalyInjectorSubsystem.h"
+#include "AnomalyLodTrigger.h"
 #include "Engine/EngineBaseTypes.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
@@ -176,6 +177,10 @@ namespace
 		else if (Id == FName(TEXT("lod_popping")))
 		{
 			OutScope = EAnomalyScope::Object;
+			FAnomalyArgSpec Mode;
+			Mode.Name = TEXT("mode"); Mode.Type = EAnomalyArgType::Enum; Mode.Default = TEXT("auto");
+			Mode.Options = { TEXT("auto"), TEXT("distance_threshold"), TEXT("view_entry"), TEXT("periodic") };
+			OutArgs.Add(Mode);
 			OutArgs.Add(IntArg(TEXT("half_period_frames"), TEXT("8"), 1.0));
 		}
 		else if (Id == FName(TEXT("time_dilation")))
@@ -519,6 +524,7 @@ void UAnomalyInjectorSubsystem::Tick(float DeltaTime)
 
 void UAnomalyInjectorSubsystem::DispatchAnomalyTicks(float DeltaTime)
 {
+	AnomalyLodTrigger::RecordViewSample(GetWorld());
 	for (const TPair<FName, TUniquePtr<IAnomaly>>& Pair : Anomalies)
 	{
 		if (Pair.Value && Pair.Value->IsActive())
