@@ -1034,6 +1034,10 @@ namespace AnomalyLabel
 			O->SetNumberField(TEXT("occlusion_samples_passed"), R.OcclusionSamplesPassed);
 			O->SetNumberField(TEXT("occlusion_samples_total"), R.OcclusionSamplesTotal);
 			O->SetNumberField(TEXT("poll_distance"), R.PollDistance);
+			if (!R.TerrainRule.IsEmpty())
+			{
+				O->SetStringField(TEXT("terrain_rule"), R.TerrainRule);
+			}
 			Arr.Add(MakeShared<FJsonValueObject>(O));
 		}
 		Root->SetArrayField(TEXT("events"), Arr);
@@ -1097,7 +1101,8 @@ namespace AnomalyLabel
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip,
-		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy)
+		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy,
+		int32 BlinkTerrainEvents, int32 TerrainUnlabelableRefusals)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
@@ -1133,6 +1138,8 @@ namespace AnomalyLabel
 			Root->SetStringField(TEXT("nanite_target_policy"), NaniteTargetPolicy);
 		}
 		Root->SetNumberField(TEXT("unmeasurable_targets_admitted"), UnmeasurableTargetsAdmitted);
+		Root->SetNumberField(TEXT("blink_terrain_events"), BlinkTerrainEvents);
+		Root->SetNumberField(TEXT("terrain_unlabelable_refusals"), TerrainUnlabelableRefusals);
 		if (StuckMip)
 		{
 			Root->SetNumberField(TEXT("stuck_mip_fires_applied"), StuckMip->FiresApplied);

@@ -17,8 +17,10 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
+	virtual FString GetLastRefusalReason() const override { return LastRefusal; }
 
 private:
+	FString LastRefusal;
 	TArray<TWeakObjectPtr<AActor>> Targets;
 	int32 HalfPeriodFrames = DefaultHalfPeriodFrames;
 	int32 FramesSinceToggle = 0;

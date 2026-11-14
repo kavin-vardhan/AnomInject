@@ -1,4 +1,5 @@
 #include "AnomalyDefaults.h"
+#include "AnomalyTerrainRule.h"
 
 #include "AnomalyInjectorLog.h"
 #include "AnomalyViewport.h"
@@ -7,13 +8,13 @@
 
 namespace
 {
-	TArray<FString> ReadExcludedTargetPatternsIni()
+	TArray<FString> ReadPatternListIni(const TCHAR* Key)
 	{
 		TArray<FString> Raw;
 		TArray<FString> Patterns;
 		if (GConfig)
 		{
-			GConfig->GetArray(AnomalyDefaults::SectionName(), AnomalyDefaults::ExcludedTargetPatternsKey(), Raw, GGameIni);
+			GConfig->GetArray(AnomalyDefaults::SectionName(), Key, Raw, GGameIni);
 		}
 		for (const FString& Entry : Raw)
 		{
@@ -24,6 +25,23 @@ namespace
 			}
 		}
 		return Patterns;
+	}
+
+	TArray<FString> ReadExcludedTargetPatternsIni()
+	{
+		return ReadPatternListIni(AnomalyDefaults::ExcludedTargetPatternsKey());
+	}
+
+	TArray<FString>& TerrainOverride()
+	{
+		static TArray<FString> Patterns;
+		return Patterns;
+	}
+
+	bool& TerrainOverrideSet()
+	{
+		static bool bSet = false;
+		return bSet;
 	}
 
 	struct FResolvedDefault
@@ -392,6 +410,105 @@ namespace AnomalyDefaults
 		if (Patterns.Num() == 0)
 		{
 			return ExcludedOverrideSet()
+				? FString(TEXT("none(console)"))
+				: FString(TEXT("none(COMPILED DEFAULT; no ini key)"));
+		}
+		return FString::Printf(TEXT("%d(%s)[%s]"), Patterns.Num(), Source, *FString::Join(Patterns, TEXT("|")));
+	}
+
+	const TCHAR* TerrainPatternsKey()
+	{
+		return TEXT("TerrainNamePatterns");
+	}
+
+	const TArray<FString>& GetTerrainPatterns()
+	{
+		if (TerrainOverrideSet())
+		{
+			return TerrainOverride();
+		}
+
+		static bool bResolved = false;
+		static TArray<FString> Patterns;
+		if (bResolved)
+		{
+			return Patterns;
+		}
+		if (AnomalyViewport::IsReadOnlyEnumeration())
+		{
+			static TArray<FString> QuietPatterns;
+			QuietPatterns = ReadPatternListIni(TerrainPatternsKey());
+			return QuietPatterns;
+		}
+		bResolved = true;
+		Patterns = ReadPatternListIni(TerrainPatternsKey());
+
+		if (Patterns.Num() > 0)
+		{
+			UE_LOG(LogAnomaly, Log,
+				TEXT("AnomalyInjector: terrain patterns = %d, from DefaultGame.ini [%s] %s. A blinking target is TERRAIN by ")
+				TEXT("pattern if any pattern is a case-insensitive substring of its ACTOR name, its actor's own CLASS name, ")
+				TEXT("or the NAME, own CLASS name or MESH ASSET name of any of its primitive components. A terrain blink ")
+				TEXT("is labelled anomaly_subtype terrain_disappear_reappear. Selection and eligibility are unchanged."),
+				Patterns.Num(), SectionName(), TerrainPatternsKey());
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Log,
+				TEXT("AnomalyInjector: terrain patterns = NONE, from the COMPILED DEFAULT; no [%s] %s key is present, so ")
+				TEXT("only the engine-landscape class rule can mark a blinking target as terrain."),
+				SectionName(), TerrainPatternsKey());
+		}
+		return Patterns;
+	}
+
+	void SetTerrainPatternsOverride(const TArray<FString>& Patterns)
+	{
+		TerrainOverride().Reset();
+		for (const FString& Entry : Patterns)
+		{
+			const FString Trimmed = Entry.TrimStartAndEnd();
+			if (!Trimmed.IsEmpty())
+			{
+				TerrainOverride().Add(Trimmed);
+			}
+		}
+		TerrainOverrideSet() = true;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("AnomalyInjector: terrain patterns SET BY CONSOLE to %d [%s]. This BEATS DefaultGame.ini [%s] %s, which ")
+			TEXT("matters because a loose ini beside a package is a no-op (G88) - the cooked config wins, so on a packaged ")
+			TEXT("build this command is the ONLY way to change the terrain patterns without a re-cook. It applies to the ")
+			TEXT("NEXT blinking event's anchor."),
+			TerrainOverride().Num(), *FString::Join(TerrainOverride(), TEXT("|")),
+			SectionName(), TerrainPatternsKey());
+	}
+
+	void ClearTerrainPatternsOverride()
+	{
+		TerrainOverride().Reset();
+		TerrainOverrideSet() = false;
+		UE_LOG(LogAnomaly, Log,
+			TEXT("AnomalyInjector: console terrain-pattern override cleared - BACK TO THE INI LIST: DefaultGame.ini [AnomalyInjector] ")
+			TEXT("TerrainNamePatterns (the cooked one in a packaged build), or the empty compiled default when no key is present. ")
+			TEXT("'clear' does NOT mean no patterns; use 'IAI.SetTerrainPatterns none' for that."));
+	}
+
+	FString TerrainPatternsSource()
+	{
+		if (TerrainOverrideSet())
+		{
+			return FString(TEXT("IAI.SetTerrainPatterns (console override, beats the ini)"));
+		}
+		return FString::Printf(TEXT("DefaultGame.ini [%s] %s"), SectionName(), TerrainPatternsKey());
+	}
+
+	FString DescribeTerrainPatterns()
+	{
+		const TArray<FString>& Patterns = GetTerrainPatterns();
+		const TCHAR* Source = TerrainOverrideSet() ? TEXT("console") : TEXT("ini");
+		if (Patterns.Num() == 0)
+		{
+			return TerrainOverrideSet()
 				? FString(TEXT("none(console)"))
 				: FString(TEXT("none(COMPILED DEFAULT; no ini key)"));
 		}
@@ -1324,6 +1441,31 @@ namespace
 		UE_LOG(LogAnomaly, Log, TEXT("IAI.SetExcludedTargets: EFFECTIVE READ-BACK = %s."),
 			*AnomalyDefaults::DescribeExcludedTargetPatterns());
 	}
+
+	void HandleTerrainPatterns(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.SetTerrainPatterns <pattern> [pattern...] | none | clear   (current: %s)"),
+				*AnomalyDefaults::DescribeTerrainPatterns());
+			return;
+		}
+		const AnomalyTerrainRule::EPatternCommand Command = AnomalyTerrainRule::ClassifyPatternCommand(Args.Num(), TCHAR_TO_ANSI(*Args[0]));
+		if (Command == AnomalyTerrainRule::EPatternCommand::BackToIni)
+		{
+			AnomalyDefaults::ClearTerrainPatternsOverride();
+		}
+		else if (Command == AnomalyTerrainRule::EPatternCommand::None)
+		{
+			AnomalyDefaults::SetTerrainPatternsOverride(TArray<FString>());
+		}
+		else
+		{
+			AnomalyDefaults::SetTerrainPatternsOverride(Args);
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.SetTerrainPatterns: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeTerrainPatterns());
+	}
 }
 
 namespace
@@ -1761,6 +1903,23 @@ static FAutoConsoleCommand GExcludedTargetsCmd(
 	     "per-run count reaches run_summary.json as pattern_excluded_targets. Pass 'clear' to drop the override. "
 	     "Usage: IAI.SetExcludedTargets <pattern> [pattern...] | clear"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleExcludedTargets));
+
+static FAutoConsoleCommand GTerrainPatternsCmd(
+	TEXT("IAI.SetTerrainPatterns"),
+	TEXT("Set the TERRAIN name patterns for this session (m58). A blinking event's target is TERRAIN if it is engine ")
+	TEXT("landscape (class rule: the actor IsA LandscapeProxy, or a component IsA LandscapeComponent) OR if any pattern ")
+	TEXT("is a case-insensitive SUBSTRING of its actor name, its actor's own class name, or the name, own class name ")
+	TEXT("or mesh asset name of any of its primitive components. A terrain blink is labelled anomaly_type blink, ")
+	TEXT("anomaly_subtype terrain_disappear_reappear; every other blink stays disappear_reappear. Patterns cover hosts ")
+	TEXT("whose ground is ordinary meshes or Blueprints, which the class rule cannot see. They change the LABEL only: ")
+	TEXT("selection, eligibility and the hide are untouched, and a pattern-matched target is never refused. ")
+	TEXT("PRECEDENCE: this console list beats DefaultGame.ini [AnomalyInjector] TerrainNamePatterns, which beats the ")
+	TEXT("COMPILED DEFAULT of an EMPTY list. The console form exists because a loose ini beside a package is a NO-OP ")
+	TEXT("(G88). The effective list and its source print on the run banner's TERRAIN RULES line. 'none' sets NO patterns ")
+	TEXT("(only the class rule remains). 'clear' drops the console override and goes BACK TO THE INI LIST (the cooked ")
+	TEXT("TerrainNamePatterns, or the empty compiled default when no key is present). ")
+	TEXT("Usage: IAI.SetTerrainPatterns <pattern> [pattern...] | none | clear"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleTerrainPatterns));
 
 static FAutoConsoleCommand GBlinkHalfPeriodCmd(
 	TEXT("IAI.Anomaly.BlinkHalfPeriod"),

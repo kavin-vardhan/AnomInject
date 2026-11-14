@@ -528,7 +528,7 @@ first.
 | Field | Type | Since | Meaning |
 | --- | --- | --- | --- |
 | `anomaly_type` | string | v1 | `blink`, `missing_texture`, `corrupted_texture`, `lod_popping`, `missing_object`, `camera_clipping`, `stuck_low_mip`, `uv_corruption`, `normal_corruption`. ⚠ The blinking anomaly is written **`blink`** here, while `labels.jsonl` calls it `blinking` (its `id`); every other anomaly uses the same name in both files. |
-| `anomaly_subtype` | string | v1 | A finer label for the same event, e.g. `disappear_reappear` for `blinking`. For `uv_corruption` and `normal_corruption` it is the mode: `tile`, `scramble`, `invert` or `green_flip` (§8.8). |
+| `anomaly_subtype` | string | v1 | A finer label for the same event. For `blink` it is `terrain_disappear_reappear` when the hidden object is **terrain** (§8.4.2) and `disappear_reappear` otherwise. For `uv_corruption` and `normal_corruption` it is the mode: `tile`, `scramble`, `invert` or `green_flip` (§8.8). |
 | **`affected_frames`** | object | v1, **meaning changed in v2** | **The frames on which the anomaly is judged to be VISIBLE.** See §8.3. |
 | **`injected_frames`** | object | **v2** | **The frames on which the anomaly was APPLIED**, whether or not it could be seen. Same shape as `affected_frames`. This is exactly what `affected_frames` meant in v1. |
 | **`bbox_source`** | string | **v2** | `"drawn"` = the boxes for this event come from measured drawn pixels. `"projected"` = they come from the object's projected bounds only. |
@@ -837,6 +837,47 @@ data.
 The same applies to `missing_object`, which hides for the whole burst and therefore usually yields a
 single unbroken run.
 
+### 8.4.2 Terrain blinks — `blink` / `terrain_disappear_reappear`
+
+When the object a `blink` event hides is **terrain**, the hole it leaves is an opening in the ground, not an
+ordinary object vanishing. Such an event stays in the blink family and reads:
+
+- `anomaly_type`: `blink`
+- `anomaly_subtype`: `terrain_disappear_reappear`
+
+Every other blink event reads `disappear_reappear`, as before. Nothing else about the event changes: the
+same frame lists, boxes and masks. The decision is made **once per event**, when the event starts.
+
+**What counts as terrain.** An object is terrain if the object itself, or any of its parts, matches one of
+two rules:
+
+1. **Engine landscape.** The object is an Unreal landscape (or holds a landscape component). This needs no
+   setup.
+2. **Your terrain names.** Many games build their ground from ordinary meshes or Blueprints, which the
+   first rule cannot recognise. List a word from those objects' names in your game's `DefaultGame.ini`:
+
+   ```ini
+   [AnomalyInjector]
+   +TerrainNamePatterns=YourGroundWord
+   ```
+
+   A pattern matches, ignoring case, anywhere in the object's name, its class name, or a part's name, class
+   name or mesh name. The console command `IAI.SetTerrainPatterns <word> [word...] | none | clear` sets the list for
+   one session; use it on a packaged build, where an edited loose ini file has no effect. `none` means no patterns at
+   all; `clear` drops the console list and goes **back to the ini list** (on a packaged build, the one cooked into it). The list is
+   **empty by default**, so until you set it only engine landscape is recognised. The capture log's
+   `TERRAIN RULES` line, printed when a run starts, shows the active list and where it came from. If **every** blink event of a run (five or more) comes out terrain, the log warns at the end of the run: a pattern
+   that broad (for example `SM_`) probably marks every mesh as terrain. The terrain decision is made on the asynchronous
+   capture path only; the synchronous path (unsupported for delivery) labels every blink `disappear_reappear`.
+
+⚠ **Blinking on engine landscape is refused.** A blink fired at an engine-landscape object would carry no
+mask and a box that is not the terrain, so the plugin does not fire it (reason `terrain_unlabelable`). Mesh
+terrain found by your names is not refused and is labelled like any other object. The automatic pool never
+picks engine landscape anyway, so in practice this affects only a capture targeted at a landscape tile.
+
+`run_summary.json` counts both: `blink_terrain_events` (blink events labelled as terrain) and
+`terrain_unlabelable_refusals` (blink fires refused on engine landscape).
+
 ### 8.5 v1 → v2 changelog
 
 | Key | v1 meaning | v2 meaning | Additive? |
@@ -864,6 +905,8 @@ single unbroken run.
 | `labels.jsonl` → `exposure_dip_scope` | *absent* | `"frame"` or `"frame_minus_targets"`, **only on rows that carry `exposure_dip`** | **Added** |
 | `run_summary.json` → `observable_frames`, `frames_condition_lost`, `observable_min_pixels` | *absent* | see §8.4 | **Added** |
 | `run_summary.json` → `target_drawn_pixels_measured`, `frames_drawn_unexpected`, `frames_exposure_dip_suppressed` | *absent* | see §8.4 and the exposure-dip section | **Added** |
+| `anomaly_subtype` on a `blink` event | `disappear_reappear` | `terrain_disappear_reappear` when the hidden object is terrain, `disappear_reappear` otherwise (§8.4.2). A new value in an existing field; `label_schema` and `label_schema_minor` are unchanged. | **Added value** |
+| `run_summary.json` → `blink_terrain_events`, `terrain_unlabelable_refusals` | *absent* | see §8.4.2 | **Added** |
 | everything else | — | — | Unchanged |
 
 🔑 **The one-line migration:** *if your v1 code read `affected_frames`, point it at `injected_frames`
