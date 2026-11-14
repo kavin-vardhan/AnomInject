@@ -10,6 +10,9 @@
 #include "Components/MeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "HAL/IConsoleManager.h"
+#include "Engine/World.h"
 
 namespace
 {
@@ -474,6 +477,13 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 	Eval = FTickEndEval();
 	StoredTickEnd = FTickEndEval();
 	StoredTickEndFrame = 0;
+	ReleasedAtSeconds = -1.0;
+	bDithered = false;
+	for (int32 MaterialIndex = 0; MaterialIndex < Best->GetNumMaterials(); ++MaterialIndex)
+	{
+		const UMaterialInterface* Material = Best->GetMaterial(MaterialIndex);
+		bDithered = bDithered || (Material && Material->IsDitheredLODTransition());
+	}
 	AppliedFrame = GFrameCounter;
 	LastCommittedFrame = 0;
 	Best->SetForcedLodModel(BestEval.HeldLod + 1);
@@ -524,6 +534,7 @@ const FAnomaly_LodPopping::FTickEndEval& FAnomaly_LodPopping::EvaluateNow() cons
 	E.Input.TemporalLod1 = Pred.bValid ? Pred.TemporalLod1 : -1;
 	E.Input.BoundsScreenSize = Pred.BoundsScreenSize;
 	E.DistanceCm = AnomalyLodTrigger::GetDistanceToBoundsCm(View.Origin, Mesh);
+	E.MinLod = Pred.bValid ? Pred.MinLod : -1;
 	if (GLodPredictStaleView && HistoryCount > 0 && Pred.bValid)
 	{
 		float Sizes[AnomalyLod::MaxLodEntries];
@@ -609,6 +620,7 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 		{
 			bLaggedRelease = false;
 			Mesh->SetForcedLodModel(SavedForcedLod);
+			ReleasedAtSeconds = WorldRef.IsValid() ? WorldRef->GetTimeSeconds() : -1.0;
 			UE_LOG(LogAnomaly, Warning, TEXT("lod_popping: BENCH RELEASE-LAG - the release reaches the mesh one tick after the recorded swap."));
 		}
 		const AnomalyLodTriggerRule::ETickAction Action = AnomalyLodTriggerRule::DecideTick(Tracker, Settings);
@@ -619,6 +631,7 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 		else if (Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible || Action == AnomalyLodTriggerRule::ETickAction::ReleaseInvisible)
 		{
 			Mesh->SetForcedLodModel(SavedForcedLod);
+			ReleasedAtSeconds = WorldRef.IsValid() ? WorldRef->GetTimeSeconds() : -1.0;
 			UE_LOG(LogAnomaly, Log, TEXT("lod_popping: RELEASE (%s) '%s' -> forced_lod_model=%d; the engine draws its own LOD from this frame."),
 				Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible ? TEXT("trigger, visible") : TEXT("the engine LOD is at or past the held one, invisible"),
 				*Mesh->GetName(), SavedForcedLod);
@@ -626,6 +639,7 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 		else if (Action == AnomalyLodTriggerRule::ETickAction::ReHold)
 		{
 			Mesh->SetForcedLodModel(Tracker.HeldLod + 1);
+			ReleasedAtSeconds = -1.0;
 			UE_LOG(LogAnomaly, Log, TEXT("lod_popping: RE-HOLD (retreat past the hysteresis band) '%s' -> forced_lod_model=%d."),
 				*Mesh->GetName(), Tracker.HeldLod + 1);
 		}
@@ -673,6 +687,8 @@ void FAnomaly_LodPopping::ReleaseSpatial()
 	SpatialMesh.Reset();
 	WorldRef.Reset();
 	bLaggedRelease = false;
+	bDithered = false;
+	ReleasedAtSeconds = -1.0;
 	Tracker = AnomalyLodTriggerRule::FTracker();
 	Eval = FTickEndEval();
 	StoredTickEnd = FTickEndEval();
@@ -740,7 +756,18 @@ void FAnomaly_LodPopping::NoteCapturedFrame(bool bAnomalousThisFrame)
 	}
 	StoredTickEnd = EvaluateNow();
 	StoredTickEndFrame = GFrameCounter;
-	bHoldOpenAtLastTickEnd = StoredTickEnd.bHoldOpen;
+	bHoldOpenAtLastTickEnd = StoredTickEnd.bHoldOpen || (bDithered && !Tracker.bHeld && InPostReleaseWindow());
+}
+
+bool FAnomaly_LodPopping::InPostReleaseWindow() const
+{
+	if (ReleasedAtSeconds < 0.0 || !WorldRef.IsValid())
+	{
+		return false;
+	}
+	static IConsoleVariable* TemporalLag = IConsoleManager::Get().FindConsoleVariable(TEXT("lod.TemporalLag"));
+	const double LagSeconds = TemporalLag ? FMath::Max(0.0f, TemporalLag->GetFloat()) : 0.5;
+	return WorldRef->GetTimeSeconds() - ReleasedAtSeconds <= LagSeconds + 0.05;
 }
 
 bool FAnomaly_LodPopping::IsCurrentlyAnomalous() const
@@ -783,7 +810,11 @@ bool FAnomaly_LodPopping::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddFloat(TEXT("lod.coverage_pct"), E.Input.CoveragePct);
 	Out.AddBool(TEXT("lod.on_screen"), E.Input.bOnScreen);
 	Out.AddBool(TEXT("lod.held"), Tracker.bHeld);
-	Out.AddBool(TEXT("lod.in_frustum"), E.Input.bInFrustum);
+	Out.AddBool(TEXT("lod.probe"), Tracker.bHeld || InPostReleaseWindow());
+	Out.AddBool(TEXT("lod.dithered"), bDithered);
+	Out.AddInt(TEXT("lod.min_lod"), E.MinLod);
+	Out.AddInt(TEXT("lod.temporal0"), E.Input.TemporalLod0);
+	Out.AddInt(TEXT("lod.temporal1"), E.Input.TemporalLod1);	Out.AddBool(TEXT("lod.in_frustum"), E.Input.bInFrustum);
 	Out.AddBool(TEXT("lod.subvisible"), IsFlaggedClass(Class));
 	Out.AddBool(TEXT("lod.swap"), E.Observation.bSwap);
 	Out.AddBool(TEXT("lod.cap_reached"), E.bCapReached);

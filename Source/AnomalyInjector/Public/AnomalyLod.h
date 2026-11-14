@@ -54,7 +54,7 @@ namespace AnomalyLod
 	ANOMALYINJECTOR_API int32 GetLodTriangleCount(const UStaticMeshComponent* Component, int32 LodIndex);
 
 	ANOMALYINJECTOR_API bool GetRenderProbeInputs(const UStaticMeshComponent* Component, const FStaticMeshRenderData*& OutData,
-		int32& OutMinLod, int32& OutNumLods, float& OutFactorScale);
+		int32& OutMinLod, int32& OutNumLods, float& OutFactorScale, int32& OutRequestedMinLod);
 
 	ANOMALYINJECTOR_API int32 GetLodScreenSizes(const UStaticMeshComponent* Component, float (&OutSizes)[MaxLodEntries],
 		int32 (&OutTriangles)[MaxLodEntries]);

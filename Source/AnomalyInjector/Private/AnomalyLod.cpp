@@ -99,7 +99,7 @@ AnomalyLod::FEngineLodPrediction AnomalyLod::PredictEngineLod(UWorld* World, con
 }
 
 bool AnomalyLod::GetRenderProbeInputs(const UStaticMeshComponent* Component, const FStaticMeshRenderData*& OutData,
-	int32& OutMinLod, int32& OutNumLods, float& OutFactorScale)
+	int32& OutMinLod, int32& OutNumLods, float& OutFactorScale, int32& OutRequestedMinLod)
 {
 	const UStaticMesh* Mesh = Component ? Component->GetStaticMesh() : nullptr;
 	OutData = Mesh ? Mesh->GetRenderData() : nullptr;
@@ -109,7 +109,8 @@ bool AnomalyLod::GetRenderProbeInputs(const UStaticMeshComponent* Component, con
 	}
 	OutNumLods = OutData->LODResources.Num();
 	const int32 RequestedMin = Component->bOverrideMinLOD ? Component->MinLOD : Mesh->GetMinLODIdx();
-	OutMinLod = OutData->GetCurrentFirstLODIdx(FMath::Clamp(RequestedMin, 0, OutNumLods - 1));
+	OutRequestedMinLod = FMath::Clamp(RequestedMin, 0, OutNumLods - 1);
+	OutMinLod = OutData->GetCurrentFirstLODIdx(OutRequestedMinLod);
 	OutFactorScale = GetStaticMeshLodDistanceScale();
 	return true;
 }

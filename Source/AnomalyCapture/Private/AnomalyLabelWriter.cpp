@@ -984,7 +984,9 @@ namespace AnomalyLabel
 		bOutChecked = false;
 		static const FString GLodId(TEXT("lod_popping"));
 		static const FString GEngineKey(TEXT("lod.engine_lod"));
-		static const FString GSubvisibleKey(TEXT("lod.subvisible"));
+		static const FString GMinLodKey(TEXT("lod.min_lod"));
+		static const FString GHeldKey(TEXT("lod.held"));
+		static const FString GDitheredKey(TEXT("lod.dithered"));
 		const int32 N = Snapshot.Fires.Num();
 		int32 Marked = 0;
 		for (const FAnomalyLodRenderResult& R : Snapshot.LodRender)
@@ -996,22 +998,32 @@ namespace AnomalyLabel
 			}
 			FAnomalyTelemetry& T = Snapshot.Telemetry[i];
 			int32 TickEndLod = -1;
+			int32 TickEndMinLod = -1;
 			for (const TPair<FString, int32>& KV : T.Ints)
 			{
-				if (KV.Key == GEngineKey) { TickEndLod = KV.Value; break; }
+				if (KV.Key == GEngineKey) { TickEndLod = KV.Value; }
+				else if (KV.Key == GMinLodKey) { TickEndMinLod = KV.Value; }
 			}
-			bool bSubvisible = false;
+			bool bHeld = false;
+			bool bDithered = false;
 			for (const TPair<FString, bool>& KV : T.Bools)
 			{
-				if (KV.Key == GSubvisibleKey) { bSubvisible = KV.Value; break; }
+				if (KV.Key == GHeldKey) { bHeld = KV.Value; }
+				else if (KV.Key == GDitheredKey) { bDithered = KV.Value; }
 			}
 			T.AddInt(TEXT("lod.engine_lod_render"), R.EngineLod);
+			T.AddInt(TEXT("lod.min_lod_render"), R.MinLod);
+			T.AddInt(TEXT("lod.temporal_render0"), R.TemporalLod0);
+			T.AddInt(TEXT("lod.temporal_render1"), R.TemporalLod1);
 			bOutChecked = true;
-			const bool bActive = Snapshot.FireActive.IsValidIndex(i) && Snapshot.FireActive[i] != 0;
-			if (R.EngineLod == TickEndLod || (!bActive && !bSubvisible))
+			const bool bEngineDiffers = R.EngineLod != TickEndLod;
+			const bool bMinDiffers = TickEndMinLod >= 0 && R.MinLod >= 0 && R.MinLod != TickEndMinLod;
+			const bool bCrossfade = !bHeld && bDithered && R.TemporalLod0 != R.TemporalLod1;
+			if (!bEngineDiffers && !bMinDiffers && !bCrossfade)
 			{
 				continue;
 			}
+			T.AddString(TEXT("lod.unconfirmed_why"), bEngineDiffers ? TEXT("engine_lod") : bMinDiffers ? TEXT("min_lod") : TEXT("dither_crossfade"));
 			if (Snapshot.EntryEmit.Num() != N) { Snapshot.EntryEmit.SetNumZeroed(N); }
 			if (Snapshot.EntryTransition.Num() != N) { Snapshot.EntryTransition.SetNumZeroed(N); }
 			if ((AnomalyLabelSync::EEntryEmit)Snapshot.EntryEmit[i] != AnomalyLabelSync::EEntryEmit::Suppress)

@@ -57,9 +57,11 @@ void FAnomalySveCapturer::SampleLods_RenderThread(const TArray<FAnomalyLodRender
 		if (P.RenderData && P.NumLods > 0)
 		{
 			const int32 Max = P.NumLods - 1;
-			R.EngineLod = FMath::Clamp((int32)ComputeStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, P.MinLod, P.FactorScale), P.MinLod, Max);
-			R.TemporalLod0 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, P.MinLod, P.FactorScale, 0), P.MinLod, Max);
-			R.TemporalLod1 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, P.MinLod, P.FactorScale, 1), P.MinLod, Max);
+			const int32 MinLod = FMath::Clamp(P.RenderData->GetCurrentFirstLODIdx(FMath::Clamp(P.RequestedMinLod, 0, Max)), 0, Max);
+			R.MinLod = MinLod;
+			R.EngineLod = FMath::Clamp((int32)ComputeStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, MinLod, P.FactorScale), MinLod, Max);
+			R.TemporalLod0 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, MinLod, P.FactorScale, 0), MinLod, Max);
+			R.TemporalLod1 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, MinLod, P.FactorScale, 1), MinLod, Max);
 		}
 		Out.Add(R);
 	}

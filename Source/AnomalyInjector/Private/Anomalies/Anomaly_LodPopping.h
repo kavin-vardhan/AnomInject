@@ -53,6 +53,7 @@ private:
 		bool bHoldOpen = false;
 		bool bCapReached = false;
 		float DistanceCm = -1.0f;
+		int32 MinLod = -1;
 	};
 
 	bool ApplyPeriodic(UWorld* World, const TArray<FString>& Args);
@@ -60,6 +61,7 @@ private:
 	const FTickEndEval& EvaluateNow() const;
 	void ReleaseSpatial();
 	void CommitPreviousFrame();
+	bool InPostReleaseWindow() const;
 
 	TArray<FPoppingTarget> Targets;
 	TArray<TWeakObjectPtr<const AActor>> ScopedOwners;
@@ -85,6 +87,8 @@ private:
 	int32 SwapsRecorded = 0;
 	bool bHoldOpenAtLastTickEnd = false;
 	bool bLaggedRelease = false;
+	bool bDithered = false;
+	double ReleasedAtSeconds = -1.0;
 	mutable FTickEndEval Eval;
 	FTickEndEval StoredTickEnd;
 	uint64 StoredTickEndFrame = 0;

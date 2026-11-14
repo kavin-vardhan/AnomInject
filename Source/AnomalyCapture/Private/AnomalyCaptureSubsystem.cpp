@@ -6554,7 +6554,7 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 	if (Async->SveCapturer.IsValid())
 	{
 		static const FString GLodComponentKey(TEXT("lod.component"));
-		static const FString GLodHeldKey(TEXT("lod.held"));
+		static const FString GLodProbeKey(TEXT("lod.probe"));
 		TArray<FAnomalyLodRenderProbe> LodProbes;
 		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
 		{
@@ -6562,18 +6562,18 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 			{
 				continue;
 			}
-			bool bHeld = false;
+			bool bProbe = false;
 			FString ComponentName;
 			for (const TPair<FString, bool>& KV : Snap->Telemetry[i].Bools)
 			{
-				if (KV.Key == GLodHeldKey) { bHeld = KV.Value; }
+				if (KV.Key == GLodProbeKey) { bProbe = KV.Value; }
 			}
 			for (const TPair<FString, FString>& KV : Snap->Telemetry[i].Strings)
 			{
 				if (KV.Key == GLodComponentKey) { ComponentName = KV.Value; }
 			}
 			const AActor* LodActor = Snap->Fires[i].TargetActor.Get();
-			if (!bHeld || !LodActor || ComponentName.IsEmpty())
+			if (!bProbe || !LodActor || ComponentName.IsEmpty())
 			{
 				continue;
 			}
@@ -6583,7 +6583,7 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 			{
 				FAnomalyLodRenderProbe P;
 				if (C && C->GetName() == ComponentName
-					&& AnomalyLod::GetRenderProbeInputs(C, P.RenderData, P.MinLod, P.NumLods, P.FactorScale))
+					&& AnomalyLod::GetRenderProbeInputs(C, P.RenderData, P.MinLod, P.NumLods, P.FactorScale, P.RequestedMinLod))
 				{
 					P.FireIndex = i;
 					P.Origin = C->Bounds.Origin;
