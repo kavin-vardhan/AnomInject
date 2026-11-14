@@ -259,11 +259,16 @@ namespace AnomalyLabelSync
 	{
 		static constexpr int FirstCap = MaxTransitionFrames;
 		static constexpr int RecentCap = 2 * MaxTransitionFrames;
+		static constexpr int SettleCap = 4 * MaxTransitionFrames;
 
 		int First[FirstCap] = {};
 		int NumFirst = 0;
 		int Recent[RecentCap] = {};
 		int NumRecent = 0;
+		int FirstLive[FirstCap] = {};
+		int NumFirstLive = 0;
+		int Settle[SettleCap] = {};
+		int NumSettle = 0;
 		static constexpr int NoMember = -2147483647 - 1;
 
 		int MaxSISeen = -1;
@@ -292,6 +297,48 @@ namespace AnomalyLabelSync
 				if (First[i] < SI) { ++N; }
 			}
 			return N;
+		}
+
+		int CountFirstLiveBelow(int SI) const
+		{
+			int N = 0;
+			for (int i = 0; i < NumFirstLive; ++i)
+			{
+				if (FirstLive[i] < SI) { ++N; }
+			}
+			return N;
+		}
+
+		bool HasSettle(int SI) const
+		{
+			for (int i = 0; i < NumSettle; ++i)
+			{
+				if (Settle[i] == SI) { return true; }
+			}
+			return false;
+		}
+
+		int SettleBetween(int Lo, int Hi) const
+		{
+			int N = 0;
+			for (int i = 0; i < NumSettle; ++i)
+			{
+				if (Settle[i] > Lo && Settle[i] < Hi) { ++N; }
+			}
+			return N;
+		}
+
+		int WindowDistance(int From, int To) const
+		{
+			return (To - From) - SettleBetween(From, To);
+		}
+
+		void NoteSettle(int SI)
+		{
+			if (!HasSettle(SI))
+			{
+				InsertSorted(Settle, NumSettle, SettleCap, SI, false);
+			}
 		}
 
 		int PrevMember(int SI) const
@@ -354,7 +401,7 @@ namespace AnomalyLabelSync
 			InsertSorted(Recent, NumRecent, RecentCap, SI, false);
 		}
 
-		void Observe(int SI, bool bMember, int OnFrames, int OffFrames, bool& bOutOn, bool& bOutOff)
+		void Observe(int SI, bool bMember, int OnFrames, int OffFrames, bool& bOutOn, bool& bOutOff, bool bSettleFrame = false)
 		{
 			bOutOn = false;
 			bOutOff = false;
@@ -366,18 +413,28 @@ namespace AnomalyLabelSync
 			{
 				MaxSISeen = SI;
 			}
+			if (bSettleFrame)
+			{
+				NoteSettle(SI);
+			}
 			if (bMember)
 			{
 				bOffDone = false;
-				if (!bOnsetPast && CountFirstBelow(SI) < OnFrames && !HasMember(SI))
+				if (!bOnsetPast && CountFirstLiveBelow(SI) < OnFrames && !HasMember(SI))
 				{
 					bOutOn = true;
 				}
 				AddMember(SI);
+				if (!bSettleFrame && !HasSettle(SI))
+				{
+					bool bKnown = false;
+					for (int i = 0; i < NumFirstLive; ++i) { bKnown = bKnown || FirstLive[i] == SI; }
+					if (!bKnown) { InsertSorted(FirstLive, NumFirstLive, FirstCap, SI, true); }
+				}
 				return;
 			}
 			const int Prev = PrevMember(SI);
-			if (Prev != NoMember && SI - Prev <= OffFrames)
+			if (Prev != NoMember && WindowDistance(Prev, SI) <= OffFrames)
 			{
 				bOutOff = true;
 			}
@@ -386,13 +443,15 @@ namespace AnomalyLabelSync
 		bool OffWindowPassed(int SI, int OffFrames) const
 		{
 			const int Last = LastMember();
-			return Last == NoMember || SI - Last > OffFrames;
+			return Last == NoMember || WindowDistance(Last, SI) > OffFrames;
 		}
 
 		void Rebase(int Offset)
 		{
 			for (int i = 0; i < NumFirst; ++i) { First[i] -= Offset; }
 			for (int i = 0; i < NumRecent; ++i) { Recent[i] -= Offset; }
+			for (int i = 0; i < NumFirstLive; ++i) { FirstLive[i] -= Offset; }
+			for (int i = 0; i < NumSettle; ++i) { Settle[i] -= Offset; }
 			MaxSISeen -= Offset;
 		}
 	};
@@ -585,7 +644,7 @@ namespace AnomalyLabelSync
 		bool bGone = false;
 	};
 
-	inline bool StepHideLive(FHideReturnTrack& T, bool bHiddenNow, int Frames)
+	inline bool StepHideLive(FHideReturnTrack& T, bool bHiddenNow, int Frames, bool bSettleFrame = false)
 	{
 		if (bHiddenNow)
 		{
@@ -600,13 +659,13 @@ namespace AnomalyLabelSync
 		}
 		if (T.Remaining > 0)
 		{
-			--T.Remaining;
+			if (!bSettleFrame) { --T.Remaining; }
 			return true;
 		}
 		return false;
 	}
 
-	inline bool StepHideGone(FHideReturnTrack& T, int Frames)
+	inline bool StepHideGone(FHideReturnTrack& T, int Frames, bool bSettleFrame = false)
 	{
 		if (!T.bGone)
 		{
@@ -619,7 +678,7 @@ namespace AnomalyLabelSync
 		}
 		if (T.Remaining > 0)
 		{
-			--T.Remaining;
+			if (!bSettleFrame) { --T.Remaining; }
 			return true;
 		}
 		return false;

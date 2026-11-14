@@ -8097,6 +8097,18 @@ static void AdoptCarriedLabelSync(FAnomalyCaptureAsyncState& A)
 	A.CarriedHideTracks.Reset();
 }
 
+static bool IsSettleSnap(const AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	return AnomalyLabelSync::IsSettleRole((AnomalyLabelSync::EFrameRole)Snap.FrameRole);
+}
+
+static void NoteSettleOnTracks(FAnomalyCaptureAsyncState& A, const AnomalyLabel::FCaptureSnapshot& Snap)
+{
+	if (!IsSettleSnap(Snap)) { return; }
+	for (TPair<FString, AnomalyLabelSync::FEventTransitionTrack>& KV : A.TransitionTracks) { KV.Value.NoteSettle(Snap.SessionIndex); }
+	for (TPair<FString, FAnomalyCaptureAsyncState::FFireWindowTrack>& KV : A.FireWindowTracks) { KV.Value.Track.NoteSettle(Snap.SessionIndex); }
+}
+
 static void AddTransitionFire(AnomalyLabel::FCaptureSnapshot& Snap, FAutoLiveFireInfo&& Fire, uint16 Reason,
 	const AnomalyLabel::FFrozenFireGeometry* Geometry = nullptr)
 {
@@ -8125,6 +8137,7 @@ static void AddTransitionFire(AnomalyLabel::FCaptureSnapshot& Snap, FAutoLiveFir
 void UAnomalyCaptureSubsystem::StepFireWindowTransitions(AnomalyLabel::FCaptureSnapshot& Snap)
 {
 	if (!Async.IsValid() || Snap.bCaptureUnpaired) { return; }
+	NoteSettleOnTracks(*Async, Snap);
 	TSet<FString> Seen;
 	for (int32 i = 0; i < Snap.Fires.Num(); ++i)
 	{
@@ -8138,7 +8151,7 @@ void UAnomalyCaptureSubsystem::StepFireWindowTransitions(AnomalyLabel::FCaptureS
 		if (Snap.FireGeometry.IsValidIndex(i)) { T.Geometry = Snap.FireGeometry[i]; }
 		bool bOn = false, bOff = false;
 		T.Track.Observe(Snap.SessionIndex, AnomalyLabel::IsSnapshotEntryLabelled(Snap, i),
-			Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff);
+			Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff, IsSettleSnap(Snap));
 		if (bOn || bOff)
 		{
 			if (Snap.EntryTransition.Num() < Snap.Fires.Num()) { Snap.EntryTransition.SetNumZeroed(Snap.Fires.Num()); }
@@ -8151,7 +8164,7 @@ void UAnomalyCaptureSubsystem::StepFireWindowTransitions(AnomalyLabel::FCaptureS
 		if (Seen.Contains(It.Key())) { continue; }
 		auto& T = It.Value();
 		bool bOn = false, bOff = false;
-		T.Track.Observe(Snap.SessionIndex, false, Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff);
+		T.Track.Observe(Snap.SessionIndex, false, Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff, IsSettleSnap(Snap));
 		if (bOff)
 		{
 			AddTransitionFire(Snap, FAutoLiveFireInfo(T.Fire), AnomalyLabelSync::ReasonTemporal, &T.Geometry);
@@ -8181,7 +8194,7 @@ void UAnomalyCaptureSubsystem::StepHideTransitions(AnomalyLabel::FCaptureSnapsho
 		H.Fire = F;
 		if (Snap.FireGeometry.IsValidIndex(i)) { H.Geometry = Snap.FireGeometry[i]; }
 		const bool bHidden = Snap.FireLabelled.IsValidIndex(i) && Snap.FireLabelled[i] != 0;
-		if (AnomalyLabelSync::StepHideLive(H.Track, bHidden, Async->LabelHideFrames))
+		if (AnomalyLabelSync::StepHideLive(H.Track, bHidden, Async->LabelHideFrames, IsSettleSnap(Snap)))
 		{
 			if (Snap.EntryTransition.Num() != Snap.Fires.Num())
 			{
@@ -8196,7 +8209,7 @@ void UAnomalyCaptureSubsystem::StepHideTransitions(AnomalyLabel::FCaptureSnapsho
 		{
 			continue;
 		}
-		if (AnomalyLabelSync::StepHideGone(It.Value().Track, Async->LabelHideFrames))
+		if (AnomalyLabelSync::StepHideGone(It.Value().Track, Async->LabelHideFrames, IsSettleSnap(Snap)))
 		{
 			FAutoLiveFireInfo Returned = It.Value().Fire;
 			Returned.SecondsRemaining = 0;
@@ -8229,6 +8242,7 @@ bool UAnomalyCaptureSubsystem::IsSampledFireLabelled(const AnomalyLabel::FCaptur
 void UAnomalyCaptureSubsystem::StepProxyBlurTransitions(AnomalyLabel::FCaptureSnapshot& Snap, bool bUnpaired)
 {
 	if (!Async.IsValid()) { return; }
+	NoteSettleOnTracks(*Async, Snap);
 	TSet<FString> Seen;
 	for (int32 i = 0; i < Snap.Fires.Num(); ++i)
 	{
@@ -8240,7 +8254,7 @@ void UAnomalyCaptureSubsystem::StepProxyBlurTransitions(AnomalyLabel::FCaptureSn
 		bool bOn = false;
 		bool bOff = false;
 		Track.Observe(Snap.SessionIndex, !bUnpaired && IsSampledFireLabelled(Snap, i),
-			Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff);
+			Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff, IsSettleSnap(Snap));
 		if (bOn || bOff)
 		{
 			if (Snap.EntryTransition.Num() != Snap.Fires.Num()) { Snap.EntryTransition.SetNumZeroed(Snap.Fires.Num()); }
@@ -8261,7 +8275,7 @@ void UAnomalyCaptureSubsystem::StepProxyBlurTransitions(AnomalyLabel::FCaptureSn
 		if (!Track || Track->bOffDone) { continue; }
 		bool bOn = false;
 		bool bOff = false;
-		Track->Observe(Snap.SessionIndex, false, Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff);
+		Track->Observe(Snap.SessionIndex, false, Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff, IsSettleSnap(Snap));
 		if (bOff)
 		{
 			FAutoLiveFireInfo Entry = Tail;
@@ -8459,7 +8473,7 @@ void UAnomalyCaptureSubsystem::ResolveDetachedTransitionCandidates(AnomalyLabel:
 		}
 		bool bOn = false;
 		bool bOff = false;
-		Track->Observe(Snap.SessionIndex, false, Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff);
+		Track->Observe(Snap.SessionIndex, false, Async->LabelOnFrames, Async->LabelOffFrames, bOn, bOff, IsSettleSnap(Snap));
 		if (bOff)
 		{
 			FAutoLiveFireInfo Entry = C;
@@ -8520,6 +8534,7 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 	{
 		return;
 	}
+	NoteSettleOnTracks(*Async, Snap);
 	ResolveDetachedTransitionCandidates(Snap);
 	ResolvePendingMembership(Snap.SessionIndex);
 	const TMap<FString, FAnomalyCaptureAsyncState::FRenderEventResult>* FrameResults =
@@ -8568,7 +8583,7 @@ void UAnomalyCaptureSubsystem::ApplyRenderTruthToSnapshot(AnomalyLabel::FCapture
 			}
 			bool bOnTransition = false;
 			bool bOffTransition = false;
-			Track.Observe(Snap.SessionIndex, bMember, Async->LabelOnFrames, Async->LabelOffFrames, bOnTransition, bOffTransition);
+			Track.Observe(Snap.SessionIndex, bMember, Async->LabelOnFrames, Async->LabelOffFrames, bOnTransition, bOffTransition, IsSettleSnap(Snap));
 			Snap.EntryEmit[i] = (uint8)AnomalyLabelSync::DecideRenderTruthEntry(bMember, bOffTransition);
 			const AnomalyStuckMipWindow::EHeldSet HeldSet = R->Held.Set;
 			const bool bPartialFrame = AnomalyStuckMipWindow::IsPartialMemberFrame(bMember, R->Held);
