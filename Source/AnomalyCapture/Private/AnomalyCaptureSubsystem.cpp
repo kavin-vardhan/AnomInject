@@ -447,6 +447,7 @@ struct FAnomalyCaptureAsyncState
 	int32 CarriedTransitionTracksIn = 0;
 	int32 CarriedHideTracksIn = 0;
 	int32 SyncFramesWritten = 0;
+	int32 SyncPositiveFramesWritten = 0;
 	struct FFrozenAnchor
 	{
 		FString CamPath;
@@ -468,6 +469,7 @@ struct FAnomalyCaptureAsyncState
 		bLabelUpscaler = false;
 		FireWindowTracks.Reset();
 		SyncFramesWritten = 0;
+		SyncPositiveFramesWritten = 0;
 		FrozenAnchors.Reset();
 		LabelTransitionEntries = 0;
 		LabelTransitionFrames = 0;
@@ -5109,8 +5111,8 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 		FlushObserveQueue(false);
 	}
 
-	FramesWritten = Async->Writer->GetFramesWritten();
-	PositiveFramesWritten = Async->Writer->GetPositiveWritten();
+	FramesWritten = Async->Writer->GetFramesWritten() + Async->SyncFramesWritten;
+	PositiveFramesWritten = Async->Writer->GetPositiveWritten() + Async->SyncPositiveFramesWritten;
 }
 
 void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
@@ -5212,8 +5214,8 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 			NoteDroppedSession(Si, TEXT("write_failed"));
 		}
 	}
-	FramesWritten = Async->Writer->GetFramesWritten();
-	PositiveFramesWritten = Async->Writer->GetPositiveWritten();
+	FramesWritten = Async->Writer->GetFramesWritten() + Async->SyncFramesWritten;
+	PositiveFramesWritten = Async->Writer->GetPositiveWritten() + Async->SyncPositiveFramesWritten;
 	if (Async->Writer->GetDropped() > 0)
 	{
 		UE_LOG(LogAnomalyCapture, Warning, TEXT("Capture(async): %d frame(s) failed to encode/write."),
@@ -5766,6 +5768,10 @@ void UAnomalyCaptureSubsystem::CaptureCurrentFrame(uint8 FrameRole)
 				++Async->LabelEffectPartialFrames;
 			}
 			++Async->SyncFramesWritten;
+			if (bPositive)
+			{
+				++Async->SyncPositiveFramesWritten;
+			}
 			if (bSettleRole)
 			{
 				Async->SettleFrameSet.Add(SessionFrameIndex);
