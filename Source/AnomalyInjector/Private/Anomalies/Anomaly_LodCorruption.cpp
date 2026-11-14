@@ -6,6 +6,7 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
 #include "Components/MeshComponent.h"
+#include "Components/SkinnedMeshComponent.h"
 
 bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 {
@@ -49,6 +50,7 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 
 	int32 RefusedHism = 0;
 	int32 RefusedSingleLod = 0;
+	int32 RefusedSkeletal = 0;
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
 		UMeshComponent* Mesh = Weak.Get();
@@ -61,13 +63,21 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 		if (Refusal != AnomalyLodPolicy::EForcedLodRefusal::None)
 		{
 			const bool bHism = Refusal == AnomalyLodPolicy::EForcedLodRefusal::HierarchicalInstanced;
-			++(bHism ? RefusedHism : RefusedSingleLod);
+			const bool bSkeletal = Refusal == AnomalyLodPolicy::EForcedLodRefusal::SkeletalUnmeasured;
+			++(bHism ? RefusedHism : bSkeletal ? RefusedSkeletal : RefusedSingleLod);
 			UE_LOG(LogAnomaly, Warning,
-				TEXT("lod_corruption: REFUSED '%s' (%s) — %s, so forcing a LOD changes nothing on screen: a positive label with no visible change, which the mask veto cannot catch (it still draws pixels). This applies to every fire, auto-pool or targeted, with or without a lod-index."),
+				TEXT("lod_corruption: REFUSED '%s' (%s) — %s. This applies to every fire, auto-pool or targeted, with or without a lod-index."),
 				*Mesh->GetName(), UTF8_TO_TCHAR(AnomalyLodPolicy::DescribeRefusal(Refusal)),
-				bHism ? TEXT("it is a hierarchical instanced static mesh, which picks its own LODs and ignores a forced LOD")
-					: TEXT("it has a single LOD, so the forced LOD is the one it already shows"));
+				bHism ? TEXT("it is a hierarchical instanced static mesh, which picks its own LODs and ignores a forced LOD, so forcing one changes nothing on screen: a positive label with no visible change, which the mask veto cannot catch (it still draws pixels)")
+				: bSkeletal ? TEXT("it is a skeletal mesh, which applies a forced LOD one frame late, so the labels at both edges of the event may be one frame off the picture; that is unmeasured, so it is refused unless IAI.Anomaly.LodAllowSkeletal is 1")
+				: TEXT("it has a single LOD, so the forced LOD is the one it already shows: a positive label with no visible change, which the mask veto cannot catch (it still draws pixels)"));
 			continue;
+		}
+		if (Mesh->IsA<USkinnedMeshComponent>())
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_corruption: '%s' is a skeletal mesh, allowed by IAI.Anomaly.LodAllowSkeletal 1. Its forced LOD reaches the picture one frame late, so the labels at both edges of this event may be one frame off. This is UNMEASURED."),
+				*Mesh->GetName());
 		}
 
 		const int32 NumLODs = AnomalyLod::GetWorstLod(Mesh);
@@ -86,14 +96,14 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 	bActive = Captured.Num() > 0;
 	if (!bActive)
 	{
-		LastRefusal = UTF8_TO_TCHAR(AnomalyLodPolicy::DominantRefusal(RefusedHism, RefusedSingleLod, 0));
+		LastRefusal = UTF8_TO_TCHAR(AnomalyLodPolicy::DominantRefusal(RefusedHism, RefusedSingleLod, RefusedSkeletal, 0));
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("lod_corruption: matched %d component(s) for '%s' but REFUSED ALL — %d hierarchical-instanced, %d single-LOD. Applying nothing, so no fire is recorded and no label is written."),
-			Meshes.Num(), *Substring, RefusedHism, RefusedSingleLod);
+			TEXT("lod_corruption: matched %d component(s) for '%s' but REFUSED ALL — %d hierarchical-instanced, %d single-LOD, %d skeletal. Applying nothing, so no fire is recorded and no label is written."),
+			Meshes.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal);
 		return false;
 	}
-	UE_LOG(LogAnomaly, Log, TEXT("lod_corruption: forced LOD on %d component(s) for '%s' (%d refused hierarchical instanced, %d refused single LOD)."),
-		Captured.Num(), *Substring, RefusedHism, RefusedSingleLod);
+	UE_LOG(LogAnomaly, Log, TEXT("lod_corruption: forced LOD on %d component(s) for '%s' (%d refused hierarchical instanced, %d refused single LOD, %d refused skeletal)."),
+		Captured.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal);
 	return bActive;
 }
 

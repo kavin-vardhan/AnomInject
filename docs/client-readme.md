@@ -1393,12 +1393,28 @@ What each row leaves open, stated rather than implied:
   pixels, so there the label could not be checked against the picture. The mechanism does not depend on the content:
   the detail level is forced on the object in the same frame the label marks, which is what the test object proves
   (for a static mesh; on a character's skeletal mesh the engine shows a forced detail level one frame later — read from
-  the engine source, not yet measured).
+  the engine source, not yet measured, so skeletal meshes are skipped by default; see below).
 - **`lod_popping` and `lod_corruption` skip meshes where a forced detail level shows nothing.** A mesh with a single
   detail level would be "forced" to the one it already shows, and a hierarchical instanced static mesh (the kind used for
   grass, foliage and other mass-placed props) picks its own detail levels and ignores a forced one. Both are refused,
   whether the object was picked automatically or named in a Targeted capture, and if every mesh on the object is refused
   no event is written. The log names the reason: `single_lod` or `hism_ignores_forced_lod`.
+- **`lod_popping` and `lod_corruption` skip skeletal meshes (characters) by default.** The engine shows a detail level
+  forced on a skeletal mesh one frame after the plugin sets it (read from the engine source, not yet measured), so the
+  first and last labelled frames of such an event could be one frame off the picture. Until that is measured, both
+  anomalies refuse a skeletal mesh with the reason `skeletal_unmeasured`, in the Auto-pool and in a Targeted capture
+  alike; if every mesh on the object is refused, no event is written. To turn it back on, set the setting below to `1`:
+  the behaviour is then exactly as in earlier builds, and the log warns on every such event that its edge frames may be
+  one frame off and that this is unmeasured. A mesh with a single detail level, static or skeletal, is still refused
+  as `single_lod` whatever this setting says.
+
+  | Console command | ini key (`[AnomalyInjector]`) | Default | Allowed | What it sets |
+  | --- | --- | --- | --- | --- |
+  | `IAI.Anomaly.LodAllowSkeletal` | `LodAllowSkeletal` | `0` (refuse) | `0`, `1`, or `default` | whether the two LOD anomalies may target a skeletal mesh |
+
+  The console wins over the ini, which wins over the built-in `0`. The value is read when a capture starts and holds
+  for that whole capture (a change made during a capture applies to the next one), and the capture's start line prints
+  it as `lodSkeletal=allowed(...)` or `lodSkeletal=refused(...)` with where it came from.
 - **Masks:** long captures re-use mask values (the `m43` section below). In a capture on our large test level built to
   force it, two events held values at the same time and values were recycled 6 times; all 199 labelled frames had
   their mask, and no frame carried two events under one value.

@@ -82,3 +82,23 @@ block and the receipts.
   meshes. Whether to tell the client that earlier datasets may hold such labels is a communication decision for the owner;
   the readme does not say it.
 - New gotcha **G579**. Next free: **G580**.
+## 8. 095-09b — skeletal refused by default, behind a switch (chat ruling 095-08 addendum H2)
+- **Rule** (AnomalyLodPolicy.h): DecideForcedLod(bHism, bSkeletal, bAllowSkeletal, NumLods), order HISM → skeletal →
+  single-LOD. New reason skeletal_unmeasured. DominantRefusal takes the skeletal count (ties keep the earlier reason).
+  AnomalyLod::GetForcedLodRefusal passes IsA<USkinnedMeshComponent> and AnomalyDefaults::GetLodAllowSkeletal().
+- **Switch:** IAI.Anomaly.LodAllowSkeletal <0|1|default>, ini [AnomalyInjector] LodAllowSkeletal, compiled default 0,
+  console beats ini beats compiled (the LodRequireHighestLod pattern). Latched at capture run start
+  (BeginActualRun, before ApplySessionGlobals) and released at FinishRun; a console change during a run says it
+  applies to the next run. The latch line prints the value and its source; the run banner gains lodSkeletal=.
+- **Switch on = previous behaviour exactly:** the decision falls through to the m59 rule; the only addition is a
+  Warning per accepted skinned component that its edge frames may be one frame off and that this is unmeasured.
+- **Why skeletal before single-LOD:** with the default, SKM_Bot (single-LOD) reads skeletal_unmeasured; with the
+  switch on it reads single_lod. A bench leg can therefore show both settings without a multi-LOD skeletal asset; it
+  cannot show the lag itself.
+- **Tests:** lod_refusal_selftest 63 checks, 0 failures; mutants (HISM removed, single-LOD threshold 1, switch
+  ignored, skeletal rule removed, dominance tie) fail 18, 3, 4, 9 and 2 checks. Editor target 0 errors, 0 warnings
+  (14 actions, launched at 10.36 GiB free); the new strings are in the Editor DLLs. 15 of 15 pure C++ selftests found
+  pass; Python label rule 65, pixel gate 98, change oracle 35, kit 93, unit tests 49, exclusion gate, measure offset;
+  lever audit source and binary PASS (53; the new command is not a bench lever), lever selftest 12.
+  Receipts: code-receipts-095-09b\.
+- **Predictions amendment** (dated, before any leg): predictions-095-09.txt §AMENDMENT 1 (L59-7).

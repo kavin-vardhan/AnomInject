@@ -1,4 +1,5 @@
 #include "AnomalyLod.h"
+#include "AnomalyDefaults.h"
 
 #include "AnomalyTargeting.h"
 #include "AnomalyViewport.h"
@@ -52,7 +53,8 @@ bool AnomalyLod::HasMultipleLods(const UMeshComponent* Component)
 AnomalyLodPolicy::EForcedLodRefusal AnomalyLod::GetForcedLodRefusal(const UMeshComponent* Component)
 {
 	return AnomalyLodPolicy::DecideForcedLod(
-		Component && Component->IsA<UHierarchicalInstancedStaticMeshComponent>(), GetWorstLod(Component));
+		Component && Component->IsA<UHierarchicalInstancedStaticMeshComponent>(),
+		Component && Component->IsA<USkinnedMeshComponent>(), AnomalyDefaults::GetLodAllowSkeletal(), GetWorstLod(Component));
 }
 
 int32 AnomalyLod::GetForcedLod(const UMeshComponent* Component)

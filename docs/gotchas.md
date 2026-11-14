@@ -10264,3 +10264,13 @@ in the component's own `TickComponent` (`:1186`, `TG_PrePhysics`). A write from 
 reaches the render of the next frame, while the label sampled at `OnWorldTickEnd` flips this frame. Under
 `IAI.Bench.SynthTickOrder` the injector's dispatch runs before the component tick and the two agree. Derived, not measured;
 skeletal targets are not changed by m59.
+*Extended 095-09b (chat ruling 095-08 addendum H2):* skeletal targets are now refused by both LOD anomalies with
+`skeletal_unmeasured` unless `IAI.Anomaly.LodAllowSkeletal 1` (ini `[AnomalyInjector] LodAllowSkeletal`, default 0).
+The value is latched when a capture run starts (`LatchLodAllowSkeletalForRun` in `BeginActualRun`) and released at
+`FinishRun`, so a console change during a run applies to the next one; outside a capture it is read live. The rule order
+is HISM, then skeletal, then single-LOD: with the switch at 0 a single-LOD skeletal mesh such as SKM_Bot reads
+`skeletal_unmeasured`, and with the switch at 1 it reads `single_lod` (today's behaviour), so the default and the switch
+can both be seen on the bench without a multi-LOD skeletal asset. What still cannot be seen without one is the
+one-frame lag itself. With the switch on, every accepted skinned component logs that its edge frames may be one frame
+off and that this is unmeasured. The real fix (label a skinned target from the frame the engine applies the LOD) waits
+for a multi-LOD skeletal fixture and a leg.

@@ -68,6 +68,16 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API void SetLodPoppingRequireHighestLodOverride(bool bRequire);
 	ANOMALYINJECTOR_API void ClearLodPoppingRequireHighestLodOverride();
 
+	inline constexpr bool LodAllowSkeletalCompiled = false;
+
+	ANOMALYINJECTOR_API const TCHAR* LodAllowSkeletalKey();
+	ANOMALYINJECTOR_API bool GetLodAllowSkeletal();
+	ANOMALYINJECTOR_API FString DescribeLodAllowSkeletal();
+	ANOMALYINJECTOR_API void SetLodAllowSkeletalOverride(bool bAllow);
+	ANOMALYINJECTOR_API void ClearLodAllowSkeletalOverride();
+	ANOMALYINJECTOR_API void LatchLodAllowSkeletalForRun();
+	ANOMALYINJECTOR_API void ReleaseLodAllowSkeletalLatch();
+
 	inline constexpr bool AllowTranslucentOnlyTargetsCompiled = false;
 
 	ANOMALYINJECTOR_API const TCHAR* AllowTranslucentOnlyTargetsKey();
