@@ -10302,3 +10302,15 @@ engine-clamped forced LOD with the engine-clamped LOD shown now (`AnomalyLodPoli
 `EffectiveShownLod` / `DecideContrast`). If the current LOD cannot be read, refuse: a label that cannot be shown
 to be true is the defect, not a missed yield. **Residual:** the static current-LOD prediction ignores
 `r.StaticMeshLODDistanceScale` (default 1) and dithered transitions, so near a switch distance it can still be one LOD off.
+
+## G582 — A synthetic selftest fixture can make a wrong reader pass: keep the signal away from what a wrong reading covers
+
+**095-13, 2026-11-14 (CaptureBench m57-gates B4).** The null-pair check read `bbox_px` as two corners while the
+plugin writes `[x, y, w, h]`, and its own selftest wrote corner boxes, so the selftest shared the bug. After the fix,
+a mutant that reintroduces the corner reading STILL PASSED the new selftest: the synthetic target filled its whole box,
+so a wrong region that only touched the box's top-left pixel still saw a changed pixel. A second mutant (accept legs
+with different session indices) survived because a later guard (frame on disk) refused the same case first.
+**Rule:** draw the synthetic change inset from the box edges and choose x > w, y > h, so a mis-read box lands on
+unchanged pixels; give each guard a case that only it can catch (a padded null leg, not just a truncated one); and
+prove every reader fix with a mutant that puts the old reading back. A selftest that passes the mutant is not a test
+of the fix.

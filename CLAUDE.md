@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-13, 2026-11-14 - m57 REVIEW FIXES (ruling 095-11 B1-B6, S1-S8, N1-N13 as ruled) + OWNER PART 1b ON
+> `feat/m57-lod-spatial-trigger` (pushed). WRITTEN, EDITOR-COMPILED 0/0, OFFLINE TESTS GREEN. NO ENGINE LEG, NO GAME
+> BUILD, NO CLIP, NO COOK, NO CODEX. NOT merged into `integ/m56-m58`; no tag.**
+> - Branch = `integ/m56-m58` `e15d06d` merged in (`16ed5dd`) + one commit per item. View entry arms on a time-based
+>   margin (B1); the distance arm looks to the later of the contrast release and the 7 % size, the arm clock restarts at
+>   the first wrong frame (B2); positives need contrast (N11); occluded / past_held flagged (S2, N2); S1 render check;
+>   N9 backbuffer refusal; S3 scope; N3 `lod_predict_*`; **entryFrames 30 (1..90), owner Part 1b.**
+> - Readers: label-rule B3/S4/N13 (119 cases, 3 mutants fail); kit **1.7** "not judgeable (spatial lod)". Bench paths
+>   rebuilt (approach x 600 -> 1450; turns from yaw -160/-170); second pair to (1700, -/+60). Dashboard master cannot
+>   send a numeric lod_popping argument (read-only check).
+> - ⚠ **For chat:** the down-pop is unreachable on the bench paths; the scale-1 copies can never give an event (refusal
+>   reading only) so **no distance clip exists before the cook carries the second pair**; B2 makes a mesh that switches
+>   while small unarmable at walking speed.
+> - CaptureBench `m57-gates` `ac719f6` (local): null pair, clip, readout, fixture script fixed; predictions AMENDMENT 1
+>   appended (frozen prefix `269FECF8...` unchanged). lod_trigger_selftest 166, 15 mutants fail; 19/19 pure selftests.
+>   Journal `docs/sessions/2026-11-14-095-13-m57-review-fixes.md`. Gotcha **G582**; next free **G583**.
+
+> ---
+
 > **095-12, 2026-11-14 - m59 REVIEW FOLLOW-UPS (ruling 095-11 S3, S9, S10, S11, N14) ON `fix/m59-forced-lod-refusals`,
 > MERGED INTO `integ/m56-m58`. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
 > - **S10 `d8077fc`:** `single_lod` counts USABLE LODs (MinLOD or the component override, LODs without vertices excluded;
