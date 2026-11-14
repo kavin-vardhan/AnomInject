@@ -10230,3 +10230,19 @@ can both be seen on the bench without a multi-LOD skeletal asset. What still can
 one-frame lag itself. With the switch on, every accepted skinned component logs that its edge frames may be one frame
 off and that this is unmeasured. The real fix (label a skinned target from the frame the engine applies the LOD) waits
 for a multi-LOD skeletal fixture and a leg.
+
+## G581 — A forced LOD is clamped twice before it is drawn: counting LOD resources or comparing raw indices says nothing about the picture
+
+**095-12, 2026-11-14 (m59 review follow-ups S9, S10). Read from the UE 5.1.1 source; no leg has measured it.**
+A static mesh proxy draws a forced LOD as `Clamp(ForcedLodModel, ClampedMinLOD + 1, N) - 1`, where
+`ClampedMinLOD = Clamp(MinLOD or the component's override, first LOD with vertices, N - 1)`
+(`StaticMeshRender.cpp:288` and `:2361`), and then clamps every LOD to the streamed-in first LOD
+(`ClampToFirstLOD`). A skinned mesh clamps it to `[ComputeMinLOD, N - 1]` and then to `PendingFirstLODIdx`
+(`SkinnedMeshComponent.cpp:3546` and `:3584`). So a two-LOD mesh with MinLOD 1 always draws LOD 1 whatever is forced,
+an explicit `lod_corruption <target> 1` forces LOD 0 on a mesh that may already show it, and the default "worst LOD"
+changes nothing on a mesh that is already at its coarsest or whose finer LODs are streamed out.
+**Rule:** before a LOD anomaly claims a change, count USABLE LODs (`AnomalyLod::GetLodFacts`) and compare the
+engine-clamped forced LOD with the engine-clamped LOD shown now (`AnomalyLodPolicy::EffectiveForcedLod` /
+`EffectiveShownLod` / `DecideContrast`). If the current LOD cannot be read, refuse: a label that cannot be shown
+to be true is the defect, not a missed yield. **Residual:** the static current-LOD prediction ignores
+`r.StaticMeshLODDistanceScale` (default 1) and dithered transitions, so near a switch distance it can still be one LOD off.
