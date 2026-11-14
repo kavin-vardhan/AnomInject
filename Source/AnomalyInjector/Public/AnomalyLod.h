@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AnomalyLodPolicy.h"
 
 class UWorld;
 class UMeshComponent;
@@ -14,6 +15,8 @@ namespace AnomalyLod
 	ANOMALYINJECTOR_API int32 GetWorstLod(const UMeshComponent* Component);
 
 	ANOMALYINJECTOR_API bool HasMultipleLods(const UMeshComponent* Component);
+
+	ANOMALYINJECTOR_API AnomalyLodPolicy::EForcedLodRefusal GetForcedLodRefusal(const UMeshComponent* Component);
 
 	ANOMALYINJECTOR_API int32 GetForcedLod(const UMeshComponent* Component);
 

@@ -16,6 +16,7 @@ public:
 	virtual bool Apply(UWorld* World, const TArray<FString>& Args) override;
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
+	virtual FString GetLastRefusalReason() const override { return LastRefusal; }
 
 private:
 	struct FCapturedLod
@@ -25,5 +26,6 @@ private:
 	};
 
 	TArray<FCapturedLod> Captured;
+	FString LastRefusal;
 	bool bActive = false;
 };

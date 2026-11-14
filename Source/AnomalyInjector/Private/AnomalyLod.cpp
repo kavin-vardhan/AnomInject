@@ -5,6 +5,7 @@
 #include "Components/MeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "StaticMeshResources.h"
 
@@ -46,6 +47,12 @@ int32 AnomalyLod::GetWorstLod(const UMeshComponent* Component)
 bool AnomalyLod::HasMultipleLods(const UMeshComponent* Component)
 {
 	return GetWorstLod(Component) >= 2;
+}
+
+AnomalyLodPolicy::EForcedLodRefusal AnomalyLod::GetForcedLodRefusal(const UMeshComponent* Component)
+{
+	return AnomalyLodPolicy::DecideForcedLod(
+		Component && Component->IsA<UHierarchicalInstancedStaticMeshComponent>(), GetWorstLod(Component));
 }
 
 int32 AnomalyLod::GetForcedLod(const UMeshComponent* Component)
