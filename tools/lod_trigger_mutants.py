@@ -16,6 +16,8 @@ MUTATIONS = {
     "strict_engine_compare": ("if (MeshRadius * MeshRadius > RadiusSquared)", "if (MeshRadius * MeshRadius >= RadiusSquared)"),
     "subvisible_holds_open": ("return T.bHeld && T.bHasLast && T.LastClass == EFrameClass::Positive && !T.bCapReached",
                               "return T.bHeld && T.bHasLast && T.LastClass != EFrameClass::Negative && !T.bCapReached"),
+    "margin_ignores_first_positive": ("\t\t\t\t&& In.BoundsScreenSize >= T.FirstPositiveScreenSize * (1.0f + Settings.ReleaseMargin))",
+                                      "\t\t\t\t)"),
     "entry_frames_off_by_one": ("&& T.PositiveFramesSeen >= Settings.EntryFrames)", "&& T.PositiveFramesSeen > Settings.EntryFrames)"),
 }
 

@@ -234,6 +234,7 @@ namespace AnomalyLodTriggerRule
 		int HeldLod = 1;
 		float ReleaseScreenSize = -1.0f;
 		float SwapScreenSize = -1.0f;
+		float FirstPositiveScreenSize = -1.0f;
 		int PositiveFramesSeen = 0;
 		int FramesSinceFirstPositive = -1;
 		bool bCapReached = false;
@@ -282,6 +283,7 @@ namespace AnomalyLodTriggerRule
 			if (T.FramesSinceFirstPositive < 0)
 			{
 				T.FramesSinceFirstPositive = 1;
+				T.FirstPositiveScreenSize = In.BoundsScreenSize;
 			}
 			T.State = EState::Labelled;
 		}
@@ -319,7 +321,8 @@ namespace AnomalyLodTriggerRule
 		if (T.bHeld)
 		{
 			if (T.Mode == EMode::DistanceThreshold && T.LastClass == EFrameClass::Positive && In.bContrast && bAgree
-				&& T.ReleaseScreenSize > 0.0f && In.BoundsScreenSize >= T.ReleaseScreenSize)
+				&& T.ReleaseScreenSize > 0.0f && In.BoundsScreenSize >= T.ReleaseScreenSize
+				&& In.BoundsScreenSize >= T.FirstPositiveScreenSize * (1.0f + Settings.ReleaseMargin))
 			{
 				T.bHeld = false;
 				T.SwapScreenSize = In.BoundsScreenSize;

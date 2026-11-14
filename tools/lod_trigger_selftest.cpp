@@ -169,13 +169,17 @@ static void TestApproach()
 	Check(O.Class == EFrameClass::Positive && T.State == EState::Labelled, "wrong and big: positive, labelled");
 	Check(IsHoldingEventOpen(T), "positive holds the event open");
 	Check(DecideTick(T, S) == ETickAction::None, "below the release margin: still held");
-	O = ObserveFrame(T, Frame(true, 0, 0.0552f, 8.4f, true, false, 0, 1), S);
+	O = ObserveFrame(T, Frame(true, 0, 0.0590f, 8.4f, true, false, 0, 1), S);
 	Check(DecideTick(T, S) == ETickAction::None, "past the release but mid-dither: release deferred");
 	O = ObserveFrame(T, Frame(true, 0, 0.056f, 8.6f), S);
 	Check(O.Class == EFrameClass::Positive, "still positive before the release");
-	Check(DecideTick(T, S) == ETickAction::ReleaseVisible && !T.bHeld, "release at the threshold");
-	Check(T.SwapScreenSize > 0.0559f && T.SwapScreenSize < 0.0561f, "swap screen size recorded");
-	O = ObserveFrame(T, Frame(true, 0, 0.058f, 9.0f), S);
+	Check(DecideTick(T, S) == ETickAction::None && T.bHeld,
+		"past the contrast release size but within 10 % of the first positive size: still held (the margin applies to the later threshold)");
+	Check(T.FirstPositiveScreenSize > 0.0529f && T.FirstPositiveScreenSize < 0.0531f, "first positive screen size recorded");
+	O = ObserveFrame(T, Frame(true, 0, 0.0585f, 8.9f), S);
+	Check(DecideTick(T, S) == ETickAction::ReleaseVisible && !T.bHeld, "release at 1.1 x the first positive size");
+	Check(T.SwapScreenSize > 0.0584f && T.SwapScreenSize < 0.0586f, "swap screen size recorded");
+	O = ObserveFrame(T, Frame(true, 0, 0.060f, 9.0f), S);
 	Check(O.bSwap && O.Cause == ESwapCause::Distance && !O.bDown && O.FromLod == 1 && O.ToLod == 0, "swap frame: distance up 1->0");
 	Check(O.Class == EFrameClass::Negative && T.State == EState::Swapped, "swap frame is negative");
 	Check(!IsHoldingEventOpen(T), "swapped does not hold open");
@@ -183,7 +187,7 @@ static void TestApproach()
 	Check(!O.bSwap, "a swap is recorded once");
 	Check(DecideTick(T, S) == ETickAction::None, "approaching after the swap: nothing");
 
-	O = ObserveFrame(T, Frame(true, 0, 0.05f, 8.0f, true, true), S);
+	O = ObserveFrame(T, Frame(true, 0, 0.052f, 8.0f, true, true), S);
 	Check(DecideTick(T, S) == ETickAction::None, "retreat inside the hysteresis band: no re-hold");
 	O = ObserveFrame(T, Frame(true, 0, 0.047f, 7.5f, true, true), S);
 	Check(DecideTick(T, S) == ETickAction::ReHold && T.bHeld, "retreat past 0.85 of the swap size: re-hold (down-pop)");
@@ -201,6 +205,7 @@ static void TestApproach()
 	U.HeldLod = 1;
 	U.ReleaseScreenSize = 0.055f;
 	ObserveFrame(U, Frame(true, 0, 0.056f, 9.0f), S);
+	ObserveFrame(U, Frame(true, 0, 0.062f, 9.5f), S);
 	Check(DecideTick(U, S) == ETickAction::ReleaseVisible, "release fires");
 	O = ObserveFrame(U, Frame(true, 1, 0.04f, 4.0f), S);
 	Check(!O.bSwap, "a release whose next frame already shows the held LOD is not a visible swap");
