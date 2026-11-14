@@ -10203,3 +10203,20 @@ the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero mis
 deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
 existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
 the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
+
+## G579 — A forced LOD is not a visible LOD: the HISM proxy never reads it, and a skinned mesh reads it a frame late
+*(095-09, m59, UE 5.1.1 source reading; no runtime measurement.)* `SetForcedLodModel` on a hierarchical instanced static
+mesh stores the value and rebuilds the proxy, and nothing changes on screen: `FHierarchicalStaticMeshSceneProxy` is
+dynamic-relevance only (`HierarchicalInstancedStaticMesh.cpp:936-938`) and picks LODs per cluster from `ClampedMinLOD`
+and the `foliage.*` cvars (`:1748-1762`); `ForcedLod` has zero references in that file. A plain instanced mesh does honour
+it, for the whole component (`StaticMeshRender.cpp:1165-1167`, `:2320-2323`). Both LOD anomalies accepted a HISM, and
+`lod_corruption` also accepted a single-LOD mesh, so a fire on either labelled frames with no visible change and the m26
+veto kept the event (the pixels are still drawn). m59 refuses both by name (`hism_ignores_forced_lod`, `single_lod`), on
+every fire. Rule: before an anomaly counts a frame as changed, find the line in the renderer that consumes the value it
+wrote; a setter that succeeds proves only that the value is stored.
+
+`USkinnedMeshComponent::SetForcedLOD` marks nothing dirty (`SkinnedMeshComponent.cpp:3393-3403`); the value is consumed
+in the component's own `TickComponent` (`:1186`, `TG_PrePhysics`). A write from a tickable or the capture tick therefore
+reaches the render of the next frame, while the label sampled at `OnWorldTickEnd` flips this frame. Under
+`IAI.Bench.SynthTickOrder` the injector's dispatch runs before the component tick and the two agree. Derived, not measured;
+skeletal targets are not changed by m59.
