@@ -3,12 +3,17 @@
 
 #include "AnomalyTargeting.h"
 #include "AnomalyViewport.h"
+#include "AnomalyInjectorLog.h"
+#include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/SkinnedAsset.h"
 #include "StaticMeshResources.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "Rendering/SkeletalMeshLODRenderData.h"
 #include "SceneView.h"
 #include "SceneManagement.h"
 #include "UnrealClient.h"
@@ -183,14 +188,94 @@ int32 AnomalyLod::GetWorstLod(const UMeshComponent* Component)
 
 bool AnomalyLod::HasMultipleLods(const UMeshComponent* Component)
 {
-	return GetWorstLod(Component) >= 2;
+	return GetUsableLodCount(Component) >= 2;
+}
+
+AnomalyLod::FLodFacts AnomalyLod::GetLodFacts(const UMeshComponent* Component)
+{
+	FLodFacts Out;
+	if (const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component))
+	{
+		const UStaticMesh* Mesh = Static->GetStaticMesh();
+		const FStaticMeshRenderData* Data = Mesh ? Mesh->GetRenderData() : nullptr;
+		if (!Data || Data->LODResources.Num() <= 0)
+		{
+			return Out;
+		}
+		Out.NumLods = Data->LODResources.Num();
+		const int32 MeshMinLod = Mesh->GetMinLODIdx();
+		Out.MinLod = Static->bOverrideMinLOD ? Static->MinLOD : MeshMinLod;
+		Out.MinLodSource = Static->bOverrideMinLOD ? TEXT("component-override") : TEXT("mesh");
+#if WITH_EDITOR
+		static const TConsoleVariableData<int32>* StripMinLodCVar =
+			IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.StaticMesh.StripMinLodDataDuringCooking"));
+		if (StripMinLodCVar && StripMinLodCVar->GetValueOnGameThread() != 0 && MeshMinLod > Out.MinLod)
+		{
+			Out.MinLod = MeshMinLod;
+			Out.MinLodSource = TEXT("mesh-stripped-when-cooked");
+		}
+#endif
+		uint32 WithVertices = 0;
+		for (int32 Lod = 0; Lod < FMath::Min(Out.NumLods, 32); ++Lod)
+		{
+			if (Data->LODResources[Lod].GetNumVertices() > 0)
+			{
+				WithVertices |= (1u << Lod);
+			}
+		}
+		Out.FirstUsable = AnomalyLodPolicy::FirstUsableLod(Out.NumLods, Out.MinLod, WithVertices);
+		Out.UsableCount = AnomalyLodPolicy::UsableLodCount(Out.NumLods, Out.MinLod, WithVertices);
+		const int32 Resident = Out.UsableCount > 0 ? Data->GetCurrentFirstLODIdx(Out.FirstUsable) : INDEX_NONE;
+		Out.bResidentKnown = Resident != INDEX_NONE;
+		Out.FirstResident = Out.bResidentKnown ? Resident : Out.FirstUsable;
+		return Out;
+	}
+	if (const USkinnedMeshComponent* Skinned = Cast<USkinnedMeshComponent>(Component))
+	{
+		FSkeletalMeshRenderData* Data = Skinned->GetSkinnedAsset() ? Skinned->GetSkeletalMeshRenderData() : nullptr;
+		if (!Data || Data->LODRenderData.Num() <= 0)
+		{
+			return Out;
+		}
+		Out.NumLods = Data->LODRenderData.Num();
+		Out.MinLod = Skinned->ComputeMinLOD();
+		Out.MinLodSource = Skinned->bOverrideMinLod ? TEXT("component-override") : TEXT("mesh");
+		uint32 WithVertices = 0;
+		for (int32 Lod = 0; Lod < FMath::Min(Out.NumLods, 32); ++Lod)
+		{
+			if (Data->LODRenderData[Lod].GetNumVertices() > 0)
+			{
+				WithVertices |= (1u << Lod);
+			}
+		}
+		Out.FirstUsable = AnomalyLodPolicy::FirstUsableLod(Out.NumLods, Out.MinLod, WithVertices);
+		Out.UsableCount = AnomalyLodPolicy::UsableLodCount(Out.NumLods, Out.MinLod, WithVertices);
+		const bool bStreamable = Skinned->GetSkinnedAsset()->IsStreamable();
+		const int32 Resident = Out.UsableCount <= 0 ? INDEX_NONE
+			: bStreamable ? Data->GetPendingFirstLODIdx(Out.FirstUsable) : Out.FirstUsable;
+		Out.bResidentKnown = Resident != INDEX_NONE;
+		Out.FirstResident = Out.bResidentKnown ? Resident : Out.FirstUsable;
+		return Out;
+	}
+	return Out;
+}
+
+int32 AnomalyLod::GetUsableLodCount(const UMeshComponent* Component)
+{
+	return GetLodFacts(Component).UsableCount;
+}
+
+FString AnomalyLod::DescribeLodFacts(const FLodFacts& Facts)
+{
+	return FString::Printf(TEXT("%d LOD(s), min LOD %d (%s), first usable LOD %d, %d usable"),
+		Facts.NumLods, Facts.MinLod, Facts.MinLodSource, Facts.FirstUsable, Facts.UsableCount);
 }
 
 AnomalyLodPolicy::EForcedLodRefusal AnomalyLod::GetForcedLodRefusal(const UMeshComponent* Component)
 {
 	return AnomalyLodPolicy::DecideForcedLod(
 		Component && Component->IsA<UHierarchicalInstancedStaticMeshComponent>(),
-		Component && Component->IsA<USkinnedMeshComponent>(), AnomalyDefaults::GetLodAllowSkeletal(), GetWorstLod(Component));
+		Component && Component->IsA<USkinnedMeshComponent>(), AnomalyDefaults::GetLodAllowSkeletal(), GetUsableLodCount(Component));
 }
 
 int32 AnomalyLod::GetForcedLod(const UMeshComponent* Component)
@@ -283,6 +368,83 @@ AnomalyLod::FCurrentLod AnomalyLod::GetCurrentLod(UWorld* World, const UMeshComp
 	}
 
 	return Out;
+}
+
+AnomalyLod::FForcedLodContrast AnomalyLod::GetForcedLodContrast(UWorld* World, const UMeshComponent* Component, int32 ForcedLodModel)
+{
+	FForcedLodContrast Out;
+	const FLodFacts Facts = GetLodFacts(Component);
+	const FCurrentLod Current = GetCurrentLod(World, Component);
+	Out.Source = Current.Source;
+	Out.ScreenSize = Current.ScreenSize;
+	if (Facts.NumLods > 0)
+	{
+		Out.ForcedLod = AnomalyLodPolicy::EffectiveForcedLod(ForcedLodModel, Facts.FirstUsable, Facts.NumLods, Facts.FirstResident);
+		if (Current.bKnown)
+		{
+			Out.ShownLod = AnomalyLodPolicy::EffectiveShownLod(Current.Level, Facts.FirstUsable, Facts.NumLods, Facts.FirstResident);
+		}
+	}
+	Out.bCurrentKnown = Current.bKnown && Facts.NumLods > 0 && Facts.bResidentKnown;
+	if (Current.bKnown && !Facts.bResidentKnown)
+	{
+		Out.Source = TEXT("resident-lod-unknown");
+	}
+	Out.Refusal = AnomalyLodPolicy::DecideContrast(Out.bCurrentKnown, Out.ShownLod, Out.ForcedLod);
+	return Out;
+}
+
+void AnomalyLod::ScopeEventToForcedComponents(const TArray<UMeshComponent*>& Forced,
+	TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners, const TCHAR* AnomalyName)
+{
+	TMap<const AActor*, TArray<const UPrimitiveComponent*>> ByOwner;
+	for (const UMeshComponent* Comp : Forced)
+	{
+		if (Comp && Comp->GetOwner())
+		{
+			ByOwner.FindOrAdd(Comp->GetOwner()).AddUnique(Comp);
+		}
+	}
+	for (const TPair<const AActor*, TArray<const UPrimitiveComponent*>>& Pair : ByOwner)
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		Pair.Key->GetComponents<UPrimitiveComponent>(Prims);
+		int32 NotForced = 0;
+		FString NotForcedNames;
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (AnomalyViewport::IsRenderableGeometryComponent(Prim) && !Pair.Value.Contains(Prim))
+			{
+				++NotForced;
+				NotForcedNames += (NotForcedNames.IsEmpty() ? TEXT("") : TEXT(", ")) + Prim->GetName();
+			}
+		}
+		if (!AnomalyLodPolicy::ShouldScopeToForced(Pair.Value.Num(), NotForced))
+		{
+			continue;
+		}
+		AnomalyViewport::SetEventComponentScope(Pair.Key, Pair.Value);
+		InOutScopedOwners.AddUnique(Pair.Key);
+		UE_LOG(LogAnomaly, Log,
+			TEXT("%s: SCOPE '%s' — only %d of its renderable component(s) are forced, so the label box, the mask, the visibility count and the event's node name cover those %d only; not forced: [%s]. Cleared at revert."),
+			AnomalyName, *Pair.Key->GetName(), Pair.Value.Num(), Pair.Value.Num(), *NotForcedNames);
+	}
+}
+
+void AnomalyLod::ClearForcedComponentScope(TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners)
+{
+	for (const TWeakObjectPtr<const AActor>& Weak : InOutScopedOwners)
+	{
+		if (const AActor* Owner = Weak.Get())
+		{
+			AnomalyViewport::ClearEventComponentScope(Owner);
+		}
+	}
+	if (InOutScopedOwners.Num() > 0)
+	{
+		AnomalyViewport::PruneEventComponentScopes();
+	}
+	InOutScopedOwners.Reset();
 }
 
 int32 AnomalyLod::ResolveTargetLod(const UMeshComponent* Component, int32 RequestedOrSentinel)

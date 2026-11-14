@@ -4,6 +4,7 @@
 #include "IAnomaly.h"
 #include "AnomalyLodTriggerRule.h"
 
+class AActor;
 class UWorld;
 class UMeshComponent;
 class UStaticMeshComponent;
@@ -60,6 +61,7 @@ private:
 	void CommitPreviousFrame();
 
 	TArray<FPoppingTarget> Targets;
+	TArray<TWeakObjectPtr<const AActor>> ScopedOwners;
 	FString LastRefusal;
 	int32 HalfPeriodFrames = DefaultHalfPeriodFrames;
 	int32 FramesSinceToggle = 0;

@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-12, 2026-11-14 - m59 REVIEW FOLLOW-UPS (ruling 095-11 S3, S9, S10, S11, N14) ON `fix/m59-forced-lod-refusals`,
+> MERGED INTO `integ/m56-m58`. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
+> - **S10 `d8077fc`:** `single_lod` counts USABLE LODs (MinLOD or the component override, LODs without vertices excluded;
+>   static and skinned). **S9 `91a87c2`:** `lod_corruption` refuses `not_coarser_than_current` when the engine-clamped
+>   forced LOD is not coarser than the LOD shown now, and `current_lod_undetermined` when that cannot be read.
+>   **S3 `c5113e3`:** a partial forced set scopes the label box, mask, `target_pixels` and the node's asset/class to the
+>   forced components (both LOD anomalies; `ResolveNodeIdentity` honours the scope). **S11+N14 `2b4661c`:** the skeletal
+>   switch's help, set/clear lines, read-back and readme say what it does (not "previous behaviour exactly").
+> - `lod_refusal_selftest` 141/0, 13 mutants fail. Legs: `predictions-095-09.txt` AMENDMENT 2 (L59-8..L59-11).
+>   Journal `docs/sessions/2026-11-14-095-12-m59-review-follow-ups.md`. Gotcha **G581** (G580 is on m57); next free **G582**.
+> - **Branch tip `d23ab16` (pushed). Integration tip `85e90e6` (merge of `d23ab16`) Editor-compiled 0 errors / 0 warnings;
+>   18/18 pure C++ selftests, lod mutants 13/13 and m58 terrain mutants 5/5 fail, Python suites, lever audit source +
+>   binary PASS (57). The host's plugin Editor DLLs now match `85e90e6`'s Source (supersedes 095-09b's `fba2820` line
+>   below). The Game exe is still not built.**
+
+> ---
+
 > **095-10, 2026-11-14 - m57: `lod_popping` POPS BECAUSE THE CAMERA MOVED (distance_threshold, view_entry). WRITTEN,
 > EDITOR-COMPILED 0/0, OFFLINE TESTS GREEN. NO ENGINE LEG, NO GAME BUILD, NO CLIP, NO COOK. Branch
 > `feat/m57-lod-spatial-trigger` (plan commits 1-7 + four fix commits) off `integ/m56-m58` `876c719`. NOT merged, no tag.**

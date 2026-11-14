@@ -385,7 +385,7 @@ The list of anomaly types Auto-pool mode draws from — check the ones you want 
 | `blinking` | **on** | an object disappears and reappears |
 | `missing_texture` | **on** | an object's material is replaced with a checker pattern |
 | `corrupted_texture` | **on** | an object's material is replaced with solid magenta |
-| `lod_popping` | **on** | a static object shows a lower-detail version while you walk toward it or turn toward it, then snaps to full detail (m57; only plain static meshes with several detail levels; nothing happens while the camera stands still) |
+| `lod_popping` | **on** | a static object shows a lower-detail version while you walk toward it or turn toward it, then snaps to full detail (m57; only plain static meshes with at least two usable detail levels; nothing happens while the camera stands still) |
 | `missing_object` | **off** | an object is hidden for the whole burst, with no reappearance inside it |
 | `camera_clipping` | **off** | the camera's near-clip plane is pushed out, slicing away close geometry |
 | `stuck_low_mip` | **off** | an object's textures stay stuck at a low-resolution level, so it looks blurry while everything around it stays sharp |
@@ -1394,19 +1394,33 @@ What each row leaves open, stated rather than implied:
   the detail level is forced on the object in the same frame the label marks, which is what the test object proves
   (for a static mesh; on a character's skeletal mesh the engine shows a forced detail level one frame later — read from
   the engine source, not yet measured, so skeletal meshes are skipped by default; see below).
-- **`lod_popping` and `lod_corruption` skip meshes where a forced detail level shows nothing.** A mesh with a single
-  detail level would be "forced" to the one it already shows, and a hierarchical instanced static mesh (the kind used for
-  grass, foliage and other mass-placed props) picks its own detail levels and ignores a forced one. Both are refused,
-  whether the object was picked automatically or named in a Targeted capture, and if every mesh on the object is refused
-  no event is written. The log names the reason: `single_lod` or `hism_ignores_forced_lod`.
+- **`lod_popping` and `lod_corruption` skip meshes where a forced detail level shows nothing.** A mesh with only one
+  usable detail level would be "forced" to the one it already shows, and a hierarchical instanced static mesh (the kind
+  used for grass, foliage and other mass-placed props) picks its own detail levels and ignores a forced one. "Usable"
+  counts what the engine can draw: detail levels below the mesh's minimum detail level (MinLOD, or the object's own
+  override of it) and levels stripped of their geometry do not count, so a two-level mesh with a minimum of 1 is a
+  one-level mesh here. Both are refused, whether the object was picked automatically or named in a Targeted capture,
+  and if every mesh on the object is refused no event is written. The log names the reason: `single_lod` or
+  `hism_ignores_forced_lod`.
+- **`lod_corruption` also skips a mesh whose forced detail level is not coarser than the one it shows now.** The forced
+  level (the coarsest by default, or the level you name) is compared with the level the engine is drawing at that moment;
+  if it is the same or finer (for example `lod_corruption <object> 1`, which names the finest level, on an object already
+  at its finest level, or the coarsest level on an object already at its coarsest), forcing it changes nothing and the mesh is refused as
+  `not_coarser_than_current`. If the current level cannot be read (no camera view, no render data), the mesh is refused
+  as `current_lod_undetermined` rather than guessed.
+- **When only some meshes of an object are forced** (the others refused), the label box, the target mask, the measured
+  pixels and the event's `asset_name` / `component_class` cover only the forced meshes, as for texture corruption
+  below. `node.bounds` still describes the whole object.
 - **`lod_popping` and `lod_corruption` skip skeletal meshes (characters) by default.** The engine shows a detail level
   forced on a skeletal mesh one frame after the plugin sets it (read from the engine source, not yet measured), so the
   first and last labelled frames of such an event could be one frame off the picture. Until that is measured, both
   anomalies refuse a skeletal mesh with the reason `skeletal_unmeasured`, in the Auto-pool and in a Targeted capture
-  alike; if every mesh on the object is refused, no event is written. To turn it back on, set the setting below to `1`:
-  the behaviour is then exactly as in earlier builds, and the log warns on every such event that its edge frames may be
-  one frame off and that this is unmeasured. A mesh with a single detail level, static or skeletal, is still refused
-  as `single_lod` whatever this setting says.
+  alike; if every mesh on the object is refused, no event is written. Setting the setting below to `1` lets skeletal
+  meshes past this one refusal, and the log then warns on every such event that its edge frames may be one frame off
+  and that this is unmeasured. It does not bring back the behaviour of earlier builds: the other refusals above still
+  apply, so a skeletal mesh with one usable detail level, which earlier builds forced, is still refused (as
+  `single_lod`). With the setting at `0` every skeletal mesh is refused as `skeletal_unmeasured`, a single-level one
+  included, because the skeletal check comes first.
 - **`lod_popping` pops because the player moved (m57, label schema 2.3).** Two triggers, both on plain static meshes
   with several detail levels (skeletal, instanced, hierarchical-instanced and Nanite meshes are refused by name):
   - `distance_threshold`: the object is frozen at the detail level it already shows (nothing changes), keeps it while
@@ -1440,9 +1454,11 @@ What each row leaves open, stated rather than implied:
   | --- | --- | --- | --- | --- |
   | `IAI.Anomaly.LodAllowSkeletal` | `LodAllowSkeletal` | `0` (refuse) | `0`, `1`, or `default` | whether the two LOD anomalies may target a skeletal mesh |
 
-  The console wins over the ini, which wins over the built-in `0`. The value is read when a capture starts and holds
-  for that whole capture (a change made during a capture applies to the next one), and the capture's start line prints
-  it as `lodSkeletal=allowed(...)` or `lodSkeletal=refused(...)` with where it came from.
+  The console wins over the ini, which wins over the built-in `0`. During a capture the value read when the capture
+  started holds for that whole capture (a change made during a capture applies to the next one); outside a capture
+  (an injection from the console or the selector) a change applies at once. The capture's start line prints it as
+  `lodSkeletal=allowed(...)` or `lodSkeletal=refused(...)` with where it came from, and the console's read-back during
+  a capture shows the value in use with its source and, if a change is waiting, the value for the next capture.
 - **Masks:** long captures re-use mask values (the `m43` section below). In a capture on our large test level built to
   force it, two events held values at the same time and values were recycled 6 times; all 199 labelled frames had
   their mask, and no frame carried two events under one value.
