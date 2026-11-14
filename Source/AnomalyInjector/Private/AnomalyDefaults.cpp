@@ -164,6 +164,12 @@ namespace
 		return bValue;
 	}
 
+	const TCHAR*& AllowSkeletalLatchSource()
+	{
+		static const TCHAR* Source = TEXT("compiled");
+		return Source;
+	}
+
 	bool& AllowTranslucentOnlyOverride()
 	{
 		static bool bValue = false;
@@ -1039,6 +1045,7 @@ namespace AnomalyDefaults
 	{
 		const TCHAR* Source = TEXT("compiled");
 		AllowSkeletalLatchValue() = ResolveLodAllowSkeletal(Source);
+		AllowSkeletalLatchSource() = Source;
 		AllowSkeletalLatched() = true;
 		UE_LOG(LogAnomaly, Log,
 			TEXT("lod_corruption/lod_popping: skeletal targets %s for this run (%s; IAI.Anomaly.LodAllowSkeletal, ini [%s] %s). %s"),
@@ -1059,24 +1066,35 @@ namespace AnomalyDefaults
 		AllowSkeletalOverride() = bAllow;
 		AllowSkeletalOverrideSet() = true;
 		UE_LOG(LogAnomaly, Log,
-			TEXT("LodAllowSkeletal set to %s by console override (beats DefaultGame.ini [%s] %s). It takes effect at the next capture run%s."),
+			TEXT("LodAllowSkeletal set to %s by console override (beats DefaultGame.ini [%s] %s). %s"),
 			bAllow ? TEXT("1") : TEXT("0"), SectionName(), LodAllowSkeletalKey(),
-			AllowSkeletalLatched() ? TEXT("; the run in progress keeps its value") : TEXT(""));
+			AllowSkeletalLatched()
+				? TEXT("A capture run is in progress and keeps the value latched at its start; the new value applies from the next capture run.")
+				: TEXT("No capture run is in progress, so it applies now (console and selector fires); a capture run latches the value again when it starts."));
 	}
 
 	void ClearLodAllowSkeletalOverride()
 	{
 		AllowSkeletalOverrideSet() = false;
-		UE_LOG(LogAnomaly, Log, TEXT("LodAllowSkeletal console override cleared; the ini value or the compiled default 0 takes over at the next capture run."));
+		UE_LOG(LogAnomaly, Log, TEXT("LodAllowSkeletal console override cleared; the ini value or the compiled default 0 takes over %s"),
+			AllowSkeletalLatched()
+				? TEXT("from the next capture run (the run in progress keeps the value latched at its start).")
+				: TEXT("now (no capture run is in progress)."));
 	}
 
 	FString DescribeLodAllowSkeletal()
 	{
-		const TCHAR* Source = TEXT("compiled");
-		const bool bLive = ResolveLodAllowSkeletal(Source);
-		const bool bV = AllowSkeletalLatched() ? AllowSkeletalLatchValue() : bLive;
-		return FString::Printf(TEXT("%s(%s)%s"), bV ? TEXT("allowed") : TEXT("refused"), Source,
-			AllowSkeletalLatched() && bLive != bV ? TEXT("[pending next run]") : TEXT(""));
+		const TCHAR* LiveSource = TEXT("compiled");
+		const bool bLive = ResolveLodAllowSkeletal(LiveSource);
+		if (!AllowSkeletalLatched())
+		{
+			return FString::Printf(TEXT("%s(%s)"), bLive ? TEXT("allowed") : TEXT("refused"), LiveSource);
+		}
+		const bool bLatched = AllowSkeletalLatchValue();
+		const TCHAR* LatchedSource = AllowSkeletalLatchSource();
+		const bool bPending = bLive != bLatched || FCString::Strcmp(LiveSource, LatchedSource) != 0;
+		return FString::Printf(TEXT("%s(%s)%s"), bLatched ? TEXT("allowed") : TEXT("refused"), LatchedSource,
+			bPending ? *FString::Printf(TEXT("[this run; next run: %s(%s)]"), bLive ? TEXT("allowed") : TEXT("refused"), LiveSource) : TEXT(""));
 	}
 
 	const TCHAR* AllowTranslucentOnlyTargetsKey()
@@ -1812,8 +1830,12 @@ static FAutoConsoleCommand GLodAllowSkeletalCmd(
 	TEXT("Allow lod_corruption and lod_popping to force a LOD on a SKELETAL (skinned) mesh. DEFAULT 0: refused with "
 	     "reason skeletal_unmeasured. A skinned mesh reads a forced LOD in its own component tick, so the change "
 	     "reaches the render one frame after the anomaly sets it; read from UE 5.1 source, never measured. The labels "
-	     "at both edges of an event can then be one frame off the picture. 1 restores the previous behaviour exactly, "
-	     "with that caveat. The value is read when a capture run starts and holds for the whole run. PRECEDENCE: "
+	     "at both edges of an event can then be one frame off the picture. 1 lets skeletal meshes past this refusal only, "
+	     "with that caveat; the other refusals still apply (hism_ignores_forced_lod, single_lod counted on usable LODs, "
+	     "and for lod_corruption not_coarser_than_current / current_lod_undetermined), so a single-LOD skeletal mesh that "
+	     "earlier builds forced is still refused, as single_lod. During a capture run the value latched when the run "
+	     "started holds for the whole run and a change applies to the next run; outside a capture run a change applies "
+	     "at once. PRECEDENCE: "
 	     "console beats DefaultGame.ini [AnomalyInjector] LodAllowSkeletal, which beats the compiled default 0. "
 	     "Usage: IAI.Anomaly.LodAllowSkeletal <0|1|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodAllowSkeletal));
