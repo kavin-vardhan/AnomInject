@@ -10274,3 +10274,15 @@ can both be seen on the bench without a multi-LOD skeletal asset. What still can
 one-frame lag itself. With the switch on, every accepted skinned component logs that its edge frames may be one frame
 off and that this is unmeasured. The real fix (label a skinned target from the frame the engine applies the LOD) waits
 for a multi-LOD skeletal fixture and a leg.
+
+## G580 - A newline conversion applied to text that already holds CRLF writes CR CR LF, and git then stores the file as binary
+
+095-10. A block was built with `"\r\n"` line ends and then passed through `.replace("\n", "\r\n")`: each line end became
+`\r\r\n`. The compiler did not mind, but git's text detection did: a lone CR makes the file non-text (`git ls-files --eol`
+reads `i/-text`), so autocrlf stops normalizing it and the commit stores the whole file with CRLF; its diffstat showed
+852/713 lines for a 142-line change. The same session also appended a block whose first characters were a mis-decoded
+UTF-8 BOM (text piped from PowerShell into Python's stdin), which the Editor compile stopped on (C3872).
+**Rule:** convert line ends once (normalize to `\n`, then to the file's own ending); never pipe file content through
+PowerShell stdin; before every commit read `git diff --cached --stat` and, if it is large, `git ls-files --eol` for
+`-text` and `git diff --cached --ignore-cr-at-eol --stat` for the real size (G115's habit, with the two commands that
+tell the cause).

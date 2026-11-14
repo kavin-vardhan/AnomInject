@@ -858,3 +858,14 @@ writes the package's `.uheader` (the zen header) and `.uexp` (its export data).
   that `UnrealEditor-AnomalyInjector.dll` exists under `Binaries\Win64` after the build.
 - **Commands print "subsystem not present"** — you ran them outside a Game/PIE world. The
   subsystem only exists in Game + PIE (by design); run the commands inside PIE.
+
+### m57 lod_popping bench (095-10)
+
+- Map `CB_LodFixture`, `-IAIBench -IAIBenchFixture`, `IAI.Bench.InputLock 1`, then
+  `IAI.Bench.CameraSchedule lod_v1 <approach|approach_retreat|turn_in|turn_away|still>`. Distance paths spawn
+  `IAIBenchLodCopyN` / `IAIBenchLodCopyD`; target them as `=IAIBenchLodCopyN distance_threshold`; turn paths use
+  `=CB_LodFix_N view_entry`.
+- Before the cook that carries them: `IAI_LODFIX_ADD=second_pair,instanced` with CaptureBench `make_lod_fixture.py`
+  (adds `CB_LodFix_N2` / `CB_LodFix_D2` and `CB_LodFix_ISM` / `CB_LodFix_HISM`).
+- Checks: CaptureBench `m57_null_pair.py --anomaly <leg> --null <twin>` (L1, L2, L4b), `m57_lod_readout.py --dir <leg>`
+  (L3, L5, L6), `m57_make_clip.py` for the look-first clips; predictions `tools/m57_gate_predictions.md`.

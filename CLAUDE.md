@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-10, 2026-11-14 - m57: `lod_popping` POPS BECAUSE THE CAMERA MOVED (distance_threshold, view_entry). WRITTEN,
+> EDITOR-COMPILED 0/0, OFFLINE TESTS GREEN. NO ENGINE LEG, NO GAME BUILD, NO CLIP, NO COOK. Branch
+> `feat/m57-lod-spatial-trigger` (plan commits 1-7 + four fix commits) off `integ/m56-m58` `876c719`. NOT merged, no tag.**
+> - Plain static meshes only (skeletal, instanced, HISM, Nanite refused by name); thresholds from the engine's own
+>   `ComputeStaticMeshLOD`; labels = visibly wrong frames (on screen, finer LOD due, coverage >= 7 %); wrong-but-small
+>   `lod_subvisible`, render-thread disagreement `lod_unconfirmed`; `periodic` (the old timer) bench-gate only; schema
+>   minor 3. Untriggered fires write no event (`lod_untriggered_event_ids`). **Q4: every event with labelled frames is
+>   KEPT and marked** (`lod_swaps` with cause distance|view_entry|hold_cap, `lod_spatial_swap_visible`, `lod_event_kind`).
+> - Two additive `IAnomaly` hooks (deferred-onset timeout per anomaly, hold the event open); other anomalies unchanged.
+> - Tests: lod trigger selftest 120/0 (9 mutants fail), 19/19 pure selftests, label rule 107, kit 103, unit 59, lever
+>   audit 62 PASS (source + Editor binaries). CaptureBench `m57-gates` `9eb8ca6` (local): fixture options (second pair,
+>   ISM/HISM; written, not run), null-pair / readout / clip tools. Predictions frozen
+>   `code-receipts-095-10\predictions-095-10.txt`. Journal `docs/sessions/2026-11-14-095-10-m57-lod-spatial-trigger.md`.
+>   Gotcha **G580**; next free **G581**. Host Editor DLLs rebuilt from `integ/m56-m58` at the end of 095-10.
+
+> ---
+
 > **095-09, 2026-11-14 - m59: `lod_corruption` AND `lod_popping` REFUSE MESHES WHERE A FORCED LOD SHOWS NOTHING.
 > EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK. Branch `fix/m59-forced-lod-refusals` (`19c0717` code
 > + docs), merged into `integ/m56-m58`. NOT on `master`, no tag.**

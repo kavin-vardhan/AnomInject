@@ -1807,6 +1807,47 @@ data serves every pending arm (counted as `familiesWithoutBound`). The rule is `
 (`mask_serve_selftest`); the run log ends with `ARM HOLD SUMMARY holds=<n> familiesWithoutBound=<n>`. Where game and
 render already agree, nothing is held and nothing changes; the final build's staged legs log 0-3 holds each.
 
+## m57 - `lod_popping` spatial trigger (built 095-10, not yet gated)
+
+- **Modes.** `lod_popping <substring> [auto|distance_threshold|view_entry|periodic] [half_period_frames]`. No mode (the
+  auto pool, a bare targeted fire, the selector) = `auto`: distance if armable, else view entry, else refused
+  `lod_not_armable:<reason>`. `periodic` (and a bare number) = the pre-m57 timer, byte-identical, refused unless
+  `AnomalyBenchGate::IsEnabled()` (`periodic_bench_only`); the catalog row above describes that mode.
+- **Mechanism: plugin-timed forced LOD on one plain `UStaticMeshComponent`** (the largest armable one of the target).
+  Spatial refusals: `skeletal_not_supported` (whatever `LodAllowSkeletal` says), `instanced_not_supported`,
+  `nanite_no_discrete_lods`, `forced_lod_present`, `force_lod_cvar_active`, `single_lod`, plus m59's; view entry also
+  `lod_shadow_in_view`.
+- **Pure rule `Public/AnomalyLodTriggerRule.h`** (selftest `tools/lod_trigger_selftest.cpp`, mutants
+  `tools/lod_trigger_mutants.py`): engine LOD replica, contrast (triangle ratio 4), release screen size, freeze rule,
+  frame class (positive / subvisible / negative), arm refusals, and the tracker: observe a frame, decide in Tick
+  (release when past both the contrast switch x1.1 and the first positive size x1.1, re-hold on retreat past 0.85,
+  invisible release when the hold matches again, view-entry release after `EntryFrames` positives, hold cap).
+- **Engine-exact prediction `AnomalyLod::PredictEngineLod`**: `ULocalPlayer::CalcSceneView` + `ComputeStaticMeshLOD`
+  and both temporal samples, factor `r.StaticMeshLODDistanceScale`, MinLOD with the first-resident clamp
+  (`FLodViewScope` builds the view once for many targets).
+- **`AnomalyLodTrigger`**: a 16-sample camera ring fed once per tick from `UAnomalyInjectorSubsystem::DispatchAnomalyTicks`,
+  the arm evaluation, and `CollectArmableActors` (static mesh components within 100 m, sorted by actor name), which
+  the auto pool uses as lod_popping's candidate list and as its eligibility pre-check.
+- **Labels.** `IsCurrentlyAnomalous()` = the positive class for the camera at the time of the call (cached on camera
+  pose, hold state and commit); the frame is committed to the tracker in the next `Tick` with the same input, so swaps
+  and labels agree. Telemetry `lod.*` on every entry; `lod.swap` (+ cause, direction, from, to) on the swap frame.
+- **Two additive `IAnomaly` hooks** (defaults keep every other anomaly unchanged): `GetDeferredOnsetTimeoutFrames()`
+  (-1 = the global timeout; lod = `LodPoppingArmTimeoutFrames`) and `IsHoldingEventOpen()` (false; lod = visibly wrong
+  at the last tick end, below `LodPoppingHoldCapFrames`). The capture keeps the Positives phase open while any live
+  fire holds it (one frame per tick, `lod_window_extension_frames`) and reverts in the tick it closes.
+- **Capture.** `lod_subvisible` (1024) and `lod_unconfirmed` (2048) reasons, `NumReasons` 12. Render-side record: the
+  tick-end sample registers a probe per held target on the armed SVE request; the colour pass computes the engine LOD on
+  the captured view; the drain marks a disagreeing labelled or subvisible frame `lod_unconfirmed` (not labelled).
+  `annotation.json` minor 3: untriggered fires write no event (ids in `lod_untriggered_event_ids`); every event with
+  labelled frames is kept and marked (`lod_trigger`, `lod_swaps`, `lod_swap_frames`, `lod_spatial_swap_visible`,
+  `lod_event_kind`, `lod_held_lod`, `lod_trigger_screen_size`, `lod_trigger_distance_cm`); a hold-cap release is
+  inferred from the last `lod.cap_reached` frame. run_summary `lod_*` block only when a lod fire ran.
+- **Bench.** `IAI.Bench.CameraSchedule lod_v1 <approach|approach_retreat|turn_in|turn_away|still>` on CB_LodFixture
+  (AnomalyBench); levers `IAI.Bench.LodReleaseLag`, `LodForceTrigger`, `LodSkipOnScreen`, `LodPredictStaleView`,
+  `LodSkipRestore`.
+- **Known limits.** A `lod_unconfirmed` frame can still carry a mask PNG (masks are armed at tick end). The kit
+  (`label_sync_check.py`) does not judge spatial events (onset is a flag boundary); the bench null-pair check does.
+
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:
 - **Capture exactly the state you mutate, before mutating it.** Globals: one baseline (e.g.

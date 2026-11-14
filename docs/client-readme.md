@@ -385,7 +385,7 @@ The list of anomaly types Auto-pool mode draws from — check the ones you want 
 | `blinking` | **on** | an object disappears and reappears |
 | `missing_texture` | **on** | an object's material is replaced with a checker pattern |
 | `corrupted_texture` | **on** | an object's material is replaced with solid magenta |
-| `lod_popping` | **on** | an object flips to a much lower-detail version of itself (never picked: a mesh with only one detail level, or a hierarchical instanced mesh, where forcing a detail level shows nothing) |
+| `lod_popping` | **on** | a static object shows a lower-detail version while you walk toward it or turn toward it, then snaps to full detail (m57; only plain static meshes with several detail levels; nothing happens while the camera stands still) |
 | `missing_object` | **off** | an object is hidden for the whole burst, with no reappearance inside it |
 | `camera_clipping` | **off** | the camera's near-clip plane is pushed out, slicing away close geometry |
 | `stuck_low_mip` | **off** | an object's textures stay stuck at a low-resolution level, so it looks blurry while everything around it stays sharp |
@@ -999,7 +999,7 @@ row families are expected and are the ONLY ones:
 | Anomaly | Which frames | `anomaly_present` | entry `labelled` | `visible_positive` | `observable` / `target_pixels` |
 | --- | --- | --- | --- | --- | --- |
 | `blinking` | the burst's visible phases (between and around its hidden runs) | `true` | `false` | `false` (unless another entry is labelled) | `null` / `-1` (no mask is armed on these frames) |
-| `lod_popping` | the burst's un-forced phases (between pops) | `true` | `false` | `false` (unless another entry is labelled) | `null` / `-1` |
+| `lod_popping` | armed frames (the low-detail version is held but not visibly wrong), the swap frame and the frames after it | `true` | `false` | `false` (unless another entry is labelled) | `null` / `-1` |
 | `missing_texture`, `corrupted_texture` | burst frames on which the object's projected box is entirely off screen (`bbox_valid: false`) | `true` | `false` | `false` (unless another entry is labelled) | `null` / `-1` |
 | any | the frame after an object returns, or a `stuck_low_mip` off-window frame | as the table in §8.6a says | `false` | as above | `null` / `-1` |
 
@@ -1282,7 +1282,7 @@ Five fields answer five different questions about one frame. Keep them apart:
 | `blinking` | every burst frame | the frames on which the object is **hidden**, as the plugin's own hidden state stands after every game system has ticked for that frame | the burst's visible phases | the object's projected box, also on hidden frames (where it would be) | labelled frames (the would-be silhouette) | `hide_return` |
 | `missing_object` | every burst frame | the hidden frames — normally the whole burst | none expected | as `blinking` | labelled frames | `hide_return` (after the event) |
 | `missing_texture`, `corrupted_texture`, `uv_corruption`, `normal_corruption` | every burst frame | burst frames on which the object's projected box is on screen **and** at least one slot the event replaced still renders its material (partial replacement stays labelled) | frames with the box off screen; `effect_interrupted` frames | projected box | labelled frames | `effect_interrupted`, `nanite_unmaskable` |
-| `lod_popping` | every burst frame | the frames on which the forced LOD is applied | the un-forced phases between pops | projected box | labelled frames | none |
+| `lod_popping` | every burst frame | the frames on which the held low-detail version is visibly wrong: on screen, the engine would draw a finer detail level for this view, and the object covers at least 7 % of the frame | armed frames; wrong-but-smaller frames are flagged `lod_subvisible`; the swap frame and after | projected box | labelled frames | none |
 | `camera_clipping` | only the frames on which it is positive (§8.6b) — a whole-session anomaly whose entry appears only then | the same frames | none | the whole frame | never (`null` / `-1`) | `camera_clipping_unconfirmed` |
 | `stuck_low_mip`, hold route | only the frames whose render record shows the hold (§8.3a); the frames before the blur takes hold carry **no entry at all** | the same frames | none; an optional temporal off window after the last held frame (0 frames by default) carries **transition-only** entries that do not set `anomaly_present` | projected box | labelled frames | `temporal_aa`, `partial`, `unresolved` |
 | `stuck_low_mip`, proxy route | every burst frame | burst frames with an installed proxy rendering on the target (§8.3aa) | off-screen or `effect_interrupted` frames | admitted components only | labelled frames | `effect_interrupted`, `temporal_aa`, `pie_end_settle` (PIE only) |
@@ -1407,6 +1407,34 @@ What each row leaves open, stated rather than implied:
   the behaviour is then exactly as in earlier builds, and the log warns on every such event that its edge frames may be
   one frame off and that this is unmeasured. A mesh with a single detail level, static or skeletal, is still refused
   as `single_lod` whatever this setting says.
+- **`lod_popping` pops because the player moved (m57, label schema 2.3).** Two triggers, both on plain static meshes
+  with several detail levels (skeletal, instanced, hierarchical-instanced and Nanite meshes are refused by name):
+  - `distance_threshold`: the object is frozen at the detail level it already shows (nothing changes), keeps it while
+    you walk toward it, and snaps to full detail once it is clearly past the point where the engine would have switched.
+    Walking away again past 85 % of that size can pop it back down (a second swap, direction `down`).
+  - `view_entry`: an object just outside the view, on the side you are turning toward, is prepared at a low-detail
+    version while unseen, enters the view showing it, and snaps after 4 frames on screen.
+  No movement means no LOD event: the burst fires another anomaly instead. `anomaly_subtype` is the trigger
+  (`distance_threshold`, `view_entry`; `periodic` is the old timed pop, now a test-bench mode only).
+  - **Labelled frames** are the frames where the low-detail version is visibly wrong: on screen, the engine would
+    draw a finer level for this view, and the object covers at least 7 % of the frame. Wrong-but-smaller frames carry
+    the new reason `lod_subvisible`; a frame whose detail level the render thread computed differently from the label
+    carries `lod_unconfirmed` and is not labelled. Drop both, like every other flagged frame.
+  - **Every event that has labelled frames stays in `annotation.json`**, marked: `lod_trigger`, `lod_held_lod`,
+    `lod_swaps` (each with `frame`, `tick_index`, `cause` = `distance`, `view_entry` or `hold_cap`, `direction`,
+    `from_lod`, `to_lod`, `screen_size`, `distance_cm`, `coverage_pct`, `on_screen`), `lod_swap_frames`,
+    `lod_spatial_swap_visible` and `lod_event_kind` (`spatial_swap`, `hold_cap_only`, `no_swap`, `periodic`).
+    **To keep only events with a visible spatial pop, keep those whose `lod_spatial_swap_visible` is `true`.**
+    `hold_cap` is the one pop the schedule can cause: a target that stays visibly wrong for 150 frames is released by
+    the capture, rarely, and always marked. `no_swap` events showed the wrong detail level but were never seen to snap
+    (for example the view turned away first): their labelled frames are true positives.
+  - A fire that never became visibly wrong writes **no event**; its id is listed in `run_summary.json`
+    `lod_untriggered_event_ids`. `run_summary` also counts `lod_events_by_kind` and `lod_swaps_by_cause`.
+  - Settings (console beats `[AnomalyInjector]` in DefaultGame.ini, which beats the default): `IAI.Anomaly.LodArmTimeout`
+    / `LodPoppingArmTimeoutFrames` (90), `IAI.Anomaly.LodHoldCap` / `LodPoppingHoldCapFrames` (150),
+    `IAI.Anomaly.LodEntryFrames` / `LodPoppingEntryFrames` (4), `IAI.Anomaly.LodDownPop` / `LodPoppingDownPop` (1).
+    The 7 % minimum is the existing `IAI.Anomaly.LodMinCoverage` / `LodPoppingMinCoveragePct`.
+  - **Not yet proven on the bench:** the m57 gates have not run (as of this build).
 
   | Console command | ini key (`[AnomalyInjector]`) | Default | Allowed | What it sets |
   | --- | --- | --- | --- | --- |
