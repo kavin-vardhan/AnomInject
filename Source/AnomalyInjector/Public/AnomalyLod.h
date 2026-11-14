@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "AnomalyLodPolicy.h"
 
+class AActor;
 class UWorld;
 class UMeshComponent;
 
@@ -15,6 +16,23 @@ namespace AnomalyLod
 	ANOMALYINJECTOR_API int32 GetWorstLod(const UMeshComponent* Component);
 
 	ANOMALYINJECTOR_API bool HasMultipleLods(const UMeshComponent* Component);
+
+	struct FLodFacts
+	{
+		int32 NumLods = 0;
+		int32 MinLod = 0;
+		int32 FirstUsable = 0;
+		int32 UsableCount = 0;
+		int32 FirstResident = 0;
+		bool bResidentKnown = false;
+		const TCHAR* MinLodSource = TEXT("none");
+	};
+
+	ANOMALYINJECTOR_API FLodFacts GetLodFacts(const UMeshComponent* Component);
+
+	ANOMALYINJECTOR_API int32 GetUsableLodCount(const UMeshComponent* Component);
+
+	ANOMALYINJECTOR_API FString DescribeLodFacts(const FLodFacts& Facts);
 
 	ANOMALYINJECTOR_API AnomalyLodPolicy::EForcedLodRefusal GetForcedLodRefusal(const UMeshComponent* Component);
 
@@ -33,4 +51,21 @@ namespace AnomalyLod
 	};
 
 	ANOMALYINJECTOR_API FCurrentLod GetCurrentLod(UWorld* World, const UMeshComponent* Component);
+
+	struct FForcedLodContrast
+	{
+		AnomalyLodPolicy::EForcedLodRefusal Refusal = AnomalyLodPolicy::EForcedLodRefusal::None;
+		bool bCurrentKnown = false;
+		int32 ShownLod = -1;
+		int32 ForcedLod = -1;
+		float ScreenSize = -1.0f;
+		const TCHAR* Source = TEXT("undetermined");
+	};
+
+	ANOMALYINJECTOR_API FForcedLodContrast GetForcedLodContrast(UWorld* World, const UMeshComponent* Component, int32 ForcedLodModel);
+
+	ANOMALYINJECTOR_API void ScopeEventToForcedComponents(const TArray<UMeshComponent*>& Forced,
+		TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners, const TCHAR* AnomalyName);
+
+	ANOMALYINJECTOR_API void ClearForcedComponentScope(TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners);
 }

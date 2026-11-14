@@ -11,6 +11,19 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-12, 2026-11-14 - m59 REVIEW FOLLOW-UPS (ruling 095-11 S3, S9, S10, S11, N14) ON `fix/m59-forced-lod-refusals`,
+> MERGED INTO `integ/m56-m58`. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
+> - **S10 `d8077fc`:** `single_lod` counts USABLE LODs (MinLOD or the component override, LODs without vertices excluded;
+>   static and skinned). **S9 `91a87c2`:** `lod_corruption` refuses `not_coarser_than_current` when the engine-clamped
+>   forced LOD is not coarser than the LOD shown now, and `current_lod_undetermined` when that cannot be read.
+>   **S3 `c5113e3`:** a partial forced set scopes the label box, mask, `target_pixels` and the node's asset/class to the
+>   forced components (both LOD anomalies; `ResolveNodeIdentity` honours the scope). **S11+N14 `2b4661c`:** the skeletal
+>   switch's help, set/clear lines, read-back and readme say what it does (not "previous behaviour exactly").
+> - `lod_refusal_selftest` 141/0, 13 mutants fail. Legs: `predictions-095-09.txt` AMENDMENT 2 (L59-8..L59-11).
+>   Journal `docs/sessions/2026-11-14-095-12-m59-review-follow-ups.md`. Gotcha **G581** (G580 is on m57); next free **G582**.
+
+> ---
+
 > **095-09, 2026-11-14 - m59: `lod_corruption` AND `lod_popping` REFUSE MESHES WHERE A FORCED LOD SHOWS NOTHING.
 > EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK. Branch `fix/m59-forced-lod-refusals` (`19c0717` code
 > + docs), merged into `integ/m56-m58`. NOT on `master`, no tag.**

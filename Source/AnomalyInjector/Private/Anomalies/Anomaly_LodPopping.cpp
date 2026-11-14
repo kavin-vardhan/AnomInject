@@ -136,8 +136,8 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		{
 			++RefusedSingleLod;
 			UE_LOG(LogAnomaly, Warning,
-				TEXT("lod_popping: REFUSED '%s' — it has a single LOD, so forcing a LOD would pop it to itself: no visible change, and a positive label with no visible change is an invisible anomaly the mask veto cannot catch (it still draws pixels)."),
-				*Mesh->GetName());
+				TEXT("lod_popping: REFUSED '%s' (single_lod) — it has at most one usable LOD [%s] (MinLOD and LODs stripped of vertices are not usable; the engine clamps a forced LOD to the usable range), so forcing a LOD would pop it to itself: no visible change, and a positive label with no visible change is an invisible anomaly the mask veto cannot catch (it still draws pixels)."),
+				*Mesh->GetName(), *AnomalyLod::DescribeLodFacts(AnomalyLod::GetLodFacts(Mesh)));
 			continue;
 		}
 
@@ -256,6 +256,16 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
+	TArray<UMeshComponent*> Forced;
+	for (const FPoppingTarget& Target : Targets)
+	{
+		if (UMeshComponent* Mesh = Target.Mesh.Get())
+		{
+			Forced.Add(Mesh);
+		}
+	}
+	AnomalyLod::ScopeEventToForcedComponents(Forced, ScopedOwners, TEXT("lod_popping"));
+
 	UE_LOG(LogAnomaly, Log,
 		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) [%s] — %d qualified, %d refused (hierarchical instanced), %d refused (single LOD), %d refused (skeletal), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm), %d refused (not at highest LOD)."),
 		Meshes.Num(), *Substring, HalfPeriodFrames,
@@ -302,6 +312,7 @@ void FAnomaly_LodPopping::Revert()
 		}
 	}
 
+	AnomalyLod::ClearForcedComponentScope(ScopedOwners);
 	Targets.Reset();
 	FramesSinceToggle = 0;
 	bPoppedPhase = false;

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "IAnomaly.h"
 
+class AActor;
 class UWorld;
 class UMeshComponent;
 
@@ -29,6 +30,7 @@ private:
 	};
 
 	TArray<FPoppingTarget> Targets;
+	TArray<TWeakObjectPtr<const AActor>> ScopedOwners;
 	FString LastRefusal;
 	int32 HalfPeriodFrames = DefaultHalfPeriodFrames;
 	int32 FramesSinceToggle = 0;
