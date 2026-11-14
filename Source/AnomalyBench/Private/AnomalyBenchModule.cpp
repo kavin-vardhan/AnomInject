@@ -82,7 +82,8 @@ namespace
 	enum class ELodPath : uint8 { Approach = 0, ApproachRetreat = 1, TurnIn = 2, TurnAway = 3, Still = 4 };
 
 	static constexpr double LodEyeZ = 200.0;
-	static constexpr double LodCopyX = 2100.0;
+	static constexpr double LodCopyX = 1700.0;
+	static constexpr double LodStartX = -600.0;
 	static constexpr double LodCopyY = 60.0;
 
 	const TCHAR* LodPathName(ELodPath Path)
@@ -106,7 +107,7 @@ namespace
 
 	int32 LodPathFrames(ELodPath Path)
 	{
-		return Path == ELodPath::Approach ? 260 : Path == ELodPath::ApproachRetreat ? 318 : Path == ELodPath::TurnIn ? 85
+		return Path == ELodPath::Approach ? 287 : Path == ELodPath::ApproachRetreat ? 350 : Path == ELodPath::TurnIn ? 85
 			: Path == ELodPath::TurnAway ? 51 : 1;
 	}
 
@@ -131,15 +132,15 @@ namespace
 		switch (Path)
 		{
 		case ELodPath::Approach:
-			if (K < 20) { return LodPose(0.0, 0.0, TEXT("still_start")); }
-			if (K < 260) { return LodPose(7.5 * (K - 20), 0.0, TEXT("approach")); }
-			return LodPose(1800.0, 0.0, TEXT("hold_near"));
+			if (K < 20) { return LodPose(LodStartX, 0.0, TEXT("still_start")); }
+			if (K < 287) { return LodPose(LodStartX + 7.5 * (K - 20), 0.0, TEXT("approach")); }
+			return LodPose(LodStartX + 7.5 * 267, 0.0, TEXT("hold_near"));
 		case ELodPath::ApproachRetreat:
-			if (K < 20) { return LodPose(0.0, 0.0, TEXT("still_start")); }
-			if (K < 164) { return LodPose(12.5 * (K - 20), 0.0, TEXT("approach")); }
-			if (K < 174) { return LodPose(1800.0, 0.0, TEXT("hold_near")); }
-			if (K < 318) { return LodPose(1800.0 - 12.5 * (K - 174), 0.0, TEXT("retreat")); }
-			return LodPose(0.0, 0.0, TEXT("hold_far"));
+			if (K < 20) { return LodPose(LodStartX, 0.0, TEXT("still_start")); }
+			if (K < 180) { return LodPose(LodStartX + 12.5 * (K - 20), 0.0, TEXT("approach")); }
+			if (K < 190) { return LodPose(LodStartX + 2000.0, 0.0, TEXT("hold_near")); }
+			if (K < 350) { return LodPose(LodStartX + 2000.0 - 12.5 * (K - 190), 0.0, TEXT("retreat")); }
+			return LodPose(LodStartX, 0.0, TEXT("hold_far"));
 		case ELodPath::TurnIn:
 			if (K < 30) { return LodPose(0.0, -100.0, TEXT("still_away")); }
 			if (K < 85) { return LodPose(0.0, -100.0 + 2.0 * (K - 30), TEXT("turn_in")); }
@@ -151,7 +152,7 @@ namespace
 			if (K < 51) { return LodPose(0.0, -88.0 - 2.0 * (K - 40), TEXT("turn_away")); }
 			return LodPose(0.0, -110.0, TEXT("hold_away"));
 		default:
-			return LodPose(0.0, 0.0, TEXT("still"));
+			return LodPose(LodStartX, 0.0, TEXT("still"));
 		}
 	}
 }
@@ -344,7 +345,7 @@ public:
 				TEXT("BENCH DEVICE (bench gate only: -IAIBench or -IAIBenchFixture; compiled out of Shipping). cc_v1 arms the B-CC camera_clipping pose schedule on CB_GateLevel: ")
 				TEXT("spawns a wall, a colliding prop beside the lens path, a non-colliding prop and (if a pawn is possessed) a pawn-owned mesh, then ")
 				TEXT("drives the view through 200 poses keyed by the capture session frame index. lod_v1 <approach|approach_retreat|turn_in|turn_away|still> ")
-				TEXT("arms the m57 lod_popping camera path on CB_LodFixture (distance paths spawn scale-1 copies IAIBenchLodCopyN/D at x=2100). off disarms outside capture. Requires InputLock."),
+				TEXT("arms the m57 lod_popping camera path on CB_LodFixture (distance paths start at x=-600 and spawn scale-1 copies IAIBenchLodCopyN/D at x=1700, in front of the backdrop). off disarms outside capture. Requires InputLock."),
 				FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::CameraSchedule));
 		}
 		TickHandle = FWorldDelegates::OnWorldPostActorTick.AddRaw(this, &FAnomalyBenchModule::WorldTick);
