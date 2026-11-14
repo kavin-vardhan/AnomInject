@@ -119,13 +119,14 @@ namespace AnomalyLodTriggerRule
 		return TemporalLod0 >= 0 && TemporalLod0 == TemporalLod1;
 	}
 
-	inline EFrameClass ClassifyFrame(bool bHeld, bool bOnScreen, int HeldLod, int EngineLod, float CoveragePct, float CoverageMinPct)
+	inline EFrameClass ClassifyFrame(bool bHeld, bool bOnScreen, int HeldLod, int EngineLod, float CoveragePct, float CoverageMinPct,
+		bool bContrast)
 	{
 		if (!bHeld || !bOnScreen || EngineLod < 0 || EngineLod >= HeldLod)
 		{
 			return EFrameClass::Negative;
 		}
-		return CoveragePct >= CoverageMinPct ? EFrameClass::Positive : EFrameClass::Subvisible;
+		return (CoveragePct >= CoverageMinPct && bContrast) ? EFrameClass::Positive : EFrameClass::Subvisible;
 	}
 
 	struct FDistanceArmInput
@@ -312,7 +313,7 @@ namespace AnomalyLodTriggerRule
 	inline FObservation ObserveFrame(FTracker& T, const FFrameInput& In, const FSettings& Settings)
 	{
 		FObservation O;
-		O.Class = ClassifyFrame(T.bHeld, In.bOnScreen, T.HeldLod, In.EngineLod, In.CoveragePct, Settings.CoverageMinPct);
+		O.Class = ClassifyFrame(T.bHeld, In.bOnScreen, T.HeldLod, In.EngineLod, In.CoveragePct, Settings.CoverageMinPct, In.bContrast);
 		if (T.PendingCause != ESwapCause::None)
 		{
 			if (In.bOnScreen && In.EngineLod >= 0 && In.EngineLod != T.HeldLod)
@@ -426,7 +427,7 @@ namespace AnomalyLodTriggerRule
 			return ETickAction::None;
 		}
 		if (T.Mode == EMode::DistanceThreshold && Settings.bDownPop && T.SwapScreenSize > 0.0f && In.bOnScreen && In.bRetreating
-			&& bAgree && In.EngineLod >= 0 && In.EngineLod < T.HeldLod && In.CoveragePct >= Settings.CoverageMinPct
+			&& bAgree && In.EngineLod >= 0 && In.EngineLod < T.HeldLod && In.CoveragePct >= Settings.CoverageMinPct && In.bContrast
 			&& In.BoundsScreenSize < T.SwapScreenSize * Settings.Hysteresis)
 		{
 			T.bHeld = true;

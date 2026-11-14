@@ -99,15 +99,17 @@ static void TestFreezeAndClassify()
 	Check(!FreezeIsInvisible(0, 0, 0), "freezing LOD0 is not a held coarse LOD");
 	Check(!FreezeIsInvisible(1, 1, 0), "mid-dither freeze refused");
 	Check(!FreezeIsInvisible(2, 1, 2), "a sample disagreeing with the engine LOD refuses");
-	Check(ClassifyFrame(true, true, 1, 0, 9.0f, 7.0f) == EFrameClass::Positive, "held, on screen, wrong, big = positive");
-	Check(ClassifyFrame(true, true, 1, 0, 3.0f, 7.0f) == EFrameClass::Subvisible, "held, wrong, small = subvisible");
-	Check(ClassifyFrame(true, true, 1, 0, 7.0f, 7.0f) == EFrameClass::Positive, "coverage equal to the minimum is positive");
-	Check(ClassifyFrame(true, false, 1, 0, 9.0f, 7.0f) == EFrameClass::Negative, "off screen is negative");
-	Check(ClassifyFrame(true, true, 1, 1, 9.0f, 7.0f) == EFrameClass::Negative, "held equals engine is negative");
-	Check(ClassifyFrame(true, true, 1, 2, 9.0f, 7.0f) == EFrameClass::Negative, "engine coarser than held is negative");
-	Check(ClassifyFrame(false, true, 1, 0, 9.0f, 7.0f) == EFrameClass::Negative, "released is negative");
-	Check(ClassifyFrame(true, true, 1, -1, 9.0f, 7.0f) == EFrameClass::Negative, "unknown engine LOD is negative");
-}
+	Check(ClassifyFrame(true, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Positive, "held, on screen, wrong, big = positive");
+	Check(ClassifyFrame(true, true, 1, 0, 3.0f, 7.0f, true) == EFrameClass::Subvisible, "held, wrong, small = subvisible");
+	Check(ClassifyFrame(true, true, 1, 0, 7.0f, 7.0f, true) == EFrameClass::Positive, "coverage equal to the minimum is positive");
+	Check(ClassifyFrame(true, false, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "off screen is negative");
+	Check(ClassifyFrame(true, true, 1, 1, 9.0f, 7.0f, true) == EFrameClass::Negative, "held equals engine is negative");
+	Check(ClassifyFrame(true, true, 1, 2, 9.0f, 7.0f, true) == EFrameClass::Negative, "engine coarser than held is negative");
+	Check(ClassifyFrame(false, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "released is negative");
+	Check(ClassifyFrame(true, true, 1, -1, 9.0f, 7.0f, true) == EFrameClass::Negative, "unknown engine LOD is negative");
+	Check(ClassifyFrame(true, true, 1, 0, 9.0f, 7.0f, false) == EFrameClass::Subvisible,
+		"held, wrong, big but without triangle contrast = subvisible (a faint pop is not a usable positive)");
+	Check(ClassifyFrame(true, true, 3, 2, 30.0f, 7.0f, false) == EFrameClass::Subvisible, "rock held 3 vs engine 2 with no contrast = subvisible");}
 
 static void TestArmRules()
 {

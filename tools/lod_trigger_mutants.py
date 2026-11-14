@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 MUTATIONS = {
-    "coverage_ignored": ("return CoveragePct >= CoverageMinPct ? EFrameClass::Positive : EFrameClass::Subvisible;",
+    "coverage_ignored": ("return (CoveragePct >= CoverageMinPct && bContrast) ? EFrameClass::Positive : EFrameClass::Subvisible;",
                          "return EFrameClass::Positive;"),
     "release_ignores_dither": ("if (T.Mode == EMode::DistanceThreshold && T.LastClass == EFrameClass::Positive && In.bContrast && bAgree",
                                "if (T.Mode == EMode::DistanceThreshold && T.LastClass == EFrameClass::Positive && In.bContrast"),
@@ -21,6 +21,8 @@ MUTATIONS = {
     "entry_frames_off_by_one": ("&& T.PositiveFramesSeen >= Settings.EntryFrames)", "&& T.PositiveFramesSeen > Settings.EntryFrames)"),
     "lookahead_ignores_coverage": ("const float Target = DistanceLookAheadScreenSize(In.ReleaseScreenSize, CoverageSize);",
                                    "const float Target = In.ReleaseScreenSize;"),
+    "positive_ignores_contrast": ("return (CoveragePct >= CoverageMinPct && bContrast) ? EFrameClass::Positive",
+                                  "return (CoveragePct >= CoverageMinPct) ? EFrameClass::Positive"),
     "arm_clock_no_restart": ("if (bWrongSeen && !Clock.bRestarted)", "if (bWrongSeen && !Clock.bRestarted && TimeoutFrames < 0)"),
     "view_margin_fixed": ("if (In.AngleOutsideFrustumDeg > ViewEntryMarginForRate(Settings, In.YawRateDegPerS, In.FrameSeconds))",
                           "if (In.AngleOutsideFrustumDeg > Settings.ViewEntryMarginDeg)"),
