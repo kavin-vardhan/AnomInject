@@ -385,7 +385,7 @@ The list of anomaly types Auto-pool mode draws from — check the ones you want 
 | `blinking` | **on** | an object disappears and reappears |
 | `missing_texture` | **on** | an object's material is replaced with a checker pattern |
 | `corrupted_texture` | **on** | an object's material is replaced with solid magenta |
-| `lod_popping` | **on** | an object flips to a much lower-detail version of itself |
+| `lod_popping` | **on** | an object flips to a much lower-detail version of itself (never picked: a mesh with only one detail level, or a hierarchical instanced mesh, where forcing a detail level shows nothing) |
 | `missing_object` | **off** | an object is hidden for the whole burst, with no reappearance inside it |
 | `camera_clipping` | **off** | the camera's near-clip plane is pushed out, slicing away close geometry |
 | `stuck_low_mip` | **off** | an object's textures stay stuck at a low-resolution level, so it looks blurry while everything around it stays sharp |
@@ -1391,7 +1391,14 @@ What each row leaves open, stated rather than implied:
   previous rule had labelled all 200 with nothing visibly clipped.
 - **`lod_popping`** — on ordinary scenery (the rocks of our large test level) the pop is too faint to find in the
   pixels, so there the label could not be checked against the picture. The mechanism does not depend on the content:
-  the detail level is forced on the object in the same frame the label marks, which is what the test object proves.
+  the detail level is forced on the object in the same frame the label marks, which is what the test object proves
+  (for a static mesh; on a character's skeletal mesh the engine shows a forced detail level one frame later — read from
+  the engine source, not yet measured).
+- **`lod_popping` and `lod_corruption` skip meshes where a forced detail level shows nothing.** A mesh with a single
+  detail level would be "forced" to the one it already shows, and a hierarchical instanced static mesh (the kind used for
+  grass, foliage and other mass-placed props) picks its own detail levels and ignores a forced one. Both are refused,
+  whether the object was picked automatically or named in a Targeted capture, and if every mesh on the object is refused
+  no event is written. The log names the reason: `single_lod` or `hism_ignores_forced_lod`.
 - **Masks:** long captures re-use mask values (the `m43` section below). In a capture on our large test level built to
   force it, two events held values at the same time and values were recycled 6 times; all 199 labelled frames had
   their mask, and no frame carried two events under one value.

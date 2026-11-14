@@ -9,6 +9,7 @@
 
 bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 {
+	LastRefusal.Reset();
 	if (!World)
 	{
 		return false;
@@ -97,6 +98,7 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 	}
 
 	Targets.Reset();
+	int32 RefusedHism = 0;
 	int32 RefusedSingleLod = 0;
 	int32 RefusedTooSmall = 0;
 	int32 RefusedTooFar = 0;
@@ -111,7 +113,16 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 			continue;
 		}
 
-		if (!AnomalyLod::HasMultipleLods(Mesh))
+		const AnomalyLodPolicy::EForcedLodRefusal Refusal = AnomalyLod::GetForcedLodRefusal(Mesh);
+		if (Refusal == AnomalyLodPolicy::EForcedLodRefusal::HierarchicalInstanced)
+		{
+			++RefusedHism;
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_popping: REFUSED '%s' (hism_ignores_forced_lod) — it is a hierarchical instanced static mesh, which picks its own LODs and ignores a forced LOD, so forcing one changes nothing: a positive label with no visible change, which the mask veto cannot catch (it still draws pixels). This applies to auto-pool and targeted fires alike."),
+				*Mesh->GetName());
+			continue;
+		}
+		if (Refusal == AnomalyLodPolicy::EForcedLodRefusal::SingleLod)
 		{
 			++RefusedSingleLod;
 			UE_LOG(LogAnomaly, Warning,
@@ -219,18 +230,20 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 
 	if (!bActive)
 	{
+		LastRefusal = UTF8_TO_TCHAR(AnomalyLodPolicy::DominantRefusal(RefusedHism, RefusedSingleLod,
+			RefusedTooSmall + RefusedTooFar + RefusedNotHighestLod));
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL [%s] — %d single-LOD, %d below the %.4f bounds_coverage_pct minimum, %d beyond the %.2f cm proximity maximum, %d not at their highest LOD. Applying nothing, so no fire is recorded and no label is written."),
+			TEXT("lod_popping: matched %d component(s) for '%s' but REFUSED ALL [%s] — %d hierarchical-instanced, %d single-LOD, %d below the %.4f bounds_coverage_pct minimum, %d beyond the %.2f cm proximity maximum, %d not at their highest LOD. Applying nothing, so no fire is recorded and no label is written."),
 			Meshes.Num(), *Substring, bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, proximity gates BYPASSED"),
-			RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm, RefusedNotHighestLod);
+			RefusedHism, RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm, RefusedNotHighestLod);
 		return false;
 	}
 
 	UE_LOG(LogAnomaly, Log,
-		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) [%s] — %d qualified, %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm), %d refused (not at highest LOD)."),
+		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) [%s] — %d qualified, %d refused (hierarchical instanced), %d refused (single LOD), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm), %d refused (not at highest LOD)."),
 		Meshes.Num(), *Substring, HalfPeriodFrames,
 		bAutoPool ? TEXT("auto-pool, gates ENFORCED") : TEXT("targeted, proximity gates BYPASSED"),
-		Targets.Num(), RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm,
+		Targets.Num(), RefusedHism, RefusedSingleLod, RefusedTooSmall, EffectiveMinCoveragePct, RefusedTooFar, MaxDistanceCm,
 		RefusedNotHighestLod);
 	return bActive;
 }

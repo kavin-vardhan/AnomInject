@@ -18,6 +18,7 @@ public:
 	virtual void Revert() override;
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsCurrentlyAnomalous() const override { return bActive && bPoppedPhase; }
+	virtual FString GetLastRefusalReason() const override { return LastRefusal; }
 
 private:
 	struct FPoppingTarget
@@ -28,6 +29,7 @@ private:
 	};
 
 	TArray<FPoppingTarget> Targets;
+	FString LastRefusal;
 	int32 HalfPeriodFrames = DefaultHalfPeriodFrames;
 	int32 FramesSinceToggle = 0;
 	bool  bPoppedPhase = false;

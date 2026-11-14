@@ -11,6 +11,24 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-09, 2026-11-14 - m59: `lod_corruption` AND `lod_popping` REFUSE MESHES WHERE A FORCED LOD SHOWS NOTHING.
+> EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK. Branch `fix/m59-forced-lod-refusals` (`19c0717` code
+> + docs), merged into `integ/m56-m58`. NOT on `master`, no tag.**
+> - Verified in delivered code + UE 5.1.1 source: a hierarchical instanced static mesh ignores `ForcedLodModel` (its proxy
+>   picks LODs per cluster); `lod_popping` accepted one outside foliage, `lod_corruption` accepted it and single-LOD meshes
+>   (no guard at all), and labelled frames with nothing changed; the m26 veto kept them (pixels still drawn). Plain ISM
+>   honours a forced LOD (not refused). `lod_corruption` is targeted-only on `master` (not in the auto pool).
+> - Now refused per component on every fire: `hism_ignores_forced_lod`, `single_lod`; all refused ⇒ no fire, no event; both
+>   anomalies report the reason to `Auto.Yield`. Pure rule `AnomalyLodPolicy.h`, `tools/lod_refusal_selftest.cpp` 29/0,
+>   three mutants fail. Editor 0/0; all pure C++ selftests, Python suites and the lever audit (source + binary) pass.
+> - ⚠ **Skeletal not changed:** `SetForcedLOD` reaches the render one frame late (native order; both orders for Apply and
+>   Revert), so labels can disagree with the picture by a frame at LOD edges. Derived, never measured. Recommendation to
+>   chat: refuse skeletal for both anomalies until a leg measures it.
+> - Legs for 095-07 frozen: `code-receipts-095-09\predictions-095-09.txt`. Journal
+>   `docs/sessions/2026-11-14-095-09-m59-forced-lod-refusals.md`. Gotcha **G579**; next free **G580**.
+
+> ---
+
 > **095-06b, 2026-11-14 - REVIEW FIXES APPLIED ON BOTH UNITS AND THE BENCH SCRIPTS; `integ/m56-m58` BUILT. ALL LOCAL:
 > NOTHING COMPILED BY UBT, NOTHING PUSHED (E: 20.7 GiB, below the 50 GiB floor the brief gates on).**
 > - m56 (`fix/m56-capture-continuity` local `e12180c`, origin `b4017ea`): S1 vetoed event stays out of annotation.json
