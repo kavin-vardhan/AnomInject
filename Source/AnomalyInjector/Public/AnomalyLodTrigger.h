@@ -37,6 +37,12 @@ namespace AnomalyLodTrigger
 		AnomalyLod::FEngineLodPrediction Prediction;
 	};
 
+	enum class ECaptureRenderRecord : uint8 { Unknown = 0, Available = 1, Unavailable = 2 };
+
+	ANOMALYINJECTOR_API void SetCaptureRenderRecord(ECaptureRenderRecord State);
+
+	ANOMALYINJECTOR_API ECaptureRenderRecord GetCaptureRenderRecord();
+
 	ANOMALYINJECTOR_API AnomalyLodTriggerRule::FSettings GetSettings();
 
 	ANOMALYINJECTOR_API void RecordViewSample(UWorld* World);

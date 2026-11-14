@@ -32,6 +32,8 @@ namespace
 		int32 Head = 0;
 	};
 
+	AnomalyLodTrigger::ECaptureRenderRecord GRenderRecord = AnomalyLodTrigger::ECaptureRenderRecord::Unknown;
+
 	FViewRing& Ring()
 	{
 		static FViewRing Instance;
@@ -44,6 +46,16 @@ namespace
 		const double H = FMath::Clamp((double)Max.Y, 0.0, 1.0) - FMath::Clamp((double)Min.Y, 0.0, 1.0);
 		return (float)(FMath::Max(0.0, W) * FMath::Max(0.0, H) * 100.0);
 	}
+}
+
+void AnomalyLodTrigger::SetCaptureRenderRecord(ECaptureRenderRecord State)
+{
+	GRenderRecord = State;
+}
+
+AnomalyLodTrigger::ECaptureRenderRecord AnomalyLodTrigger::GetCaptureRenderRecord()
+{
+	return GRenderRecord;
 }
 
 AnomalyLodTriggerRule::FSettings AnomalyLodTrigger::GetSettings()
@@ -372,6 +384,11 @@ AnomalyLodTrigger::FArmEvaluation AnomalyLodTrigger::EvaluateArm(UWorld* World, 
 TArray<TWeakObjectPtr<AActor>> AnomalyLodTrigger::CollectArmableActors(UWorld* World, TMap<FString, int32>& OutRefusals)
 {
 	TArray<TWeakObjectPtr<AActor>> Out;
+	if (GetCaptureRenderRecord() == ECaptureRenderRecord::Unavailable)
+	{
+		OutRefusals.FindOrAdd(TEXT("render_record_unavailable")) += 1;
+		return Out;
+	}
 	const AnomalyLod::FLodViewScope Scope(World);
 	FAnomalyViewInfo View;
 	if (!World || !Scope.IsValid() || !AnomalyViewport::GetActiveViewInfo(World, View) || !View.bValid)

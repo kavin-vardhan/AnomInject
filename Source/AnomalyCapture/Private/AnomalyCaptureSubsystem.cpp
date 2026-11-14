@@ -1,6 +1,7 @@
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyLod.h"
 #include "AnomalyLodTriggerRule.h"
+#include "AnomalyLodTrigger.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIFeatureLevel.h")
 #include "RHIFeatureLevel.h"
@@ -4484,8 +4485,11 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m57): LOD TRIGGER %s coverage_min=%.2f%%. EFFECTIVE READ-BACK. lod_popping fires spatially ")
 		TEXT("(distance_threshold or view_entry); its arm timeout replaces the deferred-onset timeout above for its own fires, a ")
-		TEXT("visibly wrong target holds the positive window open up to the hold cap, and periodic is bench-only."),
-		*AnomalyDefaults::DescribeLodTriggerSettings(), AnomalyDefaults::GetLodPoppingMinCoveragePct());
+		TEXT("visibly wrong target holds the positive window open up to the hold cap, and periodic is bench-only. Render record: %s."),
+		*AnomalyDefaults::DescribeLodTriggerSettings(), AnomalyDefaults::GetLodPoppingMinCoveragePct(),
+		(bAsyncCapture && bSveCapture) ? TEXT("available (SVE path)") : TEXT("UNAVAILABLE (backbuffer or sync path) - spatial lod_popping fires are refused render_record_unavailable"));
+	AnomalyLodTrigger::SetCaptureRenderRecord((bAsyncCapture && bSveCapture)
+		? AnomalyLodTrigger::ECaptureRenderRecord::Available : AnomalyLodTrigger::ECaptureRenderRecord::Unavailable);
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m52): VETO ARM WINDOW = %s. EFFECTIVE READ-BACK, not the value requested. A ")
@@ -9464,6 +9468,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 
 		RevertSessionGlobals();
 		AnomalyDefaults::ReleaseLodAllowSkeletalLatch();
+		AnomalyLodTrigger::SetCaptureRenderRecord(AnomalyLodTrigger::ECaptureRenderRecord::Unknown);
 
 		ComputeRunPacing();
 

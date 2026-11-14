@@ -357,6 +357,15 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, AnomalyLodTriggerRule::EMode Requested)
 {
 	using namespace AnomalyLodTriggerRule;
+	if (AnomalyLodTrigger::GetCaptureRenderRecord() == AnomalyLodTrigger::ECaptureRenderRecord::Unavailable)
+	{
+		LastRefusal = TEXT("render_record_unavailable");
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("lod_popping: REFUSED '%s' (render_record_unavailable) - this capture grabs the backbuffer (IAI.Capture.SVE 0), which takes ")
+			TEXT("no render-side LOD record, so a spatial label could not be confirmed on the render thread. A label that cannot be ")
+			TEXT("confirmed is not written: spatial lod_popping runs on the default SVE path only."), *Substring);
+		return false;
+	}
 	Settings = AnomalyLodTrigger::GetSettings();
 	const TArray<TWeakObjectPtr<UMeshComponent>> Meshes = AnomalyLod::ResolveLodComponents(World, Substring);
 	if (Meshes.Num() == 0)
