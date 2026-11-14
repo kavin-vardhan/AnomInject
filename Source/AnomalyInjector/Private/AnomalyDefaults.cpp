@@ -2079,7 +2079,7 @@ static FAutoConsoleCommand GLodHalfPeriodCmd(
 	     "Usage: IAI.Anomaly.LodHalfPeriod <frames|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodHalfPeriod));
 
-ï»¿
+
 namespace AnomalyDefaults
 {
 	namespace
