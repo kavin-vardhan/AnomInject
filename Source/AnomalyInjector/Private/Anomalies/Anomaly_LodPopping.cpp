@@ -779,7 +779,7 @@ void FAnomaly_LodPopping::OnWorldTeardown()
 }
 
 #if !UE_BUILD_SHIPPING
-
+
 static FAutoConsoleCommand GLodReleaseLagCmd(
 	TEXT("IAI.Bench.LodReleaseLag"),
 	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON delays every visible lod_popping release by one tick after the recorded swap frame, so the swap-frame gate (L2) must FAIL. Usage: IAI.Bench.LodReleaseLag <0|1>"),
@@ -793,7 +793,7 @@ static FAutoConsoleCommand GLodReleaseLagCmd(
 		GLodReleaseLag = FCString::Atoi(*Args[0]) != 0;
 		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodReleaseLag -> %d. BENCH DEVICE."), GLodReleaseLag ? 1 : 0);
 	}));
-
+
 static FAutoConsoleCommand GLodForceTriggerCmd(
 	TEXT("IAI.Bench.LodForceTrigger"),
 	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON arms a lod_popping target at its coarsest LOD with no camera motion (as view_entry), so the still-camera gate (L3) must produce events: its 'no event' reading is then shown not to be blindness. Usage: IAI.Bench.LodForceTrigger <0|1>"),
@@ -807,7 +807,7 @@ static FAutoConsoleCommand GLodForceTriggerCmd(
 		GLodForceTrigger = FCString::Atoi(*Args[0]) != 0;
 		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodForceTrigger -> %d. BENCH DEVICE."), GLodForceTrigger ? 1 : 0);
 	}));
-
+
 static FAutoConsoleCommand GLodSkipOnScreenCmd(
 	TEXT("IAI.Bench.LodSkipOnScreen"),
 	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON drops the on-screen term (and lifts coverage to the minimum) from lod_popping's label rule, so the unseen gate (L4) must produce labelled off-screen frames. Usage: IAI.Bench.LodSkipOnScreen <0|1>"),
@@ -821,7 +821,7 @@ static FAutoConsoleCommand GLodSkipOnScreenCmd(
 		GLodSkipOnScreen = FCString::Atoi(*Args[0]) != 0;
 		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodSkipOnScreen -> %d. BENCH DEVICE."), GLodSkipOnScreen ? 1 : 0);
 	}));
-
+
 static FAutoConsoleCommand GLodPredictStaleViewCmd(
 	TEXT("IAI.Bench.LodPredictStaleView"),
 	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON makes lod_popping's tick-end prediction use the previous frame's camera distance, so the render-record gate (L5) must produce lod_unconfirmed mismatches on moving legs. Usage: IAI.Bench.LodPredictStaleView <0|1>"),
@@ -835,7 +835,7 @@ static FAutoConsoleCommand GLodPredictStaleViewCmd(
 		GLodPredictStaleView = FCString::Atoi(*Args[0]) != 0;
 		UE_LOG(LogAnomaly, Warning, TEXT("IAI.Bench.LodPredictStaleView -> %d. BENCH DEVICE."), GLodPredictStaleView ? 1 : 0);
 	}));
-
+
 static FAutoConsoleCommand GLodSkipRestoreCmd(
 	TEXT("IAI.Bench.LodSkipRestore"),
 	TEXT("BENCH DEVICE (m57), console only, default OFF - never in a client payload. ON skips restoring the saved forced LOD at a spatial lod_popping revert, so the revert read-back gate (L6) must FAIL. Usage: IAI.Bench.LodSkipRestore <0|1>"),
