@@ -40,6 +40,7 @@
 
 #if ANOMALY_CAPTURE
 #include "AnomalyLabelWriter.h"
+#include "AnomalyWriterProgress.h"
 #include "AnomalyPreviewCapture.h"
 #include "AnomalyPreviewTee.h"
 #include "AnomalyAutoInjectorSubsystem.h"
@@ -1015,7 +1016,7 @@ void UAnomalyCaptureSubsystem::Deinitialize()
 		Async->SveCapturer.Reset();
 		if (Async->Writer.IsValid())
 		{
-			Async->Writer->FlushPending(120.0);
+			Async->Writer->FlushPending(AnomalyWriterProgress::StallWindowSeconds);
 			Async->Writer.Reset();
 		}
 	}
@@ -1097,6 +1098,17 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 	if (bAsyncCapture)
 	{
 		ProcessCompletedFrames();
+	}
+
+	if (bWriterStallStopPending && Phase != ECapturePhase::Idle)
+	{
+		bWriterStallStopPending = false;
+		UE_LOG(LogAnomalyCapture, Error,
+			TEXT("Capture(m56): the frame writer stalled (no job completed for %.0f s); the capture run stops now. Frames not ")
+			TEXT("written count as writer_timeout and run_summary.writer_stalled is true."),
+			AnomalyWriterProgress::StallWindowSeconds);
+		FinishRun(true);
+		return;
 	}
 
 	if (bRenderTruthRun)
@@ -3714,6 +3726,8 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	OrphanCompletions = 0;
 	SyncLabelRowsFailed = 0;
 	bWriterFlushComplete = true;
+	bWriterStalled = false;
+	bWriterStallStopPending = false;
 	ArmedTickBySession.Reset();
 	DropCauseBySession.Reset();
 	UnarmedTickCause.Reset();
@@ -5074,6 +5088,17 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 			continue;
 		}
 		Async->Writer->WaitForCapacity(Job.RawBytes.Num(), GWriterPendingByteCap, GWriterPendingCountFloor);
+		if (Async->Writer->IsStalled())
+		{
+			NoteDroppedSession(Snap->SessionIndex, TEXT("writer_timeout"));
+			Async->PendingSnapshots.Remove(Frame.RequestId);
+			if (!bWriterStalled)
+			{
+				bWriterStalled = true;
+				bWriterStallStopPending = true;
+			}
+			continue;
+		}
 		Async->Writer->Enqueue(MoveTemp(Job));
 
 		Async->PendingSnapshots.Remove(Frame.RequestId);
@@ -5168,7 +5193,8 @@ void UAnomalyCaptureSubsystem::DrainAsyncToCompletion()
 		Async->PendingSnapshots.Empty();
 	}
 
-	bWriterFlushComplete = Async->Writer->FlushPending(120.0);
+	bWriterFlushComplete = Async->Writer->FlushPending(AnomalyWriterProgress::StallWindowSeconds);
+	bWriterStalled = bWriterStalled || Async->Writer->IsStalled();
 	if (!bWriterFlushComplete)
 	{
 		TArray<int32> Unfinished;
@@ -9944,6 +9970,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			ContinuityReport.WriterPendingByteCap = GWriterPendingByteCap;
 			ContinuityReport.WriterPendingCountFloor = GWriterPendingCountFloor;
 			ContinuityReport.bWriterFlushComplete = bWriterFlushComplete;
+			ContinuityReport.bWriterStalled = bWriterStalled;
 			ContinuityReport.VetoedEventIds = VetoedEventIds;
 			if (Async.IsValid() && Async->Writer.IsValid())
 			{

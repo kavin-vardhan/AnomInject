@@ -8,6 +8,7 @@
 
 #include "AnomalyLabelWriter.h"
 #include "AnomalyCaptureLog.h"
+#include "AnomalyWriterProgress.h"
 
 #include "AnomalyPreviewCapture.h"
 
@@ -23,10 +24,13 @@ void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 {
 	const int64 Bytes = Job.FrozenMask.IsValid() ? (int64)Job.FrozenMask->Num() : (int64)Job.RawBytes.Num();
 	const int32 TrackedSession = Job.bGrayMask ? -1 : Job.SessionIndex;
+	uint32 JobGeneration = 0;
 	{
 		FScopeLock Lock(&TrackCS);
+		JobGeneration = Generation;
 		PendingBytes += Bytes;
 		PendingBytesPeak = FMath::Max(PendingBytesPeak, PendingBytes);
+		++PendingThisRun;
 		if (TrackedSession >= 0)
 		{
 			InFlightSessions.Add(TrackedSession);
@@ -35,19 +39,76 @@ void FAnomalyAsyncWriter::Enqueue(FJob&& Job)
 	Pending.Increment();
 
 	TSharedRef<FAnomalyAsyncWriter, ESPMode::ThreadSafe> Self = AsShared();
-	Async(EAsyncExecution::ThreadPool, [Self, Bytes, TrackedSession, MovedJob = MoveTemp(Job)]() mutable
+	Async(EAsyncExecution::ThreadPool, [Self, Bytes, TrackedSession, JobGeneration, MovedJob = MoveTemp(Job)]() mutable
 	{
-		Self->Run(MovedJob);
+		Self->Run(MovedJob, JobGeneration);
 		{
 			FScopeLock Lock(&Self->TrackCS);
 			Self->PendingBytes -= Bytes;
-			if (TrackedSession >= 0)
+			Self->LastCompletionSeconds = FPlatformTime::Seconds();
+			if (AnomalyWriterProgress::CountsForRun(JobGeneration, Self->Generation))
 			{
-				Self->InFlightSessions.Remove(TrackedSession);
+				--Self->PendingThisRun;
+				if (TrackedSession >= 0)
+				{
+					Self->InFlightSessions.Remove(TrackedSession);
+				}
+			}
+			else
+			{
+				++Self->LateCompletions;
 			}
 		}
 		Self->Pending.Decrement();
 	});
+}
+
+bool FAnomalyAsyncWriter::CountsForCurrentRun(uint32 JobGeneration) const
+{
+	FScopeLock Lock(&TrackCS);
+	return AnomalyWriterProgress::CountsForRun(JobGeneration, Generation);
+}
+
+bool FAnomalyAsyncWriter::IsStalled() const
+{
+	FScopeLock Lock(&TrackCS);
+	return bStalled;
+}
+
+int32 FAnomalyAsyncWriter::GetPendingThisRun() const
+{
+	FScopeLock Lock(&TrackCS);
+	return PendingThisRun;
+}
+
+int32 FAnomalyAsyncWriter::GetLateCompletions() const
+{
+	FScopeLock Lock(&TrackCS);
+	return LateCompletions;
+}
+
+void FAnomalyAsyncWriter::MarkStalled(const TCHAR* Where, double WaitStart)
+{
+	double LastCompletion = 0.0;
+	int32 InRun = 0;
+	{
+		FScopeLock Lock(&TrackCS);
+		if (bStalled)
+		{
+			return;
+		}
+		bStalled = true;
+		LastCompletion = LastCompletionSeconds;
+		InRun = PendingThisRun;
+	}
+	const double Now = FPlatformTime::Seconds();
+	UE_LOG(LogAnomalyCapture, Error,
+		TEXT("Capture(m56): WRITER STALLED during %s - no writer job has completed for %.0f s (last completion %.1f s ago, wait ")
+		TEXT("began %.1f s ago) with %d job(s) of this run and %d job(s) in total in flight. The capture run stops; every frame ")
+		TEXT("of this run that is not written counts as writer_timeout in run_summary.frames_dropped, and run_summary.writer_stalled ")
+		TEXT("is true. Files that land after the summary is written are not part of the run."),
+		Where, AnomalyWriterProgress::StallWindowSeconds, LastCompletion > 0.0 ? Now - LastCompletion : -1.0, Now - WaitStart,
+		InRun, Pending.GetValue());
 }
 
 bool FAnomalyAsyncWriter::WaitForCapacity(int64 IncomingBytes, int64 ByteCap, int32 CountFloor)
@@ -55,6 +116,10 @@ bool FAnomalyAsyncWriter::WaitForCapacity(int64 IncomingBytes, int64 ByteCap, in
 	const double Start = FPlatformTime::Seconds();
 	bool bWaited = false;
 	double LastLog = Start;
+	if (IsStalled())
+	{
+		return false;
+	}
 	while (Pending.GetValue() >= CountFloor && GetPendingBytes() + IncomingBytes > ByteCap)
 	{
 		bWaited = true;
@@ -65,15 +130,18 @@ bool FAnomalyAsyncWriter::WaitForCapacity(int64 IncomingBytes, int64 ByteCap, in
 			LastLog = Now;
 			UE_LOG(LogAnomalyCapture, Log,
 				TEXT("Capture(m56): writer back-pressure - %d job(s), %lld byte(s) in flight against a cap of %lld byte(s); ")
-				TEXT("the capture waits (fixed timestep: this costs wall time, never a frame) (%.1f s so far)."),
-				Pending.GetValue(), GetPendingBytes(), ByteCap, Now - Start);
+				TEXT("the capture waits (fixed timestep: this costs wall time, never a frame) (%.1f s so far). The wait has ")
+				TEXT("no total deadline: it ends as a stall only if no writer job completes for %.0f s."),
+				Pending.GetValue(), GetPendingBytes(), ByteCap, Now - Start, AnomalyWriterProgress::StallWindowSeconds);
 		}
-		if (Now - Start > 120.0)
+		double LastCompletion = 0.0;
 		{
-			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture(m56): writer back-pressure exceeded 120 s with %d job(s) in flight; enqueueing anyway so the ")
-				TEXT("run cannot hang. The frame is still written; memory use may exceed the cap."),
-				Pending.GetValue());
+			FScopeLock Lock(&TrackCS);
+			LastCompletion = LastCompletionSeconds;
+		}
+		if (AnomalyWriterProgress::IsStalled(Now, Start, LastCompletion, false, AnomalyWriterProgress::StallWindowSeconds))
+		{
+			MarkStalled(TEXT("writer back-pressure"), Start);
 			break;
 		}
 	}
@@ -118,7 +186,7 @@ double FAnomalyAsyncWriter::GetBackpressureSeconds() const
 	return BackpressureSeconds;
 }
 
-void FAnomalyAsyncWriter::Run(FJob& Job)
+void FAnomalyAsyncWriter::Run(FJob& Job, uint32 JobGeneration)
 {
 	const auto Receipt = Job.ChangeReceipt;
 	auto Change = Receipt.IsValid() && Receipt->Issue.IsValid() ? Receipt->Issue->Stage.Pin() : nullptr;
@@ -139,13 +207,14 @@ void FAnomalyAsyncWriter::Run(FJob& Job)
 			IFileManager::Get().MakeDirectory(*FPaths::GetPath(FullPath), true);
 		}
 		const bool bSaved = bEncoded && FFileHelper::SaveArrayToFile(Png, *FullPath);
+		const bool bCountsMask = CountsForCurrentRun(JobGeneration);
 		if (bSaved)
 		{
-			MasksWritten.Increment();
+			if (bCountsMask) { MasksWritten.Increment(); }
 		}
 		else
 		{
-			MasksDropped.Increment();
+			if (bCountsMask) { MasksDropped.Increment(); }
 			UE_LOG(LogAnomalyCapture, Warning,
 				TEXT("Capture(m43): TARGET MASK WRITE FAILED for '%s' (%dx%d, encoded=%d). The labels row for ")
 				TEXT("this frame names a file that does not exist; target_mask_frames_unavailable counts it."),
@@ -163,7 +232,15 @@ void FAnomalyAsyncWriter::Run(FJob& Job)
 		Job.SrcFormat, Job.BytesPerPixel, Job.Width, Job.Height, Job.OutWidth, Job.OutHeight,
 		Job.ImageRelPath, Job.Record, JsonlCS, Job.bWriteLabels, bResampled, Change.IsValid() ? &Canonical : nullptr,
 		&bLabelFailed);
-	if (bLabelFailed)
+	const bool bCounts = CountsForCurrentRun(JobGeneration);
+	if (!bCounts)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m56): a writer job of an earlier run finished late ('%s', session_index %d, ok=%d). It is not part of ")
+			TEXT("the current run and its outcome touches none of this run's counts or lists."),
+			*Job.ImageRelPath, Job.SessionIndex, bOk ? 1 : 0);
+	}
+	if (bLabelFailed && bCounts)
 	{
 		LabelRowsFailed.Increment();
 		UE_LOG(LogAnomalyCapture, Warning,
@@ -180,6 +257,10 @@ void FAnomalyAsyncWriter::Run(FJob& Job)
 		Change->Colour({ Receipt, bOk, false, TEXT("writer") }, Canonical, bSupported);
 	}
 
+	if (!bCounts)
+	{
+		return;
+	}
 	if (bOk)
 	{
 		FramesWritten.Increment();
@@ -247,26 +328,34 @@ void FAnomalyAsyncWriter::GetFirstWrittenSize(int32& OutW, int32& OutH) const
 	OutH = FirstWrittenH;
 }
 
-bool FAnomalyAsyncWriter::FlushPending(double TimeoutSeconds)
+bool FAnomalyAsyncWriter::FlushPending(double StallWindowSeconds)
 {
 	const double Start = FPlatformTime::Seconds();
 	double LastLog = Start;
-	while (Pending.GetValue() > 0)
+	while (GetPendingThisRun() > 0)
 	{
 		const double Now = FPlatformTime::Seconds();
-		if (Now - Start > TimeoutSeconds)
+		double LastCompletion = 0.0;
+		bool bAlreadyStalled = false;
 		{
+			FScopeLock Lock(&TrackCS);
+			LastCompletion = LastCompletionSeconds;
+			bAlreadyStalled = bStalled;
+		}
+		if (AnomalyWriterProgress::IsStalled(Now, Start, LastCompletion, bAlreadyStalled, StallWindowSeconds))
+		{
+			MarkStalled(TEXT("the writer flush"), Start);
 			UE_LOG(LogAnomalyCapture, Warning,
-				TEXT("Capture(async): writer flush hit its %.0f s hard cap with %d job(s) still pending. Every unfinished frame ")
-				TEXT("is counted as writer_timeout in run_summary.frames_dropped."),
-				TimeoutSeconds, Pending.GetValue());
+				TEXT("Capture(async): writer flush gave up with %d job(s) of this run still pending (no completion for %.0f s). ")
+				TEXT("Every unfinished frame is counted as writer_timeout in run_summary.frames_dropped."),
+				GetPendingThisRun(), StallWindowSeconds);
 			return false;
 		}
 		if (Now - LastLog >= 2.0)
 		{
 			LastLog = Now;
 			UE_LOG(LogAnomalyCapture, Log, TEXT("Capture(async): writer flush - %d job(s) still pending after %.1f s."),
-				Pending.GetValue(), Now - Start);
+				GetPendingThisRun(), Now - Start);
 		}
 		FPlatformProcess::Sleep(0.002f);
 	}
@@ -275,21 +364,35 @@ bool FAnomalyAsyncWriter::FlushPending(double TimeoutSeconds)
 
 void FAnomalyAsyncWriter::ResetCounters()
 {
-	FramesWritten.Reset();
-	PositiveWritten.Reset();
-	SettleWritten.Reset();
-	Dropped.Reset();
-	ResamplesPerformed.Reset();
-	DimMismatches.Reset();
-	MasksWritten.Reset();
-	MasksDropped.Reset();
-	BackpressureWaits.Reset();
-	LabelRowsFailed.Reset();
+	int32 Leftover = 0;
 	{
 		FScopeLock TrackLock(&TrackCS);
+		Leftover = PendingThisRun;
+		++Generation;
+		FramesWritten.Reset();
+		PositiveWritten.Reset();
+		SettleWritten.Reset();
+		Dropped.Reset();
+		ResamplesPerformed.Reset();
+		DimMismatches.Reset();
+		MasksWritten.Reset();
+		MasksDropped.Reset();
+		BackpressureWaits.Reset();
+		LabelRowsFailed.Reset();
 		FailedSessions.Reset();
+		InFlightSessions.Reset();
+		PendingThisRun = 0;
+		LateCompletions = 0;
+		bStalled = false;
 		PendingBytesPeak = PendingBytes;
 		BackpressureSeconds = 0.0;
+	}
+	if (Leftover > 0)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m56): %d writer job(s) of an earlier run are still in flight. They finish in the background and never ")
+			TEXT("touch this run's counts or lists (each job carries its run generation)."),
+			Leftover);
 	}
 	FScopeLock Lock(&DimCS);
 	FirstWrittenW = 0;

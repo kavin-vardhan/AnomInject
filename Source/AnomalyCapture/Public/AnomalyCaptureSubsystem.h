@@ -476,6 +476,8 @@ private:
 	int32 OrphanCompletions = 0;
 	int32 SyncLabelRowsFailed = 0;
 	bool bWriterFlushComplete = true;
+	bool bWriterStalled = false;
+	bool bWriterStallStopPending = false;
 	TMap<int32, int32> ArmedTickBySession;
 	TMap<int32, FString> DropCauseBySession;
 	TMap<int32, FString> UnarmedTickCause;

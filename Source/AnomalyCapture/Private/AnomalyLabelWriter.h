@@ -308,6 +308,7 @@ namespace AnomalyLabel
 		int32 WriterBackpressureWaits = 0;
 		double WriterBackpressureSeconds = 0.0;
 		bool bWriterFlushComplete = true;
+		bool bWriterStalled = false;
 		TArray<FString> VetoedEventIds;
 	};
 

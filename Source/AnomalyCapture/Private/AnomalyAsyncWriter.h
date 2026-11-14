@@ -50,6 +50,9 @@ public:
 	int32 GetBackpressureWaits() const { return BackpressureWaits.GetValue(); }
 	double GetBackpressureSeconds() const;
 	int32 GetLabelRowsFailed() const { return LabelRowsFailed.GetValue(); }
+	bool IsStalled() const;
+	int32 GetPendingThisRun() const;
+	int32 GetLateCompletions() const;
 
 	int32 GetFramesWritten() const { return FramesWritten.GetValue(); }
 	int32 GetPositiveWritten() const { return PositiveWritten.GetValue(); }
@@ -64,8 +67,10 @@ public:
 	void GetFirstWrittenSize(int32& OutW, int32& OutH) const;
 
 private:
-	void Run(FJob& Job);
+	void Run(FJob& Job, uint32 JobGeneration);
 	void NoteWrittenSize(int32 W, int32 H, const FString& ImageRelPath);
+	bool CountsForCurrentRun(uint32 JobGeneration) const;
+	void MarkStalled(const TCHAR* Where, double WaitStart);
 
 	FThreadSafeCounter FramesWritten;
 	FThreadSafeCounter PositiveWritten;
@@ -86,6 +91,11 @@ private:
 	int64 PendingBytes = 0;
 	int64 PendingBytesPeak = 0;
 	double BackpressureSeconds = 0.0;
+	double LastCompletionSeconds = 0.0;
+	bool bStalled = false;
+	uint32 Generation = 0;
+	int32 PendingThisRun = 0;
+	int32 LateCompletions = 0;
 
 	mutable FCriticalSection DimCS;
 	int32 FirstWrittenW = 0;
