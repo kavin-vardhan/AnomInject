@@ -26,7 +26,7 @@ import tempfile
 import time
 import zlib
 
-KIT_VERSION = "1.6"
+KIT_VERSION = "1.7"
 EVALUATOR = "095-05b"
 METHOD = ("086-01 per-frame change on the target silhouette; 084-06 edge-local references, stuck_low_mip "
           "sharpness path and transition-aware gate; 084-07 labelled and partial rules; 090-07 effect_interrupted "
@@ -729,7 +729,7 @@ def events_of(s):
                     starts[x.get("start_frame")] += 1
         sf = starts.most_common(1)[0][0] if starts else None
         ev = dict(ord=i, type=typ, L=L, Lset=set(L), runs=runs_of(L), node=node, start_frame=sf, entries={},
-                  lod_trigger=a.get("lod_trigger"),
+                  lod_trigger=a.get("lod_trigger"), event_id=a.get("event_id"),
                   T=set(), reasons={}, mv={}, bbox={}, disagree=0, has_reason=False, I=set(), N=set(), U=set(),
                   P=set(), pie_bad=[], unknown=0)
         if sf is not None:
@@ -1963,6 +1963,7 @@ def analyse_session(d, decoder, types=None):
         if typ == "lod_popping" and ev.get("lod_trigger") in LOD_SPATIAL_TRIGGERS:
             row["status"] = "NOT-JUDGEABLE"
             row["why"] = LOD_SPATIAL_WHY
+            row["event"] = ev.get("event_id") or ("#%d" % ev["ord"])
             out.append(row)
             continue
         try:
@@ -2094,6 +2095,7 @@ def analyse_m52(s, evs, taa):
 class Agg(object):
     def __init__(self):
         self.status = collections.Counter()
+        self.not_judgeable = []
         self.release = collections.Counter()
         self.raw_release = collections.Counter()
         self.S = {n: {"ta": [], "raw": []} for n, _t in THRESH}
@@ -2172,6 +2174,8 @@ def aggregate(rows):
         st = r.get("status")
         if st == "NOT-JUDGEABLE":
             a.status["not-judgeable"] += 1
+            if r.get("why"):
+                a.not_judgeable.append((r.get("event"), r["why"]))
             continue
         if r.get("path") == "m52-fallback-d" and st == "OK":
             a.fallback_events += 1
@@ -2305,7 +2309,11 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
             continue
         w("events %d | %s" % (a.events, _counter_line(a.status, ("judged", "camera moved", "warm-up", "not measurable",
                                                                   "confounded", "confounded reference", "unjudged",
-                                                                  "not judged (no reference or frames)"))))
+                                                                  "not judged (no reference or frames)", "not-judgeable"))))
+        if a.not_judgeable:
+            w("not judgeable (spatial lod): %d event(s) - %s" % (len(a.not_judgeable), a.not_judgeable[0][1]))
+            for eid, _why in a.not_judgeable:
+                w("  not judgeable (spatial lod) %s" % eid)
         if not a.status.get("judged"):
             w("no judged event")
             w("")
@@ -2358,8 +2366,8 @@ def report(sessions_info, rows, decoder, elapsed, frames_decoded):
             w("  %-18s events %d, not judgeable by this kit" % (t, a.events))
             continue
         if not a.status.get("judged"):
-            w("  %-18s events %d, judged 0 | nanite %d | unjudged %d | unpaired %d" % (
-                t, a.events, a.nan_events, a.status.get("unjudged", 0), a.un_events))
+            w("  %-18s events %d, judged 0 | nanite %d | unjudged %d | unpaired %d | not judgeable (spatial lod) %d" % (
+                t, a.events, a.nan_events, a.status.get("unjudged", 0), a.un_events, len(a.not_judgeable)))
             continue
         w("  %-18s judged %d | start %s | end %s | wrong-object %d (upper bound %d) | censored %d | fail %d | interrupted %d"
           " | nanite %d | unjudged %d | unpaired %d" % (
@@ -3347,6 +3355,14 @@ def selftest(force_stdlib=False):
             ok_all = ok_all and same
         else:
             lines.append("SELFTEST %-66s %s" % ("Pillow not installed: decoder-identity check skipped", "skipped"))
+        info_l, rows_l, _el, _fr = run([made["lod_spatial"]], "stdlib")
+        text_l = report(info_l, rows_l, "stdlib", 0.0, 0)
+        lod_ok = ("not judgeable (spatial lod): 1 event(s) - " + LOD_SPATIAL_WHY in text_l
+                  and "\n  not judgeable (spatial lod) " in text_l and "not judgeable (spatial lod) 1" in text_l
+                  and "kit 1.7" in text_l)
+        lines.append("SELFTEST %-66s %s" % ("the report prints 'not judgeable (spatial lod)' with its reason and the event",
+                                          "ok" if lod_ok else "*** WRONG ***"))
+        ok_all = ok_all and lod_ok
         info_h, rows_h, _el, _fr = run([made["all_unpaired"]], "stdlib")
         ref_ok = (refuse_reason(made["all_unpaired"]) == SYNC_ONLY and refuse_reason(made["unpaired_end_prev"]) is None
                   and info_h["read"] == 0 and info_h["refused"].get(SYNC_ONLY) == 1 and not rows_h)
