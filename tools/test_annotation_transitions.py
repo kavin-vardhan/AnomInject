@@ -86,7 +86,7 @@ class TransitionTests(unittest.TestCase):
         self.assertEqual([], self.check(a, rows))
 
     def test_schema_2_2_doctored_fail(self):
-        for kind in ('settle_only_row_not_counted', 'settle_frame_not_listed', 'settle_reason_count', 'minor_1', 'minor_3',
+        for kind in ('settle_only_row_not_counted', 'settle_frame_not_listed', 'settle_reason_count', 'minor_1', 'minor_4',
                      'root_list_missing', 'root_list_without_settle_only_row', 'root_list_unsorted'):
             a, rows = self.settle_fixture()
             if kind == 'root_list_missing': a.pop('transition_frames')
@@ -96,7 +96,7 @@ class TransitionTests(unittest.TestCase):
             if kind == 'settle_frame_not_listed': a['anomalies'][1]['transition_frames'] = [10]
             if kind == 'settle_reason_count': a['anomalies'][1]['transition_reasons'].pop('settle')
             if kind == 'minor_1': a['label_schema_minor'] = 1
-            if kind == 'minor_3': a['label_schema_minor'] = 3
+            if kind == 'minor_4': a['label_schema_minor'] = 4
             with self.subTest(kind=kind): self.assertTrue(self.check(a, rows))
 
     def summary(self, **fields):
@@ -120,6 +120,44 @@ class TransitionTests(unittest.TestCase):
         self.assertEqual([], self.check(a, rows))
         self.summary(vetoed_events=0, vetoed_event_ids=[vid])
         self.assertEqual([], self.check(a, rows))
+
+    def test_schema_2_3_reads_like_2_2(self):
+        a, rows = self.settle_fixture()
+        a['label_schema_minor'] = 3
+        self.assertEqual([], self.check(a, rows))
+
+    def lod_untriggered_fixture(self, reasons):
+        a, rows = self.settle_fixture()
+        a['label_schema_minor'] = 3
+        lid = 'lod_popping@30|Crate'
+        rows.append(dict(session_index=13, transition_present=True, transition_reason=['settle'], anomalies=[
+            dict(id='lod_popping', target_name='Crate', start_frame=30, event_id=lid, transition=1,
+                 transition_reason=list(reasons), labelled=False)]))
+        a['transition_frame_count'] = 13
+        a['transition_frames'] = a['transition_frames'] + [13]
+        return a, rows, lid
+
+    def test_lod_untriggered_orphan_excused_only_by_its_listed_id_on_2_3(self):
+        for reasons in (['settle'], ['lod_subvisible'], ['settle', 'lod_subvisible'], ['lod_unconfirmed']):
+            with self.subTest(reasons=reasons):
+                a, rows, lid = self.lod_untriggered_fixture(reasons)
+                self.summary()
+                self.assertTrue(self.check(a, rows))
+                self.summary(lod_untriggered=1, lod_untriggered_event_ids=['lod_popping@31|Crate'])
+                self.assertTrue(self.check(a, rows))
+                self.summary(lod_untriggered=1, lod_untriggered_event_ids=[lid])
+                self.assertEqual([], self.check(a, rows))
+
+    def test_lod_untriggered_orphan_with_another_reason_fails(self):
+        a, rows, lid = self.lod_untriggered_fixture(['temporal_aa'])
+        self.summary(lod_untriggered=1, lod_untriggered_event_ids=[lid])
+        self.assertTrue(self.check(a, rows))
+
+    def test_lod_untriggered_orphan_not_excused_on_2_2(self):
+        a, rows, lid = self.lod_untriggered_fixture(['settle'])
+        a['label_schema_minor'] = 2
+        self.summary(lod_untriggered=1, lod_untriggered_event_ids=[lid])
+        self.assertTrue(self.check(a, rows))
 
     def test_vetoed_id_with_a_non_settle_reason_fails(self):
         a, rows = self.vetoed_fixture()

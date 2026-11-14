@@ -3201,9 +3201,11 @@ def _emit(line):
 LABEL_RULE_UNPAIRED = "capture_unpaired"
 LABEL_RULE_PIE_SETTLE = "pie_end_settle"
 LABEL_RULE_SETTLE = "settle"
+LABEL_RULE_LOD_SUBVISIBLE = "lod_subvisible"
+LABEL_RULE_LOD_UNCONFIRMED = "lod_unconfirmed"
 LABEL_RULE_REASONS = ("temporal_aa", "hide_return", "partial", "camera_clipping_unconfirmed", "unresolved",
                       "effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED, LABEL_RULE_PIE_SETTLE,
-                      LABEL_RULE_SETTLE)
+                      LABEL_RULE_SETTLE, LABEL_RULE_LOD_SUBVISIBLE, LABEL_RULE_LOD_UNCONFIRMED)
 LABEL_RULE_ROW_REASONS = (LABEL_RULE_UNPAIRED, LABEL_RULE_SETTLE)
 LABEL_RULE_ANY_TYPE = (LABEL_RULE_UNPAIRED, LABEL_RULE_SETTLE)
 LABEL_RULE_SESSION_GLOBALS = ("camera_clipping", "time_dilation")
@@ -3223,9 +3225,15 @@ LABEL_RULE_REASON_TYPES = {
     "nanite_unmaskable": tuple(t for t in LABEL_RULE_FIRE_WINDOW_TYPES if t != "time_dilation")
     + ("blinking", "missing_object", "stuck_low_mip", "lod_popping"),
     LABEL_RULE_PIE_SETTLE: LABEL_RULE_FIRE_WINDOW_TYPES,
+    LABEL_RULE_LOD_SUBVISIBLE: ("lod_popping",),
+    LABEL_RULE_LOD_UNCONFIRMED: ("lod_popping",),
 }
 LABEL_RULE_LABELLED_ONLY = ("partial", "camera_clipping_unconfirmed", "unresolved")
-LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED, LABEL_RULE_PIE_SETTLE)
+LABEL_RULE_UNLABELLED_ONLY = ("effect_interrupted", "nanite_unmaskable", LABEL_RULE_UNPAIRED, LABEL_RULE_PIE_SETTLE,
+                             LABEL_RULE_LOD_SUBVISIBLE, LABEL_RULE_LOD_UNCONFIRMED)
+LABEL_RULE_LOD_ORPHAN_REASONS = {LABEL_RULE_SETTLE, LABEL_RULE_LOD_SUBVISIBLE, LABEL_RULE_LOD_UNCONFIRMED}
+LABEL_RULE_LOD_KINDS = ("spatial_swap", "hold_cap_only", "no_swap", "periodic")
+LABEL_RULE_LOD_CAUSES = ("distance", "view_entry", "hold_cap")
 LABEL_RULE_TEMPORAL_ONLY = ("temporal_aa", "hide_return")
 LABEL_RULE_UNPAIRED_SENTENCE = ("sync-path frames are dropped: never a positive, never a negative, never a reference; "
                                 "the sync path is unsupported for delivery.")
@@ -3244,7 +3252,7 @@ LABEL_RULE_CHECKS = ("VP-MISMATCH", "TRANSITION-PRESENT-MISMATCH", "REASON-MISSI
                      "UNPAIRED-POSITIVE", "UNPAIRED-LABELLED", "UNPAIRED-LISTED", "UNPAIRED-INCONSISTENT",
                      "UNPAIRED-COUNT", "PIE-SETTLE-OUTSIDE-PIE", "PIE-SETTLE-MISSING", "PIE-SETTLE-MISPLACED",
                      "PIE-SETTLE-LISTED", "PIE-SETTLE-COUNT", "SETTLE-INCONSISTENT", "SETTLE-MISPLACED",
-                     "SETTLE-COUNT", "TICK-CONTINUITY", "DROP-COUNT", "ANNOTATION-TRANSITIONS")
+                     "SETTLE-COUNT", "TICK-CONTINUITY", "DROP-COUNT", "ANNOTATION-TRANSITIONS", "LOD-KEYS")
 
 
 def _lr_read_rows(cap_dir):
@@ -3310,7 +3318,9 @@ def annotation_transition_check(directory, require_schema=True):
     transition_frame_count; it names the row-only settle frames that no event lists). Transition entries of an event missing from annotation.json fail, except on 2.2 when the
     event id is listed in run_summary vetoed_event_ids and every one of its transition reasons is settle (the m26 veto
     removes the event; labels.jsonl keeps its after-offset settle rows). A 2.1 session is judged as before m56: every
-    unlisted transition event fails."""
+    unlisted transition event fails. 2.3 (m57) reads like 2.2 and also excuses an unlisted event listed in run_summary
+    lod_untriggered_event_ids whose transition reasons are only settle, lod_subvisible or lod_unconfirmed (a spatial
+    lod_popping fire that never showed a labelled frame writes no event)."""
     from collections import Counter, defaultdict
     from pathlib import Path
     root = Path(directory)
@@ -3321,14 +3331,16 @@ def annotation_transition_check(directory, require_schema=True):
                 'transition_frames' in e for e in annotation.get('anomalies', [])):
             return [], {'legacy': True}
         minor = annotation.get('label_schema_minor')
-        if annotation.get('label_schema') != 2 or minor not in (1, 2):
-            errors.append('expected annotation schema 2.1 or 2.2')
+        if annotation.get('label_schema') != 2 or minor not in (1, 2, 3):
+            errors.append('expected annotation schema 2.1, 2.2 or 2.3')
         try:
             summary = json.loads((root / 'run_summary.json').read_text(encoding='utf-8-sig'))
         except (OSError, ValueError):
             summary = {}
         vetoed_ids = summary.get('vetoed_event_ids') if isinstance(summary, dict) else None
         vetoed_ids = set(i for i in vetoed_ids if isinstance(i, str)) if isinstance(vetoed_ids, list) else set()
+        lod_ids = summary.get('lod_untriggered_event_ids') if isinstance(summary, dict) else None
+        lod_ids = set(i for i in lod_ids if isinstance(i, str)) if isinstance(lod_ids, list) else set()
         expected_frames = defaultdict(set)
         expected_reasons = defaultdict(Counter)
         union = set()
@@ -3377,14 +3389,17 @@ def annotation_transition_check(directory, require_schema=True):
         unlisted = sorted(k for k in expected_frames.keys() - seen if expected_frames[k])
         excused = 0
         for key in unlisted:
-            if minor == 2 and key in vetoed_ids and set(expected_reasons[key]) == {LABEL_RULE_SETTLE}:
+            if minor in (2, 3) and key in vetoed_ids and set(expected_reasons[key]) == {LABEL_RULE_SETTLE}:
+                excused += 1
+                continue
+            if minor == 3 and key in lod_ids and set(expected_reasons[key]) <= LABEL_RULE_LOD_ORPHAN_REASONS:
                 excused += 1
                 continue
             errors.append('transition event missing from annotation: %s' % key)
         count = annotation.get('transition_frame_count')
         if type(count) is not int or count != len(union):
             errors.append('transition_frame_count mismatch')
-        if minor == 2:
+        if minor in (2, 3):
             listed = annotation.get('transition_frames')
             if not isinstance(listed, list) or not all(type(i) is int for i in listed) or listed != sorted(union):
                 errors.append('root transition_frames mismatch (schema 2.2 lists every transition frame of the session)')
@@ -3394,6 +3409,84 @@ def annotation_transition_check(directory, require_schema=True):
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return errors + ['cannot compare transitions: %s' % exc], {}
 
+
+
+def lod_annotation_check(directory):
+    """m57 (schema 2.3): every lod_popping event that has labelled frames is kept in annotation.json whatever happened
+    to its swap, and marked: lod_trigger (also its anomaly_subtype), lod_swaps (frame, cause distance|view_entry|hold_cap,
+    direction, on_screen ...), lod_swap_frames, lod_spatial_swap_visible and lod_event_kind (spatial_swap | hold_cap_only
+    | no_swap | periodic). A spatial fire that never showed a labelled frame writes NO event and is listed in run_summary
+    lod_untriggered_event_ids. This checks the keys against each other, against run_summary's lod_events_by_kind /
+    lod_swaps_by_cause / lod_untriggered, and that no untriggered id has an event or a labelled entry. A session with no
+    lod key is not judged."""
+    from collections import Counter
+    errors = []
+    try:
+        with open(os.path.join(directory, "annotation.json"), "r", encoding="utf-8-sig") as fh:
+            ann = json.load(fh)
+    except (OSError, ValueError):
+        return [], {"judged": False}
+    try:
+        with open(os.path.join(directory, "run_summary.json"), "r", encoding="utf-8-sig") as fh:
+            summary = json.load(fh)
+    except (OSError, ValueError):
+        summary = {}
+    events = [e for e in (ann.get("anomalies") or []) if isinstance(e, dict) and "lod_trigger" in e]
+    has_summary = isinstance(summary, dict) and "lod_events_by_kind" in summary
+    if not events and not has_summary:
+        return [], {"judged": False}
+    kinds, causes = Counter(), Counter()
+    ids = set()
+    for e in events:
+        eid = e.get("event_id")
+        ids.add(eid)
+        swaps = e.get("lod_swaps")
+        frames = e.get("lod_swap_frames")
+        if not isinstance(swaps, list) or not all(isinstance(s, dict) for s in swaps) or not isinstance(frames, list):
+            errors.append("lod event %s: lod_swaps / lod_swap_frames missing or malformed" % eid)
+            continue
+        if frames != [s.get("frame") for s in swaps]:
+            errors.append("lod event %s: lod_swap_frames is not the frames of lod_swaps" % eid)
+        for s in swaps:
+            if s.get("cause") not in LABEL_RULE_LOD_CAUSES or s.get("direction") not in ("up", "down"):
+                errors.append("lod event %s: swap at %r has cause %r direction %r" % (eid, s.get("frame"), s.get("cause"), s.get("direction")))
+            causes[s.get("cause")] += 1
+        visible = any(s.get("cause") in ("distance", "view_entry") and s.get("on_screen") is True for s in swaps)
+        trigger = e.get("lod_trigger")
+        want = ("periodic" if trigger == "periodic" else "spatial_swap" if visible
+                else "hold_cap_only" if any(s.get("cause") == "hold_cap" for s in swaps) else "no_swap")
+        if e.get("lod_spatial_swap_visible") is not visible:
+            errors.append("lod event %s: lod_spatial_swap_visible %r but its swaps say %r" % (eid, e.get("lod_spatial_swap_visible"), visible))
+        if e.get("lod_event_kind") != want:
+            errors.append("lod event %s: lod_event_kind %r, its swaps say %r" % (eid, e.get("lod_event_kind"), want))
+        if e.get("anomaly_subtype") != trigger:
+            errors.append("lod event %s: anomaly_subtype %r is not lod_trigger %r" % (eid, e.get("anomaly_subtype"), trigger))
+        injected = ((e.get("injected_frames") or {}).get("frame_indices")) or []
+        if trigger != "periodic" and not injected:
+            errors.append("lod event %s: a spatial lod event in annotation.json has no labelled frame (it should be untriggered)" % eid)
+        kinds[e.get("lod_event_kind")] += 1
+    untriggered = []
+    if has_summary:
+        sk = summary.get("lod_events_by_kind") or {}
+        for k in LABEL_RULE_LOD_KINDS:
+            if sk.get(k, 0) != kinds.get(k, 0):
+                errors.append("run_summary lod_events_by_kind[%s]=%r but annotation.json has %d" % (k, sk.get(k), kinds.get(k, 0)))
+        sc = summary.get("lod_swaps_by_cause") or {}
+        for c in LABEL_RULE_LOD_CAUSES:
+            if sc.get(c, 0) != causes.get(c, 0):
+                errors.append("run_summary lod_swaps_by_cause[%s]=%r but annotation.json has %d" % (c, sc.get(c), causes.get(c, 0)))
+        untriggered = [i for i in (summary.get("lod_untriggered_event_ids") or []) if isinstance(i, str)]
+        if summary.get("lod_untriggered") != len(untriggered):
+            errors.append("run_summary lod_untriggered %r is not the length of lod_untriggered_event_ids (%d)" % (summary.get("lod_untriggered"), len(untriggered)))
+        for i in sorted(set(untriggered) & ids):
+            errors.append("untriggered id %s also has an event in annotation.json" % i)
+    if untriggered:
+        rows, _why = _lr_read_rows(directory)
+        for r in rows or []:
+            for x in r.get("anomalies") or []:
+                if isinstance(x, dict) and x.get("event_id") in untriggered and x.get("labelled") is True:
+                    errors.append("untriggered id %s has a labelled entry at %d" % (x.get("event_id"), r["session_index"]))
+    return errors, {"judged": True, "events": len(events), "kinds": dict(kinds), "untriggered": len(untriggered)}
 
 
 def _lr_int(v):
@@ -3685,6 +3778,13 @@ def label_rule_check(cap_dir, quiet=False):
             lines.extend("  " + error for error in transition_errors)
         elif not transition_detail.get("legacy"):
             lines.append("  annotation transitions : exact match with labels.jsonl (%d frames)" % transition_detail['transition_frame_count'])
+        lod_errors, lod_detail = lod_annotation_check(cap_dir)
+        if lod_errors:
+            fail("LOD-KEYS", -1)
+            lines.extend("  " + error for error in lod_errors)
+        elif lod_detail.get("judged"):
+            lines.append("  lod keys               : %d lod_popping event(s) consistent, kinds %s, %d untriggered id(s)"
+                         % (lod_detail["events"], lod_detail["kinds"], lod_detail["untriggered"]))
 
     by_si = {}
     for r in rows:
@@ -4770,6 +4870,78 @@ def _label_rule_selftest():
         case56("S56_l_row_without_tick_index_FAILS", _m56_write(root, "s56l", r56), 1, "TICK-CONTINUITY")
         case56("S56_m_no_run_json_infers_k_clean", _m56_write(root, "s56m", _m56_rows(), run_json=False), 0,
                extra=lambda d, _l: d["settle_k"] == 2 and "inferred" in d["settle_placement"])
+
+        lod_id = "lod_popping@100|Crate"
+
+        def lod_rows(sub=(3, 4, 5), lab=(6, 7), bad_label_reason=None, other_type=None, reason=LABEL_RULE_LOD_SUBVISIBLE):
+            out = []
+            for si in range(10):
+                ents = []
+                if 2 <= si <= 8:
+                    e = _lr_entry(other_type or "lod_popping", "Crate", si in lab,
+                                  reasons=[reason] if si in sub else ([bad_label_reason] if (bad_label_reason and si == lab[0]) else None))
+                    e["event_id"] = lod_id
+                    e["start_frame"] = 100
+                    ents.append(e)
+                out.append(_lr_row(si, ents, present=2 <= si <= 8))
+            return out
+
+        def lod_post(kind="view_entry", swaps=None, ev_kind=None, visible=None, summary_kinds=None, untriggered=None,
+                     subtype=None, frames=(6, 7)):
+            swaps = [] if swaps is None else swaps
+
+            def _post(d):
+                path = os.path.join(d, "annotation.json")
+                with open(path, "r", encoding="utf-8") as fh:
+                    ann = json.load(fh)
+                vis = any(w["cause"] in ("distance", "view_entry") and w["on_screen"] for w in swaps)
+                for e in ann["anomalies"]:
+                    e["event_id"] = lod_id
+                    e["anomaly_subtype"] = subtype if subtype is not None else kind
+                    e["lod_trigger"] = kind
+                    e["lod_swaps"] = swaps
+                    e["lod_swap_frames"] = [w["frame"] for w in swaps]
+                    e["lod_spatial_swap_visible"] = vis if visible is None else visible
+                    e["lod_event_kind"] = ev_kind or ("spatial_swap" if vis else "hold_cap_only"
+                                                      if any(w["cause"] == "hold_cap" for w in swaps) else "no_swap")
+                    e["injected_frames"] = {"frame_indices": list(frames)}
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(ann, fh)
+                kinds = summary_kinds or {k: sum(1 for e in ann["anomalies"] if e["lod_event_kind"] == k) for k in LABEL_RULE_LOD_KINDS}
+                ids = untriggered or []
+                rs_ = {"label_temporal_aa": True, "vetoed_events": 0, "lod_events_by_kind": kinds,
+                       "lod_swaps_by_cause": {c: sum(1 for w in swaps if w["cause"] == c) for c in LABEL_RULE_LOD_CAUSES},
+                       "lod_untriggered": len(ids), "lod_untriggered_event_ids": ids}
+                with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
+                    json.dump(rs_, fh)
+            return _post
+
+        swap_ve = [{"frame": 8, "cause": "view_entry", "direction": "up", "on_screen": True}]
+        swap_cap = [{"frame": 8, "cause": "hold_cap", "direction": "up", "on_screen": True}]
+        lod_ev = [("lod_popping", "Crate", {6, 7})]
+        case("lod_subvisible_on_unlabelled_entries_clean", lod_rows(), lod_ev, 0, RULE_NEW, post=lod_post(swaps=swap_ve))
+        case("lod_unconfirmed_on_unlabelled_entries_clean", lod_rows(reason=LABEL_RULE_LOD_UNCONFIRMED), lod_ev, 0, RULE_NEW,
+             post=lod_post(swaps=swap_ve))
+        case("lod_subvisible_on_a_labelled_entry_FAILS", lod_rows(bad_label_reason=LABEL_RULE_LOD_SUBVISIBLE), lod_ev, 1,
+             RULE_NEW, "REASON-ON-LABELLED", post=lod_post(swaps=swap_ve))
+        case("lod_subvisible_on_a_blinking_entry_FAILS", lod_rows(other_type="blinking"), [("blinking", "Crate", {6, 7})], 1,
+             RULE_NEW, "REASON-MISPLACED")
+        case("lod_kept_no_swap_event_marked_clean", lod_rows(), lod_ev, 0, RULE_NEW, post=lod_post(swaps=[]))
+        case("lod_kept_hold_cap_only_event_marked_clean", lod_rows(), lod_ev, 0, RULE_NEW, post=lod_post(swaps=swap_cap))
+        case("lod_distance_trigger_subtype_clean", lod_rows(), lod_ev, 0, RULE_NEW,
+             post=lod_post(kind="distance_threshold", swaps=[{"frame": 8, "cause": "distance", "direction": "up", "on_screen": True}]))
+        case("lod_kind_says_no_swap_but_visible_swap_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_ve, ev_kind="no_swap"))
+        case("lod_visible_flag_wrong_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_ve, visible=False))
+        case("lod_subtype_not_the_trigger_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_ve, subtype="lod_popping"))
+        case("lod_summary_kind_count_wrong_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_ve, summary_kinds={"spatial_swap": 2}))
+        case("lod_untriggered_id_also_an_event_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_ve, untriggered=[lod_id]))
+        case("lod_spatial_event_without_labelled_frames_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=[], frames=()))
     finally:
         shutil.rmtree(root, ignore_errors=True)
     if all(results):

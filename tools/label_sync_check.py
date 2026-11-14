@@ -53,6 +53,10 @@ NOT_JUDGEABLE = {
     "time_dilation": "it changes timing, not the target's pixels",
     "lighting_mismatch": "its effect is the scene's lighting, not the target's own pixels",
 }
+LOD_SPATIAL_TRIGGERS = ("distance_threshold", "view_entry")
+LOD_SPATIAL_WHY = ("spatial lod_popping (m57): its onset is a flag boundary, not a pixel edge (the held LOD was already on "
+                   "screen); its pixel edge is the swap, judged against a matched null leg by the bench null-pair check")
+LOD_REASONS = ("lod_subvisible", "lod_unconfirmed")
 AA_ONLY_REASONS = ("temporal_aa", "hide_return")
 INTERRUPT_REASON = "effect_interrupted"
 NANITE_REASON = "nanite_unmaskable"
@@ -63,7 +67,7 @@ PIE_TYPES = ("missing_texture", "corrupted_texture", "uv_corruption", "normal_co
              "lod_corruption", "null_effect", "solid_swap", "time_dilation")
 NO_AA_EXCUSE = (INTERRUPT_REASON, NANITE_REASON, UNPAIRED_REASON, PIE_REASON)
 KNOWN_REASONS = AA_ONLY_REASONS + ("partial", "camera_clipping_unconfirmed", "unresolved", INTERRUPT_REASON,
-                                   NANITE_REASON, UNPAIRED_REASON, PIE_REASON, SETTLE_REASON)
+                                   NANITE_REASON, UNPAIRED_REASON, PIE_REASON, SETTLE_REASON) + LOD_REASONS
 PIE_OUTSIDE = "pie_end_settle outside a PIE capture"
 PIE_LABELLED = "pie_end_settle on a labelled frame"
 PIE_TYPE = "pie_end_settle on a type without a fire window"
@@ -725,6 +729,7 @@ def events_of(s):
                     starts[x.get("start_frame")] += 1
         sf = starts.most_common(1)[0][0] if starts else None
         ev = dict(ord=i, type=typ, L=L, Lset=set(L), runs=runs_of(L), node=node, start_frame=sf, entries={},
+                  lod_trigger=a.get("lod_trigger"),
                   T=set(), reasons={}, mv={}, bbox={}, disagree=0, has_reason=False, I=set(), N=set(), U=set(),
                   P=set(), pie_bad=[], unknown=0)
         if sf is not None:
@@ -1955,6 +1960,11 @@ def analyse_session(d, decoder, types=None):
             row["status"] = "NOT-JUDGEABLE"
             out.append(row)
             continue
+        if typ == "lod_popping" and ev.get("lod_trigger") in LOD_SPATIAL_TRIGGERS:
+            row["status"] = "NOT-JUDGEABLE"
+            row["why"] = LOD_SPATIAL_WHY
+            out.append(row)
+            continue
         try:
             dres = analyse_d(s, ev, evs, taa)
         except Exception as ex:
@@ -2622,6 +2632,9 @@ def st_make(root, name, spec):
             anomalies.append({"anomaly_type": typ, "anomaly_subtype": typ, "injected_frames": {"frame_indices": sorted(L)},
                               "affected_frames": {"frame_indices": sorted(L)}, "manifested": True,
                               "affected_objects": {"nodes": [{"name": "T%d" % k}]}})
+            if ev.get("lod_trigger"):
+                anomalies[-1]["lod_trigger"] = ev["lod_trigger"]
+                anomalies[-1]["anomaly_subtype"] = ev["lod_trigger"]
     gap_at = spec.get("gap_before")
     unp = spec.get("unpaired", {})
     written = {}
@@ -2913,6 +2926,8 @@ def st_cases():
                                                 "events": [{"L": [40, 41, 42, 46], "pixels": g2}]}))
     cases.append(("cc", {"type": "camera_clipping", "kind": "tex", "n": 60, "events": [{"L": list(range(40, 44)),
                                                                                          "pixels": {}}]}))
+    cases.append(("lod_spatial", {"type": "lod_popping", "kind": "tex", "n": 60, "events": [{"L": list(range(40, 44)),
+                                  "pixels": {}, "lod_trigger": "view_entry"}]}))
     L52 = list(range(60, 70))
 
     def m52(name, pixels, flags=None, record=None, taa=False, labels=None, fire_pre=1, zero=(), **kw):
@@ -3167,6 +3182,8 @@ def st_expect():
     add("pie_settle_labelled", "pie_end_settle on a labelled frame: FAIL",
         lambda r: pie_fails(r, PIE_LABELLED) and r["pie_frames"] == 0, True)
     add("cc", "camera_clipping is not judgeable", lambda r: r["status"] == "NOT-JUDGEABLE" and "per" not in r)
+    add("lod_spatial", "spatial lod_popping (view_entry) is not judged by the kit: onset is a flag boundary",
+        lambda r: r["status"] == "NOT-JUDGEABLE" and "per" not in r and r.get("why") == LOD_SPATIAL_WHY)
     add("m52_exact", "stuck_low_mip exact PASS 0/0", lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0)
     add("m52_proxy_pie_one", "proxy PIE: one settling frame excluded, sharpness edges PASS 0/0",
         lambda r: verdict(r) == "PASS" and _edge(r)["start"] == 0 and _edge(r)["end"] == 0
