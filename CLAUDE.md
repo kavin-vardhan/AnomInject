@@ -26,6 +26,9 @@ and is the single source of truth for the project.
 >   chat: refuse skeletal for both anomalies until a leg measures it.
 > - Legs for 095-07 frozen: `code-receipts-095-09\predictions-095-09.txt`. Journal
 >   `docs/sessions/2026-11-14-095-09-m59-forced-lod-refusals.md`. Gotcha **G579**; next free **G580**.
+> - **Integration tip `81c956a` (merge) Editor-compiled 0/0; 18/18 pure C++ selftests, Python suites, m58 terrain
+>   mutants (5/5 fail), lever audit source + binary PASS. The host's plugin Editor DLLs now match `81c956a`'s Source
+>   (supersedes 095-06b's "still match `b4017ea`"). The Game exe is still not built.**
 
 > ---
 
