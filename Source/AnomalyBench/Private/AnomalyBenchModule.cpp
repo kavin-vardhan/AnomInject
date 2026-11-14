@@ -83,8 +83,11 @@ namespace
 
 	static constexpr double LodEyeZ = 200.0;
 	static constexpr double LodCopyX = 1700.0;
-	static constexpr double LodStartX = -600.0;
-	static constexpr double LodCopyY = 60.0;
+	static constexpr double LodStartX = 600.0;
+	static constexpr double LodEndX = 1450.0;
+	static constexpr double LodCopyY = 180.0;
+	static constexpr double LodWalkCmPerFrame = 7.5;
+	static constexpr int32 LodRetreatStartK = 145;
 
 	const TCHAR* LodPathName(ELodPath Path)
 	{
@@ -107,8 +110,8 @@ namespace
 
 	int32 LodPathFrames(ELodPath Path)
 	{
-		return Path == ELodPath::Approach ? 287 : Path == ELodPath::ApproachRetreat ? 350 : Path == ELodPath::TurnIn ? 85
-			: Path == ELodPath::TurnAway ? 51 : 1;
+		return Path == ELodPath::Approach ? 200 : Path == ELodPath::ApproachRetreat ? 330 : Path == ELodPath::TurnIn ? 230
+			: Path == ELodPath::TurnAway ? 200 : 1;
 	}
 
 	bool LodPathSpawnsCopies(ELodPath Path)
@@ -132,25 +135,27 @@ namespace
 		switch (Path)
 		{
 		case ELodPath::Approach:
-			if (K < 20) { return LodPose(LodStartX, 0.0, TEXT("still_start")); }
-			if (K < 287) { return LodPose(LodStartX + 7.5 * (K - 20), 0.0, TEXT("approach")); }
-			return LodPose(LodStartX + 7.5 * 267, 0.0, TEXT("hold_near"));
 		case ELodPath::ApproachRetreat:
+		{
 			if (K < 20) { return LodPose(LodStartX, 0.0, TEXT("still_start")); }
-			if (K < 180) { return LodPose(LodStartX + 12.5 * (K - 20), 0.0, TEXT("approach")); }
-			if (K < 190) { return LodPose(LodStartX + 2000.0, 0.0, TEXT("hold_near")); }
-			if (K < 350) { return LodPose(LodStartX + 2000.0 - 12.5 * (K - 190), 0.0, TEXT("retreat")); }
-			return LodPose(LodStartX, 0.0, TEXT("hold_far"));
+			const double Walk = LodStartX + LodWalkCmPerFrame * (K - 20);
+			if (Path == ELodPath::ApproachRetreat && K >= LodRetreatStartK)
+			{
+				const double Back = LodEndX - LodWalkCmPerFrame * (K - LodRetreatStartK);
+				return Back > LodStartX ? LodPose(Back, 0.0, TEXT("retreat")) : LodPose(LodStartX, 0.0, TEXT("hold_far"));
+			}
+			return Walk < LodEndX ? LodPose(Walk, 0.0, TEXT("approach")) : LodPose(LodEndX, 0.0, TEXT("hold_near"));
+		}
 		case ELodPath::TurnIn:
-			if (K < 30) { return LodPose(0.0, -100.0, TEXT("still_away")); }
-			if (K < 85) { return LodPose(0.0, -100.0 + 2.0 * (K - 30), TEXT("turn_in")); }
+			if (K < 30) { return LodPose(0.0, -160.0, TEXT("still_away")); }
+			if (K < 115) { return LodPose(0.0, -160.0 + 2.0 * (K - 30), TEXT("turn_in")); }
 			return LodPose(0.0, 10.0, TEXT("hold_facing"));
 		case ELodPath::TurnAway:
-			if (K < 30) { return LodPose(0.0, -100.0, TEXT("still_away")); }
-			if (K < 36) { return LodPose(0.0, -100.0 + 2.0 * (K - 30), TEXT("turn_toward")); }
-			if (K < 40) { return LodPose(0.0, -88.0, TEXT("pause")); }
-			if (K < 51) { return LodPose(0.0, -88.0 - 2.0 * (K - 40), TEXT("turn_away")); }
-			return LodPose(0.0, -110.0, TEXT("hold_away"));
+			if (K < 30) { return LodPose(0.0, -170.0, TEXT("still_away")); }
+			if (K < 68) { return LodPose(0.0, -170.0 + 2.0 * (K - 30), TEXT("turn_toward")); }
+			if (K < 72) { return LodPose(0.0, -94.0, TEXT("pause")); }
+			if (K < 105) { return LodPose(0.0, -94.0 - 2.0 * (K - 72), TEXT("turn_away")); }
+			return LodPose(0.0, -160.0, TEXT("hold_away"));
 		default:
 			return LodPose(LodStartX, 0.0, TEXT("still"));
 		}
@@ -345,7 +350,7 @@ public:
 				TEXT("BENCH DEVICE (bench gate only: -IAIBench or -IAIBenchFixture; compiled out of Shipping). cc_v1 arms the B-CC camera_clipping pose schedule on CB_GateLevel: ")
 				TEXT("spawns a wall, a colliding prop beside the lens path, a non-colliding prop and (if a pawn is possessed) a pawn-owned mesh, then ")
 				TEXT("drives the view through 200 poses keyed by the capture session frame index. lod_v1 <approach|approach_retreat|turn_in|turn_away|still> ")
-				TEXT("arms the m57 lod_popping camera path on CB_LodFixture (distance paths start at x=-600 and spawn scale-1 copies IAIBenchLodCopyN/D at x=1700, in front of the backdrop). off disarms outside capture. Requires InputLock."),
+				TEXT("arms the m57 lod_popping camera path on CB_LodFixture (095-13: distance paths start at x=600 and walk +x at 7.5 cm/frame to x=1450, about 257 cm from the second mesh pair at (1700, -/+60), and spawn scale-1 copies IAIBenchLodCopyN/D at (1700, -/+180) on the path end; turn_in starts at yaw -160 and turn_away at -170, both turning 2 deg/frame from frame 30). off disarms outside capture. Requires InputLock."),
 				FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FAnomalyBenchModule::CameraSchedule));
 		}
 		TickHandle = FWorldDelegates::OnWorldPostActorTick.AddRaw(this, &FAnomalyBenchModule::WorldTick);
