@@ -2184,6 +2184,11 @@ namespace AnomalyDefaults
 		return LodTriggerSpec(Setting).Key;
 	}
 
+	const TCHAR* LodTriggerSettingConsole(ELodTriggerSetting Setting)
+	{
+		return LodTriggerSpec(Setting).Console;
+	}
+
 	int32 GetLodTriggerSetting(ELodTriggerSetting Setting)
 	{
 		const TCHAR* Source = TEXT("compiled");
@@ -2233,11 +2238,11 @@ namespace
 {
 	void HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting Setting, const TArray<FString>& Args)
 	{
-		const TCHAR* Console = AnomalyDefaults::LodTriggerSettingKey(Setting);
+		const TCHAR* Console = AnomalyDefaults::LodTriggerSettingConsole(Setting);
 		if (Args.Num() == 0)
 		{
-			UE_LOG(LogAnomaly, Warning, TEXT("Usage: <value|default>. lod_popping trigger settings now: %s"),
-				*AnomalyDefaults::DescribeLodTriggerSettings());
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: %s <value|default> (ini [AnomalyInjector] %s). lod_popping trigger settings now: %s"),
+				Console, AnomalyDefaults::LodTriggerSettingKey(Setting), *AnomalyDefaults::DescribeLodTriggerSettings());
 			return;
 		}
 		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
