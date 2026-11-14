@@ -10314,3 +10314,17 @@ with different session indices) survived because a later guard (frame on disk) r
 unchanged pixels; give each guard a case that only it can catch (a padded null leg, not just a truncated one); and
 prove every reader fix with a mutant that puts the old reading back. A selftest that passes the mutant is not a test
 of the fix.
+
+## G583 — An allowance written into a comparator that never reads the field is vacuous: check the tool's scope first
+
+**095-14, 2026-11-14 (ruling 095-12 D2, CaptureBench m57-gates `490964f`).** The ruling asked that the m56 G5
+release-versus-integration comparison "allow" the m59 node-name change on texture events and "nothing else new". The
+name lives only in `annotation.json` `affected_objects.nodes[]`; G5 (`m56_nonsettle_compare.py`) read `labels.jsonl`
+only, by its own documented scope. Writing the allowance there would have changed nothing: every node change, wanted or
+not, already passed unseen, and "nothing else new" was never checked. A second trap sat in the source: the same line
+that scopes uv/normal corruption with skipped parts also scopes every `stuck_low_mip` proxy-route event, so the ruling's
+wording covered only part of what the code changes.
+**Rule:** before amending a comparator to allow a difference, find which file and field carry it and confirm the
+comparator reads them; if it does not, the amendment is a new check plus the allowance, proven with a case the
+allowance must pass, cases it must fail, and mutants (G96). Derive the allowed set from the code that produces the
+difference, list each cause separately in the report, and say where it is wider than the ruling's words.

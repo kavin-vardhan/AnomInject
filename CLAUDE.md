@@ -11,6 +11,20 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-14, 2026-11-14 - SHORT PREP BEFORE THE HEAVY RUN (rulings 095-13 D1/D2, 095-12 D2/D3). EDITOR-COMPILED 0/0,
+> OFFLINE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
+> - `integ/m56-m58` `0c71f6f`: readme 2.1 -> 2.2 row (a texture event that changed only some meshes names a changed
+>   mesh; `node.bounds` still the whole object). `feat/m57` merged it (`60ab181`); **down-pop default 1 -> 0,
+>   experimental** (`33978b9`; selftest 169, 16 mutants fail, C4 retreat simulated with the switch off and on: no
+>   re-hold); D2 readme line (`100e287`).
+> - CaptureBench `m57-gates` (local): G5 now compares annotation node identity, the scoped texture rename (skipped parts
+>   **and** the stuck_low_mip proxy route, same source line) is the one intended difference (`490964f`, G583); m57
+>   predictions mirror (`773aef7`); fixture options `pair_cube` / `minlod1` (`4ca8524`, stub test 13 cases).
+> - Predictions appended before any leg: 095-05 A2, 095-10 A2, 095-09 A3. Tips + fixture commands:
+>   `code-receipts-095-14\tips.txt`. Journal `docs/sessions/2026-11-14-095-14-short-prep.md`. Next free gotcha **G584**.
+
+> ---
+
 > **095-13, 2026-11-14 - m57 REVIEW FIXES (ruling 095-11 B1-B6, S1-S8, N1-N13 as ruled) + OWNER PART 1b ON
 > `feat/m57-lod-spatial-trigger` (pushed). WRITTEN, EDITOR-COMPILED 0/0, OFFLINE TESTS GREEN. NO ENGINE LEG, NO GAME
 > BUILD, NO CLIP, NO COOK, NO CODEX. NOT merged into `integ/m56-m58`; no tag.**
