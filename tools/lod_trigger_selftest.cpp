@@ -326,7 +326,9 @@ static void TestPastHeld()
 }
 static void TestViewEntry()
 {
+	Check(FSettings().EntryFrames == 30, "view-entry hold default is 30 frames (about one second at 30 fps)");
 	FSettings S;
+	S.EntryFrames = 4;
 	FTracker T;
 	T.Mode = EMode::ViewEntry;
 	T.HeldLod = 1;

@@ -2120,7 +2120,7 @@ namespace AnomalyDefaults
 			static const FLodTriggerSettingSpec Specs[4] = {
 				{ TEXT("LodPoppingArmTimeoutFrames"), TEXT("IAI.Anomaly.LodArmTimeout"), 90, 1, 600 },
 				{ TEXT("LodPoppingHoldCapFrames"), TEXT("IAI.Anomaly.LodHoldCap"), 150, 1, 3000 },
-				{ TEXT("LodPoppingEntryFrames"), TEXT("IAI.Anomaly.LodEntryFrames"), 4, 1, 30 },
+				{ TEXT("LodPoppingEntryFrames"), TEXT("IAI.Anomaly.LodEntryFrames"), 30, 1, 90 },
 				{ TEXT("LodPoppingDownPop"), TEXT("IAI.Anomaly.LodDownPop"), 1, 0, 1 }
 			};
 			return Specs[FMath::Clamp((int32)Setting, 0, 3)];
@@ -2287,7 +2287,8 @@ static FAutoConsoleCommand GLodEntryFramesCmd(
 	TEXT("IAI.Anomaly.LodEntryFrames"),
 	TEXT("m57: how many positive frames a view_entry target shows its coarse LOD after it enters the view before it snaps ")
 	TEXT("to full detail. Console beats DefaultGame.ini [AnomalyInjector] LodPoppingEntryFrames, which beats the compiled ")
-	TEXT("default 4. Range [1..30]. Usage: IAI.Anomaly.LodEntryFrames <frames|default>"),
+	TEXT("default 30 (about one second at 30 fps, the client's reference clip). Range [1..90]; the hold cap (150) still ")
+	TEXT("releases first if it is set lower. Usage: IAI.Anomaly.LodEntryFrames <frames|default>"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::EntryFrames, Args);

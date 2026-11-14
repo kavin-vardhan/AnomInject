@@ -51,7 +51,7 @@ namespace AnomalyLodTriggerRule
 		float ViewEntryMarginDeg = 20.0f;
 		float ViewEntryMarginMaxDeg = 120.0f;
 		float MinYawRateDegPerS = 30.0f;
-		int EntryFrames = 4;
+		int EntryFrames = 30;
 		int HoldCapFrames = 150;
 		bool bDownPop = true;
 	};
