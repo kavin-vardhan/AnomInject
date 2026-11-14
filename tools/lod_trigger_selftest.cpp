@@ -3,6 +3,7 @@
 #endif
 #include LOD_TRIGGER_HEADER
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -351,6 +352,331 @@ static void TestTurnAwayAndCap()
 	Check(DecideTick(P, S) == ETickAction::None, "periodic is not driven by the trigger");
 }
 
+struct FSimTarget
+{
+	double X, Y, Z, R;
+	float Sizes[8];
+	int Tris[8];
+	int NumLods;
+};
+
+struct FSimPose
+{
+	double X, Y, Z, Yaw;
+};
+
+typedef FSimPose (*FSimPath)(int);
+
+struct FSimFrame
+{
+	double D;
+	float S;
+	float Cov;
+	bool bOn;
+	int Eng;
+};
+
+static const double GPi = 3.14159265358979323846;
+static const double GM11 = 16.0 / 9.0;
+
+static FSimFrame SimMeasure(const FSimPose& P, const FSimTarget& T)
+{
+	FSimFrame F;
+	const double DX = T.X - P.X, DY = T.Y - P.Y, DZ = T.Z - P.Z;
+	F.D = std::sqrt(DX * DX + DY * DY + DZ * DZ);
+	F.S = (float)(2.0 * 0.5 * GM11 * T.R / (F.D > 1.0 ? F.D : 1.0));
+	const double C = std::cos(-P.Yaw * GPi / 180.0), Sn = std::sin(-P.Yaw * GPi / 180.0);
+	double U0 = 1e9, U1 = -1e9, V0 = 1e9, V1 = -1e9;
+	int N = 0;
+	for (int I = 0; I < 8; ++I)
+	{
+		const double PX = DX + ((I & 1) ? T.R : -T.R), PY = DY + ((I & 2) ? T.R : -T.R), PZ = DZ + ((I & 4) ? T.R : -T.R);
+		const double FX = PX * C - PY * Sn, FY = PX * Sn + PY * C;
+		if (FX <= 1.0)
+		{
+			continue;
+		}
+		const double U = (FY / FX + 1.0) / 2.0, V = (1.0 - PZ * GM11 / FX) / 2.0;
+		U0 = U < U0 ? U : U0; U1 = U > U1 ? U : U1; V0 = V < V0 ? V : V0; V1 = V > V1 ? V : V1;
+		++N;
+	}
+	F.bOn = N > 0 && U1 > 0.0 && U0 < 1.0 && V1 > 0.0 && V0 < 1.0;
+	const double W = (U1 < 1.0 ? U1 : 1.0) - (U0 > 0.0 ? U0 : 0.0), H = (V1 < 1.0 ? V1 : 1.0) - (V0 > 0.0 ? V0 : 0.0);
+	F.Cov = (N > 0 && W > 0.0 && H > 0.0) ? (float)(W * H * 100.0) : 0.0f;
+	F.Eng = EngineLodFromScreenSize(T.Sizes, 8, F.S, 1.0f, 0);
+	return F;
+}
+
+static double SimNorm(double A)
+{
+	while (A > 180.0) { A -= 360.0; }
+	while (A < -180.0) { A += 360.0; }
+	return A;
+}
+
+struct FSimResult
+{
+	int ArmedAt = -1;
+	int FirstPositive = -1;
+	int Labelled = 0;
+	int Swap = -1;
+	int TimeoutAt = -1;
+	int ClockRestartAt = -1;
+	int BeginFires = 0;
+	std::string Refusals;
+};
+
+static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const FSettings& S, int Frames, int TimeoutFrames = 90,
+	bool bRestart = true)
+{
+	const float Dt = 1.0f / 30.0f;
+	FSimResult R;
+	enum { Lead, SFire, Pos, SRev, Post } Phase = Lead;
+	int Left = 4;
+	bool bArmed = false;
+	FTracker Tr;
+	FArmClock Clock;
+	bool bWindow = false;
+	int AppliedAt = -1;
+	EFrameClass PrevClass = EFrameClass::Negative;
+	bool PrevHoldOpen = false;
+	bool bHaveEval = false;
+	FFrameInput PrevInput;
+	double DistHistory[64] = { 0 };
+	auto BeginFire = [&](int Tick)
+	{
+		++R.BeginFires;
+		const FSimPose Now = Path(Tick - 1), Old = Path(Tick - 10);
+		const FSimFrame F = SimMeasure(Now, T);
+		const FSimFrame FO = SimMeasure(Old, T);
+		const char* Why = nullptr;
+		int Ahead = 0;
+		int Held = -1;
+		float Release = -1.0f;
+		if (Mode == EMode::DistanceThreshold)
+		{
+			FDistanceArmInput D;
+			D.EngineLod = F.Eng; D.TemporalLod0 = F.Eng; D.TemporalLod1 = F.Eng; D.BoundsScreenSize = F.S;
+			D.ReleaseScreenSize = ReleaseScreenSize(T.Sizes, 8, T.Tris, T.NumLods, F.Eng, 1.0f, S);
+			D.CoveragePct = F.Cov; D.DistanceCm = (float)F.D; D.FrameSeconds = Dt;
+			D.ClosingSpeedCmPerS = (float)((FO.D - F.D) / (9.0 * Dt));
+			const double TX = Now.X - Old.X, TY = Now.Y - Old.Y, GX = T.X - Now.X, GY = T.Y - Now.Y;
+			const double TL = std::sqrt(TX * TX + TY * TY), GL = std::sqrt(GX * GX + GY * GY);
+			D.ApproachAngleDeg = (TL > 0.0 && GL > 0.0) ? (float)(std::acos((TX * GX + TY * GY) / (TL * GL)) * 180.0 / GPi) : 180.0f;
+			Why = F.bOn ? DistanceArmRefusal(D, S, Ahead) : "not_in_view";
+			Held = F.Eng;
+			Release = D.ReleaseScreenSize;
+		}
+		else
+		{
+			FViewEntryArmInput V;
+			const double Bearing = std::atan2(T.Y - Now.Y, T.X - Now.X) * 180.0 / GPi;
+			const double Delta = SimNorm(Bearing - Now.Yaw);
+			const double AngR = std::asin(T.R / F.D < 1.0 ? T.R / F.D : 1.0) * 180.0 / GPi;
+			V.AngleOutsideFrustumDeg = (float)((Delta < 0 ? -Delta : Delta) - 45.0 - AngR);
+			const double Rate = SimNorm(Now.Yaw - Old.Yaw) / (9.0 * Dt);
+			V.YawRateDegPerS = (float)(Rate < 0 ? -Rate : Rate);
+			V.bYawTowardTarget = Rate != 0.0 && ((Delta > 0.0) == (Rate > 0.0));
+			V.FrameSeconds = Dt;
+			V.bContrastAtHeld = true;
+			V.CoverageAsIfInViewPct = 12.0f;
+			Why = ViewEntryArmRefusal(V, S, Ahead);
+			Held = T.NumLods - 1;
+		}
+		if (Why)
+		{
+			if (R.Refusals.find(Why) == std::string::npos)
+			{
+				R.Refusals += std::string(R.Refusals.empty() ? "" : ",") + Why;
+			}
+		}
+		else
+		{
+			bArmed = true;
+			R.ArmedAt = R.ArmedAt < 0 ? Tick : R.ArmedAt;
+			AppliedAt = Tick;
+			Tr = FTracker();
+			Tr.Mode = Mode;
+			Tr.HeldLod = Held;
+			Tr.ReleaseScreenSize = Release;
+			Clock = FArmClock();
+			bHaveEval = false;
+		}
+		Phase = SFire;
+		Left = 2;
+	};
+	auto BeginRevert = [&]()
+	{
+		bArmed = false;
+		Phase = SRev;
+		Left = 2;
+	};
+	for (int Tick = 0; Tick < Frames; ++Tick)
+	{
+		DistHistory[Tick % 64] = SimMeasure(Path(Tick), T).D;
+		if (Phase == Lead)
+		{
+			if (--Left <= 0) { BeginFire(Tick); }
+		}
+		else if (Phase == SFire)
+		{
+			if (--Left <= 0) { Phase = Pos; Left = 8; bWindow = false; }
+		}
+		else if (Phase == Pos)
+		{
+			if (Left > 0)
+			{
+				if (bArmed && !bWindow && PrevClass != EFrameClass::Positive)
+				{
+					const bool bBegun = Tr.bWrongSeen || PrevClass == EFrameClass::Subvisible;
+					const bool bWasRestarted = Clock.bRestarted;
+					if (StepArmClock(Clock, bRestart && bBegun, TimeoutFrames))
+					{
+						R.TimeoutAt = Tick;
+						BeginRevert();
+					}
+					if (!bWasRestarted && Clock.bRestarted)
+					{
+						R.ClockRestartAt = Tick;
+					}
+				}
+				else
+				{
+					bWindow = true;
+					--Left;
+				}
+			}
+			if (Phase == Pos && Left <= 0 && !(bArmed && PrevHoldOpen))
+			{
+				BeginRevert();
+			}
+		}
+		else if (Phase == SRev)
+		{
+			if (--Left <= 0) { Phase = Post; Left = 4; }
+		}
+		else if (Phase == Post)
+		{
+			if (--Left <= 0) { BeginFire(Tick); }
+		}
+		if (bArmed && Tick > AppliedAt && bHaveEval)
+		{
+			ObserveFrame(Tr, PrevInput, S);
+			DecideTick(Tr, S);
+		}
+		if (bArmed && Tick >= AppliedAt)
+		{
+			const FSimFrame F = SimMeasure(Path(Tick), T);
+			FFrameInput In;
+			In.bOnScreen = F.bOn; In.EngineLod = F.Eng; In.TemporalLod0 = F.Eng; In.TemporalLod1 = F.Eng;
+			In.BoundsScreenSize = F.S; In.CoveragePct = F.Cov;
+			In.bContrast = ContrastPasses(T.Tris, T.NumLods, Tr.HeldLod, F.Eng, S.TriangleRatio);
+			In.bRetreating = Tick >= 8 && (F.D - DistHistory[(Tick - 8) % 64]) / (8.0 * Dt) >= S.MinClosingSpeedCmPerS;
+			FTracker Copy = Tr;
+			const FObservation O = ObserveFrame(Copy, In, S);
+			if (O.Class == EFrameClass::Positive)
+			{
+				++R.Labelled;
+				if (R.FirstPositive < 0) { R.FirstPositive = Tick; }
+			}
+			if (O.bSwap && R.Swap < 0) { R.Swap = Tick; }
+			PrevClass = O.Class;
+			PrevHoldOpen = IsHoldingEventOpen(Copy);
+			PrevInput = In;
+			bHaveEval = true;
+		}
+		else
+		{
+			PrevClass = EFrameClass::Negative;
+			PrevHoldOpen = false;
+		}
+	}
+	return R;
+}
+
+static FSimPose PathReviewC3(int K)
+{
+	const double X = K < 20 ? -600.0 : (K < 287 ? -600.0 + 7.5 * (K - 20) : -600.0 + 7.5 * 267);
+	return FSimPose{ X, 0.0, 200.0, 0.0 };
+}
+
+static FSimPose PathBenchApproach(int K)
+{
+	double X = 600.0 + 7.5 * (K > 20 ? K - 20 : 0);
+	X = X < 1450.0 ? X : 1450.0;
+	return FSimPose{ X, 0.0, 200.0, 0.0 };
+}
+
+static FSimPose PathBenchTurnIn(int K)
+{
+	double Yaw = -160.0 + 2.0 * (K > 30 ? K - 30 : 0);
+	Yaw = Yaw < 10.0 ? Yaw : 10.0;
+	return FSimPose{ 0.0, 0.0, 200.0, Yaw };
+}
+
+static FSimPose PathReviewTurnIn(int K)
+{
+	const double Yaw = K < 85 ? -100.0 + 2.0 * (K > 30 ? K - 30 : 0) : 10.0;
+	return FSimPose{ 0.0, 0.0, 200.0, Yaw };
+}
+
+static void TestBenchSimulation()
+{
+	FSettings S;
+	S.EntryFrames = 30;
+	const FSimTarget Copy = { 1700.0, -60.0, 200.0, 50.0, { 1.0f, 0.05f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
+	const FSimTarget Second = { 1700.0, -60.0, 200.0, 50.0, { 1.0f, 0.3f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
+	const FSimTarget FixN = { 850.0, -340.0, 200.0, 230.0, { 1.0f, 0.05f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
+	const FSimResult Old = Simulate(PathReviewC3, Copy, EMode::DistanceThreshold, S, 287);
+	Check(Old.ArmedAt < 0 && Old.TimeoutAt < 0, "review C3 path, copy 0.05 switch: never armed, so no burst times out with nothing shown (refusals "
+		+ Old.Refusals + ")");
+	Check(Old.Refusals.find("too_far_ahead") != std::string::npos, "review C3 path: refused too_far_ahead while the coarse LOD is still drawn");
+	const FSimResult C3 = Simulate(PathBenchApproach, Second, EMode::DistanceThreshold, S, 200);
+	Check(C3.ArmedAt == 51, "bench approach (second pair, switch 0.3, path end 257 cm): armed at si 51, got " + std::to_string(C3.ArmedAt));
+	Check(C3.FirstPositive == 128 && C3.Labelled == 5 && C3.Swap == 133 && C3.TimeoutAt < 0,
+		"bench approach triggers: first positive 128, 5 labelled, swap 133; got " + std::to_string(C3.FirstPositive) + " / "
+		+ std::to_string(C3.Labelled) + " / " + std::to_string(C3.Swap) + " / timeout " + std::to_string(C3.TimeoutAt));
+	const FSimTarget Slow = { 1700.0, -60.0, 200.0, 50.0, { 1.0f, 0.2f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
+	const FSimResult Restart = Simulate(PathBenchApproach, Slow, EMode::DistanceThreshold, S, 200, 60, true);
+	Check(Restart.ArmedAt == 51 && Restart.ClockRestartAt > 0 && Restart.TimeoutAt < 0 && Restart.Labelled > 0 && Restart.Swap > 0,
+		"switch 0.2, arm timeout 60: the clock restarts at the first flagged frame and the event triggers; restart "
+		+ std::to_string(Restart.ClockRestartAt) + ", first positive " + std::to_string(Restart.FirstPositive) + ", swap " + std::to_string(Restart.Swap));
+	const FSimResult NoRestart = Simulate(PathBenchApproach, Slow, EMode::DistanceThreshold, S, 200, 60, false);
+	Check(NoRestart.TimeoutAt > 0 && NoRestart.FirstPositive < 0,
+		"the same leg without the restart times out (at " + std::to_string(NoRestart.TimeoutAt) + ") before the first positive frame");
+	const FSimResult TurnOld = Simulate(PathReviewTurnIn, FixN, EMode::ViewEntry, S, 85);
+	Check(TurnOld.ArmedAt < 0, "review turn_in (start 18.6 deg outside): no BeginFire lands in the 5-frame window, never armed");
+	const FSimResult Turn = Simulate(PathBenchTurnIn, FixN, EMode::ViewEntry, S, 230);
+	Check(Turn.ArmedAt == 51 && Turn.FirstPositive == 69 && Turn.Labelled == 30 && Turn.Swap == 99,
+		"bench turn_in (start -160, 2 deg/frame): armed 51, first positive 69, 30 labelled, swap 99; got " + std::to_string(Turn.ArmedAt) + " / "
+		+ std::to_string(Turn.FirstPositive) + " / " + std::to_string(Turn.Labelled) + " / " + std::to_string(Turn.Swap));
+}
+
+static void TestArmClock()
+{
+	FArmClock C;
+	int TimedOutAt = -1;
+	for (int F = 1; F <= 200 && TimedOutAt < 0; ++F)
+	{
+		if (StepArmClock(C, F >= 55, 90))
+		{
+			TimedOutAt = F;
+		}
+	}
+	Check(C.bRestarted && TimedOutAt == 55 + 89, "the arm clock restarts once at the first wrong frame (55) and times out 90 frames later, got "
+		+ std::to_string(TimedOutAt));
+	FArmClock N;
+	int NoWrong = -1;
+	for (int F = 1; F <= 200 && NoWrong < 0; ++F)
+	{
+		if (StepArmClock(N, false, 90))
+		{
+			NoWrong = F;
+		}
+	}
+	Check(!N.bRestarted && NoWrong == 90, "with no wrong frame the timeout is unchanged (90)");
+}
+
 static void TestDescribe()
 {
 	Check(std::strcmp(DescribeCause(ESwapCause::Distance), "distance") == 0, "cause distance");
@@ -374,6 +700,8 @@ int main()
 	TestNoDownPopWhenOff();
 	TestViewEntry();
 	TestTurnAwayAndCap();
+	TestArmClock();
+	TestBenchSimulation();
 	TestDescribe();
 	std::printf("lod_trigger_selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;

@@ -24,6 +24,7 @@ public:
 	virtual bool HasDeferredOnset() const override { return Mode != AnomalyLodTriggerRule::EMode::Periodic; }
 	virtual int32 GetDeferredOnsetTimeoutFrames() const override;
 	virtual bool IsHoldingEventOpen() const override;
+	virtual bool HasDeferredOnsetBegun() const override;
 	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) override;
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const override;
 	virtual bool WantsTargetLostNotification() const override { return bActive && Mode != AnomalyLodTriggerRule::EMode::Periodic; }

@@ -1234,6 +1234,7 @@ namespace AnomalyLabel
 			Root->SetArrayField(TEXT("lod_untriggered_event_ids"), IdValues);
 			Root->SetNumberField(TEXT("lod_arm_timeouts"), Lod->ArmTimeouts);
 			Root->SetNumberField(TEXT("lod_window_extension_frames"), Lod->WindowExtensionFrames);
+			Root->SetNumberField(TEXT("lod_arm_clock_restarts"), Lod->ArmClockRestarts);
 			Root->SetNumberField(TEXT("lod_render_checked_frames"), Lod->RenderCheckedFrames);
 			Root->SetNumberField(TEXT("lod_render_mismatch_frames"), Lod->RenderMismatchFrames);
 			Root->SetStringField(TEXT("lod_trigger_settings"), Lod->Settings);

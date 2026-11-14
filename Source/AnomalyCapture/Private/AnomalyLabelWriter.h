@@ -307,6 +307,7 @@ namespace AnomalyLabel
 		TArray<FString> UntriggeredEventIds;
 		int32 ArmTimeouts = 0;
 		int32 WindowExtensionFrames = 0;
+		int32 ArmClockRestarts = 0;
 		int32 RenderCheckedFrames = 0;
 		int32 RenderMismatchFrames = 0;
 		FString Settings;

@@ -1,5 +1,6 @@
 #include "AnomalyCaptureSubsystem.h"
 #include "AnomalyLod.h"
+#include "AnomalyLodTriggerRule.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIFeatureLevel.h")
 #include "RHIFeatureLevel.h"
@@ -1199,7 +1200,21 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 			{
 				CaptureCurrentFrame();
 				++DeferredOnsetWaitFrames;
-				if (DeferredOnsetWaitFrames >= ResolveBurstDeferredOnsetTimeout())
+				AnomalyLodTriggerRule::FArmClock Clock;
+				Clock.WaitedFrames = DeferredOnsetClockFrames;
+				Clock.bRestarted = bDeferredOnsetClockRestarted;
+				const bool bTimedOut = AnomalyLodTriggerRule::StepArmClock(Clock, BurstDeferredOnsetBegun(), ResolveBurstDeferredOnsetTimeout());
+				if (Clock.bRestarted && !bDeferredOnsetClockRestarted)
+				{
+					++DeferredOnsetClockRestarts;
+					UE_LOG(LogAnomalyCapture, Log,
+						TEXT("Capture(m57): ARM CLOCK RESTART after %d pre-roll frame(s) - the held target showed its first wrong frame ")
+						TEXT("(flagged or labelled), so the arm timeout (%d) counts again from here."),
+						DeferredOnsetWaitFrames - 1, ResolveBurstDeferredOnsetTimeout());
+				}
+				DeferredOnsetClockFrames = Clock.WaitedFrames;
+				bDeferredOnsetClockRestarted = Clock.bRestarted;
+				if (bTimedOut)
 				{
 					NoteDeferredOnsetTimeout();
 					BeginRevert();
@@ -3863,6 +3878,9 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	bDeferredOnsetWindowStarted = false;
 	DeferredOnsetWaitFrames = 0;
 	DeferredOnsetTimeoutsById.Reset();
+	DeferredOnsetClockFrames = 0;
+	bDeferredOnsetClockRestarted = false;
+	DeferredOnsetClockRestarts = 0;
 	bPositivesExtending = false;
 	PositivesExtensionFramesThisBurst = 0;
 	LodWindowExtensionFrames = 0;
@@ -5401,6 +5419,25 @@ bool UAnomalyCaptureSubsystem::BurstHoldsEventOpen() const
 	return false;
 }
 
+bool UAnomalyCaptureSubsystem::BurstDeferredOnsetBegun() const
+{
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Auto || !Injector)
+	{
+		return false;
+	}
+	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	{
+		if (Injector->DoesAnomalyHaveDeferredOnset(F.Id) && Injector->IsAnomalyDeferredOnsetBegun(F.Id))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void UAnomalyCaptureSubsystem::NoteDeferredOnsetTimeout()
 {
 	FString Names;
@@ -5569,6 +5606,8 @@ void UAnomalyCaptureSubsystem::BeginFire()
 {
 	bDeferredOnsetWindowStarted = false;
 	DeferredOnsetWaitFrames = 0;
+	DeferredOnsetClockFrames = 0;
+	bDeferredOnsetClockRestarted = false;
 	bPositivesExtending = false;
 	PositivesExtensionFramesThisBurst = 0;
 	DetachClosedTrailsForNextFire();
@@ -10199,6 +10238,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 		LodReport.UntriggeredEventIds = LodUntriggeredEventIds;
 		LodReport.ArmTimeouts = DeferredOnsetTimeoutsById.FindRef(FName(TEXT("lod_popping")));
 		LodReport.WindowExtensionFrames = LodWindowExtensionFrames;
+		LodReport.ArmClockRestarts = DeferredOnsetClockRestarts;
 		LodReport.RenderCheckedFrames = LodRenderCheckedFrames;
 		LodReport.RenderMismatchFrames = LodRenderMismatchFrames;
 		LodReport.Settings = AnomalyDefaults::DescribeLodTriggerSettings();

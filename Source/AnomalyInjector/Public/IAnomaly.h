@@ -53,6 +53,8 @@ public:
 
 	virtual bool IsHoldingEventOpen() const { return false; }
 
+	virtual bool HasDeferredOnsetBegun() const { return false; }
+
 	virtual bool UsesRenderResidencyTruth() const { return false; }
 
 	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const { return false; }

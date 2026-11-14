@@ -1222,6 +1222,16 @@ bool UAnomalyInjectorSubsystem::IsAnomalyHoldingEventOpen(const FName& Id) const
 	return (*Found)->IsHoldingEventOpen();
 }
 
+bool UAnomalyInjectorSubsystem::IsAnomalyDeferredOnsetBegun(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return (*Found)->HasDeferredOnsetBegun();
+}
+
 bool UAnomalyInjectorSubsystem::DoesAnomalyUseRenderTruth(const FName& Id) const
 {
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);

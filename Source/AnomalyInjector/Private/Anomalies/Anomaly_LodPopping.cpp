@@ -710,6 +710,20 @@ bool FAnomaly_LodPopping::IsHoldingEventOpen() const
 	return bActive && Mode != AnomalyLodTriggerRule::EMode::Periodic && bHoldOpenAtLastTickEnd;
 }
 
+bool FAnomaly_LodPopping::HasDeferredOnsetBegun() const
+{
+	if (!bActive || Mode == AnomalyLodTriggerRule::EMode::Periodic)
+	{
+		return false;
+	}
+	if (Tracker.bWrongSeen)
+	{
+		return true;
+	}
+	const AnomalyLodTriggerRule::EFrameClass Class = EvaluateNow().Observation.Class;
+	return Class == AnomalyLodTriggerRule::EFrameClass::Positive || Class == AnomalyLodTriggerRule::EFrameClass::Subvisible;
+}
+
 void FAnomaly_LodPopping::NoteCapturedFrame(bool bAnomalousThisFrame)
 {
 	bHoldOpenAtLastTickEnd = bActive && Mode != AnomalyLodTriggerRule::EMode::Periodic && EvaluateNow().bHoldOpen;

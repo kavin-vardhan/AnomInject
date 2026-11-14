@@ -341,6 +341,7 @@ private:
 	void NoteDeferredOnsetTimeout();
 	int32 ResolveBurstDeferredOnsetTimeout() const;
 	bool BurstHoldsEventOpen() const;
+	bool BurstDeferredOnsetBegun() const;
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
@@ -494,6 +495,9 @@ private:
 	int32 DeferredOnsetTimeoutFrames = 30;
 	bool bDeferredOnsetWindowStarted = false;
 	int32 DeferredOnsetWaitFrames = 0;
+	int32 DeferredOnsetClockFrames = 0;
+	bool bDeferredOnsetClockRestarted = false;
+	int32 DeferredOnsetClockRestarts = 0;
 	int32 DeferredOnsetTimeouts = 0;
 	int32 DeferredOnsetPrerollMax = -1;
 	TMap<FName, int32> DeferredOnsetTimeoutsById;

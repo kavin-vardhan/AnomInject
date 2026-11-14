@@ -291,6 +291,7 @@ namespace AnomalyLodTriggerRule
 		int FramesSinceFirstPositive = -1;
 		bool bCapReached = false;
 		bool bReheld = false;
+		bool bWrongSeen = false;
 		bool bHasLast = false;
 		FFrameInput Last;
 		EFrameClass LastClass = EFrameClass::Negative;
@@ -329,6 +330,10 @@ namespace AnomalyLodTriggerRule
 		{
 			++T.FramesSinceFirstPositive;
 		}
+		if (O.Class == EFrameClass::Positive || O.Class == EFrameClass::Subvisible)
+		{
+			T.bWrongSeen = true;
+		}
 		if (O.Class == EFrameClass::Positive)
 		{
 			++T.PositiveFramesSeen;
@@ -355,6 +360,23 @@ namespace AnomalyLodTriggerRule
 		T.LastClass = O.Class;
 		T.bHasLast = true;
 		return O;
+	}
+
+	struct FArmClock
+	{
+		int WaitedFrames = 0;
+		bool bRestarted = false;
+	};
+
+	inline bool StepArmClock(FArmClock& Clock, bool bWrongSeen, int TimeoutFrames)
+	{
+		if (bWrongSeen && !Clock.bRestarted)
+		{
+			Clock.bRestarted = true;
+			Clock.WaitedFrames = 0;
+		}
+		++Clock.WaitedFrames;
+		return Clock.WaitedFrames >= TimeoutFrames;
 	}
 
 	inline bool IsHoldingEventOpen(const FTracker& T)
