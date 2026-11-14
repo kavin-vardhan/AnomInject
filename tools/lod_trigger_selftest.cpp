@@ -105,7 +105,7 @@ static void TestFreezeAndClassify()
 	Check(ClassifyFrame(true, true, true, 1, 0, 7.0f, 7.0f, true) == EFrameClass::Positive, "coverage equal to the minimum is positive");
 	Check(ClassifyFrame(true, false, false, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "off screen is negative");
 	Check(ClassifyFrame(true, true, true, 1, 1, 9.0f, 7.0f, true) == EFrameClass::Negative, "held equals engine is negative");
-	Check(ClassifyFrame(true, true, true, 1, 2, 9.0f, 7.0f, true) == EFrameClass::Negative, "engine coarser than held is negative");
+	Check(ClassifyFrame(true, true, true, 1, 2, 9.0f, 7.0f, true) == EFrameClass::PastHeld, "engine coarser than held on screen is past_held (flagged)");
 	Check(ClassifyFrame(false, true, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Negative, "released is negative");
 	Check(ClassifyFrame(true, true, true, 1, -1, 9.0f, 7.0f, true) == EFrameClass::Negative, "unknown engine LOD is negative");
 	Check(ClassifyFrame(true, false, true, 1, 0, 9.0f, 7.0f, true) == EFrameClass::Occluded,
@@ -302,6 +302,28 @@ static void TestNoDownPopWhenOff()
 	Check(DecideTick(T, S) == ETickAction::None, "too small for a visible down-pop: no re-hold");
 }
 
+static void TestPastHeld()
+{
+	FSettings S;
+	FTracker T;
+	T.Mode = EMode::DistanceThreshold;
+	T.HeldLod = 1;
+	T.ReleaseScreenSize = ReleaseScreenSize(GRockSS, 8, GRockTris, 4, 1, 1.0f, S);
+	FObservation O = ObserveFrame(T, Frame(true, 1, 0.45f, 9.0f), S);
+	Check(O.Class == EFrameClass::Negative && DecideTick(T, S) == ETickAction::None, "rock armed at LOD1: invisible freeze, nothing to do");
+	O = ObserveFrame(T, Frame(true, 2, 0.24f, 6.0f, false, true), S);
+	Check(O.Class == EFrameClass::PastHeld, "retreat: the engine coarsened past the held LOD1, the frame shows a finer LOD than the engine (flagged past_held)");
+	Check(IsFlaggedClass(O.Class) && !IsHoldingEventOpen(T), "past_held is flagged and does not hold the event open");
+	Check(DecideTick(T, S) == ETickAction::ReleaseInvisible && !T.bHeld, "released at the first tick the engine LOD is past the held one");
+	O = ObserveFrame(T, Frame(true, 2, 0.23f, 5.8f, false, true), S);
+	Check(!O.bSwap && O.Class == EFrameClass::Negative, "after the release the picture is the engine's: negative, no swap recorded");
+	Check(ClassifyFrame(true, false, true, 1, 2, 9.0f, 7.0f, true) == EFrameClass::Negative, "past the held LOD but off screen is a plain negative");
+	FTracker M;
+	M.Mode = EMode::DistanceThreshold;
+	M.HeldLod = 1;
+	ObserveFrame(M, Frame(true, 2, 0.24f, 6.0f, true, true, 2, 1), S);
+	Check(DecideTick(M, S) == ETickAction::None && M.bHeld, "past the held LOD but mid-dither: wait for the samples to agree");
+}
 static void TestViewEntry()
 {
 	FSettings S;
@@ -710,6 +732,7 @@ int main()
 	TestViewEntryWindow();
 	TestApproach();
 	TestNoDownPopWhenOff();
+	TestPastHeld();
 	TestViewEntry();
 	TestTurnAwayAndCap();
 	TestArmClock();

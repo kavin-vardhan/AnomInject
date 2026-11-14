@@ -617,7 +617,7 @@ void FAnomaly_LodPopping::Tick(float DeltaSeconds)
 		{
 			Mesh->SetForcedLodModel(SavedForcedLod);
 			UE_LOG(LogAnomaly, Log, TEXT("lod_popping: RELEASE (%s) '%s' -> forced_lod_model=%d; the engine draws its own LOD from this frame."),
-				Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible ? TEXT("trigger, visible") : TEXT("hold matches the engine, invisible"),
+				Action == AnomalyLodTriggerRule::ETickAction::ReleaseVisible ? TEXT("trigger, visible") : TEXT("the engine LOD is at or past the held one, invisible"),
 				*Mesh->GetName(), SavedForcedLod);
 		}
 		else if (Action == AnomalyLodTriggerRule::ETickAction::ReHold)
@@ -761,6 +761,7 @@ bool FAnomaly_LodPopping::GetTelemetry(FAnomalyTelemetry& Out) const
 	const TCHAR* State = Class == EFrameClass::Positive ? TEXT("labelled")
 		: Class == EFrameClass::Subvisible ? TEXT("subvisible")
 		: Class == EFrameClass::Occluded ? TEXT("occluded")
+		: Class == EFrameClass::PastHeld ? TEXT("past_held")
 		: Tracker.bHeld ? TEXT("armed") : TEXT("swapped");
 	Out.AddInt(TEXT("lod.held_lod"), Tracker.HeldLod);
 	Out.AddInt(TEXT("lod.engine_lod"), E.Input.EngineLod);

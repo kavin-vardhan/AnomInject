@@ -5,7 +5,7 @@
 namespace AnomalyLodTriggerRule
 {
 	enum class EMode : unsigned char { Periodic = 0, DistanceThreshold = 1, ViewEntry = 2, Auto = 3 };
-	enum class EFrameClass : unsigned char { Negative = 0, Positive = 1, Subvisible = 2, Occluded = 3 };
+	enum class EFrameClass : unsigned char { Negative = 0, Positive = 1, Subvisible = 2, Occluded = 3, PastHeld = 4 };
 	enum class ESwapCause : unsigned char { None = 0, Distance = 1, ViewEntry = 2, HoldCap = 3 };
 	enum class EState : unsigned char { Armed = 0, Labelled = 1, Swapped = 2, Released = 3 };
 	enum class ETickAction : unsigned char { None = 0, ReleaseVisible = 1, ReHold = 2, ReleaseInvisible = 3 };
@@ -36,7 +36,7 @@ namespace AnomalyLodTriggerRule
 	inline const char* DescribeFrameClass(EFrameClass Class)
 	{
 		return Class == EFrameClass::Positive ? "positive" : Class == EFrameClass::Subvisible ? "subvisible"
-			: Class == EFrameClass::Occluded ? "occluded" : "negative";
+			: Class == EFrameClass::Occluded ? "occluded" : Class == EFrameClass::PastHeld ? "past_held" : "negative";
 	}
 
 	struct FSettings
@@ -122,15 +122,19 @@ namespace AnomalyLodTriggerRule
 
 	inline bool IsFlaggedClass(EFrameClass Class)
 	{
-		return Class == EFrameClass::Subvisible || Class == EFrameClass::Occluded;
+		return Class == EFrameClass::Subvisible || Class == EFrameClass::Occluded || Class == EFrameClass::PastHeld;
 	}
 
 	inline EFrameClass ClassifyFrame(bool bHeld, bool bOnScreen, bool bInFrustum, int HeldLod, int EngineLod, float CoveragePct,
 		float CoverageMinPct, bool bContrast)
 	{
-		if (!bHeld || EngineLod < 0 || EngineLod >= HeldLod)
+		if (!bHeld || EngineLod < 0 || EngineLod == HeldLod)
 		{
 			return EFrameClass::Negative;
+		}
+		if (EngineLod > HeldLod)
+		{
+			return bOnScreen ? EFrameClass::PastHeld : EFrameClass::Negative;
 		}
 		if (!bOnScreen)
 		{
@@ -407,6 +411,13 @@ namespace AnomalyLodTriggerRule
 		const bool bAgree = TemporalAgree(In.TemporalLod0, In.TemporalLod1);
 		if (T.bHeld)
 		{
+			if (In.EngineLod > T.HeldLod && bAgree)
+			{
+				T.bHeld = false;
+				T.bReheld = false;
+				T.State = EState::Swapped;
+				return ETickAction::ReleaseInvisible;
+			}
 			if (T.Mode == EMode::DistanceThreshold && T.LastClass == EFrameClass::Positive && In.bContrast && bAgree
 				&& T.ReleaseScreenSize > 0.0f && In.BoundsScreenSize >= T.ReleaseScreenSize
 				&& In.BoundsScreenSize >= T.FirstPositiveScreenSize * (1.0f + Settings.ReleaseMargin))
