@@ -11,6 +11,23 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **095-06b, 2026-11-14 - REVIEW FIXES APPLIED ON BOTH UNITS AND THE BENCH SCRIPTS; `integ/m56-m58` BUILT. ALL LOCAL:
+> NOTHING COMPILED BY UBT, NOTHING PUSHED (E: 20.7 GiB, below the 50 GiB floor the brief gates on).**
+> - m56 (`fix/m56-capture-continuity` local `e12180c`, origin `b4017ea`): S1 vetoed event stays out of annotation.json
+>   + `vetoed_event_ids`; S2 readers excuse by id, 2.2 only; N10 root `transition_frames`; S3 held global flags no settle;
+>   S4/N2 writer waits bounded by progress (`writer_stalled`), jobs carry a run generation; N1 sync frames counted; S5
+>   windows skip settle frames (code fix); N7 zero-match excuse 2K per burst at schedule positions.
+> - m58 (`feat/m58-terrain-blink-subtype` local `5e1bc03`, origin `a948046`): M1 `clear` = back to ini, `none` = no
+>   patterns; M2 all-terrain warning; M3 doc.
+> - CaptureBench `m56-gates` `1978cd8` (local; checkout on `master`): B1 no kill by name; S6 comparator + dated
+>   predictions AMENDMENT 1; N6 `m56_settle_content_check.py`; N9; CB-N1.
+> - `integ/m56-m58` = master + m58 + m56 + M4 (tip is this docs commit's parent chain). Checkout left there.
+> - Proof: `cl /Zs` over every changed unit (0/0, canary-checked); C++ selftests incl. new `writer_progress` 26 and
+>   `settle_window` 36; Python label rule 94, kit 102, annotation tests, lever audit PASS. ⛔ **Host Editor binaries still
+>   match `b4017ea`'s Source, not any tip.** Journal `docs/sessions/2026-11-14-095-06b-m56-m58-review-fixes.md`.
+>   Next free gotcha: **G579**.
+
+> ---
 > **095-05b, 2026-11-13 — m56: PLAN COMMITS 5 (READERS) AND 6 (DOCS) DONE; BENCH CHECK SCRIPTS PROVEN OFFLINE. STILL NO
 > ENGINE LEG, NO GAME BUILD. Branch `fix/m56-capture-continuity` (`325a3e7` readers + docs), NOT merged, no tag.**
 > - Readers read schema 2.2 and still read older sessions with identical verdicts: `verify_capture.py` (minor 1/2;
