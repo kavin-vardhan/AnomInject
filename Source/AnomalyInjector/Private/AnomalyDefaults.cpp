@@ -1,4 +1,5 @@
 #include "AnomalyDefaults.h"
+#include "AnomalyTerrainRule.h"
 
 #include "AnomalyInjectorLog.h"
 #include "AnomalyViewport.h"
@@ -487,8 +488,9 @@ namespace AnomalyDefaults
 		TerrainOverride().Reset();
 		TerrainOverrideSet() = false;
 		UE_LOG(LogAnomaly, Log,
-			TEXT("AnomalyInjector: console terrain-pattern override cleared; the ini list or the empty compiled default ")
-			TEXT("takes over again."));
+			TEXT("AnomalyInjector: console terrain-pattern override cleared - BACK TO THE INI LIST: DefaultGame.ini [AnomalyInjector] ")
+			TEXT("TerrainNamePatterns (the cooked one in a packaged build), or the empty compiled default when no key is present. ")
+			TEXT("'clear' does NOT mean no patterns; use 'IAI.SetTerrainPatterns none' for that."));
 	}
 
 	FString TerrainPatternsSource()
@@ -1444,13 +1446,18 @@ namespace
 	{
 		if (Args.Num() < 1)
 		{
-			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.SetTerrainPatterns <pattern> [pattern...] | clear   (current: %s)"),
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.SetTerrainPatterns <pattern> [pattern...] | none | clear   (current: %s)"),
 				*AnomalyDefaults::DescribeTerrainPatterns());
 			return;
 		}
-		if (Args.Num() == 1 && Args[0].Equals(TEXT("clear"), ESearchCase::IgnoreCase))
+		const AnomalyTerrainRule::EPatternCommand Command = AnomalyTerrainRule::ClassifyPatternCommand(Args.Num(), TCHAR_TO_ANSI(*Args[0]));
+		if (Command == AnomalyTerrainRule::EPatternCommand::BackToIni)
 		{
 			AnomalyDefaults::ClearTerrainPatternsOverride();
+		}
+		else if (Command == AnomalyTerrainRule::EPatternCommand::None)
+		{
+			AnomalyDefaults::SetTerrainPatternsOverride(TArray<FString>());
 		}
 		else
 		{
@@ -1908,8 +1915,10 @@ static FAutoConsoleCommand GTerrainPatternsCmd(
 	TEXT("selection, eligibility and the hide are untouched, and a pattern-matched target is never refused. ")
 	TEXT("PRECEDENCE: this console list beats DefaultGame.ini [AnomalyInjector] TerrainNamePatterns, which beats the ")
 	TEXT("COMPILED DEFAULT of an EMPTY list. The console form exists because a loose ini beside a package is a NO-OP ")
-	TEXT("(G88). The effective list and its source print on the run banner's TERRAIN RULES line. Pass 'clear' to drop ")
-	TEXT("the override. Usage: IAI.SetTerrainPatterns <pattern> [pattern...] | clear"),
+	TEXT("(G88). The effective list and its source print on the run banner's TERRAIN RULES line. 'none' sets NO patterns ")
+	TEXT("(only the class rule remains). 'clear' drops the console override and goes BACK TO THE INI LIST (the cooked ")
+	TEXT("TerrainNamePatterns, or the empty compiled default when no key is present). ")
+	TEXT("Usage: IAI.SetTerrainPatterns <pattern> [pattern...] | none | clear"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleTerrainPatterns));
 
 static FAutoConsoleCommand GBlinkHalfPeriodCmd(

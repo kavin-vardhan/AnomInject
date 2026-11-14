@@ -862,10 +862,13 @@ two rules:
    ```
 
    A pattern matches, ignoring case, anywhere in the object's name, its class name, or a part's name, class
-   name or mesh name. The console command `IAI.SetTerrainPatterns <word> [word...] | clear` sets the list for
-   one session; use it on a packaged build, where an edited loose ini file has no effect. The list is
+   name or mesh name. The console command `IAI.SetTerrainPatterns <word> [word...] | none | clear` sets the list for
+   one session; use it on a packaged build, where an edited loose ini file has no effect. `none` means no patterns at
+   all; `clear` drops the console list and goes **back to the ini list** (on a packaged build, the one cooked into it). The list is
    **empty by default**, so until you set it only engine landscape is recognised. The capture log's
-   `TERRAIN RULES` line, printed when a run starts, shows the active list and where it came from.
+   `TERRAIN RULES` line, printed when a run starts, shows the active list and where it came from. If **every** blink event of a run (five or more) comes out terrain, the log warns at the end of the run: a pattern
+   that broad (for example `SM_`) probably marks every mesh as terrain. The terrain decision is made on the asynchronous
+   capture path only; the synchronous path (unsupported for delivery) labels every blink `disappear_reappear`.
 
 ⚠ **Blinking on engine landscape is refused.** A blink fired at an engine-landscape object would carry no
 mask and a box that is not the terrain, so the plugin does not fire it (reason `terrain_unlabelable`). Mesh

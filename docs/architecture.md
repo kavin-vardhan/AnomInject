@@ -321,7 +321,7 @@ target set** (one apply spanning static + skeletal components, dispatched per ty
   `FindObject`, never loaded) at use time; if either is missing the class rule is **INERT and says so**
   on the run banner's `TERRAIN RULES` line, never a silent no-match. No new module dependency.
 - Patterns: `[AnomalyInjector] TerrainNamePatterns` (compiled default **empty**; set per host at the
-  office, never at home) and `IAI.SetTerrainPatterns <p...> | clear` (console beats ini beats compiled, G88).
+  office, never at home) and `IAI.SetTerrainPatterns <p...> | none | clear` (console beats ini beats compiled, G88; `none` = no patterns, `clear` = back to the ini list; 095-06b M1). A run whose blink events are all terrain (five or more) logs a warning (M2). The sync capture path never freezes event anchors, so a sync-only run labels every blink `disappear_reappear` (M3; the sync path is unsupported for delivery).
 - Consumers: the capture module's `FreezeEventAnchor` (blinking only) and `FAnomaly_Blinking::Apply`
   (the refusal). Bench levers `IAI.Bench.TerrainRefusalOff` and `IAI.Bench.TerrainClassRuleInert`
   (non-Shipping, swept by the bench gate).

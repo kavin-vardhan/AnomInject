@@ -237,6 +237,39 @@ namespace AnomalyTerrainRule
 		return bRefusalEnabled && IsEngineLandscape(V);
 	}
 
+	enum class EPatternCommand : unsigned char
+	{
+		Usage = 0,
+		Set = 1,
+		None = 2,
+		BackToIni = 3
+	};
+
+	inline bool EqualsIgnoreAsciiCase(const char* A, const char* B)
+	{
+		if (!A || !B) { return false; }
+		for (; *A && *B; ++A, ++B)
+		{
+			if (FoldAscii(*A) != FoldAscii(*B)) { return false; }
+		}
+		return *A == 0 && *B == 0;
+	}
+
+	inline EPatternCommand ClassifyPatternCommand(int NumArgs, const char* FirstArg)
+	{
+		if (NumArgs < 1) { return EPatternCommand::Usage; }
+		if (NumArgs == 1 && EqualsIgnoreAsciiCase(FirstArg, "clear")) { return EPatternCommand::BackToIni; }
+		if (NumArgs == 1 && EqualsIgnoreAsciiCase(FirstArg, "none")) { return EPatternCommand::None; }
+		return EPatternCommand::Set;
+	}
+
+	static constexpr int AllTerrainWarnMinBlinkEvents = 5;
+
+	inline bool WarnEveryBlinkWasTerrain(int BlinkEvents, int TerrainBlinkEvents)
+	{
+		return BlinkEvents >= AllTerrainWarnMinBlinkEvents && TerrainBlinkEvents == BlinkEvents;
+	}
+
 	inline const char* BlinkSubtypeFor(bool bTerrain)
 	{
 		return bTerrain ? TerrainBlinkSubtype() : DefaultBlinkSubtype();

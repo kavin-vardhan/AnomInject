@@ -48,6 +48,7 @@
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyHiddenClass.h"
 #include "AnomalyTerrain.h"
+#include "AnomalyTerrainRule.h"
 #include "AnomalyRunLog.h"
 #include "AnomalyFrameCapturer.h"
 #include "AnomalySveCapturer.h"
@@ -3675,6 +3676,7 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	NonManifestedEvents = 0;
 	VetoedEvents = 0;
 	BlinkTerrainEvents = 0;
+	BlinkEventsInRun = 0;
 	SessionFrameIndex = 0;
 	CameraClipAccum = FCameraClipRunAccum();
 	SyncResamplesPerformed = 0;
@@ -9100,6 +9102,14 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TEXT("labelled to the product standard (no mask, wrong box); see the REFUSED-TERRAIN lines. A zero is a READING ")
 			TEXT("only if a terrain target was fired at all."),
 			BlinkTerrainEvents, AnomalyTerrain::GetUnlabelableRefusalCount(), *AnomalyTerrain::DescribeRules());
+		if (AnomalyTerrainRule::WarnEveryBlinkWasTerrain(BlinkEventsInRun, BlinkTerrainEvents))
+		{
+			UE_LOG(LogAnomalyCapture, Warning,
+				TEXT("Capture(m58): EVERY blink event of this run (%d of %d) was labelled terrain_disappear_reappear. Terrain is ")
+				TEXT("normally a minority of blink targets, so check the terrain rules (%s): an over-broad pattern (for example ")
+				TEXT("'SM_') marks every mesh as terrain. The labels were written as decided; nothing was changed."),
+				BlinkTerrainEvents, BlinkEventsInRun, *AnomalyTerrain::DescribeRules());
+		}
 
 		TranslucentOnlyExcludedTargets = AnomalyViewport::GetTranslucentOnlyExclusionCount();
 		UE_LOG(LogAnomalyCapture, Log,
@@ -10032,8 +10042,13 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 	}
 
 	BlinkTerrainEvents = 0;
+	BlinkEventsInRun = 0;
 	auto ResolveTerrainSubtype = [this](const FString& EventId, FName Id, const FString& Target) -> bool
 	{
+		if (Id == FName(TEXT("blinking")))
+		{
+			++BlinkEventsInRun;
+		}
 		const FAnomalyCaptureAsyncState::FFrozenAnchor* Anchor = Async->FrozenAnchors.Find(EventId);
 		if (!Anchor || !Anchor->bTerrain || Id != FName(TEXT("blinking")))
 		{

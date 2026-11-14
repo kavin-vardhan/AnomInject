@@ -132,8 +132,27 @@ static FSubject LandscapeActor()
 	return S;
 }
 
+static void TestPatternCommandAndAllTerrainWarning()
+{
+	Check(ClassifyPatternCommand(0, nullptr) == EPatternCommand::Usage, "no argument prints the usage");
+	Check(ClassifyPatternCommand(1, "clear") == EPatternCommand::BackToIni, "'clear' goes back to the ini list");
+	Check(ClassifyPatternCommand(1, "CLEAR") == EPatternCommand::BackToIni, "'CLEAR' is case-insensitive");
+	Check(ClassifyPatternCommand(1, "none") == EPatternCommand::None, "'none' sets no patterns");
+	Check(ClassifyPatternCommand(1, "None") == EPatternCommand::None, "'None' is case-insensitive");
+	Check(ClassifyPatternCommand(1, "Ground") == EPatternCommand::Set, "a word is a pattern");
+	Check(ClassifyPatternCommand(1, "nonesuch") == EPatternCommand::Set, "'nonesuch' is a pattern, not 'none'");
+	Check(ClassifyPatternCommand(2, "clear") == EPatternCommand::Set, "'clear' with a second word is a pattern list");
+	Check(ClassifyPatternCommand(2, "none") == EPatternCommand::Set, "'none' with a second word is a pattern list");
+	Check(!WarnEveryBlinkWasTerrain(4, 4), "four of four terrain blink events do not warn (fewer than five)");
+	Check(WarnEveryBlinkWasTerrain(5, 5), "five of five terrain blink events warn");
+	Check(WarnEveryBlinkWasTerrain(12, 12), "twelve of twelve warn");
+	Check(!WarnEveryBlinkWasTerrain(12, 11), "eleven of twelve do not warn");
+	Check(!WarnEveryBlinkWasTerrain(0, 0), "no blink event does not warn");
+}
+
 int main()
 {
+	TestPatternCommandAndAllTerrainWarning();
 	const std::vector<std::wstring> None;
 
 	{

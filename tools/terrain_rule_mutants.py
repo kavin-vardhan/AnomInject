@@ -7,6 +7,8 @@ MUTATIONS = {
     "class_rule_removed": ("\t\tif (bClassRuleActive)\n", "\t\tif (bClassRuleActive && NumPatterns < 0)\n"),
     "pattern_rule_removed": ("for (int k = 0; Patterns && k < NumPatterns; ++k)", "for (int k = NumPatterns; Patterns && k < NumPatterns; ++k)"),
     "case_sensitive_match": ("return (C >= 'A' && C <= 'Z') ? C + ('a' - 'A') : C;", "return C;"),
+    "clear_means_no_patterns": ("EqualsIgnoreAsciiCase(FirstArg, \"clear\")) { return EPatternCommand::BackToIni; }", "EqualsIgnoreAsciiCase(FirstArg, \"clear\")) { return EPatternCommand::None; }"),
+    "all_terrain_warning_off": ("return BlinkEvents >= AllTerrainWarnMinBlinkEvents && TerrainBlinkEvents == BlinkEvents;", "return false;"),
 }
 
 
