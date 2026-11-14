@@ -891,10 +891,11 @@ jumped exactly where the label changed. Schema 2.2 saves every frame and flags t
 | reason `settle` (row-level `transition_reason` and entry `transition_reason`) | *absent* | the K frames after every anomaly onset and offset (§8.6c) | **Added** value |
 | `labels.jsonl` → `transition_present` / row-level `transition_reason` | only on rows with a flagged entry / only `capture_unpaired` | also on every `settle` frame, even one with no entry | widened |
 | `annotation.json` → `transition_frames`, `transition_reasons`, `transition_frame_count` | transition entries | also the `settle` frames (a `settle` count appears in `transition_reasons`) | widened |
+| `annotation.json` → `transition_frames` (root) | *absent* | the sorted list of every transition frame of the session, including `settle` frames that no event lists (a burst that fired nothing); its size is `transition_frame_count` | **Added** |
 | `annotation.json` frame lists | every armed frame listed | a frame that was armed but never written is **removed** from every list (its file number stays missing) | behaviour |
 | `run_summary.json` → `ticks_per_captured_frame` | every tick since the run began ÷ frames written (1.33 to 1.35 at the defaults) | **span ticks ÷ frames written: exactly 1.0 on a healthy capture**. `capture_game_ticks` keeps its old meaning, so the old ratio is still derivable | ⚠ **MEANING CHANGED** |
-| `run_summary.json` → `capture_span_ticks`, `frames_armed`, `frames_dropped`, `frames_dropped_ticks`, `frames_dropped_ticks_truncated`, `frames_dropped_by_cause`, `orphan_completions`, `label_rows_failed`, `settle_frames`, `label_transition_settle_entries`, `writer_pending_byte_cap`, `writer_pending_count_floor`, `writer_pending_bytes_peak`, `writer_backpressure_waits`, `writer_backpressure_seconds`, `writer_flush_complete` | *absent* | see §8.6c | **Added** |
-| `run_summary.json` → `target_mask_frames_measured` / `_unavailable` | a mask whose PNG failed to save counted as measured | counted as unavailable, so the three mask counts still add up to the frame count | behaviour |
+| `run_summary.json` → `capture_span_ticks`, `frames_armed`, `frames_dropped`, `frames_dropped_ticks`, `frames_dropped_ticks_truncated`, `frames_dropped_by_cause`, `orphan_completions`, `label_rows_failed`, `settle_frames`, `label_transition_settle_entries`, `writer_pending_byte_cap`, `writer_pending_count_floor`, `writer_pending_bytes_peak`, `writer_backpressure_waits`, `writer_backpressure_seconds`, `writer_flush_complete`, `writer_stalled`, `vetoed_event_ids` | *absent* | see §8.6c | **Added** |
+| `run_summary.json` → `target_mask_frames_measured` / `_unavailable` | a mask whose PNG failed to save counted as measured | counted as unavailable, so on a healthy capture the three mask counts still add up to the frame count (on a capture that lost frames they can add up to more) | behaviour |
 | `video.fps` / `run_summary.json` → `stamped_fps` | the target rate, or the sustained wall rate when the machine fell behind | the same on a capture that lost no frame; when frames were lost, the stamp follows the frames actually written | behaviour (lossy runs only) |
 
 🔑 **The one-line migration:** keep dropping every frame that carries a transition flag (it already covers
@@ -1061,7 +1062,7 @@ were changed: restore them and capture again.
   (any negative value = the default; a value of 0 or more replaces it, capped at 64; without temporal or unknown evidence all three
   are 0 whatever is set) — and each capture reports the values it used in
   `run_summary.json` (`label_transition_on_frames`, `_off_frames`, `_hide_frames`, plus the `_cvar` values as set).
-  Optional windows do not add positive labels. Always drop every declared transition frame.
+  Optional windows do not add positive labels. Always drop every declared transition frame. From schema 2.2 the windows skip `settle` frames when they count, so a window covers every frame it covered in 2.1 under the same settings; a `settle` frame inside it may carry the flag as well.
   The historical temporal-tail measurements in the 091-03 journal used the former 3 / 40 / 1 defaults.
 
 - **How to use it:** drop the union of schema 2.1 `transition_frames` before assigning training positives or negatives (§8.7).
@@ -1149,6 +1150,10 @@ either way). After an onset they are labelled with the anomaly as usual; after a
 entry and no label. Your existing rule — drop every frame with a transition flag from both positives and negatives —
 already removes them. No new rule is needed.
 
+**A whole-session anomaly flags no `settle` frame.** A targeted capture of `camera_clipping` holds it for the whole capture: it is applied before the first saved frame and removed after the last, and the burst cycle starts and stops nothing. Its cycle ticks are saved as ordinary frames with no `settle` flag.
+
+**A vetoed event stays out of `annotation.json`.** Its `settle` frames are still listed in the root `transition_frames`, and `run_summary.json` names it in `vetoed_event_ids`.
+
 **One cycle at the defaults** (`IAI.Capture.Config 2 4 8 4 0`) is now **16 frames instead of 12**. For a texture-type
 anomaly (labelled on every frame it runs): 8 unflagged labelled frames, 2 labelled frames flagged `settle`, 2 unlabelled
 frames flagged `settle`, and 4 clean frames; a blinking or LOD anomaly is labelled only on its hidden or popped frames
@@ -1179,7 +1184,9 @@ row's plus 1, `run_summary.json` reads `frames_dropped: 0` and `ticks_per_captur
 | `writer_pending_count_floor` | The writer always accepts at least this many images in flight (4), however large. |
 | `writer_pending_bytes_peak` | The most pixel bytes that were ever waiting at once. |
 | `writer_backpressure_waits`, `writer_backpressure_seconds` | How often, and for how long in total, the capture waited for the writer. Waiting costs real time only, never a frame and never game time. |
-| `writer_flush_complete` | `true` = every image finished saving before this summary was written. At the end of a capture the writer waits up to 120 s; anything still unsaved after that is counted as `writer_timeout`. |
+| `writer_flush_complete` | `true` = every image finished saving before this summary was written. At the end of a capture the writer waits as long as images keep completing; if none completes for 120 s it gives up, and anything still unsaved is counted as `writer_timeout`. |
+| `writer_stalled` | `true` = the writer stopped making progress (no image completed for 120 s, during the capture or at its end). The capture stopped there; every frame not saved is counted as `writer_timeout`. A file that appears on disk after this summary was written is **not** part of the capture. |
+| `vetoed_event_ids` | The ids (`event_id`) of the events removed because their object was measured to draw no pixels (`vetoed_events` counts them). Such an event is absent from `annotation.json`; its rows in `labels.jsonl` remain, and its `settle` frames stay in the session transition list. |
 
 The causes in `frames_dropped_by_cause`:
 
@@ -1188,7 +1195,7 @@ The causes in `frames_dropped_by_cause`:
 | `unresolved_at_end` | The frame was requested but its picture never came back before the capture ended (this includes a picture the capture path could not deliver; the log line names the specific reason). |
 | `cancelled_epoch` | The frame belonged to a scene that changed underneath it (a new target, scene or level), so it was cancelled. |
 | `write_failed` | The image could not be encoded or saved. |
-| `writer_timeout` | The writer was still busy with it 120 s after the capture ended. |
+| `writer_timeout` | The writer made no progress for 120 s (`writer_stalled` is `true`) and this frame was never saved. |
 | `not_armed` | A tick passed without a frame being requested at all. |
 | `bench_gate`, `bench_drop` | Test-bench tools only; never in a delivered capture. |
 | `unknown` | None of the above. Should always be 0; tell us if it is not. |

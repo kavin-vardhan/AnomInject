@@ -1654,7 +1654,13 @@ entry; `transition_frame_count` includes it. Rows gain `tick_index` (`CaptureGam
 `_bytes_peak`, `writer_backpressure_waits` / `_seconds`, `writer_flush_complete`); `ticks_per_captured_frame` is
 span / written (1.0 when continuous). A frame armed but never written leaves every `annotation.json` list. The fps
 stamp follows written frames on a lossy run (unchanged when continuous). The writer finishes every job at run end
-(120 s cap → `writer_timeout`) and blocks, never drops, above 1 GiB of pending pixels. Readers (commit 5,
+and blocks, never drops, above 1 GiB of pending pixels; every wait (back-pressure, end-of-run and teardown flush) is
+bounded by progress, not time: no job completing for 120 s marks the writer stalled (`writer_stalled`), stops the run
+and counts every unwritten frame `writer_timeout`. Writer jobs carry a run generation, so a late job of an earlier run
+touches none of the next run's counts (095-06b S4/N2). Sync-fallback frames count as written (N1). A vetoed event
+leaves no event in `annotation.json`; `run_summary.vetoed_event_ids` names it (S1); the root `transition_frames` lists
+every transition frame (N10). A held session-global anomaly flags no `settle` frame (S3). The optional temporal
+windows skip `settle` frames when they count (`FEventTransitionTrack` settle-aware distance; S5). Readers (commit 5,
 `325a3e7`): `verify_capture.py` (2.1/2.2; SETTLE-*, TICK-CONTINUITY, DROP-COUNT), office kit 1.6
 (`label_sync_check.py`: settle excused both ways), `measure_label_offset.py`, `exclusion_gate.py`; bench checks in
 CaptureBench `m56-gates` (`m56_continuity_check.py`, `m56_nonsettle_compare.py`). ⚠ **Not yet proven: no engine
