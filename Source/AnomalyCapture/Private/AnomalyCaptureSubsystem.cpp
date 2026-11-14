@@ -10965,7 +10965,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 			if (Ev.bLodLastPositive && Ev.bLodLastCapReached)
 			{
 				AnomalyLabel::FLodSwapRecord Cap = Ev.LodLast;
-				Cap.Frame = Ev.LodLastIndex + 1;
+				Cap.Frame = -1;
 				for (int32 Key : ActiveKeys)
 				{
 					if (Key > Ev.LodLastIndex)
@@ -10974,9 +10974,23 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 						break;
 					}
 				}
-				Cap.Cause = TEXT("hold_cap");
-				Cap.Direction = TEXT("up");
-				Out.LodSwaps.Add(Cap);
+				if (Cap.Frame < 0 && ArmedTickBySession.Contains(Ev.LodLastIndex + 1))
+				{
+					Cap.Frame = Ev.LodLastIndex + 1;
+				}
+				if (Cap.Frame >= 0)
+				{
+					Cap.Cause = TEXT("hold_cap");
+					Cap.Direction = TEXT("up");
+					Out.LodSwaps.Add(Cap);
+				}
+				else
+				{
+					UE_LOG(LogAnomalyCapture, Log,
+						TEXT("Capture(m57): lod_popping event %s reached its hold cap on session_index %d, but no later frame was captured ")
+						TEXT("(the run ended or hit the frame cap), so no frame shows the release: no hold_cap swap is recorded."),
+						*Out.EventId, Ev.LodLastIndex);
+				}
 			}
 			for (AnomalyLabel::FLodSwapRecord& W : Out.LodSwaps)
 			{
