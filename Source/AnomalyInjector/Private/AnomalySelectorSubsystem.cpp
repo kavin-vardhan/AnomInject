@@ -196,8 +196,10 @@ bool UAnomalySelectorSubsystem::InjectSelected()
 	}
 	else
 	{
-		LastInjectResult = FString::Printf(TEXT("inject %s on %s: 0 matched (try a mesh / different anomaly)"),
-			*Id.ToString(), *Actor->GetName());
+		const FString Refusal = Injector->GetAnomalyLastRefusalReason(Id);
+		LastInjectResult = Refusal.IsEmpty()
+			? FString::Printf(TEXT("inject %s on %s: 0 matched (try a mesh / different anomaly)"), *Id.ToString(), *Actor->GetName())
+			: FString::Printf(TEXT("inject %s on %s: refused (%s)"), *Id.ToString(), *Actor->GetName(), *Refusal);
 	}
 	UE_LOG(LogAnomaly, Log, TEXT("Selector.Inject: '%s' on '%s' -> %s."),
 		*Id.ToString(), *Actor->GetName(), bApplied ? TEXT("applied") : TEXT("not applied"));
