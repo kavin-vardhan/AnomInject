@@ -909,7 +909,6 @@ picks engine landscape anyway, so in practice this affects only a capture target
 | `labels.jsonl` → `exposure_dip_scope` | *absent* | `"frame"` or `"frame_minus_targets"`, **only on rows that carry `exposure_dip`** | **Added** |
 | `run_summary.json` → `observable_frames`, `frames_condition_lost`, `observable_min_pixels` | *absent* | see §8.4 | **Added** |
 | `run_summary.json` → `target_drawn_pixels_measured`, `frames_drawn_unexpected`, `frames_exposure_dip_suppressed` | *absent* | see §8.4 and the exposure-dip section | **Added** |
-| `anomaly_subtype` on a `blink` event | `disappear_reappear` | `terrain_disappear_reappear` when the hidden object is terrain, `disappear_reappear` otherwise (§8.4.2). A new value in an existing field; `label_schema` and `label_schema_minor` are unchanged. | **Added value** |
 | `run_summary.json` → `blink_terrain_events`, `terrain_unlabelable_refusals` | *absent* | see §8.4.2 | **Added** |
 | everything else | — | — | Unchanged |
 
@@ -928,6 +927,7 @@ jumped exactly where the label changed. Schema 2.2 saves every frame and flags t
 | Key | 2.1 | 2.2 | Additive? |
 | --- | --- | --- | --- |
 | `annotation.json` → `label_schema_minor` | `1` | `2` | value change |
+| `annotation.json` → `anomaly_subtype` on a `blink` event (m58, ships with 2.2) | `disappear_reappear` | `terrain_disappear_reappear` when the hidden object is terrain, `disappear_reappear` otherwise (§8.4.2). A new value in an existing field | **Added value** |
 | `labels.jsonl` → `tick_index` | *absent* | engine ticks since the capture's first frame; 0 on the first row, +1 on every row | **Added** |
 | `labels.jsonl` → `t_wall_run` | *absent* | wall-clock seconds since the capture's first frame | **Added** |
 | `labels.jsonl` → `t_wall` | documented as "seconds since the run started" | unchanged value; **the documentation was wrong**: it is an absolute wall clock. Use `t_wall_run` for run-relative time | doc fix |
