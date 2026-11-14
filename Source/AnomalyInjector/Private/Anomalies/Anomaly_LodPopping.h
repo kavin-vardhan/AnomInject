@@ -74,6 +74,7 @@ private:
 	AnomalyLodTriggerRule::EMode Mode = AnomalyLodTriggerRule::EMode::DistanceThreshold;
 	TWeakObjectPtr<UWorld> WorldRef;
 	TWeakObjectPtr<UStaticMeshComponent> SpatialMesh;
+	FString SpatialMeshName;
 	int32 SavedForcedLod = 0;
 	uint64 AppliedFrame = 0;
 	uint64 LastCommittedFrame = 0;

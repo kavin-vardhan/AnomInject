@@ -471,6 +471,7 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 	Targets.Reset();
 	Mode = BestEval.Mode;
 	SpatialMesh = Best;
+	SpatialMeshName = Best->GetName();
 	WorldRef = World;
 	SavedForcedLod = Best->ForcedLodModel;
 	float Sizes[AnomalyLod::MaxLodEntries];
@@ -696,7 +697,15 @@ void FAnomaly_LodPopping::ReleaseSpatial()
 			UTF8_TO_TCHAR(AnomalyLodTriggerRule::DescribeState(Tracker.State)),
 			bVisible ? TEXT(", released while visibly wrong (hold_cap)") : (bWasHeld ? TEXT(", released while unseen or matching (invisible)") : TEXT("")));
 	}
+	else
+	{
+		UE_LOG(LogAnomaly, Log,
+			TEXT("lod_popping: REVERT '%s' mode=%s NOTHING TO RESTORE (mesh destroyed): the held component no longer exists, so its forced LOD went with it; swaps=%d, last state %s."),
+			*SpatialMeshName, UTF8_TO_TCHAR(AnomalyLodTriggerRule::DescribeMode(Mode)), SwapsRecorded,
+			UTF8_TO_TCHAR(AnomalyLodTriggerRule::DescribeState(Tracker.State)));
+	}
 	SpatialMesh.Reset();
+	SpatialMeshName.Reset();
 	WorldRef.Reset();
 	bLaggedRelease = false;
 	bDithered = false;
