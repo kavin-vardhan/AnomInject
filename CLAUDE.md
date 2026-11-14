@@ -34,6 +34,8 @@ and is the single source of truth for the project.
 > - **Integration tip `81c956a` (merge) Editor-compiled 0/0; 18/18 pure C++ selftests, Python suites, m58 terrain
 >   mutants (5/5 fail), lever audit source + binary PASS. The host's plugin Editor DLLs now match `81c956a`'s Source
 >   (supersedes 095-06b's "still match `b4017ea`"). The Game exe is still not built.**
+> - **095-09b: integration tip `fba2820` (merge of `af1b08f`) Editor-compiled 0/0, same tests pass; the host's plugin
+>   Editor DLLs now match `fba2820`'s Source (supersedes the line above). The Game exe is still not built.**
 
 > ---
 
