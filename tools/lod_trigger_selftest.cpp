@@ -139,8 +139,15 @@ static void TestArmRules()
 	Check(ViewEntryArmRefusal(V, S, Ahead) == nullptr && Ahead == 5, "turn arms with 5 frames ahead, got " + std::to_string(Ahead));
 	FViewEntryArmInput In = V; In.AngleOutsideFrustumDeg = -3.0f;
 	Check(Is(ViewEntryArmRefusal(In, S, Ahead), "already_in_view"), "in view refused");
-	FViewEntryArmInput Wide = V; Wide.AngleOutsideFrustumDeg = 25.0f;
-	Check(Is(ViewEntryArmRefusal(Wide, S, Ahead), "too_far_outside_view"), "25 degrees outside refused");
+	FViewEntryArmInput Near = V; Near.AngleOutsideFrustumDeg = 25.0f;
+	Check(ViewEntryArmRefusal(Near, S, Ahead) == nullptr && Ahead == 13,
+		"25 degrees outside at 60 deg/s arms (time-based margin), got " + std::to_string(Ahead));
+	FViewEntryArmInput Wide = V; Wide.AngleOutsideFrustumDeg = 125.0f;
+	Check(Is(ViewEntryArmRefusal(Wide, S, Ahead), "too_far_outside_view"), "125 degrees outside refused (the 120 degree cap)");
+	FViewEntryArmInput SlowWide = V; SlowWide.YawRateDegPerS = 30.0f; SlowWide.AngleOutsideFrustumDeg = 95.0f;
+	Check(Is(ViewEntryArmRefusal(SlowWide, S, Ahead), "too_far_outside_view"), "95 degrees outside at 30 deg/s refused (margin 90)");
+	FViewEntryArmInput SlowIn = SlowWide; SlowIn.AngleOutsideFrustumDeg = 60.0f;
+	Check(ViewEntryArmRefusal(SlowIn, S, Ahead) == nullptr && Ahead == 60, "60 degrees outside at 30 deg/s arms 60 frames ahead");
 	FViewEntryArmInput Wrong = V; Wrong.bYawTowardTarget = false;
 	Check(Is(ViewEntryArmRefusal(Wrong, S, Ahead), "not_turning_toward"), "turning away refused");
 	FViewEntryArmInput Lazy = V; Lazy.YawRateDegPerS = 10.0f;
@@ -149,6 +156,41 @@ static void TestArmRules()
 	Check(Is(ViewEntryArmRefusal(Shadow, S, Ahead), "lod_shadow_in_view"), "shadow in view refused");
 	FViewEntryArmInput Small = V; Small.CoverageAsIfInViewPct = 2.0f;
 	Check(Is(ViewEntryArmRefusal(Small, S, Ahead), "too_small_in_view"), "too small in view refused");
+}
+
+static void TestViewEntryWindow()
+{
+	FSettings S;
+	const float Dt = 1.0f / 30.0f;
+	const float M30 = ViewEntryMarginForRate(S, 30.0f, Dt);
+	Check(M30 > 89.99f && M30 < 90.01f, "margin at 30 deg/s = 3 s of turn = 90 deg, got " + std::to_string(M30));
+	Check(ViewEntryMarginForRate(S, 60.0f, Dt) == S.ViewEntryMarginMaxDeg, "margin at 60 deg/s is capped at 120 deg");
+	Check(ViewEntryMarginForRate(S, 3.0f, Dt) == S.ViewEntryMarginDeg, "margin at 3 deg/s is floored at 20 deg");
+	const int BurstCycle = 2 + 8 + 2 + 4;
+	const int MotionLag = MotionEstimateFrames + 2;
+	const float Rates[4] = { S.MinYawRateDegPerS, 45.0f, 60.0f, 120.0f };
+	for (float Rate : Rates)
+	{
+		FViewEntryArmInput V;
+		V.bYawTowardTarget = true; V.YawRateDegPerS = Rate; V.FrameSeconds = Dt; V.bContrastAtHeld = true; V.CoverageAsIfInViewPct = 12.0f;
+		int Window = 0;
+		int Ahead = 0;
+		for (float Angle = 170.0f; Angle > 0.0f; Angle -= Rate * Dt)
+		{
+			V.AngleOutsideFrustumDeg = Angle;
+			if (ViewEntryArmRefusal(V, S, Ahead) == nullptr)
+			{
+				++Window;
+			}
+		}
+		Check(Window > BurstCycle + MotionLag, "view-entry arming window at " + std::to_string((int)Rate) + " deg/s is " + std::to_string(Window)
+			+ " frames, longer than one default burst cycle (" + std::to_string(BurstCycle) + ") plus the motion-estimate lag ("
+			+ std::to_string(MotionLag) + ")");
+		if (Rate == S.MinYawRateDegPerS)
+		{
+			Check(Window >= 2 * BurstCycle, "at the minimum yaw rate the window spans two burst cycles, got " + std::to_string(Window));
+		}
+	}
 }
 
 static void TestApproach()
@@ -307,6 +349,7 @@ int main()
 	TestThresholds();
 	TestFreezeAndClassify();
 	TestArmRules();
+	TestViewEntryWindow();
 	TestApproach();
 	TestNoDownPopWhenOff();
 	TestViewEntry();

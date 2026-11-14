@@ -8,6 +8,8 @@ namespace AnomalyLodTriggerRule
 	enum class EState : unsigned char { Armed = 0, Labelled = 1, Swapped = 2, Released = 3 };
 	enum class ETickAction : unsigned char { None = 0, ReleaseVisible = 1, ReHold = 2, ReleaseInvisible = 3 };
 
+	static constexpr int MotionEstimateFrames = 8;
+
 	inline const char* DescribeMode(EMode Mode)
 	{
 		return Mode == EMode::Periodic ? "periodic"
@@ -44,6 +46,7 @@ namespace AnomalyLodTriggerRule
 		float MaxApproachAngleDeg = 30.0f;
 		int AheadFrames = 90;
 		float ViewEntryMarginDeg = 20.0f;
+		float ViewEntryMarginMaxDeg = 120.0f;
 		float MinYawRateDegPerS = 30.0f;
 		int EntryFrames = 4;
 		int HoldCapFrames = 150;
@@ -178,6 +181,13 @@ namespace AnomalyLodTriggerRule
 		float CoverageAsIfInViewPct = 0.0f;
 	};
 
+	inline float ViewEntryMarginForRate(const FSettings& Settings, float YawRateDegPerS, float FrameSeconds)
+	{
+		const float Ahead = YawRateDegPerS * FrameSeconds * (float)Settings.AheadFrames;
+		const float Floored = Ahead > Settings.ViewEntryMarginDeg ? Ahead : Settings.ViewEntryMarginDeg;
+		return Floored < Settings.ViewEntryMarginMaxDeg ? Floored : Settings.ViewEntryMarginMaxDeg;
+	}
+
 	inline const char* ViewEntryArmRefusal(const FViewEntryArmInput& In, const FSettings& Settings, int& OutFramesAhead)
 	{
 		OutFramesAhead = -1;
@@ -185,13 +195,13 @@ namespace AnomalyLodTriggerRule
 		{
 			return "already_in_view";
 		}
-		if (In.AngleOutsideFrustumDeg > Settings.ViewEntryMarginDeg)
-		{
-			return "too_far_outside_view";
-		}
 		if (!In.bYawTowardTarget || In.YawRateDegPerS < Settings.MinYawRateDegPerS || In.FrameSeconds <= 0.0f)
 		{
 			return "not_turning_toward";
+		}
+		if (In.AngleOutsideFrustumDeg > ViewEntryMarginForRate(Settings, In.YawRateDegPerS, In.FrameSeconds))
+		{
+			return "too_far_outside_view";
 		}
 		if (In.bShadowInView)
 		{

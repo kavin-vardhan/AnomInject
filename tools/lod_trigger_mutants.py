@@ -19,6 +19,8 @@ MUTATIONS = {
     "margin_ignores_first_positive": ("\t\t\t\t&& In.BoundsScreenSize >= T.FirstPositiveScreenSize * (1.0f + Settings.ReleaseMargin))",
                                       "\t\t\t\t)"),
     "entry_frames_off_by_one": ("&& T.PositiveFramesSeen >= Settings.EntryFrames)", "&& T.PositiveFramesSeen > Settings.EntryFrames)"),
+    "view_margin_fixed": ("if (In.AngleOutsideFrustumDeg > ViewEntryMarginForRate(Settings, In.YawRateDegPerS, In.FrameSeconds))",
+                          "if (In.AngleOutsideFrustumDeg > Settings.ViewEntryMarginDeg)"),
 }
 
 

@@ -21,7 +21,7 @@ namespace
 	};
 
 	static constexpr int32 RingSize = 16;
-	static constexpr int32 MotionFramesBack = 8;
+	static constexpr int32 MotionFramesBack = AnomalyLodTriggerRule::MotionEstimateFrames;
 	static constexpr float CandidateMaxDistanceCm = 10000.0f;
 
 	struct FViewRing
