@@ -26,6 +26,7 @@ MUTATIONS = {
     "occluded_reads_negative": ("return bInFrustum ? EFrameClass::Occluded : EFrameClass::Negative;", "return EFrameClass::Negative;"),
     "past_held_never_released": ("if (In.EngineLod > T.HeldLod && bAgree)", "if (In.EngineLod > T.HeldLod && bAgree && T.HeldLod < 0)"),
     "arm_clock_no_restart": ("if (bWrongSeen && !Clock.bRestarted)", "if (bWrongSeen && !Clock.bRestarted && TimeoutFrames < 0)"),
+    "downpop_default_on": ("bool bDownPop = false;", "bool bDownPop = true;"),
     "view_margin_fixed": ("if (In.AngleOutsideFrustumDeg > ViewEntryMarginForRate(Settings, In.YawRateDegPerS, In.FrameSeconds))",
                           "if (In.AngleOutsideFrustumDeg > Settings.ViewEntryMarginDeg)"),
 }

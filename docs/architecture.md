@@ -1826,7 +1826,8 @@ render already agree, nothing is held and nothing changes; the final build's sta
   occluded = in the frustum with every trace blocked; past_held = engine coarser than held; negative), the arm clock,
   and the tracker: observe a frame, decide in Tick (distance release past both the contrast switch x1.1 and the first
   positive size x1.1; view-entry release after `EntryFrames` positives (default 30); invisible release as soon as the
-  engine is past the held LOD, or matches it after a re-hold; re-hold on retreat past 0.85; hold cap).
+  engine is past the held LOD, or matches it after a re-hold; re-hold on retreat past 0.85, only with `bDownPop`,
+  default off since 095-14; hold cap).
   - **View-entry arm:** margin = clamp(yaw rate x 90 frames, 20 deg, 120 deg); the arming window at the minimum yaw
     rate (30 deg/s) is 90 frames, longer than a burst cycle plus the motion lag (selftest).
   - **Distance arm:** looks ahead to max(contrast release size, the size at which coverage reaches the minimum;
@@ -1868,8 +1869,10 @@ render already agree, nothing is held and nothing changes; the final build's sta
   uses the first shadow-casting directional light and the AABB of the swept box (over-refuses; ignores point and spot
   lights). An event whose labelled frames all failed to write is listed as untriggered. The kit
   (`label_sync_check.py` 1.7) does not judge spatial events and says so (`not judgeable (spatial lod)`); the bench
-  null-pair check does. The down-pop re-hold needs coverage >= 7 % at 0.85 x the swap size, which a straight retreat
-  does not reach at the default settings (095-13 journal).
+  null-pair check does. The down-pop (`IAI.Anomaly.LodDownPop` / `LodPoppingDownPop`) is **experimental and off by
+  default** (ruling 095-13 D1): the re-hold needs coverage >= 7 % at 0.85 x the swap size while the engine is still
+  finer than the held LOD, a band that is empty whenever the release follows the engine's own switch closely (on the
+  bench paths; 095-13 journal, and the selftest's approach_retreat simulation with the switch on).
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:

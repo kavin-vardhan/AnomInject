@@ -2121,7 +2121,7 @@ namespace AnomalyDefaults
 				{ TEXT("LodPoppingArmTimeoutFrames"), TEXT("IAI.Anomaly.LodArmTimeout"), 90, 1, 600 },
 				{ TEXT("LodPoppingHoldCapFrames"), TEXT("IAI.Anomaly.LodHoldCap"), 150, 1, 3000 },
 				{ TEXT("LodPoppingEntryFrames"), TEXT("IAI.Anomaly.LodEntryFrames"), 30, 1, 90 },
-				{ TEXT("LodPoppingDownPop"), TEXT("IAI.Anomaly.LodDownPop"), 1, 0, 1 }
+				{ TEXT("LodPoppingDownPop"), TEXT("IAI.Anomaly.LodDownPop"), 0, 0, 1 }
 			};
 			return Specs[FMath::Clamp((int32)Setting, 0, 3)];
 		}
@@ -2151,7 +2151,7 @@ namespace AnomalyDefaults
 			{
 				if (Setting == ELodTriggerSetting::DownPop)
 				{
-					bool bFromIni = true;
+					bool bFromIni = false;
 					if (GConfig->GetBool(SectionName(), Spec.Key, bFromIni, GGameIni))
 					{
 						OutSource = TEXT("ini");
@@ -2296,9 +2296,11 @@ static FAutoConsoleCommand GLodEntryFramesCmd(
 
 static FAutoConsoleCommand GLodDownPopCmd(
 	TEXT("IAI.Anomaly.LodDownPop"),
-	TEXT("m57: 1 lets a distance_threshold event pop back down to the held LOD when the camera retreats past 0.85 of the ")
-	TEXT("release screen size (hysteresis); 0 turns that off. Console beats DefaultGame.ini [AnomalyInjector] ")
-	TEXT("LodPoppingDownPop, which beats the compiled default 1. Usage: IAI.Anomaly.LodDownPop <0|1|default>"),
+	TEXT("m57, EXPERIMENTAL, off by default: 1 lets a distance_threshold event pop back down to the held LOD when the camera ")
+	TEXT("retreats past 0.85 of the release screen size (hysteresis); 0 (the default) turns that off. Not proven: when the ")
+	TEXT("release follows the engine's own LOD switch closely (on the bench, within a few frames), the engine is already back ")
+	TEXT("at the held LOD before a retreating target is that small, so no re-hold happens. Console beats DefaultGame.ini [AnomalyInjector] ")
+	TEXT("LodPoppingDownPop, which beats the compiled default 0. Usage: IAI.Anomaly.LodDownPop <0|1|default>"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::DownPop, Args);

@@ -225,6 +225,7 @@ static void TestViewEntryWindow()
 static void TestApproach()
 {
 	FSettings S;
+	S.bDownPop = true;
 	FTracker T;
 	T.Mode = EMode::DistanceThreshold;
 	T.HeldLod = 1;
@@ -286,6 +287,7 @@ static void TestApproach()
 
 static void TestNoDownPopWhenOff()
 {
+	Check(!FSettings().bDownPop, "down-pop default is off (ruling 095-13 D1: experimental, not proven on the bench)");
 	FSettings S;
 	S.bDownPop = false;
 	FTracker T;
@@ -459,16 +461,19 @@ struct FSimResult
 	int TimeoutAt = -1;
 	int ClockRestartAt = -1;
 	int BeginFires = 0;
+	int Swaps = 0;
+	int ReHolds = 0;
+	int LabelledAfterSwap = 0;
 	std::string Refusals;
 };
 
 static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const FSettings& S, int Frames, int TimeoutFrames = 90,
-	bool bRestart = true)
+	bool bRestart = true, int LeadFrames = 4, int PositiveFrames = 8, int PostFrames = 4)
 {
 	const float Dt = 1.0f / 30.0f;
 	FSimResult R;
 	enum { Lead, SFire, Pos, SRev, Post } Phase = Lead;
-	int Left = 4;
+	int Left = LeadFrames;
 	bool bArmed = false;
 	FTracker Tr;
 	FArmClock Clock;
@@ -556,7 +561,7 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 		}
 		else if (Phase == SFire)
 		{
-			if (--Left <= 0) { Phase = Pos; Left = 8; bWindow = false; }
+			if (--Left <= 0) { Phase = Pos; Left = PositiveFrames; bWindow = false; }
 		}
 		else if (Phase == Pos)
 		{
@@ -589,7 +594,7 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 		}
 		else if (Phase == SRev)
 		{
-			if (--Left <= 0) { Phase = Post; Left = 4; }
+			if (--Left <= 0) { Phase = Post; Left = PostFrames; }
 		}
 		else if (Phase == Post)
 		{
@@ -598,7 +603,10 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 		if (bArmed && Tick > AppliedAt && bHaveEval)
 		{
 			ObserveFrame(Tr, PrevInput, S);
-			DecideTick(Tr, S);
+			if (DecideTick(Tr, S) == ETickAction::ReHold)
+			{
+				++R.ReHolds;
+			}
 		}
 		if (bArmed && Tick >= AppliedAt)
 		{
@@ -614,8 +622,13 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 			{
 				++R.Labelled;
 				if (R.FirstPositive < 0) { R.FirstPositive = Tick; }
+				if (R.Swap >= 0) { ++R.LabelledAfterSwap; }
 			}
-			if (O.bSwap && R.Swap < 0) { R.Swap = Tick; }
+			if (O.bSwap)
+			{
+				++R.Swaps;
+				if (R.Swap < 0) { R.Swap = Tick; }
+			}
 			PrevClass = O.Class;
 			PrevHoldOpen = IsHoldingEventOpen(Copy);
 			PrevInput = In;
@@ -640,6 +653,17 @@ static FSimPose PathBenchApproach(int K)
 {
 	double X = 600.0 + 7.5 * (K > 20 ? K - 20 : 0);
 	X = X < 1450.0 ? X : 1450.0;
+	return FSimPose{ X, 0.0, 200.0, 0.0 };
+}
+
+static FSimPose PathBenchApproachRetreat(int K)
+{
+	if (K <= 144)
+	{
+		return PathBenchApproach(K);
+	}
+	double X = 1450.0 - 7.5 * (K - 144);
+	X = X > 600.0 ? X : 600.0;
 	return FSimPose{ X, 0.0, 200.0, 0.0 };
 }
 
@@ -672,6 +696,20 @@ static void TestBenchSimulation()
 	Check(C3.FirstPositive == 128 && C3.Labelled == 5 && C3.Swap == 133 && C3.TimeoutAt < 0,
 		"bench approach triggers: first positive 128, 5 labelled, swap 133; got " + std::to_string(C3.FirstPositive) + " / "
 		+ std::to_string(C3.Labelled) + " / " + std::to_string(C3.Swap) + " / timeout " + std::to_string(C3.TimeoutAt));
+	FSettings Up = S;
+	Up.bDownPop = true;
+	for (int Pass = 0; Pass < 2; ++Pass)
+	{
+		const FSettings& SC4 = Pass == 0 ? S : Up;
+		const FSimResult C4 = Simulate(PathBenchApproachRetreat, Second, EMode::DistanceThreshold, SC4, 330, 90, true, 60, 120, 14);
+		Check(C4.ArmedAt == 59 && C4.FirstPositive == 128 && C4.Labelled == 5 && C4.Swap == 133 && C4.Swaps == 1 && C4.ReHolds == 0
+				&& C4.LabelledAfterSwap == 0 && C4.TimeoutAt < 0,
+			std::string("bench approach_retreat (config 2 60 120 14 0), down-pop ") + (Pass == 0 ? "off (default)" : "on")
+			+ ": one fire at 59, labelled 128..132, one up swap at 133, no re-hold and no labelled frame on the retreat; got armed "
+			+ std::to_string(C4.ArmedAt) + ", first positive " + std::to_string(C4.FirstPositive) + ", labelled " + std::to_string(C4.Labelled)
+			+ ", swap " + std::to_string(C4.Swap) + ", swaps " + std::to_string(C4.Swaps) + ", re-holds " + std::to_string(C4.ReHolds)
+			+ ", labelled after the swap " + std::to_string(C4.LabelledAfterSwap));
+	}
 	const FSimTarget Slow = { 1700.0, -60.0, 200.0, 50.0, { 1.0f, 0.2f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
 	const FSimResult Restart = Simulate(PathBenchApproach, Slow, EMode::DistanceThreshold, S, 200, 60, true);
 	Check(Restart.ArmedAt == 51 && Restart.ClockRestartAt > 0 && Restart.TimeoutAt < 0 && Restart.Labelled > 0 && Restart.Swap > 0,

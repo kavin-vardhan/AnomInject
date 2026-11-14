@@ -1469,9 +1469,13 @@ What each row leaves open, stated rather than implied:
   - `distance_threshold`: the object is frozen at the detail level it already shows (nothing changes), keeps it while
     you walk toward it, and snaps to full detail once it is clearly past both the point where the engine would have
     switched and the point where it covers 7 % of the frame. It is armed only when, at your walking speed, it will
-    reach that size within 3 seconds. Walking away again can pop it back down (a second swap, direction `down`); at
-    the default settings a straight walk away does not reach that point, and it stays switched on until you tell us
-    whether you want it.
+    reach that size within 3 seconds.
+    **Pop back down on walking away (experimental, off by default):** `IAI.Anomaly.LodDownPop 1` lets a
+    `distance_threshold` object that already snapped to full detail be held at the low-detail version again when you
+    walk away past 0.85 of the size at which it snapped (a second swap, direction `down`). It has never been seen to
+    work on our test bench, so it ships switched off. When the snap follows the engine's own switch closely (on the
+    bench, within a few frames) it cannot happen: by the time a retreating object is that small, the engine is already
+    drawing the low-detail version itself. Tell us if you want it; it would come as its own change with its own test.
   No movement means no LOD event: the burst fires another anomaly instead. `anomaly_subtype` is the trigger
   (`distance_threshold`, `view_entry`; `periodic` is the old timed pop, now a test-bench mode only).
   - **Labelled frames** are the frames where the low-detail version is visibly wrong: on screen, the engine would
@@ -1515,7 +1519,7 @@ What each row leaves open, stated rather than implied:
   - Settings (console beats `[AnomalyInjector]` in DefaultGame.ini, which beats the default): `IAI.Anomaly.LodArmTimeout`
     / `LodPoppingArmTimeoutFrames` (90), `IAI.Anomaly.LodHoldCap` / `LodPoppingHoldCapFrames` (150),
     `IAI.Anomaly.LodEntryFrames` / `LodPoppingEntryFrames` (**30**, allowed 1 to 90), `IAI.Anomaly.LodDownPop` /
-    `LodPoppingDownPop` (1). The 7 % minimum is the existing `IAI.Anomaly.LodMinCoverage` / `LodPoppingMinCoveragePct`.
+    `LodPoppingDownPop` (**0**, experimental, see above). The 7 % minimum is the existing `IAI.Anomaly.LodMinCoverage` / `LodPoppingMinCoveragePct`.
     New keys are listed in §8.5b.
   - **The office check kit cannot judge these events** (§3): it prints `not judgeable (spatial lod)` with the reason.
   - **Not yet proven on the bench:** the m57 gates have not run (as of this build).

@@ -53,7 +53,7 @@ namespace AnomalyLodTriggerRule
 		float MinYawRateDegPerS = 30.0f;
 		int EntryFrames = 30;
 		int HoldCapFrames = 150;
-		bool bDownPop = true;
+		bool bDownPop = false;
 	};
 
 	inline int EngineLodFromScreenSize(const float* ScreenSizes, int NumEntries, float BoundsScreenSize, float Scale, int MinLod)
