@@ -59,6 +59,11 @@ namespace AnomalyLodPolicy
 			: ForcedLod <= ShownLod ? EForcedLodRefusal::NotCoarser : EForcedLodRefusal::None;
 	}
 
+	inline bool ShouldScopeToForced(int NumForced, int NumRenderableNotForced)
+	{
+		return NumForced > 0 && NumRenderableNotForced > 0;
+	}
+
 	inline const char* DominantRefusalOf(const int* Counts, int NumKinds, int NumOther)
 	{
 		int Best = -1;

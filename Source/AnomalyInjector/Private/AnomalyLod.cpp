@@ -3,6 +3,8 @@
 
 #include "AnomalyTargeting.h"
 #include "AnomalyViewport.h"
+#include "AnomalyInjectorLog.h"
+#include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkinnedMeshComponent.h"
@@ -255,6 +257,59 @@ AnomalyLod::FForcedLodContrast AnomalyLod::GetForcedLodContrast(UWorld* World, c
 	}
 	Out.Refusal = AnomalyLodPolicy::DecideContrast(Out.bCurrentKnown, Out.ShownLod, Out.ForcedLod);
 	return Out;
+}
+
+void AnomalyLod::ScopeEventToForcedComponents(const TArray<UMeshComponent*>& Forced,
+	TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners, const TCHAR* AnomalyName)
+{
+	TMap<const AActor*, TArray<const UPrimitiveComponent*>> ByOwner;
+	for (const UMeshComponent* Comp : Forced)
+	{
+		if (Comp && Comp->GetOwner())
+		{
+			ByOwner.FindOrAdd(Comp->GetOwner()).AddUnique(Comp);
+		}
+	}
+	for (const TPair<const AActor*, TArray<const UPrimitiveComponent*>>& Pair : ByOwner)
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		Pair.Key->GetComponents<UPrimitiveComponent>(Prims);
+		int32 NotForced = 0;
+		FString NotForcedNames;
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (AnomalyViewport::IsRenderableGeometryComponent(Prim) && !Pair.Value.Contains(Prim))
+			{
+				++NotForced;
+				NotForcedNames += (NotForcedNames.IsEmpty() ? TEXT("") : TEXT(", ")) + Prim->GetName();
+			}
+		}
+		if (!AnomalyLodPolicy::ShouldScopeToForced(Pair.Value.Num(), NotForced))
+		{
+			continue;
+		}
+		AnomalyViewport::SetEventComponentScope(Pair.Key, Pair.Value);
+		InOutScopedOwners.AddUnique(Pair.Key);
+		UE_LOG(LogAnomaly, Log,
+			TEXT("%s: SCOPE '%s' — only %d of its renderable component(s) are forced, so the label box, the mask, the visibility count and the event's node name cover those %d only; not forced: [%s]. Cleared at revert."),
+			AnomalyName, *Pair.Key->GetName(), Pair.Value.Num(), Pair.Value.Num(), *NotForcedNames);
+	}
+}
+
+void AnomalyLod::ClearForcedComponentScope(TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners)
+{
+	for (const TWeakObjectPtr<const AActor>& Weak : InOutScopedOwners)
+	{
+		if (const AActor* Owner = Weak.Get())
+		{
+			AnomalyViewport::ClearEventComponentScope(Owner);
+		}
+	}
+	if (InOutScopedOwners.Num() > 0)
+	{
+		AnomalyViewport::PruneEventComponentScopes();
+	}
+	InOutScopedOwners.Reset();
 }
 
 int32 AnomalyLod::ResolveTargetLod(const UMeshComponent* Component, int32 RequestedOrSentinel)

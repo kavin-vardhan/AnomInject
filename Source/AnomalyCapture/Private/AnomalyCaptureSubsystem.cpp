@@ -608,7 +608,7 @@ namespace
 		Actor->GetComponents<UMeshComponent>(Meshes);
 		for (UMeshComponent* Mesh : Meshes)
 		{
-			if (!Mesh || !Mesh->IsVisible())
+			if (!Mesh || !Mesh->IsVisible() || !AnomalyViewport::IsInEventComponentScope(Mesh))
 			{
 				continue;
 			}

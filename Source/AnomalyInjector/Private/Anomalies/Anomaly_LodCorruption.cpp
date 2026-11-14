@@ -132,6 +132,15 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 			Meshes.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal, RefusedNotCoarser, RefusedUndetermined);
 		return false;
 	}
+	TArray<UMeshComponent*> Forced;
+	for (const FCapturedLod& Record : Captured)
+	{
+		if (UMeshComponent* Mesh = Record.Mesh.Get())
+		{
+			Forced.Add(Mesh);
+		}
+	}
+	AnomalyLod::ScopeEventToForcedComponents(Forced, ScopedOwners, TEXT("lod_corruption"));
 	UE_LOG(LogAnomaly, Log, TEXT("lod_corruption: forced LOD on %d component(s) for '%s' (%d refused hierarchical instanced, %d refused single LOD, %d refused skeletal, %d refused not coarser than current, %d refused current LOD undetermined)."),
 		Captured.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal, RefusedNotCoarser, RefusedUndetermined);
 	return bActive;
@@ -149,6 +158,7 @@ void FAnomaly_LodCorruption::Revert()
 		AnomalyLod::SetForcedLod(Mesh, Record.PrevForcedLodModel);
 	}
 
+	AnomalyLod::ClearForcedComponentScope(ScopedOwners);
 	Captured.Reset();
 	bActive = false;
 }

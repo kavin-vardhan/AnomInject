@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "IAnomaly.h"
 
+class AActor;
 class UWorld;
 class UMeshComponent;
 
@@ -26,6 +27,7 @@ private:
 	};
 
 	TArray<FCapturedLod> Captured;
+	TArray<TWeakObjectPtr<const AActor>> ScopedOwners;
 	FString LastRefusal;
 	bool bActive = false;
 };

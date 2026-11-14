@@ -256,6 +256,16 @@ bool FAnomaly_LodPopping::Apply(UWorld* World, const TArray<FString>& Args)
 		return false;
 	}
 
+	TArray<UMeshComponent*> Forced;
+	for (const FPoppingTarget& Target : Targets)
+	{
+		if (UMeshComponent* Mesh = Target.Mesh.Get())
+		{
+			Forced.Add(Mesh);
+		}
+	}
+	AnomalyLod::ScopeEventToForcedComponents(Forced, ScopedOwners, TEXT("lod_popping"));
+
 	UE_LOG(LogAnomaly, Log,
 		TEXT("lod_popping: matched %d component(s) for '%s' at half-period %d frame(s) [%s] — %d qualified, %d refused (hierarchical instanced), %d refused (single LOD), %d refused (skeletal), %d refused (below %.4f bounds_coverage_pct), %d refused (beyond %.2f cm), %d refused (not at highest LOD)."),
 		Meshes.Num(), *Substring, HalfPeriodFrames,
@@ -302,6 +312,7 @@ void FAnomaly_LodPopping::Revert()
 		}
 	}
 
+	AnomalyLod::ClearForcedComponentScope(ScopedOwners);
 	Targets.Reset();
 	FramesSinceToggle = 0;
 	bPoppedPhase = false;

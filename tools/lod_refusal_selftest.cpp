@@ -171,10 +171,22 @@ static void RunContrastChecks()
 	CheckDominantOf(0, 0, 0, 0, 0, 0, "");
 }
 
+static void RunScopeChecks()
+{
+	Check(!ShouldScopeToForced(0, 0), "scope none forced none other");
+	Check(!ShouldScopeToForced(0, 2), "scope none forced");
+	Check(!ShouldScopeToForced(1, 0), "scope whole actor forced keeps actor box");
+	Check(!ShouldScopeToForced(3, 0), "scope three of three forced keeps actor box");
+	Check(ShouldScopeToForced(1, 1), "scope one of two forced");
+	Check(ShouldScopeToForced(2, 1), "scope two of three forced");
+	Check(ShouldScopeToForced(1, 3), "scope one of four forced");
+}
+
 int main()
 {
 	RunUsableLodChecks();
 	RunContrastChecks();
+	RunScopeChecks();
 
 	for (int Lods = 0; Lods <= 8; ++Lods)
 	{

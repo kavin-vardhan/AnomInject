@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "AnomalyLodPolicy.h"
 
+class AActor;
 class UWorld;
 class UMeshComponent;
 
@@ -62,4 +63,9 @@ namespace AnomalyLod
 	};
 
 	ANOMALYINJECTOR_API FForcedLodContrast GetForcedLodContrast(UWorld* World, const UMeshComponent* Component, int32 ForcedLodModel);
+
+	ANOMALYINJECTOR_API void ScopeEventToForcedComponents(const TArray<UMeshComponent*>& Forced,
+		TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners, const TCHAR* AnomalyName);
+
+	ANOMALYINJECTOR_API void ClearForcedComponentScope(TArray<TWeakObjectPtr<const AActor>>& InOutScopedOwners);
 }
