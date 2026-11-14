@@ -1154,7 +1154,12 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		break;
 
 	case ECapturePhase::SettleAfterFire:
-		if (PhaseFramesLeft > 0) { CaptureCurrentFrame((uint8)AnomalyLabelSync::EFrameRole::SettleAfterOnset); --PhaseFramesLeft; }
+		if (PhaseFramesLeft > 0)
+		{
+			CaptureCurrentFrame(bTargetGlobalHeld ? (uint8)AnomalyLabelSync::EFrameRole::Normal
+				: (uint8)AnomalyLabelSync::EFrameRole::SettleAfterOnset);
+			--PhaseFramesLeft;
+		}
 		if (PhaseFramesLeft <= 0) { Phase = ECapturePhase::Positives; PhaseFramesLeft = PositiveFrames; }
 		break;
 
@@ -1194,7 +1199,12 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 		break;
 
 	case ECapturePhase::SettleAfterRevert:
-		if (PhaseFramesLeft > 0) { CaptureCurrentFrame((uint8)AnomalyLabelSync::EFrameRole::SettleAfterOffset); --PhaseFramesLeft; }
+		if (PhaseFramesLeft > 0)
+		{
+			CaptureCurrentFrame(bTargetGlobalHeld ? (uint8)AnomalyLabelSync::EFrameRole::Normal
+				: (uint8)AnomalyLabelSync::EFrameRole::SettleAfterOffset);
+			--PhaseFramesLeft;
+		}
 		if (PhaseFramesLeft <= 0) { Phase = ECapturePhase::PostGap; PhaseFramesLeft = PostFrames; }
 		break;
 
@@ -5403,6 +5413,14 @@ void UAnomalyCaptureSubsystem::BeginFire()
 
 	if (bTargetGlobalHeld)
 	{
+		if (BurstsDone == 0 && SettleFrames > 0)
+		{
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m56): '%s' is held for the whole session, so the burst cycle starts and stops nothing. Its settle ticks ")
+				TEXT("are captured as normal frames and carry no settle flag. The held anomaly's only edges are its apply before the ")
+				TEXT("first captured frame and its revert after the last, so no captured frame follows a real fire or revert."),
+				*TargetAnomalyId.ToString());
+		}
 		Phase = SettleFrames > 0 ? ECapturePhase::SettleAfterFire : ECapturePhase::Positives;
 		PhaseFramesLeft = SettleFrames > 0 ? SettleFrames : PositiveFrames;
 		return;

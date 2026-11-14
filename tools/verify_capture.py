@@ -4673,6 +4673,25 @@ def _label_rule_selftest():
                _m56_write(root, "s56k7", r56, ann_post=drop_event,
                           rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id], "label_temporal_aa": True}), 1,
                "ANNOTATION-TRANSITIONS")
+        def held_global_rows(flag_schedule):
+            rows_ = []
+            sched = _m56_rows()
+            for t in range(40):
+                lab = t % 7 in (2, 3, 4)
+                e = {"id": "camera_clipping", "target_name": "Wall", "start_frame": 100,
+                     "event_id": "camera_clipping@100|Wall", "bbox_valid": True, "labelled": lab}
+                r = {"session_index": t, "frame_index": 100 + t, "tick_index": t, "t_wall_run": round(t / 30.0, 6),
+                     "anomaly_present": lab, "anomalies": [e], "visible_positive": lab}
+                if flag_schedule and isinstance(sched[t].get("transition_reason"), list):
+                    r["transition_present"] = True
+                    r["transition_reason"] = [LABEL_RULE_SETTLE]
+                rows_.append(r)
+            return rows_
+        case56("S56_n_targeted_held_global_camera_clipping_no_settle_clean",
+               _m56_write(root, "s56n", held_global_rows(False)), 0,
+               extra=lambda d, _l: d["settle_rows"] == 0)
+        case56("S56_n2_held_global_with_settle_on_the_burst_schedule_FAILS",
+               _m56_write(root, "s56n2", held_global_rows(True)), 1, "SETTLE-MISPLACED")
         r56 = _m56_rows()
         r56[20].pop("tick_index")
         case56("S56_l_row_without_tick_index_FAILS", _m56_write(root, "s56l", r56), 1, "TICK-CONTINUITY")
