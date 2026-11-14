@@ -21,6 +21,10 @@ and is the single source of truth for the project.
 >   switch's help, set/clear lines, read-back and readme say what it does (not "previous behaviour exactly").
 > - `lod_refusal_selftest` 141/0, 13 mutants fail. Legs: `predictions-095-09.txt` AMENDMENT 2 (L59-8..L59-11).
 >   Journal `docs/sessions/2026-11-14-095-12-m59-review-follow-ups.md`. Gotcha **G581** (G580 is on m57); next free **G582**.
+> - **Branch tip `d23ab16` (pushed). Integration tip `85e90e6` (merge of `d23ab16`) Editor-compiled 0 errors / 0 warnings;
+>   18/18 pure C++ selftests, lod mutants 13/13 and m58 terrain mutants 5/5 fail, Python suites, lever audit source +
+>   binary PASS (57). The host's plugin Editor DLLs now match `85e90e6`'s Source (supersedes 095-09b's `fba2820` line
+>   below). The Game exe is still not built.**
 
 > ---
 
