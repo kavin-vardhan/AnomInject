@@ -66,11 +66,12 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 			const bool bSkeletal = Refusal == AnomalyLodPolicy::EForcedLodRefusal::SkeletalUnmeasured;
 			++(bHism ? RefusedHism : bSkeletal ? RefusedSkeletal : RefusedSingleLod);
 			UE_LOG(LogAnomaly, Warning,
-				TEXT("lod_corruption: REFUSED '%s' (%s) — %s. This applies to every fire, auto-pool or targeted, with or without a lod-index."),
+				TEXT("lod_corruption: REFUSED '%s' (%s) — %s [%s]. This applies to every fire, auto-pool or targeted, with or without a lod-index."),
 				*Mesh->GetName(), UTF8_TO_TCHAR(AnomalyLodPolicy::DescribeRefusal(Refusal)),
 				bHism ? TEXT("it is a hierarchical instanced static mesh, which picks its own LODs and ignores a forced LOD, so forcing one changes nothing on screen: a positive label with no visible change, which the mask veto cannot catch (it still draws pixels)")
 				: bSkeletal ? TEXT("it is a skeletal mesh, which applies a forced LOD one frame late, so the labels at both edges of the event may be one frame off the picture; that is unmeasured, so it is refused unless IAI.Anomaly.LodAllowSkeletal is 1")
-				: TEXT("it has a single LOD, so the forced LOD is the one it already shows: a positive label with no visible change, which the mask veto cannot catch (it still draws pixels)"));
+				: TEXT("it has at most one usable LOD (its own LOD count, less any LODs below its MinLOD or stripped of vertices; the engine clamps a forced LOD to the usable range), so the forced LOD is the one it already shows: a positive label with no visible change, which the mask veto cannot catch (it still draws pixels)"),
+				*AnomalyLod::DescribeLodFacts(AnomalyLod::GetLodFacts(Mesh)));
 			continue;
 		}
 		if (Mesh->IsA<USkinnedMeshComponent>())

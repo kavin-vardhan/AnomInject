@@ -16,6 +16,23 @@ namespace AnomalyLod
 
 	ANOMALYINJECTOR_API bool HasMultipleLods(const UMeshComponent* Component);
 
+	struct FLodFacts
+	{
+		int32 NumLods = 0;
+		int32 MinLod = 0;
+		int32 FirstUsable = 0;
+		int32 UsableCount = 0;
+		int32 FirstResident = 0;
+		bool bResidentKnown = false;
+		const TCHAR* MinLodSource = TEXT("none");
+	};
+
+	ANOMALYINJECTOR_API FLodFacts GetLodFacts(const UMeshComponent* Component);
+
+	ANOMALYINJECTOR_API int32 GetUsableLodCount(const UMeshComponent* Component);
+
+	ANOMALYINJECTOR_API FString DescribeLodFacts(const FLodFacts& Facts);
+
 	ANOMALYINJECTOR_API AnomalyLodPolicy::EForcedLodRefusal GetForcedLodRefusal(const UMeshComponent* Component);
 
 	ANOMALYINJECTOR_API int32 GetForcedLod(const UMeshComponent* Component);

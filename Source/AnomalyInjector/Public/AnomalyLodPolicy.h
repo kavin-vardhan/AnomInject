@@ -11,6 +11,25 @@ namespace AnomalyLodPolicy
 			: Refusal == EForcedLodRefusal::SkeletalUnmeasured ? "skeletal_unmeasured" : "";
 	}
 
+	inline int FirstUsableLod(int NumLods, int EffectiveMinLod, unsigned int LodsWithVertices)
+	{
+		if (NumLods <= 0)
+		{
+			return 0;
+		}
+		int Lod = EffectiveMinLod < 0 ? 0 : (EffectiveMinLod > NumLods - 1 ? NumLods - 1 : EffectiveMinLod);
+		while (Lod < NumLods && Lod < 32 && (LodsWithVertices & (1u << Lod)) == 0u)
+		{
+			++Lod;
+		}
+		return Lod;
+	}
+
+	inline int UsableLodCount(int NumLods, int EffectiveMinLod, unsigned int LodsWithVertices)
+	{
+		return NumLods <= 0 ? 0 : NumLods - FirstUsableLod(NumLods, EffectiveMinLod, LodsWithVertices);
+	}
+
 	inline EForcedLodRefusal DecideForcedLod(bool bHierarchicalInstanced, bool bSkeletal, bool bAllowSkeletal, int NumLods)
 	{
 		return bHierarchicalInstanced ? EForcedLodRefusal::HierarchicalInstanced
