@@ -93,6 +93,22 @@ AnomalyLod::FEngineLodPrediction AnomalyLod::PredictEngineLod(UWorld* World, con
 	return PredictEngineLod(Scope.GetView(), Component);
 }
 
+bool AnomalyLod::GetRenderProbeInputs(const UStaticMeshComponent* Component, const FStaticMeshRenderData*& OutData,
+	int32& OutMinLod, int32& OutNumLods, float& OutFactorScale)
+{
+	const UStaticMesh* Mesh = Component ? Component->GetStaticMesh() : nullptr;
+	OutData = Mesh ? Mesh->GetRenderData() : nullptr;
+	if (!OutData || OutData->LODResources.Num() < 1)
+	{
+		return false;
+	}
+	OutNumLods = OutData->LODResources.Num();
+	const int32 RequestedMin = Component->bOverrideMinLOD ? Component->MinLOD : Mesh->GetMinLODIdx();
+	OutMinLod = OutData->GetCurrentFirstLODIdx(FMath::Clamp(RequestedMin, 0, OutNumLods - 1));
+	OutFactorScale = GetStaticMeshLodDistanceScale();
+	return true;
+}
+
 int32 AnomalyLod::GetLodTriangleCount(const UStaticMeshComponent* Component, int32 LodIndex)
 {
 	const UStaticMesh* Mesh = Component ? Component->GetStaticMesh() : nullptr;

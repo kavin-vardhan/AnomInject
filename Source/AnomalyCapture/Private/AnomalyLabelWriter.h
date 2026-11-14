@@ -13,6 +13,7 @@
 #include "AnomalyViewport.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyFrozenGeometry.h"
+#include "AnomalyLodRenderRecord.h"
 
 class UWorld;
 struct FAnomalyCensusCounters;
@@ -90,6 +91,7 @@ namespace AnomalyLabel
 		TArray<uint8>   Observable;
 		TArray<FIntRect> DrawnBounds;
 		TArray<FAnomalyTelemetry> Telemetry;
+		TArray<FAnomalyLodRenderResult> LodRender;
 
 		struct FRenderTruthWatch
 		{
@@ -168,6 +170,8 @@ namespace AnomalyLabel
 	int32 MarkNaniteUnmaskable(FCaptureSnapshot& Snapshot);
 
 	int32 MarkLodSubvisible(FCaptureSnapshot& Snapshot);
+
+	int32 MarkLodUnconfirmed(FCaptureSnapshot& Snapshot, bool& bOutChecked);
 
 	bool FrameHasPartialLabelledEntry(const FCaptureSnapshot& Snapshot);
 

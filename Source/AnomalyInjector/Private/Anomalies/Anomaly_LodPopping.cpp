@@ -681,6 +681,7 @@ bool FAnomaly_LodPopping::GetTelemetry(FAnomalyTelemetry& Out) const
 	Out.AddBool(TEXT("lod.cap_reached"), E.bCapReached);
 	Out.AddString(TEXT("lod.trigger"), UTF8_TO_TCHAR(DescribeMode(Mode)));
 	Out.AddString(TEXT("lod.state"), State);
+	Out.AddString(TEXT("lod.component"), SpatialMesh.IsValid() ? SpatialMesh->GetName() : FString());
 	if (E.Observation.bSwap)
 	{
 		Out.AddInt(TEXT("lod.swap_from_lod"), E.Observation.FromLod);

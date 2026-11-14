@@ -979,6 +979,55 @@ namespace AnomalyLabel
 		return Marked;
 	}
 
+	int32 MarkLodUnconfirmed(FCaptureSnapshot& Snapshot, bool& bOutChecked)
+	{
+		bOutChecked = false;
+		static const FString GLodId(TEXT("lod_popping"));
+		static const FString GEngineKey(TEXT("lod.engine_lod"));
+		static const FString GSubvisibleKey(TEXT("lod.subvisible"));
+		const int32 N = Snapshot.Fires.Num();
+		int32 Marked = 0;
+		for (const FAnomalyLodRenderResult& R : Snapshot.LodRender)
+		{
+			const int32 i = R.FireIndex;
+			if (i < 0 || i >= N || Snapshot.Fires[i].Id.ToString() != GLodId || !Snapshot.Telemetry.IsValidIndex(i))
+			{
+				continue;
+			}
+			FAnomalyTelemetry& T = Snapshot.Telemetry[i];
+			int32 TickEndLod = -1;
+			for (const TPair<FString, int32>& KV : T.Ints)
+			{
+				if (KV.Key == GEngineKey) { TickEndLod = KV.Value; break; }
+			}
+			bool bSubvisible = false;
+			for (const TPair<FString, bool>& KV : T.Bools)
+			{
+				if (KV.Key == GSubvisibleKey) { bSubvisible = KV.Value; break; }
+			}
+			T.AddInt(TEXT("lod.engine_lod_render"), R.EngineLod);
+			bOutChecked = true;
+			const bool bActive = Snapshot.FireActive.IsValidIndex(i) && Snapshot.FireActive[i] != 0;
+			if (R.EngineLod == TickEndLod || (!bActive && !bSubvisible))
+			{
+				continue;
+			}
+			if (Snapshot.EntryEmit.Num() != N) { Snapshot.EntryEmit.SetNumZeroed(N); }
+			if (Snapshot.EntryTransition.Num() != N) { Snapshot.EntryTransition.SetNumZeroed(N); }
+			if ((AnomalyLabelSync::EEntryEmit)Snapshot.EntryEmit[i] != AnomalyLabelSync::EEntryEmit::Suppress)
+			{
+				Snapshot.EntryEmit[i] = (uint8)AnomalyLabelSync::EEntryEmit::TransitionOnly;
+				Snapshot.EntryTransition[i] |= AnomalyLabelSync::ReasonLodUnconfirmed;
+			}
+			if (Snapshot.FireActive.IsValidIndex(i))
+			{
+				Snapshot.FireActive[i] = 0;
+			}
+			++Marked;
+		}
+		return Marked;
+	}
+
 	bool FrameHasPartialLabelledEntry(const FCaptureSnapshot& Snapshot)
 	{
 		for (int32 i = 0; i < Snapshot.Fires.Num(); ++i)

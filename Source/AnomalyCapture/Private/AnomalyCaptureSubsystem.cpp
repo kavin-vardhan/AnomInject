@@ -1,4 +1,5 @@
 #include "AnomalyCaptureSubsystem.h"
+#include "AnomalyLod.h"
 #include "RHIDefinitions.h"
 #if __has_include("RHIFeatureLevel.h")
 #include "RHIFeatureLevel.h"
@@ -5086,7 +5087,28 @@ void UAnomalyCaptureSubsystem::ProcessCompletedFrames()
 
 		const FString ImageName = FString::Printf(TEXT("Actual_Frames/frame_%05d.%s"), Snap->SessionIndex, Ext);
 		int32 NumLabels = 0;
+		Snap->LodRender = MoveTemp(Frame.LodRender);
 		FillAnnotationInputs(*Snap);
+		{
+			bool bLodChecked = false;
+			const int32 LodMismatches = AnomalyLabel::MarkLodUnconfirmed(*Snap, bLodChecked);
+			if (bLodChecked)
+			{
+				++LodRenderCheckedFrames;
+			}
+			if (LodMismatches > 0)
+			{
+				++LodRenderMismatchFrames;
+				if (LodRenderMismatchFrames <= 8)
+				{
+					UE_LOG(LogAnomalyCapture, Warning,
+						TEXT("Capture(m57): LOD RENDER MISMATCH at session_index %d - the render thread's LOD for the captured view ")
+						TEXT("differs from the tick-end prediction on %d lod_popping entr(ies); they are written transition-only with ")
+						TEXT("lod_unconfirmed and are not labelled (safe direction). Prediction: 0 on every leg."),
+						Snap->SessionIndex, LodMismatches);
+				}
+			}
+		}
 		StepHideTransitions(*Snap);
 		StepFireWindowTransitions(*Snap);
 		StepSettleFlags(*Snap);
@@ -6459,6 +6481,7 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 
 		Snap->Telemetry.Reset();
 		Snap->Telemetry.AddDefaulted(Snap->Fires.Num());
+		Snap->LodRender.Reset();
 		UWorld* NoteWorld = GetWorld();
 		UAnomalyInjectorSubsystem* NoteInjector =
 			NoteWorld ? NoteWorld->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
@@ -6486,6 +6509,54 @@ void UAnomalyCaptureSubsystem::SampleDeferredActiveState()
 					break;
 				}
 			}
+		}
+	}
+
+	if (Async->SveCapturer.IsValid())
+	{
+		static const FString GLodComponentKey(TEXT("lod.component"));
+		static const FString GLodHeldKey(TEXT("lod.held"));
+		TArray<FAnomalyLodRenderProbe> LodProbes;
+		for (int32 i = 0; i < Snap->Fires.Num(); ++i)
+		{
+			if (Snap->Fires[i].Id != FName(TEXT("lod_popping")) || !Snap->Telemetry.IsValidIndex(i))
+			{
+				continue;
+			}
+			bool bHeld = false;
+			FString ComponentName;
+			for (const TPair<FString, bool>& KV : Snap->Telemetry[i].Bools)
+			{
+				if (KV.Key == GLodHeldKey) { bHeld = KV.Value; }
+			}
+			for (const TPair<FString, FString>& KV : Snap->Telemetry[i].Strings)
+			{
+				if (KV.Key == GLodComponentKey) { ComponentName = KV.Value; }
+			}
+			const AActor* LodActor = Snap->Fires[i].TargetActor.Get();
+			if (!bHeld || !LodActor || ComponentName.IsEmpty())
+			{
+				continue;
+			}
+			TInlineComponentArray<UStaticMeshComponent*> Comps;
+			LodActor->GetComponents(Comps);
+			for (const UStaticMeshComponent* C : Comps)
+			{
+				FAnomalyLodRenderProbe P;
+				if (C && C->GetName() == ComponentName
+					&& AnomalyLod::GetRenderProbeInputs(C, P.RenderData, P.MinLod, P.NumLods, P.FactorScale))
+				{
+					P.FireIndex = i;
+					P.Origin = C->Bounds.Origin;
+					P.Radius = (float)C->Bounds.SphereRadius;
+					LodProbes.Add(P);
+					break;
+				}
+			}
+		}
+		if (LodProbes.Num() > 0)
+		{
+			Async->SveCapturer->SetLodWatch(DeferredActiveRequestId, MoveTemp(LodProbes));
 		}
 	}
 

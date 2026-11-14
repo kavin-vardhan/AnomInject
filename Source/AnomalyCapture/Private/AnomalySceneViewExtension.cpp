@@ -195,6 +195,12 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	{
 		FAnomalySveCapturer::SampleRenderMips_RenderThread(RenderWatch, RenderMips);
 	}
+	TArray<FAnomalyLodRenderProbe> LodProbes;
+	TArray<FAnomalyLodRenderResult> LodRender;
+	if (Cap->TakeLodWatch_RenderThread(Entry.RequestId, LodProbes))
+	{
+		FAnomalySveCapturer::SampleLods_RenderThread(LodProbes, View, LodRender);
+	}
 	FAnomalyChangeReceipt ChangeSubmission;
 	if (auto* Data = FAnomalyChangeFamilyData::Find(View.Family))
 	{
@@ -262,7 +268,7 @@ FScreenPassTexture FAnomalySceneViewExtension::AfterPass_RenderThread(FRDGBuilde
 	Cap->SubmitInFlight_RenderThread(Entry.RequestId, Rect, SourceExtent, Texture->Desc.Format,
 		MoveTemp(Readback), MoveTemp(LegacyReadback), ChangeSubmission, MoveTemp(RenderMips), bRenderRecord,
 		(int32)View.AntiAliasingMethod, View.Family != nullptr,
-		View.Family && View.Family->GetTemporalUpscalerInterface() != nullptr);
+		View.Family && View.Family->GetTemporalUpscalerInterface() != nullptr, MoveTemp(LodRender));
 
 	return FinalizeSveAfterPassOutput(GraphBuilder, View, Inputs, SceneColor);
 }

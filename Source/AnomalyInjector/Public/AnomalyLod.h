@@ -8,6 +8,7 @@ class UMeshComponent;
 class UStaticMeshComponent;
 class FSceneView;
 class FSceneViewFamilyContext;
+class FStaticMeshRenderData;
 
 namespace AnomalyLod
 {
@@ -50,6 +51,9 @@ namespace AnomalyLod
 	ANOMALYINJECTOR_API FEngineLodPrediction PredictEngineLod(UWorld* World, const UStaticMeshComponent* Component);
 
 	ANOMALYINJECTOR_API int32 GetLodTriangleCount(const UStaticMeshComponent* Component, int32 LodIndex);
+
+	ANOMALYINJECTOR_API bool GetRenderProbeInputs(const UStaticMeshComponent* Component, const FStaticMeshRenderData*& OutData,
+		int32& OutMinLod, int32& OutNumLods, float& OutFactorScale);
 
 	ANOMALYINJECTOR_API int32 GetLodScreenSizes(const UStaticMeshComponent* Component, float (&OutSizes)[MaxLodEntries],
 		int32 (&OutTriangles)[MaxLodEntries]);

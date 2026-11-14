@@ -17,6 +17,7 @@
 #include "RHIGPUReadback.h"
 #include "PixelFormat.h"
 #include "HAL/ThreadSafeCounter.h"
+#include "AnomalyLodRenderRecord.h"
 
 class SWindow;
 struct FAnomalyChangeReceipt;
@@ -50,6 +51,7 @@ struct FAnomalyCapturedFrame
 	TSharedPtr<const FAnomalyChangeReceipt, ESPMode::ThreadSafe> ChangeReceipt;
 	TArray<FAnomalyRenderMipSample> RenderMips;
 	bool bRenderRecord = false;
+	TArray<FAnomalyLodRenderResult> LodRender;
 	int32 TemporalAaMethod = -1;
 	bool bTemporalViewKnown = false;
 	bool bTemporalUpscaler = false;

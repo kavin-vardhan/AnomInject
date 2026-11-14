@@ -53,6 +53,10 @@ public:
 	bool ExtendRenderWatch(uint64 RequestId, const TArray<class UTexture2D*>& Added);
 	bool TakeRenderWatch_RenderThread(uint64 RequestId, TArray<class UTexture2D*>& Out);
 	static void SampleRenderMips_RenderThread(const TArray<class UTexture2D*>& Watch, TArray<FAnomalyRenderMipSample>& Out);
+	bool SetLodWatch(uint64 RequestId, TArray<FAnomalyLodRenderProbe>&& Probes);
+	bool TakeLodWatch_RenderThread(uint64 RequestId, TArray<FAnomalyLodRenderProbe>& Out);
+	static void SampleLods_RenderThread(const TArray<FAnomalyLodRenderProbe>& Probes, const class FSceneView& View,
+		TArray<FAnomalyLodRenderResult>& Out);
 	void CancelPendingOtherGeneration(const FAnomalyChangeIssuePtr& Current, TArray<uint64>& Cancelled);
 	FAnomalyChangeIssuePtr PeekChangeIssue() const;
 	FAnomalyChangeIssuePtr GetOwnerIssue() const;
@@ -65,7 +69,8 @@ public:
 		TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback = TUniquePtr<FRHIGPUTextureReadback>(),
 		const FAnomalyChangeReceipt& ChangeSubmission = FAnomalyChangeReceipt(),
 		TArray<FAnomalyRenderMipSample>&& RenderMips = TArray<FAnomalyRenderMipSample>(), bool bRenderRecord = false,
-		int32 TemporalAaMethod = -1, bool bTemporalViewKnown = false, bool bTemporalUpscaler = false);
+		int32 TemporalAaMethod = -1, bool bTemporalViewKnown = false, bool bTemporalUpscaler = false,
+		TArray<FAnomalyLodRenderResult>&& LodRender = TArray<FAnomalyLodRenderResult>());
 
 	int32 GetDualPathComparisons() const;
 	int32 GetDualPathMismatches() const;
@@ -95,6 +100,7 @@ private:
 		FAnomalyChangeReceipt ChangeSubmission;
 		TArray<FAnomalyRenderMipSample> RenderMips;
 		bool bRenderRecord = false;
+		TArray<FAnomalyLodRenderResult> LodRender;
 		int32 TemporalAaMethod = -1;
 		bool bTemporalViewKnown = false;
 		bool bTemporalUpscaler = false;
@@ -106,6 +112,7 @@ private:
 	TArray<uint64> PendingWanted;
 	TMap<uint64, FAnomalyChangeIssuePtr> PendingIssues;
 	TMap<uint64, TArray<class UTexture2D*>> RenderWatchByRequest;
+	TMap<uint64, TArray<FAnomalyLodRenderProbe>> LodWatchByRequest;
 	TWeakPtr<FAnomalyChangeStage, ESPMode::ThreadSafe> ChangeStage;
 	FAnomalyChangeIssuePtr LastIssuedIdentity;
 	FAnomalySveHandshakeStats Handshake;

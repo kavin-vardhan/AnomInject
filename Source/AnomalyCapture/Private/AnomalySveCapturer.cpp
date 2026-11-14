@@ -18,6 +18,52 @@
 #include "RenderingThread.h"
 #include "Rendering/StreamableTextureResource.h"
 #include "TextureResource.h"
+#include "SceneView.h"
+#include "SceneManagement.h"
+#include "StaticMeshResources.h"
+
+bool FAnomalySveCapturer::SetLodWatch(uint64 RequestId, TArray<FAnomalyLodRenderProbe>&& Probes)
+{
+	FScopeLock Lock(&StateCS);
+	if (!PendingWanted.Contains(RequestId))
+	{
+		return false;
+	}
+	LodWatchByRequest.Add(RequestId, MoveTemp(Probes));
+	return true;
+}
+
+bool FAnomalySveCapturer::TakeLodWatch_RenderThread(uint64 RequestId, TArray<FAnomalyLodRenderProbe>& Out)
+{
+	FScopeLock Lock(&StateCS);
+	TArray<FAnomalyLodRenderProbe>* Found = LodWatchByRequest.Find(RequestId);
+	if (!Found)
+	{
+		return false;
+	}
+	Out = MoveTemp(*Found);
+	LodWatchByRequest.Remove(RequestId);
+	return true;
+}
+
+void FAnomalySveCapturer::SampleLods_RenderThread(const TArray<FAnomalyLodRenderProbe>& Probes, const FSceneView& View,
+	TArray<FAnomalyLodRenderResult>& Out)
+{
+	Out.Reset();
+	for (const FAnomalyLodRenderProbe& P : Probes)
+	{
+		FAnomalyLodRenderResult R;
+		R.FireIndex = P.FireIndex;
+		if (P.RenderData && P.NumLods > 0)
+		{
+			const int32 Max = P.NumLods - 1;
+			R.EngineLod = FMath::Clamp((int32)ComputeStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, P.MinLod, P.FactorScale), P.MinLod, Max);
+			R.TemporalLod0 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, P.MinLod, P.FactorScale, 0), P.MinLod, Max);
+			R.TemporalLod1 = FMath::Clamp((int32)ComputeTemporalStaticMeshLOD(P.RenderData, P.Origin, P.Radius, View, P.MinLod, P.FactorScale, 1), P.MinLod, Max);
+		}
+		Out.Add(R);
+	}
+}
 
 void FAnomalySveCapturer::SetActive(bool bInActive)
 {
@@ -216,6 +262,7 @@ void FAnomalySveCapturer::Reset()
 		PendingWanted.Reset();
 		PendingIssues.Reset();
 		RenderWatchByRequest.Reset();
+		LodWatchByRequest.Reset();
 		ChangeStage.Reset();
 		LastIssuedIdentity.Reset();
 		Handshake = FAnomalySveHandshakeStats();
@@ -263,7 +310,7 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	const FIntPoint& SourceExtent, EPixelFormat Format, TUniquePtr<FRHIGPUTextureReadback>&& Readback,
 	TUniquePtr<FRHIGPUTextureReadback>&& LegacyReadback, const FAnomalyChangeReceipt& ChangeSubmission,
 	TArray<FAnomalyRenderMipSample>&& RenderMips, bool bRenderRecord,
-	int32 TemporalAaMethod, bool bTemporalViewKnown, bool bTemporalUpscaler)
+	int32 TemporalAaMethod, bool bTemporalViewKnown, bool bTemporalUpscaler, TArray<FAnomalyLodRenderResult>&& LodRender)
 {
 	const bool bDual = LegacyReadback.IsValid();
 
@@ -278,6 +325,7 @@ void FAnomalySveCapturer::SubmitInFlight_RenderThread(uint64 RequestId, const FI
 	Item.ChangeSubmission = ChangeSubmission;
 	Item.RenderMips = MoveTemp(RenderMips);
 	Item.bRenderRecord = bRenderRecord;
+	Item.LodRender = MoveTemp(LodRender);
 	Item.TemporalAaMethod = TemporalAaMethod;
 	Item.bTemporalViewKnown = bTemporalViewKnown;
 	Item.bTemporalUpscaler = bTemporalUpscaler;
@@ -515,6 +563,7 @@ void FAnomalySveCapturer::Drain_RenderThread()
 			Frame.BytesPerPixel = BPP;
 			Frame.RenderMips = MoveTemp(Item.RenderMips);
 			Frame.bRenderRecord = Item.bRenderRecord;
+			Frame.LodRender = MoveTemp(Item.LodRender);
 			Frame.TemporalAaMethod = Item.TemporalAaMethod;
 			Frame.bTemporalViewKnown = Item.bTemporalViewKnown;
 			Frame.bTemporalUpscaler = Item.bTemporalUpscaler;
