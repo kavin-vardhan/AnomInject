@@ -49,6 +49,10 @@ public:
 
 	virtual bool HasDeferredOnset() const { return false; }
 
+	virtual int32 GetDeferredOnsetTimeoutFrames() const { return -1; }
+
+	virtual bool IsHoldingEventOpen() const { return false; }
+
 	virtual bool UsesRenderResidencyTruth() const { return false; }
 
 	virtual bool GetRenderTruthTextures(TArray<FAnomalyRenderTruthTexture>& Out) const { return false; }

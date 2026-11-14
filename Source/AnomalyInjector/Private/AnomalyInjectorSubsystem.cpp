@@ -1202,6 +1202,26 @@ bool UAnomalyInjectorSubsystem::DoesAnomalyHaveDeferredOnset(const FName& Id) co
 	return (*Found)->HasDeferredOnset();
 }
 
+int32 UAnomalyInjectorSubsystem::GetAnomalyDeferredOnsetTimeoutFrames(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid())
+	{
+		return -1;
+	}
+	return (*Found)->GetDeferredOnsetTimeoutFrames();
+}
+
+bool UAnomalyInjectorSubsystem::IsAnomalyHoldingEventOpen(const FName& Id) const
+{
+	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
+	if (!Found || !Found->IsValid() || !(*Found)->IsActive())
+	{
+		return false;
+	}
+	return (*Found)->IsHoldingEventOpen();
+}
+
 bool UAnomalyInjectorSubsystem::DoesAnomalyUseRenderTruth(const FName& Id) const
 {
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);

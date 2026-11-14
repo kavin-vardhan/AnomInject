@@ -24,7 +24,9 @@ namespace AnomalyLabelSync
 	static constexpr unsigned short ReasonCaptureUnpaired = 128;
 	static constexpr unsigned short ReasonPieEndSettle = 256;
 	static constexpr unsigned short ReasonSettle = 512;
-	static constexpr int NumReasons = 10;
+	static constexpr unsigned short ReasonLodSubvisible = 1024;
+	static constexpr unsigned short ReasonLodUnconfirmed = 2048;
+	static constexpr int NumReasons = 12;
 
 	inline const char* DescribeReasonBit(int Bit)
 	{
@@ -40,6 +42,8 @@ namespace AnomalyLabelSync
 		case 7: return "capture_unpaired";
 		case 8: return "pie_end_settle";
 		case 9: return "settle";
+		case 10: return "lod_subvisible";
+		case 11: return "lod_unconfirmed";
 		default: return "unknown";
 		}
 	}
@@ -48,7 +52,7 @@ namespace AnomalyLabelSync
 	{
 		return (Value != 0 && (Value & (ReasonTemporal | ReasonHideReturn | ReasonPartial | ReasonCameraUnconfirmed
 			| ReasonUnresolved | ReasonEffectInterrupted | ReasonNaniteUnmaskable | ReasonCaptureUnpaired
-			| ReasonPieEndSettle | ReasonSettle)) == 0)
+			| ReasonPieEndSettle | ReasonSettle | ReasonLodSubvisible | ReasonLodUnconfirmed)) == 0)
 			? ReasonTemporal : Value;
 	}
 

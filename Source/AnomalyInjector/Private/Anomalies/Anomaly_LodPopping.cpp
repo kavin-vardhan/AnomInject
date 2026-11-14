@@ -421,6 +421,7 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 	Tracker.bHeld = true;
 	HistoryCount = 0;
 	SwapsRecorded = 0;
+	bHoldOpenAtLastTickEnd = false;
 	Eval = FTickEndEval();
 	AppliedFrame = GFrameCounter;
 	LastCommittedFrame = 0;
@@ -484,7 +485,7 @@ const FAnomaly_LodPopping::FTickEndEval& FAnomaly_LodPopping::EvaluateNow() cons
 	}
 	FTracker Copy = Tracker;
 	E.Observation = ObserveFrame(Copy, E.Input, Settings);
-	E.bHoldOpen = IsHoldingEventOpen(Copy);
+	E.bHoldOpen = AnomalyLodTriggerRule::IsHoldingEventOpen(Copy);
 	E.bCapReached = Copy.bCapReached;
 	Eval = E;
 	return Eval;
@@ -596,6 +597,7 @@ void FAnomaly_LodPopping::ReleaseSpatial()
 	Eval = FTickEndEval();
 	HistoryCount = 0;
 	SwapsRecorded = 0;
+	bHoldOpenAtLastTickEnd = false;
 	AppliedFrame = 0;
 	LastCommittedFrame = 0;
 }
@@ -618,6 +620,22 @@ void FAnomaly_LodPopping::Revert()
 	FramesSinceToggle = 0;
 	bPoppedPhase = false;
 	bActive = false;
+}
+
+int32 FAnomaly_LodPopping::GetDeferredOnsetTimeoutFrames() const
+{
+	return Mode == AnomalyLodTriggerRule::EMode::Periodic ? -1
+		: AnomalyDefaults::GetLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::ArmTimeoutFrames);
+}
+
+bool FAnomaly_LodPopping::IsHoldingEventOpen() const
+{
+	return bActive && Mode != AnomalyLodTriggerRule::EMode::Periodic && bHoldOpenAtLastTickEnd;
+}
+
+void FAnomaly_LodPopping::NoteCapturedFrame(bool bAnomalousThisFrame)
+{
+	bHoldOpenAtLastTickEnd = bActive && Mode != AnomalyLodTriggerRule::EMode::Periodic && EvaluateNow().bHoldOpen;
 }
 
 bool FAnomaly_LodPopping::IsCurrentlyAnomalous() const

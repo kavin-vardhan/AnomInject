@@ -128,6 +128,10 @@ public:
 
 	bool DoesAnomalyHaveDeferredOnset(const FName& Id) const;
 
+	int32 GetAnomalyDeferredOnsetTimeoutFrames(const FName& Id) const;
+
+	bool IsAnomalyHoldingEventOpen(const FName& Id) const;
+
 	bool DoesAnomalyUseRenderTruth(const FName& Id) const;
 
 	bool GetAnomalyRenderTruthTextures(const FName& Id, TArray<FAnomalyRenderTruthTexture>& Out) const;

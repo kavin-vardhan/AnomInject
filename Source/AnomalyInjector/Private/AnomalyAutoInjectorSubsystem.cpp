@@ -1,4 +1,5 @@
 #include "AnomalyAutoInjectorSubsystem.h"
+#include "AnomalyLodTrigger.h"
 #if __has_include("Stats/LightweightStats.h")
 #include "Stats/LightweightStats.h"
 #endif
@@ -298,6 +299,8 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	Eligible.Reserve(GNumAutoPool);
 	TArray<FName> ExcludedIds;
 	TArray<FAnomalyPartnerExclusion> ExcludedWhy;
+	static const FName GLodPoppingId(TEXT("lod_popping"));
+	TArray<TWeakObjectPtr<AActor>> LodCandidates;
 	for (const FName& Id : GAutoPool)
 	{
 		if (!EnabledIds.Contains(Id) || IsIdLive(Id))
@@ -307,6 +310,27 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		if (IsSessionGlobalId(Injector, Id))
 		{
 			continue;
+		}
+		if (Id == GLodPoppingId)
+		{
+			TMap<FString, int32> LodRefusals;
+			LodCandidates = AnomalyLodTrigger::CollectArmableActors(World, LodRefusals);
+			if (LodCandidates.Num() == 0)
+			{
+				FString Dominant(TEXT("no_candidate"));
+				int32 Best = 0;
+				for (const TPair<FString, int32>& KV : LodRefusals)
+				{
+					if (KV.Value > Best || (KV.Value == Best && KV.Key < Dominant))
+					{
+						Dominant = KV.Key;
+						Best = KV.Value;
+					}
+				}
+				NoteYieldRound(Id, TEXT("auto-pool"), false, TMap<FString, int32>{ { FString(TEXT("lod_not_armable:")) + Dominant, 1 } });
+				UE_LOG(LogAnomaly, Verbose, TEXT("Auto.Fire: lod_popping left out of this round (lod_not_armable:%s) - nothing the camera is approaching or turning toward can be armed now."), *Dominant);
+				continue;
+			}
 		}
 		const FAnomalyPartnerExclusion Excl = Injector->EvaluatePartnerExclusion(Id);
 		if (Excl.bExcluded)
@@ -402,7 +426,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	{
 		const FName DrawnId = Eligible.IsValidIndex(IdIndex) ? Eligible[IdIndex] : NAME_None;
 		const bool bTexCorruptId = AnomalyTexCorrupt::IsTexCorruptId(DrawnId);
-		for (const TWeakObjectPtr<AActor>& Weak : Visible)
+		for (const TWeakObjectPtr<AActor>& Weak : (DrawnId == GLodPoppingId ? LodCandidates : Visible))
 		{
 			AActor* Actor = Weak.Get();
 			if (!Actor || IsActorLive(Actor))

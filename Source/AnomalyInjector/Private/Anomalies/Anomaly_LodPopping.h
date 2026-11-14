@@ -21,6 +21,9 @@ public:
 	virtual bool IsActive() const override { return bActive; }
 	virtual bool IsCurrentlyAnomalous() const override;
 	virtual bool HasDeferredOnset() const override { return Mode != AnomalyLodTriggerRule::EMode::Periodic; }
+	virtual int32 GetDeferredOnsetTimeoutFrames() const override;
+	virtual bool IsHoldingEventOpen() const override;
+	virtual void NoteCapturedFrame(bool bAnomalousThisFrame) override;
 	virtual bool GetTelemetry(FAnomalyTelemetry& Out) const override;
 	virtual bool WantsTargetLostNotification() const override { return bActive && Mode != AnomalyLodTriggerRule::EMode::Periodic; }
 	virtual void OnTargetLost(AActor* Actor, bool bWorldEnding) override;
@@ -77,6 +80,7 @@ private:
 	double TimeHistory[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 	int32 HistoryCount = 0;
 	int32 SwapsRecorded = 0;
+	bool bHoldOpenAtLastTickEnd = false;
 	mutable FTickEndEval Eval;
 
 	static constexpr int32 DefaultHalfPeriodFrames = 8;

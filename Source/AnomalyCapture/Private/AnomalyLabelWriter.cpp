@@ -941,6 +941,44 @@ namespace AnomalyLabel
 		return Marked;
 	}
 
+	int32 MarkLodSubvisible(FCaptureSnapshot& Snapshot)
+	{
+		static const FString GLodId(TEXT("lod_popping"));
+		static const FString GSubvisibleKey(TEXT("lod.subvisible"));
+		const int32 N = Snapshot.Fires.Num();
+		int32 Marked = 0;
+		for (int32 i = 0; i < N; ++i)
+		{
+			if (Snapshot.Fires[i].Id.ToString() != GLodId || !Snapshot.Telemetry.IsValidIndex(i))
+			{
+				continue;
+			}
+			bool bSubvisible = false;
+			for (const TPair<FString, bool>& KV : Snapshot.Telemetry[i].Bools)
+			{
+				if (KV.Key == GSubvisibleKey)
+				{
+					bSubvisible = KV.Value;
+					break;
+				}
+			}
+			if (!bSubvisible)
+			{
+				continue;
+			}
+			if (Snapshot.EntryEmit.Num() != N) { Snapshot.EntryEmit.SetNumZeroed(N); }
+			if (Snapshot.EntryTransition.Num() != N) { Snapshot.EntryTransition.SetNumZeroed(N); }
+			if ((AnomalyLabelSync::EEntryEmit)Snapshot.EntryEmit[i] == AnomalyLabelSync::EEntryEmit::Suppress)
+			{
+				continue;
+			}
+			Snapshot.EntryEmit[i] = (uint8)AnomalyLabelSync::EEntryEmit::TransitionOnly;
+			Snapshot.EntryTransition[i] |= AnomalyLabelSync::ReasonLodSubvisible;
+			++Marked;
+		}
+		return Marked;
+	}
+
 	bool FrameHasPartialLabelledEntry(const FCaptureSnapshot& Snapshot)
 	{
 		for (int32 i = 0; i < Snapshot.Fires.Num(); ++i)
@@ -1120,10 +1158,37 @@ namespace AnomalyLabel
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip,
 		int32 RefusedNaniteTargets, const FString& NaniteTargetPolicy,
-		int32 BlinkTerrainEvents, int32 TerrainUnlabelableRefusals, const FContinuityTelemetry* Continuity)
+		int32 BlinkTerrainEvents, int32 TerrainUnlabelableRefusals, const FContinuityTelemetry* Continuity,
+		const FLodTriggerTelemetry* Lod)
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("type"), TEXT("run_summary"));
+		if (Lod && Lod->bAny)
+		{
+			TSharedRef<FJsonObject> Kinds = MakeShared<FJsonObject>();
+			for (const TCHAR* K : { TEXT("spatial_swap"), TEXT("hold_cap_only"), TEXT("no_swap"), TEXT("periodic") })
+			{
+				Kinds->SetNumberField(K, Lod->EventsByKind.FindRef(K));
+			}
+			Root->SetObjectField(TEXT("lod_events_by_kind"), Kinds);
+			TSharedRef<FJsonObject> Causes = MakeShared<FJsonObject>();
+			for (const TCHAR* C : { TEXT("distance"), TEXT("view_entry"), TEXT("hold_cap") })
+			{
+				Causes->SetNumberField(C, Lod->SwapsByCause.FindRef(C));
+			}
+			Root->SetObjectField(TEXT("lod_swaps_by_cause"), Causes);
+			TArray<FString> Ids = Lod->UntriggeredEventIds;
+			Ids.Sort();
+			TArray<TSharedPtr<FJsonValue>> IdValues;
+			for (const FString& Id : Ids) { IdValues.Add(MakeShared<FJsonValueString>(Id)); }
+			Root->SetNumberField(TEXT("lod_untriggered"), Ids.Num());
+			Root->SetArrayField(TEXT("lod_untriggered_event_ids"), IdValues);
+			Root->SetNumberField(TEXT("lod_arm_timeouts"), Lod->ArmTimeouts);
+			Root->SetNumberField(TEXT("lod_window_extension_frames"), Lod->WindowExtensionFrames);
+			Root->SetNumberField(TEXT("lod_render_checked_frames"), Lod->RenderCheckedFrames);
+			Root->SetNumberField(TEXT("lod_render_mismatch_frames"), Lod->RenderMismatchFrames);
+			Root->SetStringField(TEXT("lod_trigger_settings"), Lod->Settings);
+		}
 		if (Continuity)
 		{
 			Root->SetNumberField(TEXT("capture_span_ticks"), Continuity->SpanTicks);
@@ -1407,6 +1472,8 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("label_transition_capture_unpaired_entries"), LabelSync->ReasonEntries[7]);
 			Root->SetNumberField(TEXT("label_transition_pie_end_settle_entries"), LabelSync->ReasonEntries[8]);
 			Root->SetNumberField(TEXT("label_transition_settle_entries"), LabelSync->ReasonEntries[9]);
+			Root->SetNumberField(TEXT("label_transition_lod_subvisible_entries"), LabelSync->ReasonEntries[10]);
+			Root->SetNumberField(TEXT("label_transition_lod_unconfirmed_entries"), LabelSync->ReasonEntries[11]);
 			Root->SetNumberField(TEXT("settle_frames"), LabelSync->SettleFrames);
 			Root->SetBoolField(TEXT("pie_end_settle_active"), LabelSync->bPieEndSettleActive);
 			Root->SetNumberField(TEXT("pie_end_settle_frames"), LabelSync->PieEndSettleFrames);
@@ -1513,7 +1580,7 @@ namespace AnomalyLabel
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetNumberField(TEXT("label_schema"), 2);
-		Root->SetNumberField(TEXT("label_schema_minor"), 2);
+		Root->SetNumberField(TEXT("label_schema_minor"), 3);
 		Root->SetStringField(TEXT("session_id"), A.SessionId);
 		TSet<int32> TransitionFrames;
 		for (const TPair<FString, FSessionTransition>& KV : A.Transitions)
@@ -1560,6 +1627,35 @@ namespace AnomalyLabel
 			O->SetStringField(TEXT("anomaly_type"), E.AnomalyType);
 			O->SetStringField(TEXT("anomaly_subtype"), E.AnomalySubtype);
 			if (!E.StuckMipRoute.IsEmpty()) { O->SetStringField(TEXT("stuck_mip_route"), E.StuckMipRoute); }
+			if (E.bLod)
+			{
+				O->SetStringField(TEXT("lod_trigger"), E.LodTrigger);
+				O->SetNumberField(TEXT("lod_held_lod"), E.LodHeldLod);
+				O->SetStringField(TEXT("lod_event_kind"), E.LodEventKind);
+				O->SetBoolField(TEXT("lod_spatial_swap_visible"), E.bLodSpatialSwapVisible);
+				TArray<TSharedPtr<FJsonValue>> SwapFrames;
+				TArray<TSharedPtr<FJsonValue>> Swaps;
+				for (const FLodSwapRecord& W : E.LodSwaps)
+				{
+					SwapFrames.Add(LabelNum(W.Frame));
+					TSharedRef<FJsonObject> SO = MakeShared<FJsonObject>();
+					SO->SetNumberField(TEXT("frame"), W.Frame);
+					SO->SetNumberField(TEXT("tick_index"), W.Tick);
+					SO->SetStringField(TEXT("cause"), W.Cause);
+					SO->SetStringField(TEXT("direction"), W.Direction);
+					SO->SetNumberField(TEXT("from_lod"), W.FromLod);
+					SO->SetNumberField(TEXT("to_lod"), W.ToLod);
+					SO->SetNumberField(TEXT("screen_size"), W.ScreenSize);
+					SO->SetNumberField(TEXT("distance_cm"), W.DistanceCm);
+					SO->SetNumberField(TEXT("coverage_pct"), W.CoveragePct);
+					SO->SetBoolField(TEXT("on_screen"), W.bOnScreen);
+					Swaps.Add(MakeShared<FJsonValueObject>(SO));
+				}
+				O->SetArrayField(TEXT("lod_swap_frames"), SwapFrames);
+				O->SetArrayField(TEXT("lod_swaps"), Swaps);
+				O->SetNumberField(TEXT("lod_trigger_screen_size"), E.LodSwaps.Num() > 0 ? E.LodSwaps[0].ScreenSize : -1.0f);
+				O->SetNumberField(TEXT("lod_trigger_distance_cm"), E.LodSwaps.Num() > 0 ? E.LodSwaps[0].DistanceCm : -1.0f);
+			}
 
 			{
 				TSharedRef<FJsonObject> AF = MakeShared<FJsonObject>();

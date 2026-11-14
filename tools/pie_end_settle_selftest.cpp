@@ -176,7 +176,7 @@ static std::string Str(const std::vector<int>& V)
 
 static void TestReasonBit()
 {
-	Check(ReasonPieEndSettle == 256 && NumReasons == 10 && std::string(DescribeReasonBit(8)) == "pie_end_settle",
+	Check(ReasonPieEndSettle == 256 && NumReasons == 12 && std::string(DescribeReasonBit(8)) == "pie_end_settle",
 		"reason: pie_end_settle is the ninth reason bit (256); the tenth is settle (512)");
 	const unsigned short Others[] = { ReasonTemporal, ReasonHideReturn, ReasonPartial, ReasonCameraUnconfirmed, ReasonUnresolved,
 		ReasonEffectInterrupted, ReasonNaniteUnmaskable, ReasonCaptureUnpaired };
@@ -194,7 +194,7 @@ static void TestReasonBit()
 
 static void TestSettleReason()
 {
-	Check(ReasonSettle == 512 && NumReasons == 10 && std::string(DescribeReasonBit(9)) == "settle"
+	Check(ReasonSettle == 512 && NumReasons == 12 && std::string(DescribeReasonBit(9)) == "settle"
 		&& std::string(DescribeReasonBit(9)) != std::string(DescribeReasonBit(8)),
 		"settle: the tenth reason bit (512), named settle and not pie_end_settle");
 	const unsigned short Others[] = { ReasonTemporal, ReasonHideReturn, ReasonPartial, ReasonCameraUnconfirmed, ReasonUnresolved,
@@ -205,6 +205,12 @@ static void TestSettleReason()
 		bDisjoint = bDisjoint && (O & ReasonSettle) == 0;
 	}
 	Check(bDisjoint, "settle: shares no bit with any other reason, pie_end_settle included");
+	Check(ReasonLodSubvisible == 1024 && ReasonLodUnconfirmed == 2048 && std::string(DescribeReasonBit(10)) == "lod_subvisible"
+		&& std::string(DescribeReasonBit(11)) == "lod_unconfirmed" && std::string(DescribeReasonBit(12)) == "unknown",
+		"m57 reasons: lod_subvisible is bit 10 (1024), lod_unconfirmed bit 11 (2048), nothing past 11");
+	Check(ReasonsOrLegacy(ReasonLodSubvisible) == ReasonLodSubvisible && ReasonsOrLegacy(ReasonLodUnconfirmed) == ReasonLodUnconfirmed
+		&& ReasonsOrLegacy((unsigned short)(ReasonLodSubvisible | ReasonSettle)) == (unsigned short)(ReasonLodSubvisible | ReasonSettle),
+		"m57 reasons are known bits, so the legacy mapping never turns them into temporal_aa");
 	Check(ReasonsOrLegacy(ReasonSettle) == ReasonSettle && (ReasonsOrLegacy(ReasonSettle) & ReasonTemporal) == 0,
 		"settle: never rewritten as a legacy temporal (anti-aliasing) flag");
 	Check(IsSettleRole(EFrameRole::SettleAfterOnset) && IsSettleRole(EFrameRole::SettleAfterOffset) && !IsSettleRole(EFrameRole::Normal),

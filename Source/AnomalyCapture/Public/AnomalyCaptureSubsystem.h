@@ -339,6 +339,8 @@ private:
 	void FreezeEventAnchor(const struct FAutoLiveFireInfo& F);
 	bool BurstAwaitsDeferredOnset(int32& OutPendingFires) const;
 	void NoteDeferredOnsetTimeout();
+	int32 ResolveBurstDeferredOnsetTimeout() const;
+	bool BurstHoldsEventOpen() const;
 	void FinishRun(bool bLogLine);
 	void PaceThisTick();
 	void StampArmWallClock(double NowWall);
@@ -494,6 +496,16 @@ private:
 	int32 DeferredOnsetWaitFrames = 0;
 	int32 DeferredOnsetTimeouts = 0;
 	int32 DeferredOnsetPrerollMax = -1;
+	TMap<FName, int32> DeferredOnsetTimeoutsById;
+	bool bPositivesExtending = false;
+	int32 PositivesExtensionFramesThisBurst = 0;
+	int32 LodWindowExtensionFrames = 0;
+	bool bLodFiredThisRun = false;
+	TArray<FString> LodUntriggeredEventIds;
+	TMap<FString, int32> LodEventsByKind;
+	TMap<FString, int32> LodSwapsByCause;
+	int32 LodRenderMismatchFrames = 0;
+	int32 LodRenderCheckedFrames = 0;
 
 	int32 ViewLagFrames = 0;
 	TArray<FAnomalyViewInfo> ViewRing;

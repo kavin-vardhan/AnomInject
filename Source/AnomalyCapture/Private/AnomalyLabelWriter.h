@@ -167,6 +167,8 @@ namespace AnomalyLabel
 
 	int32 MarkNaniteUnmaskable(FCaptureSnapshot& Snapshot);
 
+	int32 MarkLodSubvisible(FCaptureSnapshot& Snapshot);
+
 	bool FrameHasPartialLabelledEntry(const FCaptureSnapshot& Snapshot);
 
 	static constexpr int32 GTargetPixelsUnmeasured = -1;
@@ -291,7 +293,20 @@ namespace AnomalyLabel
 		const struct FLabelSyncTelemetry* LabelSync = nullptr, const ::FCameraClipRunAccum* CameraClip = nullptr,
 		int32 RefusedNaniteTargets = 0, const FString& NaniteTargetPolicy = FString(),
 		int32 BlinkTerrainEvents = 0, int32 TerrainUnlabelableRefusals = 0,
-		const struct FContinuityTelemetry* Continuity = nullptr);
+		const struct FContinuityTelemetry* Continuity = nullptr, const struct FLodTriggerTelemetry* Lod = nullptr);
+
+	struct FLodTriggerTelemetry
+	{
+		bool bAny = false;
+		TMap<FString, int32> EventsByKind;
+		TMap<FString, int32> SwapsByCause;
+		TArray<FString> UntriggeredEventIds;
+		int32 ArmTimeouts = 0;
+		int32 WindowExtensionFrames = 0;
+		int32 RenderCheckedFrames = 0;
+		int32 RenderMismatchFrames = 0;
+		FString Settings;
+	};
 
 	struct FContinuityTelemetry
 	{
@@ -338,7 +353,7 @@ namespace AnomalyLabel
 		int32 MaskTagRetireHostFlagKept = 0;
 		int32 MaskPriorCollisions = 0;
 		int32 MaskPriorCollisionQuarantined = 0;
-		int32 ReasonEntries[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		int32 ReasonEntries[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 		int32 SettleFrames = 0;
 		bool bPieEndSettleActive = false;
 		int32 PieEndSettleFrames = 0;
@@ -512,6 +527,20 @@ namespace AnomalyLabel
 		FVector BoundsExtent = FVector::ZeroVector;
 	};
 
+	struct FLodSwapRecord
+	{
+		int32 Frame = -1;
+		int32 Tick = -1;
+		FString Cause;
+		FString Direction;
+		int32 FromLod = -1;
+		int32 ToLod = -1;
+		float ScreenSize = -1.0f;
+		float DistanceCm = -1.0f;
+		float CoveragePct = -1.0f;
+		bool bOnScreen = false;
+	};
+
 	struct FSessionEvent
 	{
 		FString EventId;
@@ -545,6 +574,13 @@ namespace AnomalyLabel
 		FString EngineProject;
 
 		bool bMaskProvided = false;
+
+		bool bLod = false;
+		FString LodTrigger;
+		int32 LodHeldLod = -1;
+		TArray<FLodSwapRecord> LodSwaps;
+		FString LodEventKind;
+		bool bLodSpatialSwapVisible = false;
 	};
 
 	struct FSessionAnnotation

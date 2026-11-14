@@ -207,6 +207,15 @@ struct FSessionEventAccum
 	FString StuckMipRoute;
 	uint64 StartFrame = 0;
 
+	bool bLod = false;
+	FString LodTrigger;
+	int32 LodHeldLod = -1;
+	TArray<AnomalyLabel::FLodSwapRecord> LodSwaps;
+	int32 LodLastIndex = -1;
+	bool bLodLastPositive = false;
+	bool bLodLastCapReached = false;
+	AnomalyLabel::FLodSwapRecord LodLast;
+
 	TArray<int32> AffectedFrames;
 	double CoverageSum = 0.0;
 	int32 CoverageCount = 0;
@@ -395,7 +404,7 @@ struct FAnomalyCaptureAsyncState
 	};
 	TMap<FString, FHideTrack> HideTracks;
 	TMap<FString, AnomalyStuckMipWindow::TPartialEdgeTrack<TArray<AnomalyStuckMipWindow::FSIRange>>> PartialTracks;
-	int32 LabelReasonEntries[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	int32 LabelReasonEntries[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	TArray<FAutoLiveFireInfo> SettleRevertedFires;
 	TArray<AnomalyLabel::FFrozenFireGeometry> SettleRevertedGeometry;
 	TSet<int32> SettleFrameSet;
@@ -1189,7 +1198,7 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 			{
 				CaptureCurrentFrame();
 				++DeferredOnsetWaitFrames;
-				if (DeferredOnsetWaitFrames >= DeferredOnsetTimeoutFrames)
+				if (DeferredOnsetWaitFrames >= ResolveBurstDeferredOnsetTimeout())
 				{
 					NoteDeferredOnsetTimeout();
 					BeginRevert();
@@ -1213,7 +1222,21 @@ void UAnomalyCaptureSubsystem::Tick(float DeltaTime)
 			CaptureCurrentFrame();
 			--PhaseFramesLeft;
 		}
-		if (PhaseFramesLeft <= 0) { BeginRevert(); }
+		else if (bPositivesExtending)
+		{
+			CaptureCurrentFrame();
+			++PositivesExtensionFramesThisBurst;
+			++LodWindowExtensionFrames;
+		}
+		if (PhaseFramesLeft <= 0)
+		{
+			bPositivesExtending = BurstHoldsEventOpen();
+			if (bPositivesExtending)
+			{
+				break;
+			}
+			BeginRevert();
+		}
 		break;
 
 	case ECapturePhase::SettleAfterRevert:
@@ -3838,6 +3861,16 @@ void UAnomalyCaptureSubsystem::StartRun(const FString& BaseDir, bool bPng, int32
 	DeferredOnsetPrerollMax = -1;
 	bDeferredOnsetWindowStarted = false;
 	DeferredOnsetWaitFrames = 0;
+	DeferredOnsetTimeoutsById.Reset();
+	bPositivesExtending = false;
+	PositivesExtensionFramesThisBurst = 0;
+	LodWindowExtensionFrames = 0;
+	bLodFiredThisRun = false;
+	LodUntriggeredEventIds.Reset();
+	LodEventsByKind.Reset();
+	LodSwapsByCause.Reset();
+	LodRenderMismatchFrames = 0;
+	LodRenderCheckedFrames = 0;
 	AnomalyStuckMip::ResetRunStats();
 	AnomalyTexCorrupt::ResetRunStats();
 	TexCorruptWarmDraws = -1;
@@ -4428,6 +4461,12 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		TEXT("stream-in is re-asserted before the shortfall is COUNTED AND NAMED. Both are EFFECTIVE READ-BACKS, not ")
 		TEXT("the values requested."),
 		DeferredOnsetTimeoutFrames, *AnomalyDefaults::DescribeStuckMipRestoreTimeout());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(m57): LOD TRIGGER %s coverage_min=%.2f%%. EFFECTIVE READ-BACK. lod_popping fires spatially ")
+		TEXT("(distance_threshold or view_entry); its arm timeout replaces the deferred-onset timeout above for its own fires, a ")
+		TEXT("visibly wrong target holds the positive window open up to the hold cap, and periodic is bench-only."),
+		*AnomalyDefaults::DescribeLodTriggerSettings(), AnomalyDefaults::GetLodPoppingMinCoveragePct());
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m52): VETO ARM WINDOW = %s. EFFECTIVE READ-BACK, not the value requested. A ")
@@ -5294,11 +5333,56 @@ bool UAnomalyCaptureSubsystem::BurstAwaitsDeferredOnset(int32& OutDeferredFires)
 	return OutDeferredFires > 0 && !bAnyHeld;
 }
 
+int32 UAnomalyCaptureSubsystem::ResolveBurstDeferredOnsetTimeout() const
+{
+	int32 Frames = -1;
+	if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
+	{
+		UWorld* World = GetWorld();
+		const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+		for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+		{
+			if (Injector && Injector->DoesAnomalyHaveDeferredOnset(F.Id))
+			{
+				const int32 Own = Injector->GetAnomalyDeferredOnsetTimeoutFrames(F.Id);
+				Frames = FMath::Max(Frames, Own > 0 ? Own : DeferredOnsetTimeoutFrames);
+			}
+		}
+	}
+	return Frames > 0 ? Frames : DeferredOnsetTimeoutFrames;
+}
+
+bool UAnomalyCaptureSubsystem::BurstHoldsEventOpen() const
+{
+	static constexpr int32 ExtensionSafetyFrames = 3000;
+	if (PositivesExtensionFramesThisBurst >= ExtensionSafetyFrames)
+	{
+		UE_LOG(LogAnomalyCapture, Warning,
+			TEXT("Capture(m57): the positive window has been extended %d frame(s), the capture's safety bound; it closes now ")
+			TEXT("whatever the anomaly says. The anomaly's own hold cap should have closed it first."), PositivesExtensionFramesThisBurst);
+		return false;
+	}
+	const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto();
+	UWorld* World = GetWorld();
+	const UAnomalyInjectorSubsystem* Injector = World ? World->GetSubsystem<UAnomalyInjectorSubsystem>() : nullptr;
+	if (!Auto || !Injector)
+	{
+		return false;
+	}
+	for (const FAutoLiveFireInfo& F : Auto->GetLiveFires())
+	{
+		if (Injector->IsAnomalyHoldingEventOpen(F.Id))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void UAnomalyCaptureSubsystem::NoteDeferredOnsetTimeout()
 {
-	++DeferredOnsetTimeouts;
-
 	FString Names;
+	bool bStuckMip = false;
 	if (const UAnomalyAutoInjectorSubsystem* Auto = ResolveAuto())
 	{
 		UWorld* World = GetWorld();
@@ -5308,10 +5392,25 @@ void UAnomalyCaptureSubsystem::NoteDeferredOnsetTimeout()
 			if (Injector && Injector->DoesAnomalyHaveDeferredOnset(F.Id))
 			{
 				Names += FString::Printf(TEXT("%s on '%s' "), *F.Id.ToString(), *F.Target);
+				DeferredOnsetTimeoutsById.FindOrAdd(F.Id) += 1;
+				bStuckMip = bStuckMip || F.Id == FName(TEXT("stuck_low_mip"));
 			}
 		}
 	}
+	if (bStuckMip || Names.IsEmpty())
+	{
+		++DeferredOnsetTimeouts;
+	}
 
+	if (!bStuckMip && !Names.IsEmpty())
+	{
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(m57): ARM TIMEOUT after %d pre-roll frame(s) - %snever became visibly wrong (the camera did not approach or ")
+			TEXT("turn toward the held target), so the burst is reverted with nothing shown. A lod_popping fire with no labelled ")
+			TEXT("frame writes NO event; its id is listed in run_summary.lod_untriggered_event_ids."),
+			DeferredOnsetWaitFrames, *Names);
+		return;
+	}
 	UE_LOG(LogAnomalyCapture, Warning,
 		TEXT("Capture(m52): HOLD TIMEOUT after %d pre-roll frame(s) - %sdid not reach its anomalous condition, so the ")
 		TEXT("burst is reverted WITHOUT opening a positive window. The event is written with manifested=false and zero ")
@@ -5448,6 +5547,8 @@ void UAnomalyCaptureSubsystem::BeginFire()
 {
 	bDeferredOnsetWindowStarted = false;
 	DeferredOnsetWaitFrames = 0;
+	bPositivesExtending = false;
+	PositivesExtensionFramesThisBurst = 0;
 	DetachClosedTrailsForNextFire();
 	if (Async.IsValid())
 	{
@@ -8901,6 +9002,7 @@ void UAnomalyCaptureSubsystem::FillAnnotationInputs(AnomalyLabel::FCaptureSnapsh
 	}
 	AnomalyLabel::MarkInterruptedEffects(Snap);
 	AnomalyLabel::MarkNaniteUnmaskable(Snap);
+	AnomalyLabel::MarkLodSubvisible(Snap);
 }
 
 uint8 UAnomalyCaptureSubsystem::ComputeFireActive(const FAutoLiveFireInfo& F) const
@@ -9956,7 +10058,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			LabelSyncReport.MaskTagRetireHostFlagKept = Async->MaskMeasure.GetTagRetireHostFlagKept();
 			LabelSyncReport.MaskPriorCollisions = Async->MaskMeasure.GetPriorCollisions();
 			LabelSyncReport.MaskPriorCollisionQuarantined = Async->MaskMeasure.GetPriorCollisionQuarantined();
-			static_assert(AnomalyLabelSync::NumReasons == 10, "the reason arrays and the run_summary keys carry ten reasons");
+			static_assert(AnomalyLabelSync::NumReasons == 12, "the reason arrays and the run_summary keys carry twelve reasons");
 			LabelSyncReport.SettleFrames = SettleFramesWritten + (Async->Writer.IsValid() ? Async->Writer->GetSettleWritten() : 0);
 			LabelSyncReport.bPieEndSettleActive = Async->bPieEndSettleActive;
 			LabelSyncReport.PieEndSettleFrames = Async->PieEndSettleFrames;
@@ -10019,6 +10121,16 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 				LabelSyncReport.SuppressedEntries, LabelSyncReport.OutOfOrderFrames, LabelSyncReport.MaskTagRecycles,
 				LabelSyncReport.MaskTagPeakLive, LabelSyncReport.MaskTagExhausted);
 		}
+		AnomalyLabel::FLodTriggerTelemetry LodReport;
+		LodReport.bAny = bLodFiredThisRun || LodUntriggeredEventIds.Num() > 0 || DeferredOnsetTimeoutsById.Contains(FName(TEXT("lod_popping")));
+		LodReport.EventsByKind = LodEventsByKind;
+		LodReport.SwapsByCause = LodSwapsByCause;
+		LodReport.UntriggeredEventIds = LodUntriggeredEventIds;
+		LodReport.ArmTimeouts = DeferredOnsetTimeoutsById.FindRef(FName(TEXT("lod_popping")));
+		LodReport.WindowExtensionFrames = LodWindowExtensionFrames;
+		LodReport.RenderCheckedFrames = LodRenderCheckedFrames;
+		LodReport.RenderMismatchFrames = LodRenderMismatchFrames;
+		LodReport.Settings = AnomalyDefaults::DescribeLodTriggerSettings();
 		AnomalyLabel::FContinuityTelemetry ContinuityReport;
 		{
 			const int32 Span = TicksAtFirstArm >= 0 ? (TicksAtLastArm - TicksAtFirstArm + 1) : 0;
@@ -10097,7 +10209,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			Async.IsValid() ? &LabelSyncReport : nullptr,
 			CameraClipAccum.FramesEvaluated > 0 ? &CameraClipAccum : nullptr,
 			AnomalyViewport::GetNaniteRefusalCount(), AnomalyDefaults::DescribeAllowNaniteTargets(),
-			BlinkTerrainEvents, AnomalyTerrain::GetUnlabelableRefusalCount(), &ContinuityReport);
+			BlinkTerrainEvents, AnomalyTerrain::GetUnlabelableRefusalCount(), &ContinuityReport, &LodReport);
 
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(m48): EXPOSURE DIP SUMMARY frames_exposure_dip=%d of %d captured frame(s), first at ")
@@ -10372,6 +10484,57 @@ void UAnomalyCaptureSubsystem::AccumulateFrameEvents(const TArray<FAutoLiveFireI
 			}
 		}
 
+		if (F.Id == FName(TEXT("lod_popping")) && CapturedTelemetry && CapturedTelemetry->IsValidIndex(i) && !(*CapturedTelemetry)[i].IsEmpty())
+		{
+			const FAnomalyTelemetry& T = (*CapturedTelemetry)[i];
+			AnomalyLabel::FLodSwapRecord Now;
+			Now.Frame = SessionIndex;
+			FString State;
+			bool bSwap = false;
+			bool bCap = false;
+			int32 EngineLod = -1;
+			for (const TPair<FString, FString>& KV : T.Strings)
+			{
+				if (KV.Key == TEXT("lod.trigger")) { Ev->LodTrigger = KV.Value; if (bNewAnchor || Ev->Subtype.IsEmpty()) { Ev->Subtype = KV.Value; } }
+				else if (KV.Key == TEXT("lod.state")) { State = KV.Value; }
+				else if (KV.Key == TEXT("lod.swap_cause")) { Now.Cause = KV.Value; }
+				else if (KV.Key == TEXT("lod.swap_direction")) { Now.Direction = KV.Value; }
+			}
+			for (const TPair<FString, int32>& KV : T.Ints)
+			{
+				if (KV.Key == TEXT("lod.held_lod")) { Ev->LodHeldLod = KV.Value; }
+				else if (KV.Key == TEXT("lod.engine_lod")) { EngineLod = KV.Value; }
+				else if (KV.Key == TEXT("lod.swap_from_lod")) { Now.FromLod = KV.Value; }
+				else if (KV.Key == TEXT("lod.swap_to_lod")) { Now.ToLod = KV.Value; }
+			}
+			for (const TPair<FString, double>& KV : T.Floats)
+			{
+				if (KV.Key == TEXT("lod.screen_size")) { Now.ScreenSize = (float)KV.Value; }
+				else if (KV.Key == TEXT("lod.distance_cm")) { Now.DistanceCm = (float)KV.Value; }
+				else if (KV.Key == TEXT("lod.coverage_pct")) { Now.CoveragePct = (float)KV.Value; }
+			}
+			for (const TPair<FString, bool>& KV : T.Bools)
+			{
+				if (KV.Key == TEXT("lod.swap")) { bSwap = KV.Value; }
+				else if (KV.Key == TEXT("lod.cap_reached")) { bCap = KV.Value; }
+				else if (KV.Key == TEXT("lod.on_screen")) { Now.bOnScreen = KV.Value; }
+			}
+			Ev->bLod = true;
+			if (bSwap)
+			{
+				Ev->LodSwaps.Add(Now);
+			}
+			if (SessionIndex >= Ev->LodLastIndex)
+			{
+				Ev->LodLastIndex = SessionIndex;
+				Ev->bLodLastPositive = State == TEXT("labelled");
+				Ev->bLodLastCapReached = bCap;
+				Ev->LodLast = Now;
+				Ev->LodLast.FromLod = Ev->LodHeldLod;
+				Ev->LodLast.ToLod = EngineLod;
+			}
+		}
+
 		if (bNewAnchor)
 		{
 			Ev->AnchorIndex = SessionIndex;
@@ -10541,6 +10704,20 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 
 		AnomalyLabel::FSessionEvent Out;
 		Out.EventId = FString::Printf(TEXT("%s@%llu|%s"), *Ev.Id.ToString(), Ev.StartFrame, *Ev.Target);
+		const bool bLodEvent = Ev.Id == FName(TEXT("lod_popping"));
+		if (bLodEvent)
+		{
+			bLodFiredThisRun = true;
+		}
+		if (bLodEvent && Ev.LodTrigger != TEXT("periodic") && MemberIdx.Num() == 0)
+		{
+			LodUntriggeredEventIds.Add(Out.EventId);
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m57): lod_popping event %s never became visibly wrong (trigger %s) - NO EVENT is written; its id goes to ")
+				TEXT("run_summary.lod_untriggered_event_ids, and readers accept its orphan settle entries by that id."),
+				*Out.EventId, Ev.LodTrigger.IsEmpty() ? TEXT("none sampled") : *Ev.LodTrigger);
+			continue;
+		}
 		MapAnomalyToClient(Ev.Id, ResolveTerrainSubtype(Out.EventId, Ev.Id, Ev.Target), Out.AnomalyType, Out.AnomalySubtype);
 		Out.StuckMipRoute = Ev.StuckMipRoute;
 		if (!Ev.Subtype.IsEmpty())
@@ -10663,6 +10840,48 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		Out.EngineProject = EngineProject;
 
 		Out.bMaskProvided = false;
+		if (bLodEvent && Ev.bLod)
+		{
+			Out.bLod = true;
+			Out.LodTrigger = Ev.LodTrigger;
+			Out.LodHeldLod = Ev.LodHeldLod;
+			Out.LodSwaps = Ev.LodSwaps;
+			if (Ev.bLodLastPositive && Ev.bLodLastCapReached)
+			{
+				AnomalyLabel::FLodSwapRecord Cap = Ev.LodLast;
+				Cap.Frame = Ev.LodLastIndex + 1;
+				for (int32 Key : ActiveKeys)
+				{
+					if (Key > Ev.LodLastIndex)
+					{
+						Cap.Frame = Key;
+						break;
+					}
+				}
+				Cap.Cause = TEXT("hold_cap");
+				Cap.Direction = TEXT("up");
+				Out.LodSwaps.Add(Cap);
+			}
+			for (AnomalyLabel::FLodSwapRecord& W : Out.LodSwaps)
+			{
+				const int32* Tick = ArmedTickBySession.Find(W.Frame);
+				W.Tick = Tick ? *Tick : -1;
+				LodSwapsByCause.FindOrAdd(W.Cause) += 1;
+				if ((W.Cause == TEXT("distance") || W.Cause == TEXT("view_entry")) && W.bOnScreen)
+				{
+					Out.bLodSpatialSwapVisible = true;
+				}
+			}
+			const bool bHoldCap = Out.LodSwaps.ContainsByPredicate([](const AnomalyLabel::FLodSwapRecord& W) { return W.Cause == TEXT("hold_cap"); });
+			Out.LodEventKind = Ev.LodTrigger == TEXT("periodic") ? TEXT("periodic")
+				: Out.bLodSpatialSwapVisible ? TEXT("spatial_swap") : bHoldCap ? TEXT("hold_cap_only") : TEXT("no_swap");
+			LodEventsByKind.FindOrAdd(Out.LodEventKind) += 1;
+			UE_LOG(LogAnomalyCapture, Log,
+				TEXT("Capture(m57): lod_popping event %s trigger=%s kind=%s swaps=%d spatial_swap_visible=%d labelled_frames=%d - kept in ")
+				TEXT("annotation.json whatever its kind; a client keeps only events with lod_spatial_swap_visible true if it wants a visible ")
+				TEXT("spatial pop."),
+				*Out.EventId, *Out.LodTrigger, *Out.LodEventKind, Out.LodSwaps.Num(), Out.bLodSpatialSwapVisible ? 1 : 0, Out.InjectedFrameIndices.Num());
+		}
 		if (bMaskMeasure)
 		{
 			if (const FAnomalyMaskRecord* Rec = Async->MaskMeasure.FindRecord(Ev.Id, Ev.Target, Ev.StartFrame))
@@ -10722,6 +10941,10 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 		if (VetoedEventIds.Contains(KV.Key))
 		{
 			++VetoedTransitionKeysSkipped;
+			continue;
+		}
+		if (LodUntriggeredEventIds.Contains(KV.Key))
+		{
 			continue;
 		}
 		AnomalyLabel::FSessionEvent Out;
