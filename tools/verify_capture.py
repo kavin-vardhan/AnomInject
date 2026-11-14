@@ -3320,7 +3320,8 @@ def annotation_transition_check(directory, require_schema=True):
     removes the event; labels.jsonl keeps its after-offset settle rows). A 2.1 session is judged as before m56: every
     unlisted transition event fails. 2.3 (m57) reads like 2.2 and also excuses an unlisted event listed in run_summary
     lod_untriggered_event_ids whose transition reasons are only settle, lod_subvisible or lod_unconfirmed (a spatial
-    lod_popping fire that never showed a labelled frame writes no event)."""
+    lod_popping fire that never showed a labelled frame writes no event), and a lod_popping id listed in vetoed_event_ids whose
+    reasons are a subset of the same three. Both excuses apply only to ids that start with lod_popping@."""
     from collections import Counter, defaultdict
     from pathlib import Path
     root = Path(directory)
@@ -3392,7 +3393,11 @@ def annotation_transition_check(directory, require_schema=True):
             if minor in (2, 3) and key in vetoed_ids and set(expected_reasons[key]) == {LABEL_RULE_SETTLE}:
                 excused += 1
                 continue
-            if minor == 3 and key in lod_ids and set(expected_reasons[key]) <= LABEL_RULE_LOD_ORPHAN_REASONS:
+            if (minor == 3 and key in vetoed_ids and key.startswith("lod_popping@")
+                    and set(expected_reasons[key]) <= LABEL_RULE_LOD_ORPHAN_REASONS):
+                excused += 1
+                continue
+            if minor == 3 and key in lod_ids and key.startswith("lod_popping@") and set(expected_reasons[key]) <= LABEL_RULE_LOD_ORPHAN_REASONS:
                 excused += 1
                 continue
             errors.append('transition event missing from annotation: %s' % key)
@@ -3897,7 +3902,7 @@ def label_rule_check(cap_dir, quiet=False):
         if rule == RULE_NEW:
             for a in ents:
                 if a.get("labelled") is True and not listed(a, si):
-                    if vetoed_ids is not None and transition_detail.get("minor") == 2:
+                    if vetoed_ids is not None and isinstance(transition_detail.get("minor"), int) and transition_detail.get("minor") >= 2:
                         a_id = a.get("event_id") or "%s@%s|%s" % (a.get("id"), a.get("start_frame"), a.get("target_name"))
                         if a_id in vetoed_ids:
                             n_vetoed_labelled += 1
@@ -4242,7 +4247,7 @@ def _m56_write(root, name, rows, ticks=40, k=2, minor=2, rs_extra=None, ann_post
         ev["transition_reasons"] = ev.pop("_r")
         anomalies.append(ev)
     ann = {"label_schema": 2, "label_schema_minor": minor, "transition_frame_count": len(union), "anomalies": anomalies}
-    if minor == 2:
+    if minor in (2, 3):
         ann["transition_frames"] = sorted(union)
     if ann_post:
         ann_post(ann)
@@ -4846,6 +4851,91 @@ def _label_rule_selftest():
                _m56_write(root, "s56k7", r56, ann_post=drop_event,
                           rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id], "label_temporal_aa": True}), 1,
                "ANNOTATION-TRANSITIONS")
+        case56("S56_k8_schema_2_3_vetoed_event_settle_entries_unlisted_clean",
+               _m56_write(root, "s56k8", _m56_rows(), minor=3, ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id]}), 0,
+               extra=lambda d, _l: d["vetoed_labelled"] > 0)
+        case56("S56_k9_schema_2_3_same_without_a_veto_FAILS",
+               _m56_write(root, "s56k9", _m56_rows(), minor=3, ann_post=drop_event), 1, "ANNOTATION-TRANSITIONS")
+        case56("S56_k10_schema_2_3_veto_count_without_ids_FAILS",
+               _m56_write(root, "s56k10", _m56_rows(), minor=3, ann_post=drop_event, rs_extra={"vetoed_events": 1}), 1,
+               "ANNOTATION-TRANSITIONS")
+        case56("S56_k11_schema_2_3_vetoed_id_listed_for_another_event_FAILS",
+               _m56_write(root, "s56k11", _m56_rows(), minor=3, ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": ["missing_texture@119|Rock"]}), 1,
+               "ANNOTATION-TRANSITIONS")
+        case56("S56_k12_schema_2_3_lost_event_beside_an_id_listed_veto_FAILS",
+               _m56_write(root, "s56k12", _m56_rows(), minor=3, ann_post=drop_first_and_second,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id]}), 1, "ANNOTATION-TRANSITIONS",
+               extra=lambda d, _l: "LABELLED-EXTRA" in d["fails"])
+        case56("S56_k13_schema_2_3_vetoed_id_with_a_non_settle_reason_FAILS",
+               _m56_write(root, "s56k13", r56, minor=3, ann_post=drop_event,
+                          rs_extra={"vetoed_events": 1, "vetoed_event_ids": [veto_id], "label_temporal_aa": True}), 1,
+               "ANNOTATION-TRANSITIONS")
+
+        def drop_kept_frame(ann):
+            ev = [e for e in ann["anomalies"] if e["event_id"] == veto_id][0]
+            ev["injected_frames"]["frame_indices"] = [x for x in ev["injected_frames"]["frame_indices"] if x != 8]
+            ev["affected_frames"]["frame_indices"] = list(ev["injected_frames"]["frame_indices"])
+        unrelated_veto = {"vetoed_events": 1, "vetoed_event_ids": ["blinking@999|Nothing"]}
+        case56("S56_k14_schema_2_2_kept_event_loses_a_frame_beside_an_unrelated_veto_FAILS",
+               _m56_write(root, "s56k14", _m56_rows(), minor=2, ann_post=drop_kept_frame, rs_extra=unrelated_veto), 1,
+               "LABELLED-EXTRA")
+        case56("S56_k15_schema_2_3_review_probe_P1_kept_event_loses_a_frame_FAILS",
+               _m56_write(root, "s56k15", _m56_rows(), minor=3, ann_post=drop_kept_frame, rs_extra=unrelated_veto), 1,
+               "LABELLED-EXTRA")
+        lod_vid = "lod_popping@119|Crate"
+
+        def lod_rows_flagged(flag=True):
+            rows_ = _m56_rows(aid="lod_popping", target="Crate")
+            for r in rows_:
+                if flag and r["session_index"] == 22:
+                    for e in r["anomalies"]:
+                        e["labelled"] = False
+                        e["transition"] = 1
+                        e["transition_reason"] = ["lod_subvisible"]
+                    r["anomaly_present"] = r["visible_positive"] = False
+                    r["transition_present"] = True
+            return rows_
+
+        def lod_veto_post(ann):
+            ann["anomalies"] = [e for e in ann["anomalies"] if e["event_id"] != lod_vid]
+            for e in ann["anomalies"]:
+                e.update(lod_trigger="view_entry", anomaly_subtype="view_entry", lod_swaps=[], lod_swap_frames=[],
+                         lod_spatial_swap_visible=False, lod_event_kind="no_swap", lod_held_lod=1)
+
+        def lod_rs(vetoed):
+            return {"vetoed_events": 1 if vetoed else 0, "vetoed_event_ids": [lod_vid] if vetoed else [],
+                    "lod_events_by_kind": {"spatial_swap": 0, "hold_cap_only": 0, "no_swap": 2, "periodic": 0},
+                    "lod_swaps_by_cause": {"distance": 0, "view_entry": 0, "hold_cap": 0},
+                    "lod_untriggered": 0, "lod_untriggered_event_ids": []}
+        case56("S56_k16_schema_2_3_vetoed_lod_event_with_a_lod_subvisible_frame_clean",
+               _m56_write(root, "s56k16", lod_rows_flagged(), minor=3, ann_post=lod_veto_post, rs_extra=lod_rs(True)), 0)
+        case56("S56_k17_schema_2_3_vetoed_lod_event_settle_only_clean",
+               _m56_write(root, "s56k17", lod_rows_flagged(False), minor=3, ann_post=lod_veto_post, rs_extra=lod_rs(True)), 0)
+        case56("S56_k18_same_lod_event_dropped_without_a_veto_FAILS",
+               _m56_write(root, "s56k18", lod_rows_flagged(), minor=3, ann_post=lod_veto_post, rs_extra=lod_rs(False)), 1,
+               "ANNOTATION-TRANSITIONS")
+        lost_id = "missing_texture@119|Rock"
+
+        def lost_rows():
+            rows_ = _m56_rows()
+            for r in rows_:
+                for e in r["anomalies"]:
+                    if e["event_id"] == lost_id:
+                        e["labelled"] = False
+                        if e.get("transition") != 1:
+                            e["transition"] = 1
+                            e["transition_reason"] = [LABEL_RULE_SETTLE]
+                r["anomaly_present"] = r["visible_positive"] = any(e.get("labelled") for e in r["anomalies"])
+                if any(e.get("transition") == 1 and LABEL_RULE_SETTLE in (e.get("transition_reason") or []) for e in r["anomalies"]):
+                    r["transition_present"] = True
+                    r["transition_reason"] = [LABEL_RULE_SETTLE]
+            return rows_
+        case56("S56_k19_untriggered_id_naming_a_non_lod_event_does_not_excuse_it_FAILS",
+               _m56_write(root, "s56k19", lost_rows(), minor=3,
+                          ann_post=lambda a: a.update(anomalies=[e for e in a["anomalies"] if e["event_id"] != lost_id]),
+                          rs_extra={"lod_untriggered": 1, "lod_untriggered_event_ids": [lost_id]}), 1, "ANNOTATION-TRANSITIONS")
         def held_global_rows(flag_schedule):
             rows_ = []
             sched = _m56_rows()
