@@ -930,6 +930,7 @@ jumped exactly where the label changed. Schema 2.2 saves every frame and flags t
 | --- | --- | --- | --- |
 | `annotation.json` → `label_schema_minor` | `1` | `2` | value change |
 | `annotation.json` → `anomaly_subtype` on a `blink` event (m58, ships with 2.2) | `disappear_reappear` | `terrain_disappear_reappear` when the hidden object is terrain, `disappear_reappear` otherwise (§8.4.2). A new value in an existing field | **Added value** |
+| `annotation.json` → `affected_objects.nodes[]` → `asset_name` / `component_class` on a texture-corruption event that changed only some meshes of the object (`uv_corruption` / `normal_corruption` with skipped parts, `texcorrupt.components_skipped` above 0; also `stuck_low_mip` on the `proxy` route, which changes only the meshes that carry the blurred texture) | the object's first visible mesh, which could be a mesh the corruption skipped | a mesh the corruption changed. `bounds` still covers the whole object, as do `name`, `path` and `global_position`. The LOD anomalies do the same when only some meshes are forced | value change |
 | `labels.jsonl` → `tick_index` | *absent* | engine ticks since the capture's first frame; 0 on the first row, +1 on every row | **Added** |
 | `labels.jsonl` → `t_wall_run` | *absent* | wall-clock seconds since the capture's first frame | **Added** |
 | `labels.jsonl` → `t_wall` | documented as "seconds since the run started" | unchanged value; **the documentation was wrong**: it is an absolute wall clock. Use `t_wall_run` for run-relative time | doc fix |
