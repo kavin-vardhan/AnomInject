@@ -1,0 +1,278 @@
+diff --git a/docs/gotchas.md b/docs/gotchas.md
+index 94dd49f..37d05ff 100644
+--- a/docs/gotchas.md
++++ b/docs/gotchas.md
+@@ -10203,3 +10203,273 @@ the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero mis
+ deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
+ existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
+ the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
++
++
++### G462 - 5.1 monolithic evidence uses host intermediates and native module identities
++
++094-09: the first Game Development action query succeeded, but the reader refused it before compiling because it searched only plugin Intermediate for generated definitions. Monolithic definitions also live under the host's Intermediate/Build/Win64/<target>/Development/<module>. Bind the selected definition files to actual compile responses and preserve unreferenced files separately. Native UHT ShortName aliases can differ from source-module names; use UHT/rules metadata to retain provenance. Classify engine source compiled into owned host outputs separately from actions writing into an engine tree. The latter remain forbidden. Corrected reader controls and the retained failed query are in Receipts/09409.
++
++### G463 - Exact strict-rule restoration can leave only normal relinks scheduled
++
++094-09: strict Editor and Game each compiled 64 ordinary sources, 77 header TUs and 11 generated sources with no PCH/unity. Rule hashes and tracked status restored exactly. However, the earlier normal unity objects still existed under their different filenames, so the first restored Editor plan scheduled eleven relink/metadata actions and no C++ compile. The unchanged zero-C++ guard correctly refused it. One recovery hashed and removed twelve normal IA object files (six per target) selected from the qualified native plans, inside ReGate51 only, then rebuilt normal Editor (17 actions) and Game (8 actions), both clean. Preserve passed strict evidence and the refused plan; bind the recovery with receipts. Do not weaken the zero-coverage guard or delete engine/other-host outputs. Current normal responses use PCH again and their referenced definitions have no strict marker; old unreferenced intermediate definitions are not compiled evidence. See docs/europa/09409-a4b-result.md and Receipts/09409/strict/restoration-retry.
++
++
++### G464 - Native UBT action status, cached environments and release public headers
++
++094-15: 4.25 ParallelExecutor.cs:207-213,262-276 may print only a filename; 5.1 ParallelExecutor.cs:327-340,348-380,399-400 also prints cancelled dependents. Join executed records to exactly one native action, count cancellations separately, and reject missing/ambiguous/engine-output matches. Known-answer logs must cover both status-description modes plus metadata. A compile failure can expose executor formats absent from successful logs.
++
++EO3 receipts precede removal of only the owned target Makefile.bin because 4.25 BuildMode.cs:530-534 and 5.1 BuildMode.cs:788-792 replay the saved environment. Native EN1 verification permits selected toolchain additions but retains the entire unchanged base suffix. Refresh before queries too; query-time stale-output deletion is stock behavior, so rebuild before querying and bind afterward.
++
++Release's public control header reaches IWebSocketServer.h from a private module dependency. A host probe that must compile against release cannot repair that dependency in production. The single shared probe instead observes the already-loaded exact subsystem class through public native base APIs on 5.1, with the engine-version branch confined to the probe. The same source then builds in all three hosts. See docs/europa/09415-probe-compatibility.md.
++
++
++### G465 - Retry state is separate from authorization and launch state
++
++094-16: reserve a fresh attempt root atomically at invocation, not when arming the configuration. A failed preflight consumes only that attempt. Serialize double-clicks using a process-held lock, then persist a separate launch record so an exited editor cannot be started again under the same one-session authorization. A launch reservation with no completion receipt is ambiguous and must refuse. Test real Windows locking and the harmless-child Popen callback without launching Unreal. Keep the owner-only human-idle exemption in an explicit profile; default measured gates retain input idle. Detailed proof: docs/europa/09416-owner-kit.md.
++
++
++### G466 - Reading failures and post-Popen errors must preserve admission state
++
++094-17: independently catch each required reading so a counter timeout cannot escape the wait loop or retain a prior passing streak. Write the durable launch mark as the first callback after Popen, before receipts, observers or threads. Only Popen's own exception may release the reservation. Exercise every owner-launch bookkeeping step with harmless children, including mark-write failure retaining the reservation. Resolve configuration paths before comparing dry-run roots against real state; lexical prefix checks miss dot-dot aliases. See docs/europa/09417-owner-kit.md and Receipts/09417.
++
++
++## G467 - Module shutdown can follow UObject exit purge (094-21)
++
++A raw UObject pointer is not safe merely because the probe rooted it earlier. Guard root changes and GC-field restoration before inspecting any UObject; engine purge destroys the object system before late module shutdown. Even a cached receipt map keyed by TWeakObjectPtr can touch UObject identity when converting a raw world pointer. Use cached scalar identity and address keys for exit rows, with weak references accessed only in guarded live paths. EV5 source checks and mutants protect these paths; runtime clean exit remains a later authorized proof.
++
++## G468 - Test retained in-editor functions under the installed Python version (094-28)
++
++Python 2.7 runpy removes its temporary module; calling a function later through the returned dictionary can find cleared globals. Keep the fixture module alive with imp.load_source and test the generated launcher under the engine's actual interpreter. The 09428 recording stub covers both complete recipe sequences and rejects the old runpy shape. Native Unreal API availability still requires the separate real-editor smoke. See docs/europa/09428-authoring-amendments.md and the receipt index.
++
++## G469 - Crash-report privacy does not disable usage analytics (094-28)
++
++The 4.25 launch argv requires both CrashReportsPrivacySettings.bSendUnattendedBugReports=False and AnalyticsPrivacySettings.bSendUsageData=False as EditorSettings ini overrides. EngineAnalytics and shared crash context use the latter for editor and session-summary analytics. A crash monitor may still run, so verify its argv and both Runtime.log and CrashClient.log. Never infer no uploads from a clean editor exit or from the crash-report switch alone. Sources and live evidence are indexed by 09428-authoring-receipts.json.
++
++## G470 - The editor also invokes UBT to validate installed SDKs (094-28)
++
++TargetPlatformManagerModule.cpp:996-1031 starts UnrealBuildTool with -Mode=ValidatePlatforms -allplatforms. ValidatePlatformsMode.cs:35-60 checks SDK status and emits VALID/INVALID lines. The 09428 guard admitted only QueryTargets and terminated Smoke on this stock validation child after 9.547 seconds, before the smoke receipt or probe exit rows existed. No compiler, linker or UHT was recorded and build outputs were unchanged. The refusal remains intact: FC3 forbids retry after failed Smoke. A future authorized correction must cover this validation path and repeat the real smoke; no correction was applied during closeout.
++
++## G471 - Native 4.25 smoke must verify post-process properties (094-26b)
++
++The real editor exposes AntiAliasingMethod.AAM_NONE but not PostProcessSettings.override_anti_aliasing_method or PostProcessSettings.anti_aliasing_method. The unchanged A5 authoring recipe sets both. A recording stub can accept these names, so its complete call sequence is not native API proof. The 09426b no-create smoke retained its module, reported those two missing names, quit normally and stopped both recipes. Native callable arity was unavailable for 26 checks under Python 2.7; the receipt retains their binding docs. Do not suppress these checks or retry a spent smoke. A compatible recipe correction requires authorization and a fresh arm. See 09426b-authoring-receipts.json.
++
++## G472 - Saving a new 4.25 map writes WorldState independently of nowrite (094-26c)
++
++FActorFolders subscribes to PostSaveWorld (EditorActorFolders.cpp:49). OnWorldSaved constructs Saved/Config/WorldState/<package UTF-16 CRC32>.json (23-27) and calls CreateFileWriter directly (132-158); ConfigCacheIni.cpp:1478 checks nowrite only in the config writer. Core produced 1202994220.json for /Game/EuropaPhaseA/EA_Core, 50 bytes, SHA-256 cfd1637a188c41a6accb22bbc76f3a84d5762b4e6b21ea8ad2e87816a3d8bbc4. FC5 does not admit WorldState, and EN5 never waives protected-state differences. The kit stopped after normal editor exit, quarantined both declared Core outputs and refused Travel. The file and Saved/Backup map remain as evidence. Do not broaden the managed-file classes or retry without a new chat ruling. See the 09426c receipts index.
++
++## G473 - Saved bookkeeping has a protected INI subset (094-26d)
++
++Chat FF2 supersedes G472's narrower FC5 classification: record every file under the owned host Saved tree, while any .ini under Saved/Config remains protected, including crash-client .ini files. WorldState JSON, Backup maps, Autosaves and logs do not imply a project Config change. New/changed/removed cases exercise the actual config gate; descriptor and .uproject bindings remain independent. Core and Travel now pass with their normal save bookkeeping recorded. FF1 preserves earlier quarantined packages; FF3 omits redundant smoke. A6 authoring success does not imply A7 picture or runtime qualification.
++
++## G474 - Cleanup readers must use the bound probe schema (094-27)
++
++The real probe emits world_cleanup/actor_snapshot=skipped during engine exit, followed by probe_stop/root_release=skipped. A new reader and its synthetic stand-in both expected world_snapshot_skipped/label=cleanup; their shared mistake passed synthetic checks and rejected a clean real Smoke. Preserve and replay actual raw rows, with negative mutations, before a future authorized run. Do not repair or retry after FB7's failed smoke. CrashClient.log also showed a respawned monitor absent from the retained owned-process list; tree coverage needs proof before relying on deadline ownership for it. All runtime gates and pictures remain pending.
++
++## 094-27b — Real emitters and reparented crash monitors
++
++The cleanup reader consumes world_cleanup/actor_snapshot=skipped and is replayed against kept real files, including the previously rejected Smoke. Exact -MONITOR=<owned root PID> adoption follows the stock 4.25 respawn; retained handles and creation identities prevent name-based ownership. A normal failed leg proceeds under FH3; abnormal exit/protected change/upload/canary and smoke binding failures still stop. Per-picture AA readback must be zero. See europa/09427b-runtime-amendment.md for emitter citations and the receipt index for measured outcomes.
++
++## 094-27c — G410 and Slate callback re-entry
++
++The 4.25 Python Rotator native-make signature is roll, pitch, yaw. Both kits now enforce all three names as keywords, model that signature in the Python 2.7 recording stub, and reject the old rolled-camera line. Authoring asserts normalized angles before any package save. A Slate post-tick driver must guard re-entry during synchronous map loads that pump progress UI, and unregister on its first failure before requesting exit once. Three prior load requests were already in flight before any completed; the later Niagara crash root cause is unconfirmed. FI4 permits one runtime crash with owned-tree cleanup, but a second, any authoring crash, protected change, upload/canary or broken smoke ends the run. See europa/09427c-runtime-authoring-amendment.md for source citations and tests.
++
++
++### 094-27d picture checks and exclusive probe writes
++
++Stock 4.25 tonemapper quantization can vary unchanged 8-bit frames by one intensity level. Qualify that bounded, balanced dither separately from brightness drift; never weaken active-change or restore checks to hide an anomaly. The fixture automatic LOD already selects the cube at this camera, so forced model 2 has no visible effect; model 1 selects the sphere. Never hold a read handle on the live exclusive-write probe: use completed screenshot signals for bounded normal closure and read the sealed probe after process exit. See `europa/09427d-a7-lean.md`.
++
++
++### 094-27e: ruled memory tuples must reach the shared validator
++
++The FK1 start amendment also needs the exact 4/8/none/4 tuple in the shared job-scope validator. Limit that acceptance to the authorized runtime job with empty build/query lists; a lower threshold and a build scope must still refuse. The first dry invocation caught this before any session. The retained 094-27d fixes then passed real blinking and LOD pictures: no competing live A7 probe read, and forced LOD model 1 for the sphere.
++
++## G488 - Readback class presence does not establish mapping parity (094-30)
++
++Stock 4.25 has FRHIGPUTextureReadback, as PHASE0 measured, but RHIGPUReadback.h:99 offers Lock(uint32), not the 5.1 pitch/height overload. RHIGPUReadback.cpp:128-136 maps and discards width/height. Use an owned 4.25 staging/fence adapter that retains the map dimensions; never infer tight stride from image width. AddEnqueueCopyPass and view-family extension-data attachment are also absent even though RDG itself is present. These are source findings for Phase C, not a compiled or runtime proof; see europa/PHASEC-capture-port-plan.md.
++
++
++## 094-31b - Stock backbuffer format and short-lived child queries
++
++A correct 1280x720 staging layout can still contain unsupported pixels. The first C1 PIE session mapped pitch 1280 and height 720 but returned format 18, PF_A2B10G10R10. Stock 4.25 defaults r.DefaultBackBufferPixelFormat to 4. Its value 0 selects PF_B8G8R8A8; apply the process-only renderer-settings INI override before viewport creation with -nowrite. Do not reinterpret 10-bit bytes as 8-bit pixels or weaken the image reader. Source anchors and preserved evidence are in [the retry note](europa/09431b-c1-format-retry.md).
++
++The owned UBT guard later obtained ValidatePlatforms argv from a retained handle, then lost a subsequent NtQueryInformationProcess class-60 length query. Bounded retries may recover a transient query. A cached command is usable only after the same handle is signalled exited; live unreadable children, and exited children whose command was never captured, still refuse. The exact OS timing that caused the observed read failure remains unconfirmed. Keep failed session verdicts and require a new smoke after changing this core guard.
++
++A valid format, exact map layout and complete file count do not establish a valid picture. C1Game02 wrote sixty identical RGB-zero PNGs with no drop and normal exit. Keep the independent pixel gate and distinguish a confirmed black output from an unconfirmed camera/source/copy cause; do not infer which boundary failed without source and staging pixel evidence.
++
++## 094-32 - Exact pixels, map-specific references and rendered-family labels
++
++PF_A2B10G10R10 maps to DXGI_FORMAT_R10G10B10A2_UNORM (stock D3D11Device.cpp:164); D3D11RenderTarget.cpp:546-553 specifies R:10, G:10, B:10, A:2. The 4.25 writer rounds each channel with (v10*255+511)/1023. Compiled assertions exercise the production decoder, known packed bytes and unsupported-format refusal. Both stock-format C1 gates now pass; the earlier overridden-format black output's root cause remains unconfirmed.
++
++Do not use a clean frame from another map as a pixel oracle. EA_Core serializes BasicShapeMaterial overrides; EA_Travel does not. Source/copy diagnostic reads were identical, and plugin PNGs matched the independent same-map read, while the old cross-map reference failed. Retain that FAIL and use a new authorized slot with a hash-bound same-map reference; do not relax thresholds or edit Content.
++
++An arm-time request ID alone is not a rendered-image label. The 4.25 C2 path carries epoch, world owner, request, GT frame and view-family frame through a bounded render-thread registry. The gate checks independent target pixels, not the overlay. Both tick orders and the fixed-step-off block passed, with apply, revert and interior-blink one-frame shifts rejected separately. This establishes the scoped four-anomaly gate, not wall-rate pacing or full exporter parity.
++
++## G489 - Preserve historical format evidence when superseding a workaround (094-33)
++
++A correct 1280x720 staging layout can still contain unsupported pixels. The first C1 PIE session mapped pitch 1280 and height 720 but returned format 18, PF_A2B10G10R10. Stock 4.25 defaults r.DefaultBackBufferPixelFormat to 4. The historical 094-31b retry selected value 0 through a process-only override; FN2 superseded that workaround in 094-32. Keep the stock format and convert its channels exactly; the armed kit now refuses a backbuffer-format override. Do not reinterpret 10-bit bytes as 8-bit pixels or weaken the image reader. Source anchors and preserved evidence are in [the retry note](europa/09431b-c1-format-retry.md).
++
++FO4 restores the original 094-31b paragraph above. This appended correction supersedes its format workaround without rewriting the historical record. FO2 subsequently moves 4.25 colour sampling to the pre-UI rendered-family hook; the original stock 10-bit decoder remains.
++
++
++## G490 - 4.25 RDG reads inspect TargetableFlags (094-33)
++
++Create2DDesc keeps Flags and TargetableFlags separate (RenderCore/Public/RendererInterface.h:109-110). ShaderParameterStruct.cpp:496-503 requires TexCreate_ShaderResource in TargetableFlags for a graph texture parameter. A texture created with that bit only in common Flags can compile natively and compile its shader, then fail the runtime RDG access check. 09433 C3 logged this for MaskTexture and DrawnTexture before its first output and stalled until the owned deadline. The descriptor error is confirmed; the exact stall site is not. C3 remains unqualified and needs the descriptor correction plus a new authorized build/session.
++
++Do not call every shader error a shader compilation failure. The 09433 kit used a broad error-plus-shader search, so its original FAIL receipt also marks a crash/compile failure even though the observed error was runtime parameter validation and the wrapper terminated at its deadline. Preserve raw verdicts and record that limitation; no boot compile failure or independent exception was proved.
++
++## G491 - Perfect silhouettes can fail colour-change coverage (094-33b)
++
++FP2 rules 09433's fatal RDG parameter path as a crash, despite its later deadline termination; this supersedes G490's uncertainty without altering its historical wording. With ShaderResource moved into TargetableFlags, 09433b has no crash and produces all 240 masks. The descriptor can-fail rejects the old common-only flag.
++
++Do not equate IoU 1 with complete anomaly coverage. In kept frame 63, 344,769 of 791,865 changed lighting pixels lie beyond the receiver silhouette plus one pixel, all without custom stencil. In frame 123, 322,615 of 339,350 changed LOD pixels lie beyond the current sphere, including 43,750 in the removed clean cube footprint. Visible halos and shadow/geometry changes extend beyond the raw silhouettes. A mask expanded to every changed pixel spills 41.12% and 82.07%, respectively; FO3 permits 1%. Even a permissive spill-only upper bound reaches at most 62.34%/7.12% coverage, below 95%. This is not a descriptor/readback defect; no mask-only adjustment satisfies these kept frames. Preserve the FAIL and request a render/scenario decision instead of changing metric thresholds or choosing a different reference after seeing the result. Diagnosis and images: Receipts/09433b/diagnosis.json.
++
++## G492 - 4.25 staging-buffer copies require explicit source usage (094-33b)
++
++FRDGBufferDesc::CreateBufferDesc provides shader read/UAV usage but not BUF_SourceCopy. FRHIGPUBufferReadback::EnqueueCopy calls CopyToStagingBuffer (RHIGPUReadback.cpp:71); D3D11Commands.cpp:2320 ensures SourceCopy is set. Slot 01 copied correct data but emitted this handled ensure. Add BUF_SourceCopy to the reduction descriptor before creation; test the absent flag independently. A successful copy and normal exit do not prove the resource contract is clean.
++
++09433b retry result for G492: 4.25 EBufferUsageFlags also needs an explicit cast when combining flags (no |= overload). Editor 3/Game 2 compiled the correction; C3 slot 02 exited normally with all 240 masks and no ensure. This repairs the resource contract, while G491's independent lighting/LOD coverage failures remain.
++
++
++## G493 - Precision and spill cannot reject a subset of affected receivers (2026-11-01, 094-33c)
++
++With exposure locked, every positive FQ2 mask passes. Yet the lighting wrong-target mutant, containing only the hide cube, also has precision 1 and spill 0: it is a subset of changed pixels on valid receiver actors. Precision constrains false positives, not completeness or semantic membership of the full output. Removing coverage without an independent receiver identity/completeness rule leaves this counterexample admissible. Do not add an unruled IoU threshold or choose a different negative after seeing the result. Report the escape; the frozen metrics require a decision. See [09433c receipts](europa/09433c-mask-precision-receipts.json).
++
++The exposure lock also invalidates previously hash-bound colour references even when geometry is unchanged. Keep the initial ambiguity FAIL, bind directly inspected exposure-matched references, and re-run the unchanged reader and its shift negatives against the retained raw files. This job's re-read has zero C2 mismatches, while the original reader receipt remains FAIL.
++
++## G494 - Bounds visibility does not prove drawable target pixels (2026-11-01, 094-34)
++
++The real auto path admitted a default pawn whose bounds intersected the viewport but whose stencil/depth silhouette contained zero pixels. Blinking it produced an active label with no counterfactual mask, and the writer correctly refused the frame. Use the existing census-provider admission boundary with independently read stencil/depth pixels, retaining the selector's visible set and seeded draw algorithm. Do not exclude an actor by a fixture name or special-case its class. The kept failed slot and census counts are in [09434 receipts](europa/09434-live-capture-receipts.json). Wrong-target negatives must also choose a nonempty silhouette; an empty candidate only tests missing output.
++
++## G495 - Pending async writes retain full frame payloads (2026-11-01, 094-34)
++
++At 1600 by 900, a queued colour plus uint4 mask-evidence frame owns 28.8 MB before conversion and compression temporaries. An unbounded future array accumulated a 99-frame submission/write gap before the memory guard stopped the session. Consume the oldest future before enqueuing beyond four pending writes. Waiting must preserve indices and fixed-step event timing. The compiled delayed-writer test completes 32 ordered outputs with peak four; removing the drain produces peak 32. The real retry writes all 1,440 frames with zero drops, peak four and 7.109 GiB minimum free commit. No paging or machine setting change is needed.
++## G496 - A fixture-sized census does not establish real-scene admission (2026-11-01, 094-35)
++
++09434's one-time tagging had only 55 free values and treated any drawn pixel as eligible. C5 ports the rotating 5.1 census policy: measured floor and ceiling, per-batch restoration, new actor discovery and bounded ledger use. The coverage band is upstream admission, not proof that an anomaly visibly changed the target. On-screen affected membership is measured separately from the injected active subset, and the independent RGB check remains the qualification gate.
++
++## G497 - A rejected clean sweep cannot qualify labels with an empty comparison (2026-11-01, 094-35)
++
++All six street-map poses exceeded the predeclared 5% unstable-pixel limit (26.20%-41.53%). Keeping injection off correctly produced zero events, but a reader checking only mismatches returned a vacuous C2 PASS. Require scored coverage and three complete events per anomaly as well as zero mismatches. Preserve the original overall FAIL and re-read separately. Animated foliage, shadows and particles are visible in the clean differences; a higher noise threshold or a conveniently chosen pose after seeing results would not establish the requested gate.
++
++GetVisibleRenderableActors uses the legacy 6% bounds-coverage filter. Its peak of 20 is not the uncapped drawn census: first clean stencil samples at the starting held view measure 167 drawn actors from 199 candidates. Derive the initial-visible set and held-pose counts from those independent samples. Report that rotating measurement scope, and do not claim a late-target event when none fired. See [09435 receipts](europa/09435-street-capture-receipts.json).
++
++
++## G498 - Host custom depth is not available to the census (2026-11-01, 094-36)
++
++An actor already using custom depth must be excluded from both census tagging and anomaly targeting, even if its stencil value is outside the ledger range. Restoring it afterward does not prevent interference while tagged. The 4.25 path now leaves its flag, value and write mask untouched for the whole session. This is an intentional divergence from current 5.1; follow-up: apply the same admission and tagging exclusion to 5.1 before claiming no interference there.
++
++## G499 - Stock 4.25 remaps the grain-off CVar back on (2026-11-01, 094-36)
++
++The desktop tonemapper reads r.Tonemapper.GrainQuantization, but its permutation remapper forces quantization for normal display output. GetFrameIndex(8) computes modulo seven in this engine. FT3's phase-matched fallback therefore records the actual render-thread phase and freezes seven references per pose; it does not assume frame-index modulo seven when render/capture pacing differs. Wind, fog and other movement still enter the independently measured unstable map. No pixels are excluded merely because the census changes them.
++
++FT4 follow-up for 5.1: annotation export still uses GAnomalyDefaultFarPlane rather than the anchor view's projection. The 4.25 output now derives its clip planes from that view and encodes infinite far as zero, retaining the numeric schema.
++
++## G500 - Readback readiness is not preparation readiness (2026-11-01, 094-36)
++
++The street driver prepares a requested index in OnWorldPreActorTick. A later capture tick can resolve the last readback of a hold and make Street->Ready(Next) true in that same tick, after preparation was skipped. The old getter then submitted the next frame with the preceding census switch or view. Kept rows 288, 816, 1344, 1872, 2400 and 2928 are labelled census-on while the recorded switch is off; frame 3168 starts the scored pass at yaw 300 instead of the declared yaw zero. Require Prepared == Next as well as readback readiness. The production-expression test reproduces the old acceptance after a multi-tick delay and refuses it with the guard. This source correction is not in the session's 9a785e0 binaries: FM1's three Editor attempts were already spent. A new build and session remain necessary.
++
++Readers should retain a protocol failure while reporting the other measurements. The late-target gate must also compare the first scored view with the declared visibility bank; a matching player/render view alone does not prove that the sweep started at the intended pose. No reference, threshold or kept verdict is changed to hide either failure.
++
++## G501 - Annotation screen share and selection provenance are distinct (2026-11-01, 094-36)
++
++5.1 averages affected-frame projected screen area into coverage_ratio, but freezes coverage_pct from EvaluateSelectionProvenance at the event anchor (AnomalyCaptureSubsystem.cpp:8643,10270-10272; AnomalyViewport.cpp:912-950). The two values need not differ merely by a factor of 100. The first FT reader incorrectly demanded that relationship; the 4.25 writer also left coverage_pct at its default -1 without measuring provenance. Re-reading the kept 36 events separately passes coverage_ratio, bbox_source, view clip planes, schema and frame sets, but cannot establish selection provenance. The source now calls the shared evaluator once for each new event and records its value and validity; the reader compares that frozen value instead of recomputing it from the affected-frame mean. A focused negative replaces the provenance with 100 times the mean and fails. This fix, like G500, remains unbuilt under the spent Editor build budget; it does not repair the saved annotation or qualify the run.
++
++## G502 - Lost census results need bounded recovery and event ownership (2026-11-01, 094-37)
++
++5.1 releases and requeues a census batch when its result has not arrived after eight ticks, without changing prior actor verdicts; no-pass and polluted results have the same discard semantics (AnomalyCensus.h:87; AnomalyCensus.cpp:629-699). The 4.25 path now carries its arm tick and allowed tags, processes resolved readbacks first, verifies actor tag ownership before credit, and expires only beyond tick eight. Render-thread no-pass reports cross a queue to the game-thread owner. The session receipts count lost, no-pass and polluted batches; an office smoke expects zero. An event may adopt an actor's existing census value in 4.25, whereas 5.1 asserts event ownership separately. This accepted FT2/FU3 deviation is intentional: release recomputes ownership and retains every event actor for its event, so a retiring census batch cannot restore an active event target. Host-on actors remain untouched under G498.
++
++The annotation correction supersedes G499's zero-far output: infinite projection far planes export 1,000,000 like 5.1; finite planes retain the view value. Raw rows continue to distinguish an infinite projection. A provenance value of -1 with validity false means the shared 5.1 evaluator could not measure the actor (for example a light without a visible primitive), not zero coverage. Receipts retain that validity; no synthetic percentage is substituted.
++
++FU2 moves real-scene dataset grading off the port path. D1 reveal/revert settling, D2 lighting ramp/receiver precision, D3 visually negligible LOD swaps, D4 animated targets, and D5 same-time counterfactual evaluation remain FUTURE for both engines. The four apply/revert implementations match the shared 5.1 code; a renderer transient is not proof of a port-specific anomaly ramp.
++
++## G503 - Admission must follow expensive launch setup (2026-11-01, 094-37)
++
++The first office-smoke gate cleared at 15:43:21.890 UTC, but the game process was created at 15:44:17.431 after protected-file verification and monitor setup. Its first acting reading was already below the 8 GiB start line; free commit later reached 1.05 GiB and the 4 GiB guard stopped the owned monitor first, then the game, before Runtime.log or capture frames existed. This is a controlled stop, not a runtime crash. The delayed admission is established; the source of the later memory spike is not established by these receipts.
++
++The C5 launcher now hashes its protected state before admission and passes a final-admission callback to the runner. The runner finishes monitor construction before invoking it, checks protected metadata and build outputs for changes during the wait, and then creates the child. Session timing begins after admission. The ordinary callers retain their previous behavior. A setup-time drop from 9 to 7 GiB refuses creation; the old ordering fails that test. Protected or binary changes during the wait also refuse creation. This removes the avoidable setup delay without changing any start or acting threshold. A later memory drop can still stop the owned session.
++
++
++## G504 - Auto dispatch can override an otherwise matching anomaly (2026-11-01, 094-38)
++
++G502's apply/revert parity read missed the 4.25 auto-dispatch argument: it passed model 1 (finest) instead of allowing Anomaly_LodCorruption.cpp:29-32 to choose WorstLodSentinel, resolved by AnomalyLod.cpp:144-152 to the coarsest. That override and the extra multi-LOD filter are removed. The version-specific pool replacement is also removed: original 5.1 defaults and pool positions remain, with lighting and LOD explicit default-off additions shared across engines. The extra missing-object bench restriction had no API reason and is removed. The line inventory is docs/europa/09438-auto-parity.json. No 5.1 engine or binary was changed.
++
++G502's finite-far clause is superseded: 5.1 exports 1,000,000 unconditionally (AnomalyCaptureSubsystem.cpp:594,10291), so annotations now do the same. Raw projection metadata still records the real view. A hook count alone does not establish pre-UI pixels: the diagnostic now draws a temporary canvas marker, saves a positive backbuffer control, and checks all captured pixels at its centers. Runtime viewport/client types, engine timing flags and observed callback fields replace fixed strings. The first and 300th resolved-frame lines state measurements to that point; the reader verifies the entire session.
++
++
++## G505 - MakeShared already returns the JSON reference (2026-11-01, 094-38)
++
++The new diagnostic used auto O = MakeShared<FJsonObject>() and then O.ToSharedRef(). In stock 4.25 O already is TSharedRef, so that member does not exist. Editor attempt 3 reported C2039 and four cascading serializer overload errors. Pass O directly to FJsonSerializer::Serialize; Game Development compiled that correction at 4dbcf9b with no errors. Editor attempts 1 and 2 had already spent their FM1 budget on memory stops, so the corrected Editor build and all FV5 smoke measurements remain pending. The old spent manifest is deliberately not rebound to this mixed build state. A pure marker/reader test does not substitute for compiling the Unreal-facing diagnostic.
++
++
++## G506 - Explicit auto pool extension and multi-LOD admission (2026-11-02, 094-39)
++
++FW2 retains lighting_mismatch and lod_corruption as shared default-off opt-ins on feat/europa-port, a 4.25-only line that will not merge into the 5.1 branch. Original nine IDs and defaults remain; no keys were added. FUTURE debug-UI item: explicit keys for the two added slots. Under FW3/D3, auto lod_corruption admits only actors with a HasMultipleLods component and skips single-LOD components during auto apply. This is a deliberate addition because 5.1 never auto-fired this ID; it is not an API adapter. The predicate is the same >=2 guard as lod_popping (AnomalyLod.cpp:47-49, Anomaly_LodPopping.cpp:115), while WorstLodSentinel still chooses the coarsest model. FW5 accepts the 4.25 capture schedule: 0.8 s interval, 0.4 s hold, maximum one concurrent fire, listed in 09438-auto-parity.json's 09439 amendment.
++
++## G507 - A UI proof must overlap the exact capture (2026-11-02, 094-39)
++
++FW4 replaces timing overlap with request/sample-frame keys. The first eight capture requests register their game-thread frame; that exact frame's canvas callback draws the marker. A render-queue breadcrumb carries request/sample frame into its post-UI backbuffer control. The resolved pre-UI frame has the same sample frame because BeginRenderViewFamily rejects a request from another GFrameCounter and records FamilyFrame. The reader joins draw, positive post-UI control, native observation and PNG by request/sample frame, verifies FamilyFrame against labels, and rejects shifted/missing pairs or marker leakage. tick and tick_type are labelled build_constant; tick_calls and engine timing flags remain live reads. No exposure, UI or machine setting is saved.
++
++
++## G508 - Fallback bounds admission must reach the measured census (2026-11-02, 094-39)
++
++The player-view fallback smoke left the shared bounds prefilter at its default6%, excluding the visible multi-LOD target (2.80% drawn) and hide target (1.85%). Only the oversized floor and custom-depth-reserved pawn reached auto admission; the four-event gate correctly failed. The fallback kit now sets the process-local bounds prefilter to0.5%, matching the existing measured-census floor, and echoes it. The measured0.5%-25% band, target guard and reader gates are unchanged; street launches and production defaults are unchanged. Source: AnomalyViewport.cpp:57,553-577,1870-1887 and AnomalyCensusPolicy425.h:5-6. No map/config save or native patch.
++
++
++## G509 - Short seeded holds can repeat incomplete coverage (2026-11-02, 094-39)
++
++The fallback retry keeps seed 4242, 0.8 s interval, 0.4 s hold and one concurrent fire. Each 240-frame scored pose restarts the shared auto-injector; SetRunning(true) reinitializes its stream (AnomalyAutoInjectorSubsystem.cpp:239). AnomalyCaptureLabels425.cpp:92-100 plus AnomalyStreetBench425.cpp:103-106 therefore repeat the same eight draws six times: LOD, lighting, blink, blink, blink, LOD, blink, blink. All 48 fires succeed, but missing_object is never drawn. The office event-coverage gate correctly fails. A longer or continuous scored hold must be qualified before another authorized session; keep the shared 5.1 RNG semantics and accepted firing parameters. No such native change is built or claimed in 094-39. Both authorized slots and all three Editor build attempts are spent.
++
++
++## G510 - Auto LOD corruption must select a different drawn model (2026-11-02, 094-40)
++
++FX3 deliberately extends the 4.25 auto path: retain FW3's two-LOD guard, predict the drawn model on the game thread using the player's scene view and stock ComputeStaticMeshLOD, then force the coarsest unless it is already drawn, in which case force LOD0. Keep explicit/manual and 5.1 paths intact. SceneManagement.cpp:543-568 and StaticMeshRender.cpp:2081-2150 define the stock screen-size selection and distance factor. The native policy test covers every current LOD in meshes with2..8 LODs, unknown/single-LOD refusals, and rejects the former unchanged-coarsest choice. Each real event must also change target pixels beyond grain. This addition is not claimed as 5.1 auto-pool parity.
++
++## G511 - A seeded capture run must not restart at every pose (2026-11-02, 094-40)
++
++FX2 corrects G509 in the bench driver, retaining shared 5.1 SetRunning(true)'s seed reset (d7eee97 AnomalyAutoInjectorSubsystem.cpp:231). The injector starts once after the clean pre-pass, keeps running through all scored poses/turns, and stops24 frames before the end. The six-pose test requires one start and one stop; the previous policy starts six times. FX4 limits IAI.SetMinScreenCoverage0.5 to EA_Core bench argv; the shipped bounds floor remains6%. The office card must use that default. The0.8s/0.4s/one-concurrent bench schedule is unchanged.
++
++
++## G512 - Legacy capture tags can activate host outlines (094-42)
++
++Census and live-event stencil writes happen before post-process. Pre-UI capture therefore still includes a host CustomDepth outline. The interim 4.25 scanner ports the 5.1 volume/cached-blend/POV material check and refuses reader or unknown before any test state or ledger mutation. It cannot certify arbitrary native readers or later additions absent. A private pass remains required for isolation. C5 prior-state planting is now IAIBench plus recognized-fixture plus EA_ actor only; the earlier arbitrary-object setup was not host-owned evidence. The repro bypass is bench-only, never an office workaround.
++
++## G513 - CSV routes and ExecCmds (094-42)
++
++C4/C5 default to blinking,lod_corruption; lighting and missing_object require explicit routes. Stock4.25 ExecCmds splits on commas, so a CSV route passed inside that list becomes multiple console commands. The armed Python bridge submits one complete C5 command after world creation and unregisters before submission. Console users can type the CSV directly. Receipts and logs list the routes actually enabled.
++
++## G514 - Use stock ExecMacro for game CSV routing (094-42)
++
++Correction to G513's initial implementation: PythonScriptPlugin and EditorScriptingUtilities are Editor modules and do not load when GIsEditor is false (`ModuleDescriptor.cpp:494-500`). Their recording stub cannot establish -game availability. Before any launch, the bridge was replaced by stock local-player ExecMacro (`LocalPlayer.cpp:1522-1546`), which preserves each full line including CSV. Its owned receipt path must contain Binaries, otherwise stock code prepends ../../Binaries. No production helper command or module override is needed.
++
++## G515 - A zero blend weight does not remove a scanner reader (094-42)
++
++The 5.1 settings walk at d7eee97 `AnomalyCaptureSubsystem.cpp:3234-3240` scans every blendable, including weight zero. The initial unbuilt 4.25 port skipped those entries; that filter was removed before the first build. The outline-off control still reports a reader and uses the explicit fixture bypass. Production admission cannot be passed merely by setting a host effect's weight to zero. The focused parity test rejects the old skip filter.
++
++## G516 - Fixture authoring also needs the Saved-ini protection (094-42r)
++
++The separate Outline425 authoring argv omitted -nowrite, although its game legs carry it. Before the Python recipe ran, editor initialization created Saved/Config/Windows/Engine.ini (1,502 bytes). FF2/FG2 correctly stopped the owned editor and adopted monitor, exit125. No fixture Content was created and no crash/upload occurred; Paris stayed unchanged. Creating a fresh fixture does not waive the retained Saved/Config ini rule. Preserve the failed slot and generated file. A later authorized authoring run needs the missing switch and a qualified fresh slot; do not relabel the generated ini as harmless bookkeeping or clear the terminal result. The fixture's earlier compile failure was independent: MakeShared already returns TSharedRef, so its JSON probe must serialize R directly rather than R.ToSharedRef().
++
++## G517 - P9 v3 retires the deleted overflow root
++
++094-42c derives v3 from v2 by removing the owner-deleted BankOverflow subtree. The receipt retains legacy v1/v2/removed stream keys for the existing checker format; the selected baseline and receipt are v3. Exclusion is lexical, so an empty parent and an absent parent behave identically. Prior baselines remain immutable. FJ1 still defers the full EA8 binary rehash; the changed partition and current-disk inventory are tested directly. GA2 requires -nowrite for fixture authoring as well as runtime; GA5 caps a held admission at three hours.
++
++## G518 - Stock 4.25 material authoring has hidden inputs
++
++MaterialGraphNode.cpp:519-521 shortens the generic Input pin to NAME_None; the material editing connection must use an empty input name. SceneTypes.h:163 marks MP_WorldPositionOffset Hidden, and PropertyAccessUtil.cpp:260-267 refuses Python reads of the unexposed WorldPositionOffset input. Neither changing enum spelling nor using a numeric cast provides that API. The owned outline fixture connects its Python-created WPO expression through a bench-only, exact-project native command and checks the connection before saving. The Python2.7 harness rejects the old named pin and failed connection. This helper is fixture source, not plugin source.
++
++## G519 - Fixture bootstrap must distinguish cache and launcher behavior
++
++A local-only empty DDC graph caused a cold engine-material compilation during 094-42c authoring. The corrected fixture graph reads the installed engine Compressed.ddp and writes only the fixture cache; no cache was deleted. The first owned root was deliberately stopped before authoring, with PID/handle receipts; its generic crash classification was corrected in a separate FH4 reread, preserving the original result. NoEpicPortal suppresses a launcher check but not EditorEngine.cpp:605-633's automatic launcher start. The authoring-only BENCHMARK flag suppresses that path through FApp::IsBenchmarking. Two earlier normally exiting authoring slots left launcher descendants, which were stopped only after matching their recorded owned identities. Also, the shader worker override was not honored: report observed worker counts rather than claiming the requested count.
++
++## G520 - Qualify every 4.25 command-line INI key; preserve incomplete stop evidence
++
++ConfigCacheIni.cpp:1151-1196 parses each comma-separated override independently and requires the `]:` delimiter. `-ini:Engine:DevOptions.Shaders:NumUnusedShaderCompilingThreads=15,NumUnusedShaderCompilingThreadsDuringGame=15` therefore does not cap shader workers. Both keys need `[DevOptions.Shaders]:`; the focused parser test rejects the old form. The 094-42c cost launch ran13 workers, crossed the runtime4GiB free-commit floor, and then hit WinError5 in stop handling. Its exact denied operation is unconfirmed; no security product was identified. Recorded owned-PID cleanup succeeded, but Runtime.log grew after the kit's premature evidence seal. Preserve both the original seal and a separate after-cleanup snapshot, and do not report an interrupted compile as a completed first-launch cost.
++
++## G521 - A fixture probe timeout can exclude startup compilation
++
++The 094-42c ShaderProbe starts its 1,800-second timer when the console command runs. Raising only the outer kit limit did not prevent slot02 from exiting with985 shader jobs pending. MaterialShared.cpp:1919-1929 selects synchronous material compilation when ShaderCompiler.cpp:1798 reads bAllowAsynchronousShaderCompiling=False. The completed cost pair uses that command-line setting and two workers on both sides, measuring from process launch through normal exit. A fresh trivial-shader source hash forces new material keys without deleting DDC (MaterialShader.cpp:738-745). This policy changes the measurement conditions and must be reported. A shader-only retry may reuse a native build only after checking the exact one-file shader diff and every bound output hash; native or descriptor changes and missing/wrong hashes are refused. The final ready/zero-pending gate is unchanged.
++
++
++## G525 - A private visible ID needs current scene-depth admission
++
++GD3 uses the saved family scene depth rather than trying to reproduce Renderer-private occlusion state. Visible pixels require equal depth within a frozen quantization allowance; only logically hidden, selected event components admit a private surface in front of scene depth. With reversed Z the latter comparison is greater/equal. The fixture candidate uses4/16777215 device depth units, fixed before measurements. Rejected private geometry cannot replace a previously admitted ID. The live proof remains a separate gate.

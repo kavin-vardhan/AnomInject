@@ -1,0 +1,5 @@
+42ea37e 2026-11-04 fix(spike): admit private IDs against current scene depth
+c1193bd 2026-11-04 fix(spike): keep depth accumulation on D3D11 scalar UAV loads
+1cf84a0 2026-11-03 fix(europa): use 4.25 mesh data and depth target APIs in spike
+5d4ab88 2026-11-03 test(europa): draw private fixture depth through registered shader names
+9cce48a 2026-11-03 test(europa): probe exported depth-only lookup and draw closure

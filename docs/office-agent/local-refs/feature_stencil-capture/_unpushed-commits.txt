@@ -1,0 +1,2 @@
+76cac74 2026-07-01 feat(capture): last-known-stencil flicker box + StencilViz capture auto-off + exclude InstancedFoliageActor
+b39c0d0 2026-06-30 feat(capture): custom-stencil tagging + StencilViz gate viz (Stage 2)

@@ -1,0 +1,22 @@
+53bf725 2026-09-15 docs(contract): 079 - orchestration returns to chat Claude; Codex becomes checkpoint reviewer
+1f61196 2026-09-07 docs(m51): 078-17 correct the identity/lifecycle/geometry prerequisites and accounting
+560e28a 2026-09-07 docs(m51): 078-16 correct the identity/lifecycle/geometry design against review
+a031b46 2026-09-07 docs(m51): 078-15 draft the identity/lifecycle/geometry predictions from source
+46139fd 2026-09-06 docs(m51): 078-14 five evidentiary corrections to the 078-13 campaign record
+c73fc2d 2026-09-06 docs(m51): 078-13 the frozen pairing campaign runs and stops at leg 2
+d727aec 2026-09-06 docs(m51): 078-12 append AMENDMENT 2 - the observation-coverage floor
+770386f 2026-09-06 docs(m51): 078-11 apply the five bounded review corrections as an appended AMENDMENT
+e0d63f1 2026-09-06 docs(m51): 078-10 predeclare the frozen pairing re-check campaign as a reviewable DRAFT
+d572b3d 2026-09-06 docs(m51): 078-09 the H-editor pair completes - both halves pass, and it decides nothing
+bf88f05 2026-09-06 docs(m51): 078-08 the H-editor RESIDENT half - it PASSES, and the pair loses its power
+39afe83 2026-09-06 docs(m51): 078-08 predeclare the H-editor RESIDENT/CLOSED pair before any leg
+8dc708c 2026-09-06 docs(m51): 078-06 the pairing failure is not recipe drift; correct three 078-05 overstatements
+265403a 2026-09-06 docs(m51): 078-06 predeclare the H-instrument diagnosis before any leg
+6bd56ba 2026-09-06 docs(m51): 078-05 the F1 candidate campaign - built, gated, measured; NEEDS-DECISION
+0cb7644 2026-09-06 docs(m51): 078-05 amend the M-F1 smoke subrecord before any smoke leg
+09c636f 2026-09-06 docs(m51): 078-04a predeclare the mask-off F1 trigger after B1 blocked the OutputHeight arm
+53d42c2 2026-09-06 docs(m51): 078-04 F1 predictions - executable M-F1 record, everything else held
+6713f51 2026-09-06 fix(capture): m51 F1 - wait only for a mask outcome that can exist
+760ad94 2026-09-06 docs(m51): 078-03 AMENDMENT 2 - bounded corrections and the gate/provenance manifest
+adb0d4d 2026-09-06 docs(m51): 078-02 AMENDMENT 1 - corrected active predictions after two written reviews
+b532ddd 2026-09-06 docs(m51): 078-01 preflight - sixteen findings re-verified, integration design, DRAFT predictions

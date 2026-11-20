@@ -1,0 +1,3 @@
+
+
+Stage A preparation: full P9 passed354.433s after d2f481d; all382970 inventory files and22628 selected hashes (100696938006bytes), source manifests, toolchains, fsck and old-ledger integrity passed. The new job scope retains two compiler actions below normal,8GiB start/3GiB stop, three actual attempts per target and GA5 three-hour admission. Eight scope cases pass. GD3 source is on the fixture spike only. Its nine expression cases and FXC shader-body compile pass, and the old disocclusion condition is a failing negative. Tolerance, source citations, exact kept reference and GD4-only reader amendment are frozen in E:/IA_Fixtures/Outline425/Receipts/09443r/predictions.md and admission-rule.json. No real session has run yet.

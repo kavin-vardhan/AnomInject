@@ -1,0 +1,24 @@
+diff --git a/docs/architecture.md b/docs/architecture.md
+index d16219f..cb73c44 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -481,6 +481,19 @@ ground truth, not a replay diff).
+ > correct stencil box is Stage 3 (color and stencil become two grab points joined by submit frame id). Gotchas G52–G57.
+ > The rest of this section documents the m7 sync/labeling internals, which the fallback path still uses.
+ 
++> **AS-BUILT UPDATE (`feature/stencil-capture` Stages 2 + 3a, 2026-06-30/07-01 — NOT on `master`).** Stage 2 added
++> **custom-stencil tagging** (`AnomalyStencilTag`: reserved base 200 + fire index, refcounted `r.CustomDepth 3`, prior state
++> saved/restored) + a dormant debug post-process `M_AnomalyStencilViz` (gate-viz only, NEVER composited into captures — LOCK-2).
++> Stage 3a re-added the `Renderer` dep + a **Scene View Extension** (`FAnomalyStencilSceneViewExtension`, after-tonemap) running a
++> global mask shader (`AnomalyVisibleMask.usf`) that keeps only stencil pixels whose Custom-Depth passes the Scene-Depth
++> (occlusion) test, GPU-reads it back (`FRHIGPUTextureReadback`), and reduces to a per-tag pixel-AABB → the **occlusion-correct
++> stencil box** in `labels.jsonl`. **Box-source policy (LOCK-1, resolved per-fire in the SUBSYSTEM, serialized by the writer):**
++> rendering → live stencil box (cached as this fire's last-good NORMALIZED box); hidden + `flicker` (present-but-blinking) →
++> the cached **last-known stencil box** (tight/stable; projected only if no cache yet); hidden + `missing_object` (genuinely
++> removed) → projected "hole" box. A capture run **force-disables StencilViz** (restore on finish) so no green bakes into the PNG.
++> `AInstancedFoliageActor` is **excluded** from the target pool (G59). Deps this stage: `Renderer` (+ Renderer-private include path),
++> all still compiled OUT of Shipping. Gotchas G58 (S2), G59 (S3a). Journals `…-016-…stage2.md`, `…-017-…stage3a.md`.
++
+ The m7 housing (now the fallback path): reuses the game-viewport capture primitive +
+ ImageWrapper + JSON; gated by `ANOMALY_CAPTURE`, so compiled out of Shipping — dataset capture is a dev/research
+ activity in a packaged Development/Test build, never a retail Shipping build, satisfying L5.

@@ -1,0 +1,55 @@
+diff --git a/docs/onboarding.md b/docs/onboarding.md
+index 8bde311..625ce6d 100644
+--- a/docs/onboarding.md
++++ b/docs/onboarding.md
+@@ -1,5 +1,11 @@
++The Stage A GD3 candidate and its frozen rules live on the existing 43a spike, separate from feat. P9 is now fully passed. Native builds and live coverage/leak/state gates remain pending; no private renderer is yet qualified for the product.
++
+ # Onboarding
+ 
++The current 4.25 capture defaults to blinking and LOD corruption, and refuses labelled capture if the host custom-depth scan finds a reader or cannot establish safety. The [094-42c fixture evidence](sessions/2026-11-03-094-42c-outline-gates.md) demonstrates the outline leak and refusal. The proposed private pass is not implemented; its depth-shader link probe and new-material-shader cost are isolated experiments.
++
++The 4.25 capture port's office-smoke work is tracked in [094-37](sessions/2026-11-01-094-37-office-smoke.md): the shared four anomaly apply/revert paths, bounded census recovery, player-view pre-UI capture, and 5.1 annotation values. Real-scene dataset-quality D1-D5 are future work, not part of this port's smoke. The 5.1 paths remain unchanged.
++
+ ## What this is
+ `AnomalyInjector` is a UE5 plugin that injects **labeled visual anomalies** (graphics
+ bugs) into UE5 games to produce synthetic training data for bug-detection ML. It is
+@@ -92,3 +98,38 @@ See [setup-runbook.md](setup-runbook.md) for the authoritative steps. Short vers
+ 2. Build `StackOBotEditor / Development / Win64` against the source engine.
+ 3. Open `StackOBot.uproject`, confirm the plugin is enabled, load `MainWorld`, press Play.
+ 4. Smoke-test with the `IAI.*` commands above (start with `IAI.ListAnomalies`).
++
++Europa owner-kit state (094-16): the EP1/EP2 three-attempt wrapper is armed for one owner-started preview session. Refusals before launch leave the next slot usable; any launch locks later attempts. Only this owner profile omits human idle. Measured legs retain the full gate. See [09416-owner-kit.md](europa/09416-owner-kit.md) for exact scope and receipts.
++
++Europa owner-kit update (094-17): 09416 is superseded. Reading errors wait, process creation locks the one-session authorization before any bookkeeping, and resolved real paths are refused in dry-run configs. The current 09417 kit passes its real preflight on throwaway slots; all real slots remain unused. Chat supplies the owner card; 094-18 checks the owner leg. See [09417-owner-kit.md](europa/09417-owner-kit.md).
++
++Europa automated authoring update (094-28, 2026-10-30): the 09417 owner kit remains spent. The separate 09428 automated kit uses retained Python 2.7 modules, a mandatory no-create Smoke before EA_Core/EA_Travel, both privacy overrides, FC5 managed-file classes and FC6 owned UBT argv checks. Its real-session outcome is NEEDS-DECISION: Smoke stopped by an over-strict UBT guard; no recipe started and no package was created. This status does not authorize another launch; use only the current chat request and unspent armed slots. See [09428-authoring-receipts.json](europa/09428-authoring-receipts.json) and [09428-authoring-amendments.md](europa/09428-authoring-amendments.md). Product anomaly behavior and the frozen 5.1 records are unchanged.
++
++Europa 094-26b (2026-10-30): FD2 build-action detection and FD3 memory lines (6 GiB physical / 8 GiB commit start, 4 GiB commit stop) are qualified on 09e776b. The stock ValidatePlatforms child passed, but the native Smoke found two absent PostProcessSettings anti-aliasing properties and stopped the run cleanly before either recipe. No new package, crash or upload evidence. The spent Smoke is not retryable; future authoring needs an authorized recipe correction and fresh arming. See [the receipt index](europa/09426b-authoring-receipts.json) and [session journal](sessions/2026-10-30-094-26b-ubt-memory-smoke.md). No dry runs, push or tags.
++
++Europa 094-26c (2026-10-30): the FE1 recipe correction and FE2 event-log exclusion are committed on 9f5ce85; the real Smoke passed all 51 native bindings. Core exited 0 and authored its two packages, then failed the Config check because UE 4.25 wrote Saved/Config/WorldState/1202994220.json. Both packages are quarantined, Travel never started, and the Config addition is preserved as a hard STOP. Existing Content/config and binary hashes remain equal; no crash/upload evidence. A6 remains incomplete. See [the receipt index](europa/09426c-authoring-receipts.json) and [session journal](sessions/2026-10-30-094-26c-fixture-aa-config-stop.md). No retry, dry run, push or tags.
++
++Europa 094-26d (2026-10-30): both A6 recipes completed with clean 4.25 editor exits. Core and Travel each used slot 01; three declared packages remain. FF2 records all host Saved files except protected Saved/Config .ini; project Config, descriptors, existing Content and binaries are unchanged. The prior Core packages stay quarantined. The kit has two spent authorizations and no Smoke slot. No dry run, build, upload, push or tags. Recipe/launcher and FD2/FD3 are unchanged. A7 cold reopen, pictures and owner review remain pending. See [receipt index](europa/09426d-authoring-receipts.json) and [journal](sessions/2026-10-30-094-26d-fixture-authoring.md).
++
++Europa 094-27 (2026-10-30): runtime kit 599ef70 is armed but spent after its Smoke reader failed on the wrong cleanup schema. Smoke exited 0 and found 31/31 bindings; no runtime leg or real picture ran. Raw skipped cleanup and probe_stop exist. Crash-monitor respawn coverage also remains a gap. Protected fixtures/config/binaries and P9 v2 remain equal. No repair/retry, push or tags. See [receipt index](europa/09427-runtime-receipts.json) and [journal](sessions/2026-10-30-094-27-runtime-kit.md).
++
++Europa 094-27b (2026-10-30): Smoke passed. A3 Load exited 3 after the driver reported "Saved camera rotation differs", followed by an access violation with Niagara at the top of the engine stack. FH3 stopped the remaining 16 legs; no A7 pictures were produced. The crash cause remains unresolved. FH2–FH8 fixes passed real-file mutations, Python 2.7 and eight rehearsal cases; both 18-leg dry runs passed. Real sessions: 2; runtime legs started: 1. Run result STOP. Gates: A3 FAIL, A5 NOT_RUN, A6 NOT_RUN, A7 NOT_RUN, A8 NOT_RUN. Counted-event contact sheets: 0. Stop reason: abnormal editor/game exit. Raw evidence and reader verdicts are retained; no verdict was changed by hand. Content, config, descriptors, bound artifacts and marker 31124 remain equal. No build, push or tags. See [receipt index](europa/09427b-runtime-receipts.json) and [FH amendment](europa/09427b-runtime-amendment.md).
++
++Europa 094-27c (2026-10-30): The two A6 maps and shared mesh were quarantined and authored fresh; both camera checks passed before any save. Keyword-only Rotator checks, the real-signature Python 2.7 stub, callback re-entry/single-shot exit and crash counting passed qualification. The prior Niagara shutdown crash root cause remains unconfirmed. Runtime sessions: 18 of 18; crashes: 1. Gates: A3 PASS, A5 FAIL, A6 FAIL, A7 FAIL, A8 FAIL. Counted-event contact sheets: 1. Initial exit canary scan: GAP, 4 unreadable paths outside the tested exclusions, no matches. Raw files and generated reader verdicts are retained. No native build, push or tags. See [receipts](europa/09427c-runtime-receipts.json) and [FI amendment](europa/09427c-runtime-authoring-amendment.md).
++
++
++### 094-27d lean Phase A closeout (2026-10-31)
++
++094-27d, 2026-10-31 — NEEDS-DECISION. A7 counted events: blinking 0, lighting_mismatch 5, lod_corruption 0, missing_object 6. Lighting uses kept 094-27c evidence; missing-object was re-read with a bounded one-level quantization check; only blinking and LOD were armed again, with a smoke slot because the lean gate and monitor core changed. A3 was already complete. A5, reflected GC, A8 and controls are deferred under FJ1. No native build, Content edit, push or tag. No real session launched before the 07:00 IST deadline; the gate remained below the physical-memory start line.  See `europa/09427d-a7-receipts.json` for the evidence. The 09427d kit is spent; a new session requires a fresh authorized arming.
++
++
++### 094-27e: Phase A complete (2026-10-31)
++
++094-27e, 2026-10-31 — GREEN. Phase A is complete under FJ2: A3 Load already passed and all four A7 anomalies now have counted apply/revert pictures (blinking 6, lighting_mismatch 5, lod_corruption 6, missing_object 6). Smoke, blinking and LOD passed with exit 0. Lighting retains 094-27c evidence; missing_object retains the 094-27d re-read. Protected files and refs are unchanged; no crash or upload. A5, reflected GC, A8 and controls remain deferred under FJ1; the native probe write self-disable remains deferred under FK4. No native build, push or tags. The 09427e kit is spent. See `europa/09427e-a7-receipts.json` for the four contact sheets and session evidence.
++
++
++## Europa capture status (094-33b)
++
++Phase A and UI-free C1/C2 are accepted. The two 4.25 C3 resource-usage defects are repaired: shader-read in TargetableFlags and copy-source usage on the reduction buffer. The final retry produces all 240 masks without an ensure or crash and keeps labels aligned.
++
++C3 remains NEEDS-DECISION: blinking drawn/hidden and missing_object pass; lighting and LOD fail the frozen 95% changed-pixel coverage despite perfect silhouette IoU and zero spill. Extending the masks over the observed colour changes violates the 1% spill limit. Both slots are spent. No protected change, upload sign, push or tag. [Receipts](europa/09433b-mask-receipts.json), [journal](sessions/2026-11-01-094-33b-mask-flags.md).

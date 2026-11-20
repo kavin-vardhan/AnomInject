@@ -1,0 +1,31 @@
+diff --git a/docs/setup-runbook.md b/docs/setup-runbook.md
+index 9cd4d17..e6a023c 100644
+--- a/docs/setup-runbook.md
++++ b/docs/setup-runbook.md
+@@ -852,6 +852,26 @@ overwrites): `UnrealPak.exe <…\StackOBot-Windows.utoc> <outdir> -Extract "-Fil
+ writes the package's `.uheader` (the zen header) and `.uexp` (its export data).
+ 
+ ## Troubleshooting
++
++For J2 capture ownership on `fix/followup-capture`, inspect the additive
++`capture_ownership` block in the stopped run's `run_summary.json`. It records
++whether the scene and target were known at start, display updates, rejection
++reasons, accepted ambiguity, dropped/unpaired work and stale generations.
++NotGameView has separate show-flag, game-thread-view and controller-ID counts.
++These are request/family checks, not frame counts. Mask-served includes census
++and probe requests. Labels do not carry these diagnostics.
++
++Checkpoint I stays on its host. Run
++`python tools/office_checkpoint_i.py SESSION --host 1 --case 11 --inspection inspections.json`
++from a checkout with the reader's dependencies installed. Host 1 is the first
++office host; host 2 is the second. The inspection file must contain at least
++20 distributed, independently inspected PNG hashes; ownership counters cannot
++substitute for looking at the pictures. Cases 11–14, whole-session input,
++the check digit and failure-counter ordering are documented in
++[`tools/office_checkpoint_i.md`](../tools/office_checkpoint_i.md).
++Type only the resulting short case lines into chat; captures, logs and client
++files stay on the host. Home tests do not qualify an office host.
++
+ - **"The following modules are missing or built with a different engine version… rebuild?"** —
+   expected if `Binaries/` is stale or absent. Click **Yes**, or run step 4 first.
+ - **Plugin not listed / not loaded** — confirm `EnabledByDefault: true` in the `.uplugin` and

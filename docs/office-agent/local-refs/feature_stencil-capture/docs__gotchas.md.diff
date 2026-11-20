@@ -1,0 +1,41 @@
+diff --git a/docs/gotchas.md b/docs/gotchas.md
+index 1ac0151..0c4fe60 100644
+--- a/docs/gotchas.md
++++ b/docs/gotchas.md
+@@ -815,3 +815,36 @@ so it fails standalone (here: `TCondensedJsonPrintPolicy` undeclared). The build
+ file was still unity-blobbed; the isolation set shifts as files change. Make every file **self-contained** (added explicit
+ `Policies/CondensedJsonPrintPolicy.h` / `PrettyJsonPrintPolicy.h`). This is also why a clean non-unity compile is a stronger
+ gate than a unity one. (2026-06-30.)
++
++### G58 — custom-stencil tagging: reserved base 200, capture-the-state, refcounted r.CustomDepth; the SHOW/match is what fails late (stencil-capture S2)
++Tag the anomaly target's renderable mesh primitives with a reserved Custom Stencil value so the GPU rasterises the silhouette
++(`SetRenderCustomDepth(true)` + `SetCustomDepthStencilValue(tag)`); `r.CustomDepth 3` (EnabledWithStencil) at runtime, no host
++config. Load-bearing details: **(1)** capture-the-state-you-mutate — save each component's prior `{bRenderCustomDepth,
++CustomDepthStencilValue}` and restore EXACTLY (never assume 0; the host may already use custom stencil for outlines). **(2)**
++reserved base = **200**, tag = `200 + fire index` — clear of the small values host/UE selection systems use, headroom under 256
++(per-fire ids => free multi-actor). **(3)** `r.CustomDepth` enable/disable is **refcounted** so the capture run, the debug viz,
++and manual tagging can each hold it without one disabling it under another. **(4)** the gate-viz material (`M_AnomalyStencilViz`,
++authored by `tools/create_stencil_viz_material.py`) is a Post Process material — the Python tool tripped on GUESSED 5.1 enum
++names (correct: `BlendableLocation.BL_AFTER_TONEMAPPING`, `SceneTextureId.PPI_CUSTOM_STENCIL` / `PPI_POST_PROCESS_INPUT0`) and on
++a Lerp width mismatch (`PostProcessInput0.Color` is float4 — mask it to RGB to match the float3 green; Emissive is float3); the
++If node's `"A > B"` pins are fragile, prefer plain math nodes (Subtract/Abs/Clamp/OneMinus/Lerp). VERIFY material enum/pin names
++against engine source, and note Python `MaterialEditingLibrary` does NOT expose the shader compile-error list (type-check the
++graph by construction). **(5)** hide-type detection for Stage 3: `missing_object` hides via `SetActorHiddenInGame(true)` ->
++`IsVisible()==false`, so "is the target currently rendering" is a clean runtime signal for projected-vs-stencil box source.
++(2026-06-30.)
++
++### G59 — AInstancedFoliageActor is a bad injection/capture target: level-spanning bounds AND its HISM ignores actor-hide (stencil-capture S3a)
++Two independent reasons the level's `AInstancedFoliageActor` must be **excluded** from the renderable-visible target pool
++(pulled forward from Stage 3b): **(1)** its actor bounds are the **union of ALL foliage instances** → span the whole level → the
++m7 projected box is grotesque (min far off-screen, e.g. `bbox_norm ≈ [-5.1, -3.1, …]`). **(2)** `missing_object`/`flicker` hide via
++`SetActorHiddenInGame(true)` and the actor reports `IsHidden()==true` (so the box-source detector picks the projected "hole" box),
++BUT the foliage **HISM keeps rendering** — actor-hidden does NOT propagate to the foliage system's own visibility path — so the
++Custom-Stencil silhouette persists on a frame we labelled hide-type. The actor-hide / still-drawing **mismatch is foliage-specific**:
++a standalone `UInstancedStaticMeshComponent`/`UHierarchicalInstancedStaticMeshComponent` on a normal actor DOES respect
++`SetActorHiddenInGame` (standard `UPrimitiveComponent::ShouldRender` owner-hidden path) and has sane per-component bounds — so the
++exclusion is scoped to the **foliage container only**, NOT all ISM/HISM (a populated ISM crate stays a legit target). Implemented in
++the shared per-actor classifier `AnomalyViewport::ClassifyRenderableVisibleLive` (the single source of truth — selector + auto +
++dashboard all inherit, per G51), matched by **reflected class NAME** `"InstancedFoliageActor"` walking the class chain — a typed
++`IsA<AInstancedFoliageActor>()` would pull in a **Foliage-module dependency** (`/Script/Foliage`), which the name match avoids
++(keeps the core dep set + game-agnostic label-free convention intact). BANKED: if a future requirement wants foliage AS a target,
++the hide-detection needs per-instance handling (out of scope for v1). (2026-07-01.)

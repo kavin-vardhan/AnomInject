@@ -1,0 +1,80 @@
+diff --git a/docs/architecture.md b/docs/architecture.md
+index c6b81a9..17fcaec 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -1,5 +1,13 @@
++094-43r Stage A changes only the experimental fixture renderer: scene-depth equality for visible IDs, front/equal for selected logically hidden event components. Product FZ2 is still gated on the fixture proof. The feature kit admits the new fixture job with unchanged FM1 and GA5 limits.
++
+ # Architecture (living — current as-built)
+ 
++For 4.25, the accepted FZ3/FZ4 guard scans host custom-depth readers before tagging, refuses reader/unknown results, and defaults capture routes to blinking and LOD corruption. The other two smoke routes require an explicit list. Bench state planting is restricted to the owned fixture. The separate outline fixture reproduces the leak and the guard refusal; its shader experiment stays outside the product branch. A private ID/depth pass is still future work, not part of the current capture path. See [094-42c](sessions/2026-11-03-094-42c-outline-gates.md).
++
++## 4.25 capture office-smoke finish (094-37)
++
++The exact-4.25 capture route keeps census batches until their matching readback, preserves live-event ownership, and requeues no-pass, polluted or lost batches without changing prior verdicts. Lost means more than eight game ticks after arming, matching 5.1. Host custom-depth actors are excluded throughout. Annotation infinite far planes use 1,000,000; selection provenance is frozen by the shared evaluator. Capture logs its viewport, format, RHI, pre-UI hook count, tick and census health on the first resolved frame and frame 300. See [the source citations and smoke protocol](sessions/2026-11-01-094-37-office-smoke.md). Native qualification is recorded there after the build and session; real-scene label-free grading is deferred by FU2.
++
+ ## m55: measurement sidecar and bench catalogue (merged to `master` 2026-09-26 as `38f3376`, no tag)
+ 
+ The catalogue is **12 shipping entries** in every configuration (m53 added `uv_corruption` and
+@@ -23,8 +31,8 @@ masked) … preset=<p>`. Code that runs a lever by name uses `AnomalyBenchGate::
+ is also inside `#if !UE_BUILD_SHIPPING`, `ANOMALY_CAPTURE` or the Shipping-denied `AnomalyBench`
+ module. `tools/lever_audit.py` (G-LEVER-AUDIT) checks all of it from source and against a built binary.
+ **Since 090-07 every plugin module is denied to Shipping in `AnomalyInjector.uplugin`
+-(`"TargetConfigurationDenyList": [ "Shipping" ]`), so a Shipping target builds none of the plugin; the
+-`ANOMALY_CAPTURE=0` / `UE_BUILD_SHIPPING` branches in the source are kept but unreachable (G428, G431).** `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
++(`"BlacklistTargetConfigurations": [ "Shipping" ]`), so a Shipping target builds none of the plugin; the
++`ANOMALY_CAPTURE=0` / `UE_BUILD_SHIPPING` branches in the source are kept but unreachable (G428, G431).** UE 5.1 reads these legacy descriptor keys through its silent deprecated-key fallback. `AnomalyBench` is a non-Shipping Game/Editor fixture module; Client/Server
+ targets are excluded. Explicit bench commands lock controller look/move input before settle and
+ place the camera once afterward, with separate runner verification. Commands require the fixture
+ flag, named bench map and inactive capture. Owned input-lock increments release at run end/cleanup.
+@@ -1872,3 +1880,50 @@ gates (blinking, felt slowdown). See gotcha G8 for the bridge setup.
+   this project's verification uses — `execute_python`, Output-Log reads, actor/component state reads —
+   is intact. M2.5's full re-gate (Simulate session in an `EWorldType::PIE` world) was driven over the
+   severed bridge. Full diagnosis + the restore-on-5.6 recipe are in G8.
++
++Europa owner-kit state (094-16): the EP1/EP2 three-attempt wrapper is armed for one owner-started preview session. Refusals before launch leave the next slot usable; any launch locks later attempts. Only this owner profile omits human idle. Measured legs retain the full gate. See [09416-owner-kit.md](europa/09416-owner-kit.md) for exact scope and receipts.
++
++Europa owner-kit update (094-17): 09416 is superseded. Reading errors wait, process creation locks the one-session authorization before any bookkeeping, and resolved real paths are refused in dry-run configs. The current 09417 kit passes its real preflight on throwaway slots; all real slots remain unused. Chat supplies the owner card; 094-18 checks the owner leg. See [09417-owner-kit.md](europa/09417-owner-kit.md).
++
++Europa automated authoring update (094-28, 2026-10-30): the 09417 owner kit remains spent. The separate 09428 automated kit uses retained Python 2.7 modules, a mandatory no-create Smoke before EA_Core/EA_Travel, both privacy overrides, FC5 managed-file classes and FC6 owned UBT argv checks. Its real-session outcome is NEEDS-DECISION: Smoke stopped by an over-strict UBT guard; no recipe started and no package was created. This status does not authorize another launch; use only the current chat request and unspent armed slots. See [09428-authoring-receipts.json](europa/09428-authoring-receipts.json) and [09428-authoring-amendments.md](europa/09428-authoring-amendments.md). Product anomaly behavior and the frozen 5.1 records are unchanged.
++
++Europa 094-26b (2026-10-30): FD2 build-action detection and FD3 memory lines (6 GiB physical / 8 GiB commit start, 4 GiB commit stop) are qualified on 09e776b. The stock ValidatePlatforms child passed, but the native Smoke found two absent PostProcessSettings anti-aliasing properties and stopped the run cleanly before either recipe. No new package, crash or upload evidence. The spent Smoke is not retryable; future authoring needs an authorized recipe correction and fresh arming. See [the receipt index](europa/09426b-authoring-receipts.json) and [session journal](sessions/2026-10-30-094-26b-ubt-memory-smoke.md). No dry runs, push or tags.
++
++Europa 094-26c (2026-10-30): the FE1 recipe correction and FE2 event-log exclusion are committed on 9f5ce85; the real Smoke passed all 51 native bindings. Core exited 0 and authored its two packages, then failed the Config check because UE 4.25 wrote Saved/Config/WorldState/1202994220.json. Both packages are quarantined, Travel never started, and the Config addition is preserved as a hard STOP. Existing Content/config and binary hashes remain equal; no crash/upload evidence. A6 remains incomplete. See [the receipt index](europa/09426c-authoring-receipts.json) and [session journal](sessions/2026-10-30-094-26c-fixture-aa-config-stop.md). No retry, dry run, push or tags.
++
++Europa 094-26d (2026-10-30): both A6 recipes completed with clean 4.25 editor exits. Core and Travel each used slot 01; three declared packages remain. FF2 records all host Saved files except protected Saved/Config .ini; project Config, descriptors, existing Content and binaries are unchanged. The prior Core packages stay quarantined. The kit has two spent authorizations and no Smoke slot. No dry run, build, upload, push or tags. Recipe/launcher and FD2/FD3 are unchanged. A7 cold reopen, pictures and owner review remain pending. See [receipt index](europa/09426d-authoring-receipts.json) and [journal](sessions/2026-10-30-094-26d-fixture-authoring.md).
++
++Europa 094-27 (2026-10-30): runtime kit 599ef70 is armed but spent after its Smoke reader failed on the wrong cleanup schema. Smoke exited 0 and found 31/31 bindings; no runtime leg or real picture ran. Raw skipped cleanup and probe_stop exist. Crash-monitor respawn coverage also remains a gap. Protected fixtures/config/binaries and P9 v2 remain equal. No repair/retry, push or tags. See [receipt index](europa/09427-runtime-receipts.json) and [journal](sessions/2026-10-30-094-27-runtime-kit.md).
++
++Europa 094-27b (2026-10-30): Smoke passed. A3 Load exited 3 after the driver reported "Saved camera rotation differs", followed by an access violation with Niagara at the top of the engine stack. FH3 stopped the remaining 16 legs; no A7 pictures were produced. The crash cause remains unresolved. FH2–FH8 fixes passed real-file mutations, Python 2.7 and eight rehearsal cases; both 18-leg dry runs passed. Real sessions: 2; runtime legs started: 1. Run result STOP. Gates: A3 FAIL, A5 NOT_RUN, A6 NOT_RUN, A7 NOT_RUN, A8 NOT_RUN. Counted-event contact sheets: 0. Stop reason: abnormal editor/game exit. Raw evidence and reader verdicts are retained; no verdict was changed by hand. Content, config, descriptors, bound artifacts and marker 31124 remain equal. No build, push or tags. See [receipt index](europa/09427b-runtime-receipts.json) and [FH amendment](europa/09427b-runtime-amendment.md).
++
++Europa 094-27c (2026-10-30): The two A6 maps and shared mesh were quarantined and authored fresh; both camera checks passed before any save. Keyword-only Rotator checks, the real-signature Python 2.7 stub, callback re-entry/single-shot exit and crash counting passed qualification. The prior Niagara shutdown crash root cause remains unconfirmed. Runtime sessions: 18 of 18; crashes: 1. Gates: A3 PASS, A5 FAIL, A6 FAIL, A7 FAIL, A8 FAIL. Counted-event contact sheets: 1. Initial exit canary scan: GAP, 4 unreadable paths outside the tested exclusions, no matches. Raw files and generated reader verdicts are retained. No native build, push or tags. See [receipts](europa/09427c-runtime-receipts.json) and [FI amendment](europa/09427c-runtime-authoring-amendment.md).
++
++
++### 094-27d lean Phase A closeout (2026-10-31)
++
++094-27d, 2026-10-31 — NEEDS-DECISION. A7 counted events: blinking 0, lighting_mismatch 5, lod_corruption 0, missing_object 6. Lighting uses kept 094-27c evidence; missing-object was re-read with a bounded one-level quantization check; only blinking and LOD were armed again, with a smoke slot because the lean gate and monitor core changed. A3 was already complete. A5, reflected GC, A8 and controls are deferred under FJ1. No native build, Content edit, push or tag. No real session launched before the 07:00 IST deadline; the gate remained below the physical-memory start line.  See `europa/09427d-a7-receipts.json` for the evidence. The 09427d kit is spent; a new session requires a fresh authorized arming.
++
++
++### 094-27e: Phase A complete (2026-10-31)
++
++094-27e, 2026-10-31 — GREEN. Phase A is complete under FJ2: A3 Load already passed and all four A7 anomalies now have counted apply/revert pictures (blinking 6, lighting_mismatch 5, lod_corruption 6, missing_object 6). Smoke, blinking and LOD passed with exit 0. Lighting retains 094-27c evidence; missing_object retains the 094-27d re-read. Protected files and refs are unchanged; no crash or upload. A5, reflected GC, A8 and controls remain deferred under FJ1; the native probe write self-disable remains deferred under FK4. No native build, push or tags. The 09427e kit is spent. See `europa/09427e-a7-receipts.json` for the four contact sheets and session evidence.
++
++
++## Europa 4.25 capture route (094-33b)
++
++Exact 4.25 non-Shipping builds compile Capture and the scoped mask/reduction shaders; ControlServer stays off and the 5.1 route is unchanged. The pre-UI rendered-family colour path and stock 8/10-bit decoder retain accepted C1/C2 qualification.
++
++C3 temporarily owns four custom-stencil components and pairs custom-depth/stencil masks, GPU reduction, raw evidence and colour with the same family key. All three RDG textures put ShaderResource|UAV in TargetableFlags. The reduction buffer also has BUF_SourceCopy, expressed with the explicit 4.25 EBufferUsageFlags cast. Native source 47f9be2 built in Editor and Game Development. The retry has no ensure, assertion or fatal diagnostic; all 240 GPU tables match CPU reconstruction and stencil/pacing state restores.
++
++The mask gate is still partial: three events each, blinking drawn/hidden and missing_object PASS; lighting and LOD FAIL changed-pixel coverage. Reference silhouettes and masks agree (IoU 1/spill 0), but postprocessed colour changes extend beyond their allowed regions. No metric/reference change was made. The same 240-frame session passes the explicit C3 profile of the C2 reader; its default 480-frame/two-order contract remains intact. Both real mask negatives and the three independent label-shift negatives fail. Both 09433b slots are spent; a render/scenario decision is needed before C3 closes.
++# 4.25 C5 capture adapter (094-35 qualification)
++
++The 4.25 capture adapter now rotates census batches through the shared stencil ledger, using 5.1's inclusive 0.5%–25% coverage band, half-free batch capacity, eight-value event headroom and cycle-aware expiry. Frame requests retain their actor/tag mapping until readback; the next batch restores prior custom-depth flags, stencil values and write masks before reuse. Live event receiver sets receive event-owned values. Default capture follows the player's current view; first-camera selection requires the explicit bench-only override. The 5.1 annotation serializer is ported without changing its schema, with injected membership separated from measured on-screen affected membership. The opt-in C5 bench freezes same-session pose references and unstable maps before scoring; it never saves the map. Real street-map qualification is recorded in the 094-35 journal and receipts.
++
++09435 outcome: the 3,996-frame street session verifies player-view agreement and exact restoration for 1,980 components, including the non-default setup. It does not qualify real-scene labels or anomaly masks: every clean pose exceeds the fixed 5% unstable-pixel limit, so injection stays off. The rotating census measures more than 55 drawn actors at a held pose without exhausting values. Its native legacy bounds-visible counter retains the default 6% bounds floor; the reader derives drawn counts and initial visibility from the independent clean stencil samples instead. Event annotation membership and late-target firing still need a qualified scored session.
++
++
++### 4.25 auto capture, 094-40
++
++The bench capture driver seeds/starts the injector once after its pre-pass and stops before its final clean tail. Auto lod_corruption requires a multi-LOD component, predicts its drawn LOD with the player's game-thread view and 4.25 ComputeStaticMeshLOD, then chooses the coarsest or LOD0 if already coarse. This is a guarded 4.25 auto addition; manual and 5.1 selection stay unchanged. Production selection defaults to6%; only the EA_Core bench argv sets0.5%. The office reader retains masks/labels/schema/restoration/UI proofs and additionally requires every LOD event to change target pixels beyond grain. See the 094-40 journal for source citations and frozen checks.

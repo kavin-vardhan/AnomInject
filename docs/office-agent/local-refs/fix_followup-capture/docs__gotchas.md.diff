@@ -1,0 +1,346 @@
+diff --git a/docs/gotchas.md b/docs/gotchas.md
+index 94dd49f..7881180 100644
+--- a/docs/gotchas.md
++++ b/docs/gotchas.md
+@@ -10203,3 +10203,341 @@ the labels' transitions, with zero unflagged E1 t50/t10 tail frames and zero mis
+ deferred 091-02 section 0 is closed on the final m53/proxy builds. AA-off UV/normal confirmation uses the
+ existing 090-10e reader's independent PIE exclusions, with raw 084-09 pixel/edge parity and 13 controls;
+ the older reader's all-flags-under-AA-off rejection is retained, not counted as a pixel failure.
++
++
++## G462 - 091-05: family identity includes the scene, viewport and sampled frame
++
++An extension callback being non-scene-capture does not establish capture ownership. The editor's own
++world can render while PIE plays, and its per-scene FrameNumber can equal the game's. Check the owner
++scene and viewport before dequeue/service, bind the key ring to a unique family serial, and fail closed
++when a mask family has no bound. Sequence ordering alone also permits an old arm to be served by a later
++family after its owner render was skipped; retain the sampled game frame and expire after earlier queued
++renders. The expired snapshot is counted and dropped, never delivered with a later picture.
++
++The 091-04 predicate counterexample is a failing pure mutant. Engine proof uses new-window PIE and two
++realtime editor-world viewports, including editor redraws after capture sampling. A green plane exists only
++in the game world and is measured in every labelled image; family counts alone cannot prove picture
++ownership. An erased-marker control fails. Keep old-build pixel readings separate from its absence of new
++rejection counters: missing telemetry alone is not evidence of an old mislabel.
++
++F6 must collect labels-side event identities before filtering transition entries. A transition-free AA-off
++event can have a wrong annotation ID while both transition lists are empty. Check every labels-side ID,
++reject duplicate annotation IDs, and permit legitimate annotation-only unlabelled records. The review's
++wrong-ID control passes the old checker and fails both the new CLI and verify_capture hook.
++
++A dropped snapshot may already have a counted clean mask outcome. Removing the outcome without reversing
++that count leaves the summary larger than the written row set (the first skipped-render control had 909
++rows but 912 mask outcomes). Decrement only the existing outcome's matching counter before removal; do not
++turn a dropped request into a written unmeasured row. Check both clean-frame and active-event skips against
++actual written mask states. The 33adf06 capture is retained as this accounting gate's failing control.
++
++Colour and mask request IDs have separate namespaces. An active skipped-render control exposed three
++late mask results counted after the colour snapshots were gone. Locate these pending masks by session
++index, consume ready results, and drain late results as discard-only; exclude discarded requests from
++teardown counts. The 23a7da5 active control is the failing example.
++
++
++## G463 — 091-05: zero skipped components does not mean every rendered component changed
++
++A null material slot is untouched by the texture decision tree, yet its mesh can draw the engine default
++material. The old `ComponentsSkipped > 0` condition therefore left C2 in actor-wide masks and boxes when
++only C1 changed. Install the exact successfully committed component set every time, including an empty
++scope before a deferred commit, and clear it on exact revert. Narrowing a scope must also release a
++pre-fire census tag still owned by this plugin; otherwise subsequent m26 arms are discarded as orphaned.
++The null-slot fixture catches the old actor-wide mask on all 144 labelled frames. UV/normal PIE/staged each
++pass three fires on the final m53 source, with C1-only PNG/m26/bboxes and exact restores.
++
++Exact adjacent-frame C2 RGB bytes were too strong for the renderer's quantization noise: clean frames also
++differed by one or two levels. Phase matching and gamma-only tonemapping still failed exact equality;
++those failures are retained. Final proof uses the pre-existing co-user mean-noise envelope plus 0.05,
++requires zero C2 pixels above 12 levels, and rejects a planted 20-level change. No E1 threshold or temporal
++window was changed. Do not describe this result as byte-identical C2 pictures.
++
++## G464 — 091-05: alpha variation is evidence only when the slot material uses alpha
++
++For UV-family uniformity, ignore alpha unless blend mode or connected opacity inputs use it. Constant RGB
++with checker alpha is refused on the opaque fixture and admitted with visible change on the masked fixture,
++in PIE and staged. The old build labels three opaque events with only one-level noise. RGB variation in an
++unused packed-map channel and a normal texture feeding zero-strength normals remain visibility limits;
++the measured visible-change gate is a follow-up. Size/ratio refusals are selection heuristics, and a source
++RHI tripwire is not an atomic copy snapshot. Neither F4 nor F5 changes code in this delivery.
++
++## G477 — 093-04: distinguish row self-consistency from annotation membership
++
++Both versions of the F6 checker validate `event_id == id@start_frame|target_name` on every
++row before the transition filter. The 093-03 mutant changed only event_id, so both versions
++correctly rejected it. The earlier explanation blaming retained `pie_end_settle` transitions
++was wrong. Keep that mutant as a self-consistency control, not an old-checker can-fail.
++For the F6 membership control, change start_frame, target_name and event_id consistently on
++an unflagged row while leaving annotation unchanged. On the existing PIE capture, the old
++hook misses the event and the new CLI/hook reject it as `labels event missing from annotation`.
++No transition-free capture is needed. The original capture and failed comparison remain
++unchanged; corrected evidence is under `E:/IA_BuildCache/_r933/continuation09304/controls`.
++Number G477 was selected after checking all 70 refs, including heading levels beyond `##`.
++
++## G478 — 093-05: an ownership barcode can contaminate a collateral measurement
++
++At the staged 1280x720 view, the game-only barcode overlaps a proxy co-user's full geometry
++footprint. The combined ownership/collateral run therefore fails that peer's RGB envelope.
++All 1,398 pixels above 12 levels in each worst frame occupy the barcode rectangle; the
++original pictures and failed reading remain evidence. Keep that capture's ownership proof
++and run the normal Marker=0 collateral recipe separately. Do not trim the ROI, exclude
++pixels or widen its envelope. The separate capture passes all 20 original peer footprints,
++three visible fires, 144 measured labelled masks, zero native-AA-off edges and both image
++can-fails. See `E:/IA_BuildCache/_r933/continuation09305` and the 093-05 journal.
++
++Evaluator scope also matters: the frozen zero-pixels-above-12 condition applies to C2 in
++the null-slot fixture. Other co-users use the measured clean mean envelope +0.05. Applying
++the C2-only condition to all peers added an unauthorized gate; retain that failed reading,
++correct the checker to the actual prediction, and re-run its 20-level can-fail. This is not
++permission to change a prediction after observing a product failure. Ruling 093-04 D2
++allows at most two fixes per harness problem and requires disclosing each attempt.
++
++## G479 — 093-06: masked-alpha masks do not cover the union of both silhouettes
++
++The target mask follows the event-state silhouette. When corrupted alpha cuts pixels
++away, those pixels change outside the mask. The J1 masked-alpha PIE/staged readers
++therefore find more change in the surrounding ring than in the masked region, while
++onset/recovery edges remain 0 frames off. A measured nonzero event mask and correct
++timing do not certify completeness against the entire changed area. Ruling 093-05 E3
++records this as a known limitation, also listed in `client-readme.md`.
++
++Future item for the regular delivery line: mask the union of the pre-event and event
++silhouettes for silhouette-changing corruptions and gate mask completeness against
++the changed area. This is not natural-cause work and is not implemented by J2.
++
++## G480 — 093-06: request ownership includes the display generation and actual view
++
++A known scene/target is insufficient if a different local player, family, view state
++or display generation can supply the result. J2 freezes those identities before a
++request can dequeue and checks them again on the render thread and at publication.
++Viewport changes retire queued work and measurement baselines. Rejected readbacks
++already scheduled into RDG must remain alive until the GPU completes; then discard
++their bytes. A rejection cannot free a resource that a submitted GPU pass still uses.
++
++NotGameView has three different causes: the Game show flag, the game-thread view flag
++and a negative controller ID. Keep each counter and prove healthy capture on each
++fixture. Rejection totals count predicate checks, not frames; served masks include
++census and probe requests. Read `capture_ownership` in `run_summary.json`, not labels.
++
++The independent bench marker also needs the actual local-player projection. Building
++its position from FOV and viewport aspect clipped a reference cell on the Lyra fixture;
++all 360 upper frame barcodes and native event edges still matched. The failed evidence
++is retained in `_r936/legs/lyra_P_delayed`. The receipt-owned helper now deprojects its
++fixed normalized positions through the constrained view. The decoder and its contrast
++threshold are unchanged. This is a harness correction, not a product/view-gate exception.
++
++The later selected-viewport gate exposed a separate product disagreement. With the
++Lyra fixture's MaintainYFOV setting and a 942x869 selected viewport, the actual target
++projects entirely left of the image (X -79 to -21), but the label claims X 24 to 71.
++Ninety-six rows still say labelled/visible-positive with zero target pixels and no
++measured mask. All 360 pictures are from the correct view. The older product frustum
++reconstructs a horizontal FOV and predates J2. The job stops under D2 for review;
++changing the fixture framing must not silently conceal this label/picture failure.
++No product fix or relaxation of the gate was made. See `_r936/stop-review.json`.
++
++## G481 — Camera FOV metadata is not the engine's projection geometry
++
++The retained 093-06 Lyra selected viewport exposes this directly: MaintainYFOV at
++942x869 put the target fully off the left edge while 96 rows claimed a visible
++box. The original framing is retained as PF-1, not silently replaced by a positive.
++At 1123x870, measured mask centres expose a projected-box scale of about 0.967.
++Null masks cannot supply the corresponding 942x869 mask estimate; report unavailable
++and keep the independent engine-corner evidence instead of inventing a reading.
++
++Use the resolved local player's engine projection, then freeze the actual serving
++view's unjittered matrices with the request. Refresh GT geometry after the camera
++update, before freezing bounds; replace it with serving geometry before any result
++membership calculation. Normalise against the same view rect copied by capture and
++map to the written picture size. Configured FOV remains a camera setting in labels,
++not an effective FOV inferred from a viewport aspect or an axis constraint.
++
++UE 5.1's `ULocalPlayer::GetViewPoint` is protected. Geometry comes from the public
++`GetProjectionData`; configured camera metadata comes from the public camera cache.
++Do not add a private engine header or engine edit to retrieve metadata.
++
++The PF-2/office estimator checks each axis separately and uses the worse deviation.
++A centre-near or clipped target, a missing mask, or fewer than 20 usable rows on an
++axis is insufficient evidence. The office reader counts null-mask labelled rows and
++continues its other checks. Machine view records cannot prove picture origin: the
++20-frame contact sheet stays local, and the owner appends the independent `g` count.
++Candidate implementation and qualification results are recorded separately in the
++093-07 journal; this note does not claim the unrun engine matrix has passed.
++
++PF-1 on the first 093-07 candidate demonstrates a separate admission gap: all 360
++rows correctly exclude the off-screen target, yet four targeted fires still apply.
++`TryFireSpecific` finds the named actor and calls ApplyAnomaly without an on-screen
++query. The four measured-zero annotation vetoes happen after apply and do not meet
++PF-1's no-fire/refusal requirement. The unchanged prediction fails; D2 stops the run.
++Do not claim that correcting the shared projector adds a check to callers that never
++consult it. The frozen failure and exact engine corners are in `_r937/stop-review.json`.
++
++## G482 — A later mask veto does not prevent an off-screen targeted fire
++
++The 093-07 PF-1 target was correctly outside the engine projection on every
++row, yet TryFireSpecific applied four events before their measured-zero masks
++removed the annotations. Keeping labels correct does not enforce on-screen
++injection. Admission belongs before the shared ApplyAnomaly mutation, including
++console, dashboard and cached-selector routes as well as capture bursts.
++
++Use the resolved owner's engine frustum and renderable target bounds. Do not
++turn this into another occlusion test; the existing mask veto handles occlusion.
++Refuse an unavailable projection instead of guessing a viewport, and count
++retryable no-projection/off-screen calls separately in the run summary. Do not
++put a transient refusal in the persistent disabled-anomaly map: the next
++scheduled attempt must be able to succeed when the owner or target moves.
++Refuse a multi-match query atomically before any object is changed.
++
++L3 permits a last-completed-camera admission query. Labels/masks/visibility
++still use frozen serving geometry, and camera-switch pixel gates test their
++backstop. The design and predictions precede source changes at 7f4329c;
++engine qualification remains pending until its receipts say otherwise.
++
++093-08 implements the common guard but stops before any engine leg for an
++inherited locked-FOV metadata issue outside admission scope. Builds and helper
++audits pass; those do not establish the guard's runtime counters or PF-1 result.
++Keep its candidate explicitly unqualified and restart the engine order after
++the scoped metadata decision. Evidence: `_r938/scope-stop.json` and the journal.
++
++093-09/093-10 runtime follow-up: the fixed Lyra PF-1 writes 360 frames, labels
++zero rows visible, applies zero fires (both texture and generic receipts) and
++counts four off-screen refusals with a known projection. The retained four-fire
++session rejects. The admission prediction holds; the candidate remains
++unqualified because a later native mask-picture pairing gate failed.
++
++## G483 — Engine projection does not make the camera cache authoritative for FOV metadata
++
++`APlayerCameraManager::GetFOVAngle()` returns a positive LockedFOV before consulting
++the camera cache. The controller's `fov` command sets that lock. Reading
++`GetCameraCacheView().FOV` directly can therefore change the meaning of `fovDeg`
++even when the engine matrices produce correct boxes. Keep geometry on the engine
++projection and source the existing metadata key through GetFOVAngle. A control
++must use the observed cache value; never assume the unlocked FOV is 90.
++
++093-09 restores that accessor in AnomalyViewport.cpp without changing projection
++or visibility. PF-5 is the locked-value runtime proof in the frozen predictions.
++The admission proof is separate: the new Lyra PF-1 writes 360 frames, applies no
++fires and counts four off-screen refusals. Its retained 093-07 four-fire session
++still rejects, including through the generic apply receipt. Full qualification
++requires the remaining ordered gates; neither a build nor a source argument
++substitutes for those readings. See the 093-09 journal and `_r939` receipts.
++
++PF-5 now supplies the actual runtime values: requested=70, GetFOVAngle=70,
++camera-cache=90; every fovDeg label is 70 and both mask/box scale axes pass. The
++exact f9b9328 metadata expression would report the observed 90 and rejects the
++same locked-70 predicate. This proves the metadata repair, not full J2 qualification.
++
++## G484 — A family-check counter is not a histogram of retired samples
++
++In J2 resize, two samples retire with the log reason owner_render_missing while
++capture_ownership.rejections.owner_render_missing remains zero. That map counts
++family checks; dropped/unpaired and capture_unpaired_dropped count retirement.
++W2 reconciles sample indices against the named log receipts, and still requires
++zero stale or mismatched accepted frames. Do not infer zero drops from the map.
++Documented under Y4 without a product change. Follow-up on the next product
++change on this line: count the drop reason in the map, or remove that key.
++
++## G485 — The magenta pairing probe must be lit across its silhouette
++
++The permanent pairing reader measures bright-magenta pixels, not arbitrary dark
++geometry. Under the AA-off arbiter's disabled indirect lighting, the camera-facing
++probe face becomes black and the lit side pulls its centroid away from the full
++mask. Y1 classifies the 093-10 native100 leg as instrument precondition not met
++(probe unlit), with no pairing slip in evidence. Do not run this pairing reader
++at arbiter lighting. The arbiter's pixel-change purpose remains unchanged.
++093-11 freezes C1 without the three lighting overrides and C2 with only motion
++blur disabled; the control must establish the factor before adopting a recipe.
++The reader, 40 px tolerance and PREVIOUS = NEITHER = 0 predicate do not change.
++
++The 093-11 control establishes the factor: C1 with host lighting gives
++CURRENT52/PREVIOUS0/NEITHER0 and median probe coverage 68.47%; its shifted-mask
++copy rejects. The failed recipe gives 5.11% coverage and NEITHER56. C2 turns
++only motion blur off and still gives 5.15% coverage and NEITHER60. Adopt the
++amended recipe for all pairing legs; this does not authorize a different reader
++or a retry of PREVIOUS. No fixture material, light or product source changed.
++
++Later in the same job, Lyra native100 at amended lighting has 49 CURRENT and
++nine NEITHER despite 68.70% coverage. That cause is not established. The one
++remaining authorized recipe attempt, historic with all four arbiter overrides
++absent, passes 50 CURRENT/zero PREVIOUS/zero NEITHER and its shifted-mask control.
++Historic replaces amended for every pairing leg; both recipe attempts are now
++used. A lit probe is necessary for this reader, but this is not a claim that
++coverage alone establishes pairing correctness. Keep the actual gate and its
++can-fail, and do not infer a new tolerance from coverage.
++
++Historic native50 later pairs all 56 decidable samples CURRENT and rejects its
++shifted-mask control, while the frozen output-size check fails: 1280x992 actual
++against 640x496 expected. Serving-view diagnostics report TSR. Requested screen
++percentage and final picture dimensions are distinct measurements; a console
++value alone does not prove the internal rect. No dimension predicate was changed
++after this result. The job stops for a scope decision with all raw evidence
++retained; this observation does not establish a pairing slip.
++
++093-12 / Z1-Z2 extends this lesson: the retained log already contained the
++independent internal-view-rect evidence, 640x496 inside output 1280x992 on all
++82 mask-pass lines. The old size assertion encoded AA-off behavior. Default TSR
++upscales before capture, so a full-sized picture does not disprove reduced render
++resolution. Keep the old result as a reading, and qualify a fresh leg using all
++four Z2 parts: actual half-size internal rects on every captured sample, consistent
++picture/mask/label sizes, PF-2 per-axis agreement where at least 20 rows qualify,
++and the permanent pairing predicate with a shifted-mask control. The console
++setting alone is still insufficient. No product or fixture change is involved.
++
++The six fresh 093-12 PIE pairings pass at historic, completing all eight PIE
++pairing cases with the two retained native100 passes. Every fresh 50% leg proves
++half-size internal rects and consistent full-size pictures/masks/labels; shifted
++copies reject. Both PF-2 axes have n=0 because the labelled boxes touch the edge.
++Z2 makes those axes readings: record unavailable scales explicitly, never call
++them measured box agreement. The former size-stop leg remains a reading only.
++This closes the PIE TSR-size assertion issue, not whole-J2 qualification: the
++later camera-reference product assertion stops the job before cook/staged proof.
++
++
++AA4 now retires pairing's vacuous PF-2 part 3. Dedicated TSR50 box legs must use
++the proper PF-2 framing, with n>=20 on both axes; fewer rows is a STOP. Pairing
++retains internal-resolution, output-size and unchanged C/P/N/shifted-mask checks.
++The new dedicated box legs remain unrun after the 093-13 camera-control stop.
++
++## G486 — An owner change at the same size must reallocate an emptied mask
++
++J2 e13ddc52 cleared the exposure-exclusion array and folded-event set on owner
++invalidation, but kept cached dimensions and pixel count. A same-size camera cut
++then bypassed size-keyed allocation and FoldExposureExclusion indexed an empty
++array. The retained eff797c camera reference asserts at the first cut; this block
++was absent from pushed J1 and the delivered release.
++
++Use one reset helper for all five members, including the cached dimensions/count.
++At the fold, allocate from actual Num()!=W*H, while preserving shape-change clearing
++even when the pixel count stays equal. The extracted old code fails same-size
++owner reset/fold; product 9781031 passes that and all four companion CPU cases.
++Both new Stack camera runs survive cut and blend, with zero measured label edges
++and every labelled row masked in the active leg. This is not full qualification:
++the frozen negative control demands sample 299, which is correctly retired by W2.
++The missing donor is a harness scope decision; no reader or threshold was changed,
++and the leg was not retried. All 71 refs were checked before allocating this number.
++
++
++## G487 - A negative control must survive the legal drops it is meant to check
++
++W2 retires the three pending samples before each camera switch. The old camera
++control hardcoded donor299, so the blend control could never be constructed even
++when pictures, labels, masks and drop accounting were correct. A missing control
++is a stop, never a passing can-fail.
++
++AB1 freezes the last written sample before each switch, found from that leg's own
++receipts, with a maximum distance of ten samples. Do not choose the last convenient
++labelled row or skip a switch. Donors56/296 are four samples before cut60/blend300;
++both stale-projection copies reject on retained Stack and fresh Lyra camera legs.
++The original unavailable-control outcome remains retained. This was donor repair
++attempt1; no product change, predicate change or engine retry was needed. Re-check
++all refs before assigning a new gotcha number.
++
++093-15 / AC1 extends G487: a setup proof must also use the leg's own receipts.
++The TSR checker inferred request=(1<<61)|(sample+1), which happened to fit the
++per-sample pairing probe but could never match the ordinary sparse-mask fixture.
++Serial1 served sample29, not sample0. Join MASK-SERVED request/sample receipts to
++mask-pass served IDs for the exact rows used by the unchanged PF-2 estimator;
++also require every mask pass to be half-size. Preserve the original failure.
++Retained Stack and fresh Lyra each join all96 rows to half-size passes; all294
++passes are half-size. A copied required pass made full-size and historic100
++receipts both reject. This is matcher repair attempt1, not a product/estimator fix.

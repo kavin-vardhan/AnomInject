@@ -1,0 +1,1285 @@
+{
+  "manifest_version": 1,
+  "milestone": "m51",
+  "brief": "078-03",
+  "date": "2026-09-06",
+  "status": "DRAFT - reviewer approval required; NO LEG MAY RUN",
+  "purpose": "The single execution inventory for m51. AMENDMENT 2 of docs/predictions/2026-09-06-m51-release-hardening.md supersedes A1.9's 'no separate gate manifest file is added' and points here. A1.9's table remains the narrative rationale; THIS FILE is authoritative for what is actually runnable.",
+
+  "conventions": {
+    "orders": ["natural", "synth"],
+    "synth_order_lever": "IAI.Bench.SynthTickOrder 1 (existing)",
+    "fixtures": {
+      "stackobot": "packaged StackOBot bench, CB_GateLevel, driven by run_leg.ps1",
+      "stackobot_editor": "StackOBotEditor target, driven by run_leg_editor.ps1",
+      "lyra": "Lyra worktree editor target, driven by lyra_leg.ps1 over the control server",
+      "lyra_editor": "LyraEditor with a PIE session AND a second editor level viewport at Realtime"
+    },
+    "certifying_leg": ">= 3 counted events, else INVALID and re-run (never graded on the reduced set)",
+    "failure_leg": "a leg that deliberately produces an incomplete session; NOT a P-C7 subject and NOT certifying",
+    "falsifier_classes": {
+      "defect_injector": "reintroduces the precise pre-fix defect on the candidate binary; the named checker MUST trip",
+      "both_ways_control": "proves a counter/verdict can read both values; not a defect injector",
+      "frozen_a_side": "the archived pre-fix executable, which contains the defect natively",
+      "MISSING": "no device exists that introduces this defect; recorded OPEN, never summarised as covered"
+    },
+    "a_side_rule": "A console lever absent from an archived executable is NOT a device. Any recipe whose falsifier needs a lever that B8AC65D8 does not contain uses an in-candidate falsifier or is marked OPEN.",
+    "auditor_exit_codes": {
+      "0": "valid complete schema-3",
+      "1": "schema-3 integrity failure",
+      "2": "malformed / missing artifact",
+      "3": "NOT APPLICABLE - valid older schema (1 or 2)"
+    }
+  },
+
+  "harnesses": [
+    {
+      "key": "run_leg",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1",
+      "exists": true,
+      "verified_this_session": true,
+      "parameters": "-Label <string, MANDATORY> -StallGameMs <int=0> -Pace <int=1> -Delivery <int=0> -Sve <int=1> -Marker <int=1> -Seed <int=777> -MaxFrames <int=90> -MaxAttempts <int=3> -WaitSec <int=150> -ResX <int=1280> -ResY <int=720> -Fullscreen <switch> -ExtraExecCmds <string> -GeometryNote <string> -Map <string=/Game/CaptureBenchGate/CB_GateLevel> -BankPrefix <string=S3B_> -Anomaly <string=blinking> -Target <string=StaticMeshActor_49> -RequireModalRotZero <switch> -LetterboxedFixture <switch> -VerboseAnomalyLog <switch> -AutoExposure <int=0>",
+      "notes": "A63 self-enforcing: a leg that rides the 30 s focus-gate timeout is DISCARDED and re-run, max 3 attempts, every attempt banked. New console levers reach a leg through -ExtraExecCmds."
+    },
+    {
+      "key": "lyra_leg",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\lyra_leg.ps1",
+      "exists": true,
+      "verified_this_session": true,
+      "parameters": "-Label <string, MANDATORY> -Map <string=/ShooterMaps/Maps/L_ShooterGym> -Seed <int=4242> -MaxFrames <int=90> -ResX <int=1920> -ResY <int=1080> -SettleSec <int=45> -WaitSec <int=900> -ExtraExecCmds <string> -Anomaly <string=''> -Target <string=''> -Url <string=ws://127.0.0.1:8077>",
+      "notes": "Starts capture over the WebSocket AFTER the world is up (Lyra resolves a GameFeature Experience and shows a loading screen; -ExecCmds fires at startup only). No A63 retry, no B1 pose gate, no AA/exposure pinning - deliberately host-shaped."
+    },
+    {
+      "key": "run_leg_editor",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg_editor.ps1",
+      "exists": true,
+      "verified_this_session": true,
+      "parameters": "-Label <string, MANDATORY> -Anomaly <string=corrupted_texture> -Target <string=StaticMeshActor_49> -Prewarm <int=0> -Seed <int=777> -MaxFrames <int=90> -ResX <int=1280> -ResY <int=720> -Marker <int=0> -AutoExposure <int=0> -ExtraExecCmds <string> -ExtraLaunchArgs <string[]> -Map <string=/Game/CaptureBenchGate/CB_GateLevel> -WaitSec <int=420>",
+      "notes": "Editor target only. No A63 retry, no B1 pose gate, no banking - produces a READING."
+    },
+    {
+      "key": "m44_gates",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m44_gates.py",
+      "exists": true,
+      "parameters": "python m44_gates.py <session_dir> <label>   (positional, sys.argv[1..2]; exit code is the verdict)"
+    },
+    {
+      "key": "m44_pairing_probe",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m44_pairing_probe.py",
+      "exists": true,
+      "parameters": "python m44_pairing_probe.py <session_dir> <label>   (positional; exit 2 no run.json / 3 colliding fixture / 4 no probe)"
+    },
+    {
+      "key": "m49b_gates",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m49b_gates.py",
+      "exists": true,
+      "parameters": "python m49b_gates.py <leg_dir> [<leg_dir> ...]   (variadic, sys.argv[1:])"
+    },
+    {
+      "key": "m49b_pc7v3",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m49b_pc7v3.py",
+      "exists": true,
+      "parameters": "python m49b_pc7v3.py <A1> <B1> [<A2> <B2> ...]   (PAIRS, sys.argv[i], sys.argv[i+1])"
+    },
+    {
+      "key": "m50_tag_owner",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m50_tag_owner.py",
+      "exists": true,
+      "parameters": "python m50_tag_owner.py (--components|--classify|--gate) <legdir> [<legdir> ...] | --selftest   (--gate exits 1 on a single-owner violation)"
+    },
+    {
+      "key": "m50_readout",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m50_readout.py",
+      "exists": true,
+      "parameters": "python m50_readout.py <leg_dir> [<leg_dir> ...]   (variadic)"
+    },
+    {
+      "key": "subset_gate",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\subset_gate.py",
+      "exists": true,
+      "parameters": "python subset_gate.py <ctrlA> <ctrlB> <testA> <testB>   (exit 0 PASS / 1 FAIL extras / 2 INVALID A63)"
+    },
+    {
+      "key": "a54_oracle",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\a54_oracle.py",
+      "exists": true,
+      "parameters": "python a54_oracle.py <session_dir> [--shift N] [--floor F] [--json]   (exit 0 all ALIGNED / 1 non-ALIGNED / 2 not A54-certifiable)"
+    },
+    {
+      "key": "check_pose",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\check_pose.py",
+      "exists": true,
+      "parameters": "python check_pose.py <session_dir>   (B1 pose gate; REPORTING - prints the per-component ratio and the discriminator, attributes no cause)"
+    },
+    {
+      "key": "eval_leg",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\eval_leg.py",
+      "exists": true,
+      "parameters": "python eval_leg.py <session_dir> <band_lo|none> <band_hi|none> [band_name]"
+    },
+    {
+      "key": "lyra_readout",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\lyra_readout.py",
+      "exists": true,
+      "parameters": "python lyra_readout.py <session_dir> [engine_log]"
+    },
+    {
+      "key": "m36_a44_scan",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m36_a44_scan.ps1",
+      "exists": true,
+      "parameters": "-Exe <path = D:\\IntrusiveAnomalies\\StackOBot\\Builds\\BenchGate\\Windows\\StackOBot\\Binaries\\Win64\\StackOBot.exe>",
+      "notes": "Token list is hardcoded in the script and is CENSUS-era. m51 MUST extend the token array with the new symbols before use, or the scan is vacuous for m51. Scans BOTH encodings (A44)."
+    },
+    {
+      "key": "verify_capture",
+      "path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\AnomalyInjector\\tools\\verify_capture.py",
+      "exists": true,
+      "parameters": "python verify_capture.py --dir <session> [--out DIR] [--quiet] [--red-only] [--black-frame-gate] [--black-threshold F] [--dark-first-frame-ratio F] [--selftest] [--label-pixel-gate] [--diff-threshold N] [--edge-window N] [--min-visible-px N] [--report-only]",
+      "notes": "Remains the gate for v1/v2 sessions and for the pixel/visual check. The auditor does NOT replace it."
+    }
+  ],
+
+  "planned_tools": [
+    {
+      "name": "m51_bbox_oracle.py",
+      "intended_path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m51_bbox_oracle.py",
+      "status": "planned, not implemented",
+      "verified_absent_this_session": true,
+      "proposed_cli": "python m51_bbox_oracle.py --geom <BENCH_GEOM log or sidecar> --labels <labels.jsonl> [--tolerance-px 1] [--selftest] [--perturb-px N]",
+      "contract": "Recomputes the projected bbox FROM THE SIDECAR NUMBERS ONLY. MUST NOT import the implementation's projection helper and MUST NOT read the frozen label snapshot. --perturb-px feeds a deliberately displaced copy and MUST fail, proving the oracle is not blind (A53/G96), before any verdict is read.",
+      "implementation_dependency": "Commit 2 (F2/F11) must first emit the BENCH_GEOM sidecar. Until then M-F2a/M-F2b/M-F11 are NOT RUNNABLE."
+    },
+    {
+      "name": "m51_reconcile.py",
+      "intended_path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m51_reconcile.py",
+      "status": "planned, not implemented",
+      "verified_absent_this_session": true,
+      "proposed_cli": "python m51_reconcile.py <session_dir> [--expect-complete|--expect-incomplete] [--json]",
+      "contract": "Per-index reconciliation of requested_frames against written_frame_indices and the committed receipts; asserts every requested index is in exactly one of {committed, terminal-cancelled, terminal-failed} and none in neither. Exit 0 reconciled / 1 hole or double-membership / 2 unreadable.",
+      "implementation_dependency": "Commit 6 (receipts + requested_frames/written_frame_indices)."
+    },
+    {
+      "name": "verify_integrity.py (rewritten)",
+      "intended_path": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\AnomalyInjector\\tools\\verify_integrity.py",
+      "status": "planned, not implemented on m51; a SUPERSEDED version exists on be16977 only",
+      "branch_version_cli": "verify_integrity.py <directory> [--reference PATH] [--integrity-only] [--pixel-delta N] [--min-changed-pixels N]",
+      "proposed_cli": "python verify_integrity.py <directory> [--integrity-only] [--json]",
+      "contract": "Exit 0/1/2/3 per conventions.auditor_exit_codes. The branch version's --reference/--pixel-delta/--min-changed-pixels PIXEL comparison is DROPPED: that is verify_capture.py's job and duplicating it would create a second source of truth for the visual claim.",
+      "why_rewritten_not_adopted": "be16977's L151 asserts anomaly_present == observable (reversed by R1); L116-117 applies shaders_pending per ROW not per FIRE (reversed by R5); L168 asserts affected_frames == the observable set (breaks R1's zero-measured fallback); L38-39 has no provision for a deliberately incomplete session or an older schema.",
+      "implementation_dependency": "Commit 7 (schema 3) and commit 6 (receipts)."
+    }
+  ],
+
+  "planned_levers": [
+    { "name": "IAI.Bench.WithholdWorldRender <ticks>", "status": "planned, not implemented", "proves": "recovery after a no-render burst", "mechanism": "sets UGameViewportClient::bDisableWorldRendering (public uint32:1, GameViewportClient.h:98), which gates BeginRenderingViewFamily at GameViewportClient.cpp:1707. Verified in the local engine this session. No engine modification." },
+    { "name": "IAI.Bench.NoStaleArmSweep 1", "status": "planned, not implemented", "proves": "the GT sweep is load-bearing", "scope_correction_078_03": "MUST ALSO bypass the publish-time frame-identity rejection and its capacity retirement for the duration of the test interval, while RETAINING the identity guard that forbids labelling a later render with an older snapshot. Sweep-only would still recover via publish-time retirement on resumption, so sweep-only is NOT a valid falsifier." },
+    { "name": "IAI.Bench.ReadbackDelayTicks <N>", "status": "planned, not implemented", "proves": "bbox latency-invariance", "note": "defers GAME-THREAD consumption of completed readbacks only; NOT ViewLag, which moves the projection view sample and would confound the test." },
+    { "name": "IAI.Bench.NoGeometryFreeze 1", "status": "planned, not implemented", "proves": "in-candidate F2/F11 falsifier - restores late-sampled geometry/identity", "why_needed": "ReadbackDelayTicks and the destroy-target device do not exist in B8AC65D8, so the frozen A-side cannot host M-F2a/M-F2b." },
+    { "name": "IAI.Bench.ForceEarlyTagRetire 1", "status": "planned, not implemented", "proves": "in-candidate F3b falsifier - releases the tag lease at fire-end IGNORING ArmsIssued == ArmsResolved, i.e. the pre-fix behaviour, so a value can be reused while a readback is still in flight", "corrects": "A1.9 named IAI.Bench.NoTagRetire as M-F3b's falsifier. NoTagRetire HOLDS the lease, which PREVENTS reuse and therefore cannot manufacture cross-attribution. It is M-F3's falsifier (exhaustion), not M-F3b's." },
+    { "name": "IAI.Bench.NoTagRetire 1", "status": "planned, not implemented", "proves": "M-F3 falsifier - leases are never released, so the pool exhausts" },
+    { "name": "IAI.Bench.ForceShaderPendingForFire <fire_index> <ticks>", "status": "planned, not implemented", "proves": "in-candidate R5 falsifier - marks ONE fire pending", "corrects": "A1.9 named 'force-pending both fires'. Forcing BOTH makes both unknown under either the fixed (per-fire) or the broken (frame-wide) rule, so it cannot discriminate. Only a single-fire device can: under the fix the neighbour keeps its positive; under frame-wide attribution the neighbour goes unknown." },
+    { "name": "IAI.Bench.WriterFailAt <image|mask|label|all> <session_index>", "status": "planned, not implemented", "proves": "deterministic write failure for M-W1/M-W2/M-W3" },
+    { "name": "IAI.Bench.WriterWorkerDelayMs <ms> <ticks>", "status": "planned, not implemented", "proves": "M-W4 in-capture backpressure", "corrects": "A1.9's saturation arm was 'tiny WriterQueueBytes'. Under C2 an out-of-range WriterQueueBytes is REFUSED AT StartRun, so that arm would test configuration validation, not backpressure. This device runs with VALID settings and creates real in-capture pressure." },
+    { "name": "IAI.Bench.NoViewBinding 1", "status": "planned, not implemented", "proves": "in-candidate F4 falsifier - removes the world/viewport/single-view binding", "note": "synth tick order is NOT a bypass of the binding and must not be described as one." },
+    { "name": "IAI.Bench.ForceUnsupportedLayout", "status": "planned, not implemented", "proves": "F16 refusal path" },
+    { "name": "IAI.Bench.PreviewDropNext", "status": "planned, not implemented", "proves": "F13 preview recovery" },
+    { "name": "IAI.Bench.DestroyTargetAfterRender <session_index>", "status": "planned, not implemented", "proves": "M-F2b - destroys the target between render and drain" }
+  ],
+
+  "existing_levers_used": [
+    "IAI.Bench.SynthTickOrder", "IAI.Bench.ForceMiss", "IAI.Bench.ForceMissPhase",
+    "IAI.Bench.HideOmitDepthPassSilencing", "IAI.Bench.MaskPairingProbe", "IAI.Bench.CensusMaskDump",
+    "IAI.Capture.OutputHeight", "IAI.Capture.SVE", "IAI.Capture.ObservableMinPixels",
+    "IAI.Capture.TagPoolLimit", "IAI.Capture.Config", "IAI.Capture.Delivery", "IAI.Capture.FocusGate"
+  ],
+
+  "provenance": {
+    "recorded": "2026-09-06, brief 078-03. Every hash below was COMPUTED THIS SESSION, not copied.",
+    "candidate_binaries": "DO NOT EXIST. No candidate hash is recorded in advance. The freeze step runs after the port is built and before the first certifying leg. The one-binary rule applies PER FIXTURE.",
+    "stackobot_current_A_side": [
+      { "role": "staged exe (= m51 A-side)", "path": "D:\\IntrusiveAnomalies\\StackOBot\\Builds\\BenchGate\\Windows\\StackOBot\\Binaries\\Win64\\StackOBot.exe", "sha256": "B8AC65D87030D311632A4605C8EFF5C6D54A1ACCB23BE76682C6E643498EEAD8", "bytes": 241400320 },
+      { "role": "archived A-side exe", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\StackOBot.exe.m49b-gate-B8AC65D8", "sha256": "B8AC65D87030D311632A4605C8EFF5C6D54A1ACCB23BE76682C6E643498EEAD8", "bytes": 241400320, "note": "byte-identical to the staged exe, verified this session" },
+      { "role": "container .utoc", "path": "D:\\IntrusiveAnomalies\\StackOBot\\Builds\\BenchGate\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.utoc", "sha256": "67EA1FE0A15ACF2429516C461C5FD85989285B3C93B24C42855AE4959386257A", "bytes": 294235 },
+      { "role": "container .ucas", "path": "D:\\IntrusiveAnomalies\\StackOBot\\Builds\\BenchGate\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.ucas", "sha256": "2CEFB8F43D048E2534471BC1D9532B77A870FAF46F14C9C2AFAE813B99B6C4D3", "bytes": 364596784 },
+      { "role": "container .pak", "path": "D:\\IntrusiveAnomalies\\StackOBot\\Builds\\BenchGate\\Windows\\StackOBot\\Content\\Paks\\StackOBot-Windows.pak", "sha256": "E03C661084D8BC2BB6EF0F51F2DECB162853B2188B733B1DBD22B96CA974CDB7", "bytes": 10115711 },
+      { "role": "global.ucas", "path": "D:\\IntrusiveAnomalies\\StackOBot\\Builds\\BenchGate\\Windows\\StackOBot\\Content\\Paks\\global.ucas", "sha256": "A16A18A8FFB5151D2E850BB52841162F6844A0361818F8D1F158E8377DFFBA9E", "bytes": 1833008 },
+      { "role": "global.utoc", "path": "D:\\IntrusiveAnomalies\\StackOBot\\Builds\\BenchGate\\Windows\\StackOBot\\Content\\Paks\\global.utoc", "sha256": "C70ECDAA232DB8CF77BEEAB47B7226C48FCC91FF705526D507500CD14CF21C51", "bytes": 539 }
+    ],
+    "stackobot_historical_anchor": [
+      { "role": "m50 A-side exe (load-bearing: m50 A-side and the exposure BEFORE picture)", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\StackOBot.exe.m50-A159EDFD", "sha256": "A159EDFD14F7D7AA47819AE1597DF701EDC01112844E3DD6931D7280A67FA96E", "bytes": 241378304 },
+      { "role": "m46 container archive - exe copy", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m46-container-m50exe-A159EDFD\\StackOBot.exe", "sha256": "A159EDFD14F7D7AA47819AE1597DF701EDC01112844E3DD6931D7280A67FA96E", "bytes": 241378304, "note": "byte-identical to the standalone archive above; A1.13 listed only the standalone path" },
+      { "role": "m46 .utoc", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m46-container-m50exe-A159EDFD\\StackOBot-Windows.utoc", "sha256": "EF8EB23C0871A0AC9E45523139F08DE6F0C9A9FF78B1E8AE5B201B924614A295", "bytes": 294235 },
+      { "role": "m46 .ucas", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m46-container-m50exe-A159EDFD\\StackOBot-Windows.ucas", "sha256": "A8BFFF880B61E4CE668FDBFF6E6226FE4023858228008FCE6336EB5397FBFFE7", "bytes": 364596784 },
+      { "role": "m46 .pak", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m46-container-m50exe-A159EDFD\\StackOBot-Windows.pak", "sha256": "3C026A8D565B6F67E7A69A826EE3F0C1BB7ABDF3D807268485D9D929D5BD908B", "bytes": 10115711 },
+      { "role": "m46 global.ucas", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m46-container-m50exe-A159EDFD\\global.ucas", "sha256": "A16A18A8FFB5151D2E850BB52841162F6844A0361818F8D1F158E8377DFFBA9E", "bytes": 1833008 },
+      { "role": "m46 global.utoc", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m46-container-m50exe-A159EDFD\\global.utoc", "sha256": "C70ECDAA232DB8CF77BEEAB47B7226C48FCC91FF705526D507500CD14CF21C51", "bytes": 539 }
+    ],
+    "stackobot_phase_b_postcook_archive": [
+      { "role": "cooked exe (archive only, NOT the gate binary)", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m49b-postcook-container-2AFD2DDB\\StackOBot.exe", "sha256": "2AFD2DDB95B5791962CD4BDFB0852D69876338F0C6A9365F82E108B600C3FF19", "bytes": 241399296 },
+      { "role": ".utoc", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m49b-postcook-container-2AFD2DDB\\StackOBot-Windows.utoc", "sha256": "67EA1FE0A15ACF2429516C461C5FD85989285B3C93B24C42855AE4959386257A", "bytes": 294235 },
+      { "role": ".ucas", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m49b-postcook-container-2AFD2DDB\\StackOBot-Windows.ucas", "sha256": "2CEFB8F43D048E2534471BC1D9532B77A870FAF46F14C9C2AFAE813B99B6C4D3", "bytes": 364596784 },
+      { "role": ".pak", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m49b-postcook-container-2AFD2DDB\\StackOBot-Windows.pak", "sha256": "E03C661084D8BC2BB6EF0F51F2DECB162853B2188B733B1DBD22B96CA974CDB7", "bytes": 10115711 },
+      { "role": "global.ucas", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m49b-postcook-container-2AFD2DDB\\global.ucas", "sha256": "A16A18A8FFB5151D2E850BB52841162F6844A0361818F8D1F158E8377DFFBA9E", "bytes": 1833008 },
+      { "role": "global.utoc", "path": "D:\\IntrusiveAnomalies\\_binary_baselines\\m49b-postcook-container-2AFD2DDB\\global.utoc", "sha256": "C70ECDAA232DB8CF77BEEAB47B7226C48FCC91FF705526D507500CD14CF21C51", "bytes": 539 },
+      { "role": "verification", "note": "All five container files are byte-identical to the STAGED set above, verified this session. The cooked exe 2AFD2DDB differs from the gate binary B8AC65D8 (same container + a code-only fix)." }
+    ],
+    "lyra_baseline": {
+      "definition": "A MODULE SET plus its UnrealEditor.modules manifest. NEVER a plugin checkout SHA - a checkout SHA does not establish which binary an editor loads.",
+      "worktree_head_detached": "4a4bfcc2cdbade6bbeb99494e540952847ae9b63",
+      "project": "E:\\UEProjects\\LyraStarterGame\\LyraStarterGame.uproject",
+      "engine_association_guid": "{B34F356C-4AE7-256A-F0E1-318A632BB902}",
+      "engine": "source-built UE 5.1 at D:\\UESource\\UnrealEngine (same GUID as StackOBot)",
+      "binaries_dir": "E:\\UEProjects\\LyraStarterGame\\Plugins\\AnomalyInjector\\Binaries\\Win64",
+      "manifest": {
+        "path": "E:\\UEProjects\\LyraStarterGame\\Plugins\\AnomalyInjector\\Binaries\\Win64\\UnrealEditor.modules",
+        "sha256": "5AA9B9769AA5422C0D88B310F131EC6428324981E4076537FCCEE173134F275F",
+        "bytes": 316,
+        "mtime": "2026-09-06 10:39:23",
+        "build_id": "<uuid>",
+        "module_to_dll_resolution": {
+          "AnomalyCapture": "UnrealEditor-AnomalyCapture.dll",
+          "AnomalyControlServer": "UnrealEditor-AnomalyControlServer.dll",
+          "AnomalyInjector": "UnrealEditor-AnomalyInjector.dll",
+          "AnomalyShaders": "UnrealEditor-AnomalyShaders.dll"
+        }
+      },
+      "loaded_modules": [
+        { "file": "UnrealEditor-AnomalyCapture.dll", "sha256": "B258412F3C5CB67A8215C4C05877BE156F010251F43709823C804C06B5E0B5EA", "bytes": 1299456, "mtime": "2026-09-06 10:39:22" },
+        { "file": "UnrealEditor-AnomalyControlServer.dll", "sha256": "13F57646EB4E254E26EDAFBC46A04027E8B35994CB4968A17182655A39BD3FE9", "bytes": 251904, "mtime": "2026-09-06 10:39:22" },
+        { "file": "UnrealEditor-AnomalyInjector.dll", "sha256": "1FE44ECBF887DD5CCC9FD39A189EDE6C5D47DF19E895910E3A0A2C533290EB08", "bytes": 710144, "mtime": "2026-09-04 18:01:30" },
+        { "file": "UnrealEditor-AnomalyShaders.dll", "sha256": "7EB5C6F0CB718182A43749158B2629E878116AACABA5F9D9922DF2FEBB7E8655", "bytes": 64512, "mtime": "2026-09-06 10:38:12" }
+      ],
+      "pdb_companions": [
+        { "file": "UnrealEditor-AnomalyCapture.pdb", "sha256": "C33CEFB968064A2379E52A2151A741B03E70615F90EC8BCE165D256DB2037FAF", "bytes": 61353984 },
+        { "file": "UnrealEditor-AnomalyControlServer.pdb", "sha256": "DC07EE3317DF228FA27AC4DC5582A80CD6E7B003F35AD5302B5A9F2DC93B63D0", "bytes": 53751808 },
+        { "file": "UnrealEditor-AnomalyInjector.pdb", "sha256": "A404BB5119074BF01A489D5F41C6D1440D55CBE5018A54C78F201ED9A8997D0C", "bytes": 57020416 },
+        { "file": "UnrealEditor-AnomalyShaders.pdb", "sha256": "743C55B1E98B793C64A196904FA7B8C761736B455E83071971A833AE84CF2F65", "bytes": 51720192 }
+      ],
+      "note": "AnomalyInjector.dll predates the other three by two days (2026-09-04 vs 2026-09-06). Consistent with Phase B touching only AnomalyCapture/AnomalyShaders, but it is exactly why the baseline must be frozen as the FIVE-FILE SET WITH THE MANIFEST, never as one timestamp or one SHA."
+    },
+    "missing_prerequisites": [
+      {
+        "item": "Editor-target A-side archives",
+        "state": "DO NOT EXIST for either fixture",
+        "consequence": "M-F4's A-side provenance is unavailable. A packaged exe cannot host PIE, so B8AC65D8 cannot run the M-F4 scenario at all. M-F4 uses the in-candidate NoViewBinding falsifier and its A-side comparison is OPEN. No baseline is fabricated."
+      }
+    ]
+  },
+
+  "recipes": [
+    {
+      "id": "M-F1",
+      "finding": "F1",
+      "record_status": "EXECUTABLE - rewritten 2026-09-06 by brief 078-04 for the INTERMEDIATE schema-2 F1 candidate. Every other record in this manifest remains HELD and unexecuted.",
+      "purpose": "A requested-but-intentionally-unavailable mask must not hold completed RGB frames waiting for an outcome that can never exist.",
+      "scope_of_this_candidate": "F1 ONLY. This binary is NOT m51 schema 3: it does NOT emit capture_complete, requested_frames, written_frame_indices, schema_version, event_id, observability_basis or any other milestone-3 key, and label_schema stays 2. Completeness is therefore checked from the EXISTING artifact: labels.jsonl rows, Actual_Frames/ filenames, run_summary.json, and the run log's arm/NEVER-RESOLVED/finalize lines. Any recipe here that names a schema-3 key is a defect in the recipe, not in the build.",
+      "target_type": "StaticMeshActor_49, targeted (StackOBot)",
+      "script": "D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1",
+      "effective_config_asserted_and_read_back": "SVE 1 - mask requested ON (IAI.Capture.TargetMask 1, compiled default already on) - mask measure ON (IAI.Capture.Mask 1, compiled default already on) - census ON (IAI.Capture.Census 1, compiled default already on) - IAI.Capture.OutputHeight 360 - 1280x720 input - PNG - Delivery 0 - Pace 1 - Fps 30 (runner-fixed) - IAI.Capture.Config 2 4 8 4 0 (runner-fixed schedule, unchanged) - Seed 4242 - MaxFrames 90 - blinking on StaticMeshActor_49. Every one of these is READ BACK from the run log's StartRun banners (grab point, mask, target mask, census, output height) and from run.json; none is trusted from the switch alone (A48).",
+      "command_A_natural": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1A_NAT -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1, IAI.Capture.OutputHeight 360\"",
+      "command_A_synth": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1A_SYN -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1, IAI.Capture.OutputHeight 360, IAI.Bench.SynthTickOrder 1\"",
+      "command_B_natural": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1B_NAT -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1, IAI.Capture.OutputHeight 360\"",
+      "command_B_synth": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1B_SYN -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1, IAI.Capture.OutputHeight 360, IAI.Bench.SynthTickOrder 1\"",
+      "command_note": "The runner inserts -ExtraExecCmds BEFORE IAI.Capture.Start (run_leg.ps1:224 then :231), so every switch above is in force at StartRun. The runner also fixes Fps 30 and IAI.Capture.Config 2 4 8 4 0 (:219-220) and banks as <BankPrefix><Label>. A and B differ ONLY in the staged executable; the command lines are otherwise byte-identical, which is what makes the pair a control.",
+      "A_side_executable": "B8AC65D87030D311632A4605C8EFF5C6D54A1ACCB23BE76682C6E643498EEAD8 (frozen; container quintet unchanged)",
+      "B_side_executable": "the F1 candidate, hashed and archived at build time; recorded in the evidence, never predicted in advance",
+      "predicted_A_side_signature_DERIVED": "Derived from source at B8AC65D8, not assumed. bTargetMaskEffective = bTargetMask && bMaskMeasure && bAsyncCapture && (EffectiveOutputHeight == 0) is FALSE because OutputHeight is 360, so no target mask is ever armed and TargetMaskOutcome stays empty for every session index. Snap->bTargetMask is nevertheless TRUE (the REQUESTED flag), so the drain enters the hold branch for every completed frame, finds no outcome, and holds the whole remaining batch. TargetMaskHoldTicks is SUBSYSTEM-WIDE and is reset to 0 the moment any frame finally proceeds, so the steady state is: hold 4 ticks, release exactly ONE frame, reset, hold 4 ticks again. => roughly ONE WRITTEN FRAME PER 4 CAPTURE TICKS. Over a 90-frame arm sequence expect total_frames in the low-to-mid twenties (band 18-30; the exact number is the measurement, not the prediction), one 'TARGET MASK NEVER RESOLVED' warning per written frame, and a large 'did not resolve by run end (dropped)' count at finalize after DrainAsyncToCompletion's bounded 8 iterations. run_summary target_mask_frames_unavailable == total_frames (AnomalyCaptureSubsystem.cpp else-if branch sets Unavailable = FramesWritten when the mask was requested but not effective) - so this counter is NOT a discriminator between A and B.",
+      "predicted_B_side_signature": "No frame waits for an impossible outcome. total_frames == 90; labels.jsonl carries 90 frame rows; Actual_Frames holds frame_00000..frame_00089 with no gap and no duplicate; ZERO 'TARGET MASK NEVER RESOLVED' lines; ZERO 'did not resolve by run end (dropped)'; EXACTLY ONE new 'Capture(m51/F1): TARGET MASK REQUESTED BUT NOT EFFECTIVE' warning naming the OutputHeight reason. Written frames are 640x360 (OutputHeight 360 from a 1280x720 input) in run_summary/annotation video.resolution and in the PNG headers. No target_mask/*.png exists and none is promised: mask_file is null on every row. Every anomaly row keeps the EXISTING unmeasured representation as actually serialised - mask_state \"unmeasured\", mask_file null, mask_value 0 (emitted because the mask was REQUESTED), target_pixels -1, target_drawn_pixels -1, observable null, bbox_drawn_px null. label_schema stays 2. No observable-positive is claimed anywhere from an unavailable mask, and observability_measured is false on every event with affected_frames == injected_frames (the R1 zero-measured fallback, unchanged).",
+      "frozen_schema_2_key_expectation": "Row keys and their omission rules are frozen from source: mask_value is emitted ONLY when the snapshot's bTargetMask is true (AnomalyLabelWriter.cpp:68-73) and is 0 here because MaskValues is empty; target_pixels and target_drawn_pixels are ALWAYS emitted and fall back to -1 via IsValidIndex; observable is emitted as JSON null when unmeasured; bbox_drawn_px is null when the drawn rect is empty; mask_file/mask_state are per-frame-row. exposure_dip and exposure_dip_scope stay CONDITIONAL (emitted only when a dip is detected) - their absence on a pinned leg is correct, not a regression.",
+      "expected_event_validity": ">= 3 counted events to certify. The B-side natural leg is the certifying leg. A leg below 3 counted events is INVALID and is re-run, never graded on the reduced set. The A-side is a FALSIFIER, not a certification leg: its event count is recorded honestly and a low count there is the defect being demonstrated, not a failure of the campaign.",
+      "AB_comparison_rule": "Compare PER INDEX, not by set equality. The A-side's index set is expected to be a sparse subset of the B-side's; every B-side index absent from A is a frame RECOVERED by F1 and is listed explicitly with its row. Event sets are NOT required to be identical: events whose frames were dropped on A can appear or grow on B, and that is the fix working. What must hold on both: no index present in labels.jsonl without its PNG, no PNG without its row, no duplicate index, and identical row KEY SETS.",
+      "falsifier": { "device": "the frozen A-side executable B8AC65D8 with byte-identical command lines", "class": "frozen_a_side", "defect_introduced": "the pre-F1 drain waits on the REQUESTED mask flag while an outcome is produced only when the mask is EFFECTIVE, and the wait counter is subsystem-wide", "checker_that_must_trip": "the per-index reconciliation above: A-side written indices are a strict sparse subset of the 90 armed, with NEVER RESOLVED and finalize-drop lines in the log", "lever_exists_in_a_side": true },
+      "stop_condition": "On B: any missing/duplicate/orphan index; any row whose mask_state is not unmeasured; any target_pixels reading 0 where no pass ran; any observable true; any promised-but-absent mask PNG; fewer than 3 counted events on the natural leg; label_schema != 2; any run_summary key added or removed.",
+      "pc7": { "is_subject": true, "declared_deltas": "NO key is added or removed anywhere - this candidate changes no schema. DECLARED VALUE/MEMBERSHIP DIFFERENCES A -> B, all consequences of the recovery: total_frames rises to 90; labels.jsonl row count and index set become complete 0..89; annotation events may GAIN frames and may gain events; run_summary target_mask_frames_unavailable rises with total_frames (it equals FramesWritten by construction on both sides); video.total_frames matches. run-unique fields (session_id, t_wall, speed_ratio, sustained_wall_fps, video.path, end_frame) differ as always. Anything else differing is UNDECLARED and fails.", "note": "The whole-milestone allowlist that previously sat in this record described schema-3 additions that this candidate does not make; it is REMOVED rather than carried, because an allowlist that permits keys the binary cannot emit would pass a build that emitted them by accident." },
+      "expansions": [
+        { "recipe_id": "M-F1/SOB/NAT/A", "fixture": "stackobot", "order": "natural", "side": "A", "bank": "M51_F1A_NAT", "released": true },
+        { "recipe_id": "M-F1/SOB/SYN/A", "fixture": "stackobot", "order": "synth", "side": "A", "bank": "M51_F1A_SYN", "released": true },
+        { "recipe_id": "M-F1/SOB/NAT/B", "fixture": "stackobot", "order": "natural", "side": "B", "bank": "M51_F1B_NAT", "released": true, "certifying": true },
+        { "recipe_id": "M-F1/SOB/SYN/B", "fixture": "stackobot", "order": "synth", "side": "B", "bank": "M51_F1B_SYN", "released": true },
+        { "recipe_id": "M-F1/LYRA/NAT", "fixture": "lyra", "order": "natural", "released": false, "status": "OPEN-UNTIL-RECIPE - no Lyra checkout, build or leg is released by brief 078-04. Not waived and not passed." },
+        { "recipe_id": "M-F1/LYRA/SYN", "fixture": "lyra", "order": "synth", "released": false, "status": "OPEN-UNTIL-RECIPE" }
+      ],
+      "AMENDMENT_078_04a_predeclared_before_any_further_leg": {
+        "when": "2026-09-06, after the A-side natural leg at OutputHeight 360 and BEFORE any other leg",
+        "premise_that_failed": "The released recipe makes the mask ineffective with IAI.Capture.OutputHeight 360. That ALSO halves the written frame to 640x360, and bbox_px is computed in the WRITTEN frame's pixel space while B1's CALIB_BBOX is frozen in PIXELS at 1280x720. The runner's own discriminator printed ratio m/CALIB = (None, 0.5, 0.4998, 0.5) with modal_rot (0,0,0), distinct=1, modal=100% => RESOLUTION SCOPE, NOT POSE. B1 therefore CANNOT PASS on any non-zero-OutputHeight leg, and the runner HALTs after 3 attempts.",
+        "precedent": "This is G117 / the S4-1 ruling recurring on the resolution axis: 'B1 CANNOT RUN OFF-CALIBRATION ... RULED: accept and scope; B1 is UNTOUCHED.' B1 is NOT weakened, NOT disabled and NOT re-calibrated here.",
+        "disposition_A": "The OutputHeight arm is retained and REPORTED, with B1 declared NOT APPLICABLE (G117) rather than failed. Its three banked attempts per side are the evidence; it is a READING, never a certifying leg.",
+        "disposition_B": "A SECOND trigger is added that makes the mask ineffective WITHOUT touching output geometry, so every validity gate stays live and a leg can actually certify: IAI.Capture.TargetMask 1 with IAI.Capture.Mask 0. bTargetMaskEffective = requested && measure && async && (OutputHeight == 0) is then false through the MEASURE conjunct, Snap.bTargetMask is still true, and the drain reaches the identical F1 code path. Native 1280x720 output, so B1 is live and CALIB_BBOX applies unchanged.",
+        "command_A_maskoff_natural": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1A_MOFF_NAT -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 0, IAI.Capture.Census 1\"",
+        "command_A_maskoff_synth": "same with -Label F1A_MOFF_SYN and \", IAI.Bench.SynthTickOrder 1\" appended to -ExtraExecCmds",
+        "command_B_maskoff_natural": "same with -Label F1B_MOFF_NAT, on the candidate binary",
+        "command_B_maskoff_synth": "same with -Label F1B_MOFF_SYN, on the candidate binary",
+        "certifying_leg_is_now": "M-F1/SOB/NAT/B-MASKOFF (F1B_MOFF_NAT) - native resolution, B1 live, >= 3 counted events required.",
+        "predicted_maskoff_delta_from_the_outputheight_arm": "Identical F1 mechanism and identical row representation; the ONLY declared differences are (1) written frames are 1280x720 not 640x360, (2) the ineffectiveness reason string names the mask being off rather than OutputHeight, and (3) census/m26 mask counters read as a mask-off run. A-side is still expected to write a sparse subset of 90 with one NEVER RESOLVED per written frame; B-side is expected to write all 90 with none.",
+        "note_on_census": "IAI.Capture.Census 1 is issued for symmetry with the released recipe, but bCensusEffective = census && mask && async, so with the measure mask off the census is INERT on this arm. Stated so a zero census counter is read as expected, not as a regression."
+      },
+      "measured_A_side_outputheight_2026_09_06": {
+        "status": "READING, not a certified leg (B1 NOT APPLICABLE, G117). Three attempts banked: M51_F1A_NAT_try1/2/3.",
+        "identical_across_all_three_attempts": "total_frames 33 of 90 armed - positive_frames 22 - events 3 - target_mask_frames_unavailable 33 (== total_frames, as derived) - video.resolution 640x360 - label_schema 2 - 33 'TARGET MASK NEVER RESOLVED ... after 4 held ticks' warnings - 1 'did not resolve by run end (dropped)' line.",
+        "mechanism_confirmed_to_the_tick": "Successive NEVER RESOLVED lines carry engine frame numbers 8, 12, 16 - exactly 4 apart - which is the subsystem-wide counter holding 4 ticks, releasing ONE frame, resetting, and holding again.",
+        "prediction_accuracy_stated_not_smoothed": "The derived band was 18-30 written frames; the measurement is 33. The MECHANISM (hold-4, release-1, reset) is confirmed exactly, and unavailable == written was exact. The RATE arithmetic was pessimistic because the capture FSM spends more engine ticks than armed frames (pre/settle/post gaps), so the derivation under-counted the tick budget. The band is recorded as MISSED; it is not retro-fitted."
+      },
+      "regression_smoke_B_side_only": {
+        "purpose": "Prove the F1 change did not disturb the paths that DO have an effective mask. These legs run with masks EFFECTIVE (no OutputHeight override, native output) so the probes have a subject; a smoke run at OutputHeight 360 would have no mask to check and would pass vacuously.",
+        "command_natural": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1B_SMOKE_NAT -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1\"",
+        "command_synth": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1B_SMOKE_SYN -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1, IAI.Bench.SynthTickOrder 1\"",
+        "checkers": "python ...\\m44_gates.py <session_dir> <label>  (ONSET + G1/G2/G3/G3b/G3c/G7; read the PRINTED per-gate PASS/FAIL lines as well as the exit code) and python ...\\m44_pairing_probe.py <session_dir> <label> (PAIRING; NEITHER == 0 AND PREVIOUS == 0 over decidable frames; exit 2/3/4 are REFUSALS to judge, not passes).",
+        "pairing_100_50": "The 100% arm shares these two runs. The 50% arm adds r.ScreenPercentage 50 to -ExtraExecCmds on a third natural run (bank M51_F1B_SMOKE_SP50).",
+        "expected": "Masks EFFECTIVE: mask PNGs present, mask_state present/empty on measured frames, G1 onset delta 0, G2 0 blank PNGs, G3 sum == rows, G3b mask_file non-null iff present, G7 stray 0, PAIRING NEITHER 0 and PREVIOUS 0. Any gate that PASSED at ac13700 and FAILS here is a STOP.",
+        "known_limit": "The synth-order pairing arm is MARGINAL at si=8 on this fixture (banked deltas 33.6-49.5 against a 40 px tolerance); a NEITHER 1 there is branch (a) of b28_si8_predeclared.md and is NOT binary-attributable. The tolerance is NOT widened.",
+        "AMENDMENT_078_05_smoke_subrecord": {
+          "when": "2026-09-06, brief 078-05, BEFORE any smoke leg ran. This amends the SMOKE SUB-RECORD ONLY. No other prediction in this file is altered, and no past prediction is edited.",
+          "gap_1_the_probe_was_never_ENABLED": "The released command_natural/command_synth above pass no IAI.Bench.MaskPairingProbe, so m44_pairing_probe.py would REFUSE them with exit 4 ('there is no probe in this leg' - it requires a MASK-PAIRING PROBE SPAWNED line in the run log, AnomalyCaptureSubsystem.cpp:1663). An exit 4 is a REFUSAL TO JUDGE, not a pass, so the released smoke could never have produced a pairing verdict. The probe is now enabled explicitly on the pairing legs.",
+          "gap_2_the_50pct_arm_was_natural_only": "pairing_100_50 above names a single natural SP50 run. The released Phase B baseline this smoke is compared against runs SP50 in BOTH orders - PB1F_F_PAIR_NAT_SP50 and PB1F_F_PAIR_SYN_SP50 are both banked. A synth SP50 arm is therefore added so the comparison is against the whole banked baseline, not half of it.",
+          "gap_3_checker_commands_were_abbreviated": "The 'checkers' string above elides the interpreter and paths. The exact commands are pinned below.",
+          "gap_4_pairing_frame_cap": "The released smoke command uses -MaxFrames 90, but the PAIRING baseline recipe is CAP 40 (m49b_campaign.ps1:33-36, and the brief-28 ruling: '-Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 40, BOTH tick orders'). G184 requires a re-run leg's payload to be derived from the banked datum it is graded against, and G235 requires the baseline to be the last PASSING reading. The pairing legs therefore run at cap 40 to reproduce PB1F_F_PAIR_*; the ONSET/G7 gate legs stay at cap 90. They are SEPARATE legs, exactly as the Phase B campaign ran them.",
+          "legs_ONSET_G1_G2_G3_G3b_G3c_G7_cap90": [
+            "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg.ps1 -Label F1B_SMOKE_NAT -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0 -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1\"",
+            "powershell -File ...run_leg.ps1 -Label F1B_SMOKE_SYN ... -ExtraExecCmds \"IAI.Capture.TargetMask 1, IAI.Capture.Mask 1, IAI.Capture.Census 1, IAI.Bench.SynthTickOrder 1\""
+          ],
+          "legs_PAIRING_cap40_probe_ON_both_orders_100_and_50": [
+            "F1B_PAIR_NAT      -MaxFrames 40 -ExtraExecCmds \"IAI.Bench.MaskPairingProbe 1\"",
+            "F1B_PAIR_SYN      -MaxFrames 40 -ExtraExecCmds \"IAI.Bench.MaskPairingProbe 1, IAI.Bench.SynthTickOrder 1\"",
+            "F1B_PAIR_NAT_SP50 -MaxFrames 40 -ExtraExecCmds \"IAI.Bench.MaskPairingProbe 1, r.ScreenPercentage 50\"",
+            "F1B_PAIR_SYN_SP50 -MaxFrames 40 -ExtraExecCmds \"IAI.Bench.MaskPairingProbe 1, IAI.Bench.SynthTickOrder 1, r.ScreenPercentage 50\"",
+            "all four otherwise byte-identical to the released form: -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -ResX 1280 -ResY 720 -Sve 1 -Delivery 0 -Pace 1 -Marker 0. This reproduces PB1F_F_PAIR_{NAT,SYN,NAT_SP50,SYN_SP50} exactly (G184)."
+          ],
+          "exact_checker_commands": [
+            "C:\\Python313\\python.exe D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m44_gates.py <banked_leg>\\<session_dir> <LABEL>   -> reads the printed per-gate PASS/FAIL lines AND the RESULT line AND the exit code (0 all pass / 1 failed).",
+            "C:\\Python313\\python.exe D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m44_pairing_probe.py <banked_leg>\\<session_dir> <LABEL>   -> exit 0 READ; exit 2/3/4 are REFUSALS TO JUDGE and are recorded as such, never as a pass."
+          ],
+          "A_side_baseline_for_the_pairing_comparison": "The SAME checkers are run over the banked Phase B legs PB1F_F_PAIR_{NAT,SYN,NAT_SP50,SYN_SP50}, which ran on the A-side binary B8AC65D8 at ac13700. That is the last PASSING reading (G235) and is the only sound comparator; a claim of 'unchanged' against an unread baseline is not evidence.",
+          "si8_marginality_is_NOT_pre-excused": "The known_limit above is retained, but a NEITHER 1 at si=8 on the synth arm is NOT automatically a PASS here and is NOT automatically declared unrelated to this binary. If the declared predicate (NEITHER == 0 AND PREVIOUS == 0) fails, that is reported separately as NEEDS-DECISION with both binaries measured on the same recipe. No threshold is changed and no leg is re-run until it happens to pass."
+        }
+      }
+    },
+    {
+      "id": "M-F1b",
+      "finding": "F1",
+      "purpose": "Same as M-F1 via the backbuffer path (mask unavailable for a different declared reason).",
+      "target_type": "StaticMeshActor_49 / auto-pool",
+      "script": "run_leg.ps1 (-Sve 0) / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F1B_NAT -BankPrefix M51_ -Sve 0 -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 90",
+      "command_lyra": "powershell -File ...\\lyra_leg.ps1 -Label M51_F1B_LYRA -ExtraExecCmds \"IAI.Capture.SVE 0\"",
+      "capture_config": "VideoFps 30, delivery OFF, SVE 0 (backbuffer)",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "as M-F1; the unmeasured reason string names the backbuffer path",
+      "auditor_exit": 0,
+      "falsifier": { "device": "frozen A-side B8AC65D8 with -Sve 0", "class": "frozen_a_side", "defect_introduced": "same drain hold as M-F1", "checker_that_must_trip": "m51_reconcile.py", "lever_exists_in_a_side": true },
+      "stop_condition": "any hold; any target_pixels 0",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions only; capture_path reads 'backbuffer'; frame_indices IDENTICAL" },
+      "expansions": [
+        { "recipe_id": "M-F1b/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F1b/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F1b/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F1b/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F2a",
+      "finding": "F2",
+      "purpose": "bbox_px must be INVARIANT TO READBACK LATENCY and must equal an INDEPENDENT offline oracle.",
+      "target_type": "runtime-spawned MOVING bench actor (no frozen asset is modified on either fixture)",
+      "script": "run_leg.ps1 / lyra_leg.ps1 + m51_bbox_oracle.py",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F2A_N0 -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.ReadbackDelayTicks 0\"  ;  ... -Label M51_F2A_N6 -ExtraExecCmds \"IAI.Bench.ReadbackDelayTicks 6\"  ;  python ...\\m51_bbox_oracle.py --geom <log> --labels <labels.jsonl> --tolerance-px 1",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.ReadbackDelayTicks (planned)", "BENCH_GEOM sidecar (commit 2)", "m51_bbox_oracle.py (planned)", "spawned moving bench actor (planned)"],
+      "capture_config": "VideoFps 30, ReadbackDelayTicks 0 vs 6, N held BELOW the readback cap so this is not accidentally a saturation test; pending high-water reported to prove headroom",
+      "expected_event_validity": "certifying, >= 3 counted events per leg",
+      "expected": "bbox_px identical row-for-row between N=0 and N=6, AND within 1 px per edge of the offline oracle. Cross-run equality is compared ONLY IF the two legs' independently recorded BENCH_GEOM actor and view series are equal row for row; a shared seed establishes no such thing.",
+      "auditor_exit": 0,
+      "falsifier": { "device": "IAI.Bench.NoGeometryFreeze 1 (in-candidate)", "class": "defect_injector", "defect_introduced": "restores late geometry/identity sampling, so the box is taken from the actor's position at DRAIN time rather than at the frame boundary", "checker_that_must_trip": "m51_bbox_oracle.py (>1 px divergence) AND the N=0 vs N=6 row comparison, which must diverge with target speed", "lever_exists_in_a_side": false, "a_side_note": "ReadbackDelayTicks does not exist in B8AC65D8; the frozen A-side CANNOT run this recipe and is not asked to." },
+      "oracle_selftest_required": "m51_bbox_oracle.py --perturb-px must FAIL on a deliberately displaced copy before any verdict is read",
+      "stop_condition": "divergence on the candidate; oracle mismatch; oracle passes its own perturbed input",
+      "pc7": { "is_subject": false, "reason": "the target is a NEW runtime-spawned actor with no banked A-side leg; there is no comparable prior session" },
+      "expansions": [
+        { "recipe_id": "M-F2a/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F2a/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F2a/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F2a/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F2b",
+      "finding": "F2",
+      "purpose": "A target destroyed after render but before drain must keep its row and its membership.",
+      "target_type": "runtime-spawned bench actor, destroyed mid-flight",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F2B_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.DestroyTargetAfterRender 30\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.DestroyTargetAfterRender (planned)", "commit 2 identity freeze"],
+      "capture_config": "VideoFps 30, delivery OFF",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "the post-destruction row is KEPT; its index appears in injected_frames AND in the event's frame_observations; identity fields come from the frozen snapshot, not from a dead actor pointer",
+      "auditor_exit": 0,
+      "falsifier": { "device": "IAI.Bench.NoGeometryFreeze 1 (in-candidate)", "class": "defect_injector", "defect_introduced": "identity/geometry resolved from the live actor at drain time, which is null after destruction, so the row is dropped or emitted blank", "checker_that_must_trip": "m51_reconcile.py (missing index) and the membership assertion", "lever_exists_in_a_side": false },
+      "stop_condition": "row missing; membership missing",
+      "pc7": { "is_subject": true, "declared_deltas": "MEMBERSHIP CHANGES: the post-destruction index is RETAINED where the A-side dropped it. Declared per leg in advance. No event-set change." },
+      "expansions": [
+        { "recipe_id": "M-F2b/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F2b/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F2b/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F2b/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F11",
+      "finding": "F11",
+      "purpose": "Projection correctness under orthographic, constrained/letterboxed rect, and near-plane crossing.",
+      "target_type": "runtime-spawned bench actor",
+      "script": "run_leg.ps1 (-LetterboxedFixture for the constrained arm) + m51_bbox_oracle.py",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F11_LB_NAT -BankPrefix M51_ -LetterboxedFixture ; python ...\\m51_bbox_oracle.py --geom <log> --labels <labels.jsonl>",
+      "runnable_now": false,
+      "blocked_on": ["BENCH_GEOM sidecar", "m51_bbox_oracle.py"],
+      "capture_config": "three arms: orthographic projection; constrained aspect (067 bDefaultConstrainAspectRatio device, -LetterboxedFixture); near-plane crossing",
+      "expected_event_validity": "certifying per arm",
+      "expected": "oracle agreement within 1 px per edge on all three arms; near-plane-crossing edges CLIPPED, not dropped; rects half-open, floor for min and ceil for max",
+      "auditor_exit": 0,
+      "falsifier": { "device": "unconstrained control arm", "class": "both_ways_control", "defect_introduced": "none - this proves the constrained arms differ from the unconstrained one in the expected direction", "checker_that_must_trip": "n/a", "honest_note": "A true defect injector for F11 would be a deliberately wrong projection, which is a code edit rather than a lever. Recorded as a gap: M-F11's can-fail rests on the oracle's own --perturb-px selftest, not on a runtime device." },
+      "stop_condition": "inverted rect; box outside the frame rect; oracle mismatch",
+      "pc7": { "is_subject": false, "reason": "new spawned target and non-default projection; no banked A-side leg exists at these configurations" },
+      "expansions": [
+        { "recipe_id": "M-F11/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F11/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F11/LYRA/NAT", "fixture": "lyra", "order": "natural", "deviation": "if a projection arm is genuinely unproducible on Lyra it is marked OPEN FOR THAT FIXTURE, never waived" },
+        { "recipe_id": "M-F11/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F3",
+      "finding": "F3",
+      "purpose": "Tag leases release on fire-end AND arms-resolved, so a long run does not exhaust the pool.",
+      "target_type": "auto-pool, > 55 sequential measurable events",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F3_NAT -BankPrefix M51_ -MaxFrames 600 -ExtraExecCmds \"IAI.Capture.Config 2 4 8 4 0\"",
+      "runnable_now": false,
+      "blocked_on": ["commit 8 (lease release)"],
+      "capture_config": "VideoFps 30, >= 56 sequential measurable events, census default",
+      "expected_event_validity": "certifying; the point of the leg is the event COUNT",
+      "expected": "all events measured; TAG-POOL EXHAUSTED count 0; achieved live-lease occupancy reported as a reading",
+      "auditor_exit": 0,
+      "falsifier": { "device": "IAI.Bench.NoTagRetire 1 (in-candidate)", "class": "defect_injector", "defect_introduced": "leases are never released, reproducing the pre-fix permanent-claim behaviour", "checker_that_must_trip": "TAG-POOL EXHAUSTED > 0 in the run log and unmeasurable_targets_admitted rising", "lever_exists_in_a_side": false },
+      "stop_condition": "any exhaustion on the natural (falsifier-off) leg",
+      "pc7": { "is_subject": false, "reason": "600-frame extended leg; no banked A-side at this length" },
+      "expansions": [
+        { "recipe_id": "M-F3/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F3/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F3/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F3/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F3b",
+      "finding": "F3",
+      "purpose": "A readback result must never be re-attributed across a reused stencil value.",
+      "target_type": "auto-pool with delayed drain forcing tag reuse while work is in flight",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F3B_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.ReadbackDelayTicks 6 | IAI.Capture.TagPoolLimit 8\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.ReadbackDelayTicks", "IAI.Bench.ForceEarlyTagRetire", "commit 8"],
+      "capture_config": "small tag pool (TagPoolLimit 8) to force reuse; ReadbackDelayTicks 6 to keep work in flight across the reuse",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "no result re-attributed across a reused value; each submission's frozen (tag -> event) identity governs its own result",
+      "auditor_exit": 0,
+      "falsifier": { "device": "IAI.Bench.ForceEarlyTagRetire 1 (in-candidate)", "class": "defect_injector", "defect_introduced": "releases the lease at fire-end IGNORING ArmsIssued == ArmsResolved, so a value is reissued while its previous owner's readback is still in flight - the exact pre-fix behaviour", "checker_that_must_trip": "m50_tag_owner.py --gate (single-owner violation) and the MASK-TIE / TARGET-PIXELS TIE cross-attribution check", "lever_exists_in_a_side": false, "corrects_A1_9": "A1.9 named NoTagRetire here. NoTagRetire HOLDS leases and therefore PREVENTS the reuse this recipe needs; it cannot manufacture cross-attribution and is not a falsifier for M-F3b." },
+      "stop_condition": "any cross-attribution on the falsifier-off leg",
+      "pc7": { "is_subject": false, "reason": "TagPoolLimit 8 changes the census tag assignment (G140 boundary); mask_value is not comparable" },
+      "expansions": [
+        { "recipe_id": "M-F3b/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F3b/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F3b/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F3b/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F4",
+      "finding": "F4",
+      "purpose": "The capture must bind to ONE world/viewport/view and never consume a foreign family.",
+      "target_type": "PIE capture with a SECOND editor level viewport at Realtime (a second world AND a second FViewport)",
+      "script": "run_leg_editor.ps1 (SOB) / manual LyraEditor PIE (Lyra)",
+      "command_stackobot": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\run_leg_editor.ps1 -Label M51_F4_ED -Anomaly corrupted_texture -Target StaticMeshActor_49 -MaxFrames 90",
+      "runnable_now": false,
+      "blocked_on": ["commit 3 (binding + Generation)", "an editor level viewport held at Realtime alongside PIE - operator action"],
+      "capture_config": "EDITOR TARGET, PIE session capturing while a second editor level viewport renders at Realtime",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "mask and colour RenderFrame equal on every row; foreign-family consumptions counted 0",
+      "auditor_exit": 0,
+      "falsifier": { "device": "IAI.Bench.NoViewBinding 1 (in-candidate)", "class": "defect_injector", "defect_introduced": "removes the world/viewport/single-view binding so the FIFO consumes whichever family arrives first, including the editor viewport's", "checker_that_must_trip": "foreign-family consumption counter > 0 and mask/colour RenderFrame disagreement", "lever_exists_in_a_side": false, "a_side_note": "A PACKAGED executable cannot host PIE, so B8AC65D8 cannot run this scenario at all. No editor-target A-side archive exists for either fixture (see provenance.missing_prerequisites)." },
+      "stop_condition": "any row differing; any foreign consumption",
+      "open_arm": "If the editor-viewport route MEASURABLY fails to produce a second eligible family, F4's runtime evidence is OPEN and the NoViewBinding falsifier is reported as weaker.",
+      "pc7": { "is_subject": false, "reason": "editor-target leg; no packaged A-side and no banked editor P-C7 pair" },
+      "expansions": [
+        { "recipe_id": "M-F4/SOB-ED/NAT", "fixture": "stackobot_editor", "order": "natural" },
+        { "recipe_id": "M-F4/SOB-ED/SYN", "fixture": "stackobot_editor", "order": "synth" },
+        { "recipe_id": "M-F4/LYRA-ED/NAT", "fixture": "lyra_editor", "order": "natural" },
+        { "recipe_id": "M-F4/LYRA-ED/SYN", "fixture": "lyra_editor", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F5",
+      "finding": "F5",
+      "purpose": "Stop/start with in-flight readbacks must not leak results across sessions.",
+      "target_type": "StaticMeshActor_49 / auto-pool",
+      "script": "run_leg.ps1 with a scripted stop/start",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F5_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.ReadbackDelayTicks 6\"  (stop/start issued over the control server mid-run)",
+      "runnable_now": false,
+      "blocked_on": ["commit 3 (Generation + per-request terminal state)", "IAI.Bench.ReadbackDelayTicks"],
+      "capture_config": "session 1 stopped with readbacks in flight; session 2 started immediately",
+      "expected_event_validity": "session 2 certifying, >= 3 counted events",
+      "expected": "zero cross-session results; every session-2 receipt carries generation 2; session-1 late completions discarded, logged, and releasing capacity EXACTLY ONCE",
+      "auditor_exit": "session 2: 0",
+      "falsifier": { "device": "frozen A-side B8AC65D8, same stop/start timing WITHOUT the delay lever", "class": "frozen_a_side", "defect_introduced": "no Generation, so a session-1 readback completing after session 2 starts is joined to session 2's snapshot map", "checker_that_must_trip": "generation mismatch assertion / a session-2 row carrying session-1 content", "lever_exists_in_a_side": false, "a_side_note": "ReadbackDelayTicks is absent from B8AC65D8, so the A-side arm is TIMING-DEPENDENT and may not reproduce. If it does not, the A-side arm is reported NOT EXERCISED, never as a pass, and the in-candidate control carries the gate." },
+      "stop_condition": "any generation mismatch accepted",
+      "pc7": { "is_subject": false, "reason": "deliberate stop/start; session 1 is intentionally incomplete" },
+      "expansions": [
+        { "recipe_id": "M-F5/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F5/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F5/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F5/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F5b",
+      "finding": "F5 (added 078-03, C3)",
+      "purpose": "A second simultaneous capture context must be REFUSED at StartRun, before any pixel is captured.",
+      "target_type": "n/a - the refusal is the subject",
+      "script": "run_leg.ps1 + a second capture_start over the control server",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F5B_NAT -BankPrefix M51_ ; then issue a second capture_start over ws://127.0.0.1:8077 while the first run is active",
+      "runnable_now": false,
+      "blocked_on": ["commit 3 (explicit refusal with a named reason)"],
+      "capture_config": "one active run, one concurrent StartRun attempt",
+      "expected_event_validity": "n/a - refusal leg",
+      "expected": "the second StartRun is REFUSED with reason capture_context_active; the first run is unaffected and completes with capture_complete true",
+      "auditor_exit": "0 for the first session; no second session directory is created",
+      "measured_justification": "AnomalySveKeyRing is a NAMESPACE singleton (PublishKey/LookupKey/Reset/GetCounters are free functions, AnomalySveKeyRing.h) - one ring per process. AnomalyStencilTag likewise applies tags directly to actor components via free functions (AnomalyStencilTag.h). Two contexts in one process therefore share the key ring and the tag state irreducibly; FIFO consumption would cross-attribute. Declining is the only sound disposition.",
+      "falsifier": { "device": "the second StartRun attempt itself", "class": "both_ways_control", "defect_introduced": "none", "checker_that_must_trip": "n/a - the refusal log line and the absence of a second session directory ARE the reading" },
+      "stop_condition": "a second session directory is created; any interference observed in the first session's artifacts",
+      "pc7": { "is_subject": false, "reason": "refusal leg" },
+      "expansions": [
+        { "recipe_id": "M-F5b/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F5b/LYRA/NAT", "fixture": "lyra", "order": "natural" }
+      ]
+    },
+    {
+      "id": "M-F6",
+      "finding": "F6 / R1",
+      "purpose": "The m26 event veto is DELETED; zero-observable and measured-zero events STAY in the file.",
+      "target_type": "a target measured at zero drawn pixels (the SM_Ramp2 / spline class)",
+      "script": "run_leg.ps1 / lyra_leg.ps1 + m49b_gates.py",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F6_NAT -BankPrefix M51_ -Anomaly blinking -Target BP_SplineSpawn_C -Seed 4242 -MaxFrames 90 ; python ...\\m49b_gates.py <legdir>",
+      "runnable_now": false,
+      "blocked_on": ["commit 7 (schema 3, veto deleted)"],
+      "capture_config": "VideoFps 30, mask ON, a target known to measure zero",
+      "expected_event_validity": "certifying, >= 3 counted events - and the events that the A-side DELETED must be present",
+      "expected": "vetoed_events == 0; zero_observable_events matches the hand count; a FULLY UNMEASURED event is EXCLUDED from zero_observable_events (counting it would manufacture a false negative out of missing evidence)",
+      "auditor_exit": 0,
+      "falsifier": { "device": "frozen A-side B8AC65D8 on the same target", "class": "frozen_a_side", "defect_introduced": "the m26 veto deletes the measured-zero events outright, producing anomalies: []", "checker_that_must_trip": "event-set comparison: the A-side event set is a strict subset", "lever_exists_in_a_side": true },
+      "stop_condition": "an event deleted; a fully-unmeasured event counted as zero-observable",
+      "pc7": { "is_subject": true, "declared_deltas": "EVENT SET GROWS; vetoed_events 8 -> 0; zero_observable_events > 0; frame_indices identical per SURVIVING event. Declared in advance per leg." },
+      "expansions": [
+        { "recipe_id": "M-F6/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F6/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F6/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F6/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-R5",
+      "finding": "R5",
+      "purpose": "shaders_pending attributes PER FIRE, not per frame.",
+      "target_type": "mixed fire: one pending texture swap + one valid hide, same frame",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_R5_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.ForceShaderPendingForFire 0 20\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.ForceShaderPendingForFire (planned)", "commit 5"],
+      "capture_config": "two concurrent fires on one frame; fire 0 forced pending, fire 1 valid",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "fire 0 rows render_state shaders_pending with observable null; fire 1 rows KEEP their positive verdict on the same frames",
+      "auditor_exit": 0,
+      "falsifier": { "device": "IAI.Bench.ForceShaderPendingForFire 0 20 run against the frame-wide attribution (in-candidate, by disabling the per-fire split)", "class": "defect_injector", "defect_introduced": "frame-wide attribution, so one pending fire makes its NEIGHBOUR unknown", "checker_that_must_trip": "fire 1's rows losing their positive verdict; the auditor's per-fire shaders_pending check", "corrects_A1_9": "A1.9 said 'force-pending both fires'. Forcing BOTH makes both unknown under EITHER the per-fire or the frame-wide rule, so it cannot discriminate between them. Only a SINGLE-fire device can." },
+      "stop_condition": "a valid fire made unknown by its neighbour",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; per-row schema_version; frame_indices IDENTICAL on the non-pending fire" },
+      "expansions": [
+        { "recipe_id": "M-R5/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-R5/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-R5/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-R5/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F9",
+      "finding": "F9",
+      "purpose": "A frame whose custom-depth pass did not run must read -1/null/unmeasured, never 0.",
+      "target_type": "StaticMeshActor_49 (window arm) + a fully occluded tagged target (valid-zero control)",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F9_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.CustomDepthOffWindow 20 10\"",
+      "runnable_now": false,
+      "blocked_on": ["the r.CustomDepth 0 window device (planned)", "commit 5"],
+      "capture_config": "a tick-bounded window with r.CustomDepth forced to 0, restored afterwards; plus an occluded-target control leg",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "window rows target_pixels -1 / observable null / mask_state unmeasured WITH the recorded reason; control rows target_pixels 0 / mask_state empty / observable false (row G)",
+      "auditor_exit": 0,
+      "falsifier": { "device": "the window itself", "class": "both_ways_control", "defect_introduced": "none - the window and the occluded control are the two sides", "checker_that_must_trip": "n/a", "read_back_requirement": "The device MUST record the EFFECTIVE r.CustomDepth AT THE PASS POINT every frame (master already logs rCustomDepthModeAtPass) and VERIFY by read-back that the window achieved mode != 3. If read-back shows mode 3 inside the window, the leg is VOID by this pre-declared rule - never a pass." },
+      "stop_condition": "any 0 where the pass did not run; read-back shows mode 3 in the window => VOID",
+      "pc7": { "is_subject": false, "reason": "the window deliberately changes measurement availability; membership is expected to move" },
+      "expansions": [
+        { "recipe_id": "M-F9/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F9/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F9/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F9/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F10",
+      "finding": "F10",
+      "purpose": "A session-global anomaly entering mid-capture must appear in both orders, and the two global counters must stay incremented.",
+      "target_type": "camera_clipping (session-global)",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F10_NAT -BankPrefix M51_ -Anomaly camera_clipping -MaxFrames 90",
+      "runnable_now": false,
+      "blocked_on": ["commit 9"],
+      "capture_config": "camera_clipping entering mid-capture, both orders; plus a control leg where it does NOT enter",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "the entering transition is present in BOTH orders; SessionGlobalPositiveFrames and SessionGlobalNegativeFrames both > 0",
+      "auditor_exit": 0,
+      "falsifier": { "device": "a control leg with NO session-global anomaly", "class": "both_ways_control", "defect_introduced": "none", "checker_that_must_trip": "n/a", "honest_note": "Both counters are LIVE on master (AnomalyCaptureSubsystem.cpp :4252/:4256/:4383/:4387) and absent on be16977. The hazard is ORPHANING them during the port, and no runtime lever can inject that - it would be a code edit. The control leg proves the counters can read 0 as well as > 0; a defect injector for orphaning is MISSING and is recorded as such." },
+      "stop_condition": "membership differs between orders; either counter reads 0 on the entering leg (they are live on master, so a 0 means m51 orphaned them)",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; frame_indices IDENTICAL" },
+      "expansions": [
+        { "recipe_id": "M-F10/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F10/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F10/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F10/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F12",
+      "finding": "F12",
+      "purpose": "A GC during a texture anomaly must not break material restoration.",
+      "target_type": "StaticMeshActor_49 with corrupted_texture / missing_texture",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F12_NAT -BankPrefix M51_ -Anomaly corrupted_texture -Target StaticMeshActor_49 -ExtraExecCmds \"obj gc\"",
+      "runnable_now": false,
+      "blocked_on": ["commit 10 (strong material ownership)"],
+      "capture_config": "obj gc issued during an active texture anomaly",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "the original material is restored BY POINTER IDENTITY, not merely by a same-named object",
+      "auditor_exit": 0,
+      "falsifier": { "device": "frozen A-side B8AC65D8, same gc timing", "class": "frozen_a_side", "defect_introduced": "weak material references collected by GC, so restoration falls back to a default reset or leaves the checker in place", "checker_that_must_trip": "the pointer-identity assertion in the run log", "lever_exists_in_a_side": true, "a_side_note": "obj gc is an ENGINE command present in every build, so this A-side arm is legitimately runnable on the archived exe." },
+      "stop_condition": "identity not restored",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions only; frame_indices IDENTICAL" },
+      "expansions": [
+        { "recipe_id": "M-F12/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F12/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F12/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F12/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F13",
+      "finding": "F13",
+      "purpose": "The preview must recover from a dropped completion and a resize.",
+      "target_type": "n/a - the preview tee is the subject",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F13_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.PreviewDropNext 1\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.PreviewDropNext (planned)", "commit 10"],
+      "capture_config": "forced preview drop followed by a viewport resize",
+      "expected_event_validity": "n/a - preview leg, capture continues normally",
+      "expected": "preview recovers; the preview Outstanding counter returns to 0",
+      "auditor_exit": 0,
+      "falsifier": { "device": "the drop itself", "class": "both_ways_control", "defect_introduced": "the drop IS the injected condition; recovery vs non-recovery is the two-way reading", "checker_that_must_trip": "Outstanding stuck above 0" },
+      "stop_condition": "no recovery",
+      "pc7": { "is_subject": false, "reason": "preview is not an artifact field; the capture artifacts are unchanged" },
+      "expansions": [
+        { "recipe_id": "M-F13/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F13/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F13/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F13/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F14",
+      "finding": "F14",
+      "purpose": "The SYNC path must agree with the async path on hide-class manifestation. It currently samples FActor->IsHidden() where async uses IsLogicallyHidden, and m45 stopped hide-class anomalies calling SetActorHiddenInGame - so a synchronous capture reports every hide as non-manifested.",
+      "target_type": "hide-class (blinking) on StaticMeshActor_49",
+      "script": "run_leg.ps1 with the sync path selected",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F14_NAT -BankPrefix M51_ -Anomaly blinking -Target StaticMeshActor_49 -ExtraExecCmds \"IAI.Capture.Async 0\"",
+      "runnable_now": false,
+      "blocked_on": ["commit 9 (sync parity at one sampling boundary)"],
+      "capture_config": "sync capture path, hide-class anomaly; async control leg at the same seed/target",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "sync rows agree with async on anomaly_present and on the hidden set; the session-global counters are present on both",
+      "auditor_exit": 0,
+      "falsifier": { "device": "frozen A-side B8AC65D8 on the sync path", "class": "frozen_a_side", "defect_introduced": "IsHidden() sampling, so every m45 hide reads non-manifested", "checker_that_must_trip": "non_manifested_events > 0 on the A-side against 0 on the candidate; hidden-set comparison against the async control", "lever_exists_in_a_side": true },
+      "stop_condition": "any disagreement between sync and async on the hidden set",
+      "pc7": { "is_subject": true, "declared_deltas": "MEMBERSHIP CHANGES on the sync path: hide-class events gain their hidden frames where the A-side had none. Declared in advance." },
+      "expansions": [
+        { "recipe_id": "M-F14/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F14/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F14/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F14/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F15",
+      "finding": "F15 / R4",
+      "purpose": "WebSocket mutations are refused during capture; console mutations are allowed and counted.",
+      "target_type": "n/a - the mutation surface is the subject",
+      "script": "run_leg.ps1 + a WebSocket client (ws_scoping_echo.ps1 idiom)",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F15_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.SetMinScreenCoverage 8\" ; concurrently issue a set_min_screen_coverage over ws://127.0.0.1:8077",
+      "runnable_now": false,
+      "blocked_on": ["commit 11"],
+      "capture_config": "one console mutation and one WebSocket mutation issued during an active capture",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "the console mutation SUCCEEDS and external_mutations increments WITH its session index; the WebSocket mutation is REFUSED with reason capture_active; auto-injector internal operations do NOT increment the counter",
+      "auditor_exit": 0,
+      "falsifier": { "device": "issue BOTH kinds", "class": "both_ways_control", "defect_introduced": "none - the two kinds must diverge, which is the reading", "checker_that_must_trip": "n/a" },
+      "stop_condition": "console blocked; the auditor failing a session merely for a non-zero external_mutations; an attempt logged without its outcome",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary gains external_mutations; frame_indices IDENTICAL (the mutation is chosen so it does not change selection)" },
+      "expansions": [
+        { "recipe_id": "M-F15/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F15/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F15/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F15/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-F16",
+      "finding": "F16",
+      "purpose": "An unsupported pixel layout must be REFUSED and counted, never written as a black frame.",
+      "target_type": "n/a",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_F16_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.ForceUnsupportedLayout 1\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.ForceUnsupportedLayout (planned)", "commit 10"],
+      "capture_config": "forced unsupported layout on a bounded window",
+      "expected_event_validity": "FAILURE LEG - deliberately incomplete, not certifying",
+      "expected": "the refusal is counted; NO black frame is written; the requested index is a HOLE => capture_complete false",
+      "auditor_exit": 1,
+      "falsifier": { "device": "the lever itself", "class": "defect_injector", "defect_introduced": "an unsupported source layout reaching the converter", "checker_that_must_trip": "verify_capture.py --black-frame-gate must NOT fire (no black frame exists) AND m51_reconcile.py must report the hole" },
+      "stop_condition": "a black frame counted as a success",
+      "pc7": { "is_subject": false, "reason": "failure leg - deliberately incomplete" },
+      "expansions": [
+        { "recipe_id": "M-F16/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-F16/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-F16/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-F16/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-R8",
+      "finding": "R8",
+      "purpose": "Recovery after a no-render burst, with a complete per-index reconciliation.",
+      "target_type": "auto-pool, >= 3 counted events AFTER resumption",
+      "script": "run_leg.ps1 / lyra_leg.ps1 + m51_reconcile.py",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_R8_NAT -BankPrefix M51_ -MaxFrames 200 -ExtraExecCmds \"IAI.Bench.WithholdWorldRender 40\" ; python ...\\m51_reconcile.py <session> --expect-incomplete",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.WithholdWorldRender (planned)", "IAI.Bench.NoStaleArmSweep (planned)", "m51_reconcile.py (planned)", "commit 4"],
+      "capture_config": "N = 40 withheld ticks; capture keeps running (game ticks, arms and session_index advance); start and end tick indices logged as session_index values",
+      "expected_event_validity": ">= 3 counted events AFTER resumption",
+      "expected": "unrendered_ticks == the number of capture ticks that armed during the burst and never published (the leg logs that opportunity total directly and the two must be EQUAL - not a bare constant 40); pending returns to zero; capture resumes; capture_complete false; every requested index is either committed or terminal-Cancelled(unrendered), with NO index in neither set. Independent evidence the owned family was absent: the SVE publish counter delta == 0 across the logged window and ConsumeWantedForPublish is not entered.",
+      "auditor_exit": 1,
+      "falsifier": { "device": "IAI.Bench.NoStaleArmSweep 1 (in-candidate)", "class": "defect_injector", "defect_introduced": "disables the GT stale-arm sweep AND the publish-time frame-identity rejection with its capacity retirement, for the test interval only, while RETAINING the identity guard that forbids labelling a later render with an older snapshot", "checker_that_must_trip": "capacity stays exhausted after resumption; readback_drops rises; capture does NOT recover", "scope_correction_078_03": "Sweep-only is NOT sufficient: with publish-time rejection retained, the backlog would be retired as soon as rendering resumed and the leg would recover anyway, so a sweep-only falsifier would read as a pass for the wrong reason.", "teardown": "normal cleanup is RESTORED at test teardown so an intended failure does not hang FinishRun", "lever_exists_in_a_side": false, "a_side_note": "Neither the cap nor the cancellation exists in B8AC65D8, and an unknown console command is not a device. The A-side is run WITHOUT any lever as a separate reading, where the expected signature is DIFFERENT: ConsumeWantedForPublish is FIFO with no expiry (AnomalySveCapturer.cpp:45+), so on resumption each new family consumes the OLDEST pending arm => mass MIS-PAIRING then a bulk drop at finalize (pendingAtDrainEntry >> 0, a large 'did not resolve by run end (dropped)' count, and label rows whose content belongs to earlier ticks). ac13700 has NO PendingSnapshots admission cap (only the drain bound Iter < 8 and the finalize sweep at :4082-4086); a binary cannot fail by filling a cap it lacks." },
+      "stop_condition": "no recovery on the swept leg; any index in neither set",
+      "open_arm": "This proves the RECOVERY PATH only. It is NOT the applied-tick-pin arm (tickpin_compiled reads false on both fixtures) and NOT real decoupled-host behaviour. Both stay OPEN.",
+      "pc7": { "is_subject": false, "reason": "failure leg - deliberately incomplete" },
+      "expansions": [
+        { "recipe_id": "M-R8/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-R8/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-R8/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-R8/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-R8c",
+      "finding": "R8 (added 078-03, C1)",
+      "purpose": "Expiry is by RENDER IDENTITY, not by readback capacity: an unpublished arm from an earlier game frame must never be paired with a later family.",
+      "target_type": "auto-pool",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_R8C_NAT -BankPrefix M51_ -MaxFrames 200 -ExtraExecCmds \"IAI.Bench.WithholdWorldRender 3\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.WithholdWorldRender", "commit 4"],
+      "capture_config": "a SHORT withhold burst (N = 3, far below any capacity limit) so that capacity is never the reason anything expires",
+      "expected_event_validity": "certifying, >= 3 counted events after resumption",
+      "expected": "the three withheld arms are retired by IDENTITY - each is unpublished and its arm game-frame is older than the resuming family's - even though no cap was ever approached; on resumption the first family consumes a FRESH arm of its own game frame, never the 3-tick-old one; unrendered_ticks == 3; no mis-paired row",
+      "measured_justification": "AnomalySveCapturer::ArmWanted stores ONLY the RequestId (TArray<uint64> PendingWanted, AnomalySveCapturer.h) and ConsumeWantedForPublish pops PendingWanted[0] FIFO with NO frame comparison at all - FamilyFrameNumber is passed in and used only for logging. m51 must store the arm's GFrameCounter and compare it at publish. The comparison is sound because BeginRenderViewFamily is a GAME-THREAD callback (SceneViewExtension.h:141, 'Called on game thread when view family is about to be rendered'; invoked at SceneRendering.cpp:4590 inside FRendererModule::BeginRenderingViewFamilies) and GFrameCounter++ happens at LaunchEngineLoop.cpp:5568, AFTER GEngine->Tick() at :5363 - so a healthy arm (OnWorldTickEnd) and its publish share one GFrameCounter value.",
+      "auditor_exit": 1,
+      "falsifier": { "device": "IAI.Bench.NoStaleArmSweep 1 (in-candidate, same scope as M-R8)", "class": "defect_injector", "defect_introduced": "removes both the identity rejection and the sweep, restoring bare FIFO consumption", "checker_that_must_trip": "a row whose frozen snapshot's arm game-frame differs from the family that produced its pixels - detectable from the SVE-WANT-TRACE arm/publish pairing and from BENCH_GEOM row-for-row disagreement" },
+      "stop_condition": "any arm consumed by a family of a different game frame; any expiry attributable to capacity rather than identity",
+      "pc7": { "is_subject": false, "reason": "failure leg - deliberately incomplete" },
+      "expansions": [
+        { "recipe_id": "M-R8c/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-R8c/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-R8c/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-R8c/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-R8b",
+      "finding": "R8",
+      "purpose": "A rendered-but-unreadable frame is a KEY MISS, a different failure from an unrendered tick.",
+      "target_type": "auto-pool",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_R8B_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.ForceMiss 4 | IAI.Bench.ForceMissPhase 2\"",
+      "runnable_now": false,
+      "blocked_on": ["commit 4 (key_misses counter)"],
+      "capture_config": "ForceMiss bracketed by an explicit tick-bounded on/off interval logged by session_index (the argument is a PERIODICITY, so the interval must be bounded explicitly)",
+      "expected_event_validity": "certifying, >= 3 counted events after the interval",
+      "expected": "key_misses > 0; unrendered_ticks == 0; capture recovers",
+      "measured_justification": "AnomalySveKeyRing.cpp:16-28 - ForceMiss corrupts PUBLISHED keys, so the family RENDERS and the render-thread lookup fails. That is a rendered-but-unreadable frame with its own counter, a DIFFERENT branch from an unpublished stale arm.",
+      "auditor_exit": 1,
+      "falsifier": { "device": "ForceMiss itself", "class": "defect_injector", "defect_introduced": "corrupted published keys => render-thread lookup failure", "checker_that_must_trip": "key_misses must rise and unrendered_ticks must stay 0; if a lookup failure is counted as an unrendered tick the two failure classes have been conflated", "lever_exists_in_a_side": true, "a_side_note": "ForceMiss EXISTS in B8AC65D8, so an A-side arm is legitimately runnable here." },
+      "stop_condition": "a lookup failure counted as an unrendered tick",
+      "pc7": { "is_subject": false, "reason": "failure leg" },
+      "expansions": [
+        { "recipe_id": "M-R8b/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-R8b/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-R8b/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-R8b/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-W1",
+      "finding": "F7 / R6",
+      "purpose": "A REQUIRED mask write that fails downgrades the row AND the event observation, and the frame still commits - but the obligation is NOT cleared.",
+      "target_type": "a target with a NON-EMPTY mask (so mask_write_required is true)",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_W1_ENC_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.WriterFailAt mask 30\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.WriterFailAt (planned)", "commit 6"],
+      "capture_config": "TWO arms because the paths differ: an ENCODER failure (malformed input to the image wrapper) and an OS WRITE failure (read-only directory / held handle). Their receipts must carry DIFFERENT reasons.",
+      "expected_event_validity": "FAILURE LEG",
+      "expected": "the row commits; the row AND the event observation are downgraded; masks_dropped > 0; mask_file null; the receipt records mask_required_but_absent; capture_complete FALSE. Downgrading the row does NOT satisfy the obligation.",
+      "auditor_exit": 1,
+      "control_arm_required": "A frame whose mask is legitimately EMPTY (mask_state empty, mask_file null, no PNG) must NOT be treated as an artifact failure and must NOT affect capture_complete. Source: no all-zero PNG is ever written (AnomalyCaptureSubsystem.cpp:3011, :6472); mask_state Present/Empty/Unmeasured at :1279-1292.",
+      "falsifier": { "device": "IAI.Bench.WriterFailAt mask <index>", "class": "defect_injector", "defect_introduced": "a deterministic mask write failure at a named index", "checker_that_must_trip": "the auditor must flag the dangling obligation; a dangling mask_file (row names a PNG that does not exist) must FAIL" },
+      "stop_condition": "a dangling mask_file; capture_complete true despite a failed required write; an empty-mask frame counted as an artifact failure",
+      "pc7": { "is_subject": false, "reason": "failure leg" },
+      "expansions": [
+        { "recipe_id": "M-W1/SOB/NAT/encoder", "fixture": "stackobot", "order": "natural", "deviation": "encoder failure arm" },
+        { "recipe_id": "M-W1/SOB/NAT/oswrite", "fixture": "stackobot", "order": "natural", "deviation": "OS write failure arm" },
+        { "recipe_id": "M-W1/SOB/SYN/encoder", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-W1/SOB/SYN/oswrite", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-W1/LYRA/NAT/encoder", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-W1/LYRA/NAT/oswrite", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-W1/LYRA/SYN/encoder", "fixture": "lyra", "order": "synth" },
+        { "recipe_id": "M-W1/LYRA/SYN/oswrite", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-W2",
+      "finding": "F7",
+      "purpose": "An RGB write failure must produce NO commit and a counted hole.",
+      "target_type": "any",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_W2_ENC_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.WriterFailAt image 30\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.WriterFailAt", "commit 6"],
+      "capture_config": "encoder-failure arm and OS-write-failure arm, as M-W1",
+      "expected_event_validity": "FAILURE LEG",
+      "expected": "NO commit for that index; writer_drops increments; the index is a HOLE in written_frame_indices; no label row is appended without its image (the image write is checked BEFORE the row is appended)",
+      "auditor_exit": 1,
+      "falsifier": { "device": "IAI.Bench.WriterFailAt image <index>", "class": "defect_injector", "defect_introduced": "a deterministic RGB write failure", "checker_that_must_trip": "m51_reconcile.py hole detection; a row present without its image must FAIL" },
+      "stop_condition": "a row without its image",
+      "pc7": { "is_subject": false, "reason": "failure leg" },
+      "expansions": [
+        { "recipe_id": "M-W2/SOB/NAT/encoder", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-W2/SOB/NAT/oswrite", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-W2/SOB/SYN/encoder", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-W2/SOB/SYN/oswrite", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-W2/LYRA/NAT/encoder", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-W2/LYRA/SYN/encoder", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-W3",
+      "finding": "F7",
+      "purpose": "A label-append failure retains the image as a DETECTABLE orphan.",
+      "target_type": "any",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_W3_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.WriterFailAt label 30\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.WriterFailAt", "commit 6"],
+      "capture_config": "deterministic label-append failure at a named index",
+      "expected_event_validity": "FAILURE LEG",
+      "expected": "no commit; the IMAGE IS RETAINED as an orphan; the receipt is terminal-Failed with reason label_append; the index is absent from written_frame_indices",
+      "auditor_exit": 1,
+      "policy_note": "Retention is chosen over cleanup PRECISELY because it is auditable: deleting the image would add a delete/retry race to a path that is already failing. The auditor MUST detect the orphan (a file in Actual_Frames/ with no row and no annotation reference) and FAIL.",
+      "falsifier": { "device": "IAI.Bench.WriterFailAt label <index>", "class": "defect_injector", "defect_introduced": "a deterministic JSONL append failure", "checker_that_must_trip": "the auditor's orphan detection - if it does not fail, the retention policy has no audit and must be reconsidered" },
+      "stop_condition": "orphan not detected by the auditor",
+      "pc7": { "is_subject": false, "reason": "failure leg" },
+      "expansions": [
+        { "recipe_id": "M-W3/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-W3/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-W3/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-W3/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-W4",
+      "finding": "R6",
+      "purpose": "In-capture backpressure: a saturated writer drops AFTER a bounded wait, and every drop is counted.",
+      "target_type": "any",
+      "script": "run_leg.ps1 / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_W4_NAT -BankPrefix M51_ -MaxFrames 600 -ResX 1920 -ResY 1080 -ExtraExecCmds \"IAI.Bench.WriterWorkerDelayMs 250 600\"",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.WriterWorkerDelayMs (planned)", "commit 6"],
+      "capture_config": "VALID settings throughout: WriterWorkerCount 2, WriterQueueBytes 256 MiB, 1920x1080 native PNG, VideoFps 30. Saturation comes from a 250 ms per-job worker delay held for 600 ticks.",
+      "expected_event_validity": "FAILURE LEG",
+      "expected_arithmetic": "At 1080p 8-bit the per-job reservation is 15.88 MiB (raw 7.91 + BGRA 7.91 + 64 KiB record), so a 256 MiB budget holds 16 charged jobs. Demand is 30 jobs/s; service with N=2 and 250 ms/job is 8 jobs/s. The 16 slots fill in roughly (16-2)/22 = 0.64 s, after which every arrival waits at most one capture-frame period (33.33 ms at 30 fps) and is then dropped and counted. Over 600 requested frames (20 s) the expected order of magnitude is ~150 committed and ~450 counted drops.",
+      "expected_gate": "The GATE is on the invariants, not on the count: writer_drops > 0; EVERY drop counted (committed + dropped + cancelled == requested, no uncounted hole); NO enqueue wait exceeds the deadline; NO 10 s stall; capture_complete false. The count band is a reading, because it depends on the measured per-job encode time.",
+      "auditor_exit": 1,
+      "falsifier": { "device": "IAI.Bench.WriterWorkerDelayMs 250 600", "class": "defect_injector", "defect_introduced": "real in-capture service starvation under valid settings", "checker_that_must_trip": "an uncounted drop, or a wait beyond the deadline, or a hole that reconciliation cannot classify", "corrects_A1_9": "A1.9's saturation arm set WriterQueueBytes below one admissible job. Under the C2 policy that value is REFUSED AT StartRun, so the arm would have tested configuration validation and reported it as backpressure. A StartRun refusal is not a successful in-capture backpressure test." },
+      "companion_recipe": "M-W4v (validation): WriterQueueBytes below one admissible job at the run's resolution must be REFUSED AT StartRun WITH THE VALUE NAMED, and no session directory is created. That is a SEPARATE reading from M-W4, not a substitute for it.",
+      "stop_condition": "an uncounted drop; a wait beyond the deadline; a job admitted over budget",
+      "pc7": { "is_subject": false, "reason": "failure leg" },
+      "expansions": [
+        { "recipe_id": "M-W4/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-W4/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-W4/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-W4/LYRA/SYN", "fixture": "lyra", "order": "synth" },
+        { "recipe_id": "M-W4v/SOB/NAT", "fixture": "stackobot", "order": "natural", "deviation": "validation arm - StartRun refusal, no capture" },
+        { "recipe_id": "M-W4v/LYRA/NAT", "fixture": "lyra", "order": "natural", "deviation": "validation arm" }
+      ]
+    },
+    {
+      "id": "M-W5",
+      "finding": "F8",
+      "purpose": "A worker delayed across FinishRun and the next StartRun must not mutate anything after publication.",
+      "target_type": "any",
+      "script": "run_leg.ps1 with two consecutive sessions",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_W5_S1_NAT -BankPrefix M51_ -ExtraExecCmds \"IAI.Bench.WriterWorkerDelayMs 3000 5\" ; immediately start session 2",
+      "runnable_now": false,
+      "blocked_on": ["IAI.Bench.WriterWorkerDelayMs", "commit 6"],
+      "capture_config": "a worker deliberately delayed past FinishRun; a second StartRun issued while it is still running",
+      "expected_event_validity": "session 2 certifying, >= 3 counted events",
+      "expected": "no counter mutation and no write after the final completion is published; session 2 uses a FRESH writer; a concurrent StartRun is refused or queued by the declared policy until the join completes (see M-F5b)",
+      "auditor_exit": "session 2: 0",
+      "falsifier": { "device": "the delayed worker itself", "class": "defect_injector", "defect_introduced": "a late completion arriving after publication", "checker_that_must_trip": "any post-publication counter mutation or file write; the same-generation terminal check must reject it" },
+      "stop_condition": "any late mutation",
+      "pc7": { "is_subject": false, "reason": "session 1 is deliberately perturbed" },
+      "expansions": [
+        { "recipe_id": "M-W5/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-W5/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-W5/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-W5/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "M-PB5",
+      "finding": "Phase B / exposure",
+      "purpose": "Prove the exposure-dip exclusion operand was EVALUATED, without changing legacy conditional emission.",
+      "target_type": "a hide-class anomaly causing a known whole-frame luminance drop",
+      "script": "run_leg.ps1 (-AutoExposure 0 pinned and -AutoExposure 1 AE-ON) / lyra_leg.ps1",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_PB5_PIN_NAT -BankPrefix M51_ -AutoExposure 0 ; powershell -File ...\\run_leg.ps1 -Label M51_PB5_AEON_NAT -AutoExposure 1",
+      "runnable_now": false,
+      "blocked_on": ["the per-frame luma diagnostics (commit 14 / docs-adjacent bench logging)"],
+      "capture_config": "pinned-exposure leg and AE-ON leg, both orders, both fixtures",
+      "expected_event_validity": "certifying, >= 3 counted events",
+      "expected": "pinned legs frames_exposure_dip == 0 WITH the diagnostics showing MeanExcl computed and bExclusionUsable true on labelled frames; AE-ON legs frames_exposure_dip > 0 in BOTH orders; frames_exposure_dip_suppressed > 0 on a leg containing a known whole-frame drop caused by a hide, proving bDipAll && !bDipExcl fired",
+      "auditor_exit": 0,
+      "schema_correction": "Chat blocker 2 asked for exposure_dip_scope on EVERY labelled row of a zero-dip leg. That is unsatisfiable without a schema change: AnomalyLabelWriter.cpp:156-162 emits both exposure_dip and exposure_dip_scope ONLY inside if (bExposureDip), and AnomalyCaptureSubsystem.cpp:3958-3959 sets the scope only when a dip is detected. Requiring the field on non-dip rows would change legacy conditional-emission behaviour, which R1 forbids. CONDITIONAL EMISSION IS PRESERVED; the behavioural assertion is met by the diagnostics above.",
+      "falsifier": { "device": "the AE-ON leg", "class": "both_ways_control", "defect_introduced": "none - AE-ON vs pinned is the two-way reading", "checker_that_must_trip": "frames_exposure_dip_suppressed == 0 on the known-drop leg means the exclusion never fired" },
+      "stop_condition": "frames_exposure_dip_suppressed == 0 on the known-drop leg; exposure_dip_scope present but ineffective",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions only; no exposure key changes shape" },
+      "expansions": [
+        { "recipe_id": "M-PB5/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "M-PB5/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "M-PB5/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "M-PB5/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "T",
+      "finding": "throughput",
+      "purpose": "Sustained capture at the shipped rate with no natural drop and no hole.",
+      "target_type": "auto-pool",
+      "script": "run_leg.ps1 / lyra_leg.ps1 + eval_leg.py",
+      "command_stackobot": "powershell -File ...\\run_leg.ps1 -Label M51_T_NAT -BankPrefix M51_ -MaxFrames 600 -ResX 1920 -ResY 1080 ; python ...\\eval_leg.py <session> none 1.05 throughput",
+      "runnable_now": false,
+      "blocked_on": ["commit 6"],
+      "capture_config": "600 REQUESTED frames; the first 60 are warm-up FOR TIMING METRICS ONLY and still count for artifact completeness, holes and drops. 1920x1080 NATIVE PNG, mask + census ON, VideoFps 30.",
+      "expected_event_validity": "certifying",
+      "expected": "speed_ratio <= 1.05 (the existing m21 ship band, still the throughput criterion on these two fixtures - m33's 'speed_ratio is vacuous' note applies to the PINNED DECOUPLED FORK, not to this bench); zero natural writer_drops; zero natural readback_drops; zero requested-frame holes; capture_complete true",
+      "recorded_readings": "queue-depth high-water; byte high-water; the TOTAL MEMORY BUDGET SCOPE (which buffers are charged); maximum deadline overshoot (max enqueue wait minus the deadline); the measured max encoded/raw ratio AS A READING ONLY - it does NOT set any reservation factor under the C2 policy",
+      "auditor_exit": 0,
+      "falsifier": { "device": "the M-W4 saturation arm on the same binary", "class": "defect_injector", "defect_introduced": "service starvation", "checker_that_must_trip": "writer_drops > 0 there against 0 here, proving the zero is a reading and not blindness (G96)" },
+      "stop_condition": "any natural drop or hole; speed_ratio > 1.05",
+      "bar_rule": "The band is fixed BEFORE the leg. It is never lowered after seeing a result.",
+      "pc7": { "is_subject": false, "reason": "600-frame extended leg; no banked A-side at this length" },
+      "expansions": [
+        { "recipe_id": "T/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "T/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "T/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "T/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    },
+    {
+      "id": "A",
+      "finding": "auditor",
+      "purpose": "The rewritten auditor is proven BOTH WAYS against known answers before any verdict is read.",
+      "target_type": "n/a - banked sessions are the input",
+      "script": "verify_integrity.py (planned, rewritten)",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\AnomalyInjector\\tools\\verify_integrity.py <session_dir> --integrity-only",
+      "runnable_now": false,
+      "blocked_on": ["verify_integrity.py rewrite (commit 13)"],
+      "capture_config": "every banked schema-3 session from this campaign, plus the known-answer corpus below",
+      "expected_event_validity": "n/a",
+      "known_answer_cases": [
+        { "case": "malformed JSON", "expect_exit": 2 },
+        { "case": "missing run_summary.json", "expect_exit": 2 },
+        { "case": "a valid v2 session", "expect_exit": 3, "note": "MUST be 3 (NOT APPLICABLE), never 2 - 'I cannot read this' is not 'this is old'" },
+        { "case": "a dangling mask_file (row names a PNG that does not exist)", "expect_exit": 1 },
+        { "case": "an orphan image with no row", "expect_exit": 1 },
+        { "case": "a truncated written_frame_indices", "expect_exit": 1 },
+        { "case": "a pending-fire row (shaders_pending with observable null)", "expect_exit": 0, "note": "MUST PASS - a legitimately unmeasured fire is not an integrity failure" },
+        { "case": "a ZERO-MEASURED event with observability_basis fallback_injected on a COMPLETE session", "expect_exit": 0, "note": "the observable-only equality rule is NOT applied on a fallback; applying it would manufacture an R1 contradiction" },
+        { "case": "the same fallback event on an INCOMPLETE session", "expect_exit": 1, "note": "fails on the RECONCILIATION (hole / capture_complete false), never on the membership rule" },
+        { "case": "an empty-mask frame (mask_state empty, mask_file null, no PNG)", "expect_exit": 0, "note": "not a promised artifact; not an artifact failure" }
+      ],
+      "auditor_exit": "per case above",
+      "falsifier": { "device": "corrupt a COPY of a passing session", "class": "defect_injector", "defect_introduced": "each known-answer corruption above", "checker_that_must_trip": "the auditor itself; a failure case passing, or a natural leg failing, is a STOP" },
+      "stop_condition": "a failure leg passing; a natural leg failing",
+      "pc7": { "is_subject": false, "reason": "offline checker, not a capture" },
+      "expansions": [
+        { "recipe_id": "A/ALL", "fixture": "n/a", "order": "n/a", "deviation": "runs over every banked schema-3 session of both fixtures and both orders" }
+      ]
+    },
+
+    {
+      "id": "R-ONSET-G7-TIE",
+      "finding": "regression (unchanged bar)",
+      "purpose": "ONSET, G7, MASK-TIE and TARGET-PIXELS TIE must not move.",
+      "target_type": "StaticMeshActor_49, all four anomaly classes",
+      "script": "m44_gates.py",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m44_gates.py <session_dir> <label>",
+      "runnable_now": true,
+      "capture_config": "the standard banked recipe per leg",
+      "expected_event_validity": "certifying",
+      "expected": "m44_gates ALL PASS, stray 0; MASK-TIE 0 MISMATCH; TARGET-PIXELS TIE 0 MISMATCH; ONSET delta 0",
+      "auditor_exit": 0,
+      "falsifier": { "device": "a deliberately truncated copy of the artifact", "class": "defect_injector", "defect_introduced": "a missing frame index in the labelled set", "checker_that_must_trip": "m44_gates.py G7 stray count > 0 - proven both ways in m49 A2" },
+      "stop_condition": "any gate that passed at ac13700 failing at m51",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; frame_indices IDENTICAL; NO event-set change" },
+      "expansions": [
+        { "recipe_id": "R-ONSET/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "R-ONSET/SOB/SYN", "fixture": "stackobot", "order": "synth" }
+      ]
+    },
+    {
+      "id": "R-PAIRING",
+      "finding": "regression",
+      "purpose": "Mask-picture pairing at 100 % and 50 % screen percentage.",
+      "target_type": "the collision-proof probe (tag ReservedStencilMax, which the allocator can never hand out)",
+      "script": "m44_pairing_probe.py",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m44_pairing_probe.py <session_dir> <label>",
+      "runnable_now": true,
+      "capture_config": "baseline recipe -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 40, both orders; plus an r.ScreenPercentage 50 leg",
+      "expected_event_validity": "certifying",
+      "expected": "NEITHER == 0 AND PREVIOUS == 0 over decidable frames; the no-data count is reported, not required to be zero",
+      "auditor_exit": 0,
+      "falsifier": { "device": "the tool's own fixture-collision refusal (exit 2/3/4)", "class": "both_ways_control", "defect_introduced": "none - it refuses rather than reporting a number when it cannot see its subject", "checker_that_must_trip": "n/a" },
+      "stop_condition": "NEITHER or PREVIOUS non-zero on a valid fixture",
+      "known_limit": "The SYNTH-order clause is MARGINAL at si=8 (banked deltas 33.6-49.5 against a 40 px tolerance), so a NEITHER 1 there is branch (a) of b28_si8_predeclared.md and is NOT binary-attributable. The tolerance is NOT widened.",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; frame_indices IDENTICAL" },
+      "expansions": [
+        { "recipe_id": "R-PAIRING/SOB/NAT/100", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "R-PAIRING/SOB/SYN/100", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "R-PAIRING/SOB/NAT/50", "fixture": "stackobot", "order": "natural", "deviation": "r.ScreenPercentage 50" },
+        { "recipe_id": "R-PAIRING/SOB/SYN/50", "fixture": "stackobot", "order": "synth", "deviation": "r.ScreenPercentage 50" }
+      ]
+    },
+    {
+      "id": "R-GEDGE",
+      "finding": "regression",
+      "purpose": "Label-vs-pixel edge alignment at both edges, all four anomaly types.",
+      "target_type": "TARGETED StaticMeshActor_49",
+      "script": "verify_capture.py --label-pixel-gate",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\AnomalyInjector\\tools\\verify_capture.py --dir <session> --label-pixel-gate --report-only",
+      "runnable_now": true,
+      "capture_config": "IAI.Capture.Config 2 4 8 14 0 (ceiling +/-7), marker OFF, 90 frames, AA-off arbiter taken VERBATIM from the banked B19_M45_AA_* datum (G184)",
+      "expected_event_validity": "certifying, 8 legs",
+      "expected": "SHIFT 0, NOT-VISIBLE 0, NOT-MEASURABLE 0, every leg exit 0, every leg HIGH confidence",
+      "auditor_exit": 0,
+      "falsifier": { "device": "verify_capture.py --label-pixel-gate --selftest", "class": "defect_injector", "defect_introduced": "7 synthetic cases, both edges, both directions", "checker_that_must_trip": "the gate itself - it must fail every synthetic shift" },
+      "stop_condition": "any SHIFT, NOT-VISIBLE or NOT-MEASURABLE",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; frame_indices IDENTICAL value-for-value on all 8 pairs" },
+      "expansions": [
+        { "recipe_id": "R-GEDGE/SOB/NAT", "fixture": "stackobot", "order": "natural", "deviation": "4 legs" },
+        { "recipe_id": "R-GEDGE/SOB/SYN", "fixture": "stackobot", "order": "synth", "deviation": "4 legs" }
+      ]
+    },
+    {
+      "id": "R-OBS",
+      "finding": "regression",
+      "purpose": "OBS-1..OBS-4 - the m49 observability layer is unchanged by m51.",
+      "target_type": "StaticMeshActor_49 and the can-fail levers",
+      "script": "m49_a1_readout.py / m49b_gates.py",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m49b_gates.py <legdir> [<legdir> ...]",
+      "runnable_now": true,
+      "capture_config": "OBS-1 settled bench; OBS-2 TeleportTargetOffscreenAt; OBS-3 RetakeMaterialAfter; OBS-4 ObservableMinPixels sweep 1/64/4096/100000",
+      "expected_event_validity": "certifying",
+      "expected": "OBS-1 delta 0; OBS-2 affected strictly inside injected; OBS-3 frames_condition_lost > 0 with the lever ON and 0 OFF; OBS-4 observable_frames 32/32/32/0 with injected_frames identical on all four rungs",
+      "auditor_exit": 0,
+      "falsifier": { "device": "the OBS-2/OBS-3/OBS-4 levers themselves", "class": "defect_injector", "defect_introduced": "each lever removes observability by a different route", "checker_that_must_trip": "the corresponding counter; OBS-4's 100000 rung is what proves the knob is live (the brief's own 1/64/4096 sweep is VACUOUS on this fixture because target_pixels is a flat 66,837 px)" },
+      "stop_condition": "the observability predicate moving from master's own labelled && held && target_pixels >= ObservableMinPixels",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; frame_indices IDENTICAL - the observability predicate is unchanged from master" },
+      "expansions": [
+        { "recipe_id": "R-OBS/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "R-OBS/SOB/SYN", "fixture": "stackobot", "order": "synth" }
+      ]
+    },
+    {
+      "id": "R-M50",
+      "finding": "regression",
+      "purpose": "m50 G1/G2/G6 - single stencil owner per frame, and the tag pool does not exhaust.",
+      "target_type": "auto-pool, census ON",
+      "script": "m50_tag_owner.py / m50_readout.py",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m50_tag_owner.py --gate <legdir> [<legdir> ...]",
+      "runnable_now": true,
+      "capture_config": "standard auto-pool legs; G6 additionally at IAI.Capture.TagPoolLimit 8",
+      "expected_event_validity": "certifying",
+      "expected": "G1 0 violations over the owner-checked frames; G6 0 TAG-POOL EXHAUSTED on every leg INCLUDING at TagPoolLimit 8",
+      "auditor_exit": 0,
+      "falsifier": { "device": "the m50 G2 can-fail collision lever", "class": "defect_injector", "defect_introduced": "a second object tagged with a live event's stencil value, OUTSIDE the allocator - so the gate must see it however produced", "checker_that_must_trip": "m50_tag_owner.py --gate must report 22 violations in BOTH orders; it reads the LIVE TAG MAP (Capture(mask): TAG-OWNERS), not the ownership log, precisely because the first version of this gate exonerated a real collision" },
+      "stop_condition": "any single-owner violation; any exhaustion",
+      "selftest": "m50_tag_owner.py --selftest before any verdict is read",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; mask_value by BIJECTION not equality (G140 boundary on auto-pool legs)" },
+      "expansions": [
+        { "recipe_id": "R-M50/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "R-M50/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "R-M50/LYRA/NAT", "fixture": "lyra", "order": "natural" }
+      ]
+    },
+    {
+      "id": "R-PB",
+      "finding": "regression",
+      "purpose": "PB-1..PB-8 - Phase B BEHAVIOUR survives, not just its keys.",
+      "target_type": "StaticMeshActor_49 and the Phase B probe",
+      "script": "m49b_gates.py",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m49b_gates.py <legdir> [<legdir> ...]",
+      "runnable_now": true,
+      "capture_config": "the banked m49 Phase B recipes, both orders, both fixtures",
+      "expected_event_validity": "certifying",
+      "expected": "PB-1 0 violating on StackOBot; PB-2 max abs diff 0; PB-3 probe tag 255 drawn == count; PB-4 the can-fail lever drives frames_drawn_unexpected in BOTH orders against 0 natural; PB-5b/5c as banked; PB-6 P-C7 v3 PASS; PB-7 m44_gates ALL PASS; PB-8/LG-9 target_drawn_pixels reads -1 on Lyra rows and ZERO rows read 0",
+      "auditor_exit": 0,
+      "scope_note": "PB-1's scope is BOTH FIXTURES with a DIFFERENT expected value on each (AMENDMENT 2 of the m49 Phase B predictions): on StackOBot's arbiter the prediction is 0; on a temporal-upsampler host a fraction-of-a-percent residual is EXPECTED and passes, while drawn approaching count remains a FAILURE on either fixture.",
+      "falsifier": { "device": "IAI.Bench.HideOmitDepthPassSilencing", "class": "defect_injector", "defect_introduced": "omits the depth-pass half of the m45 hide, so the target occludes while drawing nothing", "checker_that_must_trip": "frames_drawn_unexpected driven to 16 in both orders, proving the natural zeros are readings (G96)" },
+      "stop_condition": "any Phase B behaviour moving; target_drawn_pixels or frames_drawn_unexpected becoming a LABEL INPUT (G258 forbids it - they are diagnostics)",
+      "pc7": { "is_subject": true, "declared_deltas": "run_summary additions; frame_indices IDENTICAL" },
+      "expansions": [
+        { "recipe_id": "R-PB/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "R-PB/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "R-PB/LYRA/NAT", "fixture": "lyra", "order": "natural" }
+      ]
+    },
+    {
+      "id": "R-BLACK",
+      "finding": "regression",
+      "purpose": "No black frame ships.",
+      "target_type": "any",
+      "script": "verify_capture.py --black-frame-gate",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\AnomalyInjector\\tools\\verify_capture.py --dir <session> --black-frame-gate",
+      "runnable_now": true,
+      "capture_config": "every graded leg",
+      "expected_event_validity": "n/a",
+      "expected": "PASS; DARK FIRST FRAMES 0",
+      "auditor_exit": 0,
+      "falsifier": { "device": "verify_capture.py --selftest", "class": "defect_injector", "defect_introduced": "a synthetic all-black frame", "checker_that_must_trip": "the gate must FAIL the all-black frame and PASS a mid-grey one; it says 'the gate PASSED an all-black frame' if it ever cannot fire" },
+      "stop_condition": "any black frame",
+      "pc7": { "is_subject": false, "reason": "pixel gate, not an artifact-shape comparison" },
+      "expansions": [
+        { "recipe_id": "R-BLACK/ALL", "fixture": "both", "order": "both" }
+      ]
+    },
+    {
+      "id": "R-A44",
+      "finding": "regression",
+      "purpose": "Prove the m51 changes are actually IN the staged binary.",
+      "target_type": "the staged candidate executable",
+      "script": "m36_a44_scan.ps1",
+      "command": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m36_a44_scan.ps1 -Exe <staged candidate exe>",
+      "runnable_now": true,
+      "prerequisite": "The script's hardcoded token array is CENSUS-era and MUST be extended with the m51 symbols (the new bench levers, the new run_summary keys, the new log prefixes) before use, or the scan is vacuous for m51.",
+      "capture_config": "n/a - static scan of the artifact",
+      "expected_event_validity": "n/a",
+      "expected": "every new m51 symbol present in the STAGED artifact, in BOTH encodings; at least one PRE-EXISTING control symbol also present, so a zero is a reading and not blindness",
+      "auditor_exit": 0,
+      "falsifier": { "device": "scan a PRE-m51 exe with the same token list", "class": "both_ways_control", "defect_introduced": "none", "checker_that_must_trip": "the m51 tokens must read 0 there while the control tokens read non-zero" },
+      "stop_condition": "any new symbol reading 0 in both encodings; the control symbol also reading 0 (that is a blind scan, not a negative)",
+      "pc7": { "is_subject": false, "reason": "binary scan" },
+      "expansions": [
+        { "recipe_id": "R-A44/SOB", "fixture": "stackobot", "order": "n/a" },
+        { "recipe_id": "R-A44/LYRA", "fixture": "lyra", "order": "n/a", "deviation": "scans the four UnrealEditor-Anomaly*.dll module set instead of a monolithic exe" }
+      ]
+    },
+    {
+      "id": "R-PC7V3",
+      "finding": "regression",
+      "purpose": "Artifact-shape control: nothing moves that was not declared.",
+      "target_type": "paired A-side / B-side legs",
+      "script": "m49b_pc7v3.py and subset_gate.py",
+      "command": "python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\m49b_pc7v3.py <A1> <B1> <A2> <B2> ... ; python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\subset_gate.py <ctrlA> <ctrlB> <testA> <testB>",
+      "runnable_now": true,
+      "capture_config": "8 pose-matched pairs on StackOBot plus the Lyra LG pairs",
+      "expected_event_validity": "certifying",
+      "expected": "undeclared differing fields NONE; frame_indices IDENTICAL value-for-value except where a ruling changes membership, DECLARED PER LEG IN ADVANCE; annotation.json added 0 removed 0 except the declared schema-3 keys",
+      "auditor_exit": 0,
+      "declared_common_deltas": {
+        "run_summary_additions": ["capture_complete", "requested_frames", "written_frame_indices", "writer_drops", "readback_drops", "unrendered_ticks", "key_misses", "masks_dropped", "external_mutations", "zero_observable_events", "observability_complete", "writer_oversize_failures"],
+        "run_summary_removed_from_A1_7": ["writer_reserve_overruns", "writer_oversize_admissions"],
+        "removal_reason": "C2 deletes the soft reservation and the oversize-admission exception, so neither counter has a referent. writer_oversize_failures replaces writer_oversize_admissions and counts a REFUSAL, not an over-budget admission.",
+        "event_additions": ["event_id", "injection_id", "observability_basis", "observability_complete", "frame_observations", "condition_requested"],
+        "row_additions": ["schema_version"],
+        "value_changes_declared_not_additive": ["label_schema 2 -> 3", "empty-window start_frame/end_frame 0 -> -1", "vetoed_events -> 0"],
+        "row_value_changes_that_must_not_be_omitted": [
+          "visible_positive - changes on any row whose observability basis or per-fire shader attribution changes (R1, R5)",
+          "bbox_px / bbox_norm / bbox_drawn_px - change on any leg where the F2/F11 geometry freeze moves the box",
+          "mask_file - becomes null on any row whose mask was legitimately empty but previously named a file",
+          "target_pixels / observable / mask_state - change on F1 and F9 legs by design",
+          "per-fire render_state - changes on R5 legs"
+        ],
+        "forbidden": "No global 'allow all changes' entry. Every differing field is named per leg or the comparison FAILS."
+      },
+      "falsifier": { "device": "subset_gate.py's own control pair", "class": "both_ways_control", "defect_introduced": "none - two runs of the SAME binary establish the run-unique field set EMPIRICALLY before the test pair is read", "checker_that_must_trip": "extras > 0 on the test pair; exit 2 if A63 is not satisfied, which is INVALID and not a FAIL" },
+      "stop_condition": "any undeclared differing field",
+      "pc7": { "is_subject": true, "declared_deltas": "this recipe IS the P-C7 control" },
+      "expansions": [
+        { "recipe_id": "R-PC7V3/SOB/NAT", "fixture": "stackobot", "order": "natural" },
+        { "recipe_id": "R-PC7V3/SOB/SYN", "fixture": "stackobot", "order": "synth" },
+        { "recipe_id": "R-PC7V3/LYRA/NAT", "fixture": "lyra", "order": "natural" }
+      ]
+    },
+    {
+      "id": "R-LYRA-LG",
+      "finding": "regression",
+      "purpose": "The Lyra LG set and the verifier report-only pass.",
+      "target_type": "Lyra auto-pool, L_ShooterGym and L_Convolution_Blockout",
+      "script": "lyra_leg.ps1 + lyra_readout.py + verify_capture.py --report-only",
+      "command": "powershell -File D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\lyra_leg.ps1 -Label M51_LG_A -Map /ShooterMaps/Maps/L_ShooterGym -MaxFrames 90 ; python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\CaptureBench\\tools\\lyra_readout.py <session> <engine_log> ; python D:\\IntrusiveAnomalies\\StackOBot\\Plugins\\AnomalyInjector\\tools\\verify_capture.py --dir <session> --report-only",
+      "runnable_now": true,
+      "capture_config": "Lyra's OWN render defaults (TSR, Lumen, auto-exposure ON) - deliberately NOT pinned; this is a host-shaped leg, not an arbiter",
+      "expected_event_validity": "certifying",
+      "expected": "LG-1 MASK-TIE 0 MISMATCH; LG-3 the host-PP custom-depth reader named in the artifact; LG-4 CENSUS-HYGIENE HOST-ATTRIBUTED (ours=0); LG-5 occlusion admissions at 1-of-9 boundary; LG-6/LG-8 verifier PASS with SHIFT 0 and NOT-VISIBLE 0; LG-7 frames_shaders_pending 0; LG-9 target_drawn_pixels -1 on every row and ZERO rows reading 0; R2 NaniteOnly == Renderable preserved",
+      "auditor_exit": 0,
+      "falsifier": { "device": "per-gate: LG-4 is exercised only when the HOST writes custom depth", "class": "both_ways_control", "defect_introduced": "none", "checker_that_must_trip": "n/a", "honest_note": "LG-4 did NOT fire on the m49 A2 run (the host wrote no custom depth, so hygiene read identical=1 excluded=0) and was reported NOT EXERCISED, never as passed. LG-2 has not occurred naturally on any Lyra session and is not faked. Both stay honest readings." },
+      "stop_condition": "any LG gate that passed at ac13700 failing at m51",
+      "pc7": { "is_subject": true, "declared_deltas": "frame_indices IDENTICAL; R2 unchanged; run_summary additions only" },
+      "expansions": [
+        { "recipe_id": "R-LYRA-LG/LYRA/NAT", "fixture": "lyra", "order": "natural" },
+        { "recipe_id": "R-LYRA-LG/LYRA/SYN", "fixture": "lyra", "order": "synth" }
+      ]
+    }
+  ],
+
+  "open_arms": [
+    "R8 applied-tick-pin arm - tickpin_compiled reads FALSE on both fixtures (banked PB1G_BL_NAT, LYRA_SMOKE_01); the pin compiles only behind ANOMINJECT_FW_TICKPIN. SynthTickOrder does NOT substitute: it relocates dispatch within a tick and produces no missing render.",
+    "Real decoupled-host behaviour - WithholdWorldRender proves the RECOVERY PATH, not a host.",
+    "Mixed-Nanite actors (R2) - future Lyra leg.",
+    "M-F4 - OPEN if the editor-viewport route measurably fails to produce a second eligible family. Its A-side comparison is OPEN regardless: no editor-target archive exists and a packaged exe cannot host PIE.",
+    "M-F11 defect injector - MISSING; the can-fail rests on the oracle's --perturb-px selftest.",
+    "M-F10 orphaned-counter injector - MISSING; a control leg proves both-ways readings only."
+  ],
+  "summary_rule": "A gate set containing an OPEN arm may NOT be summarised as 'all required gates pass'."
+}

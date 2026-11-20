@@ -1,0 +1,31 @@
+7754fd2 2026-10-16 docs(capture): record passing sparse-mask TSR setup proofs
+8fe108d 2026-10-16 docs(capture): freeze served-receipt TSR proof and physical D routing
+0e50b56 2026-10-16 docs(capture): record archive destination routing repair
+334d903 2026-10-16 docs(capture): record full PIE rerun and TSR receipt scope stop
+741e8a1 2026-10-16 docs(capture): freeze drop-aware camera control and full PIE rerun
+0bc6e9f 2026-10-16 docs(capture): record camera control scope stop and repair evidence
+9781031 2026-10-16 fix(capture): reset exposure exclusion state on owner changes
+ef03f36 2026-10-16 docs(capture): freeze exposure reset repair and requalification
+7049614 2026-10-15 docs(capture): record TSR proof and camera assertion stop
+cdef048 2026-10-15 docs(capture): freeze TSR half-resolution pairing proof
+3d09293 2026-10-15 docs(capture): record pairing controls and historic size stop
+e4228be 2026-10-15 docs(capture): freeze pairing lighting controls and counter scope
+7d5e5a4 2026-10-15 docs(capture): record J2 crash recovery and native pairing stop
+571f15a 2026-10-15 docs(capture): frame locked FOV proof before the first leg
+eff797c 2026-10-15 docs(capture): freeze locked FOV and drop accounting gates
+3dc0c98 2026-10-15 fix(capture): restore locked FOV metadata
+36fec5f 2026-10-15 docs(capture): record admission scope stop and build receipts
+d37ab49 2026-10-15 fix(injector): refuse targeted fires outside the owner frustum
+0674085 2026-10-15 docs(capture): freeze targeted admission design and predictions
+9514242 2026-10-14 docs(capture): correct PF-1 callsite name
+7a8810f 2026-10-14 docs(capture): record projection PF-1 qualification stop
+f9b9328 2026-10-14 fix(viewport): report camera axis overrides when available
+51cb0d6 2026-10-14 fix(viewport): read camera metadata through the public cache
+5af1899 2026-10-14 fix(capture): freeze engine projection and repair office readings
+a28c72f 2026-10-14 docs(capture): freeze engine projection design and qualification predictions
+bb9e741 2026-10-14 docs(capture): record J2 selected-viewport qualification stop
+f608d56 2026-10-14 fix(capture): verify colour and mask binding before publication
+33106f5 2026-10-14 fix(capture): preserve owner identity across PIE reopen
+744b36d 2026-10-14 fix(capture): drain invalidated GPU readbacks safely
+e13ddc5 2026-10-14 fix(capture): bind requests to resolved owner generations
+59b2fa1 2026-10-14 docs(capture): close J1 wrong-object proof and mask caveats
