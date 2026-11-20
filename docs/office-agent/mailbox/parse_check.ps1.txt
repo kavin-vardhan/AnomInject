@@ -1,0 +1,9 @@
+# parse_check.ps1 - syntax-check the mailbox scripts without running them (2026-09-06)
+$bad = 0
+foreach ($f in @("$PSScriptRoot\run_brief.ps1", "$PSScriptRoot\watcher.ps1", "$PSScriptRoot\render.ps1")) {
+  $tokens = $null; $errors = $null
+  [void][System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$tokens, [ref]$errors)
+  if ($errors -and $errors.Count -gt 0) { $bad++; Write-Host ("PARSE ERRORS in " + $f) -ForegroundColor Red; $errors | ForEach-Object { Write-Host ("  " + $_.Extent.StartLineNumber + ": " + $_.Message) } }
+  else { Write-Host ("ok  " + $f) -ForegroundColor Green }
+}
+if ($bad -eq 0) { Write-Host "PARSE OK" -ForegroundColor Green } else { Write-Host "PARSE FAILED ($bad file(s))" -ForegroundColor Red }

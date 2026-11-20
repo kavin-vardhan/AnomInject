@@ -1,0 +1,5 @@
+@echo off
+title Claude mailbox watcher
+echo Starting the chat-to-Code mailbox watcher. Leave this window open (minimize it). Close it or create a STOP file in this folder to stop.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0watcher.ps1"
+pause

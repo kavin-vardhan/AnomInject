@@ -1,0 +1,110 @@
+﻿# Dot-sourced by watcher.ps1 with $b (brief FileInfo) in scope. Hot-reloaded per brief.
+# ---- SAFETY 1: a brief name runs AT MOST ONCE, ever. Ledger = ran.txt. Duplicates are moved aside, never executed.
+$Ledger = Join-Path $Root 'ran.txt'
+$already = @(); if (Test-Path $Ledger) { $already = @(Get-Content $Ledger -Encoding UTF8) }
+if ($already -contains $b.Name) {
+  Move-Item $b.FullName (Join-Path $Done ("DUPLICATE-REFUSED_{0}" -f $b.Name)) -Force
+  Log ("REFUSED duplicate brief " + $b.Name + " (already in ran.txt) - moved aside, NOT run")
+  SetStatus 'idle' ''
+  return
+}
+[IO.File]::AppendAllText($Ledger, $b.Name + "`r`n", $Utf8)
+# ---- SAFETY 2: the brief leaves to_code BEFORE Claude is launched. Nothing downstream can re-fire it.
+$staged = Join-Path $Root ("_active_" + $b.Name)
+Move-Item $b.FullName $staged -Force
+$briefPath = $staged
+$cfg  = LoadCfg
+$text = Get-Content $briefPath -Raw -Encoding UTF8
+$name = [IO.Path]::GetFileNameWithoutExtension($b.Name)
+$cwd  = $cfg.cwd
+if ($text -match '(?m)^#\s*CWD:\s*(.+?)\s*$') { $cwd = $Matches[1] }
+$newSession = ($text -match '(?m)^#\s*SESSION:\s*new') -or [string]::IsNullOrWhiteSpace($cfg.session_id)
+$effort = $cfg.default_effort
+if ($text -match '(?m)^#\s*EFFORT:\s*(\S+)') { $effort = $Matches[1] }
+$model = $cfg.default_model
+if ($text -match '(?m)^#\s*MODEL:\s*(\S+)') { $model = $Matches[1] }
+$sid = $cfg.session_id; $sessArgs = ''
+$sname = $cfg.session_name
+if ($text -match '(?m)^#\s*NAME:\s*(.+?)\s*$') { $sname = $Matches[1] }
+if ([string]::IsNullOrWhiteSpace($sname)) { $sname = ($name -replace '-.*$','') + ' mailbox' }
+if ($newSession) { $sid = [guid]::NewGuid().ToString(); $sessArgs = "--session-id $sid --name $(Q $sname)" } else { $sessArgs = "--resume $sid" }
+$allArgs = "$($cfg.claude_args) --output-format stream-json --verbose $sessArgs --effort $effort --model $model".Trim()
+
+$live  = Join-Path $ToChat "$name.live.txt"
+$final = Join-Path $Root  "_final_$name.txt"
+$err   = Join-Path $Root  "_err_$name.txt"
+$rcF   = Join-Path $Root  "_rc_$name.txt"
+$cmdF  = Join-Path $Root  "_run_$name.cmd"
+$costF = Join-Path $Root  "_cost_$name.txt"
+$render = Join-Path $Root 'render.ps1'
+$lines = @('@echo off', 'chcp 65001 >nul', "cd /d $(Q $cwd)")
+$lines += "claude $allArgs < $(Q $briefPath) 2> $(Q $err) | powershell -NoProfile -ExecutionPolicy Bypass -File $(Q $render) $(Q $live) $(Q $final) $(Q $rcF) $(Q $costF)"
+[IO.File]::WriteAllLines($cmdF, $lines, $Utf8)
+
+$t0 = Get-Date
+Log "RUN $($b.Name) | cwd=$cwd | session=$sid | model=$model | effort=$effort"
+SetStatus 'running' "$($b.Name) (since $($t0.ToString('HH:mm:ss'))) live=$live"
+Write-Host ''; Write-Host ("================ " + $b.Name + " ================") -ForegroundColor Magenta
+& cmd /c $cmdF
+$t1 = Get-Date
+trap { [IO.File]::WriteAllText((Join-Path $Root 'STOP'), 'auto-halt after error in run_brief.ps1', $Utf8); Log ('ERROR after run: ' + $_.Exception.Message + ' - STOP file created, watcher will halt'); break }
+Move-Item $briefPath (Join-Path $Done ("{0}_{1}" -f $t1.ToString('yyyyMMdd-HHmmss'), $b.Name)) -Force
+$rc = if (Test-Path $rcF) { ((Get-Content $rcF -Raw).Trim() -replace '^rc=','') } else { '?' }
+$stdout = ''; if (Test-Path $final) { $stdout = [string](Get-Content $final -Raw -Encoding UTF8) }
+$stderr = ''; if (Test-Path $err) { $stderr = [string](Get-Content $err -Raw -Encoding UTF8) }
+if ($null -eq $stdout) { $stdout = '' }; if ($null -eq $stderr) { $stderr = '' }
+# ---- VERDICT (machine-readable, 2026-09-06): Code declares it as a line 'VERDICT: GREEN | NEEDS-DECISION | RED' in its final
+# message; when absent it is DERIVED: rc<>0 -> RED; a non-empty NEEDS-DECISION section -> NEEDS-DECISION; else GREEN.
+# The watcher HOLDS the next brief after NEEDS-DECISION/RED unless that brief carries '# ACK-VERDICT: <how it was resolved>'.
+$verdict = 'UNDECLARED'; $vsrc = 'no VERDICT line (2026-09-06 rule: fail closed - holds the next brief like NEEDS-DECISION)'
+try {
+  $vm = [regex]::Match($stdout, '(?im)^\s*[\*#>\s]*VERDICT\s*:\s*\**\s*(GREEN|NEEDS-DECISION|RED)\b')
+  $killed = ($stderr -match '(?i)Background tasks still running|terminating') -or ($stdout.Trim().Length -eq 0)
+  if ($rc -ne '0' -or $killed) { $verdict = 'RED'; $vsrc = if ($killed) { 'derived: session killed / empty final message' } else { 'derived: rc<>0' } }
+  elseif ($vm.Success) { $verdict = $vm.Groups[1].Value.ToUpper(); $vsrc = 'declared' }
+  else {
+    $nm = [regex]::Match($stdout, '(?is)NEEDS-DECISION[^\r\n]*\r?\n(.*?)(?=\r?\n\s*#|\r?\n---- |\z)')
+    if ($nm.Success) {
+      $body = ($nm.Groups[1].Value -replace '[\*_`>\-\s]+', ' ').Trim()
+      if ($body -notmatch '^(none|nothing|no items?|n/?a|nil)?\s*\.?\s*$') { $verdict = 'NEEDS-DECISION'; $vsrc = 'derived: NEEDS-DECISION section' }
+    }
+  }
+} catch { $verdict = 'UNDECLARED'; $vsrc = 'derived(error)' }
+[IO.File]::WriteAllText((Join-Path $Root 'last_verdict.txt'), "verdict=$verdict`r`nsource=$vsrc`r`nbrief=$($b.Name)`r`nreport=$name.report.md`r`nrc=$rc`r`nat=$($t1.ToString('yyyy-MM-dd HH:mm:ss'))`r`n", $Utf8)
+$rep = @()
+$rep += "# REPORT for $($b.Name)"
+$rep += "verdict: $verdict ($vsrc) - a NEEDS-DECISION or RED report HOLDS the next brief until it carries '# ACK-VERDICT: ...'"
+$rep += "brief: $($b.Name) | cwd: $cwd | session: $sid | model: $model | effort: $effort"
+$rep += "started: $($t0.ToString('yyyy-MM-dd HH:mm:ss')) | finished: $($t1.ToString('yyyy-MM-dd HH:mm:ss')) | duration: $([int]($t1-$t0).TotalMinutes) min | exit code: $rc"
+$ctxTok = 0; try { if (Test-Path $costF) { $cp = ([string](Get-Content $costF -Raw)).Split('|'); if ($cp.Count -ge 5) { $ctxTok = [int]$cp[4] } } } catch { $ctxTok = 0 }
+$rep += "context at last turn: $ctxTok tokens ($([int](100.0 * $ctxTok / 1000000.0))% of 1M) - roll the session at 70%"
+$rep += "live feed: $live"
+$rep += ''; $rep += '---- FINAL MESSAGE (Claude Code) ----'; $rep += $stdout
+if ($stderr.Trim().Length -gt 0) { $rep += ''; $rep += '---- STDERR ----'; $rep += $stderr }
+# ---- cost ledger (NON-FATAL: bookkeeping must never kill the pipeline; a locked costs.csv falls back to costs_pending.csv)
+$CostCsv = Join-Path $Root 'costs.csv'; $CostSum = Join-Path $Root 'costs_summary.txt'; $CostPend = Join-Path $Root 'costs_pending.csv'
+$cost = 0.0; $turns = ''; $mins = [int]($t1-$t0).TotalMinutes; $sub = ''; $total = -1.0
+try {
+  if (Test-Path $costF) { $parts = ([string](Get-Content $costF -Raw)).Split('|'); $cost = [double]$parts[0]; $turns = $parts[1]; $sub = $parts[3] }
+  $row = ('{0},{1},{2},{3},{4},{5},{6:N2},{7}' -f $t1.ToString('yyyy-MM-dd HH:mm'), $b.Name, $model, $effort, $turns, $mins, $cost, $sub) + "`r`n"
+  try {
+    if (-not (Test-Path $CostCsv)) { [IO.File]::WriteAllText($CostCsv, "date,brief,model,effort,turns,minutes,api_equiv_usd,result`r`n", $Utf8) }
+    if (Test-Path $CostPend) { [IO.File]::AppendAllText($CostCsv, [IO.File]::ReadAllText($CostPend), $Utf8); Remove-Item $CostPend -Force }
+    [IO.File]::AppendAllText($CostCsv, $row, $Utf8)
+    $total = 0.0; $n = 0; foreach ($r2 in (Import-Csv $CostCsv)) { $total += [double]$r2.api_equiv_usd; $n++ }
+    [IO.File]::WriteAllText($CostSum, ("API-equivalent cost of all mailbox briefs (NOT billed - covered by the Max subscription)`r`nbriefs recorded: {0}`r`nTOTAL: `${1:N2}`r`nlast: {2} = `${3:N2} ({4} turns, {5} min)`r`nupdated: {6}`r`n(per-brief rows in costs.csv; runs before 068-03 were not recorded)`r`n" -f $n, $total, $b.Name, $cost, $turns, $mins, $t1.ToString('yyyy-MM-dd HH:mm')), $Utf8)
+  } catch {
+    [IO.File]::AppendAllText($CostPend, $row, $Utf8)
+    Log ("WARN costs.csv is locked (open in Excel?) - row parked in costs_pending.csv; it merges on the next brief")
+  }
+} catch { Log ("WARN cost bookkeeping skipped: " + $_.Exception.Message) }
+$rep += "api-equivalent cost (not billed on Max): `$$('{0:N2}' -f $cost) | turns: $turns" + $(if ($total -ge 0) { " | running total across all briefs: `$$('{0:N2}' -f $total)" } else { " | running total: see costs_summary.txt" })
+$repF = Join-Path $ToChat "$name.report.md"
+[IO.File]::WriteAllLines($repF, $rep, $Utf8)
+foreach ($f in @($final,$err,$rcF,$cmdF,$costF)) { if (Test-Path $f) { Remove-Item $f -Force } }
+# a '# SESSION: new' side session is NOT adopted as the default; only '# SESSION: new-default' (or the very first session) replaces config.session_id
+$adopt = (-not $newSession) -or ($text -match '(?m)^#\s*SESSION:\s*new-default') -or [string]::IsNullOrWhiteSpace($cfg.session_id)
+if ($rc -eq '0' -and $adopt) { $cfg.session_id = $sid; $cfg | Add-Member -NotePropertyName session_name -NotePropertyValue $sname -Force; SaveCfg $cfg }
+Log "DONE $($b.Name) rc=$rc verdict=$verdict($vsrc) in $([int]($t1-$t0).TotalMinutes) min -> $repF"
+Write-Host ("================ done: " + $b.Name + " (rc=" + $rc + ") ================") -ForegroundColor Magenta
+SetStatus 'idle' ''

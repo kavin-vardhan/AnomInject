@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""Deterministic comment stripper for the AnomalyInjector plugin + anomaly-dashboard.
+Removes ALL comments (incl. top-of-file copyright headers) while preserving every other
+byte of code, all string/char/template/regex literal contents, CRLF line endings, and BOM."""
+
+import sys
+import os
+import io
+import re
+import subprocess
+import tokenize
+
+EXT = {
+    '.h': 'c', '.hpp': 'c', '.cpp': 'c', '.cc': 'c', '.c': 'c', '.cs': 'c',
+    '.ts': 'ts', '.tsx': 'ts',
+    '.css': 'css',
+    '.py': 'py',
+    '.bat': 'bat',
+}
+SKIP_EXT = frozenset({'.gitignore', '.json', '.uplugin', '.lock', '.html', '.uasset', '.png', '.md', '.txt'})
+
+
+def strip_code(text, line_comment, block_comment, template):
+    n = len(text)
+    i = 0
+    lines = []
+    cur = []
+    had_comment = [False]
+    had_code = [False]
+    stack = [{'mode': 'code', 'depth': 0, 'expr': False}]
+
+    def emit(ch):
+        cur.append(ch)
+        if ch not in ' \t':
+            had_code[0] = True
+
+    def flush():
+        line = ''.join(cur)
+        if had_comment[0] and not had_code[0]:
+            pass
+        else:
+            if had_comment[0]:
+                line = line.rstrip()
+            lines.append(line)
+        cur.clear()
+        had_comment[0] = False
+        had_code[0] = False
+
+    while i < n:
+        frame = stack[-1]
+        mode = frame['mode']
+        ch = text[i]
+
+        if mode in ('code', 'expr'):
+            c2 = text[i + 1] if i + 1 < n else ''
+
+            if ch == '\n':
+                flush()
+                i += 1
+                continue
+
+            if ch == '"' or ch == "'":
+                q = ch
+                emit(ch)
+                i += 1
+                while i < n:
+                    cc = text[i]
+                    if cc == '\\':
+                        emit(cc)
+                        if i + 1 < n:
+                            emit(text[i + 1])
+                            i += 2
+                        else:
+                            i += 1
+                        continue
+                    if cc == '\n':
+                        flush()
+                        i += 1
+                        break
+                    emit(cc)
+                    i += 1
+                    if cc == q:
+                        break
+                    if not (i < n):
+                        break
+                continue
+
+            if template and ch == '`':
+                emit(ch)
+                i += 1
+                stack.append({'mode': 'tmpl', 'depth': 0, 'expr': False})
+                continue
+
+            if line_comment and ch == '/' and c2 == '/':
+                while cur and cur[-1] in ' \t':
+                    cur.pop()
+                had_comment[0] = True
+                i += 2
+                while i < n and text[i] != '\n':
+                    i += 1
+                continue
+
+            if block_comment and ch == '/' and c2 == '*':
+                had_comment[0] = True
+                i += 2
+                while i < n:
+                    if text[i] == '*' and i + 1 < n and text[i + 1] == '/':
+                        break
+                    i += 1
+                i += 2
+                cur.append(' ')
+                continue
+
+            if ch == '{':
+                if frame['expr']:
+                    frame['depth'] += 1
+                emit(ch)
+                i += 1
+                continue
+
+            if ch == '}':
+                if frame['expr'] and frame['depth'] == 0:
+                    emit(ch)
+                    i += 1
+                    stack.pop()
+                    continue
+                if frame['expr']:
+                    frame['depth'] -= 1
+                emit(ch)
+                i += 1
+                continue
+
+            emit(ch)
+            i += 1
+            continue
+
+        else:  # mode == 'tmpl'
+            if ch == '\\':
+                emit(ch)
+                if i + 1 < n:
+                    emit(text[i + 1])
+                    i += 2
+                else:
+                    i += 1
+                continue
+            if ch == '`':
+                emit(ch)
+                i += 1
+                stack.pop()
+                continue
+            if ch == '$' and i + 1 < n and text[i + 1] == '{':
+                emit('$')
+                emit('{')
+                i += 2
+                stack.append({'mode': 'code', 'depth': 0, 'expr': True})
+                continue
+            if ch == '\n':
+                flush()
+                i += 1
+                continue
+            emit(ch)
+            i += 1
+            continue
+
+    line = ''.join(cur)
+    if had_comment[0] and not had_code[0]:
+        pass
+    else:
+        if had_comment[0]:
+            line = line.rstrip()
+        lines.append(line)
+
+    while lines and lines[0].strip() == '':
+        lines.pop(0)
+
+    return '\n'.join(lines)
+
+
+def strip_python(text):
+    lines = text.split('\n')
+    remove = {}
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except Exception as e:
+        sys.stderr.write('  tokenize failed: %s\n' % e)
+        return text
+    for t in toks:
+        if t.type == tokenize.COMMENT:
+            srow, scol = t.start
+            s = t.string
+            if srow == 1 and scol == 0 and s.startswith('#!'):
+                continue
+            if srow <= 2 and re.search('coding[:=]\\s*[-\\w.]+', s):
+                continue
+            remove[srow] = scol
+    out = []
+    for idx, line in enumerate(lines, start=1):
+        if idx in remove:
+            head = line[None:remove[idx]]
+            if head.strip() == '':
+                continue
+            out.append(head.rstrip())
+        else:
+            out.append(line)
+    while out and out[0].strip() == '':
+        out.pop(0)
+    return '\n'.join(out)
+
+
+def strip_bat(text):
+    out = []
+    for line in text.split('\n'):
+        s = line.lstrip()
+        low = s.lower()
+        if low == 'rem' or low.startswith('rem ') or low.startswith('rem\t') or s.startswith('::'):
+            continue
+        out.append(line)
+    return '\n'.join(out)
+
+
+def strip_by_lang(norm, lang):
+    if lang == 'c':
+        return strip_code(norm, True, True, False)
+    if lang == 'ts':
+        return strip_code(norm, True, True, True)
+    if lang == 'css':
+        return strip_code(norm, False, True, False)
+    if lang == 'py':
+        return strip_python(norm)
+    if lang == 'bat':
+        return strip_bat(norm)
+    return None
+
+
+def process_bytes(raw, lang):
+    """Core transform on raw file bytes. Returns (status, out_bytes)."""
+    bom = raw.startswith(b'\xef\xbb\xbf')
+    body = raw[3:] if bom else raw
+    text = body.decode('utf-8')
+    had_crlf = '\r\n' in text
+    norm = text.replace('\r\n', '\n')
+    out = strip_by_lang(norm, lang)
+    if out is None:
+        return 'skip', raw
+    if out == norm:
+        return 'nochange', raw
+    final = out.replace('\n', '\r\n') if had_crlf else out
+    data = final.encode('utf-8')
+    if bom:
+        data = b'\xef\xbb\xbf' + data
+    return 'changed', data
+
+
+def process_file(path, lang):
+    with open(path, 'rb') as f:
+        raw = f.read()
+    status, data = process_bytes(raw, lang)
+    if status == 'changed':
+        with open(path, 'wb') as f:
+            f.write(data)
+    return status
+
+
+def tracked(root):
+    o = subprocess.check_output(['git', '-C', root, 'ls-files'], text=True)
+    return [l for l in o.splitlines() if l]
+
+
+def main():
+    roots = sys.argv[1:]
+    total = {'changed': 0, 'nochange': 0, 'skip': 0}
+    for root in roots:
+        print('=== repo:', root)
+        for rel in tracked(root):
+            ext = os.path.splitext(rel)[1].lower()
+            if ext in SKIP_EXT or ext not in EXT:
+                continue
+            path = os.path.join(root, rel)
+            try:
+                r = process_file(path, EXT[ext])
+            except Exception as e:
+                r = 'ERROR'
+                print('  ERROR', rel, e)
+            total[r] = total.get(r, 0) + 1
+            if r == 'changed':
+                print('  stripped', rel)
+            elif r == 'nochange':
+                print('  (no comments)', rel)
+    print('--- summary:', total)
+
+
+if __name__ == '__main__':
+    main()

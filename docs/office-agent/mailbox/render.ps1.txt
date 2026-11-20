@@ -1,0 +1,90 @@
+﻿param([string]$LiveFile, [string]$FinalFile, [string]$RcFile, [string]$CostFile)
+$Utf8 = New-Object System.Text.UTF8Encoding($false)
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8; [Console]::InputEncoding = [Text.Encoding]::UTF8 } catch {}
+$sw = New-Object IO.StreamWriter($LiveFile, $false, $Utf8); $sw.AutoFlush = $true
+$RateFile = ''
+try { $RateFile = Join-Path (Split-Path (Split-Path ([IO.Path]::GetFullPath($LiveFile)) -Parent) -Parent) '_ratelimit.json' } catch {}
+$final = ''; $rc = 1; $lastTool = ''; $ctx = 0
+function Emit([string]$s, [string]$color = 'Gray') {
+  $line = "[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $s
+  Write-Host $line -ForegroundColor $color
+  $sw.WriteLine($line)
+}
+function Short([string]$s, [int]$n = 160) { $s = ($s -replace '\s+', ' ').Trim(); if ($s.Length -gt $n) { $s.Substring(0, $n) + ' …' } else { $s } }
+$in = [Console]::In
+while (($raw = $in.ReadLine()) -ne $null) {
+  if ([string]::IsNullOrWhiteSpace($raw)) { continue }
+  try { $ev = $raw | ConvertFrom-Json } catch { Emit ("?? " + (Short $raw 200)) 'DarkGray'; continue }
+  switch ($ev.type) {
+    'system' {
+      if ($ev.subtype -eq 'init') { Emit ("INIT model=" + $ev.model + " cwd=" + $ev.cwd + " session=" + $ev.session_id) 'Cyan' }
+      else { Emit ("SYS " + $ev.subtype) 'DarkCyan' }
+    }
+    'assistant' {
+      try { $u = $ev.message.usage; if ($u) { $ctx = [int]$u.input_tokens + [int]$u.cache_creation_input_tokens + [int]$u.cache_read_input_tokens } } catch {}
+      foreach ($c in $ev.message.content) {
+        if ($c.type -eq 'text' -and $c.text) {
+          foreach ($l in ($c.text -split "`n")) { if ($l.Trim()) { Emit ("   " + $l) 'White' } }
+        } elseif ($c.type -eq 'thinking' -and $c.thinking) {
+          Emit ("~~ " + (Short $c.thinking 220)) 'DarkGray'
+        } elseif ($c.type -eq 'tool_use') {
+          $i = $c.input; $d = ''
+          if ($i.file_path) { $d = $i.file_path } elseif ($i.command) { $d = $i.command } elseif ($i.pattern) { $d = "'" + $i.pattern + "'" + $(if ($i.path) { " in " + $i.path } else { '' }) } elseif ($i.description) { $d = $i.description } elseif ($i.prompt) { $d = Short $i.prompt 120 } else { $d = Short (($i | ConvertTo-Json -Compress -Depth 3)) 140 }
+          if ($i.offset -or $i.limit) { $d += " [" + $i.offset + "+" + $i.limit + "]" }
+          $lastTool = $c.name
+          Emit ("-> " + $c.name + ": " + (Short $d 200)) 'Yellow'
+        }
+      }
+    }
+    'user' {
+      foreach ($c in $ev.message.content) {
+        if ($c.type -eq 'tool_result') {
+          $t = ''
+          if ($c.content -is [string]) { $t = $c.content } elseif ($c.content) { $t = (($c.content | Where-Object { $_.type -eq 'text' } | ForEach-Object { $_.text }) -join ' ') }
+          $tag = if ($c.is_error) { '!! ' } else { '<- ' }
+          $col = if ($c.is_error) { 'Red' } else { 'DarkGreen' }
+          Emit ($tag + $lastTool + " (" + $t.Length + " chars) " + (Short $t 120)) $col
+        }
+      }
+    }
+    'result' {
+      $final = [string]$ev.result
+      if ($ev.subtype -eq 'success' -and -not $ev.is_error) { $rc = 0 } else { $rc = 1 }
+      Emit ("=== RESULT " + $ev.subtype + " | turns=" + $ev.num_turns + " | " + [int]($ev.duration_ms / 60000) + " min" + " | api-equiv (not billed on Max)=$" + ('{0:N2}' -f [double]$ev.total_cost_usd) + " ===") 'Green'
+      if ($ev.is_error -and -not $final) { $final = ($ev | ConvertTo-Json -Compress -Depth 4) }
+      Emit ("=== CONTEXT at last turn: " + $ctx + " tokens (" + [int](100.0 * $ctx / 1000000.0) + "% of 1M) ===") 'Green'
+      if ($CostFile) { [IO.File]::WriteAllText($CostFile, ('{0}|{1}|{2}|{3}|{4}' -f ([double]$ev.total_cost_usd), $ev.num_turns, [int]($ev.duration_ms/60000), $ev.subtype, $ctx), $Utf8) }
+    }
+    'tool_progress' {
+      $secs = ''; if ($ev.elapsed_time_seconds) { $secs = ' ' + [int]$ev.elapsed_time_seconds + 's' } elseif ($ev.elapsed_ms) { $secs = ' ' + [int]($ev.elapsed_ms / 1000) + 's' }
+      Emit (".. " + $ev.tool_name + " still running" + $secs) 'DarkGray'
+    }
+    'rate_limit_event' {
+      $i = $ev.rate_limit_info; $u = ''; $r = ''
+      if ($null -ne $i.utilization) { $u = ' ' + [int]([double]$i.utilization * 100) + '%' }
+      if ($i.resetsAt) { try { $r = ' resets ' + ([DateTimeOffset]::FromUnixTimeSeconds([int64]$i.resetsAt).LocalDateTime.ToString('HH:mm')) } catch {} }
+      Emit ("RL " + $i.rateLimitType + " " + $i.status + $u + $r) 'DarkGray'
+      # Persist the full payload for the dashboard: <mailbox>\_ratelimit.json, newest entry per window type.
+      # Rate limits are account-wide, so the dashboard merges these across mailboxes. Never fatal.
+      if ($RateFile) {
+        try {
+          $all = [ordered]@{}
+          if (Test-Path $RateFile) { foreach ($p in ((Get-Content $RateFile -Raw -Encoding UTF8) | ConvertFrom-Json).PSObject.Properties) { $all[$p.Name] = $p.Value } }
+          $all[[string]$i.rateLimitType] = [pscustomobject]@{
+            status      = [string]$i.status
+            resetsAt    = $i.resetsAt
+            utilization = $i.utilization
+            seenAt      = [int64][math]::Floor(([DateTimeOffset](Get-Date)).ToUnixTimeSeconds())
+            raw         = ($i | ConvertTo-Json -Compress -Depth 6)
+          }
+          [IO.File]::WriteAllText($RateFile, (([pscustomobject]$all) | ConvertTo-Json -Depth 7), $Utf8)
+        } catch {}
+      }
+    }
+    default { Emit ("?? " + $ev.type + " " + (Short $raw 120)) 'DarkGray' }
+  }
+}
+$sw.Close()
+[IO.File]::WriteAllText($FinalFile, $final, $Utf8)
+[IO.File]::WriteAllText($RcFile, "rc=$rc", $Utf8)
+exit $rc

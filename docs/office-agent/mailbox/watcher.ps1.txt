@@ -1,0 +1,106 @@
+﻿# watcher.ps1 - file-mailbox bridge: chat Claude <-> Claude Code (headless), with a live feed in this window.
+# Drop a brief in to_code\*.md ; Claude Code runs it ; live feed -> to_chat\<name>.live.txt ; report -> to_chat\<name>.report.md
+# Brief header directives (optional): # CWD: <path>  # SESSION: new  # EFFORT: xhigh  # MODEL: claude-opus-5  # ACK-VERDICT: <text> (required after a NEEDS-DECISION/RED report)
+# Create a file named STOP in this folder to stop the watcher. run_brief.ps1 / render.ps1 / config.json hot-reload per brief.
+# Canonical copy lives in E:\MailBox\watcher (the dashboard flags a mailbox whose scripts drift from it).
+$ErrorActionPreference = 'Continue'
+$Root    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ToCode  = Join-Path $Root 'to_code'
+$ToChat  = Join-Path $Root 'to_chat'
+$Done    = Join-Path $Root 'processed'
+$LogFile = Join-Path $Root 'watcher.log'
+$Status  = Join-Path $Root 'watcher_status.txt'
+$StopF   = Join-Path $Root 'STOP'
+$CfgF    = Join-Path $Root 'config.json'
+foreach ($d in @($ToCode,$ToChat,$Done)) { if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d | Out-Null } }
+$Utf8 = New-Object System.Text.UTF8Encoding($false)
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
+function Log($m) { $l = "[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m; Write-Host $l -ForegroundColor Cyan; [IO.File]::AppendAllText($LogFile, $l + "`r`n", $Utf8) }
+function SetStatus($state, $brief) { [IO.File]::WriteAllText($Status, "state=$state`r`nbrief=$brief`r`npid=$PID`r`nupdated=$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`r`n", $Utf8) }
+function LoadCfg { Get-Content $CfgF -Raw -Encoding UTF8 | ConvertFrom-Json }
+function SaveCfg($c) { [IO.File]::WriteAllText($CfgF, ($c | ConvertTo-Json -Depth 5), $Utf8) }
+function Q($s) { '"' + $s + '"' }
+$p = @('== where claude =='); $p += @(cmd /c "where claude 2>&1"); $p += ''; $p += '== claude --version =='; $p += @(cmd /c "claude --version 2>&1")
+[IO.File]::WriteAllLines((Join-Path $ToChat '_env.txt'), $p, $Utf8)
+# ---- ownership guard (2026-09-06, after the 078-01 duplicate-watcher incident): if the pid in watcher_status.txt is a LIVE
+# process running watcher.ps1, another watcher owns this mailbox - refuse to start, so no second instance ever runs crash
+# recovery against a brief that is still executing. A dead/stale pid means we are the rightful successor.
+try {
+  if (Test-Path $Status) {
+    $st = [string](Get-Content $Status -Raw)
+    if ($st -match '(?m)^pid=(\d+)') {
+      $opid = [int]$Matches[1]
+      if ($opid -ne $PID) {
+        $op = Get-Process -Id $opid -ErrorAction SilentlyContinue
+        if ($op) {
+          $cl = ''; try { $cl = [string](Get-CimInstance Win32_Process -Filter "ProcessId=$opid" -ErrorAction Stop).CommandLine } catch { $cl = '' }
+          if ($cl -match 'watcher\.ps1') {
+            $msg = "REFUSED to start: watcher pid $opid is alive and owns this mailbox (status file). Close THAT window, or create a STOP file, before starting another watcher."
+            Write-Host $msg -ForegroundColor Red; [IO.File]::AppendAllText($LogFile, ("[{0}] {1}`r`n" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg), $Utf8)
+            Start-Sleep -Seconds 8; exit 3
+          }
+        }
+      }
+    }
+  }
+} catch { Write-Host ("ownership guard skipped: " + $_.Exception.Message) -ForegroundColor Yellow }
+Log "watcher started (pid $PID) - waiting for briefs in $ToCode"
+if (Test-Path $StopF) { Remove-Item $StopF -Force }
+# ---- crash recovery: an _active_ brief at startup means the previous watcher died mid-run (host crash, window closed, reboot).
+# The brief stays in ran.txt (never re-runs under the same name); it is filed under processed\ as CRASHED and a stub report
+# goes to to_chat\ so chat Claude sees what happened without anyone ferrying it.
+foreach ($a in @(Get-ChildItem -Path $Root -Filter '_active_*.md' -File)) {
+  try {
+    $name = $a.Name.Substring(8); $base = [IO.Path]::GetFileNameWithoutExtension($name)
+    $now = Get-Date; $cfg = $null; try { $cfg = LoadCfg } catch {}
+    $live = Join-Path $ToChat "$base.live.txt"; $repF = Join-Path $ToChat "$base.report.md"
+    $runAt = $null; $runLine = $null
+    if (Test-Path $LogFile) { $runLine = @(Select-String -Path $LogFile -Pattern ('\] RUN ' + [regex]::Escape($name) + ' ') | Select-Object -Last 1) }
+    if ($runLine) { $m = [regex]::Match($runLine[0].Line, '^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]'); if ($m.Success) { $runAt = [datetime]::ParseExact($m.Groups[1].Value, 'yyyy-MM-dd HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture) } }
+    $started = if ($runAt) { $runAt } else { $a.LastWriteTime }
+    $lastLive = ''; $liveEnd = $null
+    if (Test-Path $live) { $liveEnd = (Get-Item $live).LastWriteTime; $tail = @(Get-Content $live -Tail 3 -Encoding UTF8); $lastLive = ($tail -join "`r`n") }
+    $ended = if ($liveEnd) { $liveEnd } else { $now }
+    $mins = [int]([math]::Max(0, ($ended - $started).TotalMinutes))
+    if (-not (Test-Path $repF)) {
+      $rep = @()
+      $rep += "# REPORT for $name - INTERRUPTED (watcher died mid-run, no final message)"
+      $rep += "brief: $name | cwd: $($cfg.cwd) | session: $($cfg.session_id) | model: $($cfg.default_model) | effort: ?"
+      $rep += "started: $($started.ToString('yyyy-MM-dd HH:mm:ss')) | finished: $($ended.ToString('yyyy-MM-dd HH:mm:ss')) | duration: $mins min | exit code: interrupted"
+      $rep += "live feed: $live"
+      $rep += ''; $rep += '---- FINAL MESSAGE (Claude Code) ----'
+      $rep += "INTERRUPTED: the watcher process died while this brief was running (host crash, window closed, or reboot), so Claude Code never returned a final message."
+      $rep += "Recovered by the watcher that started at $($now.ToString('yyyy-MM-dd HH:mm:ss')). The live feed shows how far it got; its last lines were:"
+      $rep += ''; $rep += $lastLive; $rep += ''
+      $rep += "This brief stays in ran.txt and will NOT re-run under the same name. To continue, write a new brief (e.g. <num>R-resume-...) that tells Code to check the repo/working-tree state first, then finish what is left."
+      [IO.File]::WriteAllLines($repF, $rep, $Utf8)
+      [IO.File]::WriteAllText((Join-Path $Root 'last_verdict.txt'), "verdict=RED`r`nsource=interrupted`r`nbrief=$name`r`nreport=$base.report.md`r`nrc=interrupted`r`nat=$($now.ToString('yyyy-MM-dd HH:mm:ss'))`r`n", $Utf8)
+    }
+    Move-Item $a.FullName (Join-Path $Done ("{0}_CRASHED_{1}" -f $now.ToString('yyyyMMdd-HHmmss'), $name)) -Force
+    foreach ($pre in @('_run_','_err_','_final_','_rc_','_cost_')) { $lf = Join-Path $Root ($pre + $base + $(if ($pre -eq '_run_') { '.cmd' } else { '.txt' })); if (Test-Path $lf) { Remove-Item $lf -Force } }
+    Log ("RECOVERED " + $name + " - interrupted by a watcher death; stub report -> " + $repF)
+  } catch { Log ("WARN could not recover " + $a.Name + ": " + $_.Exception.Message) }
+}
+SetStatus 'idle' ''
+while ($true) {
+  if (Test-Path $StopF) { Log 'STOP file found - exiting'; SetStatus 'stopped' ''; break }
+  $briefs = @(Get-ChildItem -Path $ToCode -Filter '*.md' -File | Sort-Object Name)
+  if ($briefs.Count -eq 0) { SetStatus 'idle' ''; Start-Sleep -Seconds 10; continue }
+  $b = $briefs[0]
+  if (((Get-Date) - $b.LastWriteTime).TotalSeconds -lt 5) { Start-Sleep -Seconds 5; continue }
+  # ---- verdict gate (2026-09-06): after a NEEDS-DECISION or RED report, the next brief must carry '# ACK-VERDICT: <how it was resolved>'
+  $lvF = Join-Path $Root 'last_verdict.txt'
+  if (Test-Path $lvF) {
+    $lvt = [string](Get-Content $lvF -Raw)
+    if ($lvt -match '(?m)^verdict=(NEEDS-DECISION|RED|UNDECLARED)') {
+      $lv = $Matches[1]; $bt = [string](Get-Content $b.FullName -Raw -Encoding UTF8)
+      if (-not ($bt -match '(?m)^#\s*ACK-VERDICT:\s*\S')) {
+        Move-Item $b.FullName (Join-Path $Done ("HELD_" + $b.Name)) -Force
+        Log ("HELD " + $b.Name + " - the last report's verdict is " + $lv + " and this brief has no '# ACK-VERDICT: <how the decision was resolved>' header line. It did NOT run and is not in ran.txt: add the line and drop it again (same name is fine). Filed as processed\HELD_" + $b.Name)
+        SetStatus ('held-after-' + $lv) $b.Name
+        Start-Sleep -Seconds 10; continue
+      }
+    }
+  }
+  try { . (Join-Path $Root 'run_brief.ps1') } catch { Log ("ERROR running brief " + $b.Name + ": " + $_.Exception.Message + " - WATCHER HALTED (fail-closed). Fix, then restart start_watcher.bat."); SetStatus 'halted-on-error' $b.Name; break }
+}

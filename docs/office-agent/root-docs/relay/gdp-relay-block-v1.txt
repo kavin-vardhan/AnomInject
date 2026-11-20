@@ -1,0 +1,9 @@
+
+
+GDP RELAY JOB (launched by Claude Code through the Codex CLI, not by the owner in the desktop app). Rules for this job:
+1. You are an INDEPENDENT REVIEWER. This job is READ-ONLY for every repository and for the bench: read anything you need (source, git objects, docs, engine source, banked evidence), but change nothing outside your current working directory. No git commits, checkouts, branch or tag changes, stashes, or index writes.
+2. No builds, no cooks, no editor or game launches, no captures, no staging or swapping of binaries, no process kills.
+3. Write your FULL report to review.md in your current working directory. That run folder is the ONLY place you may write. Claude Code copies review.md to the requested _reviews path; do not try to write there yourself.
+4. End review.md with a line of the form "VERDICT: <your verdict>" as its own final line.
+5. Office hosts are referred to by codename only (Concorde, Bates). Never write a game title.
+6. The report is information for chat Claude, the orchestrator, who makes the rulings. Claude Code will not act on your findings in this brief. State findings, evidence and proposed fixes; do not phrase them as orders already accepted.
