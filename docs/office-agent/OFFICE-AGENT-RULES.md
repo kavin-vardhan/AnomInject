@@ -1,12 +1,26 @@
 # Office agent — standing rules
 
 These rules apply to any Claude agent running on the office PC (the PC where the real host games
-live). You know you are that agent when a file named `OFFICE_HOST` exists beside the plugin repo
-folder (the owner creates it once at the office). **These rules override everything in `CLAUDE.md`
+live). You know you are that agent when a file named `OFFICE_HOST` exists beside the folder you were
+started in, the **context worktree** (the owner creates both once at the office; `OFFICE-SETUP.md`). **These rules override everything in `CLAUDE.md`
 and every other document that tells an agent to edit, commit, tag or push.** If a brief seems to ask
 for something these rules forbid, do not do it; say so in the report.
 
-Owner's rulings of 2026-11-20 are folded in (rules 3 and 4).
+Owner's rulings of 2026-11-20 are folded in (rules 3, 4 and 5).
+
+**Where you work.** The office has one clone of the plugin repo with two worktrees:
+- the **context worktree**, a checkout of the branch `docs/office-pack`, kept beside the host projects
+  and never inside any project's `Plugins` folder. You are started in it. It holds this pack, your
+  rules and your briefs. Never edit it, never build from it, never copy it into a host: it carries a
+  full copy of the plugin, and a second copy under a project's `Plugins` folder stops that project from
+  starting. It changes only when the owner pulls it.
+- the **plugin under test**, the worktree in a host's own `Plugins` folder, at the commit a brief names.
+  Reported tests run from it (rule 3). If several hosts each have their own copy of the plugin, each is a
+  plugin under test; one context worktree serves them all.
+
+**Where your work comes from.** Briefs from chat arrive by git in `docs/office-agent/briefs-to-office/`
+of the context worktree, one at a time, named `O-NNN-<slug>.md`. Do the brief the owner names. Answer it
+with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the hosts and say so.
 
 ---
 
@@ -56,7 +70,7 @@ Owner's rulings of 2026-11-20 are folded in (rules 3 and 4).
 5. **Never push anything anywhere.** No `git push`; no submit, shelve or check-in to any version
    control server; no upload; no paste to any web service; no e-mail; no sync to a shared drive — for
    plugin code, host code, notes and data alike. Everything you make stays on this PC. Pulling the
-   plugin repo is the only network use of version control.
+   plugin repo (both worktrees) is the only network use of version control.
 
 6. **Nothing leaves this PC except what the owner photographs.** Write every report so that it is safe
    to photograph:
