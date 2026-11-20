@@ -7,7 +7,7 @@
 
 You are Claude Code, running **headless** from the GDP mailbox in a **fresh session**. Nobody answers questions during the run. **Your final message is the only thing anyone reads**; it goes to chat Claude (the orchestrator). **Planning only.** Chat rules on the plan before any code is written.
 
-**Why:** the client's annotation review said: "LOD popping should correspond to a meaningful distance threshold or to turning toward a newly visible area. Sudden mesh changes without a distance, visibility, or viewpoint transition should not be used as representative LOD examples." Today's `lod_popping` is a timer: the target snaps between its current LOD and its worst LOD every 8 frames whatever the camera does. The other two review topics are already written (m56 capture continuity, m58 terrain subtype) and wait for their engine gates on `integ/m56-m58` = `9bf6c7e`.
+**Why:** the client's annotation review said, in our words [client wording paraphrased], that a LOD pop should happen when the camera crosses a sensible distance or when the player turns toward a part of the scene that was not in view before, and that a mesh change with no change in distance, visibility or view should not serve as a typical LOD example. Today's `lod_popping` is a timer: the target snaps between its current LOD and its worst LOD every 8 frames whatever the camera does. The other two review topics are already written (m56 capture continuity, m58 terrain subtype) and wait for their engine gates on `integ/m56-m58` = `9bf6c7e`.
 
 **Read first, in this order (binding):**
 1. `D:\IntrusiveAnomalies\_reviews\095-00-ruling.md` §3 (B1 to B6: the direction chat has already set) and §6.
