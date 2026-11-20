@@ -1,0 +1,38 @@
+# CHAT HANDOFF — 079 verifier unit CLOSED (consistency semantics, merged 2026-09-20) · Codex-as-implementer pilot · next = three new anomalies, then m51 pairing
+
+**Date:** 2026-09-20 evening. **Supersedes** `CHAT-HANDOFF-077-m49-complete-m51-codex-pilot.md` wherever they disagree. Chat Claude orchestrates; Codex = implementer for tool-only units or reviewer at checkpoints (owner's call per unit); Claude Code = implementer or reviewer as briefed. Office data never comes home; codenames only (Concorde, Bates, Europa).
+
+## 0. Read this first
+1. **master = `3ff88db`** (merge `0e7569c` of `fix/verifier-field-validity` `f5e43c9` onto `ac13700`; engine `Source/`, `Shaders/`, `measure_label_offset.py` byte-identical to `ac13700`). No tag since m30. Branch kept.
+2. **`m51` = `53bf725`, untouched, HELD.** Source frozen at `6713f51` (F1 fix, demonstrated, not certified). Its CLAUDE.md conflicts with master's — resolve at m51 resume. The OPERATING-CONTRACT entry for the 079 unit is parked in `docs/sessions/2026-09-20-079-15-doc-fixes-and-merge.md` §5 (the contract file lives on m51).
+3. **The verifier no longer gives verdicts.** `tools/verify_capture.py --label-pixel-gate` reports per-edge observations (`TRANSITION k … delta` / `NO-TRANSITION` / `UNASSESSABLE(reason)`), per-run outcomes `CONSISTENT` (does not establish cause; lighting/motion caveats) / `OFFSET-NOTE` (human review, never a failure) / `NO-TRACE` (the ONLY FAIL, exit 2: masks on every span frame, every pair observed, no change above tau on the target across span + edge windows, allowlisted class) / `PARTIAL` / `UNASSESSABLE` / `READING (bbox-only)`. Session line: `NO FAILURE FOUND (…)` or `NO-TRACE on n event(s)`; `UNREAD-BBOX-ONLY` for maskless sessions. `--all <root>` batch mode. `docs/verifier-characterisation.md` = published limitations incl. 55 wrong-pick cells (24 inside CONSISTENT runs) — a CONSISTENT run never confirms a label.
+4. **Consequences already ruled:** the client's M2 re-review cannot be automated (M2 sessions are bbox-only ⇒ READING); M3 per-frame `observable` labels are the producer's evidence; Jira GDP-6/GDP-9 wording to be re-scoped (owner). Section G field readings: void for M2 data; the card note carries the new outcome names.
+5. **Next work (owner's priority 2026-09-20):** three new anomalies — stuck low mip (m52), flickering lights/shadows (m53), UV corruption (m54) — each a mini-milestone with predictions + both-fixture gates + m49-grade per-frame evidence; THEN m51 pairing/identity (measurement-first, NOT from the 1,427-line draft) before M3 packaging. Chat's estimate: 5–7 sessions for the three, 3–6 for m51.
+
+## 1. What the 079 unit established (so nobody relitigates it)
+- The m49 gate's `tau = median + 6·MAD` exceeded `d`'s [0,1] ceiling under camera motion ⇒ NOT-VISIBLE on every correct label (G259); the learned term had never bound on the pinned bench.
+- Ring subtraction refuted (anomalies bleed into the ring — A35; the ring does not cancel parallax). Whole-frame motion caps, per-edge validity, dominance, mask-mode verdicts — each refuted by a valid counterexample (Codex 079-05/07/08: background burst in window; lighting step, occluder, neighbouring run WITH accurate masks). **Frame differencing cannot attribute a target change to the anomaly.** Hence: observations + one sound negative, no verdicts (chat ruling 2026-09-20, `_reviews/079-08-chat-disposition.md`).
+- Producer writes masks only on labelled frames ⇒ edge-window masks are extrapolated from the nearest labelled frame and disclosed. **Queued for the capture side:** write masks a few frames either side of every event so the verifier never extrapolates.
+- Peaks: `d(k) > tau` and `d(k) ≥ 1.5·min(neighbours)`; per (target, mode) ordered walk, nearest unused peak, tie → larger d → earlier; alternatives printed; assignment may be out of label order (printed). Regional-motion marker 0.42 = caveat only. Scorer v3 = characterisation, derives no cap.
+- Calibration history: "A2L full recovery" was withdrawn (per-edge 8/8 · 7/8 · 6/8); no known-good moving-camera real session exists; shift-injection is a sensitivity check, not ground truth.
+
+## 2. Process outcomes
+- **Codex as implementer (briefs 079-09..13):** 56 + 41 + 9 + 37 + 30 min wall, predictions committed before each implementation, no threshold tuning, stopped twice to report contradictions in chat's spec rather than guess; zero P1 defects escaped to Claude Code's independent review (079-14: 35 own fixtures, 143-session bank sweep, 16-point mutation probe, cell-for-cell sweep re-run — only doc findings). Claude Code's earlier implementation rounds (079-06/07) had 8 and 6 findings escape. Not a controlled comparison; a data point.
+- **Claude Code as reviewer** worked: found a real test-coverage gap (F21, now a permanent fixture + contract).
+- **Incident 2026-09-20 ~18:30:** Code ran `Get-Process python | Stop-Process -Force` on the shared box, killing 16 processes not its own. **Rule for the contract:** never kill by process name on the owner's PC; kill by PID you started, and assert an idle box first (A46).
+- Harness: `VERDICT: CHANGES REQUIRED` and mid-sentence verdicts read as UNDECLARED — always end reports with `VERDICT: GREEN|NEEDS-DECISION|RED` alone on the last line.
+- Windows update 2026-09-08 broke chat's local shell (device_bash); chat reads/writes files via stage/commit only.
+
+## 3. Sequencing and the next briefs
+1. **080-01 m52 stuck-low-mip — plan only** (source read of the streaming API for a hitch-free, streamer-proof "hold at low mip" lever; evidence = resident mip level per frame from the engine, plus mask-measured change; predictions; both fixtures). Then implement + gate. 1–2 sessions.
+2. m53 flicker (lights/shadows): lever trivial; evidence needs a new measurement — luminance change within the light's influence region — which lighting-mismatch also needs. 1–2 sessions.
+3. m54 UV corruption: plugin material re-samples the game's base texture (pulled from the material's used-texture list at runtime, game-agnostic) with scrambled UVs; evidence via masks. 2–3 sessions.
+4. m51 resume: resolve CLAUDE.md conflict, append the parked contract entry, then the pairing/identity unit measurement-first (Family.FrameNumber vs ArmGameFrame log line; PixelOwner payload-loss can-fail; second target arm cancelled not cloned).
+5. M3 packaging checklist gains: dashboard `.env` (client could not log in to M2's dashboard — TESTTOKEN123 — evidence they never ran M2), verifier README, mask-margin frames.
+
+## 4. Open vs locked
+**Locked:** consistency semantics; NO-TRACE as the only failure; no cap derivation; masks-or-readings; Codex may implement tool-only units under a chat spec with Claude Code reviewing (owner's call per unit); one orchestrator per mailbox (chat).
+**Open:** owner's transcribed office readings (never arrived; no longer blocking); client correction message (drafted 09-07, owner to send); Jira re-scope; whether m51's F1 candidate passes the B1 pose gate (4/4 failures unexplained); SRD video project (separate, parked at SRD-005 RED).
+
+## 5. Pointers
+Repo: `docs/sessions/2026-09-15-079-0[1-7]-*.md`, `2026-09-20-079-0[9]-…`, `-079-1[0-5]-…`; `docs/predictions/2026-09-15-verifier-field-validity.md` (+A1–5), `2026-09-20-verifier-consistency-semantics.md` (+A1–3); `docs/verifier-characterisation.md`; gotchas G259–G264+; `docs/client-readme.md` Step 6. Reviews and rulings: `D:\IntrusiveAnomalies\_reviews\079-*` (Codex reports 079-05/07/08 = the counterexample record; 079-14 = Code's independent review). Evidence bank: `_bench_sessions_bank\M079_VERIFIER_EVIDENCE\`. Project memory updated 2026-09-20.
