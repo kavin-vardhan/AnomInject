@@ -2,10 +2,11 @@
 
 Everything chat Claude (the orchestrator) ruled, planned or reviewed since session 078, plus Codex reviews, independent reviews, office cards and hand-offs. `*.brief.md` files are briefs chat wrote for Codex. `evidence-reports/` holds the reports, READMEs and frozen predictions that sat inside evidence folders (path separators became `__`). Files held back for a ruling (client text, office readings, real-name terms) are NOT here; see START-HERE.md. Copies are not byte-identical to their home sources: see [`REDACTIONS.md`](../REDACTIONS.md) for every placeholder and for what was left out. Line endings are LF.
 
-Files: 743. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 744. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
+| 2026-11-20 | 096-01 | [096-01-ruling.md](096-01-ruling.md) | 096-01 — Chat ruling: the office context pack is ACCEPTED; six decisions ruled; the push is released |
 | 2026-11-14 | - | [CHAT-HANDOFF-095-client-feedback-m56-m58-review-done.md](CHAT-HANDOFF-095-client-feedback-m56-m58-review-done.md) | CHAT HANDOFF — back on main; client feedback units m56 and m58 written and reviewed; fixes and the engine test run are next |
 | 2026-11-14 | 095-13 | [095-13-ruling.md](095-13-ruling.md) | 095-13 — Chat ruling: the m57 review fixes are ACCEPTED; the two decisions are ruled; the heavy run is released behind one short p... |
 | 2026-11-14 | 095-12 | [095-12-ruling.md](095-12-ruling.md) | 095-12 — Chat ruling: the m59 review follow-ups are ACCEPTED; three decisions ruled |

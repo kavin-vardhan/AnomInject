@@ -2,9 +2,12 @@
 
 You are the office agent. Read this file, then `OFFICE-AGENT-RULES.md`, before anything else.
 Those rules override every line in `CLAUDE.md` (and anywhere else) that tells an agent to edit,
-commit or push. This pack was assembled at home on 2026-11-20 (brief 096-01) from everything the
-home side knew that was not already in the repo. It is a snapshot: the repo's `CLAUDE.md` status
-block and journals move on; this file does not.
+commit or push. This pack was assembled at home on 2026-11-20 (briefs 096-01 and 096-01b, ruling 096-01) from
+everything the home side knew that was not already in the repo. It is a snapshot: the repo's
+`CLAUDE.md` status block and journals move on; this file only moves when the home side refreshes the
+pack. Copies carry placeholders and are not byte-identical to their home sources: see `REDACTIONS.md`.
+Your briefs arrive in `briefs-to-office/` (read its `README.md`); the owner's setup steps are
+`OFFICE-SETUP.md`.
 
 ---
 
@@ -55,26 +58,40 @@ block and journals move on; this file does not.
 | release 2026-10-05 | the delivered M3 build (`master` = `release/2026-10-05` + docs) | temporal transition defaults set to 0/0/0 by the owner's choice |
 | 092–093 | virtual-texture research; natural causes; follow-up capture work (local only) | research before code; much of 093 sits on a local branch (see `local-refs/`) |
 | 094 | UE 4.25 port for the Europa host (`feat/europa-port`) | 4.25 differs in capture hooks, custom depth leaks into host outlines, office kit races |
-| 095 | client review → m56 capture continuity, m57 LOD spatial trigger, m58 terrain blink subtype, m59 forced-LOD refusals | written and compiled at home, not yet validated on any engine run |
+| 095 | client review → m56 capture continuity, m57 LOD spatial trigger, m58 terrain blink subtype, m59 forced-LOD refusals | written, reviewed and compiled at home; none has run in an engine yet |
+| 096 | this pack, and an office agent on the real hosts | the home side cannot see the hosts; the office agent can, and it reports only through the owner's photos |
 
-## 3. Current state (2026-11-20)
+## 3. Current state (as of 2026-11-20; each fact names its date and source)
 
-**Branches that matter**
-- `master` (`ebc34ed`) = the delivered release (`release/2026-10-05`, `d7eee97`) plus docs. This is what
-  the client has (their "M3", UE 5.1).
-- `integ/m56-m58` (`0c71f6f`) = master + m56 + m58 + m59 merged. **The pack branch was cut from here.**
-- `feat/m57-lod-spatial-trigger` = m57 on its own branch (reviewed, fixes accepted, not merged into integ).
-- `fix/m56-capture-continuity`, `feat/m58-terrain-blink-subtype`, `fix/m59-forced-lod-refusals` = the unit branches.
-- `feat/europa-port` (`2828f6a`) = the UE 4.25 port for Europa; the last office card names this commit.
-- Local-only branches with knowledge you cannot pull (`m51`, `fix/followup-capture`, two more) — their
+**Branches that matter** (tips read with `git` on 2026-11-20; all are on `origin`)
+- `master` = `ebc34ed` (2026-11-13) = the delivered release `release/2026-10-05` (`d7eee97`, the
+  client's "M3", UE 5.1) plus one docs commit (ruling 095-00 M1).
+- `integ/m56-m58` = `0c71f6f` (2026-11-14) = master + m56 + m58 + m59 merged. Editor-compiled with
+  0 errors and 0 warnings, pure C++ selftests green (095-12, 2026-11-14). This is the line the first
+  engine run gates and ships.
+- `feat/m57-lod-spatial-trigger` = `d8d3a7e` (2026-11-14). Its review fixes are accepted (ruling 095-13,
+  2026-11-14) and the prep for the first engine run is applied (095-14, 2026-11-14:
+  `IAI.Anomaly.LodDownPop` default 0, marked experimental). It contains `integ/m56-m58` `0c71f6f`;
+  it is **not** merged into `integ/m56-m58`.
+- Unit branches: `fix/m56-capture-continuity` `e12180c`, `feat/m58-terrain-blink-subtype` `5e1bc03`,
+  `fix/m59-forced-lod-refusals` `d23ab16` (all 2026-11-14).
+- `feat/europa-port` = `2828f6a` (2026-11-06, 094-48d) = the UE 4.25 port for Europa; the last Europa
+  office card names this commit.
+- `docs/office-pack` = this pack, on its own long-lived branch (ruling 096-01 D5, 2026-11-20). It is
+  never merged into a shipping line; the home side refreshes it by merging the newest shipping line in.
+- Local-only branches with knowledge you cannot pull (`m51`, `fix/followup-capture`, two more): their
   documents are copied into `local-refs/`.
 
-**Delivered:** the M3 release on UE 5.1 (`master`); the Europa 4.25 port at `2828f6a` with its office card.
+**Delivered:** the M3 release on UE 5.1 (`master`, 2026-10-05); the Europa 4.25 port at `2828f6a`
+with its office card (2026-11-06).
 
-**Written but NOT validated (no game build, no cook, no engine run):**
+**Written, reviewed and compiled, but NOT run in any engine** (no Game build, no cook, no capture leg)
+as of 2026-11-20 — none of m56, m57, m58, m59:
 - **m56 capture continuity** — settle ticks after every onset/offset are captured and flagged
   `transition_reason: settle`; rows gain `tick_index`; `annotation.json` schema 2.2; dropped-frame accounting.
-- **m57 `lod_popping` spatial trigger** — pops as the player approaches/views an object, instead of on a timer.
+- **m57 `lod_popping` spatial trigger** — the pop follows the player instead of a timer: a distance
+  crossing, or a target turning into view (view entry: shown at low detail for about 30 frames, then it
+  snaps; ruling 095-11 addendum and 095-13, 2026-11-14). The timer version leaves the default auto pool.
 - **m58 terrain blink subtype** — `blinking` on terrain reads `blink / terrain_disappear_reappear`;
   terrain = engine landscape by class or a host name pattern in `[AnomalyInjector] TerrainNamePatterns`
   (default empty — **set per host at the office**). Blinking engine landscape is refused (`terrain_unlabelable`).
@@ -82,27 +99,81 @@ block and journals move on; this file does not.
   nothing different (instanced-foliage proxies ignore forced LOD; single usable LOD; not coarser than now);
   skeletal targets refused unless `IAI.Anomaly.LodAllowSkeletal 1`.
 
-**Waiting on the home bench:** a Game build, a cook and the frozen engine legs for m56–m59 (brief
-095-07, held while the home PC is busy and its E: drive is below the 50 GiB build floor). Until those
-legs pass at home, office testing of m56–m59 is EXPERIMENT-grade at best.
+**The first engine run** (brief 095-07b, heavy: a Game build, one cook, every gate for m56 to m59 and the
+settle-exactness table; the m57 clips for the owner follow it) is written and **held until the owner's home PC is
+free of his renders** (ruling 095-07, 2026-11-14: the run stopped at its memory pre-flight while his
+render loops were running; disk was not the problem that day, E: had 116.5 GiB free). On that date the
+home host's Editor DLLs matched `integ/m56-m58` `0c71f6f`, its Game exe was a 24 September build, and
+no cook existed (ruling 095-07).
 
-## 4. The three hosts (codenames only — never a real title, studio or fork)
+**What that means at the office:** the plugin on the hosts is the delivered release unless a brief says
+otherwise. A reading taken on `integ/m56-m58` or `feat/m57` at a clean tree is a valid report (rules,
+item 3), and it would be the first engine reading those units have ever had: report surprises as
+findings, with the commit.
 
-- **Concorde** — UE 5.1 **source-built fork** with a **decoupled fixed game tick / variable render tick**.
-  Wall-clock content. First host that was not the home bench: the SVE capture path produced zero frames
-  there (m31, fixed by plugin-owned serials). A runtime modular character re-creates its mesh components
-  during play (m17). Project setting had Nanite support disabled (so Nanite-blindness, G134, was inert
-  there). Material usage flags mattered (G157). `speed_ratio` is vacuous on its pinned fork (read health
-  from wall-clock math). A capture-time tick pin exists for its fork (build-time content probe).
-- **Bates** — UE 5.1-lineage game ("Deimos" was an old second name for it; retired). Letterboxed view
-  (non-zero view-rect origin) crashed the readback (m35, fixed). Ticks subsystems in the opposite order to
-  the bench, which shifted `blinking` labels by a frame (P9; fixed by m40 and validated there). Runs in
-  delivery mode (so the m38 run log is auto-off unless forced). Low anomaly yield cured by the census
-  floor 0.5. Office cards and readings for it are in `docs/office-rdp-card.md`.
-- **Europa** — the **UE 4.25** host; the port is `feat/europa-port`. Its home stand-in is a marketplace
-  street scene. Host material outlines read custom depth/stencil, so our tags can leak into saved frames
-  (094-41); capture runs before the UI on 4.25; the 4.25 texture materials were authored for the port.
-  The owner picked "Europa" knowing the office uses the same word; never write the office's own codenames.
+## 4. The office hosts (codenames only — never a real title, studio or fork)
+
+Each fact carries the date it was recorded and where. It is what the home side last knew; a host may
+have changed since. Re-check anything you rely on, and report what you find.
+
+**Concorde** — a UE 5.1 source-built engine fork whose game loop runs a fixed game tick with a variable
+render tick.
+- 2026-07-13 (m15, journal `2026-07-13-021`): its content runs on the wall clock, so the plugin's
+  content-clock default is `wall`.
+- 2026-07-15 (m17, journal `2026-07-15-023`): a runtime modular character re-creates its body mesh
+  components during play; the `missing_texture` revert had to re-find the live component. Confirmed
+  fixed on the real component by the owner.
+- 2026-08-20 (`docs/invisible-anomaly-mechanisms.md`, the H6 entry): the project had Nanite support
+  disabled, so Nanite-blindness (G134) was inert there, provided `r.Nanite.ProxyRenderMode` stays 0.
+- 2026-08-21 (m31, journals `2026-08-21-049` and `-050`): the SVE capture path produced zero frames
+  there, the first defect found by a second host; fixed by plugin-owned serials.
+- 2026-08-21 (journal `2026-08-21-051`, G157): the swapped materials lacked a usage flag its static
+  lighting needs, so statically lit static meshes drew the default material while labelled.
+- 2026-08-22 (journal `2026-08-22-052`): the capture-time tick pin was validated there, packaged:
+  label offsets +0; `ticks_per_captured_frame` 1.2000 pinned against 1.2699 unpinned. The fork changed
+  engine Core, which is why a file-name probe for it missed.
+- 2026-08-23 (journal `2026-08-23-056`): on its pinned loop the game clock follows the wall
+  clock, so the old `speed_ratio` read about 1.000 by construction; m33 re-keyed it to the plugin's own
+  tick span. Read capture health there from wall-clock arithmetic.
+
+**Bates** — a UE 5.1-lineage game.
+- 2026-08-26 (m35, journal `2026-08-26-061`): a letterboxed view (non-zero view-rect origin) crashed
+  the capture readback; fixed by m35 and validated on Bates on 2026-09-02 (journal `2026-09-02-066`,
+  rect origins 69 and 138).
+- 2026-09-02 (journal `2026-09-02-066`): census floor 6.0 left 2 eligible targets; floor 0.5 gave 8,
+  about 90 % of anomalies visible, 0 vetoed.
+- 2026-09-02 (journal `2026-09-02-068`; `docs/office-rdp-card.md` Section D): it ticks the plugin's
+  subsystems in a different order from the bench, which shifted `blinking` labels by one frame (P9);
+  m40 fixed that and was validated there.
+- 2026-09-02 (G210): its project runs delivery mode, so the run log is off unless forced with
+  `IAI.Capture.RunLog 1`.
+- 2026-09-02: `ticks_per_captured_frame` read 1.3556. It fits the settle skip that m56 removes; not
+  proven for that host (ruling 095-00 §8).
+- 2026-10-01 (journal `2026-10-01-090-10b`, written as "the second office host"): played in the editor
+  (PIE), every texture-corruption fire was refused because the editor's shader-map flag stays 0; fixed
+  in m53. 2026-10-02 (`chat-rulings/bates-mip-2026-10-02-triage.md`): UV and normal targets were then
+  picked up on Bates.
+
+⚠ **Open: what "Deimos" refers to.** On 2026-09-03 the owner said Bates and Deimos are one machine
+(G222), and the name was retired. But documents from 2026-09-29 to 2026-10-02 (journal
+`2026-09-29-084-11`; `chat-rulings/CHAT-HANDOFF-084-delivery-week-label-sync.md`;
+`chat-rulings/090-HANDOVER-code-desktop-orchestrator.md`; the triage note above) use "Deimos" and "Bates"
+for **two different** office hosts ("Deimos compiles clean; Bates fails"), and the journals of that week
+write "the first office host" and "the second office host" instead. The first office host's engine
+version was recorded as unknown (journal `2026-10-03-091-02`). Whether that host is Concorde or another
+machine is **not established**. Ask the owner; do not settle it from these documents.
+
+**Europa** — the UE 4.25 host. Port: `feat/europa-port`.
+- 2026-11-01 (report 094-33): on 4.25 the plugin captures the frame before the game UI is drawn.
+- 2026-11-02 (report 094-41, from the owner's office photos): the 4.25 capture switched on custom depth
+  for the objects it measured, and the host's own outline effect drew around them on the saved frames,
+  so labels leaked into the pictures. Office frames of that time are not clean training data. The fix
+  line runs through reports 094-42 to 094-48.
+- 2026-11-04 (report 094-44): the texture-anomaly materials were authored for 4.25 (the 5.1 assets do
+  not load there).
+- 2026-11-06 (report 094-48d): `2828f6a` pushed; the last office card names it.
+- Its home stand-in is a marketplace street scene. "Europa" was the owner's own pick of codename
+  (`handoffs/CHAT-HANDOFF-m44-m46-shipped-europa-phase0.md`).
 
 Home fixtures that need no codename: StackOBot (5.1 bench), Lyra (5.1 second fixture), the 4.25 street scene.
 
@@ -111,7 +182,7 @@ Home fixtures that need no codename: StackOBot (5.1 bench), Lyra (5.1 second fix
 | question | read |
 |---|---|
 | What is in the code now, every anomaly, every module? | `docs/architecture.md` (anomaly catalog included) |
-| Why does X behave strangely? | `docs/gotchas.md` (G1 … G581, append-only; search the number) |
+| Why does X behave strangely? | `docs/gotchas.md` (G1 … G581 on `integ/m56-m58`; G582 and G583 are on `feat/m57-lod-spatial-trigger`; append-only; search the number) |
 | How do I build, cook, stage, run a leg? | `docs/setup-runbook.md` (§8 packaged legs, §8.6 full cook) |
 | How does capture timing / fps / pacing work? | `docs/capture-fps.md` |
 | What does each label field mean? Schema versions? | `docs/client-readme.md` (§8 field tables, changelog) |
@@ -127,6 +198,10 @@ Home fixtures that need no codename: StackOBot (5.1 bench), Lyra (5.1 second fix
 | How the bench gates work | `bench/BENCH.md` |
 | What the home agent remembered | `home-agent-memory/INDEX.md` |
 | Knowledge on unpushed branches | `local-refs/INDEX.md` |
+| How a bench harness measured something | `harness/INDEX.md` (the `_reviews` scripts as text) |
+| What a placeholder stands for; what is not in this pack | `REDACTIONS.md` |
+| Your next brief | `briefs-to-office/` (`README.md` first) |
+| How the owner set this PC up | `OFFICE-SETUP.md` |
 
 **The 20 gotchas most likely to matter on a real host** (read these in `docs/gotchas.md` first):
 
@@ -191,10 +266,10 @@ G431 (UBT `-Mode=JsonExport` lists modules without compiling).
 - **hot-swap** — staging a code-only change by copying the exe (no cook). A shader change needs a full cook (G129).
 - **Codex / relay** — a second AI implementer/reviewer driven at home through `_relay` scripts.
 
-## 7. What is held back from this pack, and why
+## 7. What is not in this pack
 
-Held for a chat or owner ruling (never committed): every owner transcription of office readings
-(`_bates_reads`, one owner write-up of office results); every file carrying the client's own words or data
-(client feedback hand-offs, a ruling quoting the client's review topics, a note about the client's dataset,
-the client ticket list); every file where the codename scrub verifier found a real title/studio/fork term
-(12 files, one of which carries the term in its file name). The home agent's report for 096-01 lists them.
+See `REDACTIONS.md`. In short: the owner's transcriptions of office readings and the client material he
+has not released are not here (you can read the originals at the office); another home project's
+documents, binaries, frames and data are not here. Twelve files that carried a real-name term are in
+after a codename edit, and chat's rulings 095-00 and 095-11 and the 095 hand-off are in with the
+client's quoted wording paraphrased (ruling 096-01, D2).

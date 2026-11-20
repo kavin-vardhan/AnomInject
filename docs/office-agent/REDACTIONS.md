@@ -28,8 +28,8 @@ If you need the home original of a file, ask in a report; the home agent maps it
 | a memory file name that carried such a project name | `home-agent-memory/plugin-project/foreign-editors-block-bench.md` | 1 file, D4 |
 
 The codename edits use the home codename checker's own term-to-codename mapping, applied only to the
-lines that carried a term. Hosts are only ever Concorde, Bates and Europa ("Deimos", which appears in
-some older files, was a second name for Bates and is retired).
+lines that carried a term. Hosts are written only by codename. "Deimos" appears in some older files; what
+it refers to is an open question (see `START-HERE.md` §4).
 
 ## Left out of the pack
 
