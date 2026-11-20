@@ -1,0 +1,40 @@
+from pathlib import Path
+p=Path(r'D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\Source\AnomalyCapture\Private\AnomalyChangeStage.cpp')
+s=p.read_text()
+def change(a,b):
+    global s
+    assert a in s, a[:100]
+    s=s.replace(a,b)
+change('m55 identity sidecar. Sampled at run start; Stage 1 performs no pixel arithmetic.', 'm55 measurement sidecar. Sampled at run start; observable is unchanged.')
+change('TEXT("late_record_mutations")', 'TEXT("late_record_mutations"), TEXT("denominator_mismatch"), TEXT("histogram_mismatch"),\n\t\tTEXT("ref_onset_mismatch"), TEXT("pairs_measured"), TEXT("measurement_pairs_refused"),\n\t\tTEXT("phases_measured"), TEXT("phases_indeterminate"), TEXT("events_with_phases")')
+change('Item.Pixels = Pixels;', 'Item.Pixels = Pixels; ColourOwners.Add(Pixels.Get(), 1);')
+change('const FAnomalyChangeMaskPtr& Pixels, bool bEmpty)\n', 'const FAnomalyChangeMaskPtr& Pixels, bool bEmpty, const TMap<uint8, int32>& Counts)\n')
+change('Item.MaskReceipt = Receipt; Item.bEmptyMask = bEmpty;', 'Item.MaskReceipt = Receipt; Item.bEmptyMask = bEmpty; Item.Counts = Counts;')
+change('Item->bSealed && Item->bColourDone && Item->bMaskDone;', 'Item->bObserved && Item->bSealed && Item->bColourDone && Item->bMaskDone;')
+change('const bool bTerminal = bClosing && (FPlatformTime::Seconds() >= ClosureDeadline || LatestIndex - ClosureAtIndex >= 8);', '''bool bTerminal = bClosing && (FPlatformTime::Seconds() >= ClosureDeadline || LatestIndex - ClosureAtIndex >= 8);
+				for (const auto& Event : Events)
+				{
+					for (const FPhase& Phase : Event.Value.Phases)
+					{
+						if (Phase.bClosing && !Phase.bFinal && Cursor <= Phase.Last &&
+							(FPlatformTime::Seconds() >= Phase.Deadline || LatestIndex - Phase.EndAt >= 8)) { bTerminal = true; }
+					}
+				}''')
+change('!(Item->bSealed && Item->bColourDone && Reason != EAnomalyChangeReason::None)', '!(Item->bObserved && Item->bSealed && Item->bColourDone && Reason != EAnomalyChangeReason::None)')
+change('FinalizeLocked(*Item, Reason);\n\t\t\t\tPending.Remove(Cursor++);', '''// Remove before unlocking for arithmetic: a concurrent GT Issue can reallocate Pending.
+				FPending Ready = MoveTemp(*Item);
+				Pending.Remove(Cursor);
+				FinalizeLocked(Ready, Reason);
+				++Cursor;
+				FinalizeEventsLocked();''')
+change('if (bClosing && Cursor > ClosureWatermark) { bClosed = true; ReleaseLocked(Previous); }', 'FinalizeEventsLocked();\n\t\t\tif (bClosing && Cursor > ClosureWatermark) { bClosed = true; ReleaseLocked(Previous); }')
+change('J->SetNumberField(TEXT("stage_version"), 1);', 'J->SetNumberField(TEXT("stage_version"), 2);')
+a='\tif (Rows.Num() < 100000)\n'
+i=s.index(a); j=s.index('\n\tUE_LOG(LogAnomalyCapture, Verbose',i)
+s=s[:i]+'\tMeasureLocked(Item, Reason, J);'+s[j:]
+change('if (Item.Pixels.IsValid()) { BytesHeld -= (int64)Item.Pixels->GetAllocatedSize(); --ColoursHeld; }', 'ReleaseColourLocked(Item.Pixels);')
+change('bClosing = true; ClosureWatermark = LatestIndex; ClosureAtIndex = LatestIndex;', 'EndEventsLocked(TEXT("run_end"));\n\t\t bClosing = true; ClosureWatermark = LatestIndex; ClosureAtIndex = LatestIndex;')
+change('void FAnomalyChangeStage::CloseAndPersist(bool bTeardown)\n{\n\tBeginClosure();', 'void FAnomalyChangeStage::CloseAndPersist(bool bTeardown)\n{\n\tif (bTeardown) { EndEvents(TEXT("teardown")); }\n\tBeginClosure();')
+change('void FAnomalyChangeStage::ResetEpoch()\n{\n\tCloseAndPersist();', 'void FAnomalyChangeStage::ResetEpoch()\n{\n\tEndEvents(TEXT("epoch_reset"));\n\tCloseAndPersist();')
+change('J->SetNumberField(TEXT("change_stage_version"), 1);', 'J->SetNumberField(TEXT("change_stage_version"), 2);\n\tJ->SetNumberField(TEXT("change_tau_px"), 8);\n\tJ->SetNumberField(TEXT("change_window_k"), 4);')
+p.write_text(s)

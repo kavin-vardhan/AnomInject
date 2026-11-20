@@ -1,0 +1,51 @@
+from pathlib import Path
+import json,hashlib,subprocess,sys,re,importlib.util
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-15-evidence';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');audit=importlib.util.module_from_spec(spec);spec.loader.exec_module(audit)
+m=json.loads((E/'binary-v1.json').read_text());ledger=[]
+def sha(p):
+ with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+cases=[('NULL','null_effect',90,1280,720,'2 4 16 4 0',''),('SOLID','solid_swap',90,1280,720,'2 4 16 4 0',''),('G3','',300,1920,1080,'2 4 8 4 0','IAI.Auto.Pool all 0, IAI.Auto.Pool stuck_low_mip 1, IAI.Anomaly.StuckMipMaxCoAffected 8')]
+for index,(name,anomaly,frames,w,h,config,extra) in enumerate(cases):
+ for attempt in range(1,4):
+  for r in m['lyra_modules']:assert sha(L/'Binaries/Win64'/r['name'])==r['sha256']
+  label=f'LYRA_{name}_N_A{attempt}';d=E/label;log=E/f'runner-{label}.log';assert not d.exists() and not log.exists()
+  args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-15-lyra-run.ps1'),'-Label',label,'-MaxFrames',str(frames),'-ResX',str(w),'-ResY',str(h),'-Config',config]
+  if anomaly:args+=['-Anomaly',anomaly]
+  else:args+=['-AutoPool','-ExtraExecCmds',extra]
+  (E/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+  with log.open('w',encoding='utf-8') as f:run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+  launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace');errors=[];status='FIXTURE-VALID'
+  row=dict(label=label,case=name,attempt=attempt,runner_exit=run.returncode,capture_start_sent=launch.get('capture_start_sent'),session=launch.get('session'))
+  if run.returncode:
+   errors.append(launch.get('error','runner/protocol failure'))
+   if any(s in launch.get('error','') for s in ('L1-INVALID','L2-INVALID')):status='INVALID-FIXTURE'
+   elif launch.get('capture_start_sent'):status='INVALID-FIXTURE'
+   else:status='HARNESS-INVALID'
+  if launch.get('capture_start_sent'):
+   focus=launch.get('capture_focus',[]);hits=sum(x['foreground_pid']==launch['pid'] for x in focus);row.update(foreground_hits=hits,foreground_samples=len(focus))
+   if not focus or hits!=len(focus):errors.append('whole-leg foreground');status='INVALID-FIXTURE'
+   if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure');status='INVALID-FIXTURE'
+   on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+   if len(on)!=1 or len(off)!=1 or len(place)!=1:errors.append('lock/place/release counts');status='INVALID-FIXTURE'
+   elif re.search(r'priorLook=(\d) priorMove=(\d)',on[0]).groups()!=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0]).groups():errors.append('owned unlock restoration');status='INVALID-FIXTURE'
+  for key in ('_l1_result.json','_l2_pre.json','_l2_post.json'):
+   p=d/key
+   if p.exists():row[key]=json.loads(p.read_text(encoding='utf-8-sig'))
+  row.update(status=status,fixture_errors=errors);(d/'fixture-result.json').write_text(json.dumps(row,indent=2));ledger.append(row);(E/'lyra-results.json').write_text(json.dumps(ledger,indent=2));print(json.dumps({k:row[k] for k in ('label','status','fixture_errors','capture_start_sent')}),flush=True)
+  if status=='HARNESS-INVALID':sys.exit(3)
+  if status=='FIXTURE-VALID':
+   s=Path(launch['session']);result=audit.audit(s,d/'game.log',dict(normal=True,event_floor=1 if name=='G3' else 3))
+   if name=='G3':
+    if result['pairs']==0 or result['measured']!=result['pairs']:result['errors'].append('G270 required-pair yield is incomplete')
+    if any(ph['pairs_measured']!=ph['pairs_required'] for ev in result['final_events'] for ph in ev['phases']):result['errors'].append('G270 phase required-pair yield is incomplete')
+   (d/'measurement-audit.json').write_text(json.dumps(result,indent=2));row.update(status='FAIL' if result['errors'] else 'OBSERVED-BELOW-EVENT-FLOOR' if name=='G3' and result['events']<3 else 'PASS',measurement_errors=result['errors']);(E/'lyra-results.json').write_text(json.dumps(ledger,indent=2))
+   print(json.dumps({k:result[k] for k in ('events','pairs','measured','errors')}),flush=True)
+   if result['errors']:sys.exit(1)
+   break
+  if attempt==3:
+   if name=='G3' or index==0:
+    (E/'lyra-dropped.json').write_text(json.dumps(dict(status='DROPPED-BY-OWNER-DECISION',reason=('G270 exhausted3fixture attempts: UNRESOLVED observation, Stage3 non-blocking under081-14' if name=='G3' else 'First scoped Lyra leg exhausted3fixture attempts under081-07'),attempts=[r['label'] for r in ledger]),indent=2));print('Lyra auto-dropped under081-07; no further Lyra launches.',flush=True);sys.exit(0)
+   sys.exit(2)
+print('Scoped Lyra R5 complete',flush=True)

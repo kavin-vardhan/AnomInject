@@ -1,0 +1,21 @@
+param(
+[Parameter(Mandatory = $true)][string]$Mode,
+[Parameter(Mandatory = $true)][string]$Log,
+[string]$Script = 'D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools\make_texcorrupt_fixture.py',
+[string]$Src = 'D:\IntrusiveAnomalies\_reviews\085-03-evidence\fixture_src',
+[string]$Out = 'D:\IntrusiveAnomalies\_reviews\085-03-evidence\fixture_out',
+[string]$Project = 'E:\IA_BuildCache\_r53_host\StackOBot\StackOBot.uproject',
+[switch]$Render
+)
+$env:TEXCORRUPT_FIXTURE_MODE = $Mode
+$env:TEXCORRUPT_FIXTURE_SRC = $Src
+$env:TEXCORRUPT_FIXTURE_OUT = $Out
+New-Item -ItemType Directory -Force $Out | Out-Null
+$exe = 'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
+$a = @($Project, '-run=pythonscript', "-script=$Script")
+if ($Render) { $a += '-AllowCommandletRendering' }
+$a += @('-unattended', '-nop4', '-nosplash', '-NoSound', '-stdout', '-FullStdOutLogOutput', "-abslog=$Log")
+$p = Start-Process -FilePath $exe -ArgumentList $a -NoNewWindow -PassThru -RedirectStandardOutput "$Log.stdout.txt" -RedirectStandardError "$Log.stderr.txt"
+"PID $($p.Id)" | Set-Content "$Log.pid.txt"
+$p.WaitForExit()
+"EXIT $($p.ExitCode)" | Set-Content "$Log.exit.txt"

@@ -1,0 +1,16 @@
+from pathlib import Path
+import json,sys
+from PIL import Image
+B=Path(r'D:\IntrusiveAnomalies')
+sys.path.insert(0,str(B/'StackOBot/Plugins/CaptureBench/tools'))
+import a54_oracle as O
+s=Path(sys.argv[1]);rows=[json.loads(x) for x in (s/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines()]
+with Image.open(next((s/'Actual_Frames').glob('*.png'))) as im:w,h=im.size
+assert (w,h) in ((1280,720),(1920,1080))
+for row in rows:
+ for a in row['anomalies']:
+  if a.get('bbox_px'):
+   x,y,bw,bh=a['bbox_px'];a['bbox_px']=[x*1280/w,y*720/h,bw*1280/w,bh*720/h]
+start,rot,dropped=O.settle_window(rows);box,n,distinct,coverage,ok=O.a56_check(rows,start)
+print(json.dumps(dict(normalized_reference='1280x720',actual_extent=[w,h],settle=start,rotation=rot,bbox=box,coverage=coverage,pose_match=O.pose_match(box),passed=ok)))
+sys.exit(not ok)

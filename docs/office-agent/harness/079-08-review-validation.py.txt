@@ -1,0 +1,299 @@
+"""Third independent review. Frozen candidate; repository and bank reads only."""
+import contextlib
+import hashlib
+import io
+import json
+import os
+import pathlib
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import types
+from collections import Counter
+
+sys.dont_write_bytecode = True
+ROOT = pathlib.Path(__file__).resolve().parent
+FROZEN = ROOT / "079-08-frozen"
+BANK = pathlib.Path(r"D:\IntrusiveAnomalies\_bench_sessions_bank")
+BANK_RESOLVED = BANK.resolve()
+REF = "1cbc07e0fb21224f6a136871270766d8155481ce"
+
+def module(name, path):
+    raw = path.read_bytes()
+    mod = types.ModuleType(name)
+    mod.__file__ = str(path)
+    sys.modules[name] = mod
+    exec(compile(raw, str(path), "exec"), mod.__dict__)
+    return mod
+
+mlo = module("measure_label_offset", FROZEN / "measure_label_offset.py")
+vc = module("verify_capture", FROZEN / "verify_capture.py")
+sc = module("review_scorer", FROZEN / "m079_shift_recovery.py")
+RESULT = {"candidate": REF, "sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+          for p in FROZEN.iterdir() if p.is_file()}}
+scratch = pathlib.Path(tempfile.mkdtemp(prefix="079-08-scratch-", dir=ROOT)).resolve()
+assert scratch.is_relative_to(ROOT) and scratch.name.startswith("079-08-scratch-")
+links = []
+
+def junction(src, dst):
+    src, dst = pathlib.Path(src).resolve(), pathlib.Path(dst).absolute()
+    assert dst.is_relative_to(scratch)
+    assert src.is_relative_to(scratch) or src.is_relative_to(BANK_RESOLVED)
+    try:
+        os.symlink(src, dst, target_is_directory=True)
+    except OSError:
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(dst), str(src)], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    links.append(dst)
+
+sc.junction = junction
+
+def gate(path, **kwargs):
+    detail = []
+    code, lines = vc.label_pixel_gate(str(path), 8, 4, 1, quiet=False, out_detail=detail, **kwargs)
+    out = {"path": str(path), "code": code, "lines": lines, "detail": detail}
+    print(pathlib.Path(path).name, "exit", code, flush=True)
+    for line in lines:
+        if line.startswith("idx=") or line.strip().startswith(("run[", "VERDICT")):
+            print(line, flush=True)
+    return out
+
+def fixture(name, true_runs=((60, 67),), label_runs=None, lighting=False, occluder=False,
+            move=False, mask_mode="precise", ring_burst=False, missing_masks=(), missing_rgb=()):
+    """Target exists throughout. A10x10 texture fault occupies its right side only on true_runs.
+
+    Precise masks contain exactly visible target pixels on EVERY frame, including during occlusion.
+    Deliberately invalid masks (lag/dilated/foreign) are explicit fault-injection variants.
+    """
+    from PIL import Image, ImageDraw
+    p = scratch / name
+    (p / "Actual_Frames").mkdir(parents=True)
+    (p / "target_mask").mkdir()
+    w, h, y, side = 180, 120, 30, 40
+    total = 100
+    lr = label_runs if label_runs is not None else true_runs
+    idx = [k for a, b in lr for k in range(a, b + 1)]
+    rows = []
+    mask_truth = []
+    def xpos(k):
+        return 70 if move and k >= 61 else 40
+    for k in range(total):
+        x = xpos(k)
+        im = Image.new("RGB", (w, h), (90, 90, 90))
+        draw = ImageDraw.Draw(im)
+        if ring_burst and k >= 61:
+            draw.rectangle((x-10, y-10, x+side+9, y+side+9), fill=(150, 150, 150))
+        draw.rectangle((x, y, x+side-1, y+side-1), fill=(80, 80, 80))
+        if any(a <= k <= b for a, b in true_runs):
+            draw.rectangle((x+28, y+5, x+37, y+14), fill=(230, 230, 230))
+        occluded = occluder and 61 <= k <= 65
+        if occluded:
+            # The foreground occluder never covers the anomalous right-side patch.
+            draw.rectangle((x, y, x+19, y+side-1), fill=(180, 180, 180))
+        if mask_mode == "foreign":
+            c = 230 if 61 <= k <= 67 else 70
+            draw.rectangle((130, 30, 149, 49), fill=(c, c, c))
+        if lighting and k >= 61:
+            im = im.point(lambda value: min(255, value+40))
+        if k not in missing_rgb:
+            im.save(p / "Actual_Frames" / ("frame_%05d.png" % k))
+        mk = Image.new("L", (w, h), 0)
+        md = ImageDraw.Draw(mk)
+        mx = xpos(k-1) if mask_mode == "lag" else x
+        box = (mx+(20 if occluded else 0), y, mx+side-1, y+side-1)
+        if mask_mode == "dilated":
+            box = (mx-10, y-10, mx+side+9, y+side+9)
+        elif mask_mode == "foreign":
+            box = (130, 30, 149, 49)
+        md.rectangle(box, fill=111 if mask_mode == "foreign" else 222)
+        if mask_mode != "none" and k not in missing_masks:
+            mk.save(p / "target_mask" / ("frame_%05d.png" % k))
+        mask_truth.append({"k": k, "target_x": x, "target_pixels": 800 if occluded else 1600,
+                           "written_box": box, "mask_missing": k in missing_masks})
+        entry = {"id": "missing_texture", "target_name": "SynthTarget", "start_frame": 1000+min(idx),
+                 "bbox_valid": True, "bbox_px": [x, y, side, side], "mask_value": 222}
+        row = {"frame_index": 1000+k, "session_index": k, "width": w, "height": h,
+               "image": "Actual_Frames/frame_%05d.png" % k, "anomaly_present": k in idx,
+               "visible_positive": k in idx, "anomalies": [entry] if k in idx else []}
+        if mask_mode != "none":
+            row.update(mask_file="target_mask/frame_%05d.png" % k, mask_state="present")
+        rows.append(row)
+    (p / "labels.jsonl").write_text("".join(json.dumps(r)+"\n" for r in rows), encoding="utf-8")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+        "affected_frames": {"start_frame": min(idx), "end_frame": max(idx), "frame_count": len(idx),
+                            "frame_indices": idx},
+        "affected_objects": {"primary_index": 0, "nodes": [{"name": "SynthTarget"}]}}]}
+    (p / "annotation.json").write_text(json.dumps(ann), encoding="utf-8")
+    RESULT.setdefault("fixture_truth", {})[name] = {"true_runs": true_runs, "label_runs": lr,
+        "lighting": lighting, "occluder": occluder, "move": move, "mask_mode": mask_mode,
+        "ring_burst": ring_burst, "missing_masks": missing_masks, "mask_frames": mask_truth}
+    return p
+
+def do_probes():
+    RESULT["predictions"] = {
+        "lighting": "Accurate static1600px target masks;100px fault60..67;global lighting step61. Aligned must not SHIFT, onset-label61 must not PASS.",
+        "occlusion": "Accurate visible silhouette loses left800px at61..65 while right100px fault stays visible. Correct60..67 labels must not SHIFT.",
+        "mask_coverage": "Missing mask61 must not be claimed fully mask-attributed across the onset search. Missing RGB61 must refuse.",
+        "dilated_lag": "Deliberately dilated or one-frame-lagged masks must not be mistaken for verified target attribution. Precise ring-burst control must PASS.",
+        "foreign": "Labels request mask222 but only foreign mask111 exists. Must not treat111 as identified SynthTarget.",
+        "missing_end": "True fault60..90;labels60..67. End outside searched window must be unconfirmed, not full event PASS.",
+        "mixed_run": "Mask absent at end67;whole run is READING. Scorer must not credit its masked onset as a verdict.",
+        "one_frame": "True one-frame60 run with labels60/61/59; on a late label, detected-onset bound must still allow true clear61. No wrong offset or falsePASS allowed.",
+        "regressions": "46 selftests pass; original unmasked review controls becomeREADING; masked twins preserve per-edge checks; tiny26-cell cohort retains8unsupported; explicitNO_ENVELOPE refusesall."
+    }
+    (ROOT / "079-08-probe-predictions.json").write_text(json.dumps(RESULT, indent=2)+"\n", encoding="utf-8")
+    params = {
+        "lighting_aligned": dict(lighting=True),
+        "lighting_late_onset": dict(lighting=True, label_runs=((61, 67),)),
+        "occluder_aligned": dict(occluder=True),
+        "static_aligned": {},
+        "static_late_onset": dict(label_runs=((61, 67),)),
+        "missing_mask61": dict(missing_masks=(61,)),
+        "missing_rgb61": dict(missing_rgb=(61,)),
+        "precise_mask_ring_burst": dict(ring_burst=True),
+        "dilated_mask_ring_burst": dict(ring_burst=True, mask_mode="dilated"),
+        "precise_mask_target_move": dict(move=True),
+        "lagged_mask_target_move": dict(move=True, mask_mode="lag", label_runs=((61, 67),)),
+        "foreign_mask_value": dict(mask_mode="foreign"),
+        "no_detected_end": dict(true_runs=((60, 90),), label_runs=((60, 67),)),
+        "mixed_run": dict(missing_masks=(67,)),
+        "one_frame_aligned": dict(true_runs=((60, 60),)),
+        "one_frame_late": dict(true_runs=((60, 60),), label_runs=((61, 61),)),
+        "one_frame_early": dict(true_runs=((60, 60),), label_runs=((59, 59),))
+    }
+    RESULT["probes"] = {}
+    paths = {}
+    for name, kw in params.items():
+        paths[name] = fixture(name, **kw)
+        RESULT["probes"][name] = gate(paths[name])
+    RESULT["mixed_score"] = sc.run_cell(str(paths["mixed_run"]), str(scratch/"mixed_shadows"),
+        "mixed_run", "both", 0, "annotation", vc.REGION_CAP, mlo, sc.cohort_of(str(paths["mixed_run"]), mlo))
+    RESULT["zero_cap"] = sc.derive_cap([{"m_edge": 0.0, "outcome": "wrong"}])
+    RESULT["zero_no_wrong"] = sc.derive_cap([{"m_edge": 0.0, "outcome": "recovered"}])
+    RESULT["no_envelope"] = gate(paths["static_aligned"], region_cap=vc.NO_ADMISSIBLE_ENVELOPE)
+    tiny_bank = scratch / "tiny_bank"
+    p = vc._codex07_fixture(str(tiny_bank), "TINY/session_one", runs=((10, 10),), mask="patch")
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        planned, _ = sc.cohort_keys(str(tiny_bank), ["TINY"], mlo)
+        cells = sc.sweep(str(tiny_bank), ["TINY"], str(scratch/"tiny_shadows"), vc.REGION_CAP, mlo)
+    RESULT["tiny_cohort"] = {"planned": len(planned), "scored": len(cells), "cells": cells,
+                             "counts": dict(Counter(c["outcome"] for c in cells)), "stdout": stream.getvalue()}
+    batch = scratch / "batch"
+    vc._synth_session(str(batch), "a__b/session_same", with_mask=True)
+    vc._synth_session(str(batch), "a/b__session_same", with_mask=True, blank_region=True)
+    (batch / "c/session_missing/Actual_Frames").mkdir(parents=True)
+    stream = io.StringIO()
+    out = scratch / "batch_out"
+    captured = []
+    original_gate = vc.label_pixel_gate
+    def observe(*args, **kwargs):
+        if "out_detail" not in kwargs:
+            kwargs["out_detail"] = []
+        rc, lines = original_gate(*args, **kwargs)
+        captured.append({"session": args[0], "code": rc, "lines": lines, "detail": kwargs["out_detail"]})
+        return rc, lines
+    vc.label_pixel_gate = observe
+    try:
+        with contextlib.redirect_stdout(stream):
+            rc = vc.label_pixel_batch(str(batch), str(out), 8, 4, 1, True, True)
+    finally:
+        vc.label_pixel_gate = original_gate
+    RESULT["batch"] = {"code": rc, "stdout": stream.getvalue(), "calls_including_selftest": captured,
+        "files": {p.name: p.read_text(encoding="utf-8") for p in out.iterdir() if p.is_file()}}
+    print("BATCH", rc, list(RESULT["batch"]["files"]), flush=True)
+    # Test the uniqueness assertion itself; the already-executed selftest is unchanged.
+    original_key, original_selftest = vc._batch_key, vc._label_pixel_selftest
+    vc._batch_key = lambda root, sess: ("forced_collision", os.path.relpath(sess, root))
+    vc._label_pixel_selftest = lambda *args, **kwargs: 0
+    forced_out = scratch / "forced_collision_out"
+    stream = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stream):
+            rc = vc.label_pixel_batch(str(batch), str(forced_out), 8, 4, 1, True, True)
+    finally:
+        vc._batch_key, vc._label_pixel_selftest = original_key, original_selftest
+    RESULT["forced_collision"] = {"code": rc, "stdout": stream.getvalue(), "files": list(forced_out.iterdir())}
+
+def cell_key(c):
+    return tuple(c[k] for k in ("session", "event", "ordinal", "kind", "which", "delta", "variant"))
+
+def do_cohort():
+    saved = json.loads((BANK/"M079_VERIFIER_EVIDENCE/079-07/cohort_v21.json").read_text(encoding="utf-8"))
+    names = ["A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA"]
+    planned = set()
+    for name in names:
+        for c in sc.cohort_of(sc.session_of(str(BANK), name), mlo):
+            for which, delta in sc.PERTURBATIONS:
+                for variant in sc.VARIANTS:
+                    if delta == 0 and variant == "coherent":
+                        continue
+                    planned.add((name, c["event"], c["ordinal"], c["kind"], which, delta, variant))
+    RESULT["audit"] = {"independent_planned": len(planned), "published_planned": saved["planned"],
+                        "derivation": sc.derive_cap(saved["guard_off"])}
+    targets = []
+    for side, wanted, cap in (("guard_off", {"wrong", "no-signal"}, 1.0),
+                              ("guard_on", {"recovered"}, vc.REGION_CAP)):
+        cells = saved[side]
+        keys = [cell_key(c) for c in cells]
+        errors = []
+        for c in cells:
+            want = -c["delta"] if c["which"] in ("both", c["kind"]) else 0
+            if want != c["expected"]:
+                errors.append(["expected", c])
+            if c["outcome"] in ("recovered", "wrong"):
+                outcome = "recovered" if c["offset"] == want else "wrong"
+                if c["outcome"] != outcome:
+                    errors.append(["outcome", c])
+            if c["outcome"] == "no-signal" and (c["offset"] is not None or c["reason"] != "no-change-above-tau"):
+                errors.append(["no-signal", c])
+        RESULT["audit"][side] = {"count": len(cells), "unique": len(set(keys)),
+            "missing": sorted(planned-set(keys)), "extra": sorted(set(keys)-planned), "errors": errors,
+            "counts": dict(Counter(c["outcome"] for c in cells))}
+        groups = sorted(set((c["session"], c["which"], c["delta"], c["variant"]) for c in cells if c["outcome"] in wanted))
+        targets.extend((side, cap, group) for group in groups)
+    print("AUDIT", RESULT["audit"], "rerun_groups", len(targets), flush=True)
+    RESULT["reruns"] = []
+    for n, (side, cap, group) in enumerate(targets, 1):
+        name, which, delta, variant = group
+        src = sc.session_of(str(BANK), name)
+        cells = sc.run_cell(src, str(scratch/"bank_shadows"), name, which, delta, variant,
+                            cap, mlo, sc.cohort_of(src, mlo))
+        old = {cell_key(c): c for c in saved[side] if (c["session"], c["which"], c["delta"], c["variant"]) == group}
+        diffs = [{"key": cell_key(c), "field": k, "old": old[cell_key(c)][k], "new": c[k]}
+                 for c in cells for k in ("expected", "m_edge", "tau", "offset", "outcome", "reason")
+                 if c[k] != old[cell_key(c)][k]]
+        RESULT["reruns"].append({"guard": side, "group": group, "cells": cells, "differences": diffs})
+        print("RERUN", n, "of", len(targets), side, group, "cells", len(cells), "differences", len(diffs), flush=True)
+
+def do_bank():
+    names = ["M49_GEDGE_BL_NAT", "M49_GEDGE_CT_NAT", "M49_GEDGE_MO_NAT", "M49_GEDGE_MT_NAT",
+             "M49_GEDGE_BL_SYN", "M49_GEDGE_MT_SYN", "A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA", "M50L_LG9"]
+    RESULT["bank"] = []
+    for name in names:
+        rec = gate(sc.session_of(str(BANK), name))
+        rec["name"] = name
+        RESULT["bank"].append(rec)
+
+mode = sys.argv[1] if len(sys.argv) > 1 else "probes"
+try:
+    {"probes": do_probes, "cohort": do_cohort, "bank": do_bank}[mode]()
+finally:
+    for p in reversed(links):
+        assert p.absolute().is_relative_to(scratch)
+        assert p.resolve().is_relative_to(BANK_RESOLVED) or p.resolve().is_relative_to(scratch)
+        if p.is_symlink():
+            p.unlink()
+        else:
+            os.rmdir(p)
+    assert scratch.resolve().is_relative_to(ROOT) and scratch.name.startswith("079-08-scratch-")
+    for d, dirs, files in os.walk(scratch, followlinks=False):
+        for n in dirs:
+            p = pathlib.Path(d)/n
+            assert not (p.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT), p
+    shutil.rmtree(scratch)
+    out = ROOT/("079-08-validation-"+mode+".json")
+    out.write_text(json.dumps(RESULT, indent=2, default=str)+"\n", encoding="utf-8")
+    print("SAVED", out, flush=True)

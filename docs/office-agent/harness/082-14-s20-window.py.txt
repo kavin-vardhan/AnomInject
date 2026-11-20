@@ -1,0 +1,33 @@
+import importlib.util,json,os,subprocess,sys,time,traceback
+from pathlib import Path
+tag=sys.argv[1] if len(sys.argv)>1 else 'default';limit=float(sys.argv[2]) if len(sys.argv)>2 else 540.0
+R=Path(r'D:\IntrusiveAnomalies\_reviews');os.environ.update(IAI_R53_BUDGET_TAG=tag,PYTHONDONTWRITEBYTECODE='1')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+L=load('l_s20',R/'082-14-s20-lib.py');C=L.C;S1=L.S1;c1=L.c1;C.RUN.mkdir(parents=True,exist_ok=True)
+def run(*a):return subprocess.run([sys.executable,*map(str,a)]).returncode
+if run(R/'082-14-s20-preflight.py'):print(json.dumps(dict(result='PREFLIGHT-FAILED',why='no leg run')));sys.exit(10)
+left=S1.budget_state()['left_s']
+if left<=0:print(json.dumps(dict(result='NOT-QUIET',why='the wait budget of this tag is spent',budget=S1.budget_state())));sys.exit(4)
+quiet=pp=None
+if C.STUB_GATES:
+    quiet=lambda:dict(quiet=True,blocking=[],ours=[],foreign=[]);pp=lambda where,leg=None,**k:dict(clear=True,stub=True)
+    c1.log_event('stub-gates',why='IAI_S20_STUB_GATES=1 in stub mode: the quiet check and the person gate are replaced by no-ops (a dry run)')
+else:
+    t=time.time();q=S1.wait_quiet(f'window-{tag}',min(limit,left));S1.budget_add('quiet-wait',time.time()-t,where='window-start')
+    if q['result']!='QUIET':print(json.dumps(dict(result='NOT-QUIET',quiet=q,budget=S1.budget_state())));sys.exit(4)
+code=0;why=None;s=None;ev=None
+ka=L.known_answer();n=len(list(C.RUN.glob('known-answer-*.json')));S1.jsave(C.RUN/f'known-answer-{n+1}.json',ka)
+if not ka['ok']:
+    code=L.CODES['KNOWN_ANSWER'];why='the evaluator failed its known answer (Codex independent-shadow.json)';c1.log_event('window-stop',code=code,why=why)
+else:
+    try:
+        (pp or S1.pp_gate)('window-start');s=L.run_sequence(quiet=quiet,pp=pp)
+    except L.Stop as ex:
+        code=ex.code;why=ex.msg;c1.log_event('window-stop',code=code,why=why);s=L.summary()
+    try:
+        e=L.evaluate();ev=dict(flags=e['flags'],classification=e['classification']['all'],cells={k:v['state'] for k,v in e['cells'].items()})
+    except Exception as ex:ev=dict(error=repr(ex)[:300],trace=traceback.format_exc()[-800:])
+pf=run(R/'082-14-s20-postflight.py')
+print(json.dumps(dict(result='COMPLETE' if code==0 else 'STOPPED',code=code,why=why,postflight_exit=pf,known_answer_ok=ka['ok'],summary=s,evaluation=ev,budget=S1.budget_state(),stub=C.STUB,stub_gates=C.STUB_GATES),default=str))
+sys.exit(code or (11 if pf else 0))

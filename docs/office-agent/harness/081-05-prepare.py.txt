@@ -1,0 +1,28 @@
+from pathlib import Path
+import hashlib, json
+base = Path(r'D:\IntrusiveAnomalies')
+out = base / '_reviews/081-05-evidence'
+src = base / 'StackOBot/Plugins/CaptureBench/tools/run_leg.ps1'
+lines = src.read_text(encoding='utf-8-sig').splitlines()
+seen = 0
+for i, line in enumerate(lines):
+    if 'Stop-Process -Force' in line and not line.lstrip().startswith('#'):
+        seen += 1
+        lines[i] = ('  # Entry: read-only idle check follows.' if seen == 1 else
+                    '  if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }')
+    elif 'Remove-Item ' in line and not line.lstrip().startswith('#'):
+        var = next(v for v in ('$dir', '$keep', '$dst') if v in line)
+        lines[i] = f'  if (Test-Path -LiteralPath {var}) {{ throw "Refusing to replace existing output {var}" }}'
+    elif '$p = Start-Process' in line:
+        lines[i] = line.replace('-PassThru', '-PassThru -WindowStyle Hidden')
+    if '$PSScriptRoot\\check_pose.py' in lines[i]:
+        lines[i] = lines[i].replace('$PSScriptRoot\\check_pose.py', str(src.parent / 'check_pose.py'))
+assert seen == 2
+(out / 'run_leg_owned.ps1').write_text('\n'.join(lines) + '\n', encoding='utf-8-sig')
+paths = [base / 'StackOBot/Builds/BenchGate/Windows/StackOBot/Binaries/Win64/StackOBot.exe',
+         base / '_binary_baselines/StackOBot.exe.m52-veto-arm-window-0844220E']
+paths += list((base / 'StackOBot/Builds/BenchGate/Windows/StackOBot/Content/Paks').iterdir())
+data = [dict(path=str(p), size=p.stat().st_size, sha256=hashlib.file_digest(p.open('rb'), 'sha256').hexdigest()) for p in paths if p.is_file()]
+assert data[0]['sha256'] == data[1]['sha256']
+(out / 'binary-before.json').write_text(json.dumps(data, indent=2))
+print(json.dumps(data, indent=2))

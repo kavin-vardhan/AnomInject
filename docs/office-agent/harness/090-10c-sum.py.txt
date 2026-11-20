@@ -1,0 +1,103 @@
+"""090-10c summary: proof table (variant x path x type -> events, corrupts, identity, edges) and can-fail table.
+Usage: 090-10c-sum.py <new_exe8> <old_exe8> [out.json]"""
+import importlib.util, json, re, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+_s = importlib.util.spec_from_file_location('r910c', str(R / '090-10c-read.py'))
+RD = importlib.util.module_from_spec(_s); _s.loader.exec_module(RD)
+C, c, E = RD.C, RD.c, RD.E
+VARS = ['V1', 'V2', 'V3', 'V4', 'V5a', 'V5b', 'V6']
+SUB_RX = re.compile(r'TEXCORRUPT-(?:CENSUS|REFUSED|DECIDE) family=(uv|normal) mode=\S+ target=\S+ final=(\S+)')
+NOTE_RX = re.compile(r'TEXCORRUPT-(?:CENSUS|DECIDE) family=(uv|normal) .*? notes=\[([^\]]*)\]')
+BIND_RX = re.compile(r'binding .*? texture=\'([^\']+)\' .*? M=(\d+) top=(\d+)x(\d+) .*?resident=(\d+) max=(\d+) .*?asset_lod_bias=(-?\d+) cinematic=(\d+) '
+                     r'cached_lod_bias=(-?\d+).*?disposition=(\S+)(?: first_mip=(\d+) cooked=(\d+)x(\d+)/M(\d+))?')
+
+
+def proof_cell(label):
+    sess = c.find_session(label)
+    out = dict(label=label)
+    if not sess:
+        out['status'] = 'NO-SESSION'
+        out['lines'] = C.grep(label, r'REFUSED|final=', 6)
+        return out
+    ann = json.loads((sess / 'annotation.json').read_text(encoding='utf-8'))
+    ev = ann.get('anomalies', [])
+    out['events'] = len(ev)
+    px = c.pixels(sess)
+    out['corrupts'] = sum(1 for p in px if p.get('verdict') == 'CORRUPTS')
+    out['median_min'] = min([p['median'] for p in px if p.get('median') is not None] or [None]) if px else None
+    out['null_max'] = max([p['null'] for p in px if p.get('null') is not None] or [0.0]) if px else None
+    ed = E.edges(sess)
+    out['edges_in_sync'] = sum(1 for x in ed if x.get('verdict') == 'IN-SYNC')
+    out['edges_judged'] = sum(1 for x in ed if x.get('verdict') in ('IN-SYNC', 'OFFSET'))
+    out['edges_offsets'] = sorted(set((x.get('onset'), x.get('end')) for x in ed if x.get('verdict') == 'OFFSET'))
+    idn = RD.identity(sess)
+    out['identity_exact'] = sum(1 for x in idn if x.get('verdict') == 'IDENTITY-EXACT')
+    out['identity_max'] = max([x['max'] for x in idn if x.get('max') is not None] or [None]) if idn else None
+    rs = json.loads((sess / 'run_summary.json').read_text(encoding='utf-8'))
+    out['tc'] = {k: v for k, v in rs.items() if k in ('texcorrupt_fires_applied', 'texcorrupt_resident_chain_outputs', 'texcorrupt_copy_source_changed',
+                                                     'texcorrupt_rt_mip_mismatch', 'texcorrupt_fires_with_skipped_parts')}
+    notes = set()
+    for ln in C.log_text(label).splitlines():
+        m = NOTE_RX.search(ln)
+        if m and m.group(2):
+            notes.update(m.group(2).split())
+    out['notes'] = sorted(notes)
+    snaps = set()
+    for r in RD.rows_of(sess).values():
+        for a in r.get('anomalies', []):
+            for t in a.get('texcorrupt.textures', []) or []:
+                snaps.add((t.get('snapshot_mip'), t.get('mip_count'), t.get('cooked_mip_count'), t.get('snapshot_px_w')))
+    out['snapshot'] = sorted(snaps, key=str)
+    return out
+
+
+def canfail_cell(label):
+    out = dict(label=label)
+    finals = {}
+    binds = []
+    for ln in C.log_text(label).splitlines():
+        m = SUB_RX.search(ln)
+        if m:
+            finals.setdefault(m.group(1), set()).add(m.group(2))
+        b = BIND_RX.search(ln)
+        if b and len(binds) < 4:
+            binds.append(b.groups())
+    out['final'] = {k: sorted(v) for k, v in finals.items()}
+    sess = c.find_session(label)
+    out['events'] = len(json.loads((sess / 'annotation.json').read_text(encoding='utf-8')).get('anomalies', [])) if sess else 'no-session'
+    out['bindings'] = binds
+    return out
+
+
+def main():
+    new, old = sys.argv[1], sys.argv[2]
+    res = dict(proof={}, canfail={}, b={})
+    for mode in ('P', 'S'):
+        for v in VARS:
+            for k in ('uv', 'normal', 'identity'):
+                lab = f'{mode}_{v}_{k}_{new}'
+                if (C.EV / lab).exists():
+                    res['proof'][lab] = proof_cell(lab)
+            lab = f'{mode}_{v}_canfail_{old}'
+            if (C.EV / lab).exists():
+                res['canfail'][lab] = canfail_cell(lab)
+    for lab in (f'P_B_ORB_scope_{new}', f'P_B_ORB_noscope_{new}'):
+        if (C.EV / lab).exists():
+            sess = c.find_session(lab)
+            res['b'][lab] = dict(cell=proof_cell(lab), mask=RD.mask_coverage(sess) if sess else None,
+                                 parts=C.grep(lab, r'PARTS|TEXCORRUPT-(DECIDE|REFUSED) family|BSPAWN', 8))
+    out = Path(sys.argv[3]) if len(sys.argv) > 3 else C.WORK / 'summary.json'
+    out.write_text(json.dumps(res, indent=1, default=str), encoding='utf-8')
+    for lab, r in res['proof'].items():
+        print(lab, r.get('events'), 'corrupts', r.get('corrupts'), 'id', r.get('identity_exact'), r.get('identity_max'), 'edges',
+              r.get('edges_in_sync'), '/', r.get('edges_judged'), r.get('edges_offsets'), 'snap', r.get('snapshot'), r.get('notes'), r.get('tc'))
+    for lab, r in res['canfail'].items():
+        print(lab, r)
+    for lab, r in res['b'].items():
+        print(lab, json.dumps(r, default=str)[:900])
+
+
+if __name__ == '__main__':
+    main()

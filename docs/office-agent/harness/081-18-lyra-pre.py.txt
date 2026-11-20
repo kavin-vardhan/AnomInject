@@ -1,0 +1,8 @@
+from pathlib import Path
+import json,importlib.util,sys
+B=Path(r'D:\IntrusiveAnomalies');d=B/'_reviews/081-18-evidence'/sys.argv[1]
+spec=importlib.util.spec_from_file_location('pose',B/'_reviews/081-08-pose.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+rows=list(map(json.loads,(d/'snapshots.jsonl').read_text(encoding='utf-8-sig').splitlines()));assert len(rows)==1
+(d/'_l1_snapshot.json').write_text(json.dumps(rows[0],indent=2))
+r=m.check(rows[0],json.loads(m.REF.read_text()),tuple(map(int,sys.argv[2:4])))
+(d/'_l1_result.json').write_text(json.dumps(r,indent=2));print(json.dumps(r));sys.exit(0 if r['status']=='PASS-L1' else 10)

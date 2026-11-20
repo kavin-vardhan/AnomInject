@@ -1,0 +1,42 @@
+from pathlib import Path
+import json, itertools
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'
+old=json.loads((ev/'legacy-comparison-v6.json').read_text())['readings']
+core='evidence_file stage_version max_bytes bytes_high_water bytes_retained worker_ms_total closure_watermark bench_gate enabled_source max_bytes_source bench_gate_source'.split()
+counter='issued pairs_identity_valid pairs_refused rows_dropped late_results epoch_rejected epoch_resets view_rejected duplicate_callback duplicate_completion mask_capture_served_ge2 mask_pass_deferred colour_multi_ready_drain capture_arm_dropped throwaway_family_constructed teardown_flush persist_failed late_record_mutations unissued_indices_skipped bench_unregistered_capture pending_colour_cancelled pending_mask_cancelled pending_family_deferred'.split()
+reason='first_frame predecessor_missing predecessor_undelivered out_of_order_timeout epoch_reset view_mismatch extent_mismatch mask_payload_missing unsupported_delivery budget_exceeded empty_region no_labelled_frames current_undelivered closure_timeout'.split()
+declared={'change_'+k for k in core+counter+['reason_'+r for r in reason]}
+def flat(v,p=''):
+    out={}
+    if isinstance(v,dict):
+        for k,x in v.items(): out.update(flat(x,p+'/'+k))
+        out[p+'/#keys']=sorted(v)
+    elif isinstance(v,list):
+        out[p+'/#length']=len(v)
+        for i,x in enumerate(v): out.update(flat(x,p+f'/{i}'))
+    else: out[p]=v
+    return out
+data={}; schema={}
+for name,r in old.items():
+    d=Path(r['session']); a=json.loads((d/'annotation.json').read_text()); s=json.loads((d/'run_summary.json').read_text())
+    change={k for k in s if k.startswith('change_')}
+    assert change<=declared,(name,change-declared)
+    schema[name]=dict(change_added=sorted(change),unknown_change_keys=sorted(change-declared),label_schema=a['label_schema'])
+    s={k:v for k,v in s.items() if not k.startswith('change_')}
+    labels={str(r['session_index']):r for r in (json.loads(l) for l in (d/'labels.jsonl').read_text().splitlines())}
+    data[name]=flat(dict(annotation=a,run_summary=s,labels=labels))
+def delta(a,b): return sorted(k for k in set(data[a])|set(data[b]) if data[a].get(k)!=data[b].get(k))
+base_a,base_b='M55S1_PRE_A2','M55S1_PRE_A3'
+within=set(delta(base_a,base_b))
+off_spread=set(delta('M55S1V6_MAIN1_E0','M55S1V6_MAIN4_E0'))
+on_spread=set(delta('M55S1V6_MAIN2_E1','M55S1V6_MAIN3_E1'))
+cross=[]
+for name in old:
+    if name.startswith('M55S1V6'):
+        changed=set(delta(base_a,name)); extras=sorted(changed-within)
+        cross.append(dict(a=base_a,b=name,changed_paths=len(changed),extras_vs_predecessor_pair=extras,
+            extras_not_in_any_same_binary_spread=sorted(changed-within-off_spread-on_spread),
+            extra_values={k:dict(a=data[base_a].get(k),b=data[name].get(k)) for k in extras}))
+result=dict(schema=schema,predecessor_pair_changed_paths=sorted(within),candidate_off_spread=sorted(off_spread),candidate_on_spread=sorted(on_spread),cross=cross)
+(ev/'artifact-delta-v6.json').write_text(json.dumps(result,indent=2))
+for r in cross: print(json.dumps({k:v for k,v in r.items() if k!='extra_values'}))

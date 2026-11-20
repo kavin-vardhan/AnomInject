@@ -1,0 +1,67 @@
+import sys
+sys.path.insert(0,r'D:\IntrusiveAnomalies\_reviews')
+import importlib.util
+spec=importlib.util.spec_from_file_location('c21',r'D:\IntrusiveAnomalies\_reviews\081-21-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+import json
+B=c.B;E=c.E;E18=B/'_reviews/081-18-evidence'
+ours,foreign=c.classify()
+assert not ours,ours
+post18=json.loads((E18/'postflight.json').read_text());pre18=json.loads((E18/'preflight.json').read_text())
+man18=json.loads((E18/'evidence-manifest.json').read_text());bank18=json.loads((E18/'bank-manifest.json').read_text())
+assert post18['verdict'].startswith('PASS') and not post18['problems']
+EXTERNAL={'_reviews/081-17-codex-vs-code-comparison.md':'chat scorecard, modified 2026-09-24 03:07:27 IST after 081-18 postflight; expected external update by chat, re-baselined (081-18 declared the same file for its 01:07 edit)'}
+if '--rerun' in sys.argv:assert (E/'preflight-attempt1-one-external-change.json').exists() and not (E/'preflight.json').exists()
+else:assert not E.exists();E.mkdir()
+pre={'utc':c.now(),'round':'081-21','repos':{},'mismatches':[],'foreign_processes_at_start':foreign}
+for name,r in {'AnomalyInjector':c.R,'Lyra':c.L,'CaptureBench':c.C}.items():
+    assert not c.git(r,'diff','--name-only') and not c.git(r,'diff','--cached','--name-only'),name
+    st=c.state(r);old=post18['repos'][name]
+    for k in ('head','branch','untracked'):
+        if st[k]!=old[k]:pre['mismatches'].append([name,k])
+    a=dict(l.split(' ',1) for l in old['refs'].splitlines());z=dict(l.split(' ',1) for l in st['refs'].splitlines())
+    delta={k:[a.get(k),z.get(k)] for k in a.keys()|z.keys() if a.get(k)!=z.get(k)}
+    allowed={'refs/heads/'+c.FEATURE,'refs/remotes/origin/'+c.FEATURE} if name in ('AnomalyInjector','Lyra') else set()
+    if set(delta)-allowed:pre['mismatches'].append([name,'unexpected ref delta',delta])
+    st['ref_delta_since_081_18']=delta;pre['repos'][name]=st
+assert pre['repos']['AnomalyInjector']['head']==c.M51 and pre['repos']['AnomalyInjector']['branch']=='m51'
+assert pre['repos']['Lyra']['head']==c.LYRA and pre['repos']['Lyra']['branch']==''
+assert c.git(c.R,'rev-parse',c.FEATURE)=='c3f5753'+c.git(c.R,'rev-parse',c.FEATURE)[7:]
+lyra_bins=sorted(p.name for p in (c.L/'Binaries/Win64').iterdir() if p.is_file())
+pre['lyra_module_names']=lyra_bins
+if lyra_bins!=post18['lyra_module_names']:pre['mismatches'].append(['Lyra','module set'])
+bins={}
+for p,h in post18['verified_binaries'].items():
+    a=c.sha(p);bins[p]=a
+    if a!=h:pre['mismatches'].append(['binary',p])
+pre['verified_binaries']=bins
+arts={}
+for p,h in pre18['prior_artifacts'].items():
+    a=c.sha(B/p);arts[p]=a
+    if a!=h and p.replace('\\','/') in EXTERNAL:pre.setdefault('external_updates',[]).append([p,h,a,EXTERNAL[p.replace('\\','/')]])
+    elif a!=h:pre['mismatches'].append(['artifact',p])
+for p,h in man18.items():
+    a=c.sha(B/p);arts[p]=a
+    if a!=h:pre['mismatches'].append(['081-18 evidence',p])
+new_since=[]
+for d in ('081-19-evidence','081-20-evidence'):
+    for q in (B/'_reviews'/d).rglob('*'):
+        if q.is_file():arts[str(q.relative_to(B))]=c.sha(q);new_since.append(str(q.relative_to(B)))
+for q in (B/'_reviews').glob('081-*'):
+    if q.is_file() and not q.name.startswith('081-21-'):
+        k=str(q.relative_to(B))
+        if k not in arts:new_since.append(k)
+        arts[k]=c.sha(q)
+pre['prior_artifacts']=arts;pre['new_since_081_18_baselined']=len(new_since)
+bank={}
+for p,h in list(pre18['bank_files'].items())+list(bank18.items()):
+    a=c.sha(B/p);bank[p]=a
+    if a!=h:pre['mismatches'].append(['bank',p])
+pre['bank_files']=bank
+cur=c.sha(B/'ToCodex/CURRENT.md');pre['current_sha256']=cur
+if cur!=post18['current_sha256'] if 'current_sha256' in post18 else cur!=pre18['current_sha256']:pre['mismatches'].append(['ToCodex','CURRENT.md'])
+remote=c.git(c.R,'ls-remote','origin','refs/heads/'+c.FEATURE,'refs/heads/master');pre['remote_refs']=remote
+if c.MASTER+'\trefs/heads/master' not in remote or c.git(c.R,'rev-parse',c.FEATURE)+'\trefs/heads/'+c.FEATURE not in remote:pre['mismatches'].append(['remote',remote])
+pre['counts']={'binaries':len(bins),'prior_artifacts':len(arts),'bank_files':len(bank)}
+(E/'preflight.json').write_text(json.dumps(pre,indent=2))
+print(json.dumps({'mismatches':pre['mismatches'],'counts':pre['counts'],'new_since':len(new_since),'remote':remote,'foreign':[(f['pid'],f['path']) for f in foreign]},indent=1))
+sys.exit(1 if pre['mismatches'] else 0)

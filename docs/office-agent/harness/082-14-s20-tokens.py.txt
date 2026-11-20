@@ -1,0 +1,36 @@
+import hashlib,json,sys
+from pathlib import Path
+EXE=Path(r'D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe')
+EXE_SHA='2fcdf059176da4e65645b4523c1efd73b13ab2489a8ffc3867ac2de26177cb36'
+EXACT=[('BASE',t) for t in ('r.DefaultFeature.AutoExposure','r.EyeAdaptationQuality','CaptureBench.Marker','CaptureBench.Stall.GameMs','IAI.Capture.SVE','IAI.Capture.Delivery','IAI.Capture.Pace','IAI.Capture.Fps','r.AntiAliasingMethod','r.Lumen.DiffuseIndirect.Allow','r.DynamicGlobalIlluminationMethod','r.ReflectionMethod','IAI.Bench.SynthTickOrder','IAI.Capture.Mask','IAI.Capture.TargetMask')]
+EXACT+=[('S2-0',t) for t in ('IAI.Capture.Config','IAI.Capture.Start','IAI.Capture.TexCorruptWarmDraw','IAI.Bench.TexCorruptIdentity','IAI.Bench.TexCorruptNoApply','IAI.Anomaly.TexCorruptMaxRtBytes','IAI.Bench.TexCorruptCensus','r.Shadow.Virtual.Cache','r.Shadow.Virtual.Enable','DEFER','Reattach.Components','uv_corruption','corrupted_texture')]
+ABSENT=['IAI.Bench.ExecAtFrame','IAI.Bench.TexCorruptRetainRt','IAI.Bench.TexCorruptRtCensus','IAI.Bench.TexCorruptOmitReleaseAccounting','IAI.Bench.TexCorruptDriftZero']
+LOG=['TEXCORRUPT-CENSUS BEGIN targets=','TEXCORRUPT-CENSUS END targets=',"TEXCORRUPT-%s family=%s mode=%s target='%s' final=%s step=%s slots=%d qualified=%d required_bytes=%lld ",
+     'TEXCORRUPT-%s   slot %s.%s[%d] disposition=%s raw=%s(len %d) asset=%s resolved=%s effective=%s ',
+     ": APPLIED mode=%s tile=%d fault=%s noapply=%d on '%s'",': IAI.Bench.TexCorruptNoApply 2 - the decision tree said APPLY',': IAI.Bench.TexCorruptNoApply 1 - the whole transaction ran',
+     "Auto.FireSpecific: '%s' on '%s' -> %s.","Auto.FireSpecific: '%s' on '%s' -> 0 matched.","IAI.Apply '%s' -> %s.","IAI.Revert '%s' -> reverted.",
+     "corrupted_texture: overrode %d slot(s) across %d component(s) for '%s' (pink).",'corrupted_texture: revert of %d captured slot(s)',"corrupted_texture: revert left '%s' slot %d untouched",
+     'Reattach.Components:','   Component: %s','=== Capture(m53): TEXCORRUPT WARM DRAW %s FOR THIS RUN (from %s) - %s ===','texcorrupt: WARM DRAW issued %d draw(s)',
+     'texcorrupt: WARM DRAW released its scratch targets.','IAI.Capture.TexCorruptWarmDraw (console)','IAI.Capture.TexCorruptWarmDraw: %s - m53','=== Capture run STARTED: ','=== Capture run FINISHED: ',
+     '%s = "%s"      LastSetBy: %s','%s = "%s"',': REVERT restored-exact=%d restored-default=%d',": revert '%s' slot %d -> %s ('%s'); override_len_before_apply=%d",
+     ": revert left '%s' slot %d to the game (left-to-game)",": revert could not resolve '%s' slot %d (unresolved)"]
+def enc(s,w):return s.encode('ascii') if w=='ascii' else s.encode('utf-16-le')
+def scan(exe=EXE,out=None):
+    data=Path(exe).read_bytes();h=hashlib.sha256(data).hexdigest();rows=[];problems=[]
+    if h!=EXE_SHA:problems.append(f'exe sha {h[:8]} != {EXE_SHA[:8]}')
+    for g,t in EXACT+[('ABSENT-CONTROL',t) for t in ABSENT]:
+        r=dict(group=g,token=t,ascii=data.count(enc(t,'ascii')),utf16=data.count(enc(t,'utf16')),utf16_exact=data.count(enc(t,'utf16')+b'\x00\x00'))
+        rows.append(r)
+        if g=='ABSENT-CONTROL' and (r['ascii'] or r['utf16']):problems.append(f'absent control present: {t}')
+        if g!='ABSENT-CONTROL' and r['utf16_exact']<1:problems.append(f'token absent (UTF-16 exact): {t}')
+    for t in LOG:
+        r=dict(group='LOG',token=t,ascii=data.count(enc(t,'ascii')),utf16=data.count(enc(t,'utf16')));rows.append(r)
+        if r['utf16']<1:problems.append(f'log token absent (UTF-16): {t}')
+    res=dict(exe=str(exe),size=len(data),sha256=h,ok=not problems,problems=problems,exact_present=sum(1 for r in rows if r['group'] in ('BASE','S2-0') and r['utf16_exact']>=1),
+             exact_total=len(EXACT),absent_zero=sum(1 for r in rows if r['group']=='ABSENT-CONTROL' and not r['ascii'] and not r['utf16']),absent_total=len(ABSENT),
+             log_present=sum(1 for r in rows if r['group']=='LOG' and r['utf16']>=1),log_total=len(LOG),rows=rows)
+    if out:Path(out).write_text(json.dumps(res,indent=1),encoding='utf-8')
+    return res
+if __name__=='__main__':
+    r=scan(out=sys.argv[1] if len(sys.argv)>1 else None)
+    print(json.dumps({k:v for k,v in r.items() if k!='rows'}));sys.exit(0 if r['ok'] else 1)

@@ -1,0 +1,95 @@
+"""090-10c bench harness. Reuses 090-10b-common (staging, pixel reader, leg launcher) and 090-10b2's PIE driver.
+Own work dir. The idle gate follows the brief's clarification: a foreign editor that is open but idle does not block when
+the person has been idle >= 15 min, no foreign process uses >= 10 % GPU, and commit headroom is >= 6 GB; it is never touched.
+Nothing here kills a process it did not start; the launcher kills only its own PID."""
+from pathlib import Path
+import importlib.util, json, shutil, subprocess, sys, time
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+_s = importlib.util.spec_from_file_location('c910b2', str(R / '090-10b2-common.py'))
+b2 = importlib.util.module_from_spec(_s); _s.loader.exec_module(b2)
+c = b2.c
+WORK = Path(r'E:\IA_BuildCache\_r910c'); OUT = WORK / 'out'; EV = WORK / 'ev'; PY = WORK / 'py'
+for m in (c, b2):
+    m.WORK = WORK; m.OUT = OUT; m.EV = EV
+DRIVER = R / '090-10b2-pie.py'
+b2.DRIVER = DRIVER
+BUILDS = b2.BUILDS
+BUILDS['65607703'] = c.BL / 'm53-0910b-65607703'
+BUILDS['E2BCE76B'] = c.BL / 'm53-0910b2-E2BCE76B'
+
+
+def add_build(sha, folder):
+    b2.add_build(sha, folder)
+
+
+for _p in sorted((WORK / 'builds').glob('*')) if (WORK / 'builds').exists() else []:
+    if (_p / 'StackOBot.exe').exists():
+        add_build(c.sha8(_p / 'StackOBot.exe'), _p)
+    elif (_p / 'editor').exists():
+        BUILDS[_p.name] = _p
+
+
+def commit_headroom_gb():
+    cmd = "(Get-CimInstance Win32_OperatingSystem).FreeVirtualMemory"
+    try:
+        return round(int(subprocess.check_output([c.PWSH, '-NoProfile', '-Command', cmd], timeout=60).decode().strip()) / 1048576.0, 1)
+    except Exception:
+        return None
+
+
+def idle_read2():
+    ps = c.processes()
+    games = [dict(pid=p['pid'], name=p['name']) for p in ps if p['name'].lower() in c.GAME_NAMES]
+    editors = [dict(pid=p['pid'], name=p['name'], path=p['path']) for p in ps if c.EDITOR_RX.match(p['name'])]
+    gpu = c.gpu_heavy(ps)
+    builds = [dict(pid=p['pid'], name=p['name']) for p in ps if p['name'].lower() in ('dotnet.exe', 'unrealbuildtool.exe', 'cl.exe', 'link.exe')
+              and ('UnrealBuildTool' in (p['cmd'] or '') or p['name'].lower() in ('cl.exe', 'link.exe'))]
+    return dict(games=games, editors=editors, gpu=gpu, builds=builds)
+
+
+def wait_quiet(budget_s=5400, poll_s=20, need=3):
+    t0 = time.time(); streak = 0; last = None
+    while time.time() - t0 < budget_s:
+        r = idle_read2(); pi = c.person_idle_s(); head = commit_headroom_gb()
+        if r['editors']:
+            ok = (not r['games'] and not r['gpu'] and not r['builds'] and (pi is None or pi >= 900.0) and (head is None or head >= 6.0))
+        else:
+            ok = (not r['games'] and not r['gpu'] and not r['builds'] and (pi is None or pi >= 60.0))
+        streak = streak + 1 if ok else 0
+        last = dict(read=r, person_idle_s=pi, commit_headroom_gb=head, streak=streak)
+        if streak >= need:
+            return dict(clear=True, waited_s=round(time.time() - t0, 1), **last)
+        time.sleep(poll_s)
+    return dict(clear=False, waited_s=round(time.time() - t0, 1), **(last or {}))
+
+
+c.wait_quiet = wait_quiet
+
+
+def run(label, spec):
+    return b2.run(label, spec)
+
+
+def run_leg(label, spec):
+    return b2.run_leg(label, spec)
+
+
+def receipt(path, note):
+    p = Path(path)
+    rec = dict(path=str(p), note=note, exists=p.exists(), sha8=c.sha8(p) if p.exists() and p.is_file() else None, t=time.time())
+    WORK.mkdir(parents=True, exist_ok=True)
+    with open(WORK / 'receipts.jsonl', 'a', encoding='utf-8') as f:
+        f.write(json.dumps(rec) + '\n')
+    return rec
+
+
+def log_text(label):
+    p = EV / label / 'game.log'
+    return p.read_text(encoding='utf-8', errors='replace') if p.exists() else ''
+
+
+def grep(label, pat, limit=60):
+    import re
+    rx = re.compile(pat)
+    return [ln[ln.find(']') + 1:][:300] if ln.startswith('[') else ln[:300] for ln in log_text(label).splitlines() if rx.search(ln)][:limit]

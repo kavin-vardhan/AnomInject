@@ -1,0 +1,391 @@
+import collections,importlib.util,json,os,re,subprocess,sys,time
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=_load('c906e',R/'090-06-common.py')
+LG=_load('legs906e',R/'090-06-legs.py')
+for _k,_v in (('IAI_R93_CACHE',c.CACHE/'e1_93'),('IAI_R93_ROOT',c.CACHE/'_r93_root'),('IAI_R894_CACHE',c.CACHE/'e1_894'),('IAI_R894_ROOT',c.CACHE/'_r894_root')):
+    os.environ[_k]=str(_v)
+E=_load('e1_93_for_906',R/'089-03-eval.py')
+E.c.CACHE=c.CACHE/'e1'
+EVALUATOR='090-06'
+V2=LG.V2_RULE;V1=LG.V1_RULE
+F1_T_REASON='transition flag(s) on a leg without temporal AA (the build emits none there)'
+LNV_REASON='labelled frame(s) not pixel-visible outside transition frames'
+F1_ADJ_RULE=('F1 adjudication of the frozen E1 (declared by 090-06 before any leg): E1 089-03 fails any fire that carries a transition flag on a leg '
+             'without temporal AA ("the build emits none there"); F1 emits effect_interrupted under ANY anti-aliasing by design, so that ONE reason is '
+             'dropped for a fire whose every transition frame is an effect_interrupted-only entry, and in exchange 090-06 requires that no '
+             'effect_interrupted frame is pixel-visible at t50 (E1 itself excuses transition frames from the unlabelled-visible test)')
+F1_LOG_RX=re.compile(r'Capture\(F1\): EFFECT-INSTALLED CHECK calls=(\d+) total=([\d.]+) us mean=([\d.]+) us max=([\d.]+) us; effect_interrupted entries=(\d+)')
+NANITE_END_RX=re.compile(r'Capture\(090-05\): NANITE TARGETS REFUSED = (\d+) distinct actor\(s\) \((\d+) refusal\(s\)\)[^\r\n]*?setting ([a-z]+\([a-z]+\))')
+LEVER_RX={'RAW-REVERT':re.compile(r'Capture\(bench\): RAW-REVERT\b(?P<rest>[^\r\n]*)'),'RETAKE-MATERIAL':re.compile(r'Capture\(bench\): RETAKE-MATERIAL\b(?P<rest>[^\r\n]*)')}
+UNMEAS_NANITE_RX=re.compile(r"UNMEASURABLE TARGET '([^']*)'[^\r\n]*reason=nanite")
+REFUSED_RX=re.compile(r"REFUSED-NANITE actor='([^']*)' class=(\S+) site=(\S+) nanite=(\d+)/(\d+)")
+READBACK_RX=re.compile(r'IAI\.Targets\.AllowNanite: EFFECTIVE READ-BACK = ([a-z]+\([a-z]+\))')
+CURRENT_RX=re.compile(r'IAI\.Targets\.AllowNanite <0\|1\|default>\s+\(current: ([a-z]+\([a-z]+\))\)')
+UNAVAIL_RX=re.compile(r'TARGET MASK UNAVAILABLE for session_index (\d+)')
+AA_RX=re.compile(r'\]\s*r\.AntiAliasingMethod = "([^"]*)"')
+def read_rows(sd):
+    rows=E.read_jsonl(Path(sd)/'labels.jsonl');rows.sort(key=lambda r:r.get('session_index',0));return rows
+def jl(p):return c.jload(p,{}) or {}
+def log_text(p):
+    p=Path(p) if p else None;return p.read_text(encoding='utf-8-sig',errors='replace') if p and p.exists() else ''
+def label_rule(sd):
+    p=subprocess.run([c.PYTHON,'-B',str(c.VERIFY_CAPTURE),'--dir',str(sd),'--label-rule'],capture_output=True,text=True,encoding='utf-8',errors='replace',
+                     env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1'))
+    out=(p.stdout or '')+(p.stderr or '');m=re.findall(r'LABEL-RULE: (NO MISMATCH under the (\w+) rule|MISMATCH - .*|CANNOT RUN - .*)',out)
+    fails=re.findall(r'FAIL (\S+)\s+(\d+)',out)
+    return dict(exit=p.returncode,pass_=p.returncode==0,rule=(m[-1][1] if m and m[-1][1] else None),verdict=m[-1][0] if m else None,
+                fails={k:int(v) for k,v in fails},reasons_line=next((l.strip() for l in out.splitlines() if 'entries by anomaly/reason' in l),None),
+                tool=str(c.VERIFY_CAPTURE),tool_sha16=c.sha(c.VERIFY_CAPTURE)[:16])
+def reasons(a):
+    r=a.get('transition_reason');return list(r) if isinstance(r,list) else []
+def interrupted(a):return 'effect_interrupted' in reasons(a)
+def f1_fields(sd,log):
+    rs=jl(Path(sd)/'run_summary.json');rows=read_rows(sd)
+    ent=[(r['session_index'],a) for r in rows for a in (r.get('anomalies') or []) if interrupted(a)]
+    m=F1_LOG_RX.findall(log or '')
+    return dict(run_summary=rs.get('label_transition_effect_interrupted_entries'),labels=len(ent),log=int(m[-1][4]) if m else None,log_present=bool(m),
+                check_calls=int(m[-1][0]) if m else None,check_mean_us=float(m[-1][2]) if m else None,check_max_us=float(m[-1][3]) if m else None,
+                rule=rs.get('label_labelled_rule'),sis=sorted({s for s,_ in ent}),frames_condition_lost=rs.get('frames_condition_lost'))
+def zero_interrupt_checks(ff,new=True):
+    out=[]
+    if new:
+        if ff['rule']!=V2:out.append(f'label_labelled_rule {ff["rule"]!r} != {V2}')
+        if not ff['log_present']:out.append('no "Capture(F1): EFFECT-INSTALLED CHECK" line: the F1 build did not run')
+        if ff['run_summary']!=0:out.append(f'run_summary label_transition_effect_interrupted_entries {ff["run_summary"]} != 0')
+        if ff['log'] not in (0,None):out.append(f'F1 log line reads effect_interrupted entries={ff["log"]} != 0')
+    if ff['labels']!=0:out.append(f'{ff["labels"]} effect_interrupted entries in labels.jsonl (si {ff["sis"][:8]}) where none is predicted')
+    return out
+def e1_adjusted(events,interrupted_sis=frozenset(),temporal_aa=None):
+    """Per-fire E1 t50 verdicts with the declared F1 adjudication; a fire without transition frames is unchanged."""
+    out=[];isis=set(interrupted_sis)
+    for r in events:
+        st=r.get('status');row=dict(ord=r.get('ord'),start_frame=r.get('start_frame'),status=st,label=[min(r['L']),max(r['L'])] if r.get('L') else None)
+        if st!='OK':row.update(verdict=st);out.append(row);continue
+        p=(r.get('per') or {}).get(E.RELEASE) or {};T=set(r.get('transition') or []);vis=set(p.get('visible') or [])
+        raw=list(p.get('fail_reasons') or []);exc=bool(T) and T<=isis and temporal_aa is False
+        adj=[f for f in raw if not (exc and f==F1_T_REASON)]
+        vi=sorted(vis&T&isis)
+        if vi:adj.append(f'effect_interrupted frame(s) pixel-visible at t50: {vi[:8]}')
+        ed=p.get('edges') or [];start=ed[0].get('start') if ed else None;end=ed[-1].get('end') if ed else None
+        cen=any(e.get('cs') or e.get('ce') for e in ed)
+        if not r.get('measurable'):v='NOT-MEASURABLE'
+        elif r.get('confounded'):v='CONFOUNDED'
+        elif adj:v='FAIL'
+        elif cen:v='CENSORED'
+        else:v='PASS'
+        tg=p.get('transition_gate') or {}
+        row.update(verdict=v,raw_verdict=p.get('verdict'),raw_fails=raw,adjusted_fails=adj,excused_temporal_aa_flag=exc and F1_T_REASON in raw,
+                   start=start,end=end,visible=sorted(vis),transition=sorted(T),measurable=r.get('measurable'),
+                   labelled_not_visible=list(tg.get('labelled_not_visible_outside_transition') or []),unlabelled_visible=list(tg.get('unlabelled_visible_without_transition') or []))
+        out.append(row)
+    return out
+def e1_summary(adj):
+    judged=[x for x in adj if x.get('verdict') in ('PASS','FAIL','CENSORED')]
+    fails=[x for x in adj if x.get('verdict')=='FAIL']
+    S=collections.Counter(x['start'] for x in judged if x.get('start') is not None);EE=collections.Counter(x['end'] for x in judged if x.get('end') is not None and x['verdict']!='CENSORED')
+    verdict='FAIL' if fails else ('NO-JUDGEABLE-EVENT' if not judged else ('PASS-WITH-CENSORED' if any(x['verdict']=='CENSORED' for x in judged) else 'PASS'))
+    starts=[x.get('start') for x in judged];ends=[x.get('end') for x in judged if x['verdict']!='CENSORED']
+    return dict(verdict=verdict,judged=len(judged),passed=sum(1 for x in judged if x['verdict']=='PASS'),fails=len(fails),censored=sum(1 for x in judged if x['verdict']=='CENSORED'),
+                all_starts_zero=bool(judged) and all(s==0 for s in starts),all_ends_zero=bool(ends) and all(e_==0 for e_ in ends),
+                start='{'+', '.join(f'{k:+d}:{v}' for k,v in sorted(S.items()))+'}',end='{'+', '.join(f'{k:+d}:{v}' for k,v in sorted(EE.items()))+'}',
+                status=dict(collections.Counter(x.get('verdict') for x in adj)),fail_events=[{k:x.get(k) for k in ('ord','label','start','end','adjusted_fails')} for x in fails][:6])
+def e1_run(sd,log,types):
+    """The frozen E1 per-fire results; each result gets its annotation frame list L joined back by ord (E1's result rows carry runs, not L)."""
+    d=E.diff_leg(sd,types=types,log=log);taa,src=E.detect_temporal_aa(E.sess(sd),log)
+    an={e['ord']:e for e in E.anno_events(E.sess(sd))}
+    for r in d['events']:
+        if r.get('L') is None and r.get('ord') in an:r['L']=list(an[r['ord']]['L'])
+    return d['events'],taa,src
+def lever_lines(log,kind):
+    out=[]
+    for m in LEVER_RX[kind].finditer(log or ''):
+        rest=m.group('rest');d=dict(line=m.group(0)[:300])
+        for k in ('session_index','actor','id'):
+            mm=re.search(k+r'=(\S+)',rest);d[k]=mm.group(1) if mm else None
+        try:d['si']=int(d['session_index']) if d['session_index'] is not None else None
+        except ValueError:d['si']=None
+        d['nothing']=bool(re.search(r'\bNOTHING\b',rest));out.append(d)
+    return out
+def ents(row,anomaly,target,sf=None):
+    return [a for a in (row.get('anomalies') or []) if a.get('id')==anomaly and (target is None or a.get('target_name')==target) and (sf is None or a.get('start_frame')==sf)]
+def mask_has(sd,row,mv):
+    mf=row.get('mask_file')
+    if not mf:return False
+    p=Path(sd)/mf
+    if not p.exists():return False
+    if not mv:return True
+    return bool((E.np.asarray(E.Image.open(p).convert('L'))==int(mv)).any())
+def f1_structure(sd,log,L,expect):
+    kind,si=L['lever'];anomaly=L['anomaly'];target=L['target']
+    rows=read_rows(sd);by={r['session_index']:r for r in rows};rs=jl(Path(sd)/'run_summary.json');an=jl(Path(sd)/'annotation.json')
+    res=dict(si=si,kind=kind,expect=expect,checks={},invalid=[],notes=[])
+    def chk(name,ok,detail=None):res['checks'][name]=dict(pass_=bool(ok),detail=detail)
+    ll=lever_lines(log,kind);hit=[x for x in ll if x['si']==si and not x['nothing']]
+    res['lever_lines']=[x['line'] for x in ll][:6]
+    if not hit:res['invalid'].append(f'lever: no "Capture(bench): {kind}" line at session_index={si} that acted on a target'+(' (a NOTHING line was logged: the lever did not fire; a clean reading would be blindness)' if any(x['nothing'] for x in ll) else ''))
+    else:chk('lever_names_target',all(x['actor']==target and x['id']==anomaly for x in hit),[(x['actor'],x['id']) for x in hit])
+    e_si=ents(by.get(si,{}),anomaly,target)
+    if not e_si:res['invalid'].append(f'no {anomaly} entry on the lever frame si {si}: the lever did not land inside a fire');return res
+    sf=e_si[0].get('start_frame')
+    W=sorted(s for s,r in by.items() if ents(r,anomaly,target,sf))
+    lab=[s for s in W if any(a.get('labelled') is True for a in ents(by[s],anomaly,target,sf))]
+    inter=[s for s in W if any(interrupted(a) for a in ents(by[s],anomaly,target,sf))]
+    allint=sorted({r['session_index'] for r in rows for a in (r.get('anomalies') or []) if interrupted(a)})
+    want_first,want_last=LG.F1_FIRST,LG.F1_LAST
+    res.update(start_frame=sf,window=[W[0],W[-1]],window_expected=[want_first,want_last],labelled=[lab[0],lab[-1]] if lab else None,labelled_n=len(lab),
+               interrupted=[inter[0],inter[-1]] if inter else None,interrupted_n=len(inter),interrupted_all=allint,window_sis=W,labelled_sis=lab,interrupted_sis=inter)
+    if W!=list(range(want_first,want_last+1)):res['notes'].append(f'the fire window {W[0]}..{W[-1]} differs from the declared schedule {want_first}..{want_last}; judged on the data')
+    chk('lever_inside_window',W[0]<si<=W[-1],dict(si=si,window=[W[0],W[-1]]))
+    evs=[]
+    for e in an.get('anomalies') or []:
+        nodes=[n.get('name') for n in ((e.get('affected_objects') or {}).get('nodes') or [])]
+        if E.TYPE_MAP.get(e.get('anomaly_type'),e.get('anomaly_type'))==anomaly and target in nodes:
+            evs.append(sorted(((e.get('injected_frames') or e.get('affected_frames') or {}).get('frame_indices')) or []))
+    ev=next((f for f in evs if set(f)&set(W)),[])
+    mvs=collections.Counter(a.get('mask_value') for s in lab for a in ents(by[s],anomaly,target,sf) if a.get('mask_value'))
+    mv=mvs.most_common(1)[0][0] if mvs else None
+    ff=f1_fields(sd,log);res['counts']=ff
+    if expect=='new':
+        want_lab=list(range(W[0],si));want_int=list(range(si,W[-1]+1))
+        chk('last_labelled_is_si_minus_1',lab==want_lab,dict(labelled=[lab[0],lab[-1]] if lab else None,want=[want_lab[0],want_lab[-1]] if want_lab else None))
+        chk('interrupted_is_si_to_scheduled_end',inter==want_int,dict(interrupted=[inter[0],inter[-1]] if inter else None,want=[si,W[-1]]))
+        bad=[]
+        for s in inter:
+            for a in ents(by[s],anomaly,target,sf):
+                if interrupted(a) and not (a.get('labelled') is False and a.get('transition')==1 and reasons(a)==['effect_interrupted']):bad.append(s)
+            if any(a.get('labelled') is True for a in ents(by[s],anomaly,target,sf)):bad.append(s)
+        chk('interrupted_entries_transition_only',not bad,sorted(set(bad))[:8])
+        lab_elsewhere=[s for s in inter if any(a.get('labelled') is True for a in (by[s].get('anomalies') or []))]
+        vp=[s for s in inter if s not in lab_elsewhere and (by[s].get('visible_positive') is True or by[s].get('anomaly_present') is True)]
+        chk('interrupted_rows_not_positive',not vp,vp[:8])
+        chk('annotation_lists_labelled_only',ev==want_lab,dict(annotation=[ev[0],ev[-1]] if ev else None,n=len(ev)))
+        listed=[s for f in evs for s in f if s in set(want_int)]
+        chk('annotation_lists_no_interrupted_frame',not listed,listed[:8])
+        mk=[s for s in inter if mask_has(sd,by[s],mv)]
+        chk('no_target_mask_on_interrupted',not mk,dict(mask_value=mv,frames=mk[:8]))
+        chk('count_run_summary',ff['run_summary']==len(want_int),dict(run_summary=ff['run_summary'],want=len(want_int)))
+        chk('count_log_line',ff['log']==len(want_int),dict(log=ff['log'],want=len(want_int)))
+        chk('count_labels',ff['labels']==len(want_int) and allint==want_int,dict(labels=ff['labels'],all_sis=allint[:12]))
+        chk('rule_string_v2',ff['rule']==V2,ff['rule'])
+        if kind=='RETAKE-MATERIAL':chk('frames_condition_lost_zero',ff['frames_condition_lost']==0,ff['frames_condition_lost'])
+        res['want']=dict(labelled=[W[0],si-1],interrupted=[si,W[-1]],annotation=[W[0],si-1],count=len(want_int))
+    else:
+        chk('labels_run_to_scheduled_end',lab==W,dict(labelled=[lab[0],lab[-1]] if lab else None,window=[W[0],W[-1]]))
+        chk('no_effect_interrupted_anywhere',not allint and ff['run_summary'] in (None,0) and not ff['log_present'],dict(labels=len(allint),run_summary=ff['run_summary'],log_line=ff['log_present']))
+        chk('frames_condition_lost_positive',isinstance(ff['frames_condition_lost'],int) and ff['frames_condition_lost']>0,
+            dict(frames_condition_lost=ff['frames_condition_lost'],predicted=W[-1]-si+1))
+        chk('annotation_lists_whole_window',ev==W,dict(annotation=[ev[0],ev[-1]] if ev else None))
+        res['frames_condition_lost_equals_prediction']=ff['frames_condition_lost']==W[-1]-si+1
+        res['want']=dict(labelled=[W[0],W[-1]],end_edge=-(W[-1]-si+1))
+    return res
+def f1_pixels(sd,log,st,expect):
+    anomaly='missing_texture';events,taa,src=e1_run(sd,log,{anomaly})
+    adj=e1_adjusted(events,set(st.get('interrupted_all') or []),taa)
+    W=st['window_sis'];si=st['si']
+    tgt=[(r,a) for r,a in zip(events,adj) if r.get('L') and set(r['L'])&set(W)]
+    out=dict(temporal_aa=taa,temporal_aa_source=src,leg=e1_summary(adj),adjudication=F1_ADJ_RULE)
+    if not tgt:out.update(verdict='UNJUDGEABLE',why='E1 found no fire overlapping the lever window');return out,adj
+    r,a=tgt[0];out['fire']={k:a.get(k) for k in ('ord','label','status','verdict','raw_verdict','raw_fails','adjusted_fails','excused_temporal_aa_flag','start','end','visible','transition',
+                                                 'labelled_not_visible','unlabelled_visible')}
+    if a.get('status')!='OK' or a.get('verdict') in ('NOT-MEASURABLE','CONFOUNDED'):
+        out.update(verdict='UNJUDGEABLE',why=f'E1 reads the lever fire {a.get("verdict") or a.get("status")}: the pixels cannot judge it');return out,adj
+    vis=set(a.get('visible') or []);labset=set(st.get('labelled_sis') or [])
+    vl=sorted(vis&labset);out['labelled_window_edge']=(vl[-1]-max(labset)) if vl and labset else None
+    out['e1_run_window_end']=a.get('end')
+    if expect=='new':
+        ok=a['verdict'] in ('PASS','CENSORED') and a.get('start')==0 and a.get('end')==0 and si not in vis and not (vis&set(st.get('interrupted_sis') or []))
+        out.update(verdict='PASS' if ok else 'FAIL',si_visible=si in vis,rule=f'fire verdict PASS after the F1 adjudication, onset +0, offset +0 against si-1, si below t50, no interrupted frame visible')
+    else:
+        want=-(W[-1]-si+1);want_lnv=list(range(si,W[-1]+1))
+        ok=(a.get('raw_verdict')=='FAIL' and LNV_REASON in (a.get('raw_fails') or []) and a.get('labelled_not_visible')==want_lnv
+            and out['labelled_window_edge']==want and a.get('start')==0)
+        out.update(verdict='CANFAIL' if ok else 'NOT-CANFAIL',want_edge=want,want_labelled_not_visible=[si,W[-1]],
+                   rule=(f'E1 FAIL on the lever fire with "{LNV_REASON}" on exactly si {si}..{W[-1]}; the last pixel-visible LABELLED frame is si-1, so the '
+                         f'offset edge inside the label window is {want}; onset +0. E1\'s own run-window end is reported, not judged: with the whole labelled '
+                         'off-half effect-free, E1 scales its off-half by noise and can read post-window noise frames as visible (the G419 class)'))
+    return out,adj
+def f1_check(sd,log,L,expect):
+    st=f1_structure(sd,log,L,expect);out=dict(kind='F1',expect=expect,structure=st)
+    if st['invalid']:
+        out.update(verdict='INVALID',why=st['invalid']);return out
+    px,adj=f1_pixels(sd,log,st,expect);out['pixels']=px;out['label_rule']=label_rule(sd)
+    struct_ok=all(v['pass_'] for v in st['checks'].values());others=[x for x in adj if x.get('verdict')=='FAIL' and not (x.get('label') and set(range(x['label'][0],x['label'][1]+1))&set(st['window_sis']))]
+    out['other_fires']=dict(fails=[{k:x.get(k) for k in ('ord','label','adjusted_fails')} for x in others][:6],judged=px['leg']['judged'])
+    if expect=='new':
+        reasons_=[k for k,v in st['checks'].items() if not v['pass_']]
+        if px['verdict']=='UNJUDGEABLE':v='UNJUDGEABLE-PIXEL' if struct_ok else 'FAIL'
+        elif struct_ok and px['verdict']=='PASS' and not others and px['leg']['judged']>=8 and out['label_rule']['pass_']:v='PASS'
+        else:v='FAIL'
+        if px['verdict']=='FAIL':reasons_.append('pixels: '+px['rule'])
+        if others:reasons_.append(f'{len(others)} other fire(s) FAIL E1')
+        if px['leg']['judged']<8:reasons_.append(f'judged {px["leg"]["judged"]} < 8')
+        if not out['label_rule']['pass_']:reasons_.append('verify_capture --label-rule: '+str(out['label_rule']['verdict']))
+        out.update(verdict=v,fail_reasons=reasons_)
+    else:
+        reasons_=[k for k,v in st['checks'].items() if not v['pass_']]
+        if px['verdict']!='CANFAIL':reasons_.append('pixels: '+px.get('rule',px.get('why','')))
+        out.update(verdict='CANFAIL-PROVEN' if (struct_ok and px['verdict']=='CANFAIL') else 'CANFAIL-NOT-PROVEN',fail_reasons=reasons_,
+                   note='the label-rule is structural and reads a consistent old-binary session as NO MISMATCH; only the pixels see this can-fail')
+    return out
+def nanite_check(sd,log,mode,allow_reason_lines=None):
+    rs=jl(Path(sd)/'run_summary.json');rows=read_rows(sd);an=jl(Path(sd)/'annotation.json')
+    un=UNMEAS_NANITE_RX.findall(log or '');ref=REFUSED_RX.findall(log or '');end=NANITE_END_RX.findall(log or '')
+    rb=READBACK_RX.findall(log or '');cur=CURRENT_RX.findall(log or '');unav={int(x) for x in UNAVAIL_RX.findall(log or '')}
+    refused_actors=sorted({x[0] for x in ref});sites=dict(collections.Counter(x[2] for x in ref))
+    res=dict(kind='NANITE',mode=mode,refused_nanite=rs.get('refused_nanite'),nanite_target_policy=rs.get('nanite_target_policy'),
+             unmeasurable_targets_admitted=rs.get('unmeasurable_targets_admitted'),census_unmeasurable_nanite=rs.get('census_unmeasurable_nanite'),
+             reason_nanite_lines=len(un),reason_nanite_actors=sorted(set(un)),refused_lines=len(ref),refused_actors=refused_actors,refused_sites=sites,
+             run_end=[dict(distinct=int(a),refusals=int(b),setting=s) for a,b,s in end],readback=rb,current=cur,checks={},notes=[])
+    def chk(name,ok,detail=None):res['checks'][name]=dict(pass_=bool(ok),detail=detail)
+    missing=[k for k in ('refused_nanite','nanite_target_policy','unmeasurable_targets_admitted') if k not in rs]
+    if missing:
+        res.update(verdict='INVALID',why=f'run_summary lacks {missing}: not a 090-05 artifact (a pre-090-05 build writes no Nanite policy keys)');return res
+    lab_rows=[r for r in rows if any(a.get('labelled') is True for a in (r.get('anomalies') or []))]
+    un_rows=[r for r in lab_rows if r.get('mask_state') not in ('present','empty')]
+    g295=[r['session_index'] for r in un_rows if r['session_index'] in unav and not any(a.get('target_name') in refused_actors or a.get('target_name') in set(un) for a in (r.get('anomalies') or []) if a.get('labelled') is True)]
+    bad=[r['session_index'] for r in un_rows if r['session_index'] not in set(g295)]
+    res.update(labelled_rows=len(lab_rows),unmeasured_labelled_rows=len(un_rows),g295_rows=g295[:20],unmeasured_not_g295=bad[:20])
+    if mode=='skip':
+        chk('policy_refused_compiled',rs.get('nanite_target_policy')=='refused(compiled)',rs.get('nanite_target_policy'))
+        chk('no_reason_nanite_line',not un,sorted(set(un))[:6])
+        chk('admitted_zero',rs.get('unmeasurable_targets_admitted')==0,rs.get('unmeasurable_targets_admitted'))
+        chk('run_end_line_matches',bool(end) and int(end[-1][0])==rs.get('refused_nanite') and end[-1][2]==rs.get('nanite_target_policy'),res['run_end'])
+        chk('refused_lines_match_count',len(refused_actors)==rs.get('refused_nanite'),dict(actors=refused_actors,run_summary=rs.get('refused_nanite')))
+        lab_on_refused=[r['session_index'] for r in lab_rows if any(a.get('target_name') in refused_actors for a in r.get('anomalies') or [] if a.get('labelled') is True)]
+        chk('no_label_on_a_refused_actor',not lab_on_refused,lab_on_refused[:8])
+        chk('labelled_frames_masked',not bad,dict(unmeasured=bad[:8],g295=g295[:8]))
+        proof=(rs.get('census_unmeasurable_nanite') or 0)>0 or (allow_reason_lines or 0)>0
+        res['nanite_on_screen_proof']=dict(census_unmeasurable_nanite=rs.get('census_unmeasurable_nanite'),allow_leg_reason_nanite_lines=allow_reason_lines,proven=proof)
+        n=rs.get('refused_nanite') or 0
+        if n==0:
+            chk('refused_positive',False,'refused_nanite 0')
+            v='FAIL' if proof else 'UNJUDGEABLE'
+            res['why_zero']=('a Nanite candidate was on screen and nothing was refused' if proof else 'no proof a Nanite actor was on screen: the 0 is blindness, not a pass')
+        else:
+            chk('refused_positive',True,n)
+            ok=all(x['pass_'] for x in res['checks'].values())
+            v='PASS' if ok and not g295 else ('PASS-WITH-G295' if ok else 'FAIL')
+            if not proof:res['notes'].append('refused_nanite > 0 but census_unmeasurable_nanite is 0: the refusals themselves show Nanite actors were candidates')
+        predicted={'SM_Ramp2_UAID_B42E9936F5429ADA00_2086822137','RoomBuilderSquare_C_UAID_00155DE1D4771FCF00_1080865874','BP_SpawnPad_C_UAID_B42E9936F54253D500_1492231360'}
+        res['predicted_actors_refused']=sorted(predicted&set(refused_actors));res['predicted_actors_not_refused']=sorted(predicted-set(refused_actors))
+    else:
+        chk('readback_allowed_console','allowed(console)' in rb,rb[-3:])
+        chk('policy_allowed_console',rs.get('nanite_target_policy')=='allowed(console)',rs.get('nanite_target_policy'))
+        chk('reason_nanite_lines_ge_1',len(un)>=1,len(un))
+        chk('admitted_positive',(rs.get('unmeasurable_targets_admitted') or 0)>0,rs.get('unmeasurable_targets_admitted'))
+        chk('refused_zero',rs.get('refused_nanite')==0 and not ref,dict(run_summary=rs.get('refused_nanite'),lines=len(ref)))
+        adm=set(un);oldc=[]
+        for e in an.get('anomalies') or []:
+            nodes=[x.get('name') for x in ((e.get('affected_objects') or {}).get('nodes') or [])]
+            if set(nodes)&adm:oldc.append(e.get('observability_measured') is False)
+        chk('admitted_events_unmeasured_contract',bool(oldc) and all(oldc),dict(events=len(oldc),observability_measured_false=sum(oldc)))
+        v='PASS' if all(x['pass_'] for x in res['checks'].values()) else 'FAIL'
+    res['verdict']=v;res['fail_reasons']=[k for k,x in res['checks'].items() if not x['pass_']]
+    return res
+def eval_real(L,sd,log):
+    events,taa,src=e1_run(sd,log,{L['anomaly']});adj=e1_adjusted(events,set(),taa);sm=e1_summary(adj)
+    ff=f1_fields(sd,log);lr=label_rule(sd);zc=zero_interrupt_checks(ff)
+    fails=list(zc)
+    if sm['verdict'] not in ('PASS','PASS-WITH-CENSORED'):fails.append(f'E1 {sm["verdict"]}')
+    if sm['judged']<8:fails.append(f'judged {sm["judged"]} < 8')
+    if not sm['all_starts_zero'] or not sm['all_ends_zero']:fails.append(f'edges not all +0: onsets {sm["start"]} offsets {sm["end"]}')
+    if not lr['pass_']:fails.append('label-rule '+str(lr['verdict']))
+    if L.get('aa_off') and taa is not False:fails.append(f'AA-off leg but temporal_aa reads {taa} ({src})')
+    return dict(kind='REAL',e1=sm,e1_fires=adj,temporal_aa=dict(value=taa,source=src),f1=ff,label_rule=lr,verdict='FAIL' if fails else 'PASS',fail_reasons=fails)
+_EV4=None;_GM=None;_KIT=None
+def ev4():
+    global _EV4
+    if _EV4 is None:
+        _EV4=_load('ev894_for_906',R/'089-04-eval.py');_EV4.E9.c.CACHE=c.CACHE/'e1_894'
+    return _EV4
+def gm():
+    global _GM
+    if _GM is None:
+        keep=dict(os.environ)
+        try:_GM=_load('gmode894b_for_906',R/'089-04b-gmode.py')
+        finally:
+            os.environ.clear();os.environ.update(keep)
+        _GM.EV.E9.c.CACHE=c.CACHE/'e1_gm'
+    return _GM
+def kitmod():
+    global _KIT
+    if _KIT is None:
+        _KIT=_load('kit893_for_906',R/'089-03-kit.py');_KIT.c.git_blob=c.blob;_KIT.c.KIT=c.KIT;_KIT.c.CACHE=c.CACHE/'kit'
+    return _KIT
+def eval_m53f(L,sd,log):
+    r=ev4().leg_m53(dict(L),sd,log,None,label_rule,fixture=True)
+    ff=f1_fields(sd,log);zc=zero_interrupt_checks(ff);ed=r.get('edges') or {}
+    fails=list(r.get('fail_reasons') or [])+zc
+    if (ed.get('onsets') or 0)<16 or (ed.get('offsets') or 0)<16:fails.append(f'judged onsets {ed.get("onsets")} / offsets {ed.get("offsets")} < 16')
+    v='FAIL' if fails else ('PASS' if r.get('m53_verdict')=='PASS' else r.get('m53_verdict'))
+    keep={k:r.get(k) for k in ('e1','edges','not_measurable','mode_source','label_rule','labelled_membership','m53_verdict','e2_disagreements','findings')}
+    keep['rows']={k:(v_.get('verdict') if isinstance(v_,dict) else v_) for k,v_ in (r.get('rows') or {}).items()}
+    return dict(kind='M53F',f1=ff,verdict=v,fail_reasons=fails,**keep)
+def eval_mode(L,sd,log,null_sd):
+    acts=gm().acts_json()
+    if L['role']=='NULL':
+        r=ev4().leg_null(dict(L),sd,log,label_rule);return dict(kind='GMODE-NULL',verdict=r.get('m53_verdict'),fail_reasons=r.get('fail_reasons'),mode_source=r.get('mode_source'),label_rule=r.get('label_rule'))
+    if not null_sd:return dict(kind='GMODE',verdict='NOT-RUN',why=f'its null {L["null"]} has no session')
+    r=gm().mode_leg_family(sd,null_sd,acts,log,L['mode'],L['seed']);lr=label_rule(sd)
+    return dict(kind='GMODE',verdict=r.get('verdict'),summary=gm().summarize(r),label_rule=lr,fail_reasons=r.get('reasons'))
+def null_as_modes(uv_sd,n_sd):
+    try:
+        nm=ev4().null_modes(uv_sd,n_sd,gm().acts_json(),777)
+        return {k:dict(pass_=v.get('pass_'),reasons=v.get('reasons'),frames=v.get('frames')) for k,v in nm.items()}
+    except Exception as ex:return dict(error=f'{type(ex).__name__}: {ex}')
+def eval_m52(L,sd,log,null_sd):
+    a=E.m52_leg(sd,null_sd,log);cover=E.gt_leg_coverage(sd,null_sd) if null_sd else dict(covered=None,reason='no null session')
+    sm=E.summarize_rows_v2(a['rows'],cover);ff=f1_fields(sd,log);lr=label_rule(sd);rs=jl(Path(sd)/'run_summary.json')
+    fails=zero_interrupt_checks(ff)
+    if sm['leg_verdict']!='PASS' and not str(sm['leg_verdict']).startswith('PASS'):fails.append(f'E1 aligned {sm["leg_verdict"]}')
+    if (sm.get('unjudgeable') or {}).get('n'):fails.append(f'{sm["unjudgeable"]["n"]} UNJUDGEABLE fire(s)')
+    if cover.get('covered') is not True:fails.append(f'null coverage {cover.get("covered")}: {cover.get("reason","")}')
+    if L['leg']=='B9' and (sm.get('judgeable') or 0)<16:fails.append(f'judged {sm.get("judgeable")} < 16')
+    if 'off16' in L.get('readback',[]) and rs.get('label_transition_off_frames')!=16:fails.append(f'label_transition_off_frames {rs.get("label_transition_off_frames")} != 16')
+    if not lr['pass_']:fails.append('label-rule '+str(lr['verdict']))
+    t50=sm.get(E.RELEASE) or {}
+    return dict(kind='M52',verdict='FAIL' if fails else 'PASS',fail_reasons=fails,e1=dict(leg_verdict=sm['leg_verdict'],judgeable=sm.get('judgeable'),t50=t50,unjudgeable=sm.get('unjudgeable')),
+                null_coverage=cover,partial=E.partial_summary(a['rows']),f1=ff,label_rule=lr)
+def eval_b5(L,sd,log,on_sds):
+    ref=next((x for x in on_sds if x),None);r=E.null_check_v2(sd,ref,LG.ROCK)
+    ts=[x.get('t') for x in E.sess(sd).rows if x.get('t') is not None];nt=[min(ts),max(ts)] if ts else None
+    fails=[] if r.get('pass_') else ['null_check_v2 FAIL']
+    if not nt or nt[1]<60.0:fails.append(f'null game time {nt} does not reach 60 s')
+    return dict(kind='M52-NULL',verdict='FAIL' if fails else 'PASS',fail_reasons=fails,null=r,null_t=nt,label_rule=label_rule(sd))
+def kit_office(sd,out):
+    try:
+        k=kitmod();r=k.office(str(sd),str(out));return dict(summary=r.get('summary'),seconds=r.get('seconds'),out=str(out))
+    except BaseException as ex:return dict(error=f'{type(ex).__name__}: {ex}')
+def kit_aligned(sd,null_sd,out):
+    try:
+        k=kitmod();r=k.aligned(str(sd),str(null_sd),str(out));return dict(summary=r.get('summary'),seconds=r.get('seconds'),out=str(out))
+    except BaseException as ex:return dict(error=f'{type(ex).__name__}: {ex}')
+def evaluate_leg(L,sd,log,sessions,logs,kit_dir=None):
+    """Dispatch one leg: sessions / logs map leg id -> accepted session dir / log text (for nulls and the Nanite pair)."""
+    g=L['group'];t0=time.time()
+    if sd is None:return dict(verdict='NO-SESSION')
+    try:
+        if g=='A_REAL':r=eval_real(L,sd,log)
+        elif g=='B_M53F':r=eval_m53f(L,sd,log)
+        elif g=='B_GMODE':r=eval_mode(L,sd,log,sessions.get(L.get('null')))
+        elif g in ('C_F1','C_F1_OLD'):r=f1_check(sd,log,L,'new' if L['binary']=='NEW' else 'old')
+        elif g=='D_NANITE':
+            al=UNMEAS_NANITE_RX.findall(logs.get('NANITE_ALLOW1') or '') if L['leg']=='NANITE_SKIP_DEFAULT' else None
+            r=nanite_check(sd,log,'skip' if L['leg']=='NANITE_SKIP_DEFAULT' else 'allow',allow_reason_lines=len(al) if al is not None else None)
+            r['label_rule']=label_rule(sd)
+            if not r['label_rule']['pass_'] and r.get('verdict') in ('PASS','PASS-WITH-G295'):r['verdict']='FAIL';r.setdefault('fail_reasons',[]).append('label-rule '+str(r['label_rule']['verdict']))
+        elif g=='E_M52':
+            r=eval_b5(L,sd,log,[sessions.get('B0'),sessions.get('B9')]) if L['role']=='NULL' else eval_m52(L,sd,log,sessions.get(L.get('null')))
+        else:r=dict(verdict='NOT-EVALUATED')
+    except BaseException as ex:
+        import traceback;r=dict(verdict='ERROR',error=traceback.format_exc()[-1500:])
+    if kit_dir:c.guard_write(Path(kit_dir)/'x');Path(kit_dir).mkdir(parents=True,exist_ok=True)
+    if kit_dir and g in ('A_REAL','B_M53F','C_F1','C_F1_OLD'):
+        r['kit_office']=kit_office(sd,Path(kit_dir)/f'{L["leg"]}.office.json')
+    if kit_dir and g=='E_M52' and L['role']!='NULL' and sessions.get(L.get('null')):
+        r['kit_gt']=kit_aligned(sd,sessions.get(L['null']),Path(kit_dir)/f'{L["leg"]}.aligned.json')
+    r['seconds']=round(time.time()-t0,1);r['evaluator']=EVALUATOR;return r

@@ -1,0 +1,15 @@
+$ErrorActionPreference = 'Stop'
+$ev = 'D:\IntrusiveAnomalies\_reviews\081-44-evidence'
+$proj = 'E:\IA_BuildCache\_r44_host\StackOBot\StackOBot.uproject'
+foreach ($t in 'StackOBot','StackOBotEditor') {
+    if ((Get-PSDrive E).Free -lt 15GB -or (Get-PSDrive D).Free -lt 15GB) { throw 'Disk floor' }
+    $log = "$ev\build-$t.log"
+    if (Test-Path -LiteralPath $log) { throw "Existing build log $log" }
+    $t0 = Get-Date
+    & D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat $t Win64 Development "-project=$proj" -waitmutex *> $log
+    $code = $LASTEXITCODE
+    $line = "{0} exit={1} seconds={2:N0} start={3:o} end={4:o}" -f $t, $code, ((Get-Date) - $t0).TotalSeconds, $t0, (Get-Date)
+    Add-Content -Path "$ev\build-status.txt" -Value $line
+    if ($code -ne 0) { Add-Content -Path "$ev\build-status.txt" -Value 'STOPPED'; exit $code }
+}
+Add-Content -Path "$ev\build-status.txt" -Value 'ALL-DONE'

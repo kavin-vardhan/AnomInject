@@ -1,0 +1,72 @@
+import collections
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+UP = r'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealPak.exe'
+EV = Path(r'D:\IntrusiveAnomalies\_reviews\084-08b-evidence')
+OLD = Path(r'D:\IntrusiveAnomalies\_binary_baselines\m52fix-cook-4BF63FB8')
+NEW = Path(r'E:\IA_BuildCache\_r84_cookout_e1\Windows\StackOBot\Content\Paks')
+RX = re.compile(r'"([^"]+)" offset: \d+, size: (\d+) bytes, hash: ([0-9A-F]+)')
+PRX = re.compile(r'"([^"]+)" offset: \d+, size: (\d+) bytes, sha1: ([0-9A-F]+)')
+
+
+def listing(path, tag):
+    out = EV / f'list-{tag}.txt'
+    with open(out, 'w', encoding='utf-8') as f:
+        rc = subprocess.run([UP, str(path), '-List'], stdout=f, stderr=subprocess.STDOUT).returncode
+    txt = out.read_text(encoding='utf-8', errors='replace')
+    named = {}
+    anon = collections.Counter()
+    for m in RX.finditer(txt):
+        name, size, h = m.group(1), int(m.group(2)), m.group(3)
+        if name.startswith('<'):
+            anon[(name, h, size)] += 1
+        else:
+            named[name] = (size, h)
+    if not named:
+        for m in PRX.finditer(txt):
+            named[m.group(1)] = (int(m.group(2)), m.group(3))
+    return rc, named, anon, len(txt.splitlines())
+
+
+def diff(old, new):
+    ro, no, ao, lo = old
+    rn, nn, an, ln = new
+    added = sorted(set(nn) - set(no))
+    removed = sorted(set(no) - set(nn))
+    changed = sorted(k for k in set(no) & set(nn) if no[k] != nn[k])
+    same = len(set(no) & set(nn)) - len(changed)
+    a_add = sum((an - ao).values())
+    a_rem = sum((ao - an).values())
+    return dict(rc=[ro, rn], lines=[lo, ln], named_old=len(no), named_new=len(nn), same=same, added=added, removed=removed,
+                changed=[dict(name=k, old=no[k], new=nn[k]) for k in changed], anon_old=sum(ao.values()), anon_new=sum(an.values()),
+                anon_added=a_add, anon_removed=a_rem)
+
+
+def main():
+    res = {}
+    res['utoc'] = diff(listing(OLD / 'StackOBot-Windows.utoc', 'utoc-d1'), listing(NEW / 'StackOBot-Windows.utoc', 'utoc-e1'))
+    res['pak'] = diff(listing(OLD / 'StackOBot-Windows.pak', 'pak-d1'), listing(NEW / 'StackOBot-Windows.pak', 'pak-e1'))
+    fx = '/Content/AnomalyFixtures/'
+    u = res['utoc']
+    res['verdict'] = dict(
+        utoc_removed_none=not u['removed'],
+        utoc_added_only_fixture=all(fx in a for a in u['added']),
+        utoc_changed_only_shader_meta=all(re.search(r'ShaderArchive|ShaderAssetInfo|ushaderbytecode|AssetRegistry|\.upipelinecache', c['name']) for c in u['changed']),
+        utoc_anon_removed_none=u['anon_removed'] == 0,
+        pak_removed_none=not res['pak']['removed'],
+        pak_added_none_outside_fixture=all(fx in a for a in res['pak']['added']),
+        pak_changed=[c['name'] for c in res['pak']['changed']])
+    (EV / 'container-diff.json').write_text(json.dumps(res, indent=1), encoding='utf-8')
+    print(json.dumps(dict(utoc=dict((k, v) for k, v in u.items() if k != 'changed') | dict(changed=[c['name'] for c in u['changed']]),
+                          pak=dict((k, v) for k, v in res['pak'].items() if k != 'changed') | dict(changed=[c['name'] for c in res['pak']['changed']]),
+                          verdict=res['verdict']), indent=1))
+    v = res['verdict']
+    return 0 if all(x for k, x in v.items() if k != 'pak_changed') else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

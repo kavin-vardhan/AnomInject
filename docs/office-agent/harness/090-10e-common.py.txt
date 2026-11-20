@@ -1,0 +1,33 @@
+r"""090-10e bench harness. Reuses 090-10c-common (idle gate with the clarified open-but-idle editor rule, editor-DLL swap, PIE
+driver, staged runner, pixel reader) with its own work dir E:\IA_BuildCache\_r910e. Nothing here kills a process it did not start."""
+from pathlib import Path
+import importlib.util, json, sys
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+_s = importlib.util.spec_from_file_location('c910c', str(R / '090-10c-common.py'))
+C = importlib.util.module_from_spec(_s); _s.loader.exec_module(C)
+b2 = C.b2
+c = C.c
+WORK = Path(r'E:\IA_BuildCache\_r910e'); OUT = WORK / 'out'; EV = WORK / 'ev'; PY = WORK / 'py'
+for _m in (c, b2, C):
+    _m.WORK = WORK; _m.OUT = OUT; _m.EV = EV
+b2.PY = PY
+C.PY = PY
+for _p in sorted((WORK / 'builds').glob('*')) if (WORK / 'builds').exists() else []:
+    if (_p / 'StackOBot.exe').exists():
+        C.add_build(c.sha8(_p / 'StackOBot.exe'), _p)
+_e = importlib.util.spec_from_file_location('e910e', str(R / '090-10e-edges.py'))
+E = importlib.util.module_from_spec(_e); _e.loader.exec_module(E)
+
+
+def run(label, spec):
+    rec = C.run(label, spec)
+    sess = c.find_session(label)
+    if sess:
+        try:
+            r = E.edges(sess)
+            rec['edges'] = dict(summary=E.summary(r), events=[{k: v for k, v in x.items() if k != 'diffs'} for x in r['events']])
+        except Exception as ex:
+            rec['edges_error'] = f'{type(ex).__name__}: {ex}'
+        c.jsave(WORK / 'runs' / f'{label}.json', rec)
+    return rec

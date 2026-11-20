@@ -1,0 +1,40 @@
+import hashlib,importlib.util,json,subprocess,sys
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+C=load('c_s20',R/'082-14-s20-common.py');c1=C.c1;TK=load('tok_s20',R/'082-14-s20-tokens.py')
+out_dir=Path(sys.argv[1]) if len(sys.argv)>1 else C.RUN;out_dir.mkdir(parents=True,exist_ok=True)
+problems=[];notes={}
+def chk(ok,msg):
+    if not ok:problems.append(msg)
+bp=C.EV/'boundary.json'
+if not bp.exists():problems.append('no boundary.json - the S2-0 harness is not locked');bd={}
+else:bd=json.loads(bp.read_text())
+head=C.git(C.SRC,'rev-parse',C.FEATURE);origin=C.git(C.SRC,'rev-parse','refs/remotes/origin/'+C.FEATURE)
+chk(head==bd.get('feature_head'),f'feature head {head[:7]} != boundary {str(bd.get("feature_head"))[:7]}')
+chk(head==origin,f'feature head {head[:7]} != origin {origin[:7]}')
+blob=subprocess.check_output(['git','-C',str(C.SRC),'show',f'{head}:{C.PRED}'])
+chk(hashlib.sha256(blob).hexdigest()==bd.get('predictions_sha256'),'predictions at the head != boundary')
+for p,h in (bd.get('harness') or {}).items():
+    q=Path(p) if Path(p).is_absolute() else R/p
+    chk(q.exists() and C.sha(q)==h,f'harness file changed or missing: {p}')
+for k,v in (bd.get('inputs') or {}).items():
+    if isinstance(v,dict) and 'path' in v:chk(Path(v['path']).exists() and C.sha(v['path'])==v['sha256'],f'locked input changed or missing: {k}')
+st=c1.staged_state()
+for k,v in C.STAGED.items():chk(st[k]==v,f'staged {k} {st[k][:8]} != {v[:8]}')
+chk(bd.get('staged')==C.STAGED,'boundary staged set != the harness constant')
+chk(C.git(C.RP,'rev-parse','HEAD')==C.M51_HEAD and C.git(C.RP,'branch','--show-current')=='m51','main checkout moved off m51 53bf725')
+chk(not C.git(C.RP,'diff','--name-only') and not C.git(C.RP,'diff','--cached','--name-only'),'main checkout has tracked modifications')
+chk(not C.git(C.SRC,'diff','--name-only') and not C.git(C.SRC,'diff','--cached','--name-only'),'branch worktree has tracked modifications')
+n=len(list(out_dir.glob('tokens-*.json')));tk=TK.scan(out=out_dir/f'tokens-{n+1}.json')
+chk(tk['ok'],'token scan: '+'; '.join(tk['problems'][:5]))
+notes.update(stub=C.STUB,stub_gates=C.STUB_GATES,run_root=str(C.RUN),tokens=dict(exact=f"{tk['exact_present']}/{tk['exact_total']}",absent_zero=f"{tk['absent_zero']}/{tk['absent_total']}",log=f"{tk['log_present']}/{tk['log_total']}"))
+ours,foreign=c1.classify()
+chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present: '+str([(p['pid'],p['name']) for p in ours]))
+fe=c1.free_gb('E:\\');fd=c1.free_gb('D:\\');notes.update(free_e_gb=fe,free_d_gb=fd)
+chk(fe>=c1.E_FLOOR_GB,f'E: free {fe} GB < {c1.E_FLOOR_GB}');chk(fd>=c1.D_FLOOR_GB,f'D: free {fd} GB < {c1.D_FLOOR_GB}')
+q=c1.quiet()
+out=dict(utc=C.now(),feature_head=head,problems=problems,notes=notes,quiet_now=q['quiet'],blocking=q['blocking'],foreign=[(p['pid'],p['name']) for p in foreign])
+k=len(list(out_dir.glob('preflight*.json')));(out_dir/f'preflight-{k+1}.json').write_text(json.dumps(out,indent=2,default=str))
+print(json.dumps(out,default=str)[:2000]);sys.exit(1 if problems else 0)

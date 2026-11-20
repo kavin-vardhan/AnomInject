@@ -1,0 +1,366 @@
+import ctypes,ctypes.wintypes,datetime,importlib.util,json,os,re,shutil,subprocess,sys,threading,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=_load('c93',R/'089-03-common.py')
+LG=_load('legs93',R/'089-03-legs.py')
+ECHO=['r.TextureStreaming','r.Streaming.UseAllMips','r.Streaming.FramesForFullUpdate','r.Streaming.OverlapAssetAndLevelTicks','r.AntiAliasingMethod','sg.TextureQuality',
+      'IAI.StuckMip.SettleTailFrames','IAI.Label.TransitionOnFrames','IAI.Label.TransitionOffFrames','IAI.Label.TransitionHideFrames',
+      'r.Lumen.DiffuseIndirect.Allow','r.DynamicGlobalIlluminationMethod','r.ReflectionMethod']
+BASE=['r.DefaultFeature.AutoExposure 0','r.EyeAdaptationQuality 0','CaptureBench.Marker 0','CaptureBench.Stall.GameMs 0','IAI.Capture.SVE 1',
+      'IAI.Capture.Delivery 0','IAI.Capture.Pace 1','IAI.Capture.Fps 30','IAI.Bench.SynthTickOrder 0','IAI.Capture.Mask 1','IAI.Capture.TargetMask 1','IAI.Capture.RunLog 1']
+ATTEMPTS=3;PP_CAP=5
+class Stop(Exception):
+    def __init__(self,code,msg):super().__init__(msg);self.code=code;self.msg=msg
+def jload(p,default=None):
+    p=Path(p);return json.loads(p.read_text(encoding='utf-8-sig')) if p.exists() else default
+def jsave(p,v):Path(p).parent.mkdir(parents=True,exist_ok=True);Path(p).write_text(json.dumps(v,indent=1,default=str),encoding='utf-8')
+def find_session(root):
+    root=Path(root)
+    if not root.exists():return None
+    s=[d for d in root.iterdir() if d.is_dir() and d.name.startswith('session_') and (d/'run_summary.json').exists()]
+    return s[0] if len(s)==1 else None
+def manifest(root,exclude=('_leg',)):
+    root=Path(root);out={}
+    for p in sorted(root.rglob('*')):
+        if p.is_file() and not any(part in exclude for part in p.relative_to(root).parts):out[str(p.relative_to(root)).replace('\\','/')]=[p.stat().st_size,(c.sha(p) if not c.STUB else 'stub-size-only')]
+    return out
+class BankError(Exception):pass
+def bank_attempt(label,ev_dir,exe_side,bank=None):
+    exe_side=Path(exe_side);bank=Path(bank or c.BANK);src=exe_side/label;dst=bank/label;ev_dir=Path(ev_dir)
+    rec=dict(label=label,src=str(src),dst=str(dst),utc=c.now())
+    if dst.exists():
+        prev=jload(ev_dir/'bank-manifest.json')
+        if prev and prev.get('verified') and manifest(dst)==prev['manifest'] and not src.exists():return dict(prev,resumed=True)
+        raise BankError(f'bank destination exists without a verified record: {dst}')
+    dst.mkdir(parents=True)
+    if src.exists():shutil.copytree(src,dst,dirs_exist_ok=True,copy_function=(os.link if c.STUB else shutil.copy2))
+    legd=dst/'_leg';legd.mkdir()
+    for f in ('game.log','launch.json','runner.log','command.json'):
+        if (ev_dir/f).exists():shutil.copy2(ev_dir/f,legd/f)
+    ms=manifest(src) if src.exists() else {};md=manifest(dst)
+    rec.update(manifest=md,src_files=len(ms),dst_files=len(md),verified=(ms==md))
+    if not rec['verified']:
+        rec['mismatch']=sorted(k for k in set(ms)|set(md) if ms.get(k)!=md.get(k))[:20]
+        jsave(ev_dir/'bank-manifest.json',rec);raise BankError(f'bank manifest mismatch for {label}: source copy KEPT')
+    if src.exists():
+        shutil.rmtree(src)
+        if src.exists():raise BankError(f'source copy not deleted: {src}')
+        rec['source_deleted']=True
+    else:rec['source_deleted']=None
+    jsave(ev_dir/'bank-manifest.json',rec);jsave(legd/'bank-manifest.json',dict(rec,manifest=None));return rec
+def alias_hardlinks(accepted,alias,bank=None):
+    bank=Path(bank or c.BANK);src=bank/accepted;dst=bank/alias
+    if not src.exists():raise BankError(f'accepted attempt not banked: {src}')
+    files=[p for p in src.rglob('*') if p.is_file()]
+    if dst.exists():
+        ok=all((dst/p.relative_to(src)).exists() and os.stat(dst/p.relative_to(src)).st_ino==os.stat(p).st_ino for p in files)
+        if ok:return dict(alias=str(dst),files=len(files),resumed=True)
+        raise BankError(f'alias exists and is not a hardlink set of {accepted}: {dst}')
+    dst.mkdir(parents=True)
+    for p in files:
+        q=dst/p.relative_to(src);q.parent.mkdir(parents=True,exist_ok=True);os.link(p,q)
+    bad=[str(p.relative_to(src)) for p in files if os.stat(p).st_ino!=os.stat(dst/p.relative_to(src)).st_ino]
+    if bad:raise BankError(f'alias files are not hardlinks: {bad[:5]}')
+    return dict(alias=str(dst),files=len(files),hardlinks=True)
+PP_IDLE_S=60.0;PP_POLL_S=15.0;PP_BUDGET_S=2700.0;PP_SAMPLE_S=0.25;PP_FORCE_SAMPLES=15
+_W=ctypes.wintypes
+class _LII(ctypes.Structure):_fields_=[('cbSize',_W.UINT),('dwTime',_W.DWORD)]
+_U32=ctypes.WinDLL('user32',use_last_error=True);_K32=ctypes.WinDLL('kernel32',use_last_error=True)
+_U32.GetLastInputInfo.argtypes=(ctypes.POINTER(_LII),);_U32.GetLastInputInfo.restype=_W.BOOL
+_U32.GetCursorPos.argtypes=(ctypes.POINTER(_W.POINT),);_U32.GetCursorPos.restype=_W.BOOL
+_U32.GetForegroundWindow.restype=_W.HWND
+_U32.GetWindowThreadProcessId.argtypes=(_W.HWND,ctypes.POINTER(_W.DWORD));_U32.GetWindowThreadProcessId.restype=_W.DWORD
+_K32.GetTickCount.restype=_W.DWORD
+_K32.CreateFileW.argtypes=(_W.LPCWSTR,_W.DWORD,_W.DWORD,_W.LPVOID,_W.DWORD,_W.DWORD,_W.HANDLE);_K32.CreateFileW.restype=_W.HANDLE
+_K32.CloseHandle.argtypes=(_W.HANDLE,);_K32.CloseHandle.restype=_W.BOOL
+def _epoch(s):return datetime.datetime.fromisoformat(str(s).replace('Z','+00:00')).timestamp()
+def _input_reading():
+    x=_LII();x.cbSize=ctypes.sizeof(_LII);ok=_U32.GetLastInputInfo(ctypes.byref(x));n=_K32.GetTickCount()
+    return dict(t=time.time(),input_tick=int(x.dwTime) if ok else None,idle_ms=((n-x.dwTime)&0xFFFFFFFF) if ok else None)
+def _desktop_sample():
+    s=_input_reading();p=_W.POINT();s['cursor']=f'{p.x},{p.y}' if _U32.GetCursorPos(ctypes.byref(p)) else None
+    h=_U32.GetForegroundWindow();pid=_W.DWORD(0)
+    if h:_U32.GetWindowThreadProcessId(h,ctypes.byref(pid))
+    s['fg_pid']=int(pid.value) or None;return s
+class PersonMonitor:
+    def __init__(self,label,interval=PP_SAMPLE_S):
+        self.label=label;self.interval=interval;self.samples=[];self._stop=threading.Event();self._th=None
+    def _loop(self):
+        while True:
+            try:self.samples.append(_desktop_sample())
+            except Exception:pass
+            if self._stop.wait(self.interval):return
+    def __enter__(self):
+        self._th=threading.Thread(target=self._loop,daemon=True);self._th.start();return self
+    def __exit__(self,*a):
+        self._stop.set()
+        if self._th:self._th.join(5)
+        return False
+def person_evidence(launch,mon):
+    if not launch.get('sampling_started_utc'):return dict(person_evidence=False,reasons=[],note='no steady-state span')
+    lo=_epoch(launch['sampling_started_utc']);hi=_epoch((launch.get('anchor_end') or {}).get('utc') or launch.get('finished_utc') or launch['sampling_started_utc'])
+    pid=launch.get('pid');ms=[x for x in mon.samples if lo<=x['t']<=hi];reasons=[]
+    ticks=[x for x in ms if x.get('input_tick') is not None]
+    inputs=sum(1 for a,b in zip(ticks,ticks[1:]) if a['input_tick']!=b['input_tick'] and a.get('fg_pid')==pid and b.get('fg_pid')==pid)
+    foreign_fg=sum(1 for x in ms if x.get('fg_pid') not in (pid,None))
+    if inputs:reasons.append(f'non-harness input while the game held focus: {inputs}')
+    if foreign_fg>PP_FORCE_SAMPLES:reasons.append(f'foreground left the game for {foreign_fg} samples')
+    return dict(person_evidence=bool(reasons),reasons=reasons,samples=len(ms))
+def person_idle():
+    r=_input_reading()
+    if r['idle_ms'] is None:return dict(clear=False,idle_s=None)
+    idle=r['idle_ms']/1000.0
+    return dict(clear=idle>=PP_IDLE_S,idle_s=round(idle,1))
+def pp_gate(where,leg_id=None,sleep=time.sleep,budget=None):
+    waited=0.0;budget=PP_BUDGET_S if budget is None else budget
+    while True:
+        st=person_idle()
+        if st['clear'] or c.STUB:c.log_event('person-present-gate',where=where,leg=leg_id,waited_s=round(waited,1),**st);return st
+        if waited>=budget:c.log_event('person-present-budget-exhausted',where=where,leg=leg_id,**st);raise Stop(4,f'NOT-QUIET: a person is at the PC before {leg_id or where}')
+        dt=max(1.0,min(PP_POLL_S,PP_IDLE_S-(st['idle_s'] or 0.0)));c.log_event('person-present-wait',where=where,leg=leg_id,idle_s=st['idle_s']);sleep(dt);waited+=dt
+def ledger():return jload(c.RUN/'ledger.json',[])
+def ledger_add(row):v=ledger();v.append(row);jsave(c.RUN/'ledger.json',v)
+def start_cmd(L,label):
+    if L['auto']:return f'IAI.Capture.Start {label} png {L["seed"]} {L["frames"]}'
+    return ' '.join([f'IAI.Capture.Start {label} png {L["seed"]} {L["frames"]} {L["anomaly"]} {L["target"]}']+L['start_args'])
+def build_cmds(L,label):
+    return BASE+[f'IAI.Capture.Config {L["cfg"]}']+L['levers']+ECHO+[start_cmd(L,label)]
+def runner_args(L,label,ev_dir,cmds):
+    a=[c.PWSH,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(R/'089-03-run.ps1'),'-Label',label,'-EvDir',str(ev_dir),'-Map',L['map'],'-ExecCmds',', '.join(cmds),'-Kind','capture','-OutLabel',label,'-WaitSec','600']
+    if L.get('extra'):a+=['-ExtraArgs',L['extra']]
+    if c.STUB:a.append('-Stub')
+    return a
+def real_runner(args,runlog):
+    with open(runlog,'w',encoding='utf-8') as f:return subprocess.run(args,stdout=f,stderr=subprocess.STDOUT).returncode
+def validity(L,launch,sess):
+    errs=[]
+    if launch.get('status')!='COMPLETE':errs.append('protocol: '+str(launch.get('error')))
+    fa=launch.get('focus_at_s')
+    if fa is None or fa<0 or fa>=20.0:errs.append(f'A63: focus not held within 20 s (focus_at_s={fa})')
+    cf=launch.get('capture_focus') or [];cf=[cf] if isinstance(cf,dict) else cf
+    if cf and not all(x.get('foreground_pid')==launch.get('pid') for x in cf):errs.append('whole-leg foreground failed')
+    if sess is None:errs.append('artifact: no session with run_summary');return errs
+    rows=[l for l in (sess/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines() if l.strip()] if (sess/'labels.jsonl').exists() else []
+    n=len(rows);pngs=list((sess/'Actual_Frames').glob('*.png'))
+    if n!=L['frames']:errs.append(f'artifact: {n} label rows != {L["frames"]} frames')
+    if len(pngs)!=n:errs.append(f'artifact: {len(pngs)} PNGs != {n} rows')
+    if any(p.stat().st_size==0 for p in pngs):errs.append('artifact: zero-byte PNG')
+    errs+=readback_validity(L,sess)
+    return errs
+def readback_validity(L,sess):
+    errs=[];sm=jload(Path(sess)/'run_summary.json',{}) or {}
+    if L.get('off_frames') is not None and sm.get('label_transition_off_frames')!=L['off_frames']:
+        errs.append(f"readback: label_transition_off_frames {sm.get('label_transition_off_frames')} != {L['off_frames']} (IAI.Label.TransitionOffFrames did not reach the run)")
+    if L.get('group')=='MASK55A':
+        pl=sm.get('mask_tag_peak_live');rc=sm.get('mask_tag_recycles')
+        if not (isinstance(pl,int) and pl>=LG.MASK_MIN_PEAK_LIVE):errs.append(f'mask validity: mask_tag_peak_live {pl} < {LG.MASK_MIN_PEAK_LIVE} (two live mask records never overlapped; 089-01 Route A)')
+        if not (isinstance(rc,int) and rc>=LG.MASK_MIN_RECYCLES):errs.append(f'mask validity: mask_tag_recycles {rc} < {LG.MASK_MIN_RECYCLES}')
+    return errs
+_WNDENUMPROC=ctypes.WINFUNCTYPE(_W.BOOL,_W.HWND,_W.LPARAM)
+_U32.EnumWindows.argtypes=(_WNDENUMPROC,_W.LPARAM);_U32.EnumWindows.restype=_W.BOOL
+_U32.IsWindowVisible.argtypes=(_W.HWND,);_U32.IsWindowVisible.restype=_W.BOOL
+_U32.GetWindowTextLengthW.argtypes=(_W.HWND,);_U32.GetWindowTextLengthW.restype=ctypes.c_int
+_U32.GetWindowTextW.argtypes=(_W.HWND,_W.LPWSTR,ctypes.c_int);_U32.GetWindowTextW.restype=ctypes.c_int
+_U32.GetClassNameW.argtypes=(_W.HWND,_W.LPWSTR,ctypes.c_int);_U32.GetClassNameW.restype=ctypes.c_int
+_U32.PostMessageW.argtypes=(_W.HWND,_W.UINT,_W.WPARAM,_W.LPARAM);_U32.PostMessageW.restype=_W.BOOL
+def security_windows():
+    out=[]
+    def cb(h,l):
+        try:
+            if _U32.IsWindowVisible(h):
+                n=_U32.GetWindowTextLengthW(h);buf=ctypes.create_unicode_buffer(n+1);_U32.GetWindowTextW(h,buf,n+1)
+                if 'Windows Security' in buf.value:
+                    pid=_W.DWORD(0);_U32.GetWindowThreadProcessId(h,ctypes.byref(pid));cls=ctypes.create_unicode_buffer(256);_U32.GetClassNameW(h,cls,256)
+                    out.append(dict(hwnd=int(h),pid=int(pid.value),title=buf.value,cls=cls.value))
+        except Exception:pass
+        return True
+    _U32.EnumWindows(_WNDENUMPROC(cb),0);return out
+def firewall_rule_count(name='StackOBot'):
+    try:
+        s=subprocess.check_output([c.PWSH,'-NoProfile','-Command',f"@(Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object {{ $_.DisplayName -like '*{name}*' }}).Count"],timeout=120).decode().strip()
+        return int(s.splitlines()[-1])
+    except Exception as ex:return f'unread: {type(ex).__name__}'
+def run_part0(L,waitsec=150):
+    rows=[x for x in ledger() if x['leg']==L['leg']]
+    if any(x['status']=='ACCEPTED' for x in rows):return 'done'
+    if len([x for x in rows if x['status']=='INVALID'])>=ATTEMPTS:return 'not-run'
+    pkg=L['pkg'];cfg=c.PART0[pkg];n=len(rows)+1;label=f'{c.BANK_PREFIX}{L["leg"]}_A{n}';ev=c.RUN/label
+    if ev.exists():raise Stop(10,f'evidence dir exists for a new attempt: {ev}')
+    ev.mkdir(parents=True);row=dict(leg=L['leg'],group=L['group'],label=label,attempt=n,started=c.now(),kind='part0',pkg=pkg)
+    if c.STUB:
+        src=c.PART0_STANDIN[pkg]
+        for f in ('game.log','launch.json'):shutil.copy2(src/f,ev/f)
+        if (src/'capture').exists():shutil.copytree(src/'capture',ev/'capture')
+        row.update(status='ACCEPTED',finished=c.now(),stub_standin=str(src),note='STUB: the 084-09 night Part 0 artifacts stand in; nothing was launched');ledger_add(row);return 'stub'
+    exe=Path(cfg['exe'])
+    if not exe.exists() or c.sha(exe)[:8].upper()!=cfg['exe8']:
+        row.update(status='INVALID',errors=[f'package {pkg} exe missing or not {cfg["exe8"]}: {exe}']);ledger_add(row);return 'invalid'
+    pp_gate('before-part0',L['leg'])
+    q=c.quiet()
+    if not q['quiet']:raise Stop(4,f'NOT-QUIET before {L["leg"]}: {q["blocking"]}')
+    before=security_windows();rb=firewall_rule_count()
+    args=[c.PWSH,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(R/'089-03-part0.ps1'),'-Exe',str(exe),'-EvDir',str(ev),'-WaitSec',str(waitsec)]
+    if cfg['census']:args.append('-Census')
+    with open(ev/'runner.log','w',encoding='utf-8') as f:rc=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT).returncode
+    time.sleep(3);after=security_windows();seen={w['hwnd'] for w in before}
+    closed=[dict(w,close_posted=bool(_U32.PostMessageW(w['hwnd'],0x0010,0,0))) for w in after if w['hwnd'] not in seen]
+    time.sleep(3);ra=firewall_rule_count();launch=jload(ev/'launch.json',{}) or {}
+    ok=rc==0 and launch.get('exited_after_close') is True and not launch.get('killed_by_pid') and (ev/'game.log').exists()
+    row.update(status='ACCEPTED' if ok else 'INVALID',finished=c.now(),runner_exit=rc,security_windows_before=before,security_windows_new_closed=closed,
+               firewall_rules_before_after=[rb,ra],errors=[] if ok else [f'part0 runner exit {rc} / launch {json.dumps({k:launch.get(k) for k in ("exited_after_close","killed_by_pid","exited_early")})}'])
+    ledger_add(row);c.log_event('part0',leg=L['leg'],status=row['status'],new_prompts_closed=len(closed));return 'accepted' if ok else 'invalid'
+LR_RX=re.compile(r'LABEL-RULE: (NO MISMATCH under the (\w+) rule|MISMATCH - .*|CANNOT RUN - .*)')
+def label_rule(sd):
+    sd=Path(sd)
+    p=subprocess.run([c.PYTHON,str(c.VERIFY_CAPTURE),'--dir',str(sd),'--label-rule'],capture_output=True,text=True,encoding='utf-8',errors='replace')
+    out=(p.stdout or '')+(p.stderr or '');m=LR_RX.findall(out)
+    rule=m[-1][1] if m and m[-1][1] else None
+    return dict(exit=p.returncode,pass_=p.returncode==0,rule=rule,verdict=m[-1][0] if m else None,tail=out.strip().splitlines()[-12:],
+                tool=str(c.VERIFY_CAPTURE),tool_blob=c.git_blob(c.VERIFY_CAPTURE)[:10])
+def run_leg(L,runner=real_runner,stub_session=None):
+    rows=[x for x in ledger() if x['leg']==L['leg']]
+    if any(x['status']=='ACCEPTED' for x in rows):return 'done'
+    if any(x['status'].startswith('NOT-RUN') for x in rows):return 'not-run'
+    while True:
+        rows=[x for x in ledger() if x['leg']==L['leg']];bad=[x for x in rows if x['status']=='INVALID'];env=[x for x in rows if x['status']=='ENV-INTERRUPTED']
+        if len(env)>=PP_CAP:raise Stop(4,f'NOT-QUIET: {L["leg"]} has {len(env)} ENV-INTERRUPTED attempts')
+        if len(bad)>=ATTEMPTS:
+            ledger_add(dict(leg=L['leg'],status='NOT-RUN',recorded=c.now(),reason='; '.join('|'.join(x.get('errors') or []) for x in bad)));return 'not-run'
+        pp_gate('before-attempt',L['leg'])
+        if not c.STUB:
+            q=c.quiet()
+            if not q['quiet']:raise Stop(4,f'NOT-QUIET before {L["leg"]}: {q["blocking"]}')
+        n=len(rows)+1;label=f'{c.BANK_PREFIX}{L["leg"]}_A{n}';ev=c.RUN/label
+        if ev.exists():raise Stop(10,f'evidence dir exists for a new attempt: {ev}')
+        cmds=build_cmds(L,label);args=runner_args(L,label,ev,cmds);t0=c.now()
+        with PersonMonitor(label) as mon:rc=runner(args,c.RUN/f'runner-{label}.log')
+        ev.mkdir(parents=True,exist_ok=True);jsave(ev/'command.json',dict(args=args,cmds=cmds,leg=L))
+        if (c.RUN/f'runner-{label}.log').exists():shutil.copy2(c.RUN/f'runner-{label}.log',ev/'runner.log')
+        launch=jload(ev/'launch.json',{}) or {}
+        row=dict(leg=L['leg'],group=L['group'],label=label,attempt=n,started=t0,finished=c.now(),runner_exit=rc)
+        exe_side=c.EXE_SIDE
+        if c.STUB:
+            if stub_session:
+                d=exe_side/label;shutil.copytree(stub_session,d/Path(stub_session).name,copy_function=os.link)
+                for cand in (Path(stub_session).parent/'_leg_game.log',Path(stub_session).parent/'_leg'/'game.log',Path(stub_session)/'anomaly_log.txt'):
+                    if cand.exists():shutil.copy2(cand,ev/'game.log');break
+                launch.update(status='COMPLETE',focus_at_s=1.0,pid=0,capture_focus=[],stub_session=str(stub_session));jsave(ev/'launch.json',launch)
+            else:
+                row.update(status='STUB-NO-SESSION',command_chars=len(', '.join(cmds)));ledger_add(row);return 'stub'
+        if 'FOREIGN-EDITOR-APPEARED' in str(launch.get('error') or ''):row.update(status='INVALID-FOREIGN',errors=['foreign editor appeared']);ledger_add(row);raise Stop(5,f'INVALID-FOREIGN {label}')
+        if launch.get('status')=='REFUSED-NOT-IDLE':row.update(status='INVALID-NOT-IDLE');ledger_add(row);raise Stop(4,f'NOT-QUIET at launch of {label}')
+        try:bk=bank_attempt(label,ev,exe_side)
+        except BankError as ex:row.update(status='INVALID-BANK',errors=[str(ex)]);ledger_add(row);raise Stop(6,str(ex))
+        bsd=find_session(c.BANK/label)
+        errs=[] if c.STUB else validity(L,launch,bsd)
+        pe=person_evidence(launch,mon) if not c.STUB else dict(person_evidence=False,reasons=[])
+        row.update(person_evidence=pe['person_evidence'],person_reasons=pe['reasons'],bank_files=bk.get('dst_files'))
+        if errs:
+            st='ENV-INTERRUPTED' if pe['person_evidence'] and all(e.startswith(('whole-leg','A63')) for e in errs) else 'INVALID'
+            row.update(status=st,errors=errs);ledger_add(row);print(json.dumps(dict(label=label,status=st,errors=errs)),flush=True);continue
+        try:al=alias_hardlinks(label,c.BANK_PREFIX+L['leg'])
+        except BankError as ex:row.update(status='INVALID-BANK',errors=['alias: '+str(ex)]);ledger_add(row);raise Stop(6,'alias: '+str(ex))
+        row.update(status='ACCEPTED',alias=al.get('alias'),session=str(bsd) if bsd else None);ledger_add(row);print(json.dumps(dict(label=label,status='ACCEPTED')),flush=True)
+        return 'accepted'
+def accepted(leg_id):
+    r=[x for x in ledger() if x['leg']==leg_id and x['status']=='ACCEPTED'];return r[-1] if r else None
+def leg_session(leg_id):
+    a=accepted(leg_id);return find_session(c.BANK/a['label']) if a else None
+def log_text(p):
+    p=Path(p);return p.read_text(encoding='utf-8-sig',errors='replace') if p.exists() else ''
+def leg_log(leg_id):
+    a=accepted(leg_id)
+    if not a:return ''
+    t=log_text(c.RUN/a['label']/'game.log')
+    return t or log_text(c.BANK/a['label']/'_leg'/'game.log')
+def leg_launch(leg_id):
+    a=accepted(leg_id);return jload(c.RUN/a['label']/'launch.json',{}) if a else {}
+def backup_m53():
+    dst=c.M53_BACKUP
+    if dst.exists():
+        st={k:c.sha(dst/k) for k in c.KEYS if (dst/k).exists()}
+        if st!=c.M53:raise Stop(10,f'M53 backup exists and does not match the m53 set: {st}')
+        return dict(resumed=True,path=str(dst))
+    if c.staged_state()!=c.M53:raise Stop(10,'refusing to back up: the staged set is not the m53 set')
+    for k in c.KEYS:(dst/k).parent.mkdir(parents=True,exist_ok=True);copy_retry(c.STAGED_ROOT/k,dst/k)
+    st={k:c.sha(dst/k) for k in c.KEYS}
+    if st!=c.M53:raise Stop(10,'M53 backup copy does not verify')
+    return dict(path=str(dst),verified=True)
+def copy_retry(src,dst,tries=None,backoff=None,sleep=time.sleep,log=None):
+    tries=tries or c.RESTORE_TRIES;backoff=backoff or c.RESTORE_BACKOFF_S;errs=[]
+    for i in range(tries):
+        try:
+            shutil.copy2(src,dst)
+            if log is not None:log.append(dict(dst=str(dst),attempt=i+1,ok=True,errors=errs[:]))
+            return i+1
+        except Exception as ex:
+            errs.append(f'{type(ex).__name__}: {ex}')
+            if i+1>=tries:
+                if log is not None:log.append(dict(dst=str(dst),attempt=i+1,ok=False,errors=errs[:]))
+                raise Stop(11,f'copy {src} -> {dst} failed {tries} times: {errs[-1]}')
+            sleep(backoff[min(i,len(backoff)-1)])
+def hold_exclusive(path,seconds):
+    ready=threading.Event();done=threading.Event();info={}
+    def run():
+        h=_K32.CreateFileW(str(path),0x80000000,0,None,3,0x80,None)
+        info['handle_ok']=h not in (None,ctypes.c_void_p(-1).value) and h!=-1 and h!=0xFFFFFFFFFFFFFFFF
+        info['err']=ctypes.get_last_error();ready.set();time.sleep(seconds)
+        if info['handle_ok']:_K32.CloseHandle(h)
+        done.set()
+    threading.Thread(target=run,daemon=True).start();ready.wait(5);return info,done
+def _stub_sources():
+    root=c.RUN/'_stub_sets';want={}
+    for name in ('M53','FIX'):
+        s={}
+        for k in c.KEYS:
+            p=root/name/k;p.parent.mkdir(parents=True,exist_ok=True)
+            if not p.exists():p.write_bytes((f'{name}|{k}|stub bytes for the G355 restore proof|'*64).encode())
+            s[k]=p
+        want[name]=(s,{k:c.sha(s[k]) for k in c.KEYS})
+    return want
+def stage(name,tag,restore=False):
+    rec=dict(set=name,tag=tag,utc=c.now(),stub=c.STUB);copies=[]
+    if c.STUB:
+        sets=_stub_sources();src,want=sets[name];root=c.RUN/'_stub_staged'
+        if not (root/c.KEYS[0]).exists():
+            for k in c.KEYS:(root/k).parent.mkdir(parents=True,exist_ok=True);shutil.copy2(sets['M53'][0][k],root/k)
+        before={k:c.sha(root/k) for k in c.KEYS};lock=None
+        inj=float(os.environ.get('IAI_R93_INJECT_LOCK_S','0') or 0)
+        if restore and inj>0:
+            info,done=hold_exclusive(root/c.KEYS[0],inj);lock=dict(file=c.KEYS[0],seconds=inj,**info);rec['injected_lock']=lock
+        for k in c.KEYS:
+            if before[k]==want[k]:continue
+            copy_retry(src[k],root/k,log=copies)
+        after={k:c.sha(root/k) for k in c.KEYS}
+        rec.update(before=before,after=after,copies=copies,verified=(after==want),note='STUB: staged into the dry root, real copies, real retry path')
+        jsave(c.RUN/f'receipt-{tag}.json',rec)
+        if after!=want:raise Stop(10,f'stub staging {name} did not verify')
+        return rec
+    want={'FIX':c.fix_set() if name=='FIX' else None,'M53':c.M53}[name]
+    q=c.ours_only_quiet() if restore else c.quiet()
+    if not q['quiet']:raise Stop(4,f'NOT-QUIET at staging {name}: {q["blocking"]}')
+    rec['foreign_at_staging']=q.get('foreign')
+    before=c.staged_state();src=c.sources(name)
+    for k in c.KEYS:
+        if before[k]==want[k]:continue
+        if c.sha(src[k])!=want[k]:raise Stop(10,f'source for {k} does not match {name}: {src[k]}')
+        copy_retry(src[k],c.STAGED_ROOT/k,log=copies)
+    after=c.staged_state()
+    rec.update(before=before,after=after,copies=copies,verified=(after==want))
+    jsave(c.RUN/f'receipt-{tag}.json',rec)
+    if after!=want:raise Stop(10,f'staging {name} did not verify: {[k for k in c.KEYS if after[k]!=want[k]]}')
+    return rec
+def restore_m53(tag='99-restore-m53',tries=None,backoff=None,sleep=time.sleep):
+    tries=tries or c.RESTORE_TRIES;backoff=backoff or c.RESTORE_BACKOFF_S;hist=[]
+    for i in range(tries):
+        try:
+            r=stage('M53',tag,restore=True);r['restore_attempts']=i+1;r['restore_history']=hist;jsave(c.RUN/f'receipt-{tag}.json',r);return r
+        except BaseException as ex:
+            if isinstance(ex,KeyboardInterrupt):raise
+            hist.append(dict(attempt=i+1,utc=c.now(),error=f'{type(ex).__name__}: {getattr(ex,"msg",ex)}'))
+            c.log_event('restore-retry',attempt=i+1,error=hist[-1]['error'])
+            if i+1>=tries:
+                jsave(c.RUN/f'receipt-{tag}-FAILED.json',dict(history=hist));raise Stop(12,f'RESTORE FAILED after {tries} attempts: {hist[-1]["error"]}')
+            sleep(backoff[min(i,len(backoff)-1)])

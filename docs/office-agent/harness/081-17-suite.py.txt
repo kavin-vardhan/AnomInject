@@ -1,0 +1,88 @@
+from pathlib import Path
+import collections,hashlib,importlib.util,json,re,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-17-evidence'
+CAP=268435456
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+m=json.loads((E/'binary-v2.json').read_text());results=json.loads((E/'suite-results.json').read_text()) if (E/'suite-results.json').exists() else []
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+cases={'null1080':dict(anomaly='null_effect',res=(1920,1080),all_pairs=True),'solid1080':dict(anomaly='solid_swap',res=(1920,1080),all_pairs=True)}
+seq=[('null1080',0),('null1080',1),('solid1080',0),('solid1080',1)]
+if len(sys.argv)>1:seq=[x for x in seq if x[0] in sys.argv[1:]]
+def census_check(s,text):
+ errs=[];peak=s.get('change_bytes_peak_census');hw=s.get('change_bytes_high_water')
+ if not isinstance(peak,dict):return ['peak census absent'],None
+ if peak.get('high_water')!=hw:errs.append('peak.high_water != change_bytes_high_water')
+ if peak.get('bytes_held')!=peak.get('high_water'):errs.append('peak.bytes_held != peak.high_water')
+ if peak.get('unaccounted_bytes')!=0:errs.append('unaccounted_bytes nonzero')
+ if peak.get('colours_unowned')!=0:errs.append('colours_unowned nonzero')
+ if peak.get('colours')!=sum(peak.get(k,0) for k in ('colours_pending','colours_previous','colours_phase_ref','colours_in_hand','colours_unowned')):errs.append('colour split does not sum')
+ if peak.get('colour_bytes',0)+peak.get('mask_bytes',0)+peak.get('unaccounted_bytes',0)!=peak.get('bytes_held'):errs.append('bytes do not sum')
+ lines=re.findall(r'HIGH-WATER-PEAK bytes=(\d+) max=(\d+) census=(\{.*\})',text)
+ if len(lines)!=1:errs.append(f'HIGH-WATER-PEAK lines={len(lines)}')
+ elif int(lines[0][0])!=hw or json.loads(lines[0][2])!=peak:errs.append('HIGH-WATER-PEAK line disagrees with summary')
+ return errs,peak
+for case,order in seq:
+ c=cases[case]
+ if any(x['case']==case and x['order']==order and x.get('accepted') for x in results):continue
+ accepted=False
+ for attempt in range(1,4):
+  for key in ('built','staged','archive'):assert sha(m[key])==m['sha256'],key
+  label=f'B_{case.upper()}_{"S" if order else "N"}_A{attempt}';d=E/label;log=E/f'runner-{label}.log'
+  assert not d.exists() and not log.exists(),label
+  args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-17-measure.ps1'),'-Label',label,'-Anomaly',c['anomaly'],'-Order',str(order),'-MaxFrames',str(c.get('frames',90)),'-Config',c.get('config','2 4 16 4 0'),'-ResX',str(c['res'][0]),'-ResY',str(c['res'][1])]
+  (E/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+  with log.open('w') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+  launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace') if (d/'game.log').exists() else '';errors=[]
+  if r.returncode:errors.append('runner: '+launch.get('error',str(r.returncode)))
+  focus=launch.get('capture_focus',[]);hits=sum(x['foreground_pid']==launch['pid'] for x in focus)
+  if not focus or hits!=len(focus):errors.append('whole-leg foreground failed')
+  if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure')
+  on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+  if len(on)!=1 or len(off)!=1 or len(place)!=1:errors.append('lock/placement/release count')
+  elif re.search(r'priorLook=(\d) priorMove=(\d)',on[0]).groups()!=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0]).groups():errors.append('unlock restoration')
+  if launch.get('session'):
+   session=Path(launch['session'])
+   pose=subprocess.run([sys.executable,str(B/'_reviews/081-15-capture-pose.py'),str(session)],capture_output=True,text=True)
+   (d/'capture-pose.txt').write_text(pose.stdout+pose.stderr)
+   if pose.returncode:errors.append('captured-label B1 failed')
+  row=dict(label=label,case=case,order=order,attempt=attempt,runner_exit=r.returncode,capture_start_sent=launch.get('capture_start_sent'),fixture_errors=errors,foreground_hits=hits,foreground_samples=len(focus),session=launch.get('session'))
+  (d/'fixture-result.json').write_text(json.dumps(row,indent=2));results=[x for x in results if x['label']!=label];results.append(row);(E/'suite-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps(row),flush=True)
+  if errors:continue
+  result=a.audit(session,d/'game.log',c)
+  records=list(map(json.loads,(session/'change_evidence.jsonl').read_text(encoding='utf-8-sig').splitlines()));pairs=[x for x in records if x['kind']=='pair'];events=[x for x in records if x['kind']=='event']
+  s=result['summary']
+  def need(ok,msg):
+   if not ok:result['errors'].append(msg)
+  need(bool(pairs) and all(x['chg_measured'] for x in pairs),'1080 twin incomplete required-pair yield')
+  onset=[x for x in pairs if x['window_index']==0 and x['chg_measured']]
+  need(len(onset)>=3,'1080 twin onset floor')
+  need(all(x['chg_gt8']/x['chg_n'] < .1 if c['anomaly']=='null_effect' else x['chg_gt8']/x['chg_n'] > .9 for x in onset),'1080 twin separation')
+  need(len(pairs)==20 and sum(x['chg_measured'] for x in pairs)==20,'required pairs not 20/20')
+  need(len(events)==5,'final events != 5')
+  need(s.get('change_max_bytes')==CAP and s.get('change_max_bytes_source')=='compiled','256 MiB compiled cap not effective')
+  need(f'maxBytes={CAP}(from compiled)' in text,'EFFECTIVE maxBytes line absent')
+  budget_lines=re.findall(r'Capture\(m55\): BUDGET-EXCEEDED si=(\d+) kind=(\w+)',text)
+  census_rows=[x['session_index'] for x in records if 'budget_census' in x]
+  need(s.get('change_reason_budget_exceeded')==0,'change_reason_budget_exceeded nonzero')
+  need(not budget_lines,'BUDGET-EXCEEDED log lines present')
+  need(not census_rows,'budget_census rows present')
+  selfcheck,peak=census_check(s,text)
+  result['census_selfcheck_errors']=selfcheck
+  result['budget_refusal_lines']=budget_lines;result['budget_census_rows']=census_rows
+  result['high_water_lines']=len(re.findall(r'Capture\(m55\): HIGH-WATER bytes=',text))
+  result['peak_census']=peak
+  result['reasons_all_indices']={k[len('change_reason_'):]:v for k,v in s.items() if k.startswith('change_reason_') and v}
+  result['latency']={k[len('change_colour_completion_latency_'):]:v for k,v in s.items() if k.startswith('change_colour_completion_latency_')}
+  result['onset_readings']=[dict(si=x['session_index'],event=x['event'],chg_n=x['chg_n'],chg_gt8=x['chg_gt8'],chg_frac=round(x['chg_gt8']/x['chg_n'],6),chg_mean=x['chg_mean'],ctl_n=x['ctl_n'],ctl_gt8=x['ctl_gt8'],ctl_frac=round(x['ctl_gt8']/x['ctl_n'],6) if x['ctl_n']>0 else None,ctl_mean=x['ctl_mean']) for x in pairs if x['window_index']==0]
+  result['window_reasons']=dict(collections.Counter(x['reason'] for x in pairs))
+  (d/'measurement-audit.json').write_text(json.dumps(result,indent=2));row['measurement_errors']=result['errors'];row['census_selfcheck_errors']=selfcheck;row['accepted']=not result['errors']
+  (E/'suite-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps({k:result[k] for k in ('events','pairs','measured','errors','census_selfcheck_errors')}),flush=True)
+  if result['errors']:print('FIXTURE-VALID-FAILURE: '+label,flush=True);sys.exit(1)
+  accepted=True;break
+ if not accepted:
+  print('INVALID-FIXTURE-EXHAUSTED: '+label,flush=True);sys.exit(2)
+print('Stack 1080 twins accepted',flush=True)

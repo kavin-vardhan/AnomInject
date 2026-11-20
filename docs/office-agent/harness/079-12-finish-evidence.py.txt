@@ -1,0 +1,57 @@
+"""Validate final fixture/bank/calibration artifacts and retain comparisons."""
+from collections import Counter
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies\_reviews")
+OUT = ROOT / "079-12-evidence"
+
+def read(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+old_bank = {r["name"]: r for r in read(ROOT / "079-10-evidence/bank.json")["bank"]}
+pre_cap = {r["name"]: r for r in read(OUT / "pre_cap/bank.json")["bank"]}
+bank = read(OUT / "bank.json")
+comparison = []
+for r in bank["bank"]:
+    row = {"name": r["name"], "edges": len(r["detail"]),
+           "observations": dict(Counter(e["observation"] for e in r["detail"])),
+           "verdict": next(s.strip() for s in r["lines"] if s.startswith("  VERDICT"))}
+    if r["name"] in ("M49_GEDGE_CT_NAT", "M49_GEDGE_MO_NAT", "M49_GEDGE_MT_NAT", "M49_GEDGE_MT_SYN"):
+        before = old_bank[r["name"]]["detail"]
+        assert len(before) == len(r["detail"])
+        differences = [(i, key, left[key], right[key])
+                       for i, (left, right) in enumerate(zip(before, pre_cap[r['name']]["detail"]))
+                       for key in left.keys() & right.keys() if left[key] != right[key]]
+        row["pre_cap_all_common_fields_differences"] = differences
+        assert not differences, (r["name"], differences)
+        row["final_default_differences"] = [(i, key, left[key], right[key])
+                       for i, (left, right) in enumerate(zip(before, r["detail"]))
+                       for key in left.keys() & right.keys() if left[key] != right[key]]
+    assert r["code"] == 0
+    comparison.append(row)
+(OUT / "bank_comparison.json").write_text(json.dumps(comparison, indent=2) + "\n", encoding="utf-8")
+
+score = read(OUT / "cohort_v3.json")
+summary = {"cap": score["cap"], "n": score["n"], "note": score["note"], "planned": score["planned"]}
+keys = lambda rows: {(r['session'], r['event'], r['ordinal'], r['kind'], r['which'], r['delta'], r['variant']) for r in rows}
+for guard in ("guard_off", "guard_on"):
+    cells, excluded = score[guard], score[guard + "_unscored"]
+    ledger = cells + excluded
+    assert len(ledger) == 572 and len(keys(ledger)) == 572
+    assert keys(ledger) == keys(score["guard_off"] + score["guard_off_unscored"])
+    assert all(r["scored"] for r in cells) and all(not r["scored"] for r in excluded)
+    summary[guard] = {"scored": len(cells), "unscored": len(excluded),
+                      "counts": dict(Counter(r["outcome"] for r in cells)),
+                      "support": len({(r['session'],r['event'],r['ordinal'],r['kind']) for r in cells if r['outcome']=='recovered'}),
+                      "wrong_cells": [r for r in cells if r['outcome']=='wrong'],
+                      "min_wrong_m_edge": min((r['m_edge'] for r in cells if r['outcome']=='wrong'), default=None)}
+fixtures = read(OUT / "final/selftest_details.json")
+assert fixtures["exit"] == 0 and len(fixtures["fixtures"]) == 94
+checks = read(OUT / "final/complete_checks.json")
+assert [r["exit"] for r in checks["cli"]] == [2, 0, 3]
+assert "Ran 18 tests" in (OUT / "final/contracts.txt").read_text()
+assert (OUT / "final/contracts.txt").read_text().rstrip().endswith("OK")
+assert bank['verify_sha256'] == fixtures['verifier_sha256'] == checks['verifier_sha256']
+(OUT / "final/summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(summary, indent=2))

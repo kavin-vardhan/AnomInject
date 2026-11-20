@@ -1,0 +1,14 @@
+import importlib.util
+import json
+import sys
+
+spec = importlib.util.spec_from_file_location('c21', r'D:\IntrusiveAnomalies\_reviews\081-21-common.py')
+c = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(c)
+purpose = sys.argv[1] if len(sys.argv) > 1 else 'check'
+ours, foreign = c.classify()
+unreal = c.any_unreal()
+c.log_event('idle-check', purpose=purpose, ours=ours, foreign=foreign, any_unreal_editor=[p['pid'] for p in unreal])
+print(json.dumps({'purpose': purpose, 'ours': ours, 'foreign_pids': [f['pid'] for f in foreign],
+                  'quiet_for_bench': not unreal and not ours}))
+sys.exit(1 if ours else 0)

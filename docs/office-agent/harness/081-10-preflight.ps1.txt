@@ -1,0 +1,102 @@
+param([Parameter(Mandatory=$true)][string]$Label, [switch]$FixtureOn)
+$ErrorActionPreference='Stop'
+$root='D:\IntrusiveAnomalies\_reviews\081-10-evidence'
+$dir=Join-Path $root $Label
+if(Test-Path -LiteralPath $dir){throw 'Existing evidence label'}
+if(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue){throw 'Bench not idle'}
+New-Item -ItemType Directory -Path $dir | Out-Null
+$exe='D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe'
+$log=Join-Path $dir 'game.log'
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class R1Focus {
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int cmd);
+ [DllImport("user32.dll")] public static extern void keybd_event(byte k,byte s,uint f,UIntPtr e);
+ [StructLayout(LayoutKind.Sequential)] public struct Point { public int X; public int Y; }
+ [DllImport("user32.dll")] public static extern bool GetCursorPos(out Point p);
+ public static uint FgPid(){uint p;GetWindowThreadProcessId(GetForegroundWindow(),out p);return p;}
+ public static string Cursor(){Point p;GetCursorPos(out p);return p.X+","+p.Y;}
+ public static void Force(IntPtr h){ShowWindow(h,9);keybd_event(0x12,0,0,UIntPtr.Zero);keybd_event(0x12,0,2,UIntPtr.Zero);SetForegroundWindow(h);BringWindowToTop(h);}
+}
+"@
+$cmds='r.DefaultFeature.AutoExposure 0, r.EyeAdaptationQuality 0, CaptureBench.Marker 1, CaptureBench.Stall.GameMs 0, IAI.Capture.SVE 1, IAI.Capture.Delivery 0, IAI.Capture.Pace 1, IAI.Capture.Fps 30, r.AntiAliasingMethod 0, IAI.Capture.Config 2 4 16 4 0, IAI.Bench.ChangeEvidenceCases 1, IAI.Bench.ChangeGate 14, IAI.Bench.SynthTickOrder 0, IAI.Server.Start'
+$argsList=@('/Game/CaptureBenchGate/CB_GateLevel','-windowed','-ResX=1280','-ResY=720',"-ExecCmds=`"$cmds`"",'-unattended','-nosplash','-IAIBenchFixture',"-abslog=$log")
+$record=@{label=$Label;args=$argsList;exe_sha256=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower();started_utc=[DateTime]::UtcNow.ToString('o');cursor_before=[R1Focus]::Cursor();capture_start_sent=$false;fixture_on=[bool]$FixtureOn;focus=@()}
+$record | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $dir 'launch.json') -Encoding utf8
+$p=$null;$ws=$null;$count=0
+try {
+ # The bench's foreground-focus gate requires a visible game window.
+ $p=Start-Process -FilePath $exe -ArgumentList $argsList -PassThru
+ $record.pid=$p.Id
+ $clock=[Diagnostics.Stopwatch]::StartNew();$token=$null;$sh=New-Object -ComObject WScript.Shell
+ while($clock.Elapsed.TotalSeconds -lt 45){
+  if($p.HasExited){throw 'Game exited during startup'}
+  try{$sh.AppActivate($p.Id)|Out-Null}catch{}
+  $p.Refresh()
+  if($p.MainWindowHandle -ne 0 -and [R1Focus]::FgPid() -ne $p.Id){[R1Focus]::Force($p.MainWindowHandle)}
+  if(Test-Path -LiteralPath $log){$t=[string](Get-Content -LiteralPath $log -Raw);$m=[regex]::Match($t,'Control server token:\s*(\S+)\s*\(');if($m.Success -and $t -match 'Bringing World .*up for play'){$token=$m.Groups[1].Value;break}}
+  Start-Sleep -Milliseconds 200
+ }
+ if(-not $token){throw 'No server token / world readiness'}
+ $record.ready_seconds=$clock.Elapsed.TotalSeconds
+ $ct=[Threading.CancellationToken]::None;$ws=[Net.WebSockets.ClientWebSocket]::new()
+ $ws.ConnectAsync([Uri]'ws://127.0.0.1:8077',$ct).GetAwaiter().GetResult()
+ function Send($o){$b=[Text.Encoding]::UTF8.GetBytes(($o|ConvertTo-Json -Compress));[void]$ws.SendAsync([ArraySegment[byte]]::new($b),[Net.WebSockets.WebSocketMessageType]::Text,$true,$ct).GetAwaiter().GetResult()}
+ function Recv {
+  $buf=[byte[]]::new(262144);$mem=[IO.MemoryStream]::new();$cts=[Threading.CancellationTokenSource]::new(5000)
+  try {do {$r=$ws.ReceiveAsync([ArraySegment[byte]]::new($buf),$cts.Token).GetAwaiter().GetResult();if($r.MessageType -eq [Net.WebSockets.WebSocketMessageType]::Close){throw 'Server closed connection'};$mem.Write($buf,0,$r.Count)}while(-not $r.EndOfMessage);return [Text.Encoding]::UTF8.GetString($mem.ToArray())}finally{$cts.Dispose();$mem.Dispose()}
+ }
+ Send @{type='hello';token=$token}
+ $auth=(Recv)|ConvertFrom-Json
+ if($auth.type -ne 'welcome'){throw 'Authentication failed'}
+ function BenchRequest($request) {
+  Send $request
+  for($j=0;$j -lt 8;$j++){$reply=(Recv)|ConvertFrom-Json;if($reply.type -eq $request.type){if(-not $reply.executed){throw "Bench command not executed: $($request.type)"};return}}
+  throw "Bench command receipt missing: $($request.type)"
+ }
+ if($FixtureOn){
+  BenchRequest @{type='bench_input_lock';enabled=$true}
+  $lockLog=[string](Get-Content -LiteralPath $log -Raw)
+  if($lockLog -notmatch 'IAI-INPUT-LOCK ON .*lookIgnored=1 moveIgnored=1'){throw 'Input lock not observed'}
+  $record.lock_confirmed_utc=[DateTime]::UtcNow.ToString('o')
+ }
+ $settle=[Diagnostics.Stopwatch]::StartNew()
+ while($settle.Elapsed.TotalSeconds -lt 5){try{$sh.AppActivate($p.Id)|Out-Null}catch{};$p.Refresh();if([R1Focus]::FgPid() -ne $p.Id){[R1Focus]::Force($p.MainWindowHandle)};Start-Sleep -Milliseconds 200}
+ $record.focus_before=([R1Focus]::FgPid() -eq $p.Id);$record.cursor_before_snapshots=[R1Focus]::Cursor()
+ # Record a focus failure, but still collect the requested diagnostic pose/B1 data.
+ if($FixtureOn){
+  BenchRequest @{type='bench_place_view';request=1}
+  $placeLog=[string](Get-Content -LiteralPath $log -Raw)
+  if($placeLog -notmatch 'IAI-L2 PLACED request=1 ok=1'){throw 'Placement success not observed'}
+  $record.placement_confirmed_utc=[DateTime]::UtcNow.ToString('o')
+ }
+ Start-Sleep -Milliseconds 700
+ Send @{type='subscribe';channels=@('snapshot');snapshotHz=20}
+ $samples=[IO.StreamWriter]::new((Join-Path $dir 'snapshots.jsonl'),$false,[Text.UTF8Encoding]::new($false))
+ try {
+  while($count -lt 90 -and $clock.Elapsed.TotalSeconds -lt 90){
+   $raw=Recv;$row=$raw|ConvertFrom-Json
+   if($row.type -ne 'snapshot'){continue}
+   $samples.WriteLine(($row|ConvertTo-Json -Depth 20 -Compress));$samples.Flush()
+   $record.focus+=@{sample_index=$count;foreground_pid=[R1Focus]::FgPid();cursor=[R1Focus]::Cursor()}
+   if($row.capture.running -or $row.capture.framesWritten -ne 0 -or @($row.active).Count -ne 0){throw 'Capture or injection active during preflight'}
+   $count++
+   if([R1Focus]::FgPid() -ne $p.Id){try{$sh.AppActivate($p.Id)|Out-Null}catch{};$p.Refresh();[R1Focus]::Force($p.MainWindowHandle)}
+  }
+ }finally{$samples.Dispose()}
+ if($count -ne 90){throw 'Incomplete snapshot sample count'}
+ Send @{type='subscribe';channels=@()}
+ if($FixtureOn){BenchRequest @{type='bench_input_lock';enabled=$false};$record.unlock_confirmed_utc=[DateTime]::UtcNow.ToString('o')}
+ BenchRequest @{type='bench_log_barrier'}
+ $record.status='COMPLETE';$record.snapshot_count=$count;$record.finished_seconds=$clock.Elapsed.TotalSeconds
+}catch{$record.status='PROTOCOL-FAIL';$record.error=$_.Exception.Message;throw}
+finally {
+ if($ws){$ws.Dispose()}
+ if($p -and -not $p.HasExited){Stop-Process -Id $p.Id -Force;$p.WaitForExit()}
+ $record.finished_utc=[DateTime]::UtcNow.ToString('o');$record|ConvertTo-Json -Depth 12|Set-Content -LiteralPath (Join-Path $dir 'launch.json') -Encoding utf8
+}
+Write-Output "$Label snapshots=$count capture_start_sent=False"

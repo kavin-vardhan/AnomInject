@@ -1,0 +1,48 @@
+"""Reproduce one measured zero-baseline wrong cell with full peak candidates."""
+import importlib.util
+import json
+from pathlib import Path
+import sys
+import tempfile
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+SNAP = ROOT / "_reviews/079-12-sweep-tools"
+OUT = ROOT / "_reviews/079-12-evidence"
+sys.path.insert(0, str(SNAP))
+import verify_capture as vc
+spec = importlib.util.spec_from_file_location("scorer07912", SNAP / "m079_shift_recovery.py")
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+(OUT / "zero_cell_before_diagnostic.txt").write_text(
+    "Guard-OFF log already measures A2L event5 end-1/annotation: expected+1, observed-1, m_edge0. "
+    "Reproduce unchanged with cap1. Hypothesis before this diagnostic: label end82 has "
+    "equidistant local peaks81 and83 and the ruled earlier tie selects81. No algorithm change.\n",
+    encoding="utf-8")
+root = tempfile.mkdtemp(prefix="m079_shift_")
+try:
+    source = m.session_of(str(ROOT / "_bench_sessions_bank"), "A2L_LEGA")
+    dest = str(Path(root) / "zero_cell")
+    mlo = vc._offset_module()
+    assert m.shadow(source, dest, "end", -1, "annotation", mlo) is None
+    details, windows = [], []
+    original = vc._measure_edge
+
+    def recorded(kind, nominal, signal, base_idx, lo, hi, cap, refuse_all):
+        rec = original(kind, nominal, signal, base_idx, lo, hi, cap, refuse_all)
+        if nominal in (75, 82):
+            windows.append({"kind": kind, "nominal": nominal, "window": [lo, hi], "tau": rec["tau"],
+                            "pairs": [{"k": k, "d": signal.pair(k)["d"], "error": signal.pair(k)["error"]}
+                                      for k in range(lo, hi + 1)]})
+        return rec
+
+    vc._measure_edge = recorded
+    code, lines = vc.label_pixel_gate(dest, 8, 4, 1, region_cap=1.0, out_detail=details)
+    chosen = [r for r in details if r["event"] == 5]
+    end = next(r for r in chosen if r["kind"] == "end")
+    assert end["offset"] == -1 and end["m_edge"] == 0.0
+    result = {"source": source, "perturbation": "end-1/annotation", "cap": 1.0,
+              "expected_offset": 1, "code": code, "target_edges": chosen, "windows": windows, "lines": lines}
+    (OUT / "zero_baseline_wrong_cell.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({"edges": chosen, "windows": windows}, indent=2))
+finally:
+    m.cleanup(root)

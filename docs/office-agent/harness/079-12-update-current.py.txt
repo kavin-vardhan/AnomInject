@@ -1,0 +1,95 @@
+"""Prepend the verified 079-12 handoff without altering earlier CURRENT bytes."""
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+E = ROOT / "_reviews/079-12-evidence"
+b = json.loads((E / "final/boundary.json").read_text())
+report = ROOT / "_reviews/079-12-codex-delta-report.md"
+assert report.read_text(encoding="utf-8").rstrip().endswith("VERDICT: NEEDS-DECISION")
+current = ROOT / "ToCodex/CURRENT.md"
+old = current.read_bytes()
+assert old == (E / "CURRENT.before.md").read_bytes(), "CURRENT changed since preflight; preserve and reconcile before prepending"
+prefix = f"""# 079-12 implementation boundary — 2026-09-20
+
+Owner supplied D:/IntrusiveAnomalies/_reviews/079-12-codex-ruling-monotone-nearest-assignment.md.
+Implementation and authorized feature push are complete: **NEEDS-DECISION**.
+079-12 resolves 079-11's pending implementation clarification and supersedes its
+withdrawn R6; the 079-11 report and every prior CURRENT byte are preserved below.
+**Codex implemented; Claude Code independently reviews next; Chat orchestrates.**
+No mailbox/Code brief, build, cook, capture, merge or tag was issued.
+
+Read in order:
+1. D:/IntrusiveAnomalies/_reviews/079-12-codex-delta-report.md (full report).
+2. D:/IntrusiveAnomalies/_reviews/079-12-frozen/2026-09-20-verifier-consistency-semantics.md,
+   including predictions-first AMENDMENT 2.
+3. D:/IntrusiveAnomalies/_reviews/079-12-frozen/2026-09-20-079-12-codex-delta.md.
+4. D:/IntrusiveAnomalies/_reviews/079-12-frozen/manifest.json; report-linked final
+   fixture/bank/scorer ledgers and 079-12-evidence/final/boundary.json.
+The live checkout is m51 again. Use frozen feature tools or the pushed feature
+ref for review; the report has reproduction commands and exact hashes.
+
+Base e6351ce396c53ede5a7acd8186497811776e9e34; predictions-first commit
+1ea76240f388b6824dd74164f94bb3668b605663. Local and remote feature:
+{b['feature_sha']}.
+Restored m51 {b['m51_sha']}; master/origin-master
+{b['master_sha']}, unchanged. CaptureBench remains
+{b['capturebench_sha']}, tracked clean, no remote. Only its permitted
+local/untracked scorer wording changed. Source/, Shaders/ and measure_label_offset.py
+retain the feature-base trees/blob. All other pre-existing untracked hashes match.
+Both tracked trees are clean; no owned test/sweep or scratch junction remains.
+
+R6-prime: local peaks >tau and >=1.5 times both neighbours, outside the scanned
+window=0; all edges in each target/mode walk labelled order, nearest unused peak,
+tie earlier. Existing bounds and hard refusals remain. Alternatives and run
+assignments are printed. NO-TRANSITION means no local peak; whole-span above-tau
+checking still protects NO-TRACE. Exclusion guarantees uniqueness, not general
+monotonicity across different regions; no separate ordering floor was added.
+
+Final validation:94/94 permanent fixtures,18/18 contracts, scorer controls and
+direct CLI2/0/3 pass. Semantic controls use explicit cap1 with separate cap cases,
+as predeclared; passing them does not establish usable default coverage.
+The scorer retained572 planned keys in each phase. OFF:296scored/276unscored;
+230recovered,22wrong,5no-transition,39unassessable,0unsupported;24original edges
+with positive support. N=268 baseline-bearing perturbation cells. Wrong cells
+at median0 force **NO ADMISSIBLE ENVELOPE**, installed without tuning. ON:0scored,
+572unscored,0positive support. Zero errors with zero scored cells is not validation.
+
+Final default P2-prime:0/64 observed, all24 pinned events UNASSESSABLE, alltau0.0040.
+Final gameplay A2L7U, LYRA_SMOKE6U, A1L6U; M50 remains6READING,16U observations,
+UNREAD-BBOX-ONLY. No NO-TRACE. Complete default lines are in report Appendix A.
+Prior-cap0.42 diagnostic:60/64 observed (56T,4N,4U); BL_NAT and the four non-blink
+legs each4CONSISTENT, BL_SYN4PARTIAL from one-frame adjacent changes. The four
+non-blink legs preserve all common observations/numbers only at the prior cap.
+These diagnostic readings are explicitly separate in report Appendix A2.
+
+The supplied missing6 prediction also conflicts with the literal walk, as
+predeclared: peaks4/8/10 yield4/8/10/none, A OFFSET-NOTE/B PARTIAL. All10 changed
+old event strings and16 changed edge/run cases are listed, including four measured
+corrections saved before editing known answers. One zero-baseline wrong cell is
+reproduced: shifted label82 chooses81 over equally near83 under the earlier-tie
+rule, despite83 being stronger. Expected+1 becomes-1; no positive cap fixes this.
+
+**Chat review NOT REQUIRED** for the authorized implementation and push, now complete.
+**Chat review REQUIRED** for the refuse-all calibration, P2-prime and supplied
+prediction/monotonicity conflicts, completed evidence and independent Code review
+before merge. That is the next mandatory checkpoint. No independent review or
+merge approval is claimed; client/Section G, m51 campaign and release holds remain.
+Chat owns the next disposition. No watcher or new Code brief was started.
+
+Measured interval {b['start_utc']} to {b['end_utc']} ({b['elapsed']});
+billing unavailable. Same coherent workstream: no fresh Codex session or context
+change is recommended. Unrelated storage/video tasks remain untouched.
+
+---
+
+"""
+new = prefix.replace("\n", "\r\n").encode("utf-8") + old
+current.write_bytes(new)
+assert current.read_bytes().endswith(old)
+evidence = {"old_sha256": hashlib.sha256(old).hexdigest(), "new_sha256": hashlib.sha256(new).hexdigest(),
+            "old_bytes": len(old), "prefix_bytes": len(new) - len(old), "old_bytes_preserved": True,
+            "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest()}
+(E / "final/current-prepend.json").write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(evidence, indent=2))

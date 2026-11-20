@@ -1,0 +1,94 @@
+import hashlib,sys
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+src=(R/'085-04-lib.py').read_text(encoding='utf-8')
+def rep(old,new,count=1):
+    global src
+    n=src.count(old)
+    if n!=count:raise SystemExit(f'anchor occurs {n} times (want {count}): {old[:80]!r}')
+    src=src.replace(old,new)
+rep("c=_load('c854',R/'085-04-common.py')","c=_load('c894',R/'089-04-common.py')")
+rep("'IAI.Label.TransitionOnFrames','IAI.Label.TransitionOffFrames','IAI.Label.TransitionHideFrames','IAI.StuckMip.SettleTailFrames']","'IAI.Label.TransitionOnFrames','IAI.Label.TransitionOffFrames','IAI.Label.TransitionHideFrames','IAI.StuckMip.SettleTailFrames','ShowFlag.Tonemapper','ShowFlag.Lighting']")
+rep("LG=_load('legs854',R/'085-04-legs.py')","LG=_load('legs894',R/'089-04-legs.py')")
+rep("        return ['r.DefaultFeature.AutoExposure 0','r.EyeAdaptationQuality 0']+L['levers']+[defer(CENSUS_SETTLE,x) for x in L['post_cmds']]",
+    "        return ['r.DefaultFeature.AutoExposure 0','r.EyeAdaptationQuality 0']+L['levers']+[defer(CENSUS_SETTLE+i,x) for i,x in enumerate(L['post_cmds'])]")
+rep("STUB_LOCK=dict(H1U=LG.ROCK,H2U=LG.ROCK2,H1N=LG.ROCK,H2N=LG.ROCK2,cap_bytes=None,cap_declared=False,excl_a_defer=400,defer_b1=150,defer_b2=190,defer_r1=120,defer_r2=160,",
+    "STUB_LOCK=dict(H1U=LG.ROCK,H2U=LG.ROCK2,H1N=LG.ROCK,H2N=LG.ROCK2,cap_bytes=None,cap_declared=False,")
+rep("def lock():\n    lk=jload(PREMISE_LOCK())\n    if lk is None and c.STUB:return dict(STUB_LOCK)\n    return lk\n",
+    "def lock():\n    lk=jload(PREMISE_LOCK())\n    if lk is None and c.STUB:return dict(STUB_LOCK)\n    return lk\n"
+    "CANDIDATES=lambda:c.RUN/'host-candidates.json'\n"
+    "STUB_CANDIDATES=dict(C1U=dict(actor=LG.ROCK,tier='view_128',cap_bytes=None),C2U=dict(actor=LG.ROCK2,tier='view_128',cap_bytes=None),C1N=None,C2N=None,stub=True)\n"
+    "def candidates():\n    cd=jload(CANDIDATES())\n    if cd is None and c.STUB:return dict(STUB_CANDIDATES)\n    return cd\n")
+rep("""    L=json.loads(json.dumps(L));lk=lk if lk is not None else lock()
+    need=bool(L.get('premise')) and (str(L.get('target') or '').startswith('@') or any(str(x).startswith('@') for x in L['levers']+L['post_cmds']) or L.get('runs'))
+    if need and not lk:return None,'no premise lock'
+    if str(L.get('target') or '').startswith('@'):
+        t=(lk or {}).get(L['target'][1:])
+        if not t:return None,f'premise named no {L["target"][1:]}'
+        L['target']=t
+    lv=[]
+    for x in L['levers']:
+        if x=='@CAP':
+            if lk and lk.get('cap_declared') and lk.get('cap_bytes'):lv.append(f'IAI.Anomaly.TexCorruptMaxRtBytes {int(lk["cap_bytes"])}')
+        else:lv.append(x)
+    L['levers']=lv""",
+"""    L=json.loads(json.dumps(L))
+    if L.get('premise')=='CANDIDATES':
+        cd=candidates()
+        if not cd:return None,'no host candidates (the PREMISE census group has not produced host-candidates.json)'
+        key=str(L.get('target') or '')[1:];ent=cd.get(key)
+        if not ent or not ent.get('actor'):return None,f'G403: no candidate {key} ({(cd.get("_why") or {}).get(key[-1:],"none")})'
+        L['target']=ent['actor'];lv=[]
+        for x in L['levers']:
+            if x=='@CCAP':
+                if ent.get('tier')=='raise' and ent.get('cap_bytes'):lv.append(f'IAI.Anomaly.TexCorruptMaxRtBytes {int(ent["cap_bytes"])}')
+            else:lv.append(x)
+        L['levers']=lv;L['candidate']=dict(ent,key=key);return L,None
+    lk=lk if lk is not None else lock()
+    need=bool(L.get('premise')) and (str(L.get('target') or '').startswith('@') or any(str(x).startswith('@') for x in L['levers']+L['post_cmds']) or L.get('runs'))
+    if need and not lk:return None,'no premise lock'
+    if str(L.get('target') or '').startswith('@'):
+        t=(lk or {}).get(L['target'][1:])
+        if not t:return None,f'premise named no {L["target"][1:]}'
+        L['target']=t
+    lv=[]
+    for x in L['levers']:
+        if x=='@CAP':
+            fam=L.get('family') or ('U' if L.get('anomaly')=='uv_corruption' else 'N');cb=(lk or {}).get('cap_'+fam)
+            if cb:lv.append(f'IAI.Anomaly.TexCorruptMaxRtBytes {int(cb)}');L['cap_expected']=int(cb)
+            else:L['cap_expected']=134217728
+        else:lv.append(x)
+    L['levers']=lv""")
+rep("    a=[c.PWSH,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(R/'085-04-run.ps1'),",
+    "    a=[c.PWSH,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(R/'089-04-run.ps1'),")
+rep("""def validity(L,launch,sess,log,extra_sessions=()):
+    errs=[]""","""ARBITER_RX=re.compile(r'\\]\\s*(r\\.AntiAliasingMethod|r\\.Lumen\\.DiffuseIndirect\\.Allow|r\\.DynamicGlobalIlluminationMethod|r\\.ReflectionMethod) = "([^"]*)"')
+CAPLINE_RX=re.compile(r'TEXCORRUPT-(?:DECIDE|REFUSED|CENSUS) family=\\S+ .*? cap=(\\d+)\\((\\w+)\\)')
+def arbiter_readback(log):
+    got={}
+    for m in ARBITER_RX.finditer(log or ''):got[m.group(1)]=m.group(2)
+    return got
+def readback_errors(L,log):
+    \"\"\"089-02b validity read-backs: a leg declared at the AA-off arbiter must echo all four cvars at 0 (the G-BIND recipe
+    defect, 089-02b: the DC BIND legs ran with TSR and Lumen on and nothing refused them); a leg that carries a declared
+    cap must show that cap on every m53 decision line (the raise, or the delivered 134217728).\"\"\"
+    errs=[]
+    if L.get('arbiter'):
+        got=arbiter_readback(log);bad={k:v for k,v in got.items() if v!='0'}
+        if len(got)<4 or bad:errs.append(f'arbiter read-back: {got or "no echo"} (all four must read 0)')
+    for sf in L.get('showflags') or []:
+        name,val=sf.split()[0],sf.split()[-1];got=re.findall(re.escape(name)+r' = "([^"]*)"',log or '')
+        if not got or got[-1]!=val:errs.append(f'show-flag read-back: {name} echoes {got[-1] if got else "nothing"}, declared {val}')
+    want=L.get('cap_expected') or ((L.get('candidate') or {}).get('cap_bytes') if (L.get('candidate') or {}).get('tier')=='raise' else None)
+    if want:
+        caps=sorted({int(m.group(1)) for m in CAPLINE_RX.finditer(log or '')})
+        if caps and caps!=[int(want)]:errs.append(f'cap read-back: decision lines read cap {caps}, declared {int(want)}')
+    return errs
+def validity(L,launch,sess,log,extra_sessions=()):
+    errs=[]""")
+rep("    return errs+bench_flag_errors(L,log)\nLR_RX","    return errs+bench_flag_errors(L,log)+readback_errors(L,log)\nLR_RX")
+rep("    for name in ('M53','DC','FIX'):","    for name in ('M53','DC','FIX','DC2'):")
+rep("        inj=float(os.environ.get('IAI_R854_INJECT_LOCK_S','0') or 0)","        inj=float(os.environ.get('IAI_R894_INJECT_LOCK_S','0') or 0)")
+rep("def stage(name,tag,restore=False,stub_start='FIX'):","def stage(name,tag,restore=False,stub_start='M53'):")
+out=R/'089-04-lib.py';out.write_text(src,encoding='utf-8',newline='\n')
+print('wrote',out,hashlib.sha256(out.read_bytes()).hexdigest()[:16],len(out.read_bytes()))

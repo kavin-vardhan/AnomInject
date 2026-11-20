@@ -1,0 +1,51 @@
+"""090-10b census timing from a game log: how long IAI.TexCorrupt.Census held the game thread.
+Old builds run the whole census inside one frame: the stall is the time from the last line of an earlier frame to the census
+'scope=' line (the work happens before that line). New builds print 'begin' and 'end' lines and slice the work across frames:
+the reading is total seconds, frames spanned and the largest gap between consecutive log lines while it ran."""
+import re, sys, json
+RX = re.compile(r'^\[(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})\]\[\s*(\d+)\](.*)$')
+
+
+def parse(path):
+    rows = []
+    for ln in open(path, encoding='utf-8', errors='replace'):
+        m = RX.match(ln.rstrip('\n'))
+        if not m:
+            continue
+        g = m.groups()
+        t = int(g[3]) * 3600 + int(g[4]) * 60 + int(g[5]) + int(g[6]) / 1000.0
+        rows.append((t, int(g[7]), g[8]))
+    return rows
+
+
+def reading(path):
+    rows = parse(path)
+    out = dict(log=path)
+    scope = next((i for i, r in enumerate(rows) if 'IAI-TEXCORRUPT-CENSUS v1 scope=' in r[2]), None)
+    if scope is None:
+        out['verdict'] = 'NO-CENSUS-LINE'
+        return out
+    begin = next((i for i, r in enumerate(rows) if 'IAI-TEXCORRUPT-CENSUS v1 begin' in r[2]), None)
+    end = next((i for i, r in enumerate(rows) if 'IAI-TEXCORRUPT-CENSUS v1 end' in r[2]), None)
+    out['scope_line'] = rows[scope][2].split('IAI-TEXCORRUPT-CENSUS')[1].strip()[:120]
+    out['counts'] = [r[2].split('IAI-TEXCORRUPT-CENSUS v1 ')[1].strip()[:160] for r in rows[scope:(end or scope) + 1]
+                     if 'IAI-TEXCORRUPT-CENSUS v1 ' in r[2]]
+    if begin is None:
+        f = rows[scope][1]
+        prev = max((i for i in range(scope) if rows[i][1] != f), default=None)
+        out['mode'] = 'one-frame (old build)'
+        out['census_frame'] = f
+        out['stall_s'] = round(rows[scope][0] - rows[prev][0], 3) if prev is not None else None
+    else:
+        out['mode'] = 'time-sliced (090-10b)'
+        out['total_s'] = round(rows[end][0] - rows[begin][0], 3) if end is not None else None
+        out['frames_spanned'] = (rows[end][1] - rows[begin][1]) % 1000 if end is not None else None
+        gaps = [rows[i + 1][0] - rows[i][0] for i in range(begin, end)] if end is not None else []
+        out['max_gap_between_log_lines_s'] = round(max(gaps), 3) if gaps else None
+        out['progress_lines'] = sum(1 for r in rows[begin:(end or begin) + 1] if 'v1 progress' in r[2])
+    return out
+
+
+if __name__ == '__main__':
+    for p in sys.argv[1:]:
+        print(json.dumps(reading(p)))

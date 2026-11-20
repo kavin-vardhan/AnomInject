@@ -1,0 +1,213 @@
+import collections,importlib.util,json,os,sys,tempfile
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+import numpy as np
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+L=load('lib52',R/'084-03-lib.py')
+OLD_P=R/'084-04a-evidence'/'before-084-02b-lib.py'
+OLD=load('lib52_before',OLD_P) if OLD_P.exists() else None
+checks=[];section='sync'
+def check(ok,what):checks.append((section,bool(ok),what))
+def ev(labelled,record,settle=()):
+    si=sorted(set(labelled)|set(record)|set(settle)|set(range(5,25)))
+    return dict(held={s:(s in labelled) for s in si},rstate={s:('settle_tail' if s in settle else ('held' if s in record else 'baseline')) for s in si},mv={},tp={},contam={})
+m=dict(vis=list(range(10,15)),first_vis=10,last_vis=14)
+cx=ev(range(10,19),range(10,15),range(15,19))
+g=L.gate_sync(None,cx,m,True)
+check(not g['pass'] and g['labelled_after_last_visible']==[15,16,17,18],'Codex counterexample (visible 10-14, labelled 10-18 as settle_tail) FAILS the sync gate')
+g=L.gate_sync(None,ev(range(8,15),range(10,15)),m,False)
+check(not g['pass'] and g['labelled_before_first_visible']==[8,9],'early-onset over-label (labelled 8-14) FAILS')
+g=L.gate_sync(None,ev(range(12,15),range(10,15)),m,False)
+check(not g['pass'] and g['unlabelled_visible']==[10,11],'onset +2 FAILS')
+g=L.gate_sync(None,ev(range(10,11),range(10,15)),m,False)
+check(not g['pass'] and g['unlabelled_visible']==[11,12,13,14],'offset -4 (labelled 10 only) FAILS')
+g=L.gate_sync(None,ev(range(10,10),range(10,15)),m,False)
+check(not g['pass'],'nothing labelled on a visible event FAILS')
+g=L.gate_sync(None,ev(range(10,15),range(10,15)),m,True)
+check(g['pass'] and g['verdict']=='PASS' and g['label_start_minus_first_visible']==0 and g['label_end_minus_last_visible']==0,'exact window PASSES both sides (the repaired case)')
+mi=dict(vis=[3]+list(range(10,15)),first_vis=10,last_vis=14)
+g=L.gate_sync(None,ev(range(10,15),range(10,15)),mi,False)
+check(not g['pass'] and g['visible_outside_window_failing']==[3],'G345 WITHDRAWN: an isolated visible frame outside the pixel window now FAILS (it was reported, not required)')
+g=L.gate_sync(None,ev(range(3,15),range(10,15)),mi,False)
+check(not g['pass'] and g['labelled_before_first_visible'][:1]==[3],'labelling out to an isolated excursion is an over-label and FAILS')
+check(L.closure_rule([2,2,2],[0,0,0])['constant_tail']==2,'closure rule: a constant residual of 2 yields a constant tail of 2')
+check(L.closure_rule([1,3],[0,0])['constant_tail'] is None,'closure rule: a varying residual yields no constant tail')
+check(not L.closure_rule([0,0],[1,0])['onset_exact_from_record'],'closure rule: an onset residual is reported')
+class FS:
+    def __init__(self,rows,T,masks=None,summary=None):
+        self.dir=Path(tempfile.gettempdir());self.rows=rows;self.by_si={r['session_index']:r for r in rows};self.T=T;self.masks=masks or {};self.summary=summary or {};self._tables={}
+    def table(self,rois):return {r:self.T for r in rois}
+    def mask(self,si):return self.masks.get(si)
+ROI=(0,0,10,10);SF=5;REF=dict(roi=ROI,sigma=0.1,drop_rel=0.0)
+def build(vis=(),n=60,drop=(),jumps=None,evr=range(5,41),lab=(),rec=None,mv=7,tp=100,masks='png',tp_at=None,contam=(),null=False):
+    jumps=jumps or {};T={};rows=[];off=0;M={};rec=lab if rec is None else rec;tp_at=tp_at or {}
+    for si in range(n):
+        off+=jumps.get(si,0)
+        if si in drop:continue
+        T[si]=90.0 if si in vis else 100.0
+        r=dict(session_index=si,frame_index=100+si+off,anomalies=[])
+        if si in evr:
+            held=(si in lab) and not null
+            a={'id':L.ID,'start_frame':SF,'target_name':'Rock','stuck_mip.held':held,'stuck_mip.render_state':('held' if (si in rec and not null) else 'baseline'),
+               'mask_value':mv,'target_pixels':tp_at.get(si,tp if held else 0)}
+            if si in contam:a['stuck_mip.contaminated']=1
+            r['anomalies'].append(a)
+            if held and masks=='png':M[si]=np.full((4,4),mv,dtype=np.uint8)
+        rows.append(r)
+    return FS(rows,T,M)
+def evt(s):return [x for x in L.events(s) if x['start_frame']==SF][0]
+def judge(s,null=None,rec=True):
+    e=evt(s);mm=L.measure_event(s,e,None,REF);return mm,L.gate_sync(s,e,mm,rec,dict(sess=null,ordinal=0) if null is not None else None),e
+def old_judge(s):
+    e=evt(s);mm=OLD.measure_event(s,e,None,REF);return mm,OLD.gate_sync(s,e,mm,True)
+W=range(10,15)
+section='a gap censoring'
+mm,g,_=judge(build(vis=W,lab=W))
+check(g['verdict']=='PASS' and not mm['censored'] and mm['confirm_si']==17,'control: visible and labelled 10-14, contiguous 15-17 clean -> both edges measured, PASS')
+mm,g,_=judge(build(vis=W,lab=W,drop=(15,)))
+check(g['verdict']=='CENSORED' and not g['pass'] and mm['offset_censored'] and 'session_index 15 missing' in mm['offset_censored'],'Codex case 1: SI 15 missing next to the offset -> offset CENSORED, never PASS')
+mm,g,_=judge(build(vis=W,lab=W,jumps={16:2}))
+check(g['verdict']=='CENSORED' and mm['offset_censored'] and 'engine-frame jump of 3 between si 15 and 16' in mm['offset_censored'],'Codex case 2: engine-frame jump at SI 16 inside the 3-frame clean suffix -> offset CENSORED')
+mm,g,_=judge(build(vis=W,lab=W,jumps={10:4}))
+check(g['verdict']=='CENSORED' and mm['onset_censored'] and 'adjacent to the onset' in mm['onset_censored'],'engine-frame jump between si 9 and 10 (adjacent to the onset) -> onset CENSORED')
+mm,g,_=judge(build(vis=W,lab=W,drop=(9,)))
+check(g['verdict']=='CENSORED' and mm['onset_censored'] and 'session_index 9 missing' in mm['onset_censored'],'SI 9 missing before the onset -> onset CENSORED')
+mm,g,_=judge(build(vis=W,lab=W,jumps={11:2}))
+check(g['verdict']=='CENSORED' and mm['onset_censored'] and 'confirmation' in mm['onset_censored'],'the 2-frame onset confirmation (10,11) crosses an engine-frame jump -> onset CENSORED')
+mm,g,_=judge(build(vis=W,lab=W,jumps={13:3}))
+check(g['verdict']=='PASS' and not mm['censored'],'an engine-frame jump BETWEEN two visible frames (12|13) is not adjacent to an edge -> not censored, PASS (the rule is not over-broad)')
+mm,g,_=judge(build(vis=W,lab=[10,11,13,14],drop=(15,)))
+check(g['verdict']=='FAIL' and g['unlabelled_visible']==[12] and g['censored_edges'],'a censored offset does not hide a definite failure: an unlabelled visible frame (12) inside the window still FAILS')
+mm,g,_=judge(build(vis=W,lab=range(10,21),drop=(15,)))
+check(g['verdict']=='FAIL' and mm['confirm_si']==18 and 'labelled frame(s) after the last visible frame' in g['fail_reasons'],'labels past the confirmed clean suffix (19,20) are definite over-labels even with the offset censored -> FAIL')
+mm,g,_=judge(build(vis=W,lab=range(10,18),drop=(15,)))
+check(g['verdict']=='CENSORED' and g['labelled_outside_window_ambiguous']==[16,17],'labels 16-17 inside the censored suffix are reported as ambiguous, not passed and not failed -> CENSORED')
+mm,g,_=judge(build(vis=range(10,19),lab=range(10,19),n=21,evr=range(5,21)))
+check(g['verdict']=='CENSORED' and mm['offset_censored'] and 'no 3-frame contiguous clean suffix' in mm['offset_censored'],'the span ends before a 3-frame clean suffix -> offset CENSORED')
+section='b visible outside window'
+REC2=list(range(10,15))+list(range(20,25))
+mm,g,_=judge(build(vis=REC2,lab=W))
+check(g['verdict']=='FAIL' and g['visible_outside_window_failing']==[20,21,22,23,24] and g['recurrence_runs']==[[20,24]],'Codex case 3: visible 10-14 AND 20-24, labelled 10-14 -> FAIL; 20-24 is a recurrence, not isolated')
+nullfs=build(vis=range(20,25),null=True)
+mm,g,_=judge(build(vis=REC2,lab=W),null=nullfs)
+check(g['verdict']=='PASS' and sorted(g['visible_outside_window_null_explained'])==['20','21','22','23','24'],'the same run shown by the paired null at the aligned frames is a different cause -> PASS, frames listed as null-explained')
+mm,g,_=judge(build(vis=REC2,lab=W),null=build(vis=(20,21),null=True))
+check(g['verdict']=='FAIL' and g['visible_outside_window_failing']==[22,23,24],'a null that shows only 20-21 excuses only those; 22-24 still FAIL')
+mm,g,_=judge(build(vis=list(W)+[30],lab=W))
+check(g['verdict']=='FAIL' and g['visible_outside_window_failing']==[30],'a single visible frame after the window FAILS (G345 withdrawn)')
+mm,g,_=judge(build(vis=[7]+list(W),lab=W))
+check(g['verdict']=='FAIL' and g['visible_outside_window_failing']==[7],'a single visible frame before the onset FAILS')
+mm,g,_=judge(build(vis=REC2,lab=range(10,25)))
+check(g['verdict']=='FAIL' and 'labelled frame(s) after the last visible frame' in g['fail_reasons'],'a LABELLED recurrence still fails the single-window rule (labels 15-24 run past the last visible frame of the window)')
+mm,g,_=judge(build(vis=REC2,lab=W),null=build(vis=(),null=True,evr=range(45,50)))
+check(g['verdict']=='FAIL','a null with no event for this target and ordinal cannot excuse anything -> FAIL')
+section='c masks'
+s=build(vis=W,lab=W);e=evt(s);mm=L.measure_event(s,e,None,REF)
+gw=L.gate_window(s,e,mm);check(gw['pass_'] and not gw['labelled_without_mask'],'labelled 10-14 with mask_value 7, target_pixels 100 and a mask PNG -> window PASS')
+s=build(vis=W,lab=W,mv=0,tp=-1,masks='none');e=evt(s);mm=L.measure_event(s,e,None,REF);gw=L.gate_window(s,e,mm)
+check(not gw['pass_'] and gw['labelled_without_mask']==[10,11,12,13,14] and 'no mask_value' in gw['labelled_without_mask_reasons'],'Codex case 4: labelled 10-14 with no masks, mask_value 0, target_pixels -1 -> window FAIL')
+s=build(vis=W,lab=W,masks='none');e=evt(s);mm=L.measure_event(s,e,None,REF);gw=L.gate_window(s,e,mm)
+check(not gw['pass_'] and gw['labelled_drawn_without_mask']==[10,11,12,13,14],'target_pixels > 0 with no mask PNG -> window FAIL')
+s=build(vis=W,lab=W,tp_at={12:0});e=evt(s);mm=L.measure_event(s,e,None,REF);gw=L.gate_window(s,e,mm)
+check(not gw['pass_'] and gw['labelled_without_mask']==[12] and 'pixel-visible but the mask is empty' in gw['labelled_without_mask_reasons'],'an empty mask (target_pixels 0) on a pixel-visible labelled frame -> window FAIL')
+s=build(vis=[10,11,13,14],lab=W,tp_at={12:0});e=evt(s);mm=L.measure_event(s,e,None,REF);gw=L.gate_window(s,e,mm)
+check(gw['pass_'],'an empty mask on a labelled frame the pixels show clean (a dip) is a measured empty, not a missing mask -> window PASS')
+s=build(vis=W,lab=W,tp_at={13:-1});e=evt(s);mm=L.measure_event(s,e,None,REF);gw=L.gate_window(s,e,mm)
+check(not gw['pass_'] and gw['labelled_without_mask']==[13],'one labelled frame with target_pixels -1 -> window FAIL naming exactly that frame')
+section='d contamination'
+ok_line=("Capture(m52-bench): TEXUSERS event=stuck_low_mip@100 target=Rock texture=T_A users=1 target_users=1 scanned=900 "
+         "scope=all_loaded_levels levels=3 inactive_users=0 unregistered_users=0 list=[ Rock.Mesh(StaticMeshComponent) ]")
+old_line=("Capture(m52-bench): TEXUSERS event=stuck_low_mip@100 target=Rock texture=T_A users=1 target_users=1 scanned=900 "
+          "list=[ Rock.Mesh(StaticMeshComponent) ]")
+shared=("Capture(m52-bench): TEXUSERS event=stuck_low_mip@200 target=Pad texture=T_B users=3 target_users=1 scanned=900 "
+        "scope=all_loaded_levels levels=3 inactive_users=1 unregistered_users=1 list=[ Pad.M(StaticMeshComponent) Wall.M(StaticMeshComponent,inactive_level) X.D(DecalComponent,unregistered) ]")
+hold="stuck_low_mip: HOLD 'T_A' full_mips=12\nstuck_low_mip: matched 1 component(s) for '=Rock' - HOLDING 1 of 3 candidate texture(s)\n"
+g=L.gate_purity(hold+ok_line)
+check(g['verdict']=='PASS' and g['join_ok'] and g['contaminated_events']==[],'purity: one held texture, one scoped enumeration, joined per event, no contamination -> PASS')
+g=L.gate_purity(hold+old_line)
+check(g['verdict']=='FAIL-SCOPE','purity: an enumeration without the all-loaded-levels scope is refused (FAIL-SCOPE)')
+g=L.gate_purity("stuck_low_mip: HOLD 'T_B' x\nstuck_low_mip: matched 1 component(s) for '=Pad' - HOLDING 1 of 2 candidate texture(s)\n"+shared)
+check(g['verdict']=='FAIL' and g['inactive_level_users']==1 and g['unregistered_users']==1,'purity: the legacy lever holding a shared texture is CAUGHT (users=3), inactive and unregistered users counted')
+g=L.gate_purity(hold+"stuck_low_mip: HOLD 'T_C' y\nstuck_low_mip: matched 1 component(s) for '=Rock' - HOLDING 1 of 3 candidate texture(s)\n"+ok_line)
+check(g['verdict']=='FAIL-JOIN','purity: a second fire with no enumeration fails the per-event join')
+g=L.gate_purity("stuck_low_mip: REFUSED TEXTURE 'T_B' shared_world - 3 user component(s)\n")
+check(g['verdict']=='PASS-REFUSED','purity: every shared texture refused and nothing held -> PASS-REFUSED')
+REASON="new user Wall.M(StaticMeshComponent) of held texture 'T_A' appeared mid-hold (per-tick diff)"
+def cap(ev='stuck_low_mip@5',si=20,reason=REASON):
+    return (f"Capture(m52): HOLD CONTAMINATED event={ev} from si={si} - {reason}. The hold was reverted immediately; every labelled frame of this event "
+            f"from si={si} until its render record shows baseline carries stuck_mip.contaminated = 1.\n")
+def anom(revert=True,reason=REASON):
+    return (f"stuck_low_mip: HOLD CONTAMINATED - {reason} while 'Rock' holds it. The purity rule (exactly one user component) no longer holds, so the blur "
+            f"now reaches an object the label and mask do not name. {'REVERTING THE HOLD NOW' if revert else 'CONTINUING'}; every labelled frame from here "
+            f"until the render record shows the texture back at baseline is flagged stuck_mip.contaminated = 1.\n")
+closed="Capture(m52): RESTORE TRAIL CLOSED event=stuck_low_mip@5 at si=30 - trailing frames held=2 unknown=0 missing=0 settleTail=0 unsettledBaseline=0.\n"
+unres="Capture(m52): RESTORE UNRESOLVED event=stuck_low_mip@5 target=Rock after 64 captured frame(s). The run is NOT stopped.\n"
+CL=range(10,26)
+good=build(vis=range(10,26),lab=CL,contam=range(20,26))
+g=L.gate_purity(hold+ok_line+cap())
+check(g['verdict']=='FAIL-CONTAMINATED' and g['apply_census_verdict']=='PASS','Codex purity case: a valid Apply census followed by HOLD CONTAMINATED (no revert line, no session) -> FAIL-CONTAMINATED, no longer PASS')
+g=L.gate_purity(hold+ok_line+anom()+cap()+closed,good)
+r=g['contaminations'][0] if g['contaminations'] else {}
+check(g['verdict']=='PASS' and g['contaminated_events']==['stuck_low_mip@5'] and r.get('handled_as_ruled') and r.get('flagged_frames')==6,'a contamination flagged on every member frame from its si (20-25), reverted and closed at baseline -> PASS, and it is LISTED')
+g=L.gate_purity(hold+ok_line+anom()+cap()+closed,build(vis=range(10,26),lab=CL,contam=range(20,25)))
+check(g['verdict']=='FAIL-CONTAMINATED' and g['contaminations'][0]['unflagged_member_frames']==[25],'a member frame after the contamination si without the flag (25) -> FAIL-CONTAMINATED')
+g=L.gate_purity(hold+ok_line+cap()+closed,good)
+check(g['verdict']=='FAIL-CONTAMINATED' and any('no anomaly-side' in p for p in g['contaminations'][0]['problems']),'no anomaly-side HOLD CONTAMINATED line -> the revert is not evidenced -> FAIL-CONTAMINATED')
+g=L.gate_purity(hold+ok_line+anom(revert=False)+cap()+closed,good)
+check(g['verdict']=='FAIL-CONTAMINATED' and any('REVERTING THE HOLD NOW' in p for p in g['contaminations'][0]['problems']),'an anomaly-side line that does not say REVERTING THE HOLD NOW -> FAIL-CONTAMINATED')
+g=L.gate_purity(hold+ok_line+anom()+cap(ev='(no live event)')+closed,good)
+check(g['verdict']=='FAIL-CONTAMINATED' and any('not attributable' in p for p in g['contaminations'][0]['problems']),'a contamination with no live event cannot be attributed -> FAIL-CONTAMINATED')
+g=L.gate_purity(hold+ok_line+anom()+cap()+closed,build(vis=range(10,26),lab=CL,contam=range(19,26)))
+check(g['verdict']=='FAIL-CONTAMINATED' and g['contaminations'][0]['wrongly_flagged_frames']==[19],'a flag before the contamination si (19) -> FAIL-CONTAMINATED')
+g=L.gate_purity(hold+ok_line,good)
+check(g['verdict']=='FAIL-CONTAMINATED' and g['contamination']['flags_without_contamination_line'],'rows flagged stuck_mip.contaminated with NO contamination line -> FAIL-CONTAMINATED')
+g=L.gate_purity(hold+ok_line+anom()+cap()+unres,good)
+check(g['verdict']=='FAIL-CONTAMINATED' and any('RESTORE UNRESOLVED' in p for p in g['contaminations'][0]['problems']),'restore unresolved after the contamination (never back at baseline) -> FAIL-CONTAMINATED')
+g=L.gate_purity(hold+ok_line+anom()+cap()+closed)
+check(g['verdict']=='FAIL-CONTAMINATED' and any('no session' in p for p in g['contaminations'][0]['problems']),'no session to verify the per-frame flags -> FAIL-CONTAMINATED (unverified is not passed)')
+section='e edge paths and monitor cost'
+elog="\n".join([
+ "Capture(m52): RESTORE TRAIL OPEN event=stuck_low_mip@5 at si=15",
+ "Capture(m52): RESTORE TRAIL REOPENED event=stuck_low_mip@5 at si=33 - a HELD or UNKNOWN record arrived",
+ "Capture(m52): ORDER HOLD si=31 - an earlier request","Capture(m52): ORDER HOLD si=32 - an earlier request",
+ "Capture(m52): TRAIL GAP event=stuck_low_mip@5 si=34 (forced at run end) - no render record",
+ "Capture(m52): RESTORE CARRIED event=stuck_low_mip@5 target=Rock - the run ended",
+ "Capture(m52): LIVE WINDOW CUT - the run is ending (frame cap, stop or teardown) while 1 m52 event(s)",
+ cap().strip(),anom().strip(),
+ "Capture(m52): RESTORE UNRESOLVED AT RUN END event=stuck_low_mip@5 target=Rock - the capture ended",
+ "stuck_low_mip: RESTORE TIMEOUT 'T_A' - resident 7 is still below baseline 12",
+ "stuck_low_mip: HOLD MONITOR ON - 812 existing component(s) recorded as already judged by the purity census (3 still loading, judged when they finish).",
+ "stuck_low_mip: PURITY ENUMERATION for 'Rock' - scope ALL LOADED LEVELS (4, active or not): 900 component(s) of every actor in them scanned, REGISTERED OR NOT (primitives), for 3 candidate texture(s) in 3.25 ms; 0 user(s) sit in an inactive loaded level",
+ "Capture(m52): RENDER-TRUTH SUMMARY source=render_record recordFrames=90 heldFrames=20 reopens=1 orderHeld=2 observeForced=2 observeUnresolved=0"])
+fs=build(vis=W,lab=W);fs.summary={'stuck_mip_trail_reopens':1,'stuck_mip_order_held_frames':2,'stuck_mip_restore_carried_at_end':1,'stuck_mip_hold_contaminations':1,'stuck_mip_purity_enumeration_ms_max':3.25,'speed_ratio':1.0}
+ep=L.edge_paths(fs,elog);n=ep['named']
+check(set(ep['occurred'])=={'trail_reopens','order_hold','gap_unknowns','carried_trails','contaminated_events','unresolved_timeout'},'edge paths: every ruling-named path is detected as occurred on a log that exercises it')
+check(n['trail_reopens']['log_lines']==1 and n['order_hold']['log_lines']==2 and n['gap_unknowns']['trail_gap_lines']==1 and n['carried_trails']['live_window_cut_lines']==1
+      and n['contaminated_events']['capture_lines']==1 and n['contaminated_events']['anomaly_lines']==1 and n['unresolved_timeout']['observe_forced_64_tick_fallback']=='2'
+      and n['unresolved_timeout']['restore_unresolved_at_run_end_lines']==1 and n['unresolved_timeout']['restore_timeout_lines']==1,'edge paths: per-path counts read from the log lines and the RENDER-TRUTH SUMMARY (incl. the 64-tick observe fallback)')
+check(L.edge_paths(build(vis=W,lab=W),"")['occurred']==[],'edge paths: a clean leg reports no path as occurred')
+mc=L.monitor_cost(fs,elog)
+check(mc['measured'] is False and mc['components_walked_per_tick']==[812] and [x['ms'] for x in mc['apply_purity_enumeration']]==[3.25],'monitor cost: reported NOT measured on this build, with the per-tick walk population (812) and the Apply census time (3.25 ms) as labelled proxies')
+section='before (084-02b evaluator on the same cases)'
+if OLD is None:check(True,f'SKIPPED: frozen 084-02b lib not found at {OLD_P}')
+else:
+    om,og=old_judge(build(vis=W,lab=W,drop=(15,)))
+    check(og['pass'] and not om['censored'],'[before] Codex case 1 (SI 15 missing) was PASSED by the 084-02b evaluator')
+    om,og=old_judge(build(vis=W,lab=W,jumps={16:2}))
+    check(og['pass'] and not om['censored'],'[before] Codex case 2 (engine jump in the suffix) was PASSED by the 084-02b evaluator')
+    om,og=old_judge(build(vis=REC2,lab=W))
+    check(og['pass'] and og['isolated_visible_outside_window']==[20,21,22,23,24],'[before] Codex case 3 (recurrence 20-24) was PASSED by the 084-02b evaluator as "isolated"')
+    om,og=old_judge(build(vis=list(W)+[30],lab=W))
+    check(og['pass'],'[before] a single spike outside the window was PASSED by the 084-02b evaluator')
+    s=build(vis=W,lab=W,mv=0,tp=-1,masks='none');e=evt(s)
+    check(OLD.gate_window(s,e)['pass_'],'[before] Codex case 4 (no masks, target_pixels -1) was PASSED by the 084-02b window gate')
+    check(OLD.gate_purity(hold+ok_line+cap())['verdict']=='PASS','[before] Codex purity case (census PASS + HOLD CONTAMINATED) was PASSED by the 084-02b purity gate')
+fails=[(sec,w) for sec,ok,w in checks if not ok]
+by=collections.OrderedDict()
+for sec,ok,w in checks:
+    d=by.setdefault(sec,[0,0]);d[0]+=1;d[1]+=0 if ok else 1
+print(json.dumps(dict(checks=len(checks),failures=len(fails),by_section={k:dict(checks=v[0],failures=v[1]) for k,v in by.items()},failed=fails,
+                      evaluator=L.EVALUATOR,before_evaluator=str(OLD_P) if OLD else None),indent=1))
+sys.exit(1 if fails else 0)

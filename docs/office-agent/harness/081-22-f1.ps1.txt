@@ -1,0 +1,89 @@
+param([Parameter(Mandatory=$true)][string]$Label)
+$ErrorActionPreference='Stop'
+$root='D:\IntrusiveAnomalies\_reviews\081-22-evidence'
+$dir=Join-Path $root $Label
+if(Test-Path -LiteralPath $dir){throw 'Existing evidence label'}
+if(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue){throw 'Bench not idle'}
+New-Item -ItemType Directory -Path $dir | Out-Null
+$exe='D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe'
+$log=Join-Path $dir 'game.log'
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class F1Focus {
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int cmd);
+ [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+ public static uint FgPid(){uint p;GetWindowThreadProcessId(GetForegroundWindow(),out p);return p;}
+}
+"@
+$p=$null
+function Check-Foreign($where){$fe=@(Get-Process -Name UnrealEditor -ErrorAction SilentlyContinue);if($fe.Count){$record.foreign_editor=@($fe|ForEach-Object{@{pid=$_.Id;path=$_.Path;start=$_.StartTime.ToString('o')}});$record.foreign_where=$where;throw "FOREIGN-EDITOR-APPEARED $where"}}
+function Snapshot-Dir($path){if(-not (Test-Path -LiteralPath $path)){return @{exists=$false;files=@();dirs=@()}};$f=@(Get-ChildItem -LiteralPath $path -Recurse -File -Force|ForEach-Object{$_.FullName+' '+$_.Length});$d=@(Get-ChildItem -LiteralPath $path -Recurse -Directory -Force|ForEach-Object{$_.FullName});return @{exists=$true;files=$f;dirs=$d}}
+$cmds='r.DefaultFeature.AutoExposure 0, r.EyeAdaptationQuality 0, IAI.Capture.SVE 1, IAI.Capture.Delivery 0, IAI.Capture.Pace 1, IAI.Capture.Fps 30, IAI.Server.Start'
+$argsList=@('/Game/CaptureBenchGate/CB_GateLevel','-windowed','-ResX=1280','-ResY=720',"-ExecCmds=`"$cmds`"",'-unattended','-nosplash',"-abslog=$log")
+$captureDir="D:\IntrusiveAnomalies\_bench_sessions_bank\M55B3R22_$Label"
+$record=@{label=$Label;args=$argsList;exe_sha256=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLower();started_utc=[DateTime]::UtcNow.ToString('o');capture_dir=$captureDir;capture_start_sent=$false;fg=@()}
+$ws=$null
+try {
+ if(Test-Path -LiteralPath $captureDir){throw 'Capture directory already exists'}
+ $p=Start-Process -FilePath $exe -ArgumentList $argsList -PassThru
+ $record.pid=$p.Id
+ $clock=[Diagnostics.Stopwatch]::StartNew();$token=$null
+ while($clock.Elapsed.TotalSeconds -lt 60){
+  if($p.HasExited){throw 'Game exited during startup'}
+  Check-Foreign 'startup'
+  if(Test-Path -LiteralPath $log){$t=[string](Get-Content -LiteralPath $log -Raw);$m=[regex]::Match($t,'Control server token:\s*(\S+)\s*\(');if($m.Success -and $t -match 'Bringing World .*up for play'){$token=$m.Groups[1].Value;break}}
+  Start-Sleep -Milliseconds 200
+ }
+ if(-not $token){throw 'No server token / world readiness'}
+ $record.ready_seconds=$clock.Elapsed.TotalSeconds
+ $h=[IntPtr]::Zero
+ for($i=0;$i -lt 50 -and $h -eq [IntPtr]::Zero;$i++){$p.Refresh();$h=$p.MainWindowHandle;if($h -eq [IntPtr]::Zero){Start-Sleep -Milliseconds 100}}
+ if($h -eq [IntPtr]::Zero){throw 'PRECAPTURE-WINDOW: no game window handle'}
+ $unfocused=$false
+ for($i=0;$i -lt 20;$i++){[void][F1Focus]::ShowWindow($h,6);Start-Sleep -Milliseconds 250;if([F1Focus]::FgPid() -ne $p.Id -and [F1Focus]::IsIconic($h)){$unfocused=$true;break}}
+ $record.minimised=[F1Focus]::IsIconic($h);$record.fg_before=[F1Focus]::FgPid()
+ if(-not $unfocused){throw 'PRECAPTURE-FOCUS: could not keep the game window out of the foreground'}
+ Start-Sleep -Milliseconds 1000
+ if([F1Focus]::FgPid() -eq $p.Id){throw 'PRECAPTURE-FOCUS: game regained the foreground before capture_start'}
+ $ct=[Threading.CancellationToken]::None;$ws=[Net.WebSockets.ClientWebSocket]::new()
+ $ws.ConnectAsync([Uri]'ws://127.0.0.1:8077',$ct).GetAwaiter().GetResult()
+ function Send($o){$b=[Text.Encoding]::UTF8.GetBytes(($o|ConvertTo-Json -Compress));[void]$ws.SendAsync([ArraySegment[byte]]::new($b),[Net.WebSockets.WebSocketMessageType]::Text,$true,$ct).GetAwaiter().GetResult()}
+ function Recv {
+  $buf=[byte[]]::new(262144);$mem=[IO.MemoryStream]::new();$cts=[Threading.CancellationTokenSource]::new(5000)
+  try {do {$r=$ws.ReceiveAsync([ArraySegment[byte]]::new($buf),$cts.Token).GetAwaiter().GetResult();if($r.MessageType -eq [Net.WebSockets.WebSocketMessageType]::Close){throw 'Server closed connection'};$mem.Write($buf,0,$r.Count)}while(-not $r.EndOfMessage);return [Text.Encoding]::UTF8.GetString($mem.ToArray())}finally{$cts.Dispose();$mem.Dispose()}
+ }
+ function Await($type){for($j=0;$j -lt 20;$j++){$reply=(Recv)|ConvertFrom-Json;if($reply.type -eq $type -or ($reply.type -eq 'ack' -and $reply.re -eq $type)){return $reply}};throw "reply missing: $type"}
+ Send @{type='hello';token=$token}
+ $auth=(Recv)|ConvertFrom-Json
+ if($auth.type -ne 'welcome'){throw 'Authentication failed'}
+ Check-Foreign 'before capture_start'
+ if([F1Focus]::FgPid() -eq $p.Id){throw 'PRECAPTURE-FOCUS: game is foreground at capture_start'}
+ $record.capture_start_sent=$true;$record.capture_start_utc=[DateTime]::UtcNow.ToString('o')
+ Send @{type='capture_start';dir=$captureDir;format='png';seed=777;maxFrames=90;anomaly='blinking';target='StaticMeshActor_49'}
+ $record.start_ack=(Await 'capture_start')
+ $s=[Diagnostics.Stopwatch]::StartNew()
+ while($s.Elapsed.TotalSeconds -lt 3){$record.fg+=@{t=$s.Elapsed.TotalSeconds;pid=[F1Focus]::FgPid()};Check-Foreign 'armed-pending';Start-Sleep -Milliseconds 40}
+ Send @{type='capture_status'}
+ $record.status_before_stop=(Await 'capture_status')
+ $record.fg+=@{t=$s.Elapsed.TotalSeconds;pid=[F1Focus]::FgPid()}
+ $record.dir_before_stop=(Snapshot-Dir $captureDir)
+ Send @{type='capture_stop'}
+ $record.stop_reply=(Await 'capture_stopped')
+ $record.fg+=@{t=$s.Elapsed.TotalSeconds;pid=[F1Focus]::FgPid()};$record.capture_stop_utc=[DateTime]::UtcNow.ToString('o')
+ $record.focus_violations=@($record.fg|Where-Object{$_.pid -eq $p.Id}).Count
+ Start-Sleep -Seconds 5
+ $record.dir_after_stop_5s=(Snapshot-Dir $captureDir)
+ Send @{type='capture_status'}
+ $record.status_after_stop=(Await 'capture_status')
+ $record.status='COMPLETE'
+}catch{$record.status='PROTOCOL-FAIL';$record.error=$_.Exception.Message;throw}
+finally {
+ if($ws){$ws.Dispose()}
+ if($p -and -not $p.HasExited){Stop-Process -Id $p.Id -Force;$p.WaitForExit()}
+ Start-Sleep -Seconds 2
+ $record.dir_after_exit=(Snapshot-Dir $captureDir)
+ $record.finished_utc=[DateTime]::UtcNow.ToString('o');$record|ConvertTo-Json -Depth 12|Set-Content -LiteralPath (Join-Path $dir 'launch.json') -Encoding utf8
+}
+Write-Output "$Label capture_start_sent=$($record.capture_start_sent) violations=$($record.focus_violations)"

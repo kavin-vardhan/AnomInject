@@ -1,0 +1,69 @@
+from pathlib import Path
+import collections,json,hashlib,subprocess,sys,re,importlib.util
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-17-evidence';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');audit=importlib.util.module_from_spec(spec);spec.loader.exec_module(audit)
+m=json.loads((E/'binary-v2.json').read_text());ledger=[]
+a2=json.loads((B/'_reviews/081-14-evidence/command-LYRA_G3_N_A2.json').read_text())
+def sha(p):
+ with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def arg(name):return a2[a2.index(name)+1]
+assert arg('-MaxFrames')=='150' and '-AutoPool' in a2
+for attempt in range(1,4):
+ for r in m['lyra_modules']:assert sha(L/'Binaries/Win64'/r['name'])==r['sha256'],r['name']
+ label=f'LYRA_G3_N_A{attempt}';d=E/label;log=E/f'runner-{label}.log';assert not d.exists() and not log.exists()
+ args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-17-lyra-run.ps1'),'-Label',label,'-MaxFrames','300','-ResX',arg('-ResX'),'-ResY',arg('-ResY'),'-Config',arg('-Config'),'-AutoPool','-ExtraExecCmds',arg('-ExtraExecCmds')]
+ (E/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+ with log.open('w',encoding='utf-8') as f:run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+ launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace') if (d/'game.log').exists() else '';errors=[];status='FIXTURE-VALID'
+ row=dict(label=label,attempt=attempt,runner_exit=run.returncode,capture_start_sent=launch.get('capture_start_sent'),session=launch.get('session'))
+ if run.returncode:
+  errors.append(launch.get('error','runner/protocol failure'))
+  if any(s in launch.get('error','') for s in ('L1-INVALID','L2-INVALID')):status='INVALID-FIXTURE'
+  elif launch.get('capture_start_sent'):status='INVALID-FIXTURE'
+  else:status='HARNESS-INVALID'
+ if launch.get('capture_start_sent'):
+  focus=launch.get('capture_focus',[]);hits=sum(x['foreground_pid']==launch['pid'] for x in focus);row.update(foreground_hits=hits,foreground_samples=len(focus))
+  if not focus or hits!=len(focus):errors.append('whole-leg foreground');status='INVALID-FIXTURE'
+  if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure');status='INVALID-FIXTURE'
+  on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+  if len(on)!=1 or len(off)!=1 or len(place)!=1:errors.append('lock/place/release counts');status='INVALID-FIXTURE'
+  elif re.search(r'priorLook=(\d) priorMove=(\d)',on[0]).groups()!=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0]).groups():errors.append('owned unlock restoration');status='INVALID-FIXTURE'
+ for key in ('_l1_result.json','_l2_pre.json','_l2_post.json'):
+  p=d/key
+  if p.exists():row[key]=json.loads(p.read_text(encoding='utf-8-sig'))
+ row.update(status=status,fixture_errors=errors);(d/'fixture-result.json').write_text(json.dumps(row,indent=2));ledger.append(row);(E/'lyra-results.json').write_text(json.dumps(ledger,indent=2))
+ print(json.dumps({k:row[k] for k in ('label','status','fixture_errors','capture_start_sent')}),flush=True)
+ if status=='HARNESS-INVALID':print('HARNESS-INVALID: '+label,flush=True);sys.exit(3)
+ if status!='FIXTURE-VALID':continue
+ s=Path(launch['session']);result=audit.audit(s,d/'game.log',dict(normal=True,event_floor=1))
+ records=list(map(json.loads,(s/'change_evidence.jsonl').read_text(encoding='utf-8-sig').splitlines()));pairs=[x for x in records if x['kind']=='pair'];events=[x for x in records if x['kind']=='event']
+ summ=result['summary'];phases=[ph for ev in events for ph in ev['phases']]
+ unmeasured=[dict(si=x['session_index'],event=x['event'],window=x['window_index'],reason=x['reason']) for x in pairs if not x['chg_measured']]
+ incomplete=[dict(event=ev['event'],ordinal=ph['ordinal'],required=ph['pairs_required'],measured=ph['pairs_measured'],reasons=ph['reasons']) for ev in events for ph in ev['phases'] if ph['pairs_measured']!=ph['pairs_required']]
+ truncated=[ev['event'] for ev in events if ev['phase_count']>len(ev['phases'])]
+ budget_lines=re.findall(r'Capture\(m55\): BUDGET-EXCEEDED si=(\d+) kind=(\w+)',text)
+ census_rows=[x['session_index'] for x in records if 'budget_census' in x]
+ window_budget=[x for x in unmeasured if x['reason']=='budget_exceeded']+[{'si':si} for si in census_rows]
+ structural=[e for e in result['errors'] if e not in ('no measured window pair',)]
+ result.update(events_with_phases=sum(1 for ev in events if ev['phases']),unmeasured_required=unmeasured,incomplete_phases=incomplete,phase_truncated_events=truncated,budget_refusal_lines=budget_lines,budget_census_rows=census_rows,
+  budget_anywhere=summ.get('change_reason_budget_exceeded',0)+len(budget_lines),peak_census=summ.get('change_bytes_peak_census'),
+  reasons_all_indices={k[len('change_reason_'):]:v for k,v in summ.items() if k.startswith('change_reason_') and v},
+  latency={k[len('change_colour_completion_latency_'):]:v for k,v in summ.items() if k.startswith('change_colour_completion_latency_')},
+  window_reasons=dict(collections.Counter(x['reason'] for x in pairs)),
+  onset_readings=[dict(si=x['session_index'],event=x['event'],chg_n=x['chg_n'],chg_gt8=x['chg_gt8'],chg_frac=round(x['chg_gt8']/x['chg_n'],6) if x['chg_n']>0 else None,chg_mean=x['chg_mean'],ctl_n=x['ctl_n'],ctl_gt8=x['ctl_gt8'],ctl_frac=round(x['ctl_gt8']/x['ctl_n'],6) if x['ctl_n']>0 else None,ctl_mean=x['ctl_mean'],reason=x['reason']) for x in pairs if x['window_index']==0],
+  effective_line=bool(re.search(r'maxBytes=268435456\(from compiled\)',text)))
+ if structural or not result['effective_line']:branch='NEEDS-DECISION';why='invariant/audit errors: '+'; '.join(structural) if structural else 'EFFECTIVE 256 MiB line absent'
+ elif unmeasured or incomplete or window_budget:
+  branch='NEEDS-DECISION';reasons=sorted({x['reason'] for x in unmeasured})
+  why='required pair(s) refused: '+','.join(reasons)+(' (closure_timeout/budget_exceeded: the ruled stop)' if set(reasons)&{'closure_timeout','budget_exceeded'} else ' (other refusal: conservative stop declared in 081-17 predictions)')
+ elif not events or not phases:branch='NEEDS-DECISION';why='vacuous: zero events or zero phases (G146)'
+ elif len(events)>=3:branch='PASS';why=f'{len(events)} events, every phase fully measured, invariants 0'
+ else:branch='OBSERVED-BELOW-EVENT-FLOOR';why=f'{len(events)} event(s) <3; every phase fully measured'
+ if branch!='NEEDS-DECISION' and result['budget_anywhere']:result['ruling_conflict']='budget_exceeded outside required windows: 081-16 ruling gate says zero anywhere; brief says required windows'
+ result.update(branch=branch,branch_reason=why)
+ (d/'measurement-audit.json').write_text(json.dumps(result,indent=2));row.update(status=branch,branch_reason=why,measurement_errors=result['errors']);(E/'lyra-results.json').write_text(json.dumps(ledger,indent=2))
+ print(json.dumps({k:result[k] for k in ('events','pairs','measured','branch','branch_reason','budget_anywhere')}),flush=True)
+ sys.exit(0 if branch in ('PASS','OBSERVED-BELOW-EVENT-FLOOR') else 1)
+(E/'lyra-dropped.json').write_text(json.dumps(dict(status='G270-DROPPED-FOR-M55',reason='3 fixture-invalid attempts under 081-14 section 3.4: UNRESOLVED observation, Stage 3 non-blocking',attempts=[r['label'] for r in ledger]),indent=2))
+print('G270 dropped for m55 after three fixture-invalid attempts',flush=True);sys.exit(0)

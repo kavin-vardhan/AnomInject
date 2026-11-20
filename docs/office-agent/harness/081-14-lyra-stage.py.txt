@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,hashlib,shutil,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-14-evidence';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(*a):return subprocess.check_output(['git','-C',str(L),*a]).decode().strip()
+idle=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue) | Select-Object -ExpandProperty Id']).decode().strip();assert not idle
+assert not git('diff','--name-only') and not git('diff','--cached','--name-only') and not git('ls-files','--others','--exclude-standard')
+m=json.loads((B/'_reviews/081-11-evidence/binary-v2.json').read_text());pre=json.loads((E/'preflight.json').read_text());entry=json.loads((B/'_reviews/081-06-evidence/lyra-binary-before.json').read_text());target=L/'Binaries/Win64'
+assert git('rev-parse','HEAD')==pre['repos']['Lyra']['head']
+for r in entry:assert sha(target/r['name'])==r['sha256']
+for r in m['lyra_modules']:assert sha(Path(m['lyra_archive'])/r['name'])==r['sha256']
+git('checkout','--detach',m['source_commit'])
+for r in m['lyra_modules']:
+ shutil.copy2(Path(m['lyra_archive'])/r['name'],target/r['name']);assert sha(target/r['name'])==r['sha256']
+(E/'lyra-staged.json').write_text(json.dumps(dict(source_commit=git('rev-parse','HEAD'),archive=m['lyra_archive'],modules=m['lyra_modules'],entry_source=pre['repos']['Lyra']['head'],entry_modules=entry),indent=2))
+print('Lyra candidate source and11archived modules staged and verified; original9remain archived.')

@@ -1,0 +1,14 @@
+import importlib.util,os,sys
+os.environ['IAI_R23_WINDOW']='c2'
+spec=importlib.util.spec_from_file_location('lib23',r'D:\IntrusiveAnomalies\_reviews\081-23-lib.py');L=importlib.util.module_from_spec(spec);spec.loader.exec_module(L)
+L.env_for_window()
+def m(leg,case,order):
+    f=lambda:L.run_measure_leg(leg,case,order);f.__name__=leg;return f
+steps=[]
+for case in ('null','solid','delay','hide','hide_depth','empty','blink','short','drop','runend','teardown'):
+    for o in (0,1):steps.append(m(f'C2_{case.upper()}_{"S" if o else "N"}',case,o))
+steps+=[m('C2_MOVING_NULL_N','moving_null',0),m('C2_MOVING_SOLID_N','moving_solid',0)]
+for g in (1,3,4,5,6,7,11,12,13):
+    for o in (0,1):steps.append(m(f'C2_G{g}_{"S" if o else "N"}',f'g{g}',o))
+if len(sys.argv)>1 and sys.argv[1]=='--list':print('\n'.join(s.__name__ for s in steps));sys.exit(0)
+sys.exit(L.run_sequence(steps,'chunk2-summary.json'))

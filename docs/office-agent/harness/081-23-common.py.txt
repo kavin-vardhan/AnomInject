@@ -1,0 +1,52 @@
+from pathlib import Path
+import datetime,hashlib,json,os,subprocess,sys,time
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+B=Path(r'D:\IntrusiveAnomalies');R=B/'_reviews';E=R/'081-23-evidence'/os.environ.get('IAI_R23_WINDOW','prep');E23=R/'081-23-evidence';E22=R/'081-22-evidence';RP=B/'StackOBot/Plugins/AnomalyInjector'
+L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector');C=B/'StackOBot/Plugins/CaptureBench'
+E21=R/'081-21-evidence';E18=R/'081-18-evidence';E17=R/'081-17-evidence'
+FEATURE='feat/m55-change-evidence';FEATURE_HEAD=json.loads((R/'081-23-evidence/prep-boundary.json').read_text())['feature_head'] if (R/'081-23-evidence/prep-boundary.json').exists() else None
+M51='53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67';LYRA='caa68c6799db023f7a24c0d6cfc56124ce27b542'
+MASTER='031a103b18b90b2ce9dd626b22e9498717c60815'
+PRE_M55=B/'_binary_baselines/StackOBot.exe.m52-veto-arm-window-0844220E'
+PWSH=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+PY=r'C:\Python313\python.exe'
+OURS_MARKERS=('d:\\uesource','intrusiveanomalies','lyrastartergame','\\stackobot')
+NAMES=('UnrealEditor.exe','UnrealEditor-Cmd.exe','StackOBot.exe','LyraGame.exe','LyraEditor.exe','LyraClient.exe','LyraServer.exe','UnrealBuildTool.exe','ShaderCompileWorker.exe','CrashReportClient.exe','CrashReportClientEditor.exe','UnrealTraceServer.exe','dotnet.exe')
+EDITORS=('UnrealEditor.exe','UnrealEditor-Cmd.exe','LyraEditor.exe')
+GAMES=('StackOBot.exe','LyraGame.exe','LyraClient.exe','LyraServer.exe')
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def now():return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def git(r,*a):return subprocess.check_output(['git','-C',str(r),*a]).decode().strip()
+def state(r):
+    return {'head':git(r,'rev-parse','HEAD'),'branch':git(r,'branch','--show-current'),
+            'refs':git(r,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes'),
+            'untracked':{p:sha(r/p) for p in git(r,'ls-files','--others','--exclude-standard').splitlines()}}
+def classify():
+    names=",".join("'"+n+"'" for n in NAMES)
+    for attempt in range(4):
+        try:
+            s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-CimInstance Win32_Process | Where-Object { $_.Name -in "+names+" } | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine,CreationDate) | ConvertTo-Json -Compress"]).decode().strip();break
+        except subprocess.CalledProcessError as e:
+            if attempt==3:raise
+            time.sleep(5)
+    v=[] if not s or s=='[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+    ours=[];foreign=[]
+    for x in v:
+        t=((x.get('ExecutablePath') or '')+' '+(x.get('CommandLine') or '')).lower()
+        rec=dict(pid=x['ProcessId'],ppid=x.get('ParentProcessId'),name=x['Name'],path=x.get('ExecutablePath'),cmd=(x.get('CommandLine') or '')[:240],created=str(x.get('CreationDate')))
+        if x['Name']=='dotnet.exe' and 'unrealbuildtool' not in t:continue
+        if any(m in t for m in OURS_MARKERS):ours.append(rec)
+        else:foreign.append(rec)
+    return ours,foreign
+def quiet():
+    ours,foreign=classify()
+    editors=[p for p in ours+foreign if p['name'] in EDITORS]
+    games=[p for p in ours+foreign if p['name'] in GAMES]
+    blocking=editors+games+[p for p in ours if p['name'] in ('UnrealBuildTool.exe','ShaderCompileWorker.exe','dotnet.exe')]
+    return dict(quiet=not blocking,blocking=[(p['pid'],p['name'],p['path']) for p in blocking],
+                ours=ours,foreign=foreign)
+def log_event(kind,**kw):
+    E.mkdir(exist_ok=True);p=E/'environment-events.json';ev=json.loads(p.read_text()) if p.exists() else []
+    ev.append(dict(utc=now(),kind=kind,**kw));p.write_text(json.dumps(ev,indent=2,default=str))
+def binary_v3():return json.loads((E21/'binary-v3.json').read_text())

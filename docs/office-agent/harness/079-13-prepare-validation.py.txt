@@ -1,0 +1,30 @@
+"""Freeze the exact verifier/scorer and prepare the remaining checks."""
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+reviews = ROOT / "_reviews"
+tools = ROOT / "StackOBot/Plugins/AnomalyInjector/tools"
+scorer = ROOT / "StackOBot/Plugins/CaptureBench/tools/m079_shift_recovery.py"
+frozen = reviews / "079-13-sweep-tools"
+frozen.mkdir(exist_ok=True)
+manifest = {}
+for source in [tools / "verify_capture.py", tools / "measure_label_offset.py",
+               tools / "test_verify_capture_consistency.py", scorer]:
+    data = source.read_bytes()
+    (frozen / source.name).write_bytes(data)
+    manifest[source.name] = hashlib.sha256(data).hexdigest()
+(frozen / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+p = reviews / "079-13-final-validation.py"
+p.write_text(p.read_text().replace('079-13-evidence/initial', '079-13-evidence/final'), encoding="utf-8")
+s = (reviews / "079-12-complete-checks.py").read_text()
+s = s.replace("079-12", "079-13").replace("scorer07912", "scorer07913")
+s = s.replace('("lighting", {"lighting": True}, ["wrong", "recovered"]),',
+              '("lighting", {"lighting": True}, ["recovered", "recovered"]),\n'
+              '        ("late_label", {"label_runs": ((61, 67),)}, ["wrong", "recovered"]),')
+s = s.replace('                           1.0, mlo,', '                           mlo,')
+s = s.replace(', "--region-cap", "1.0"', '')
+s = s.replace('partial eligibility and zero-cap contracts', 'partial eligibility and immutable denominator contracts')
+(reviews / "079-13-complete-checks.py").write_text(s, encoding="utf-8")
+print(json.dumps(manifest, indent=2))

@@ -1,0 +1,287 @@
+import collections,hashlib,importlib.util,json,os,sys,tempfile,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+MODE=sys.argv[1] if len(sys.argv)>1 else 'live'
+if MODE not in ('live','dry','gates','rebank','postflight'):raise SystemExit('usage: 084-06-window.py live|dry|gates|rebank|postflight [--with-optional] [--only GROUP[,GROUP]]')
+OPTIONAL='--with-optional' in sys.argv
+ONLY=None
+if '--only' in sys.argv:ONLY=set(sys.argv[sys.argv.index('--only')+1].split(','))
+if MODE=='dry':
+    os.environ['IAI_R56_STUB_LAUNCH']='1'
+    os.environ.setdefault('IAI_R56_ROOT',str(Path(tempfile.gettempdir())/f'r56_dry_{int(time.time())}'))
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c56',R/'084-06-common.py');L=load('lib56',R/'084-06-lib.py');E=load('e56',R/'084-06-eval.py');LG=L.LG
+c.RUN.mkdir(parents=True,exist_ok=True)
+BANK=Path(r'D:\IntrusiveAnomalies\_bench_sessions_bank')
+def _one(d):
+    s=[x for x in Path(d).iterdir() if x.is_dir() and x.name.startswith('session_')]
+    return s[0] if len(s)==1 else None
+DRY_STANDINS={
+ 'B0':_one(BANK/'M52FIX_B0_FIX_A1'),'B5':_one(BANK/'M52FIX_B5_FIX_A1'),'B3':_one(BANK/'M52FIX_B3_FIX_A1'),'B9':_one(BANK/'M52FIX_B9_FIX_A1'),
+ 'B0L':_one(BANK/'M52FIX_B0L_FIX_A1'),'P1':_one(BANK/'M52FIX_P1_FIX_A1'),
+ 'MASK55':BANK/'M55B3R23_S1_STACK_ON_A1/session_20260925-105557',
+ 'REAL_BL_R1':BANK/'PRECOOK077_AnomalyCaptures/session_20260823-125514','LOD_NAT':BANK/'PRECOOK077_AnomalyCaptures/session_20260823-125514',
+ 'CCMW_ON':BANK/'S53_CC_IN/session_20260822-214048','CCMW_NULL_A':BANK/'S53_CC_OUT/session_20260822-214039','CCMW_NULL_B':BANK/'S53_CC_OUT/session_20260822-214039'}
+def selected():
+    out=[]
+    for Lg in LG.legs_sorted():
+        if ONLY and Lg['group'] not in ONLY:continue
+        if not Lg['required'] and not OPTIONAL:continue
+        out.append(Lg)
+    return out
+def preflight():
+    p=[];n={}
+    try:n['fix_archive']=str(c.fix_archive());n['fix_set']=c.fix_set()
+    except SystemExit as ex:p.append(str(ex))
+    head=c.git(c.RP,'rev-parse',c.FIX_BRANCH);origin=c.git(c.RP,'rev-parse','refs/remotes/origin/'+c.FIX_BRANCH)
+    n.update(fix_head=head,fix_origin=origin)
+    if head!=origin:p.append(f'fix branch {head[:7]} != origin {origin[:7]}')
+    import subprocess
+    if subprocess.run(['git','-C',str(c.RP),'merge-base','--is-ancestor',c.FIX_SOURCE_COMMIT,head],capture_output=True).returncode!=0:p.append(f'fix branch head {head[:7]} does not contain the build-under-test source {c.FIX_SOURCE_COMMIT[:7]}')
+    if c.git(c.RP,'rev-parse','HEAD')!=c.M51_HEAD or c.git(c.RP,'branch','--show-current')!='m51':p.append('main checkout moved off m51 53bf725')
+    n['lyra']=L.lyra_precondition()
+    if not c.STUB:
+        cur=c.which_set();n['staged_now']=cur
+        if cur not in ('M53','FIX'):p.append('staged set is neither M53 nor FIX: '+json.dumps(c.staged_state()))
+        if cur!='M53' and not (c.M53_BACKUP/c.KEYS[0]).exists():p.append('staged set is not M53 and no verified M53 backup exists')
+        fe=c.free_gb('E:\\');fd=c.free_gb('D:\\');n.update(free_e_gb=fe,free_d_gb=fd)
+        if fe<c.E_FLOOR_GB:p.append(f'E: free {fe} < {c.E_FLOOR_GB}')
+        if fd<c.D_FLOOR_GB:p.append(f'D: free {fd} < {c.D_FLOOR_GB}')
+        ours,foreign=c.classify();n['foreign']=[(x['pid'],x['name']) for x in foreign]
+        if [x for x in ours if x['name']!='UnrealTraceServer.exe']:p.append('our engine/game processes present')
+    n['legs']=[x['leg'] for x in selected()]
+    out=dict(utc=c.now(),mode=MODE,problems=p,notes=n);L.jsave(c.RUN/f'preflight-{int(time.time())}.json',out);return out
+def run_all():
+    done=[]
+    for Lg in selected():
+        stand=DRY_STANDINS.get(Lg['leg']) if c.STUB else None
+        r=L.run_leg(Lg,stub_session=stand);done.append((Lg['leg'],r));c.log_event('leg',leg=Lg['leg'],result=r)
+    return done
+def sess_of(leg_id):
+    sd=L.leg_session(leg_id)
+    if sd is None and c.STUB:
+        a=[x for x in L.ledger() if x['leg']==leg_id and x['status']=='ACCEPTED']
+        if a:sd=L.find_session(c.BANK/a[-1]['label'])
+    return sd
+def t_by_start(sd):
+    s=E.sess(sd);out={}
+    for ev in E.anno_events(s):out[(ev['type'],ev['start_frame'])]=sorted(ev['T'])
+    return out
+def m52_T_by_start(sd):
+    s=E.sess(sd);out={}
+    for e in E.L3.events(s):out[('stuck_low_mip',e['start_frame'])]=sorted(E.m52_transitions(s,e))
+    return out
+def presence_contract(sd):
+    s=E.sess(sd);evs=E.anno_events(s);lab=set()
+    for e in evs:lab|=set(e['L'])
+    pu=collections.Counter();lnp=0;pu_n=0
+    for si,r in s.by_si.items():
+        ap=bool(r.get('anomaly_present'))
+        if ap and si not in lab:
+            pu_n+=1
+            for a in (r.get('anomalies') or []):pu[E.TYPE_MAP.get(a.get('id'),a.get('id'))]+=1
+        if si in lab and not ap:lnp+=1
+    return dict(rows=len(s.by_si),labelled_rows=len(lab),present_but_unlabelled_rows=pu_n,present_but_unlabelled_entry_types=dict(pu),labelled_but_not_present_rows=lnp,
+                note='G350 contract reading (Codex 084-05b F1): rows whose anomaly_present is true while no event labels that frame, by entry type. Reported, not gated')
+def eval_m52_leg(Lg,sd,log,null_sd):
+    a=E.m52_leg(sd,null_sd,log);sm=E.summarize_rows(a['rows'])
+    s3=E.L3.Sess(sd);out=dict(e1=sm,e1_rows=a['rows'],bases=a['bases'])
+    if Lg['role'] in ('SYNC','AA_OFF','LEVER','PURITY_CANFAIL','ORDER'):out['purity']=E.L3.gate_purity(log,s3)
+    out['edge_paths']=E.L3.edge_paths(s3,log);out['monitor_cost']=E.L3.monitor_cost(s3,log)
+    e2=E.ls086_verdict(sd,types={'stuck_low_mip'},T_by_start=m52_T_by_start(sd))
+    out['e2']=E.summarize_ls086(e2);out['e2_events']=e2;out['presence']=presence_contract(sd)
+    aa,src=E.detect_temporal_aa(E.sess(sd),log);out['temporal_aa']=dict(value=aa,source=src,summary={k:v for k,v in (E.sess(sd).summary or {}).items() if k.startswith('label_')})
+    return out
+def eval_diff_leg(Lg,sd,log):
+    d=E.diff_leg(sd,log=log);sm=E.summarize_diff(d['events'])
+    e2=E.ls086_verdict(sd,T_by_start=t_by_start(sd))
+    aa,src=E.detect_temporal_aa(E.sess(sd),log)
+    return dict(e1=sm,e1_events=d['events'],e2=E.summarize_ls086(e2),e2_events=e2,presence=presence_contract(sd),temporal_aa=dict(value=aa,source=src))
+def evaluate(legs=None):
+    rep=dict(utc=c.now(),mode=MODE,evaluator=E.EVALUATOR,release_threshold=E.RELEASE,legs={},can_fail={},transition_values={},harness={})
+    legs=legs or selected()
+    for Lg in legs:
+        sd=sess_of(Lg['leg'])
+        if sd is None:rep['legs'][Lg['leg']]=dict(status='NOT ACCEPTED');continue
+        log=L.leg_log(Lg['leg']);r=dict(group=Lg['group'],role=Lg['role'],session=str(sd))
+        try:
+            if Lg['group']=='M52':
+                if Lg['role']=='NULL':r['null']=E.L3.null_check(E.L3.Sess(sd))
+                else:r.update(eval_m52_leg(Lg,sd,log,sess_of(Lg['null']) if Lg.get('null') else None))
+            elif Lg['group'] in ('BCC',):
+                if Lg['role']=='CC_ON':
+                    na,nb=Lg['pair'];sa=sess_of(na);sb=sess_of(nb) if nb else None
+                    if sa is None:r['cc']=dict(valid=False,errors=[f'null {na} not accepted'])
+                    else:r['cc']=E.cc_pair(sd,sa,log,L.leg_log(na),sb,L.leg_log(nb) if nb else None,Lg['frames'])
+                    e2=E.ls086_verdict(sd,types={'camera_clipping'});r['e2']=E.summarize_ls086(e2)
+                else:r['role_note']='null leg: read through its ON pair'
+            elif Lg['group'] in ('BCCMW','BCCLY'):
+                if Lg['role']=='CC_ON':
+                    na,nb=Lg['pair'];sa=sess_of(na);sb=sess_of(nb) if nb else None
+                    r['cc_mw']=E.cc_mw_pair(sd,sa,sb,Lg['frames']) if sa else dict(verdict='NO-NULL')
+                else:r['role_note']='null leg: read through its ON pair'
+            elif Lg['group']=='MASK55':
+                r['mask']=E.mask_gate(sd,log);r.update(eval_diff_leg(Lg,sd,log))
+            else:r.update(eval_diff_leg(Lg,sd,log))
+        except Exception:
+            import traceback;r['error']=traceback.format_exc()[-1500:]
+        rep['legs'][Lg['leg']]=r
+    g=rep['legs']
+    if 'B0L' in g and 'e1' in g['B0L']:rep['can_fail']['B0L_timing_lever_must_FAIL']=dict(e1=g['B0L']['e1']['leg_verdict'],proven=g['B0L']['e1']['leg_verdict']=='FAIL',e2=g['B0L']['e2']['t50']['status'])
+    if 'P1' in g and 'purity' in g['P1']:rep['can_fail']['P1_purity_lever_must_FAIL']=dict(observed=g['P1']['purity']['verdict'],proven=g['P1']['purity']['verdict'].startswith('FAIL'))
+    for k,v in g.items():
+        if isinstance(v,dict) and v.get('cc',{}).get('valid'):rep['can_fail'][f'{k}_sphere_proxy_must_disagree']=dict(proven=v['cc']['gate2_canfail_proven'],detail=v['cc']['proxy_can_fail'])
+    rep['transition_values']=transition_readings(g)
+    rep['harness']={p.name:c.sha(p)[:16] for p in sorted(R.glob('084-06-*')) if p.is_file() and p.suffix in ('.py','.ps1','.md')}
+    L.jsave(c.RUN/'report.json',rep);write_md(rep,c.RUN/'report.md');return rep
+def transition_readings(g):
+    out={}
+    for k,v in g.items():
+        if not isinstance(v,dict) or 'e1' not in v or not v.get('temporal_aa',{}).get('value'):continue
+        e1=v['e1'];t=e1.get('t50') or {}
+        out[k]=dict(start_t50=t.get('start'),end_t50=t.get('end'),release_verdicts=t.get('verdicts'),label_summary=v.get('temporal_aa',{}).get('summary'))
+    return out
+def write_md(rep,path):
+    ln=[f'# 084-06 bench report ({rep["mode"]}, {rep["utc"]}, evaluator {rep["evaluator"]}, release threshold {rep["release_threshold"]})','']
+    ln+=['| leg | group | E1 release (t50) | E1 strict / t10 | start / end at t50 | E2 086-01 t50 raw / transition-aware | presence contract |','|---|---|---|---|---|---|---|']
+    for k,v in rep['legs'].items():
+        if not isinstance(v,dict):continue
+        e1=v.get('e1') or {};e2=v.get('e2') or {}
+        if e1:
+            ln.append(f"| {k} | {v.get('group')} | {e1.get('leg_verdict')} {json.dumps((e1.get('t50') or {}).get('verdicts'))} | {json.dumps((e1.get('strict') or {}).get('verdicts'))} / {json.dumps((e1.get('t10') or {}).get('verdicts'))} | {(e1.get('t50') or {}).get('start')} / {(e1.get('t50') or {}).get('end')} | {json.dumps((e2.get('t50') or {}).get('status'))} / {json.dumps((e2.get('t50') or {}).get('transition_aware'))} | {(v.get('presence') or {}).get('present_but_unlabelled_rows')} |")
+        elif v.get('cc'):
+            cc=v['cc'];ln.append(f"| {k} | BCC | gate1 {cc.get('gate1_label_equals_clipped')} (UNJUDGEABLE {cc.get('unjudgeable')}, P/F {cc.get('margin_P_over_F')}) | disagree strict {cc.get('rules',{}).get('strict',{}).get('n')} / t10 {cc.get('rules',{}).get('t10',{}).get('n')} | - | {json.dumps((e2.get('t50') or {}).get('status'))} | - |" if cc.get('valid') else f"| {k} | BCC | INVALID {cc.get('errors')} | | | | |")
+        elif v.get('cc_mw'):ln.append(f"| {k} | {v.get('group')} | {v['cc_mw'].get('verdict')} | labelled {v['cc_mw'].get('labelled')} eye_inside {v['cc_mw'].get('eye_inside_box_frames')} | | | |")
+        elif v.get('null'):ln.append(f"| {k} | NULL | {'PASS' if v['null'].get('pass') else 'FAIL'} | labelled_held_rows {v['null'].get('labelled_held_rows')} | | | |")
+        else:ln.append(f"| {k} | {v.get('group')} | {v.get('status') or v.get('role_note') or v.get('error','')[:80]} | | | | |")
+    for k,v in rep['legs'].items():
+        if isinstance(v,dict) and v.get('mask'):
+            m=v['mask'];ln+=['',f"## {k} mask gate: {'PASS' if m['pass_'] else 'FAIL'}",f"- events {m['events']}, labelled frames {m['labelled_frames']}, masked {m['masked']}, G295 {len(m['g295_frames'])}, recycles {m['recycles_summary']} (log {m['recycle_log_lines']}), peak live {m['peak_live']}, exhausted {m['exhausted']}, values reused {m['values_reused']}, owner violations {m['owner_violation_lines']}",f"- fail reasons: {m['fail_reasons']}"]
+        if isinstance(v,dict) and v.get('purity'):ln.append(f"- {k} purity (iii): {v['purity']['verdict']}")
+        if isinstance(v,dict) and v.get('cc',{}).get('valid'):
+            cc=v['cc'];ln+=['',f"## {k} camera_clipping oracle",f"- F {cc['F']} (N_max {cc['N_max']}, S_max {cc['S_max']}), P {cc['P']}, theta {cc['theta']}, unjudgeable {cc['unjudgeable']}",
+                            f"- gate 1 label == CLIPPED at t50: {cc['gate1_label_equals_clipped']} (disagreeing k {cc['rules']['t50']['label_vs_clipped_disagree'][:20]})",
+                            f"- gate 2 sphere proxy can fail: {cc['gate2_canfail_proven']} {json.dumps(cc['proxy_can_fail'])}",f"- designed vs oracle disagree k: {cc['designed_vs_oracle_disagree'][:30]}",
+                            f"- segment medians {json.dumps(cc['segment_median_D'])}",f"- cost {json.dumps(cc['cost'])[:600]}"]
+    ln+=['','## can-fail','']+[f'- {k}: {json.dumps(v,default=str)[:400]}' for k,v in rep['can_fail'].items()]
+    ln+=['','## transition readings (legs under temporal AA)','']+[f'- {k}: {json.dumps(v,default=str)[:500]}' for k,v in rep['transition_values'].items()]
+    Path(path).write_text('\n'.join(ln)+'\n',encoding='utf-8')
+def postflight():
+    problems=[]
+    def chk(ok,msg):
+        if not ok:problems.append(msg)
+    ours,foreign=c.classify()
+    chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present at close')
+    st=c.staged_state();chk(st==c.M53,'staged set is not the m53 set: '+json.dumps(st))
+    chk(c.git(c.RP,'rev-parse','HEAD')==c.M51_HEAD and c.git(c.RP,'branch','--show-current')=='m51','main checkout moved off m51 53bf725')
+    fh=c.git(c.RP,'rev-parse',c.FIX_BRANCH);fo=c.git(c.RP,'rev-parse','refs/remotes/origin/'+c.FIX_BRANCH);chk(fh==fo,f'fix branch {fh[:7]} != origin {fo[:7]}')
+    led=L.ledger();acc=[x for x in led if x.get('status')=='ACCEPTED'];links=0
+    for x in acc:
+        a=c.BANK/x['label'];al=c.BANK/(c.BANK_PREFIX+x['leg'])
+        for p in [p for p in a.rglob('*') if p.is_file()]:
+            q=al/p.relative_to(a)
+            if not q.exists() or os.stat(q).st_ino!=os.stat(p).st_ino:problems.append(f'alias not a hardlink: {q}');break
+            links+=1
+    left=[d.name for d in c.EXE_SIDE.iterdir() if d.is_dir() and d.name.startswith(c.BANK_PREFIX)] if c.EXE_SIDE.exists() else []
+    left+=[d.name for d in c.LYRA_OUT.iterdir() if d.is_dir() and d.name.startswith(c.BANK_PREFIX)] if c.LYRA_OUT.exists() else []
+    chk(not left,f'leg copies left after banking: {left[:5]}')
+    bk={k:c.sha(c.M53_BACKUP/k) for k in c.KEYS if (c.M53_BACKUP/k).exists()};chk(bk==c.M53,'m53 backup does not verify')
+    out=dict(utc=c.now(),problems=problems,accepted_legs=len(acc),attempts=len([x for x in led if x.get('label')]),not_accepted=[x for x in led if x.get('status')!='ACCEPTED'],
+             alias_hardlinks_verified=links,left=left,staged=st,fix_head=fh,foreign_present=[(p['pid'],p['name']) for p in foreign],
+             verdict='PASS' if not problems else 'FAIL')
+    L.jsave(c.RUN/'postflight.json',out);return out
+REBANK=collections.OrderedDict([('B0_BASE','B5_BASE'),('B3_BASE','B5_BASE'),('B9_BASE','B5_BASE'),('B7_BASE','B5_BASE'),
+                               ('B0_FIX','B5_FIX'),('B3_FIX','B5_FIX'),('B9_FIX','B5_FIX'),('B7_FIX','B5_FIX'),('B0L_FIX','B5_FIX')])
+PROVISIONAL=(2,8)
+def rule_T(kon,koff):
+    def f(e,lw):
+        lw=sorted(lw)
+        if not lw:return set()
+        return set(lw[:kon])|set(range(lw[-1]+1,lw[-1]+koff+1))
+    return f
+def rebank():
+    led={x['leg']:x for x in json.loads((R/'084-03-evidence/run/ledger.json').read_text()) if x.get('status')=='ACCEPTED'}
+    sd=lambda leg:L.find_session(BANK/led[leg]['label'])
+    lg=lambda leg:L.log_text(BANK/led[leg]['label']/'_leg'/'game.log')
+    d=c.EV/'rebank';d.mkdir(parents=True,exist_ok=True)
+    out=dict(utc=c.now(),evaluator=E.EVALUATOR,note='084-03 bank (baseline E0BE6F0A, fix B725678B) re-evaluated with the 084-06 edge-local, transition-aware evaluator; B725678B predates the transition flag, so AA-on fix legs are shown as banked (no flags) and with the flag rule applied offline',legs={})
+    for leg,nl in REBANK.items():
+        if leg not in led:out['legs'][leg]='NOT BANKED';continue
+        aa=('AntiAliasingMethod 0' not in json.dumps(led[leg])) and leg not in ('B9_BASE','B9_FIX')
+        a=E.m52_leg(sd(leg),sd(nl),lg(leg),temporal_aa=aa);sm=E.summarize_rows(a['rows'])
+        out['legs'][leg]=dict(null=nl,session=str(sd(leg)),aa='delivered' if aa else 'off',as_banked=sm,bases=a['bases'],rows=[{k:v for k,v in r.items() if k!='drop'} for r in a['rows']])
+        print('rebank',leg,sm['leg_verdict'],json.dumps(sm['t50']['verdicts']),sm['t50']['start'],sm['t50']['end'],flush=True)
+    sv=smear_values(out);out['transition_values']=sv;p=sv['proposed']
+    Ks=[PROVISIONAL]
+    if p['TransitionOnFrames'] is not None and (p['TransitionOnFrames'],p['TransitionOffFrames'])!=PROVISIONAL:Ks.append((p['TransitionOnFrames'],p['TransitionOffFrames']))
+    for leg,v in out['legs'].items():
+        if not isinstance(v,dict) or v['aa']!='delivered' or not leg.endswith('_FIX') or leg=='B0L_FIX':continue
+        for kon,koff in Ks:
+            w=E.m52_leg(sd(leg),sd(v['null']),lg(leg),transition_override=rule_T(kon,koff),temporal_aa=True)
+            v[f'with_flags_{kon}_{koff}']=E.summarize_rows(w['rows'])
+            print('rebank',leg,f'flags {kon}/{koff}',v[f'with_flags_{kon}_{koff}']['leg_verdict'],json.dumps(v[f'with_flags_{kon}_{koff}']['t50']['verdicts']),flush=True)
+    for leg,v in out['legs'].items():
+        if not isinstance(v,dict):continue
+        cp=d/f'e2_{leg}.json'
+        if cp.exists():e2=json.loads(cp.read_text(encoding='utf-8'))
+        else:
+            e2=E.ls086_verdict(sd(leg),types={'stuck_low_mip'},labelref=leg.endswith('_FIX'));cp.write_text(json.dumps(e2,default=str),encoding='utf-8')
+        v['e2_086_01']=E.summarize_ls086(e2);v['e2_variant']='labelref (annotation-membership references; declared, as 084-03)' if leg.endswith('_FIX') else 'unmodified'
+        print('rebank',leg,'e2',json.dumps(v['e2_086_01']['t50']),flush=True)
+    return out
+def smear_values(rb):
+    on=[];off=[];off_cens=[];src=[]
+    for leg in ('B0_FIX','B3_FIX','B7_FIX'):
+        v=rb['legs'].get(leg)
+        if not isinstance(v,dict):continue
+        for r in v['rows']:
+            if r.get('status')!='OK' or not r.get('measurable') or r.get('camera_moved'):continue
+            t=r['per']['t50']['two_sided'];L1=r['label'][1]
+            if t['start'] is not None and not any(x.startswith('onset') for x in t['censored_edges']):on.append(t['start'])
+            if t['end'] is not None and not any(x.startswith('offset') for x in t['censored_edges']):off.append(t['end'])
+            elif any(x.startswith('offset') for x in t['censored_edges']):
+                aft=[si-L1 for si in r['per']['t50']['transition_gate']['unlabelled_visible'] if si>L1]
+                if aft:off_cens.append(max(aft))
+        src.append(leg)
+    import numpy as np
+    def pct(v,q):return None if not v else float(np.percentile(v,q,method='higher'))
+    res=dict(sources=src,threshold='t50 (the release rule)',onset=dict(n=len(on),hist=E.hist(on),p95=pct(on,95),p100=pct(on,100)),
+             offset=dict(n=len(off),hist=E.hist(off),p95=pct(off,95),p100=pct(off,100)),
+             offset_censored_lower_bounds=dict(n=len(off_cens),hist=E.hist(off_cens),max=max(off_cens) if off_cens else None,
+                                               note='offsets censored because the picture never returned to its pre-event level against the null ratio; the last unlabelled visible frame after the label is a lower bound of the tail, not certified'))
+    kon=int(res['onset']['p95'])+1 if on else None
+    koff=max(int(res['offset']['p95'])+1,int(max(off_cens)) if off_cens else 0) if off else None
+    res['proposed']=dict(TransitionOnFrames=kon,TransitionOffFrames=koff,
+                         rule='K_on = p95 of the judged onset smear + 1; K_off = max(p95 of the judged offset smear + 1, the largest censored lower bound)',
+                         outliers_above_proposed=dict(onset=[x for x in on if kon is not None and x>kon],offset=[x for x in off+off_cens if koff is not None and x>koff]))
+    return res
+def main():
+    if MODE=='rebank':
+        rb=rebank();sv=rb['transition_values']
+        d=c.EV/'rebank';d.mkdir(parents=True,exist_ok=True);L.jsave(d/'rebank.json',rb)
+        slim={k:(dict(aa=v['aa'],as_banked={kk:v['as_banked'][kk] for kk in ('events','judgeable','leg_verdict','legacy_whole_leg_threshold')},t50=v['as_banked']['t50'],
+                      t10=v['as_banked']['t10'],strict=v['as_banked']['strict'],
+                      flags={kk:{'leg':vv['leg_verdict'],'t50':vv['t50']['verdicts'],'fails':vv['t50']['fail_reasons']} for kk,vv in v.items() if kk.startswith('with_flags_')},
+                      e2_t50=v['e2_086_01']['t50'],e2_variant=v['e2_variant']) if isinstance(v,dict) else v) for k,v in rb['legs'].items()}
+        L.jsave(d/'rebank-summary.json',dict(legs=slim,transition_values=sv));print(json.dumps(dict(transition_values=sv),default=str)[:4000]);return
+    if MODE=='postflight':pf=postflight();print(json.dumps(pf,default=str)[:3000]);sys.exit(1 if pf['problems'] else 0)
+    pf=preflight()
+    if pf['problems']:print(json.dumps(dict(result='PREFLIGHT-FAILED',problems=pf['problems'],notes=pf['notes']),default=str));sys.exit(10)
+    if MODE=='gates':rep=evaluate();print(json.dumps(dict(result='GATES',report=str(c.RUN/'report.json')),default=str));return
+    code=0;why=None;t0=time.time()
+    try:
+        if not c.STUB:L.backup_m53()
+        L.stage('FIX','01-fix');run_all()
+    except L.Stop as ex:
+        code=ex.code;why=ex.msg;c.log_event('window-stop',code=code,why=why)
+    finally:
+        try:L.stage('M53','99-restore-m53',restore=True)
+        except L.Stop as ex:code=code or ex.code;why=(why or '')+' | RESTORE FAILED: '+ex.msg
+    rep=evaluate();elapsed=round(time.time()-t0,1)
+    pf2=postflight() if not c.STUB else dict(verdict='SKIPPED (dry)')
+    print(json.dumps(dict(result='COMPLETE' if code==0 else 'STOPPED',code=code,why=why,elapsed_s=elapsed,run=str(c.RUN),postflight=pf2.get('verdict'),
+                          legs={k:(v.get('e1',{}).get('leg_verdict') if isinstance(v,dict) else v) for k,v in rep['legs'].items()},can_fail=rep['can_fail']),default=str)[:8000])
+    sys.exit(code)
+if __name__=='__main__':main()

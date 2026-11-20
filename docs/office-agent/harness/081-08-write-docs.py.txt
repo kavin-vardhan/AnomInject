@@ -1,0 +1,80 @@
+from pathlib import Path
+B=Path(r'D:\IntrusiveAnomalies');R=B/'StackOBot/Plugins/AnomalyInjector';E=B/'_reviews/081-08-evidence'
+p=R/'CLAUDE.md';t=p.read_text(encoding='utf-8');start=t.index('> **081-07,');end=t.index('\n> 🏁',start)
+t=t[:start]+'''> **081-08, 2026-09-21 — m55 Stage 2 implemented/built; qualification NEEDS-DECISION.**
+> Stage 1 CLOSED/ACCEPTED on 36 legs; 24 Lyra G1–G12/order legs are
+> DROPPED-BY-OWNER-DECISION under 081-07 (host-chosen spawn; no Stage 1 placement lever).
+> Feature source `989da8b`; Game `2C21EDE5`. Static null/solid twins passed both orders,
+> five events each. Delay=3 natural exhausted three B1-invalid attempts; no gate verdict,
+> no fourth attempt. Remaining Stage 2 gates and AEBD09EA invariance are UNRUN.
+> L2 editor fixture module built; no Lyra attempt yet (first-leg allowance remains 3).
+> Unrun offscreen-at-SI3 recipe withdrawn: it does not establish already-occluded onset.
+> Read `docs/sessions/2026-09-21-081-08-codex-m55-stage-2.md` and external
+> `_reviews/081-08-codex-m55-stage-2-report.md`. **Chat review REQUIRED** for B1 fixture
+> continuation and Stage 2 disposition; Stage 3 HELD. **Chat review NOT REQUIRED** for
+> completed authorized implementation/build/documentation. No Code brief; Code reviews
+> after Stage 3. Main/Lyra entry checkouts restored at the external report boundary.
+> This m55 feature status supersedes older status prose below for this workstream.
+''' +t[end:];p.write_text(t,encoding='utf-8')
+append='''
+## 2026-09-21 outcome amendment — bounded qualification halt
+
+Candidate source 989da8b12ccf9fb7b70409f08a6321d5f7d78087; Game SHA256
+2c21ede58f54b947e014f29e7c81181872c90a8334eea8f004bb0c1f4ab6b392.
+All three targets built in each of three revisions (nine successful builds); v2 was not staged.
+Final candidate static twins: null natural 18/20 measured pairs, null synthetic15/20,
+solid natural20/20, solid synthetic13/20. Each has five events/five measured onsets and
+71 frozen-mask/PNG CRC matches. Remaining window rows explicitly budget_exceeded or
+predecessor_missing; never treated as zero change. All conservation/denominator/reference/
+final-record audits clean, retained bytes0, high-water15,667,200 bytes. Solid onset target
+fraction1.0 exceeds its control (0.017606–0.021331) and all null onsets (0.000120–0.000987).
+This is static fixture evidence, not moving-camera or Stage 3 oracle qualification.
+
+Delay=3 natural exhausted three B1-invalid attempts. A1 matched calibrated modal bbox,
+but modal coverage85.9% < existing90% minimum (three distinct boxes is allowed). A2/A3
+failed calibrated pose. Cause of variation NOT ESTABLISHED. No arithmetic gate verdict,
+fourth try, relaxed threshold or further captures. Final ledger retains all attempts;
+accepted twins used attempts3/2/1/2 for null N/S and solid N/S respectively.
+
+CORRECTION TO THE UNRUN EMPTY-ONSET RECIPE ABOVE: offscreen-at-SI3 was never exercised;
+the lever executes before the first BeginFire at that index and cannot move the intended
+live target. Offscreen also does not prove occlusion. Withdraw that recipe and its private
+TargetGeometryFault B1 exception; they were removed from the working review helpers.
+A real already-occluded fixture is still required. This amendment preserves the original
+prediction rather than rewriting it after inspection. No accepted leg used the exception.
+
+UNRUN: delayed synthetic (natural INVALID-FIXTURE), moving-camera twins both orders,
+normal/depth-silenced/already-occluded hide, blink, short event, target-drop, dedicated
+run-end, actual teardown, StuckMipNoHold, six-leg AEBD09EA runtime legacy invariance.
+Ordinary twin final records include run_end, but do not replace dedicated lifetime gates.
+Lyra's exact three scoped legs all UNRUN; L2/log/L1 checkers selftested, no runtime L2
+qualification or first-leg attempt. Automatic Lyra drop has not triggered. Stage 3 held.
+
+Stage 1 remains ACCEPTED on36; all24 legacy Lyra legs remain DROPPED-BY-OWNER-DECISION,
+not UNEXERCISED or FAIL. Historical L1-invalid/G14 failed-precondition evidence retained.
+Prior limits preserved verbatim externally with this status amendment. Actual teardown
+remains a required open gate. Carry FPS21.5 vs30 evidence-OFF MAIN4 into Stage 3 costs.
+
+**Chat review REQUIRED** before qualification continuation: decide the B1 fixture/retry
+policy and appropriate already-occluded fixture; no allowance has been silently renewed.
+**Chat review NOT REQUIRED** for the completed authorized implementation/build and safe
+boundary documentation. Next mandatory checkpoint is Chat's ruling on 081-08; a future
+GREEN Stage 2 report releases Stage 3, whose report is the next mandatory checkpoint.
+No merge/tag/cook/host edits or Code brief. No fresh session recommended for this workstream.
+'''
+p=R/'docs/sessions/2026-09-21-081-08-codex-m55-stage-2.md';p.write_text(p.read_text(encoding='utf-8')+append,encoding='utf-8')
+p=R/'docs/predictions/2026-09-20-m55-change-evidence.md';p.write_text(p.read_text(encoding='utf-8')+'''
+
+## AMENDMENT 081-08 outcome, 2026-09-21 (does not alter earlier predictions)
+
+Stage 2 implemented/built at989da8b, Game2C21EDE5. Static twins both orders qualified;
+delay=3 natural exhausted three B1-invalid attempts, so qualification halted with no
+measurement verdict. Stage 3 remains HELD, Chat review REQUIRED for continuation.
+Moving-camera twins and remaining phase/lifetime/hide/nohold/Lyra/invariance gates UNRUN.
+The unrun offscreen-at-SI3 proposal is withdrawn (before first live fire; not occlusion);
+already-occluded onset still needs a proper fixture. See081-08 journal/report and ledger.
+Stage 1 remains ACCEPTED on36 and24 Lyra legs DROPPED-BY-OWNER-DECISION, as ruled081-07.
+''',encoding='utf-8')
+(E/'coverage-limits-verbatim.md').write_bytes((E/'prior-coverage-limits-verbatim.md').read_bytes())
+(E/'coverage-status-amendment.md').write_text(append,encoding='utf-8')
+print('Updated five existing docs plus CLAUDE/plan; prior limits copied verbatim.')

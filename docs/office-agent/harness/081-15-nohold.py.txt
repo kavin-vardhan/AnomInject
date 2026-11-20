@@ -1,0 +1,66 @@
+from pathlib import Path
+import hashlib,json,subprocess,sys,math,re,importlib.util
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-15-evidence';bank=B/'_bench_sessions_bank'
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+m=json.loads((E/'binary-v1.json').read_text())
+refpath=bank/'M52E_M52E_G2_CANFAIL/session_20260920-214247/labels.jsonl'
+ref={r['frame_index']:r for r in map(json.loads,refpath.read_text().splitlines())}
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+ledger=[]
+for order,attempts in [(0,(1,2,3)),(1,(1,2,3))]:
+ join="frame_index" if order else "session_index"
+ ref={r[join]:r for r in map(json.loads,refpath.read_text().splitlines())}
+ for attempt in attempts:
+  for key in ('built','staged','archive'):assert sha(m[key])==m['sha256']
+  label=f'M55S2R15_NOHOLD_{"S" if order else "N"}_A{attempt}';d=E/label;assert not d.exists();d.mkdir()
+  args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-13-nohold-run.ps1'),'-Label',label,'-BankPrefix','M55S2_',
+   '-Map','/Game/StackOBot/Maps/MainWorld','-Anomaly','stuck_low_mip','-Target','StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803',
+   '-MaxFrames','90','-MaxAttempts','1','-WaitSec','120','-ExtraExecCmds',f'IAI.Bench.StuckMipNoHold 1, IAI.Bench.SynthTickOrder {order}']
+  (d/'command.json').write_text(json.dumps(args,indent=2))
+  with (d/'runner.log').open('w',encoding='utf-8') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=B/'StackOBot/Plugins/CaptureBench/tools')
+  physical=bank/f'M55S2_{label}_try1';sessions=list(physical.glob('session*'));errors=[];pose=[]
+  row=dict(label=label,order=order,attempt=attempt,bank=str(physical),runner_exit=r.returncode)
+  if r.returncode:errors.append('runner/foreground qualification failed')
+  if len(sessions)!=1:errors.append('missing unique session')
+  else:
+   s=sessions[0];labels={x[join]:x for x in map(json.loads,(s/'labels.jsonl').read_text().splitlines())}
+   focus=json.loads((physical/'_focus.json').read_text(encoding='utf-8-sig'));text=(physical/'_leg_game.log').read_text(encoding='utf-8-sig',errors='replace')
+   row.update(session=str(s),foreground_samples=focus['measurement_samples'],foreground_valid=focus['valid'])
+   if not focus['valid']:errors.append('whole-leg foreground')
+   if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure')
+   if len(labels)!=90:errors.append('expected90unique engine-frame rows')
+   for i in sorted(set(labels)&set(ref)):
+    v,w=labels[i]['view'],ref[i]['view'];pos=math.dist(v['origin'],w['origin']);rot=max(abs((x-y+180)%360-180) for x,y in zip(v['rot'],w['rot']))
+    ok=v['valid'] and w['valid'] and pos<=1 and rot<=.1
+    pose.append(dict(session_index=labels[i]['session_index'],frame_index=labels[i]['frame_index'],ref_frame_index=ref[i]['frame_index'],origin_delta_cm=pos,rotation_delta_deg=rot,passed=ok))
+   if len(pose)<(80 if order else 90) or not all(x['passed'] for x in pose):errors.append('MainWorld full-row camera precondition failed')
+   (d/'pose-comparison.json').write_text(json.dumps(dict(reference=str(refpath),reference_sha256=sha(refpath),join=join,matched=len(pose),actual_only=sorted(set(labels)-set(ref)),reference_only=sorted(set(ref)-set(labels)),rows=pose),indent=2))
+  row.update(fixture_errors=errors,status='INVALID-FIXTURE' if errors else 'FIXTURE-VALID')
+  (d/'fixture-result.json').write_text(json.dumps(row,indent=2));ledger.append(row);(E/'nohold-results.json').write_text(json.dumps(ledger,indent=2));print(json.dumps(row),flush=True)
+  if errors:
+   if attempt==attempts[-1]:print('INVALID-FIXTURE-EXHAUSTED',flush=True);sys.exit(2)
+   continue
+  result=a.audit(s,physical/'_leg_game.log',dict(nohold=True,normal=False))
+  def need(ok,msg):
+   if not ok:result['errors'].append(msg)
+  anno=json.loads((s/'annotation.json').read_text());summary=json.loads((s/'run_summary.json').read_text());records=list(map(json.loads,(s/'change_evidence.jsonl').read_text().splitlines()));events=[x for x in records if x['kind']=='event']
+  deferred=[q for l in labels.values() for q in l['anomalies'] if q['id']=='stuck_low_mip'];fires={q['id']+'@'+str(q['start_frame']) for q in deferred}
+  need(len(fires)>=3,'fewer than3 actual stuck_low_mip fire identities')
+  need(bool(deferred) and all(q.get('stuck_mip.held') is False and q.get('stuck_mip.bench_no_hold') is True for q in deferred),'held:false/bench_no_hold telemetry')
+  need(all(q.get('target_pixels')==-1 and q.get('observable') is None for q in deferred),'deferred row unexpectedly labelled/measured')
+  need(all(x['injected_frames']['frame_count']==0 for x in anno['anomalies']),'legacy injected/labelled frames')
+  need(all(x['reason']=='no_labelled_frames' and x['phase_count']==0 for x in events),'final event zero-labelled semantics')
+  need({x['event'] for x in events}==fires,'actual fire/final-event identity set')
+  arms=re.findall(r'M23 ARM id=(\d+) target=StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803 .*armIndex=1(?:\s|$)',text)
+  applied=re.findall(r"Auto.FireSpecific: 'stuck_low_mip' on '[^']+' -> applied\.",text)
+  need(len(applied)>=3,'fewer than3 actual applied fire log lines')
+  need('streaming bias is DELIBERATELY NOT WRITTEN' in text,'NoHold bias suppression absent')
+  need(len(anno['anomalies'])+summary.get('vetoed_events',0)==len(events),'legacy+veto/final accounting')
+  result.update(active_fire_ids=sorted(fires),first_arm_ids=arms,deferred_telemetry_rows=len(deferred),labelled_legacy_frames=sum(x['injected_frames']['frame_count'] for x in anno['anomalies']),vetoed_events=summary.get('vetoed_events',0),camera_max_origin_cm=max(x['origin_delta_cm'] for x in pose),camera_max_rotation_deg=max(x['rotation_delta_deg'] for x in pose))
+  (d/'measurement-audit.json').write_text(json.dumps(result,indent=2));row.update(status='FAIL' if result['errors'] else 'PASS',measurement_errors=result['errors']);(E/'nohold-results.json').write_text(json.dumps(ledger,indent=2))
+  print(json.dumps({k:result[k] for k in ('events','pairs','active_fire_ids','deferred_telemetry_rows','errors')}),flush=True)
+  if result['errors']:sys.exit(1)
+  break
+print('NoHold synthetic PASS',flush=True)

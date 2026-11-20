@@ -1,0 +1,48 @@
+from pathlib import Path
+import datetime,hashlib,json,re,subprocess,time
+B=Path(r'D:\IntrusiveAnomalies');R=B/'_reviews';E=R/'081-18-evidence'
+PWSH=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+BENCH=('UnrealEditor','StackOBot','LyraGame','UnrealBuildTool')
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def now():return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def procs(names):
+    s=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name '+','.join(names)+' -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime,Path) | ConvertTo-Json -Compress']).decode().strip()
+    if not s or s=='[]':return []
+    v=json.loads(s);return v if isinstance(v,list) else [v]
+def log_event(kind,**kw):
+    p=E/'environment-events.json';ev=json.loads(p.read_text()) if p.exists() else []
+    ev.append(dict(utc=now(),kind=kind,**kw));p.write_text(json.dumps(ev,indent=2,default=str))
+def wait_idle(before):
+    scw_t0=time.time()
+    while procs(['ShaderCompileWorker']) and time.time()-scw_t0<120:time.sleep(5)
+    left=procs(['ShaderCompileWorker'])
+    if left:log_event('shader-compile-workers-still-present-after-120s',before=before,procs=left)
+    t0=time.time();first=True
+    while True:
+        found=procs(BENCH)+procs(['ShaderCompileWorker'])
+        if not found:
+            if not first:log_event('bench-idle-again',before=before,waited_s=round(time.time()-t0))
+            return True
+        if first:log_event('foreign-bench-process-present-waiting',before=before,procs=found);first=False
+        if time.time()-t0>=3600:log_event('foreign-bench-process-still-present-after-60min-stop',before=before,procs=found);return False
+        time.sleep(300)
+def mode_check(label,on,session,log):
+    text=Path(log).read_text(encoding='utf-8-sig',errors='replace') if Path(log).exists() else ''
+    s=Path(session) if session else None
+    summ=json.loads((s/'run_summary.json').read_text(encoding='utf-8-sig')) if s and (s/'run_summary.json').exists() else {}
+    eff=re.findall(r'Capture\(m55\): EFFECTIVE enabled=1\(from (\w+)\) maxBytes=(\d+)\(from (\w+)\)',text)
+    echo=re.findall(r'IAI\.Capture\.ChangeEvidence = "(\d+)"',text)
+    has_sidecar=bool(s and (s/'change_evidence.jsonl').exists());has_keys=any(k.startswith('change_') for k in summ)
+    if on:ok=eff==[('compiled','268435456','compiled')] and not echo and has_sidecar and has_keys
+    else:ok=not eff and echo==['0'] and not has_sidecar and not has_keys
+    return dict(label=label,intended='ON' if on else 'OFF',effective_lines=eff,cvar_echo=echo,sidecar=has_sidecar,summary_change_keys=has_keys,ok=ok)
+def in_capture_events(log):
+    text=Path(log).read_text(encoding='utf-8-sig',errors='replace') if Path(log).exists() else ''
+    lines=text.splitlines();start=next((i for i,l in enumerate(lines) if 'IAI-L2 CAPTURE-START' in l or '=== Capture run STARTED' in l),None)
+    end=next((i for i,l in enumerate(lines) if '=== Capture run FINISHED' in l),len(lines))
+    out=[]
+    if start is not None:
+        for l in lines[start:end]:
+            if re.search(r'respawn|possess|OnPawnAvatarSet',l,re.I):out.append(l[:300])
+    return out

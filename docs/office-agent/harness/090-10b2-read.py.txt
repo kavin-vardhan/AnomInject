@@ -1,0 +1,146 @@
+"""090-10b2 readings. Usage: 090-10b2-read.py legs <label>... | ism <label>... | e1 <leg> <null> | census <label>... | users <label>"""
+import calendar, csv, glob, importlib.util, json, os, re, statistics, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+WORK = Path(r'E:\IA_BuildCache\_r910b2')
+STAGED_CSV = Path(r'D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Saved\Profiling\CSV')
+TS = re.compile(r'^\[(\d{4})\.(\d{2})\.(\d{2})-(\d{2})\.(\d{2})\.(\d{2}):(\d{3})\]\[\s*(\d+)\](.*)$')
+
+
+def _load(name, path):
+    s = importlib.util.spec_from_file_location(name, str(path)); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+
+
+def log_rows(label):
+    p = WORK / 'ev' / label / 'game.log'
+    rows = []
+    for ln in open(p, encoding='utf-8', errors='replace'):
+        m = TS.match(ln.rstrip('\n'))
+        if m:
+            g = [int(x) for x in m.groups()[:7]]
+            t = calendar.timegm((g[0], g[1], g[2], g[3], g[4], g[5])) + g[6] / 1000.0
+            rows.append((t, int(m.group(8)), m.group(9)))
+    return rows
+
+
+def session(label):
+    out = WORK / 'out' / label
+    if not out.exists():
+        return None
+    for d in sorted(out.iterdir()):
+        if (d / 'run_summary.json').exists():
+            return d
+    return None
+
+
+def grep(label, pats, limit=12):
+    rx = re.compile(pats)
+    return [r[2][:330] for r in log_rows(label) if rx.search(r[2])][:limit]
+
+
+def cmd_legs(labels):
+    for lab in labels:
+        rec = json.loads((WORK / 'runs' / f'{lab}.json').read_text(encoding='utf-8'))
+        rd = rec.get('reading') or {}
+        px = rd.get('pixels') or []
+        ok = sum(1 for e in px if e.get('verdict') == 'CORRUPTS')
+        meds = [e.get('median') for e in px]
+        nulls = [e.get('null') for e in px if e.get('null') is not None]
+        s = rd.get('summary') or {}
+        ref = {k: v for k, v in s.items() if (k.startswith('texcorrupt_refused_') or k.startswith('stuck_mip_refused')) and v}
+        print(json.dumps(dict(label=lab, status=(rec.get('run') or {}).get('stdout', '')[-90:], events=rd.get('events'),
+                              corrupts=f'{ok}/{len(px)}', medians=[m for m in meds if m is not None][:12],
+                              null_max=max(nulls) if nulls else None, refused=ref)))
+
+
+def center_mean(img_path, frac=0.22):
+    from PIL import Image, ImageStat
+    im = Image.open(img_path).convert('RGB')
+    w, h = im.size
+    box = (int(w * (0.5 - frac / 2)), int(h * (0.5 - frac / 2)), int(w * (0.5 + frac / 2)), int(h * (0.5 + frac / 2)))
+    st = ImageStat.Stat(im.crop(box))
+    return [round(x, 1) for x in st.mean], [round(x, 1) for x in st.stddev]
+
+
+def cmd_ism(labels):
+    for lab in labels:
+        con = json.loads((WORK / 'runs' / f'{lab}.construct.json').read_text(encoding='utf-8'))
+        sd = session(lab)
+        ann = json.loads((sd / 'annotation.json').read_text(encoding='utf-8')) if sd else {}
+        frames = sorted((sd / 'Actual_Frames').glob('*.png')) if sd else []
+        cm = center_mean(frames[min(10, len(frames) - 1)]) if frames else None
+        lines = grep(lab, r"TEXCORRUPT-(SHADERMAP|REFUSED|DECIDE)|Default Material will be used|needed to have new flag|CONSTRUCT|Auto\.Yield")
+        rs = json.loads((sd / 'run_summary.json').read_text(encoding='utf-8')) if sd else {}
+        ref = {k: v for k, v in rs.items() if k.startswith('texcorrupt_refused_') and v}
+        print(json.dumps(dict(label=lab, mode=con.get('mode'), actor=con.get('actor'), root_flags=[con.get('before'), con.get('after'), con.get('root_at_fire')],
+                              events=len(ann.get('anomalies', [])), refused=ref, center_rgb_mean_std=cm, frames=len(frames)), indent=None))
+        for l in lines:
+            print('   ', l)
+
+
+def cmd_e1(leg, null):
+    E = _load('e1', R / '084-09-eval.py')
+    sd, nd = session(leg), session(null)
+    log = (WORK / 'ev' / leg / 'game.log').read_text(encoding='utf-8', errors='replace')
+    a = E.m52_leg(str(sd), str(nd) if nd else None, log)
+    sm = E.summarize_rows(a['rows'])
+    print(json.dumps(dict(leg=leg, null=null, session=str(sd), summary=sm), default=str, indent=1)[:6000])
+
+
+def cmd_census(labels):
+    for lab in labels:
+        rows = log_rows(lab)
+        cen = [(t, f, x) for (t, f, x) in rows if 'IAI-TEXCORRUPT-CENSUS v1' in x]
+        lines = [x.split('IAI-TEXCORRUPT-CENSUS v1 ')[1][:240] for (_, _, x) in cen]
+        begin = next((t for (t, f, x) in cen if ' begin ' in x), None)
+        scope = next((t for (t, f, x) in cen if ' scope=' in x), None)
+        end = next((t for (t, f, x) in cen if ' end ' in x), None)
+        out = dict(label=lab, lines=lines, progress_lines=sum(1 for l in lines if l.startswith('progress')))
+        dtp = WORK / 'runs' / f'{lab}.dt.json'
+        if dtp.exists():
+            dts = json.loads(dtp.read_text(encoding='utf-8'))
+            t0 = begin if begin is not None else (scope - 3.0 if scope else None)
+            t1 = (end if end is not None else scope) + 0.5 if (end or scope) else None
+            win = [d for (t, d) in dts if t0 is not None and t0 <= t <= t1]
+            pre = [d for (t, d) in dts if t0 is not None and t0 - 5.0 <= t < t0]
+            out.update(pie_window_s=[round(t0 or 0, 3), round(t1 or 0, 3)], frames_in_window=len(win), max_frame_ms=max(win) if win else None,
+                       pre_median_ms=round(statistics.median(pre), 2) if pre else None, pre_max_ms=max(pre) if pre else None)
+        if begin is None and scope is not None:
+            prev = max((t for (t, f, x) in rows if t < scope and f != next(ff for (tt, ff, xx) in cen if ' scope=' in xx)), default=None)
+            out['one_frame_stall_s_from_log'] = round(scope - prev, 3) if prev else None
+        csvs = sorted(glob.glob(str(WORK / 'ev' / lab / '*.csv')))
+        if csvs:
+            ft = []
+            with open(csvs[-1], encoding='utf-8', errors='replace') as f:
+                rd = csv.reader(f)
+                hdr = next(rd)
+                i = hdr.index('FrameTime') if 'FrameTime' in hdr else None
+                for r in rd:
+                    try:
+                        ft.append(float(r[i]))
+                    except Exception:
+                        pass
+            out.update(csv=os.path.basename(csvs[-1]), csv_frames=len(ft), csv_max_frame_ms=max(ft) if ft else None,
+                       csv_median_ms=round(statistics.median(ft), 2) if ft else None, csv_over_100ms=sum(1 for x in ft if x > 100.0))
+        print(json.dumps(out, indent=1))
+
+
+def cmd_users(lab):
+    print(json.dumps(json.loads((WORK / 'runs' / f'{lab}.probe.json').read_text(encoding='utf-8')), indent=1)[:5000])
+    for l in grep(lab, r'PURITY ENUMERATION|shared_world|HELD NONE|IAI-STARTUP'):
+        print('   ', l)
+
+
+if __name__ == '__main__':
+    k = sys.argv[1]
+    if k == 'legs':
+        cmd_legs(sys.argv[2:])
+    elif k == 'ism':
+        cmd_ism(sys.argv[2:])
+    elif k == 'e1':
+        cmd_e1(sys.argv[2], sys.argv[3])
+    elif k == 'census':
+        cmd_census(sys.argv[2:])
+    elif k == 'users':
+        cmd_users(sys.argv[2])

@@ -1,0 +1,216 @@
+import importlib.util,json,re,subprocess,sys,shutil,itertools,hashlib
+from pathlib import Path
+from PIL import Image
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-22-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+B,E,R=c.B,c.E,c.R;bank=B/'_bench_sessions_bank'
+ORACLE=Path(r'D:\IntrusiveAnomalies\_scratch_081_22\feat\tools\verify_capture.py')
+b3=c.binary_v3();pre=dict(archive=str(c.PRE_M55),sha256=c.sha(c.PRE_M55),name='pre-m55 0844220E')
+b3s=dict(archive=b3['archive'],sha256=b3['sha256'],name='build3 002805CF');STAGED=b3['staged']
+MODE=sys.argv[1]
+MAIN=('/Game/StackOBot/Maps/MainWorld','StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803')
+CB=('/Game/CaptureBenchGate/CB_GateLevel','StaticMeshActor_49')
+if MODE=='d':
+    GROUPS=[('N','r.AntiAliasingMethod 0, IAI.Capture.ChangeEvidence 0',[('D_N1',pre),('D_N2',b3s),('D_N3',b3s),('D_N4',pre)]),
+            ('S','r.AntiAliasingMethod 0, IAI.Capture.ChangeEvidence 0, IAI.Bench.SynthTickOrder 1',[('D_S1',pre),('D_S2',b3s),('D_S3',b3s),('D_S4',pre)])]
+    MAPT=MAIN;RES=('1280','720')
+else:
+    GROUPS=[('C','r.AntiAliasingMethod 0, DebugCreatePlayer 1',[('C_1',b3s),('C_2',pre),('C_3',pre),('C_4',b3s)])]
+    MAPT=CB;RES=('1920','1080')
+ledger_p=E/f'part1-{MODE}-legs.json';ledger=json.loads(ledger_p.read_text()) if ledger_p.exists() else []
+def save():ledger_p.write_text(json.dumps(ledger,indent=2))
+def stage(w):
+    assert not [p for p in c.quiet()['ours'] if p['name'] in ('StackOBot.exe',)]
+    assert c.sha(STAGED) in (pre['sha256'],b3s['sha256'])
+    if c.sha(STAGED)!=w['sha256']:shutil.copy2(w['archive'],STAGED)
+    assert c.sha(STAGED)==w['sha256']
+def keys(v):
+    if isinstance(v,dict):return sorted((k,keys(x)) for k,x in v.items())
+    if isinstance(v,list):return sorted(set(json.dumps(keys(x)) for x in v))
+    return None
+def flat(v,p,out):
+    if isinstance(v,dict):
+        for k,x in v.items():flat(x,p+'/'+k,out)
+    elif isinstance(v,list):
+        for i,x in enumerate(v):flat(x,p+f'[{i}]',out)
+    else:out[p]=v
+def reading(leg,w,session,attempt_dir):
+    labels=sorted(map(json.loads,(session/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines()),key=lambda r:r['session_index'])
+    anno=json.loads((session/'annotation.json').read_text(encoding='utf-8-sig'));summary=json.loads((session/'run_summary.json').read_text(encoding='utf-8-sig'))
+    runj=json.loads((session/'run.json').read_text(encoding='utf-8-sig')) if (session/'run.json').exists() else {}
+    text=(attempt_dir/'_leg_game.log').read_text(encoding='utf-8-sig',errors='replace') if (attempt_dir/'_leg_game.log').exists() else ''
+    ties=re.findall(r'MASK-TIE session_index=(\d+) tag=(\d+) tableCount=(\d+) pngCount=(\d+) drawnCount=(-?\d+)',text)
+    own=[];occ={}
+    for row in labels:
+        if not row.get('mask_file'):continue
+        pth=session/row['mask_file'];raw=Image.open(pth).convert('L').tobytes();vals={x for x in raw if x}
+        exp={a['mask_value'] for a in row['anomalies']}
+        if not vals<=exp:own.append(f"si={row['session_index']} mask values outside own tags")
+        occ[pth.name]=hashlib.sha256(bytes(bool(x) for x in raw)).hexdigest()
+    want=re.findall(r'SVE-WANT-SUMMARY marksIssued=(\d+) publishesSeen=(\d+) wantedMatches=(\d+) submitsIssued=(\d+) framesWritten=(\d+) pendingWantedAtEnd=(\d+) maxPendingDepth=(\d+)',text)
+    flatd={}
+    for r in labels:
+        rr=dict(r);flat(rr,f"labels/{r['session_index']}",flatd)
+    flat(anno,'annotation',flatd);flat(summary,'run_summary',flatd);flat(runj,'run',flatd)
+    frames={p.name:c.sha(p) for p in (session/'Actual_Frames').glob('*.png')}
+    masks={p.name:c.sha(p) for p in (session/'target_mask').glob('*.png')} if (session/'target_mask').exists() else {}
+    for k,v in masks.items():flatd['mask/'+k]=v
+    rec=dict(leg=leg,binary=w['name'],sha256=w['sha256'],session=str(session),events=len(anno.get('anomalies',[])),frames_written=len(frames),frame_index_set=sorted(int(k[6:11]) for k in frames),
+        mask_count=len(masks),labels_rows=len(labels),own_errors=own,
+        counts={r['session_index']:[(a['id'],a['target_name'],a.get('target_pixels'),a.get('target_drawn_pixels'),a.get('observable')) for a in r['anomalies']] for r in labels},
+        masks=masks,occupancy=occ,camera=[r['view'] for r in labels],onsets=[r['session_index'] for j,r in enumerate(labels) if r['anomaly_present'] and (j==0 or not labels[j-1]['anomaly_present'])],
+        label_keys=keys(labels),annotation_keys=keys(anno),summary_keys=sorted(summary),summary_keys_nonchange=sorted(k for k in summary if not k.startswith('change_')),
+        run_keys=sorted(runj),
+        event_ranges=[{k:a.get(k) for k in ('anomaly_type','affected_frames','injected_frames','observable_frame_count','unmeasured_frame_count','observability_measured','manifested')} for a in anno.get('anomalies',[])],
+        mask_ties=sorted(ties) if MODE=='d' else sorted([(x[0],*x[2:]) for x in ties]),
+        sve_want=[dict(zip(('marksIssued','publishesSeen','wantedMatches','submitsIssued','framesWritten','pendingWantedAtEnd','maxPendingDepth'),map(int,x))) for x in want],
+        ensures='=== Handled ensure: ===' in text,
+        change_sidecar=(session/'change_evidence.jsonl').exists(),change_keys=sorted(k for k in summary if k.startswith('change_')),
+        cvar_echo=re.findall(r'IAI\.Capture\.ChangeEvidence = "(\d+)"',text),effective_lines=len(re.findall(r'Capture\(m55\): EFFECTIVE',text)),
+        debug_create_failed=('Failed to DebugCreatePlayer' in text),no_key_warnings=len(re.findall(r'Capture\(sve\): NO KEY',text)),
+        summary_selected={k:summary.get(k) for k in ('total_frames','positive_frames','sustained_wall_fps','speed_ratio','target_mask_frames_measured','target_mask_frames_unavailable','change_multi_view_families','change_reason_unsupported_delivery','change_pairs_identity_valid','change_issued','change_unsupported_completion','change_view_rejected','change_pairs_measured')})
+    if rec['change_sidecar']:
+        recs=[json.loads(l) for l in (session/'change_evidence.jsonl').read_text(encoding='utf-8-sig').splitlines()]
+        prs=[x for x in recs if x['kind']=='pair']
+        rec['m55_pairs']=dict(rows=len(prs),measured=sum(1 for x in prs if x['chg_measured']),reasons={k:sum(1 for x in prs if x.get('reason')==k) for k in sorted({str(x.get('reason')) for x in prs})})
+        oj=attempt_dir/'oracle.json'
+        o=subprocess.run([sys.executable,str(ORACLE),'--change-oracle',str(session),'--quiet','--oracle-json',str(oj)],capture_output=True,text=True,cwd=ORACLE.parent)
+        (attempt_dir/'oracle.txt').write_text(o.stdout+o.stderr)
+        rec['oracle_exit']=o.returncode;rec['oracle_summary']=json.loads(oj.read_text()).get('summary') if oj.exists() else None
+    return rec,flatd,frames
+def run_leg(leg,w,extra):
+    prior=[x for x in ledger if x['leg']==leg]
+    if any(x['status'] in ('READING','NOT-RUN') for x in prior):return 'done'
+    if len(prior)>=3:
+        ledger.append(dict(leg=leg,status='NOT-RUN',reason='3 invalid invocations'));save();return 'done'
+    q=c.quiet()
+    if not q['quiet']:c.log_event('leg-refused-not-quiet',leg=leg,blocking=q['blocking']);return 'not-quiet'
+    stage(w)
+    lab=f'R22_{leg}' if not prior else f'R22_{leg}_R{len(prior)+1}'
+    args=[c.PWSH,'-NoProfile','-File',str(R/'081-22-legacy-run.ps1'),'-Label',lab,'-BankPrefix','M55B3',
+          '-Map',MAPT[0],'-Anomaly','blinking','-Target',MAPT[1],'-MaxFrames','90','-MaxAttempts','3','-WaitSec','120','-ResX',RES[0],'-ResY',RES[1],'-ExtraExecCmds',extra]
+    log=E/f'leg-{lab.lower()}.log';assert not log.exists()
+    (E/f'command-{lab.lower()}.json').write_text(json.dumps(dict(args=args,binary=w['name'],sha256=w['sha256']),indent=2))
+    t0=c.now()
+    with log.open('w',encoding='utf-8') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=B/'StackOBot/Plugins/CaptureBench/tools')
+    out=log.read_text(encoding='utf-8',errors='replace')
+    row=dict(leg=leg,label=lab,binary=w['name'],sha256=w['sha256'],started=t0,finished=c.now(),exit=r.returncode,attempt_log=re.findall(r'^\s*\d+ .*(?:VALID|INVALID|FAILED)[^\n]*',out,re.M))
+    if 'FOREIGN-EDITOR-APPEARED' in out:
+        row['status']='INVALID-FOREIGN';ledger.append(row);save();c.log_event('leg-invalid-foreign',leg=leg,label=lab);return 'foreign'
+    if 'A46: box not idle' in out:
+        row['status']='NOT-QUIET-AT-LAUNCH';ledger.append(row);save();return 'not-quiet'
+    if r.returncode==2:row['status']='HALT-FIXTURE-3';ledger.append(row);save();return 'halt'
+    if r.returncode!=0:row['status']='HARNESS-FAIL';row['tail']=out[-1500:];ledger.append(row);save();return 'harness'
+    session=next((bank/('M55B3'+lab)).glob('session*'))
+    att=next(t for t in bank.glob('M55B3'+lab+'_try*') if (t/session.name).exists())
+    rec,flatd,frames=reading(leg,w,session,att)
+    (E/f'reading-{leg}.json').write_text(json.dumps(rec,indent=2,default=str))
+    (E/f'flat-{leg}.json').write_text(json.dumps(dict(flat=flatd,frames=frames),indent=1,default=str))
+    row.update(status='READING',session=str(session),attempt_dir=str(att));ledger.append(row);save()
+    print(json.dumps({k:rec.get(k) for k in ('leg','binary','events','frames_written','mask_count','own_errors','sve_want','change_sidecar','change_keys','cvar_echo','effective_lines','debug_create_failed','no_key_warnings','summary_selected','m55_pairs','oracle_exit','oracle_summary','ensures')},default=str),flush=True)
+    return 'ok'
+FIELDS_D=['counts','camera','onsets','label_keys','annotation_keys','summary_keys','run_keys','event_ranges','mask_ties','masks']
+FIELDS_C=['frame_index_set','frames_written','counts','camera','onsets','label_keys','annotation_keys','summary_keys_nonchange','run_keys','event_ranges','mask_ties','occupancy','sve_want_cmp']
+def compare(group,legs):
+    recs={l:json.loads((E/f'reading-{l}.json').read_text()) for l,_ in legs}
+    fl={l:json.loads((E/f'flat-{l}.json').read_text()) for l,_ in legs}
+    for l in recs:recs[l]['sve_want_cmp']=[{k:v for k,v in x.items() if k in ('marksIssued','wantedMatches','submitsIssued','framesWritten','pendingWantedAtEnd','maxPendingDepth')} for x in recs[l]['sve_want']]
+    names=[l for l,_ in legs];A=[l for l,w in legs if w is pre];Bn=[l for l,w in legs if w is not pre]
+    fields=FIELDS_D if MODE=='d' else FIELDS_C
+    pairs=[]
+    for x,y in itertools.combinations(names,2):
+        same=(x in A)==(y in A)
+        eq={f:recs[x][f]==recs[y][f] for f in fields}
+        dx,dy=fl[x]['flat'],fl[y]['flat']
+        diff=sorted(p for p in set(dx)|set(dy) if dx.get(p)!=dy.get(p))
+        fx,fy=fl[x]['frames'],fl[y]['frames']
+        frames_equal=sum(1 for k in fx if fy.get(k)==fx[k])
+        pairs.append(dict(a=x,b=y,same_binary=same,fields_equal=eq,diff_paths=diff,colour_frames_byte_equal=[frames_equal,len(fx),len(fy)]))
+    ctrl=[p for p in pairs if p['same_binary']];cross=[p for p in pairs if not p['same_binary']]
+    run_unique=set();unstable_fields=set()
+    for p in ctrl:
+        run_unique|=set(p['diff_paths'])
+        unstable_fields|={f for f,v in p['fields_equal'].items() if not v}
+    norm=lambda s:re.sub(r'\[\d+\]','[]',s)
+    ru_norm={norm(p) for p in run_unique}
+    res=[]
+    for p in cross:
+        extra=[q for q in p['diff_paths'] if q not in run_unique]
+        extra_norm=[q for q in extra if norm(q) not in ru_norm]
+        gated={f:v for f,v in p['fields_equal'].items() if f not in unstable_fields}
+        res.append(dict(a=p['a'],b=p['b'],extra_paths=extra[:40],extra_paths_count=len(extra),extra_paths_not_even_by_pattern=extra_norm[:40],gated_fields_unequal=[f for f,v in gated.items() if not v]))
+    skip=(lambda q:q.startswith('run_summary/change_')) if MODE=='c' else (lambda q:False)
+    npaths={l:{norm(q) for q in fl[l]['flat'] if not skip(q)} for l in names}
+    pre_union=set().union(*[npaths[l] for l in A]);b3_union=set().union(*[npaths[l] for l in Bn])
+    key_presence=dict(added_in_b3={l:sorted(npaths[l]-pre_union)[:40] for l in Bn},removed_in_b3={l:sorted(npaths[l]-b3_union)[:40] for l in A})
+    key_presence['ok']=not any(key_presence['added_in_b3'].values()) and not any(key_presence['removed_in_b3'].values())
+    ref_pair=[p for p in pairs if p['a'] in A and p['b'] in A]
+    ref_unique=set(ref_pair[0]['diff_paths']) if ref_pair else set()
+    hist_p=E/'legacy-historical-run-unique.json'
+    if MODE=='d' and group=='N' and hist_p.exists():ref_unique|=set(json.loads(hist_p.read_text())['paths'])
+    strict=[dict(a=p['a'],b=p['b'],extra_vs_reference_pair=[q for q in p['diff_paths'] if q not in ref_unique][:40],count=len([q for q in p['diff_paths'] if q not in ref_unique])) for p in pairs if not (p['a'] in A and p['b'] in A)]
+    out=dict(group=group,legs={l:recs[l]['binary'] for l in names},pairs=[{k:v for k,v in p.items() if k!='diff_paths'}|dict(diff_paths_count=len(p['diff_paths']),diff_paths_sample=p['diff_paths'][:30]) for p in pairs],
+             run_unique_paths=sorted(run_unique)[:200],run_unique_count=len(run_unique),unstable_fields=sorted(unstable_fields),cross=res,
+             key_presence=key_presence,reference_pair_unique_count=len(ref_unique),strict_vs_reference_pair=strict)
+    return out,recs
+def evaluate():
+    results={}
+    for group,extra,legs in GROUPS:
+        if not all((E/f'reading-{l}.json').exists() for l,_ in legs):results[group]=dict(complete=False);continue
+        out,recs=compare(group,legs);verdict=[]
+        if MODE=='d':
+            for l,w in legs:
+                r=recs[l]
+                if w is not pre and (r['change_sidecar'] or r['change_keys'] or r['effective_lines'] or r['cvar_echo']!=['0']):verdict.append(f'{l}: evidence OFF not read back ({r["change_sidecar"]},{r["change_keys"][:3]},{r["effective_lines"]},{r["cvar_echo"]})')
+                if r['ensures']:verdict.append(f'{l}: handled ensure')
+            for x in out['cross']:
+                if x['extra_paths_count']:verdict.append(f"{x['a']}~{x['b']}: {x['extra_paths_count']} cross-binary paths outside the run-unique set")
+                if x['gated_fields_unequal']:verdict.append(f"{x['a']}~{x['b']}: stable 081-12 fields unequal {x['gated_fields_unequal']}")
+            if not out['key_presence']['ok']:verdict.append(f"key presence: build 3 adds/removes paths {out['key_presence']}")
+            if group=='N':
+                for x in out['strict_vs_reference_pair']:
+                    if x['count']:verdict.append(f"native {x['a']}~{x['b']}: {x['count']} paths differ that the pre-m55 pair does not vary")
+                for p in out['pairs']:
+                    bad=[f for f,v in p['fields_equal'].items() if not v]
+                    if bad:verdict.append(f"native {p['a']}~{p['b']}: 081-12 field set not byte-identical {bad}")
+        else:
+            b3l=[l for l,w in legs if w is not pre]
+            for l in b3l:
+                r=recs[l]
+                if not (r['summary_selected'].get('change_multi_view_families') or 0)>0:verdict.append(f'{l}: change_multi_view_families not > 0')
+                if (r.get('m55_pairs') or {}).get('measured',1)!=0:verdict.append(f'{l}: measured m55 rows present')
+                if not (r['summary_selected'].get('change_reason_unsupported_delivery') or 0)>0:verdict.append(f'{l}: no unsupported_delivery')
+                if r.get('oracle_exit')!=0:verdict.append(f"{l}: oracle exit {r.get('oracle_exit')}")
+            for l,_ in legs:
+                if recs[l]['ensures']:verdict.append(f'{l}: handled ensure')
+            for x in out['cross']:
+                if x['gated_fields_unequal']:verdict.append(f"{x['a']}~{x['b']}: stable legacy fields unequal {x['gated_fields_unequal']}")
+            if not out['key_presence']['ok']:verdict.append(f"key presence (change_* excepted): {out['key_presence']}")
+            pw={l:recs[l]['sve_want'] for l,_ in legs}
+            pre_pend=[x['pendingWantedAtEnd'] for l,w in legs if w is pre for x in pw[l]];b3_pend=[x['pendingWantedAtEnd'] for l,w in legs if w is not pre for x in pw[l]]
+            pre_max=[x['maxPendingDepth'] for l,w in legs if w is pre for x in pw[l]];b3_max=[x['maxPendingDepth'] for l,w in legs if w is not pre for x in pw[l]]
+            if not (pre_pend and b3_pend and set(b3_pend)<=set(pre_pend) and max(b3_max)<=max(pre_max)):verdict.append(f'pending arms: pre {pre_pend}/{pre_max} b3 {b3_pend}/{b3_max}')
+            out['pending']=dict(pre_pending_at_end=pre_pend,b3_pending_at_end=b3_pend,pre_max_depth=pre_max,b3_max_depth=b3_max)
+        out['verdict']='PASS' if not verdict else 'FAIL';out['problems']=verdict
+        results[group]=out
+    (E/f'part1-{MODE}-comparison.json').write_text(json.dumps(results,indent=2,default=str))
+    return results
+if __name__=='__main__':
+    if len(sys.argv)>2 and sys.argv[2]=='--evaluate':
+        res=evaluate();print(json.dumps({g:dict(verdict=v.get('verdict'),problems=v.get('problems'),run_unique=v.get('run_unique_count'),unstable=v.get('unstable_fields'),cross=v.get('cross')) for g,v in res.items()},indent=1,default=str)[:6000]);sys.exit(0)
+    try:
+        for group,extra,legs in GROUPS:
+            for leg,w in legs:
+                st=run_leg(leg,w,extra)
+                if st in ('not-quiet',):print('NOT-QUIET',flush=True);sys.exit(4)
+                if st=='foreign':print('INVALID-FOREIGN '+leg,flush=True);sys.exit(5)
+                if st in ('harness',):print('HARNESS-FAIL '+leg,flush=True);sys.exit(3)
+                if MODE=='c' and leg=='C_1' and st=='ok':
+                    r=json.loads((E/'reading-C_1.json').read_text())
+                    if r['debug_create_failed'] or not (r['summary_selected'].get('change_multi_view_families') or 0)>0:
+                        (E/'part1-c-unexercised.json').write_text(json.dumps(dict(reason='no two-view family: DebugCreatePlayer failed or change_multi_view_families == 0',reading=r['summary_selected'],debug_create_failed=r['debug_create_failed']),indent=2))
+                        print('UNEXERCISED',flush=True);sys.exit(6)
+        res=evaluate()
+        print(json.dumps({g:dict(verdict=v.get('verdict'),problems=v.get('problems'),run_unique=v.get('run_unique_count'),unstable=v.get('unstable_fields')) for g,v in res.items()},indent=1,default=str),flush=True)
+        sys.exit(0 if all(v.get('verdict')=='PASS' for v in res.values()) else 1)
+    finally:
+        if not [p for p in c.quiet()['ours'] if p['name']=='StackOBot.exe']:stage(b3s)

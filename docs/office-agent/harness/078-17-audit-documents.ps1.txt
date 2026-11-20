@@ -1,0 +1,41 @@
+$ErrorActionPreference = 'Stop'
+$repo = 'D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector'
+$out = 'D:\IntrusiveAnomalies\_reviews'
+$base = '560e28ac2b88f6c65f1683970ebb5ab6c69bb969'
+$paths = @('CLAUDE.md','docs/OPERATING-CONTRACT.md','docs/predictions/2026-09-07-m51-identity-lifecycle-geometry.md','docs/sessions/2026-09-07-078-15-m51-identity-lifecycle-predictions.md','docs/sessions/2026-09-07-078-16-m51-identity-lifecycle-revision.md','docs/sessions/2026-09-07-078-17-m51-prerequisite-accounting-correction.md')
+$issues = [Collections.Generic.List[string]]::new()
+$head = git -C $repo rev-parse HEAD
+$parent = git -C $repo rev-parse HEAD^
+if ($parent -ne $base) { $issues.Add('Unexpected parent; not one commit after baseline') }
+$changed = @(git -C $repo diff --name-only $base HEAD)
+if (@(Compare-Object $paths $changed).Count) { $issues.Add('Changed paths differ from six-path authorization') }
+$diffcheck = @(git -C $repo diff --check $base HEAD)
+if ($LASTEXITCODE -ne 0 -or $diffcheck.Count) { $issues.Add('Diff whitespace check failed') }
+$metadata = @($paths | ForEach-Object {
+  $p = Join-Path $repo $_
+  $bytes = [IO.File]::ReadAllBytes($p)
+  $s = [Text.UTF8Encoding]::new($false,$true).GetString($bytes)
+  $lf = ([regex]::Matches($s,"`n")).Count
+  $crlf = ([regex]::Matches($s,"`r`n")).Count
+  $bom = $bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191
+  if ($bom -or ($_ -eq 'CLAUDE.md' -and $crlf -ne $lf) -or ($_ -ne 'CLAUDE.md' -and $crlf -ne 0)) { $issues.Add("Encoding/newline drift: $_") }
+  [pscustomobject]@{path=$_;bytes=$bytes.Length;lf=$lf;crlf=$crlf;bom=$bom;hash=(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash}
+})
+$claudeBefore = @(git -C $repo show "${base}:CLAUDE.md")
+$claudeAfter = [IO.File]::ReadAllLines((Join-Path $repo 'CLAUDE.md'))
+$marker = '> ' + [char]::ConvertFromUtf32(0x1F53B) + ' **CORRECTION 078-14,'
+$iBefore = 0; while ($iBefore -lt $claudeBefore.Count -and !$claudeBefore[$iBefore].StartsWith($marker)) { $iBefore++ }
+$iAfter = 0; while ($iAfter -lt $claudeAfter.Count -and !$claudeAfter[$iAfter].StartsWith($marker)) { $iAfter++ }
+$historyEqual = $false
+if ($iBefore -lt $claudeBefore.Count -and $iAfter -lt $claudeAfter.Count) {
+  $historyEqual = (($claudeBefore[$iBefore..($claudeBefore.Count-1)] -join "`n") -ceq ($claudeAfter[$iAfter..($claudeAfter.Count-1)] -join "`n"))
+}
+if (!$historyEqual) { $issues.Add('CLAUDE historical suffix differs or marker missing') }
+$numstat = @(git -C $repo diff --numstat $base HEAD)
+$diffstat = @(git -C $repo diff --stat $base HEAD)
+$diff = @(git -C $repo diff --no-ext-diff --unified=3 $base HEAD -- $paths)
+[IO.File]::WriteAllText("$out\078-17-final-documents.diff",($diff -join "`n"),[Text.UTF8Encoding]::new($false))
+$result = [ordered]@{time=(Get-Date).ToString('o');head=$head;parent=$parent;issues=@($issues);paths=$changed;numstat=$numstat;diffstat=$diffstat;diffcheck=$diffcheck;claude_history_text_equal=$historyEqual;claude_history_before_line=($iBefore+1);claude_history_after_line=($iAfter+1);documents=$metadata}
+[IO.File]::WriteAllText("$out\078-17-final-document-metadata.json",($result | ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
+$result | ConvertTo-Json -Depth 8
+if ($issues.Count) { exit 1 }

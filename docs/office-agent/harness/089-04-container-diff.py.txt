@@ -1,0 +1,75 @@
+import collections
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+UP = r'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealPak.exe'
+EV = Path(r'D:\IntrusiveAnomalies\_reviews\089-04-evidence\cook')
+OLD = Path(r'D:\IntrusiveAnomalies\_binary_baselines\m53dc-cook-F76F1119')
+NEW = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r'E:\IA_BuildCache\_r53_cookout_rb2\Windows\StackOBot\Content\Paks')
+RX = re.compile(r'"([^"]+)" offset: \d+, size: (\d+) bytes, hash: ([0-9A-F]+)')
+PRX = re.compile(r'"([^"]+)" offset: \d+, size: (\d+) bytes, sha1: ([0-9A-F]+)')
+FIXTURE = ('CaptureBenchTexCorrupt/CB_TexCorruptLevel.umap', 'CaptureBenchTexCorrupt/Materials/M_TC_OracleN.uasset', 'CaptureBenchTexCorrupt/Materials/M_TC_OracleN.uexp')
+G371 = re.compile(r'Maps/MainWorld\.umap$|ShaderArchive|ShaderAssetInfo|ushaderbytecode|AssetRegistry|\.upipelinecache')
+
+
+def listing(path, tag):
+    out = EV / f'list-{tag}.txt'
+    with open(out, 'w', encoding='utf-8') as f:
+        rc = subprocess.run([UP, str(path), '-List'], stdout=f, stderr=subprocess.STDOUT).returncode
+    txt = out.read_text(encoding='utf-8', errors='replace')
+    named = {}
+    anon = collections.Counter()
+    for m in RX.finditer(txt):
+        name, size, h = m.group(1), int(m.group(2)), m.group(3)
+        if name.startswith('<'):
+            anon[(name, h, size)] += 1
+        else:
+            named[name] = (size, h)
+    if not named:
+        for m in PRX.finditer(txt):
+            named[m.group(1)] = (int(m.group(2)), m.group(3))
+    return rc, named, anon, len(txt.splitlines())
+
+
+def diff(old, new):
+    ro, no, ao, lo = old
+    rn, nn, an, ln = new
+    added = sorted(set(nn) - set(no))
+    removed = sorted(set(no) - set(nn))
+    changed = sorted(k for k in set(no) & set(nn) if no[k] != nn[k])
+    same = len(set(no) & set(nn)) - len(changed)
+    return dict(rc=[ro, rn], lines=[lo, ln], named_old=len(no), named_new=len(nn), same=same, added=added, removed=removed,
+                changed=[dict(name=k, old=no[k], new=nn[k]) for k in changed], anon_old=sum(ao.values()), anon_new=sum(an.values()),
+                anon_added=sum((an - ao).values()), anon_removed=sum((ao - an).values()))
+
+
+def main():
+    res = {}
+    res['utoc'] = diff(listing(OLD / 'StackOBot-Windows.utoc', 'utoc-F76F1119'), listing(NEW / 'StackOBot-Windows.utoc', 'utoc-dc2'))
+    res['pak'] = diff(listing(OLD / 'StackOBot-Windows.pak', 'pak-F76F1119'), listing(NEW / 'StackOBot-Windows.pak', 'pak-dc2'))
+    u = res['utoc']
+    names = [c['name'] for c in u['changed']]
+    res['verdict'] = dict(
+        utoc_added_none=not u['added'],
+        utoc_removed_none=not u['removed'],
+        utoc_fixture_map_changed=any(n.endswith(FIXTURE[0]) for n in names),
+        utoc_oracle_n_changed=any(n.endswith(FIXTURE[1]) or n.endswith(FIXTURE[2]) for n in names),
+        utoc_changed_only_fixture_or_G371=all(n.endswith(FIXTURE) or G371.search(n) for n in names),
+        utoc_anon_removed_none=u['anon_removed'] == 0,
+        pak_added_none=not res['pak']['added'],
+        pak_removed_none=not res['pak']['removed'],
+        pak_changed_only_asset_registry=all(c['name'].endswith('AssetRegistry.bin') for c in res['pak']['changed']),
+        utoc_changed=names,
+        pak_changed=[c['name'] for c in res['pak']['changed']])
+    (EV / 'container-diff.json').write_text(json.dumps(res, indent=1), encoding='utf-8')
+    print(json.dumps(dict(utoc={k: v for k, v in u.items() if k != 'changed'}, pak={k: v for k, v in res['pak'].items() if k != 'changed'},
+                          verdict=res['verdict']), indent=1))
+    v = res['verdict']
+    return 0 if all(x for k, x in v.items() if k not in ('utoc_changed', 'pak_changed')) else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

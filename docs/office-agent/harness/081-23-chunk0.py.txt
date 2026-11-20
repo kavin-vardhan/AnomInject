@@ -1,0 +1,20 @@
+import importlib.util,json,subprocess,sys,os
+from pathlib import Path
+os.environ['IAI_R23_WINDOW']='c0'
+spec=importlib.util.spec_from_file_location('c23',r'D:\IntrusiveAnomalies\_reviews\081-23-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+R=c.R;E=c.E;E.mkdir(parents=True,exist_ok=True);os.environ['IAI_R23_ROOT']=str(E);PY=sys.executable
+def step(args):
+    r=subprocess.run([PY,*map(str,args)]);return r.returncode
+code=0;staged=False
+try:
+    if not (E/'lyra-staged.json').exists():
+        assert step([R/'081-23-lyra-stage.py'])==0,'lyra stage failed';staged=True
+    code=step([R/'081-23-c0-part2.py','lyra'])
+finally:
+    if (E/'lyra-staged.json').exists() and not (E/'lyra-restored.json').exists():
+        rc=step([R/'081-23-lyra-restore.py']);assert rc==0,'LYRA RESTORE FAILED - restore by hand before any other work'
+if code in (0,):code=step([R/'081-23-c0-part2.py','stack'])
+if code==0:
+    step([R/'081-23-c0-analyze.py']);step([R/'081-23-c0-compare.py'])
+(E/'chunk0-summary.json').write_text(json.dumps(dict(utc=c.now(),exit=code,predictions='_reviews/081-18-evidence/predictions.md unchanged (081-22 reuse rule)'),indent=2))
+print(json.dumps(dict(chunk='c0',exit=code)));sys.exit(code)

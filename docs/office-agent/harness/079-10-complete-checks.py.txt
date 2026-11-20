@@ -1,0 +1,100 @@
+"""079-10 calibration identity equivalence, scored classes and CLI contracts."""
+import contextlib
+import hashlib
+import importlib.util
+import io
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+ROOT = Path(r"D:\IntrusiveAnomalies")
+TOOLS = ROOT / "StackOBot/Plugins/AnomalyInjector/tools"
+SCORER = ROOT / "StackOBot/Plugins/CaptureBench/tools/m079_shift_recovery.py"
+OUT = ROOT / "_reviews/079-10-evidence/final"
+sys.path.insert(0, str(TOOLS))
+import verify_capture as vc
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+old = module("calibration_verifier", OUT.parent / "calibration-tools/verify_capture.py")
+m = module("scorer07910", SCORER)
+mlo = vc._offset_module()
+root = tempfile.mkdtemp(prefix="m079_shift_")
+result = {"verifier_sha256": hashlib.sha256(Path(vc.__file__).read_bytes()).hexdigest(),
+          "scorer_sha256": hashlib.sha256(SCORER.read_bytes()).hexdigest(),
+          "calibration_verifier_sha256": hashlib.sha256(Path(old.__file__).read_bytes()).hexdigest(),
+          "identity_equivalence": [], "classes": [], "cli": []}
+try:
+    for name in ("A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA"):
+        src = m.session_of(str(ROOT / "_bench_sessions_bank"), name)
+        for which, delta in m.PERTURBATIONS:
+            for variant in m.VARIANTS:
+                if delta == 0 and variant == "coherent":
+                    continue
+                dst = str(Path(root) / ("%s_%s_%s_%s" % (name, which, delta, variant)))
+                assert m.shadow(src, dst, which, delta, variant, mlo) is None
+                rows, _state = mlo.read_labels(str(Path(dst) / "labels.jsonl"))
+                comparisons = 0
+                mask_identity_comparisons = 0
+                for ev in vc._load_gate_events(dst, mlo):
+                    prior = old._anchor_entry(rows, ev["indices"], ev["node"], mlo)
+                    final = vc._anchor_entry(rows, ev["indices"], ev["node"], mlo)
+                    assert prior == final, (name, which, delta, variant, ev["i"], "anchor")
+                    comparisons += 1
+                    for a, _b in vc._runs_of(ev["indices"]):
+                        row = rows.get(a) or {}
+                        before = mlo.match_label_entry(row, ev["node"], None) or prior[2]
+                        after = vc._target_entry(row, ev["node"]) or final[2]
+                        assert before == after, (name, which, delta, variant, ev["i"], a)
+                        comparisons += 1
+                        for mask_row in rows.values():
+                            old_mask_entry = next((e for e in mask_row.get("anomalies", [])
+                                                  if str(e.get("target_name") or "") == ev["node"]), before)
+                            final_mask_entry = vc._target_entry(mask_row, ev["node"]) or after
+                            assert old_mask_entry == final_mask_entry, (name, which, delta, variant, ev["i"], a, "mask")
+                            mask_identity_comparisons += 1
+                result["identity_equivalence"].append(dict(session=name, which=which, delta=delta,
+                                                          variant=variant, comparisons=comparisons,
+                                                          mask_identity_comparisons=mask_identity_comparisons, differences=0))
+    for name, opts, expected in (
+        ("control", {}, ["recovered", "recovered"]),
+        ("lighting", {"lighting": True}, ["wrong", "recovered"]),
+        ("partial", {"missing_masks": (61,)}, ["unassessable", "recovered"]),
+        ("blank", {"true_runs": (), "label_runs": ((40, 70),)}, ["no-transition", "no-transition"])):
+        source = vc._codex08_fixture(root, name, **opts)
+        excluded = []
+        cells = m.run_cell(source, str(Path(root) / "shadows"), name, "both", 0, "annotation",
+                           1.0, mlo, m.cohort_of(source, mlo), excluded)
+        assert [c["outcome"] for c in cells] == expected and not excluded
+        result["classes"].append(dict(name=name, cells=cells))
+    negative = str(Path(root) / "blank")
+    missing = str(Path(root) / "not_a_session")
+    for case, path, report_only, expected in (("negative", negative, False, 2),
+            ("negative_report", negative, True, 0), ("execution_error", missing, True, 3)):
+        command = [sys.executable, "-B", str(TOOLS / "verify_capture.py"), "--label-pixel-gate",
+                   "--dir", path, "--region-cap", "1.0"]
+        if report_only:
+            command.append("--report-only")
+        run = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        assert run.returncode == expected, (case, run.returncode, run.stderr)
+        result["cli"].append(dict(case=case, exit=run.returncode, stdout=run.stdout, stderr=run.stderr))
+    log = io.StringIO()
+    with contextlib.redirect_stdout(log):
+        assert m.selftest() == 0
+    (OUT / "scorer_selftest.txt").write_text(log.getvalue(), encoding="utf-8")
+    (OUT / "complete_checks.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print("39/39 calibration shadow inputs: final anchor/run identity selections equal the sweep snapshot")
+    print("Scorer recovered/wrong/no-transition/unassessable controls and unsupported denominator pass")
+    print("Scorer bbox-only zero-cell eligibility, partial eligibility and zero-cap contracts pass")
+    print("CLI NO-TRACE=2, report-only=0, execution error with report-only=3")
+finally:
+    m.cleanup(root)

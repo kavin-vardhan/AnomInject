@@ -1,0 +1,22 @@
+import importlib.util,json,os,subprocess,sys,time
+from pathlib import Path
+tag=sys.argv[1] if len(sys.argv)>1 else 'default';limit=float(sys.argv[2]) if len(sys.argv)>2 else 540.0
+R=Path(r'D:\IntrusiveAnomalies\_reviews');os.environ.update(IAI_R53_BUDGET_TAG=tag,PYTHONDONTWRITEBYTECODE='1')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c53',R/'082-07-common.py');c.RUN.mkdir(parents=True,exist_ok=True)
+def run(*a):return subprocess.run([sys.executable,*map(str,a)]).returncode
+if run(R/'082-07-preflight.py'):print(json.dumps(dict(result='PREFLIGHT-FAILED',why='no leg run')));sys.exit(10)
+L=load('lib53',R/'082-07-lib.py')
+left=L.budget_state()['left_s']
+if left<=0:print(json.dumps(dict(result='NOT-QUIET',why='the wait budget of this tag is spent',budget=L.budget_state())));sys.exit(4)
+t=time.time();q=L.wait_quiet(f'window-{tag}',min(limit,left));L.budget_add('quiet-wait',time.time()-t,where='window-start')
+if q['result']!='QUIET':print(json.dumps(dict(result='NOT-QUIET',quiet=q,budget=L.budget_state())));sys.exit(4)
+code=0;why=None
+try:
+    L.pp_gate('window-start');s=L.run_sequence()
+except L.Stop as ex:
+    code=ex.code;why=ex.msg;c.log_event('window-stop',code=code,why=why);s=L.summary()
+pf=run(R/'082-07-postflight.py')
+print(json.dumps(dict(result='COMPLETE' if code==0 else 'STOPPED',code=code,why=why,postflight_exit=pf,summary=s,budget=L.budget_state()),default=str))
+sys.exit(code or (11 if pf else 0))

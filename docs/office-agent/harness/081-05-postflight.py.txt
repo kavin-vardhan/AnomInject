@@ -1,0 +1,25 @@
+from pathlib import Path
+import hashlib, json, subprocess, datetime
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'; pre=json.loads((ev/'preflight.json').read_text())
+def git(p,*a): return subprocess.check_output(['git','-C',str(p),*a]).decode()
+repos={'AnomalyInjector':base/'StackOBot/Plugins/AnomalyInjector','CaptureBench':base/'StackOBot/Plugins/CaptureBench'}
+result=dict(utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),repos={})
+for name,p in repos.items():
+    head=git(p,'rev-parse','HEAD').strip(); branch=git(p,'branch','--show-current').strip()
+    assert head==pre[name]['head'] and branch==pre[name]['branch']
+    assert not git(p,'diff','--name-only') and not git(p,'diff','--cached','--name-only')
+    untracked={s:hashlib.sha256((p/s).read_bytes()).hexdigest() for s in git(p,'ls-files','--others','--exclude-standard').splitlines()}
+    assert untracked==pre[name]['untracked']
+    oldrefs=dict(l.split(' ',1) for l in pre[name]['refs'].splitlines())
+    newrefs=dict(l.split(' ',1) for l in git(p,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes').splitlines())
+    permitted={'refs/heads/feat/m55-change-evidence','refs/remotes/origin/feat/m55-change-evidence'}
+    delta={k:(oldrefs.get(k),newrefs.get(k)) for k in set(oldrefs)|set(newrefs) if oldrefs.get(k)!=newrefs.get(k)}
+    assert set(delta)<=permitted
+    if name=='AnomalyInjector': assert newrefs['refs/heads/feat/m55-change-evidence']==newrefs['refs/remotes/origin/feat/m55-change-evidence']
+    result['repos'][name]=dict(head=head,branch=branch,status=git(p,'status','--porcelain'),untracked_preserved=len(untracked),ref_delta=delta)
+current=(base/'ToCodex/CURRENT.md').read_bytes(); previous=(ev/'CURRENT.before.md').read_bytes()
+assert current.endswith(previous)
+result['current_history_preserved']=True
+result['report_sha256']=hashlib.sha256((base/'_reviews/081-05-codex-m55-stage-1-report.md').read_bytes()).hexdigest()
+(ev/'postflight.json').write_text(json.dumps(result,indent=2))
+print(json.dumps(result,indent=2))

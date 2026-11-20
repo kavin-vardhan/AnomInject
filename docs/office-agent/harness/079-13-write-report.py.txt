@@ -1,0 +1,293 @@
+"""Build the journal before commit, or the evidence report after verified restoration."""
+from collections import Counter
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+REV = ROOT / "_reviews"
+E = REV / "079-13-evidence"
+P = ROOT / "StackOBot/Plugins/AnomalyInjector"
+JOURNAL = "2026-09-20-079-13-codex-delta.md"
+
+
+def read(path):
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def table(headers, rows):
+    def line(v):
+        return "| " + " | ".join(str(x).replace("|", "/").replace("\n", " ") for x in v) + " |"
+    return "\n".join([line(headers), line(["---"] * len(headers)), *(line(r) for r in rows)])
+
+
+classes = ("recovered", "wrong", "no-transition", "unassessable", "unsupported")
+c = read(E / "characterisation_v3.json")
+bank = read(E / "bank.json")["bank"]
+counts = Counter(x["outcome"] for x in c["cells"])
+old_status = Counter(x["after"]["outcome"] if x["after"]["scored"] else "unscored" for x in c["previous_wrong_cells"])
+assert c["planned"] == len(c["cells"]) + len(c["unscored"]) == 572
+assert len(c["previous_wrong_cells"]) == 22
+totals = ", ".join(f"{counts[k]} {k}" for k in classes)
+status_text = ", ".join(f"{n} {k}" for k, n in old_status.items())
+
+common = f"""# 079-13 — regional-motion readings, one-sided peaks and stronger ties
+
+## Authority and ownership
+
+Owner supplied `D:/IntrusiveAnomalies/_reviews/079-13-codex-ruling-cap-decoupled-peaks-ties.md`.
+079-12 is accepted as implemented. **Codex implements; Claude Code independently
+reviews next; Chat orchestrates.** No mailbox or Code brief was sent.
+Feature base `53e6e5154d4f36e3cfbcfa5ad524eac2fa092852` on
+`fix/verifier-field-validity`. AMENDMENT 3 was appended and committed first at
+`d08899750f8aa4cc38f6f9d2b9d52a8841626896`, before edits or new measurements.
+Earlier predictions and reports remain historical; 079-11/12 reports are preserved.
+
+## Implementation and limits
+
+R7 removes numeric and refuse-all regional-motion guards, their API/CLI parameters
+and scorer cap derivation. m_edge remains a printed reading. Any available edge
+median above the historical0.42 marker adds a run caveat using the largest median.
+CONSISTENT events count a caveated CONSISTENT run, with either lighting or motion
+caveat; unread siblings do not manufacture this count. Both caveats can coexist.
+Threshold unsatisfiability, whole-frame regions, baseline minimum, mask/RGB/identity
+and session-coverage refusals remain. No marker tuning occurred.
+
+R8 selects nearest distance, then larger d, then earlier frame. Both equidistant
+strengths and the choice are printed. R9 uses d(k)>tau and
+d(k)>=1.5*min(d(k-1),d(k+1)); outside the scanned window counts as zero. Adjacent
+equal changes qualify; a positive plateau has qualifying edges but no interior
+peaks. Per-target/mode labelled order, bounds and used-peak exclusion remain.
+R10 reports decreasing assignments on the affected run, with no ordering floor.
+Chat's prior missing6 prediction was wrong: A.end can choose free8, giving
+4/8/10/none and OFFSET-NOTE/PARTIAL. That accepted known answer is unchanged.
+
+The two-line header points to `docs/verifier-characterisation.md`. Scorer v3 now
+runs one immutable572-key sweep, publishes all five classes by session, every
+wrong recovery with expected/observed offsets, m_edge and competing peaks, and
+all22 earlier wrong cells' current status. Recovered offsets do not prove label
+correctness. Even a wrong association can coincide with a label and read CONSISTENT.
+
+## Measured results and prediction disposition
+
+P1:94/94 permanent fixtures and22/22 contracts pass after one measured correction.
+Nine event strings change, eight as predeclared. **c08_one_frame_late is PARTIAL,
+contrary to predeclared OFFSET-NOTE.** R9 admits60/61; labelled onset61 takes61;
+end62 searches61..66 and has only consumed61. The first failing output was saved
+before updating that known answer and adding exact selection/consumption assertions.
+This is a prediction miss, not a reason to add look-ahead or tune the algorithm.
+23 fixtures change shared edge/run fields; moving_fast additionally gains motion
+caveat wording without changing its existing lighting-caveated CONSISTENT count.
+
+Former cap fixtures obey the explicit marker condition: moving_over_cap m=.12
+becomes CONSISTENT with its lighting caveat, without a motion caveat;
+c07_no_envelope_masked m=0 becomes CONSISTENT without either caveat. moving_fast
+m=.52 has both caveats. moving_unsat m=1 keeps its threshold refusal and adds
+motion disclosure. Historical fixture names are retained; retired cap options
+are intentionally rejected, not silently ignored.
+
+P2-prime:64/64 pinned edges are TRANSITION with zero offset and tau0.0040. All six
+legs have four CONSISTENT events each, including BL_SYN's one-frame runs. All24
+events carry lighting caveats; no pinned edge needs a motion caveat.
+P3: A2L_LEGA3CONSISTENT/4UNASSESSABLE; LYRA_SMOKE_01 3CONSISTENT/2PARTIAL/1UNASSESSABLE;
+A1L_LEGA4CONSISTENT/1OFFSET-NOTE/1UNASSESSABLE. No NO-TRACE. A1L event4 has
+m=.4275369507 and the motion caveat; A2L/LYRA have no >.42 medians. M50 remains
+six READING events, with5NO-TRANSITION/11UNASSESSABLE edges and five motion-caveated
+runs. Existing baseline, input, whole-frame and threshold refusals remain visible.
+
+P4: one fixed sweep scores{len(c['cells'])} of572 keys, with{len(c['unscored'])} unscored;
+{totals}. All22 former wrong cells are re-listed:
+{status_text}. No cap is derived. The complete characterisation and ledgers are
+linked from the report. Compared with079-12 guard-OFF, wrong recovery cells rise
+from22 to55:16 former wrong cells recover,6 stay wrong and49 other keys become
+wrong. One-sided prominence admits weak changes next to strong transitions;
+nearest-distance selection can then prefer the weak change sitting on the shifted
+label. The stronger tie rule applies only at equal distance. This limitation is
+published without tuning; the pinned aligned bank passing does not erase it.
+Of55 wrong cells,24 belong to CONSISTENT runs,23 to OFFSET-NOTE runs and8 to PARTIAL
+runs. These are cells, not independent events. Thus the ruling's rationale that a
+mis-picked peak always becomes OFFSET-NOTE is not supported by this measurement.
+For example, A2L event3 onset+1/annotation chooses label40 itself (d=.03145988)
+instead of intended39 (d=.99944259); expected-1 becomes0 in a CONSISTENT run.
+The stronger tie rule also need not recover the intended edge: LYRA event0's
+second-run onset+1 chooses23 over21 at label22 because .63662937>.63133631;
+its end then selects22. Both annotation/coherent variants disclose inversion23>22.
+The cohort has four inversion cells in total, including A1L's6>5 counterparts.
+P5: batch collision/coverage behavior and CLI exits
+NO-TRACE2, report-only0, execution-error3 pass. Scorer five-class, bbox-only zero-cell,
+partial-run and unsupported fixed-denominator controls pass.
+
+## Scope and disposition
+
+**NEEDS-DECISION**, because P1's predeclared delayed one-frame reading misses,
+despite the corrected regression suite and P2-prime passing. No independent
+review approval or merge is claimed. **Chat review NOT REQUIRED** for this
+authorized implementation and feature push. **Chat review REQUIRED** for the
+prediction miss, completed evidence and independent Code review before merge;
+this is the next mandatory checkpoint. Chat owns the next disposition.
+Client/Section G, m51 campaign and release holds remain.
+
+Only verifier/tests and guidance/prediction/journal/characterisation docs change
+in AnomalyInjector. Source/, Shaders/ and measure_label_offset.py remain unchanged.
+CaptureBench stays at472a409, tracked clean with no remote; only its permitted
+already-untracked scorer changes. Feature alone is committed/pushed; original
+m51 53bf725 is restored at the safe boundary. Master remains ac13700. No build,
+cook, capture, merge, tag, mailbox, office-data transfer or owner-app change.
+The external report records exact SHAs, full readings and measured wall time.
+No monetary cost is inferred; billing data is unavailable. Same coherent
+workstream; no session or context-setting change is recommended.
+"""
+
+if "--journal" in sys.argv:
+    (P / "docs/sessions" / JOURNAL).write_text(common, encoding="utf-8")
+    print("Wrote journal", JOURNAL)
+    raise SystemExit(0)
+
+b = read(E / "final/boundary.json")
+f = REV / "079-13-frozen"
+manifest = read(f / "manifest.json")
+changes = read(E / "changed_readings.json")
+old = {x["name"]: x for x in read(REV / "079-12-evidence/final/selftest_details.json")["fixtures"]}
+new = {x["name"]: x for x in read(E / "final/selftest_details.json")["fixtures"]}
+
+
+def cause(name):
+    if name == "moving_unsat":
+        return "R7 adds m=1 motion caveat; unsatisfiable tau still refuses."
+    if name == "moving_over_cap":
+        return "R7 removes old cap refusal; m=.12, lighting caveat only."
+    if name == "c07_no_envelope_masked":
+        return "R7 removes refuse-all; m=0, no caveat."
+    if name == "c08_one_frame_late":
+        return "MEASURED CORRECTION: R9 admits60/61; onset61 consumes61; end62 has no unused peak."
+    if name in ("c08_one_frame_aligned", "r6_blink_one_frame_second", "c08_one_frame_early"):
+        return "R9 admits adjacent on/off transitions; ordered exclusion determines the final reading."
+    return "R9 admits the neighbouring change as a peak; nearest selection and candidate disclosures follow."
+
+
+parts = [common, "## Per-P assessment",
+    table(["Prediction", "Result", "Evidence"], [
+        ["P1", "NEEDS-DECISION: one predeclared string misses; final94/94 +22/22 pass", "initial/, first_prediction_mismatch.json, final/ and changed_readings.json"],
+        ["P2-prime", "PASS:64/64 zero-offset transitions;6x4 CONSISTENT; tau0.004", "bank.json, audit.json and Appendix A"],
+        ["P3", "PASS: all readings, no NO-TRACE; M50 six READING; motion caveats exact", "bank.json, audit.json and Appendix A"],
+        ["P4", "PASS:572 reconciled keys, one sweep, all wrong cells and22 prior statuses", "characterisation_v3.json/.txt and frozen verifier-characterisation.md"],
+        ["P5", "PASS: collision/coverage contracts, five classes, CLI2/0/3", "final/contracts.txt, complete_checks.json and scorer_selftest.txt"]]),
+    "## Every changed fixture expectation",
+    "Comparison is against the frozen079-12 final94-case readings. The first079-13 run had exactly "
+    "one mismatch; it remains in `initial/` with its original verifier hash. No detection rule changed "
+    "after that result. The final source changes only that fixture's known answer/assertions and simplifies "
+    "the lighting assertion to match the new chosen peak. Full shared-field changes: "
+    "[changed_readings.json](079-13-evidence/changed_readings.json). New diagnostic schema fields and the "
+    "global header change are documented once below; unchanged fixture outputs are retained in full.",
+    table(["Fixture", "079-12 event string", "079-13 string", "Reason / prediction"],
+          [[x["name"], ", ".join(s.split()[3] for s in x["event_before"]),
+            ", ".join(s.split()[3] for s in x["event_after"]), cause(x["name"])]
+           for x in changes if x["event_before"] != x["event_after"]]),
+    "### Every affected run/edge reading",
+    "The following table exhausts all33 changed edge records across23 fixtures. `selected` is best_k; "
+    "unchanged tau/baseline/window/input fields are omitted. JSON retains all changed fields, including "
+    "region provenance and derived run reasons. All other fixture edge/run readings are unchanged, "
+    "apart from the added diagnostics. moving_fast additionally prints its m=.52 motion caveat; its "
+    "existing lighting caveat already made its CONSISTENT caveat count1."]
+display_fields = ("observation", "reason", "best_k", "best_d", "offset", "peaks", "available_peaks",
+                  "consumed_peaks", "other_peaks", "ring_d", "ring_note", "run_outcome", "run_caveat")
+rows = []
+for change in changes:
+    for edge in change["edges"]:
+        edits = []
+        for field in display_fields:
+            if field in edge["changes"]:
+                d = edge["changes"][field]
+                edits.append("%s: %s → %s" % (field, d["before"], d["after"]))
+        rows.append([change["name"], f"event{edge['event']} run{edge['ordinal']} {edge['kind']}", "; ".join(edits), cause(change["name"])])
+parts += [table(["Fixture", "Edge", "Changed readings", "Reason"], rows),
+    "### Retained missing6 answer and contracts",
+    "The accepted missing6 case remains selections4/8/10/none, run outcomes OFFSET-NOTE/PARTIAL. "
+    "AMENDMENT3 records Chat's old prediction error and the free8 candidate. All nine original batch/" 
+    "union/mask contracts remain, plus the updated peak/assignment contracts and four additions for "
+    "high/low motion, equal-strength ties and nearer-weaker precedence. The controlled separate-region "
+    "case still selects15 then12 and checks the printed inversion note. Plateau boundaries, strict tau, "
+    "nearest distance, stronger tie, scope, consumed/absent peaks, hard refusals and onset-first order "
+    "are covered. Full22-test results: [contracts.txt](079-13-evidence/final/contracts.txt).",
+    "## Characterisation and known wrong recoveries",
+    "The complete published document follows. It was generated from the single frozen-source sweep; "
+    "all22 previous wrong keys reconcile one-to-one. The original source sessions were read through "
+    "temporary junctions; only scratch labels were perturbed. No cap, eligibility or peak tuning followed.",
+    (f / "verifier-characterisation.md").read_text(encoding="utf-8"),
+    "## Source identity, scope and commit evidence",
+    table(["Item", "Verified value"], [
+        ["Feature base", "53e6e5154d4f36e3cfbcfa5ad524eac2fa092852"],
+        ["AMENDMENT3 first", "d08899750f8aa4cc38f6f9d2b9d52a8841626896"],
+        ["Implementation / remote feature", b["feature_sha"]],
+        ["Restored m51", b["m51_sha"]], ["Master / origin/master", b["master_sha"]],
+        ["CaptureBench HEAD (no remote)", b["capturebench_sha"]],
+        ["Source tree", b["source_tree"]], ["Shaders tree", b["shaders_tree"]],
+        ["Unchanged measure_label_offset blob", b["mlo_blob"]],
+        ["Preserved079-12 report SHA256", b["previous_report_sha256"]],
+        ["Preserved079-11 report SHA256", b["older_report_sha256"]]]),
+    "Frozen tools used for the single sweep exactly match final working sources byte-for-byte. "
+    "The final fixture and bank ledgers record that same verifier SHA. Final frozen copies include "
+    "committed blob identities as well as on-disk SHA256; Git newline normalization can make those "
+    "representations differ without a logic change. Both tracked trees are clean at restored m51. "
+    "All10 plugin and seven other CaptureBench untracked files retain their preflight hashes; only "
+    "the permitted existing CaptureBench scorer changed. No Source/Shaders/measure_label_offset "
+    "diff, master move, merge, tag, build, capture, mailbox, office transfer or owner-app action.",
+    "[source_scope.json](079-13-evidence/source_scope.json) also verifies syntax-tree identity for "
+    "the unchanged pair-region/input checks, threshold function, run/event aggregation and fixture "
+    "generators, plus scorer perturbation, expected-offset, cohort-key, reconciliation and cleanup helpers.",
+    "```text\n" + (E / "final/diffstat.txt").read_text(encoding="utf-8").strip() + "\n```",
+    table(["Frozen file", "SHA256"], [[name, v["sha256"]] for name, v in manifest["files"].items()]),
+    "Verifier removes cap/refuse-all state and parameters; adds peak strengths, ties, inversion and "
+    "motion-caveat details. Scorer removes both guard phases and derivation, adds fixed-key comparison "
+    "and markdown publication. Tests retain94 fixtures, update ruled answers/contracts, add four "
+    "focused contracts. Current client/office guidance, CLAUDE status, dated G264 correction, predictions, "
+    "journal and generated characterisation reflect the ruling. Historical records remain historical.",
+    "## Reproduction and evidence map",
+    r"""The live plugin checkout is restored to m51. Use the frozen files, not that older live verifier:
+
+```powershell
+$tools07913 = 'D:\IntrusiveAnomalies\_reviews\079-13-frozen'
+python -B "$tools07913\verify_capture.py" --label-pixel-gate --selftest
+python -B "$tools07913\test_verify_capture_consistency.py"
+$env:IAI_VERIFIER_TOOLS = $tools07913
+python -B "$tools07913\m079_shift_recovery.py" --selftest
+python -B "$tools07913\verify_capture.py" --label-pixel-gate --report-only --dir '<banked session path from Appendix A>'
+```
+
+The full sweep command used the equivalent `079-13-sweep-tools` frozen directory,
+`--json .../079-13-evidence/characterisation_v3.json`,
+`--previous-cells .../079-12-evidence/cohort_v3.json` and
+`--markdown .../AnomalyInjector/docs/verifier-characterisation.md`.
+The first-run mismatch is `079-13-evidence/first_prediction_mismatch.json` and
+`initial/selftest.txt`; final94 outputs and full structured details are in `final/`.
+`audit.json` checks unchanged source hashes, all retained fixtures, all64 pinned
+zero-offset/tau readings and every bank motion caveat. `complete_checks.json`
+contains CLI stdout/stderr/exit evidence and scorer class controls. Full fixed-key
+scorer output/ledger: `characterisation_v3.txt/.json`. `final/boundary.json` verifies
+refs, preserved source/untracked hashes and restoration. `final/current-prepend.json`
+records the handoff update; all earlier CURRENT bytes are retained.
+""",
+    "## Wall time and next checkpoint",
+    f"Task start: **{b['start_utc']}**. Verified feature push/restoration boundary: "
+    f"**{b['end_utc']}**. Measured wall interval: **{b['elapsed']}** ({b['elapsed_seconds']} seconds), "
+    "including implementation, tests, one full sweep, commit and push; final report/handoff bookkeeping "
+    "follows that timestamp. Monetary/token billing is unavailable and not inferred.",
+    "**Chat review NOT REQUIRED** for the authorized implementation and feature push, now complete. "
+    "**Chat review REQUIRED** for the delayed one-frame prediction miss, complete evidence and independent "
+    "Claude Code review before merge. This is the next mandatory checkpoint. Chat owns disposition; "
+    "no Code brief was sent. Client/Section G, m51 campaign and release holds remain.",
+    "## Appendix A — complete final bank readings"]
+for item in bank:
+    parts += ["### " + item["name"], "```text\n" + "\n".join(item["lines"]) + "\n```"]
+parts += ["## Final disposition", "P2-prime passes. P1 has one preserved predeclared-reading mismatch; "
+          "passing the corrected regression suite does not turn that prediction into a pass. "
+          "The literal ruled implementation is ready for independent review, with all measured limitations retained.",
+          "VERDICT: NEEDS-DECISION"]
+report = REV / "079-13-codex-delta-report.md"
+report.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
+print("Wrote", report, "bytes", report.stat().st_size)

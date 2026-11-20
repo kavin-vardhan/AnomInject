@@ -1,0 +1,96 @@
+import json, os, re, time
+import unreal
+
+def _plan_path():
+    m = re.search(r'-IAIPiePlan=("[^"]+"|\S+)', unreal.SystemLibrary.get_command_line())
+    return m.group(1).strip('"') if m else None
+
+PLAN = json.load(open(_plan_path(), 'r', encoding='utf-8'))
+S = dict(phase='wait_pie', t0=time.time(), tphase=time.time(), i=0, ticks=0, done_at=None, quit_at=None)
+
+def say(msg):
+    unreal.log('IAI-PIE-DRIVER ' + msg)
+
+def pie_world():
+    try:
+        return unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
+    except Exception:
+        return None
+
+def les():
+    return unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+
+def session_done():
+    out = PLAN.get('out_dir')
+    if not out or not os.path.isdir(out):
+        return False
+    for n in os.listdir(out):
+        if os.path.isfile(os.path.join(out, n, 'run_summary.json')):
+            return True
+    return False
+
+def set_phase(p):
+    S['phase'] = p
+    S['tphase'] = time.time()
+    say('phase=%s t=%.1f' % (p, time.time() - S['t0']))
+
+def tick(dt):
+    S['ticks'] += 1
+    now = time.time()
+    el = now - S['tphase']
+    if S['phase'] == 'wait_pie':
+        w = pie_world()
+        if w is not None and les().is_in_play_in_editor():
+            say('pie world=%s type=%s' % (w.get_name(), str(w)))
+            set_phase('settle')
+        elif el > PLAN.get('pie_timeout_s', 240):
+            say('FAIL no PIE world after %.0f s' % el)
+            set_phase('quit')
+    elif S['phase'] == 'settle':
+        if el >= PLAN.get('settle_s', 8.0):
+            set_phase('cmds')
+    elif S['phase'] == 'cmds':
+        cmds = PLAN['cmds']
+        if S['i'] >= len(cmds):
+            set_phase('wait_done' if PLAN.get('out_dir') else 'hold')
+            return
+        if S['ticks'] % max(1, PLAN.get('gap_ticks', 2)) == 0:
+            c = cmds[S['i']]
+            w = pie_world()
+            if c.startswith('WAIT '):
+                if el >= float(c.split()[1]):
+                    S['i'] += 1
+                    S['tphase'] = now
+                return
+            say('cmd i=%d %s' % (S['i'], c))
+            unreal.SystemLibrary.execute_console_command(w, c)
+            S['i'] += 1
+            S['tphase'] = now
+    elif S['phase'] == 'hold':
+        if el >= PLAN.get('hold_s', 10.0):
+            set_phase('end')
+    elif S['phase'] == 'wait_done':
+        if session_done():
+            if S['done_at'] is None:
+                S['done_at'] = now
+                say('session done')
+            elif now - S['done_at'] >= PLAN.get('post_s', 4.0):
+                set_phase('end')
+        elif el > PLAN.get('done_timeout_s', 600):
+            say('FAIL no run_summary after %.0f s' % el)
+            set_phase('end')
+    elif S['phase'] == 'end':
+        if el < 0.1:
+            return
+        if les().is_in_play_in_editor():
+            say('request end play')
+            les().editor_request_end_play()
+        set_phase('quit')
+    elif S['phase'] == 'quit':
+        if el >= 3.0 and S['quit_at'] is None:
+            S['quit_at'] = now
+            say('quit editor')
+            unreal.SystemLibrary.quit_editor()
+
+say('loaded plan=%s cmds=%d out=%s' % (_plan_path(), len(PLAN['cmds']), PLAN.get('out_dir')))
+HANDLE = unreal.register_slate_post_tick_callback(tick)

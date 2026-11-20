@@ -1,0 +1,75 @@
+FMW='/Game/StackOBot/Maps/MainWorld'
+FGATE='/Game/CaptureBenchGate/CB_GateLevel'
+FLYRA='/ShooterMaps/Maps/L_ShooterGym'
+ROCK='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+ROCK2='StaticMeshActor_UAID_A036BC6AB247EBF902_2048592804'
+SHARED='BP_SpawnPad_C_UAID_B42E9936F54253D500_1492231360'
+GATE_TARGET='StaticMeshActor_49'
+AA_OFF=['r.AntiAliasingMethod 0']
+AA_OFF_ARBITER=['r.AntiAliasingMethod 0','r.Lumen.DiffuseIndirect.Allow 0','r.DynamicGlobalIlluminationMethod 0','r.ReflectionMethod 0']
+SYN=['IAI.Bench.SynthTickOrder 1']
+CFG_M52='2 4 8 30 0'
+CFG_EDGE='2 4 8 14 0'
+CFG_LOD='2 4 16 14 0'
+CFG_MASK='2 4 6 4 0'
+BENCH='-IAIBench'
+BENCH_FIX='-IAIBench -IAIBenchFixture'
+CC_LEVERS=['IAI.Bench.InputLock 1','IAI.Bench.CameraSchedule cc_v1','IAI.Anomaly.CameraClipTriggerRadius 100000']
+CC_MW_LEVERS=['IAI.Anomaly.CameraClipTriggerRadius 100000']
+TRANS_FIX=['IAI.Label.TransitionOnFrames 3']
+def leg(leg_id,group,role,map_,anomaly,target,frames,cfg,levers=(),seed=777,auto=False,required=True,extra=BENCH,start_args=(),kind='capture',null=None,pair=None,near=None,note=''):
+    if kind!='lyra' and role not in ('NULL','CC_NULL'):levers=list(levers)+TRANS_FIX
+    return dict(leg=leg_id,group=group,role=role,map=map_,anomaly=anomaly,target=target,frames=frames,cfg=cfg,levers=list(levers),seed=seed,auto=auto,
+                required=required,extra=extra,start_args=list(start_args),kind=kind,null=null,pair=pair,near=near,note=note,build='FIX')
+POOL4=['IAI.Auto.Pool all 0','IAI.Auto.Pool blinking 1','IAI.Auto.Pool missing_texture 1','IAI.Auto.Pool corrupted_texture 1','IAI.Auto.Pool missing_object 1']
+LEGS=[
+ leg('B0','M52','SYNC',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,null='B5'),
+ leg('B5','M52','NULL',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,['IAI.Bench.StuckMipNoHold 1'],note='the matched null: calibrates the edge-local reference (scene cycle, G349); not in the brief list, required by the evaluator'),
+ leg('B3','M52','SYNC',FMW,'stuck_low_mip',None,1200,CFG_M52,['IAI.Auto.Pool all 0','IAI.Auto.Pool stuck_low_mip 1'],seed=4242,auto=True,null='B5'),
+ leg('B9','M52','AA_OFF',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,AA_OFF,null='B5'),
+ leg('B0L','M52','LEVER',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,['IAI.Bench.StuckMipLegacyTiming 1'],null='B5',note='timing can-fail: must FAIL sync'),
+ leg('P1','M52','PURITY_CANFAIL',FMW,'stuck_low_mip',SHARED,300,CFG_M52,['IAI.Bench.StuckMipLegacyPurity 1'],note='purity can-fail: must FAIL (iii)'),
+ leg('CC_ON_NAT','BCC','CC_ON',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['100'],pair=('CC_NULL_A_NAT','CC_NULL_B_NAT'),near=100),
+ leg('CC_NULL_A_NAT','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('CC_NULL_B_NAT','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('CC_ON_AAOFF','BCC','CC_ON',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,AA_OFF_ARBITER+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['100'],pair=('CC_NULL_AAOFF',None),near=100),
+ leg('CC_NULL_AAOFF','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,AA_OFF_ARBITER+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('CC_ON_SYN','BCC','CC_ON',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,SYN+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['100'],pair=('CC_NULL_SYN',None),near=100),
+ leg('CC_NULL_SYN','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,SYN+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('MASK55','MASK55','MASK',FGATE,None,None,1200,CFG_MASK,POOL4,seed=4242,auto=True,note='> 55 events (target >= 90): every labelled frame masked, recycles logged, no aliasing'),
+]
+REAL_TYPES=(('BL','blinking'),('MO','missing_object'),('MT','missing_texture'),('CT','corrupted_texture'))
+for code,an in REAL_TYPES:
+    for tcode,tgt in (('R1',ROCK),('R2',ROCK2)):
+        LEGS.append(leg(f'REAL_{code}_{tcode}','BREAL','SYNC',FMW,an,tgt,300,CFG_EDGE))
+LEGS.append(leg('REAL_BL_R1_AAOFF','BREAL','AA_OFF',FMW,'blinking',ROCK,300,CFG_EDGE,AA_OFF))
+LEGS.append(leg('REAL_MO_R1_AAOFF','BREAL','AA_OFF',FMW,'missing_object',ROCK,300,CFG_EDGE,AA_OFF))
+LOD=['IAI.Anomaly.LodMaxDistance 0','IAI.Anomaly.LodHalfPeriod 8']
+LEGS+=[
+ leg('LOD_NAT','BLOD','SYNC',FMW,'lod_popping',ROCK,300,CFG_LOD,LOD),
+ leg('LOD_SYN','BLOD','ORDER',FMW,'lod_popping',ROCK,300,CFG_LOD,LOD+SYN),
+ leg('LOD_NAT_AAOFF','BLOD','AA_OFF',FMW,'lod_popping',ROCK,300,CFG_LOD,LOD+AA_OFF),
+ leg('LOD_SYN_AAOFF','BLOD','AA_OFF',FMW,'lod_popping',ROCK,300,CFG_LOD,LOD+SYN+AA_OFF),
+ leg('CCMW_ON','BCCMW','CC_ON',FMW,'camera_clipping',ROCK,200,CFG_EDGE,CC_MW_LEVERS,seed=4242,start_args=['100'],pair=('CCMW_NULL_A','CCMW_NULL_B'),near=100,note='hollow-mesh-around-the-eye reading (086-02 NEEDS-DECISION 1); no schedule (the lever is CB-only)'),
+ leg('CCMW_NULL_A','BCCMW','CC_NULL',FMW,'camera_clipping',ROCK,200,CFG_EDGE,CC_MW_LEVERS,seed=4242,start_args=['10'],near=10),
+ leg('CCMW_NULL_B','BCCMW','CC_NULL',FMW,'camera_clipping',ROCK,200,CFG_EDGE,CC_MW_LEVERS,seed=4242,start_args=['10'],near=10,note='null-vs-null floor (G352): added so a label with no pixel change can be separated from noise'),
+]
+LYRA_BASE=['r.DefaultFeature.AutoExposure','r.EyeAdaptationQuality','r.AntiAliasingMethod','r.ScreenPercentage','IAI.Capture.SVE 1','IAI.Capture.Delivery 0','IAI.Capture.Pace 1',
+           'IAI.Capture.Fps 30','IAI.Capture.Mask 1','IAI.Capture.TargetMask 1','IAI.Capture.RunLog 1','IAI.Label.TransitionOnFrames','IAI.Label.TransitionOffFrames','IAI.Label.TransitionHideFrames','IAI.Bench.InputLock 1']
+def lyra_leg(leg_id,anomaly,frames=300,cfg=CFG_EDGE,levers=(),pool=True,near=None,role='SYNC',pair=None,group='BLYRA',note=''):
+    lv=list(levers)
+    if pool and anomaly:lv=['IAI.Auto.Pool all 0',f'IAI.Auto.Pool {anomaly} 1']+lv
+    return leg(leg_id,group,role,FLYRA,anomaly,None,frames,cfg,lv,seed=4242,auto=True,required=False,extra=BENCH,kind='lyra',near=near,pair=pair,note=note)
+LEGS+=[
+ lyra_leg('LYRA_BL','blinking'),lyra_leg('LYRA_MO','missing_object'),lyra_leg('LYRA_MT','missing_texture'),lyra_leg('LYRA_CT','corrupted_texture'),
+ lyra_leg('LYRA_LOD','lod_popping',cfg=CFG_LOD,levers=LOD),lyra_leg('LYRA_M52','stuck_low_mip',frames=600,cfg=CFG_M52),
+ lyra_leg('CCLY_ON','camera_clipping',frames=200,pool=False,near=100,role='CC_ON',pair=('CCLY_NULL',None),group='BCCLY',
+          note='WS capture_start carries no target args, so ON uses the default near 100 and the null is an auto-pool capture with an empty pool (baseline near, camera_clipping not held)'),
+ lyra_leg('CCLY_NULL',None,frames=200,pool=False,levers=['IAI.Auto.Pool all 0'],near=10,role='CC_NULL',group='BCCLY'),
+]
+LYRA_CC_TARGET='Cube7'
+for L in LEGS:
+    if L['leg']=='CCLY_ON':L['target']=LYRA_CC_TARGET;L['auto']=False
+ORDER=['M52','BCC','MASK55','BREAL','BLOD','BCCMW','BLYRA','BCCLY']
+def legs_sorted():return sorted(LEGS,key=lambda L:(ORDER.index(L['group']),LEGS.index(L)))
+def by_id(i):return next(L for L in LEGS if L['leg']==i)

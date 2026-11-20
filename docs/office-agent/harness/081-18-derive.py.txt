@@ -1,0 +1,31 @@
+from pathlib import Path
+import hashlib,json
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+ADD_TYPE_OLD=' public static uint FgPid(){'
+ADD_TYPE_NEW=(' [DllImport("kernel32.dll")] public static extern bool GetSystemTimes(out long idle,out long kernel,out long user);\n'
+ ' public static string SysTimes(){long i,k,u;GetSystemTimes(out i,out k,out u);return i+","+k+","+u;}\n'
+ ' public static uint FgPid(){')
+SAMPLER=("\n $record.anchor_start=@{qpc=[Diagnostics.Stopwatch]::GetTimestamp();utc=[DateTime]::UtcNow.ToString('o');freq=[Diagnostics.Stopwatch]::Frequency}"
+ "\n $record.capture_samples=@();$nextSample=0.0")
+LOOP_OLD="while($runClock.Elapsed.TotalSeconds -lt 150){\n  if($p.HasExited){throw 'Game exited during capture'}"
+LOOP_NEW=("while($runClock.Elapsed.TotalSeconds -lt 600){\n  if($p.HasExited){throw 'Game exited during capture'}"
+ "\n  if($runClock.Elapsed.TotalSeconds -ge $nextSample){$nextSample+=1.0;$gp=Get-Process -Id $p.Id -ErrorAction SilentlyContinue;$scw=@(Get-Process -Name ShaderCompileWorker -ErrorAction SilentlyContinue);$scwMs=0.0;foreach($x in $scw){try{$scwMs+=$x.TotalProcessorTime.TotalMilliseconds}catch{}};$row=@{s=$runClock.Elapsed.TotalSeconds;qpc=[Diagnostics.Stopwatch]::GetTimestamp();utc=[DateTime]::UtcNow.ToString('o');sys=[R1Focus]::SysTimes();scw=$scw.Count;scw_cpu_ms=$scwMs};if($gp){$row.cpu_ms=$gp.TotalProcessorTime.TotalMilliseconds;$row.ws=$gp.WorkingSet64;$row.priv=$gp.PrivateMemorySize64;$row.threads=$gp.Threads.Count};$record.capture_samples+=$row}")
+TIMEOUT_OLD="if(-not $summarySeen -or $stable -lt 25){throw 'Capture summary/writer tail did not complete'}"
+TIMEOUT_NEW="$record.anchor_end=@{qpc=[Diagnostics.Stopwatch]::GetTimestamp();utc=[DateTime]::UtcNow.ToString('o');freq=[Diagnostics.Stopwatch]::Frequency}\n "+TIMEOUT_OLD
+def derive(src,dst,pairs):
+    t=(R/src).read_text(encoding='utf-8')
+    for old,new in pairs:
+        n=t.count(old);assert n==1,(src,old,n);t=t.replace(old,new)
+    (R/dst).write_text(t,encoding='utf-8',newline='\n');return dict(src=src,src_sha256=sha(R/src),dst=dst,dst_sha256=sha(R/dst),replacements=[o for o,_ in pairs])
+common=[(r"$root='D:\IntrusiveAnomalies\_reviews\081-17-evidence'",r"$root='D:\IntrusiveAnomalies\_reviews\081-18-evidence'"),
+        (ADD_TYPE_OLD,ADD_TYPE_NEW),('M55S2R17_$Label','M55L18_$Label'),(LOOP_OLD,LOOP_NEW),(TIMEOUT_OLD,TIMEOUT_NEW)]
+out=[]
+out.append(derive('081-17-lyra-run.ps1','081-18-lyra-run.ps1',common+[('081-17-lyra-pre.py','081-18-lyra-pre.py'),
+    ('Send $captureRequest','Send $captureRequest'+SAMPLER)]))
+out.append(derive('081-17-measure.ps1','081-18-measure.ps1',common+[('081-17-b1.py','081-18-b1.py'),
+    ("benchDelayFrames=$DelayFrames}","benchDelayFrames=$DelayFrames}"+SAMPLER)]))
+out.append(derive('081-17-lyra-pre.py','081-18-lyra-pre.py',[("_reviews/081-17-evidence","_reviews/081-18-evidence")]))
+out.append(derive('081-17-b1.py','081-18-b1.py',[("_reviews/081-17-evidence","_reviews/081-18-evidence")]))
+(R/'081-18-evidence/harness-derivation.json').write_text(json.dumps(out,indent=2))
+print(json.dumps([(o['dst'],o['dst_sha256'][:12],len(o['replacements'])) for o in out]))

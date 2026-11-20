@@ -1,0 +1,51 @@
+"""Run the original review generators against the frozen third-review candidate."""
+import pathlib
+import ast
+
+driver = pathlib.Path(__file__).with_name("079-08-review-validation.py")
+exec(compile(driver.read_text(encoding="utf-8").split('mode = sys.argv[1]')[0],
+             str(driver), "exec"))
+RESULT["prediction"] = "Original unmasked079-05/079-07 controls must all be READING/UNREAD-BBOX-ONLY under the newly declared scope. Existing masked twins are checked in the46-case candidate selftest."
+(ROOT / "079-08-original-predictions.json").write_text(json.dumps(RESULT, indent=2)+"\n", encoding="utf-8")
+old05 = (ROOT / "079-05-review-validation.py").read_text(encoding="utf-8")
+start = old05.index("def custom_motion_fixture")
+end = old05.index("\n\nmode =", start)
+# The RGB and labels generator is unchanged; omit obsolete post-gate baseline diagnostics.
+old05_function = old05[start:end].split("    base, values = clean_pool(path)")[0] + "    return result\n"
+old = {"vc": vc, "mlo": mlo, "json": json, "read_gate": gate}
+exec(compile(old05_function, "079-05-original-generator", "exec"), old)
+tree = ast.parse((ROOT / "079-07-review-validation.py").read_text(encoding="utf-8"))
+builder = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "fixture")
+old07 = {"vc": vc, "json": json, "scratch": scratch}
+exec(compile(ast.Module(body=[builder], type_ignores=[]), "079-07-original-generator", "exec"), old07)
+try:
+    RESULT["old05"] = [old["custom_motion_fixture"](scratch, "old_quiet_prefix"),
+        old["custom_motion_fixture"](scratch, "old_small_region", local_only=True),
+        old["custom_motion_fixture"](scratch, "old_alternating", local_only=True, alternating=True)]
+    cases = {
+        "burst_aligned": dict(burst_at=61),
+        "burst_onset_label_late": dict(burst_at=61, onset_delta=1),
+        "static_aligned": {},
+        "static_onset_label_late": dict(onset_delta=1),
+        "onset_early_refusal": dict(runs=((10,11),), burst_at=10, full_boxes=(10,)),
+        "previous_end_refusal": dict(runs=((10,12),(15,16)), label_runs=((10,11),(15,16)), full_boxes=(11,), patch_sides=(40,15)),
+        "partial_multirun": dict(runs=((10,11),(25,26)), full_boxes=(25,26)),
+        "missing_edge_frames": {}
+    }
+    RESULT["old07"] = {}
+    for name, kw in cases.items():
+        p = old07["fixture"](name, **kw)
+        if name == "missing_edge_frames":
+            for k in range(55,74):
+                (p / "Actual_Frames" / ("frame_%05d.png" % k)).unlink()
+        RESULT["old07"][name] = gate(p)
+finally:
+    assert scratch.resolve().is_relative_to(ROOT) and scratch.name.startswith("079-08-scratch-")
+    for d, dirs, files in os.walk(scratch, followlinks=False):
+        for n in dirs:
+            p = pathlib.Path(d)/n
+            assert not (p.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT), p
+    shutil.rmtree(scratch)
+    out = ROOT / "079-08-validation-originals.json"
+    out.write_text(json.dumps(RESULT, indent=2, default=str)+"\n", encoding="utf-8")
+    print("SAVED", out, flush=True)

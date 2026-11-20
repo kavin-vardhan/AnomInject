@@ -1,0 +1,70 @@
+"""090-10e recheck of the earlier "PIE end +1" readings. For every session under the given roots, every event is read twice:
+(1) 090-10b-edges.py as 090-10b2/090-10c ran it (label = annotation affected_frames, the m49 observable subset), and (2) 090-10e-edges.py
+(label = injected_frames, the labelled set). For each event the old end offset is printed beside the labelled set's last frame, the
+observable list's last frame, the mask state / target_pixels of the labelled set's last frame, and the 090-10e raw_end.
+Usage: 090-10e-recheck.py <root> [<root> ...] [--glob P_*]"""
+import glob, importlib.util, json, os, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+R = Path(__file__).parent
+
+
+def _load(name, path):
+    s = importlib.util.spec_from_file_location(name, str(path)); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+
+
+OLD = _load('e910b', R / '090-10b-edges.py')
+NEW = _load('e910e', R / '090-10e-edges.py')
+
+
+def rows_of(sd):
+    rows = {}
+    for ln in (sd / 'labels.jsonl').read_text(encoding='utf-8').splitlines():
+        if ln.strip():
+            r = json.loads(ln); rows[r['session_index']] = r
+    return rows
+
+
+def main():
+    args = sys.argv[1:]
+    pat = 'P_*'
+    if '--glob' in args:
+        i = args.index('--glob'); pat = args[i + 1]; del args[i:i + 2]
+    tot = dict(sessions=0, events=0, old_end_plus1=0, old_plus1_labelled_ends_later=0, old_plus1_new_raw_end0=0, new_raw_end_plus1=0)
+    for root in args:
+        for leg in sorted(glob.glob(os.path.join(root, pat))):
+            for sd in sorted(Path(leg).glob('session_*')):
+                if not (sd / 'annotation.json').exists():
+                    continue
+                try:
+                    o = OLD.edges(sd)
+                    n = NEW.edges(sd)['events']
+                except Exception as ex:
+                    print(json.dumps(dict(session=str(sd), error=f'{type(ex).__name__}: {ex}'))); continue
+                ann = json.loads((sd / 'annotation.json').read_text(encoding='utf-8'))['anomalies']
+                rows = rows_of(sd)
+                tot['sessions'] += 1
+                for k, (a, ov, nv) in enumerate(zip(ann, o, n)):
+                    tot['events'] += 1
+                    obs = (a.get('affected_frames') or {}).get('frame_indices') or []
+                    inj = (a.get('injected_frames') or {}).get('frame_indices') or obs
+                    if nv.get('raw_end') == 1:
+                        tot['new_raw_end_plus1'] += 1
+                    if ov.get('end') != 1:
+                        continue
+                    tot['old_end_plus1'] += 1
+                    last = inj[-1] if inj else None
+                    ent = [x for x in (rows.get(last) or {}).get('anomalies', []) if x.get('id') == a.get('anomaly_type')]
+                    if obs and inj and inj[-1] > obs[-1]:
+                        tot['old_plus1_labelled_ends_later'] += 1
+                    if nv.get('raw_end') == 0:
+                        tot['old_plus1_new_raw_end0'] += 1
+                    print(json.dumps(dict(leg=Path(leg).name, ev=k, type=a.get('anomaly_type'), old_end=ov.get('end'), observable_last=obs[-1] if obs else None,
+                                          labelled_last=last, mask_state_at_labelled_last=(rows.get(last) or {}).get('mask_state'),
+                                          target_pixels_at_labelled_last=[x.get('target_pixels') for x in ent],
+                                          new_raw_end=nv.get('raw_end'), new_verdict=nv.get('verdict'))))
+    print('RECHECK', json.dumps(tot))
+
+
+if __name__ == '__main__':
+    main()

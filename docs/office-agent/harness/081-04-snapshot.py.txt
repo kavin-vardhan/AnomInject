@@ -1,0 +1,46 @@
+"""Read-only Git-object snapshot for the independent m55 design review."""
+import datetime
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+P = ROOT / "StackOBot/Plugins/AnomalyInjector"
+CB = ROOT / "StackOBot/Plugins/CaptureBench"
+OUT = ROOT / "_reviews/081-04-evidence"
+REF = "ae2a9677edf9efcb49e315b47966489606747ac6"
+
+
+def git(repo, *args):
+    return subprocess.check_output(["git", "-C", str(repo), *args])
+
+
+def state(repo):
+    others = git(repo, "ls-files", "--others", "--exclude-standard").decode().splitlines()
+    return {"head": git(repo, "rev-parse", "HEAD").decode().strip(),
+            "branch": git(repo, "branch", "--show-current").decode().strip(),
+            "status": git(repo, "status", "--porcelain").decode(),
+            "refs": git(repo, "for-each-ref", "--format=%(refname) %(objectname)", "refs/heads", "refs/remotes").decode(),
+            "untracked": {s: hashlib.sha256((repo / s).read_bytes()).hexdigest() for s in others}}
+
+
+OUT.mkdir(exist_ok=True)
+files = git(P, "ls-tree", "-r", "--name-only", REF).decode().splitlines()
+selected = [s for s in files if s.startswith(("Source/AnomalyCapture/", "Source/AnomalyShaders/", "Shaders/"))]
+selected += [s for s in files if s.startswith("Source/AnomalyInjector/") and ("StuckLowMip" in s or "Anomaly_LodPopping" in s)]
+selected += [s for s in files if any(x in s for x in ("2026-09-20-m55", "2026-09-20-081-01", "2026-09-21-081-02", "2026-09-20-080-06", "2026-09-20-080-04"))]
+selected += ["tools/verify_capture.py", "docs/client-readme.md"]
+hashes = {}
+for relative in selected:
+    data = git(P, "show", REF + ":" + relative)
+    destination = OUT / "snapshot" / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(data)
+    hashes[relative] = hashlib.sha256(data).hexdigest()
+result = {"task_start_utc": "2026-09-21 06:41:40 UTC", "snapshot_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          "reviewed_ref": REF, "AnomalyInjector": state(P), "CaptureBench": state(CB), "sha256": hashes,
+          "CURRENT_sha256": hashlib.sha256((ROOT / "ToCodex/CURRENT.md").read_bytes()).hexdigest()}
+(OUT / "preflight.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+(OUT / "CURRENT.before.md").write_bytes((ROOT / "ToCodex/CURRENT.md").read_bytes())
+print("Snapshotted", len(hashes), "files from", REF, "without moving the checkout.")

@@ -1,0 +1,343 @@
+import importlib.util,json,os,shutil,sys,tempfile,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+MODE=sys.argv[1] if len(sys.argv)>1 else 'live'
+if MODE not in ('live','dry','gates'):raise SystemExit('usage: 084-03-window.py live|dry|gates [--with-optional]')
+OPTIONAL='--with-optional' in sys.argv
+if MODE=='dry':
+    os.environ['IAI_R52_STUB_LAUNCH']='1'
+    os.environ.setdefault('IAI_R52_ROOT',str(Path(tempfile.gettempdir())/f'r52_dry_{int(time.time())}'))
+os.environ['PYTHONDONTWRITEBYTECODE']='1'
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c52',R/'084-03-common.py');L=load('lib52',R/'084-03-lib.py')
+c.RUN.mkdir(parents=True,exist_ok=True)
+BANK=Path(r'D:\IntrusiveAnomalies\_bench_sessions_bank')
+DRY_STANDINS={
+ 'B0_BASE':BANK/'M52D_M52D_G3_HOLD_NAT_try1/session_20260920-213538',
+ 'B5_BASE':BANK/'M52D_M52D_G2_CANFAIL_try1/session_20260920-213652',
+ 'B3_BASE':BANK/'M52F_B_GC_GATED_NAT_try1/session_20260920-225013'}
+def preflight():
+    p=[];n={}
+    try:n['fix_archive']=str(c.fix_archive());n['fix_set']=c.fix_set()
+    except SystemExit as ex:
+        if c.STUB:n['fix_archive']='NOT YET ARCHIVED (dry run tolerates it): '+str(ex)
+        else:p.append(str(ex))
+    head=c.git(c.RP,'rev-parse',c.FIX_BRANCH);origin=c.git(c.RP,'rev-parse','refs/remotes/origin/'+c.FIX_BRANCH)
+    n.update(fix_head=head,fix_origin=origin)
+    if head!=origin:p.append(f'fix branch {head[:7]} != origin {origin[:7]}')
+    if c.git(c.RP,'rev-parse','HEAD')!=c.M51_HEAD or c.git(c.RP,'branch','--show-current')!='m51':p.append('main checkout moved off m51 53bf725')
+    if not c.STUB:
+        cur=c.which_set();n['staged_now']=cur
+        if cur not in ('M53','BASELINE','FIX'):p.append('staged set is none of M53/BASELINE/FIX: '+json.dumps(c.staged_state()))
+        if cur!='M53' and not (c.M53_BACKUP/c.KEYS[0]).exists():p.append('staged set is not M53 and no verified M53 backup exists')
+        fe=c.free_gb('E:\\');fd=c.free_gb('D:\\');n.update(free_e_gb=fe,free_d_gb=fd)
+        if fe<c.E_FLOOR_GB:p.append(f'E: free {fe} < {c.E_FLOOR_GB}')
+        if fd<c.D_FLOOR_GB:p.append(f'D: free {fd} < {c.D_FLOOR_GB}')
+        ours,foreign=c.classify();n['foreign']=[(x['pid'],x['name']) for x in foreign]
+        if [x for x in ours if x['name']!='UnrealTraceServer.exe']:p.append('our engine/game processes present')
+    out=dict(utc=c.now(),mode=MODE,problems=p,notes=n);L.jsave(c.RUN/f'preflight-{int(time.time())}.json',out);return out
+def run_build(build):
+    done=[]
+    for leg in L.legs_by(build):
+        if not leg['required'] and not OPTIONAL:continue
+        stand=DRY_STANDINS.get(leg['leg']) if c.STUB else None
+        r=L.run_leg(leg,stub_session=stand);done.append((leg['leg'],r))
+        c.log_event('leg',leg=leg['leg'],result=r)
+    return done
+CORRECTIONS=['(a) an edge with a missing session_index or an engine-frame jump adjacent to it, inside its 2-frame onset confirmation or inside its 3-frame clean suffix is CENSORED, never passed',
+             '(b) every pixel-visible frame outside the pixel window FAILS unless the paired null shows a visible drop at the event-aligned frame (withdraws G345 "isolated runs are reported, not required")',
+             '(c) a labelled frame without a measured mask (no mask_value, target_pixels -1, png absent, or empty mask on a pixel-visible frame) FAILS gate (ii)',
+             '(d) a contaminated event FAILS gate (iii) unless joined log-to-log, flagged stuck_mip.contaminated = 1 on every member frame from its si, and its trail closed back at baseline',
+             '(e) per-leg edge-path frequencies and the hold-monitor cost reading (not measurable on this build: proxies only)']
+def evaluate():
+    rep=dict(utc=c.now(),mode=MODE,evaluator=L.EVALUATOR,corrections=CORRECTIONS,legs={},gates={},can_fail={},settle_tail={},premise={},edge_paths={},monitor_cost={})
+    for build in ('BASELINE','FIX'):
+        nl=[x for x in L.LEGS if x['build']==build and x['role']=='NULL'][0]['leg'];nsd=L.leg_session(nl);null=L.get_sess(nsd) if nsd else None
+        if null:rep['gates'][nl]=L.null_check(null)
+        for leg in L.legs_by(build):
+            sd=L.leg_session(leg['leg'])
+            if not sd:rep['legs'][leg['leg']]='NOT ACCEPTED';continue
+            log=L.leg_log(leg['leg']);launch=L.leg_launch(leg['leg']);ls=L.get_sess(sd)
+            if leg['role'] in ('SYNC','AA_OFF','ORDER','LEVER'):
+                a=L.analyse_leg(leg,sd,log,null_sess=null,launch=launch);rep['legs'][leg['leg']]=a;rep['gates'][leg['leg']]=L.summarize(a);rep['premise'][leg['leg']]=a['premise']
+            if build=='FIX' and leg['role'] in ('SYNC','PURITY','PURITY_CANFAIL','LEVER','AA_OFF','ORDER'):
+                rep['gates'][leg['leg']+':purity']=L.gate_purity(log,ls)
+            rep['edge_paths'][leg['leg']]=L.edge_paths(ls,log)
+            if build=='FIX':rep['monitor_cost'][leg['leg']]=L.monitor_cost(ls,log)
+    tot={}
+    for k,v in rep['edge_paths'].items():
+        if not any(x['leg']==k and x['build']=='FIX' for x in L.LEGS):continue
+        for name,d in v['named'].items():
+            t=tot.setdefault(name,dict(legs_where_it_occurred=[]))
+            if name in v['occurred']:t['legs_where_it_occurred'].append(k)
+            for f,x in d.items():
+                try:t[f]=t.get(f,0)+float(x)
+                except (TypeError,ValueError):pass
+    rep['edge_paths_fix_totals']=tot
+    g=rep['gates']
+    if 'B0L_FIX' in g:rep['can_fail']['lever_restores_old_timing_must_FAIL']=dict(observed=g['B0L_FIX']['sync_verdict'],proven=g['B0L_FIX']['sync_verdict']=='FAIL')
+    if 'P1_FIX:purity' in g:rep['can_fail']['old_purity_rule_must_FAIL']=dict(observed=g['P1_FIX:purity']['verdict'],proven=g['P1_FIX:purity']['verdict']=='FAIL')
+    agg=dict(sources=[],cases=[],skipped=[]);nc=0
+    for src in ('B0_FIX','B3_FIX','B0_BASE','B3_BASE'):
+        if not L.leg_session(src) or nc>=6:continue
+        p=doctored_proof(src,max_cases=6-nc);agg['sources'].append(src);agg['cases']+=p['cases'];agg['skipped']+=p['skipped'];nc+=len(p['cases'])
+    agg.update(proof_summary(agg['cases']))
+    if not agg['cases']:agg['note']='no measurable, uncensored, static event with room for the variants in any accepted SYNC leg'
+    rep['can_fail']['doctored_labels']=agg
+    for k in ('B0_FIX','B3_FIX','B9_FIX','B7_FIX'):
+        if k in g:rep['settle_tail'][k]=dict(aa=('off' if k=='B9_FIX' else 'as delivered'),residual_after_record=g[k]['residual_after_record'],
+                                             residual_before_record=g[k]['residual_before_record'],post_restore_visible=g[k]['post_restore_visible'],closure_rule=g[k]['closure_rule'])
+    for k in ('B0_BASE','B9_BASE'):
+        if k in g:rep['settle_tail'][k]=dict(after_label_visible=g[k]['unlabelled_visible_after'])
+    fixed=[g[k] for k in ('B0_FIX','B3_FIX') if k in g]
+    if fixed:
+        ra=[x for v in fixed for x in v['residual_after_record']];rb=[x for v in fixed for x in v['residual_before_record']]
+        rep['settle_tail']['closure_rule_AA_as_delivered']=L.closure_rule(ra,rb)
+    if 'B9_FIX' in g:rep['settle_tail']['closure_rule_AA_off']=g['B9_FIX']['closure_rule']
+    rep['harness']={p.name:c.sha(p) for p in sorted(R.glob('084-03-*')) if p.is_file() and p.suffix in ('.py','.ps1')}
+    L.jsave(c.RUN/'report.json',rep);write_md(rep);return rep
+def write_md(rep):
+    g=rep['gates'];ln=[f'# 084-03 part B report ({rep["mode"]}, {rep["utc"]}, evaluator {rep.get("evaluator")})','','## corrections applied (084-04a)','']+[f'- {x}' for x in rep.get('corrections',[])]
+    ln+=['','| leg | sync (i) | window (ii) | judged / censored | visible outside window: failing / null-explained | unlabelled visible after label | post-restore visible | onset label-minus-visible |','|---|---|---|---|---|---|---|---|']
+    for k,v in g.items():
+        if isinstance(v,dict) and 'sync_verdict' in v:
+            ln.append(f"| {k} | {v['sync_verdict']} ({v['sync_fail']} fail) | {v['window_verdict']} ({v['window_fail']} fail; mask misses {v['mask_miss_reasons']}) | {v['judged']} / {v['censored']} | {v['visible_outside_window_failing']} / {v['visible_outside_window_null_explained']} | {v['unlabelled_visible_after']} | {v['post_restore_visible']} | {v['onset_label_minus_visible']} |")
+    for k,v in g.items():
+        if isinstance(v,dict) and 'sync_verdict' in v and (v['fail_reasons'] or v['censored_events'] or v['recurrence_runs']):
+            ln.append(f"- {k}: fail reasons {json.dumps(v['fail_reasons'])}; censored {json.dumps(v['censored_events'])}; partially censored failures {json.dumps(v['partially_censored_failures'])}; recurrence runs {json.dumps(v['recurrence_runs'])}")
+    ln+=['','| purity / null | verdict | detail |','|---|---|---|']
+    for k,v in g.items():
+        if k.endswith(':purity'):ln.append(f"| {k} | {v['verdict']} (Apply census {v['apply_census_verdict']}) | enumerated {v['enumerated']}, bad {len(v['bad'])}, refused_shared_world {len(v['refused_shared_world'])}, contaminated events {len(v['contaminated_events'])}, not handled as ruled {v['contamination']['failed']} |")
+        elif isinstance(v,dict) and 'labelled_held_rows' in v:ln.append(f"| {k} | {'PASS' if v['pass'] else 'FAIL'} | labelled_held_rows {v['labelled_held_rows']}, render_held_rows {v['render_held_rows']}, refs {json.dumps(v.get('refs'))} |")
+    ln+=['','## contaminated events (every one)','']
+    for k,v in g.items():
+        if k.endswith(':purity'):
+            for r in v['contaminations']:ln.append(f"- {k} {r['event']} from si {r['from_si']}: handled_as_ruled={r['handled_as_ruled']}, flagged {r.get('flagged_frames')}/{r.get('member_frames_from_si')}, trail closed at {r.get('trail_closed_at')}, problems {r['problems']}")
+            for r in v['contamination']['flags_without_contamination_line']:ln.append(f"- {k} {r['event']}: stuck_mip.contaminated on {r['frames']} with NO contamination line (FAIL)")
+    ln+=['','## edge-path frequency (ruling 084-02b decision 1)','','| leg | occurred | trail reopens | ORDER HOLD | gap-unknowns | carried trails | contaminated | unresolved / timeout |','|---|---|---|---|---|---|---|---|']
+    for k,v in rep.get('edge_paths',{}).items():
+        n=v['named'];ln.append(f"| {k} | {v['occurred']} | {json.dumps(n['trail_reopens'])} | {json.dumps(n['order_hold'])} | {json.dumps(n['gap_unknowns'])} | {json.dumps(n['carried_trails'])} | {json.dumps(n['contaminated_events'])} | {json.dumps(n['unresolved_timeout'])} |")
+    ln+=['',f"- FIX totals: {json.dumps(rep.get('edge_paths_fix_totals'))}",'','## hold-monitor per-tick cost','']
+    for k,v in rep.get('monitor_cost',{}).items():ln.append(f"- {k}: measured={v['measured']}; components walked per tick {v['components_walked_per_tick']}; Apply census {[x['ms'] for x in v['apply_purity_enumeration']]} ms (max {v['apply_purity_enumeration_ms_max']}); run_summary monitor keys {v['run_summary_monitor_keys']}")
+    if rep.get('monitor_cost'):ln.append(f"- why not measured: {next(iter(rep['monitor_cost'].values()))['reason']}")
+    ln+=['','## can-fail','']+[f"- {k}: proven={v.get('proven')} ({v.get('observed',v.get('note',''))})" for k,v in rep['can_fail'].items()]
+    dl=rep['can_fail'].get('doctored_labels') or {}
+    if dl.get('checks'):ln+=['','| real-pixel check | proven on | contradicted on |','|---|---|---|']+[f"| {ck} | {d['proven_on']} | {d['contradicted_on']} |" for ck,d in dl['checks'].items()]
+    for cs in dl.get('cases',[]):
+        ln.append(f"  - {cs['source']} event {cs['start_frame']} pixel window {cs['pixel_window']} ({cs['mask_source']}): proven={cs['proven']}, old one-sided gate missed {cs['old_gate_missed']}; base pixel edits {cs.get('base_pixel_edits')}; null carrier {cs.get('null_carrier')}; notes {cs.get('notes')}")
+        for vn,vv in cs['variants'].items():ln.append(f"    - {vn}: expect {vv['expect']} -> {'OK' if vv['ok'] else 'NOT MET'}; sync {vv['sync_verdict']}, window {'PASS' if vv['window_gate'] else 'FAIL'}; {vv.get('detail','')}")
+    for sk in dl.get('skipped',[]):ln.append(f"  - skipped {sk}")
+    ln+=['','## settle-tail measurement','']+[f'- {k}: {json.dumps(v)}' for k,v in rep['settle_tail'].items()]
+    ln+=['','## premise audit','']+[f'- {k}: {json.dumps(v,default=str)[:600]}' for k,v in rep['premise'].items()]
+    (c.RUN/'report.md').write_text('\n'.join(ln)+'\n',encoding='utf-8')
+def old_gate_sync(e,m):
+    Lw=set(L.label_window(e));unl=[si for si in m['vis'] if si not in Lw]
+    rh=L.render_held(e);early=[si for si in Lw if rh and si<rh[0]] if Lw else []
+    return not unl and not early
+def write_variant(s,e,window,record,settle_extra,tag,tmask,out_dir,mask_mode='normal',drop_si=(),jump_from=None,jump=0,image_src=None):
+    import numpy as np
+    from PIL import Image
+    if out_dir.exists():shutil.rmtree(out_dir)
+    (out_dir/'target_mask').mkdir(parents=True)
+    W=set(window);RS=set(record);SX=set(settle_extra);tmpl=None;image_src=image_src or {};drop=set(drop_si)
+    for r in s.rows:
+        for a in L.entries(r):
+            if a.get('start_frame')==e['start_frame']:tmpl=dict(a);break
+        if tmpl:break
+    ev_rows=set(e['rows'])|W|RS|SX;rows=[];px=int((tmask==tag).sum())
+    for r in s.rows:
+        si=r['session_index']
+        if si in drop:continue
+        nr=dict(r);nr['image']=str((s.dir/s.by_si[image_src.get(si,si)]['image']).resolve());nr['mask_file']=None
+        if jump_from is not None and si>=jump_from and nr.get('frame_index') is not None:nr['frame_index']=nr['frame_index']+jump
+        an=[a for a in (r.get('anomalies') or []) if not (a.get('id')==L.ID and a.get('start_frame')==e['start_frame'])]
+        if si in ev_rows:
+            a=dict(tmpl);held=si in W
+            a['stuck_mip.held']=held
+            a['stuck_mip.render_state']='settle_tail' if si in SX else ('held' if si in RS else 'baseline')
+            if mask_mode=='none':a['mask_value']=0;a['target_pixels']=-1
+            else:a['mask_value']=tag;a['target_pixels']=px if held else 0
+            an.append(a)
+            if held and mask_mode=='normal':
+                Image.fromarray(np.where(tmask==tag,tag,0).astype(np.uint8),'L').save(out_dir/'target_mask'/f'frame_{si:05d}.png')
+                nr['mask_file']=f'target_mask/frame_{si:05d}.png'
+        nr['anomalies']=an;rows.append(nr)
+    (out_dir/'labels.jsonl').write_text('\n'.join(json.dumps(x) for x in rows)+'\n',encoding='utf-8')
+    for f in ('run_summary.json','annotation.json','run.json'):
+        if (s.dir/f).exists():shutil.copy2(s.dir/f,out_dir/f)
+    return out_dir
+def write_null_variant(ns,image_abs,out_dir):
+    if out_dir.exists():shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True);rows=[]
+    for r in ns.rows:
+        nr=dict(r);nr['image']=image_abs.get(r['session_index']) or str((ns.dir/r['image']).resolve());nr['mask_file']=None;rows.append(nr)
+    (out_dir/'labels.jsonl').write_text('\n'.join(json.dumps(x) for x in rows)+'\n',encoding='utf-8')
+    for f in ('run_summary.json','annotation.json','run.json'):
+        if (ns.dir/f).exists():shutil.copy2(ns.dir/f,out_dir/f)
+    return out_dir
+def template_mask(s,e):
+    import numpy as np
+    for si in e['rows']:
+        mv=e['mv'].get(si);m=s.mask(si)
+        if mv and m is not None and int((m==mv).sum())>0:return int(mv),m,'delivered mask png of this event'
+    bb=[b for b in e['bbox'].values() if b and len(b)==4]
+    if not bb:return None,None,None
+    x,y,w,h=(int(v) for v in bb[len(bb)//2]);H,Wd=s.shape();m=np.zeros((H,Wd),dtype=np.uint8);m[max(0,y):min(H,y+h),max(0,x):min(Wd,x+w)]=200
+    return 200,m,'synthesised from bbox_px (no delivered mask for this event)'
+VARIANTS=['repaired','onset_plus2','offset_minus5','early_onset_overlabel_minus2','late_offset_overlabel_plus4','masks_missing','mask_png_absent',
+          'gap_missing_si_after_offset','gap_engine_jump_in_suffix','gap_engine_jump_before_onset','gap_engine_jump_inside_window',
+          'recurrence_real_pixels','recurrence_shown_by_null','single_spike_real_pixels','original_spike_unedited']
+OPTIONAL_VARIANTS=('original_spike_unedited',)
+def proof_summary(cases):
+    checks={}
+    for n in VARIANTS:
+        checks[n]=dict(expect=next((cs['variants'][n]['expect'] for cs in cases if n in cs['variants']),None),required=n not in OPTIONAL_VARIANTS,
+                       proven_on=[f"{cs['source']}:{cs['start_frame']}" for cs in cases if n in cs['variants'] and cs['variants'][n]['ok']],
+                       contradicted_on=[f"{cs['source']}:{cs['start_frame']}" for cs in cases if n in cs['variants'] and not cs['variants'][n]['ok']])
+    return dict(checks=checks,proven=bool(cases) and all((d['proven_on'] or not d['required']) and not d['contradicted_on'] for d in checks.values()),
+                not_constructed=[n for n,d in checks.items() if not d['proven_on'] and not d['contradicted_on']],
+                base_edited_cases=[f"{cs['source']}:{cs['start_frame']}" for cs in cases if cs.get('base_pixel_edits')])
+def doctored_proof(leg_id,max_cases=4):
+    import collections
+    sd=L.leg_session(leg_id);leg=[x for x in L.LEGS if x['leg']==leg_id][0];null_id=[x for x in L.LEGS if x['build']==leg['build'] and x['role']=='NULL'][0]['leg']
+    nsd=L.leg_session(null_id);null=L.get_sess(nsd) if nsd else None;s=L.get_sess(sd);out=dict(source=leg_id,session=str(sd),cases=[],skipped=[])
+    evs=L.events(s);firsts=[e['rows'][0] for e in evs]
+    rock=L.null_ref(null,L.ROCK);rock_drop=rock['drop_rel'] if rock else None
+    lo=s.rows[0]['session_index'];hi=s.rows[-1]['session_index'];ordinal=collections.Counter()
+    for i,e in enumerate(evs):
+        if len(out['cases'])>=max_cases:break
+        k=ordinal[e['target']];ordinal[e['target']]+=1;who=f"{leg_id} event {e['start_frame']}"
+        if L.moved(s,[si for si in range(e['rows'][0]-6,min(e['rows'][-1]+10,hi)+1) if si in s.by_si]):out['skipped'].append(who+': camera moved');continue
+        nf=firsts[i+1] if i+1<len(firsts) else None
+        ref=L.null_ref(null,e['target']);m=L.measure_event(s,e,nf,ref,(),rock_drop)
+        if m.get('status')!='OK':out['skipped'].append(f"{who}: {m.get('status')}");continue
+        if not m['measurable'] or m['first_vis'] is None:out['skipped'].append(who+': not measurable');continue
+        if m['censored']:out['skipped'].append(f"{who}: censored ({m['onset_censored']} | {m['offset_censored']})");continue
+        fv=m['first_vis'];lv=m['last_vis']
+        if fv-2<lo or lv+4>hi or lv-5<fv:out['skipped'].append(who+': no room for the four label shifts');continue
+        ctx=dict(sess=null,ordinal=k);g0=L.gate_sync(s,e,m,False,ctx);vis=set(m['vis']);base_edit={}
+        if g0['visible_outside_window_failing']:
+            fo=g0['visible_outside_window_failing']
+            if any(r[1]>r[0] for r in L.runs_of(fo)):
+                out['skipped'].append(f"{who}: a visible RUN {L.runs_of(fo)} outside the pixel window that the null does not show; under rule (b) no label can pass, so it cannot show the PASS half");continue
+            for x in fo:
+                nb=x-1 if (x-1 in s.by_si and x-1 not in vis and not L.brk(s,x-1)) else (x+1 if (x+1 in s.by_si and x+1 not in vis and not L.brk(s,x)) else None)
+                if nb is None:break
+                base_edit[x]=nb
+            if len(base_edit)!=len(fo):
+                out['skipped'].append(f"{who}: single visible frame(s) {fo} outside the window with no clean contiguous neighbour to stand in for them");continue
+        tag,tmask,tsrc=template_mask(s,e)
+        if tmask is None:out['skipped'].append(who+': no mask template');continue
+        roi=m['roi'];T0=s.table([roi])[roi];fref=dict(roi=roi,sigma=m['sigma'],drop_rel=m['thr']/m['pre']);m_orig=m
+        span_hi=m['span'][1];pix=list(range(fv,lv+1))
+        base=c.RUN/'doctored'/leg_id/str(e['start_frame'])
+        if base_edit:
+            bd=write_variant(s,e,pix,pix,(),tag,tmask,base/'_despiked_oracle',image_src=base_edit)
+            sb=L.Sess(bd);eb=[x for x in L.events(sb) if x['start_frame']==e['start_frame']][0];sb._tables[roi]={si:T0[base_edit.get(si,si)] for si in sb.by_si}
+            m=L.measure_event(sb,eb,nf,fref)
+            if m.get('status')!='OK' or m['censored'] or m['first_vis']!=fv or m['last_vis']!=lv or L.gate_sync(sb,eb,m,False,ctx)['visible_outside_window_failing']:
+                out['skipped'].append(f"{who}: the despiked oracle does not reproduce the window {[fv,lv]} cleanly");continue
+        deep=sorted((si for si in vis if fv<=si<=lv),key=lambda x:T0[x])
+        def free(p,n,after):
+            fr=list(range(p-1,p+n+1))
+            if p-1<after or fr[-1]>span_hi:return False
+            if any(x not in s.by_si or x in vis for x in fr):return False
+            return not any(L.brk(s,x) for x in fr[:-1])
+        kr=0;prec=None
+        for n_ in range(min(4,len(deep)),1,-1):
+            prec=next((p for p in range(m['confirm_si']+1,span_hi) if free(p,n_,m['confirm_si'])),None)
+            if prec is not None:kr=n_;break
+        psp=next((p for p in range(m['confirm_si']+1,span_hi) if free(p,1,m['confirm_si'])),None)
+        if psp is None:psp=next((p for p in range(e['rows'][0]+2,fv-2) if free(p,1,e['rows'][0]+1)),None)
+        jin=next((j for j in range(fv+2,lv+1) if j in vis and j-1 in vis),None)
+        case=dict(source=leg_id,start_frame=e['start_frame'],pixel_window=[fv,lv],confirm_si=m['confirm_si'],mask_source=tsrc,variants={},notes=[],
+                  base_pixel_edits={str(a):b for a,b in base_edit.items()},null_carrier=None)
+        if base_edit:case['notes'].append(f'DECLARED BASE EDIT: the isolated visible frame(s) {sorted(base_edit)} outside the window are re-pointed at their clean contiguous neighbour(s) {base_edit} in every variant except original_spike_unedited, so that a correct label can exist; the window pixels are not edited')
+        def run(name,win,rec,sx,expect,expect_txt,remeasure=False,nctx=None,no_base=False,oracle=None,**kw):
+            src={} if no_base else dict(base_edit);src.update(kw.pop('image_src',None) or {})
+            vd=write_variant(s,e,win,rec,sx,tag,tmask,base/name,image_src=src,**kw)
+            s2=L.Sess(vd);e2=[x for x in L.events(s2) if x['start_frame']==e['start_frame']][0]
+            s2._tables[roi]={si:T0[src.get(si,si)] for si in s2.by_si}
+            m2=L.measure_event(s2,e2,nf,fref) if remeasure else (oracle or m)
+            if m2.get('status')!='OK':
+                case['variants'][name]=dict(expect=expect_txt,ok=False,sync_verdict=None,window_gate=None,detail=f"re-measure status {m2.get('status')}");return
+            cx=nctx if nctx is not None else ctx
+            gp=L.gate_sync(s2,e2,m2,False,cx);gr=L.gate_sync(s2,e2,m2,True,cx);gw=L.gate_window(s2,e2,m2)
+            ok,detail=expect(gp,gr,gw,m2)
+            case['variants'][name]=dict(expect=expect_txt,ok=bool(ok),detail=detail,label=[min(win),max(win)] if win else None,sync_verdict=gp['verdict'],
+                                        two_sided_pixel_gate=gp['pass'],with_record_check=gr['pass'],window_gate=gw['pass_'],old_one_sided_gate=old_gate_sync(e2,m2),
+                                        masks_on_disk=len(L.mask_window(s2,e2)),fail_reasons=gp['fail_reasons'],censored_edges=gp['censored_edges'],
+                                        visible_outside_window_failing=gp['visible_outside_window_failing'],null_explained=gp['visible_outside_window_null_explained'],
+                                        mask_misses=gw['labelled_without_mask_reasons'])
+        fails=lambda gp,gr,gw,m2:(gp['verdict']=='FAIL',f"reasons {gp['fail_reasons']}")
+        cen=lambda side:(lambda gp,gr,gw,m2:(gp['verdict']!='PASS' and bool(m2.get(side+'_censored')),f"verdict {gp['verdict']}; {side}: {m2.get(side+'_censored')}"))
+        mfail=lambda gp,gr,gw,m2:(gp['pass'] and not gw['pass_'] and bool(gw['labelled_without_mask']),f"mask misses {gw['labelled_without_mask_reasons']}")
+        run('repaired',pix,pix,(),lambda gp,gr,gw,m2:(gp['pass'] and gr['pass'] and gw['pass_'],f"verdict {gp['verdict']}"),'PASS (i) both sides, record check and (ii)')
+        if base_edit:
+            run('original_spike_unedited',pix,pix,(),lambda gp,gr,gw,m2:(gp['verdict']=='FAIL' and gp['visible_outside_window_failing']==sorted(base_edit),f"failing {gp['visible_outside_window_failing']}"),
+                'FAIL (i): the real, unedited isolated visible frame(s) outside the window (G345 withdrawn, correction b)',no_base=True,oracle=m_orig)
+        run('onset_plus2',list(range(fv+2,lv+1)),pix,(),fails,'FAIL (i)')
+        run('offset_minus5',list(range(fv,lv-4)),pix,(),fails,'FAIL (i)')
+        run('early_onset_overlabel_minus2',list(range(fv-2,lv+1)),pix,(),fails,'FAIL (i)')
+        run('late_offset_overlabel_plus4',list(range(fv,lv+5)),list(range(fv,lv+5)),tuple(range(lv+1,lv+5)),fails,'FAIL (i) (Codex counterexample)')
+        run('masks_missing',pix,pix,(),mfail,'(i) PASS but (ii) FAIL: labelled frames with mask_value 0 and target_pixels -1 (correction c)',mask_mode='none')
+        run('mask_png_absent',pix,pix,(),mfail,'(i) PASS but (ii) FAIL: target_pixels > 0 and no mask PNG (correction c)',mask_mode='png_absent')
+        if lv+1 in s.by_si:run('gap_missing_si_after_offset',pix,pix,(),cen('offset'),'CENSORED, never PASS (correction a)',remeasure=True,drop_si=(lv+1,))
+        run('gap_engine_jump_in_suffix',pix,pix,(),cen('offset'),'CENSORED, never PASS (correction a)',remeasure=True,jump_from=lv+2,jump=3)
+        run('gap_engine_jump_before_onset',pix,pix,(),cen('onset'),'CENSORED, never PASS (correction a)',remeasure=True,jump_from=fv,jump=3)
+        if jin is not None:
+            run('gap_engine_jump_inside_window',pix,pix,(),lambda gp,gr,gw,m2:(gp['pass'] and gr['pass'] and not m2['censored'],f"jump between si {jin-1} and {jin}; verdict {gp['verdict']}"),
+                'PASS: a jump between two visible frames is not adjacent to an edge (correction a is not over-broad)',remeasure=True,jump_from=jin,jump=3)
+        else:case['notes'].append('gap_engine_jump_inside_window not built: no two consecutive visible frames in fv+2..lv')
+        if prec is not None:
+            src={prec+j:deep[j] for j in range(kr)};inj=list(range(prec,prec+kr))
+            run('recurrence_real_pixels',pix,pix,(),lambda gp,gr,gw,m2:(gp['verdict']=='FAIL' and set(inj)<=set(gp['visible_outside_window_failing']),f"injected {inj} from {[deep[j] for j in range(kr)]}; failing {gp['visible_outside_window_failing']}"),
+                'FAIL (i): a later visible run outside the window (correction b)',remeasure=True,image_src=src)
+            ne=[x for x in L.events(null) if x['target']==e['target']] if null is not None else [];carrier=None
+            if k<len(ne):
+                n0=ne[k]['rows'][0];amap={n0+(si-e['rows'][0]):v for si,v in src.items()}
+                if all(x in null.by_si for x in amap):carrier=null;case['null_carrier']=f'the paired null session {null.dir}'
+            if carrier is None:
+                carrier=s;amap=dict(src)
+                case['null_carrier']=('DECLARED: a copy of this session carries the null role (no paired null event for this target and ordinal, '
+                                      'or its aligned frames are absent); it exercises the null-excusal path on real pixel values, it is not a real null')
+            nvd=write_null_variant(carrier,{x:str((s.dir/s.by_si[v]['image']).resolve()) for x,v in amap.items()},base/'null_shows_recurrence')
+            ns2=L.Sess(nvd);NT0=carrier.table([roi])[roi]
+            ns2._tables[roi]={x:(T0[amap[x]] if x in amap else (T0[base_edit.get(x,x)] if carrier is s else NT0[x])) for x in ns2.by_si}
+            run('recurrence_shown_by_null',pix,pix,(),lambda gp,gr,gw,m2:(gp['pass'] and set(str(x) for x in inj)<=set(gp['visible_outside_window_null_explained']),f"null carrier frames {sorted(amap)} carry the same pixels; explained {gp['visible_outside_window_null_explained']}"),
+                'PASS: the same run is shown by the null at the aligned frames, a different cause (correction b)',remeasure=True,nctx=dict(sess=ns2,ordinal=k),image_src=src)
+        else:case['notes'].append('recurrence variants not built: no contiguous clean room for a 2-4 frame run after the confirmed suffix within the span')
+        if psp is not None:
+            run('single_spike_real_pixels',pix,pix,(),lambda gp,gr,gw,m2:(gp['verdict']=='FAIL' and psp in gp['visible_outside_window_failing'],f"spike at si {psp} from si {deep[0]}"),
+                'FAIL (i): one visible frame outside the window (withdraws G345)',remeasure=True,image_src={psp:deep[0]})
+        else:case['notes'].append('single_spike_real_pixels not built: no clean contiguous room')
+        v=case['variants'];case['proven']=all(x['ok'] for x in v.values())
+        case['old_gate_missed']=[n for n in v if n!='repaired' and v[n].get('old_one_sided_gate')]
+        out['cases'].append(case)
+    out.update(proof_summary(out['cases']))
+    out['note']=('each variant is a REAL session copy on disk (labels.jsonl rewritten, mask PNGs written, frames = the banked pixels). '
+                 'Label and mask variants are judged against the FROZEN pixel oracle measured once on the original; gap and recurrence '
+                 'variants are RE-MEASURED with the frozen ROI and threshold, because they change which frames exist or what they show. '
+                 'Recurrences re-point clean frames after the confirmed suffix at the event\'s own deepest-blur PNGs; the null control '
+                 're-points the paired null\'s aligned frames at the same PNGs. old_gate_missed lists the variants the 084-02 one-sided '
+                 'gate passed.')
+    return out
+def main():
+    pf=preflight()
+    if pf['problems']:print(json.dumps(dict(result='PREFLIGHT-FAILED',problems=pf['problems'],notes=pf['notes']),default=str));sys.exit(10)
+    if MODE=='gates':print(json.dumps(dict(result='GATES',report=str(c.RUN/'report.json'),summary=evaluate()['gates']),default=str)[:6000]);return
+    code=0;why=None
+    try:
+        if not c.STUB:L.backup_m53()
+        L.stage('BASELINE','01-baseline');run_build('BASELINE')
+        L.stage('FIX','02-fix');run_build('FIX')
+    except L.Stop as ex:
+        code=ex.code;why=ex.msg;c.log_event('window-stop',code=code,why=why)
+    finally:
+        try:L.stage('M53','99-restore-m53')
+        except L.Stop as ex:code=code or ex.code;why=(why or '')+' | RESTORE FAILED: '+ex.msg
+    rep=evaluate()
+    print(json.dumps(dict(result='COMPLETE' if code==0 else 'STOPPED',code=code,why=why,run=str(c.RUN),gates=rep['gates'],can_fail=rep['can_fail']),default=str)[:8000])
+    sys.exit(code)
+if __name__=='__main__':main()

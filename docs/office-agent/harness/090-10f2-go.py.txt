@@ -1,0 +1,211 @@
+"""090-10f2 legs. Usage: 090-10f2-go.py <phase> <build> [args]
+  a <build> <pie|staged> <runs csv> [types csv]   090-10e's A recipe (fixture, AA-off arbiter, 150 frames, 7 fires, seeds 777..)
+                                                  runs >= 11 add IAI.TexCorrupt.Census before the capture
+  mread <glob of session dirs under an out root>  the Part M reading on existing sessions (labelled frames with no measured mask)
+Every leg waits for the idle gate and writes runs/<label>.json with the edge and mask readings."""
+import importlib.util, json, sys, glob
+from pathlib import Path
+sys.dont_write_bytecode = True
+_s = importlib.util.spec_from_file_location('h910f2', str(Path(__file__).with_name('090-10f2-common.py')))
+H = importlib.util.module_from_spec(_s); _s.loader.exec_module(H)
+c = H.c
+FOCUS = ['IAI.Capture.FocusGate 0']
+TYPES = {'uv': ('uv_corruption', c.FIX, ['tile']), 'normal': ('normal_corruption', c.FIX_N, ['invert']),
+         'missing': ('missing_texture', c.FIX, []), 'corrupted': ('corrupted_texture', c.FIX, [])}
+SEEDS = {1: 777, 2: 778, 3: 779, 4: 780}
+
+
+def a_spec(build, mode, t, run):
+    an, tgt, args = TYPES[t]
+    return dict(mode=mode, build=build, map=c.MAP_FIX, census=run >= 11, extra=['-IAIBench'], frames=150, cfg='2 4 8 14 0',
+                anomaly=an, target=tgt, args=args, seed=SEEDS.get(run if run < 11 else run - 10, 777), pre=list(FOCUS), wait=600)
+
+
+_t = importlib.util.spec_from_file_location('tp910f2', str(Path(__file__).with_name('090-10f2-twopart.py')))
+TP = importlib.util.module_from_spec(_t); _t.loader.exec_module(TP)
+TWOPART_ACTOR = 'AnomalyBenchTwoPartActor_0'
+ALIAS = '/Game/CaptureBenchTexCorrupt/Materials/M_TC_Alias'
+
+
+def b_spec(build, t, run, canfail, label):
+    an, src, args = TYPES[t]
+    out = str(H.WORK / 'runs' / f'{label}.twopart.json')
+    pre = list(FOCUS) + (['IAI.Bench.TexCorruptNoPartScope 1'] if canfail else []) + ['PYSTEP ' + str(H.PY / 'twopart.py'), 'WAIT 10']
+    return dict(mode='pie', build=build, map=c.MAP_FIX, census=False, extra=['-IAIBench'], frames=150, cfg='2 4 8 14 0',
+                anomaly=an, target=TWOPART_ACTOR, args=args, seed=SEEDS.get(run, 777), pre=pre, wait=600,
+                plan_extra=dict(twopart=dict(eligible_from=src, ineligible_material=ALIAS, out=out)))
+
+
+HOST_DP = c.HOST / 'Config' / 'DefaultDeviceProfiles.ini'
+GROUPS = ('TEXTUREGROUP_World', 'TEXTUREGROUP_WorldNormalMap', 'TEXTUREGROUP_WorldSpecular')
+STRESS = ['sg.TextureQuality 1', 'r.Streaming.PoolSize 300']
+DPCVARS = '-DPCVars=r.ShaderCompiler.JobCache=1,r.ShaderCompiler.JobCacheDDC=1'
+OL_TEXMODS = [dict(every=3, offset=0, lod_bias=1), dict(every=3, offset=1, cinematic=2)]
+
+
+def dp_text(profile):
+    lines = ['[%s DeviceProfile]' % profile, 'DeviceType=Windows', 'BaseProfileName=%s' % ('Windows' if profile != 'Windows' else '')]
+    for g in GROUPS:
+        lines.append('+TextureLODGroups=(Group=%s,MinLODSize=1,MaxLODSize=16384,LODBias=1,MinMagFilter=aniso,MipFilter=point,'
+                     'MipGenSettings=TMGS_SimpleAverage)' % g)
+    return '\n'.join(lines) + '\n'
+
+
+def place(path, text, note):
+    path = Path(path)
+    if path.exists():
+        raise SystemExit(f'refusing to overwrite an existing {path}')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding='utf-8')
+    return H.C.receipt(path, 'PLACED ' + note)
+
+
+def remove(path, note):
+    path = Path(path)
+    if path.exists():
+        rec = H.C.receipt(path, 'REMOVING ' + note)
+        path.unlink()
+        H.C.receipt(path, 'REMOVED ' + note)
+        return rec
+    return None
+
+
+def auto_fix(build, label):
+    pe = dict(texmods=OL_TEXMODS, texmods_wait_s=12.0, texmods_out=str(H.WORK / 'runs' / f'{label}.texmods.json'))
+    spec = dict(mode='pie', build=build, map=c.MAP_FIX, census=False, extra=[DPCVARS, '-IAIBench'], frames=600, cfg='2 4 8 14 0',
+                auto=['uv_corruption', 'normal_corruption'], seed=777, wait=900,
+                pre=FOCUS + STRESS + ['IAI.SetMinScreenCoverage 0', 'IAI.SetPollRadius 0', 'PYSTEP ' + str(H.PY / 'texmods.py'), 'WAIT 10'],
+                plan_extra=pe)
+    place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 (090-10f2 auto-pool office-like fixture)')
+    try:
+        return H.run(label, spec)
+    finally:
+        remove(HOST_DP, 'scratch texture-group LODBias=1 (090-10f2 auto-pool office-like fixture)')
+
+
+def s_spec(build, v, kind):
+    m = f'/Game/CaptureBenchTexCorrupt/Bias0910f2/CB_TC_Bias{v}'
+    pre = list(FOCUS)
+    spec = dict(mode='staged', build=build, map=m, census=False, extra=['-IAIBench'], frames=150, cfg='2 4 8 14 0', wait=600)
+    if kind == 'uv':
+        spec.update(anomaly='uv_corruption', target=c.FIX, args=['tile'])
+    elif kind == 'normal':
+        spec.update(anomaly='normal_corruption', target=c.FIX_N, args=['invert'])
+    elif kind == 'identity':
+        pre += ['IAI.Bench.TexCorruptIdentity 1']
+        spec.update(anomaly='uv_corruption', target=c.FIX)
+    elif kind == 'canfail':
+        pre += [f'IAI.Bench.TexCorruptCensus {c.FIX}', f'IAI.Bench.TexCorruptCensus {c.FIX_N}']
+        spec.update(anomaly='uv_corruption', target=c.FIX, args=['tile'])
+    spec['pre'] = pre
+    return spec
+
+
+def show(rec):
+    e = (rec.get('edges') or {}).get('summary')
+    m = rec.get('mask') or {}
+    print(json.dumps(dict(label=rec.get('label'), status=(rec.get('status') or '')[-120:] if isinstance(rec.get('status'), str) else rec.get('status'),
+                          edges=e, mask={k: v for k, v in m.items() if k != 'bad'}, bad=m.get('bad', [])[:3],
+                          pixels=[(x.get('verdict'), x.get('median')) for x in ((rec.get('reading') or {}).get('pixels') or [])])),
+          flush=True)
+
+
+if __name__ == '__main__':
+    ph = sys.argv[1]
+    if ph == 'a':
+        build, mode = sys.argv[2], sys.argv[3]
+        runs = [int(x) for x in sys.argv[4].split(',')]
+        types = sys.argv[5].split(',') if len(sys.argv) > 5 else ['uv', 'normal', 'missing', 'corrupted']
+        for r in runs:
+            for t in types:
+                label = f'{"P" if mode == "pie" else "S"}_{t}_r{r}_{build}'
+                show(H.run(label, a_spec(build, mode, t, r)))
+        if mode == 'staged':
+            print(json.dumps(c.restore_s1()), flush=True)
+    elif ph == 'b':
+        build = sys.argv[2]
+        runs = [int(x) for x in sys.argv[3].split(',')]
+        types = sys.argv[4].split(',') if len(sys.argv) > 4 else ['uv', 'normal']
+        canfail = len(sys.argv) > 5 and sys.argv[5] == 'canfail'
+        for r in runs:
+            for t in types:
+                label = f'B_{t}_r{r}{"_nps" if canfail else ""}_{build}'
+                rec = H.run(label, b_spec(build, t, r, canfail, label))
+                sess = c.find_session(label)
+                tpj = H.WORK / 'runs' / f'{label}.twopart.json'
+                if sess and tpj.exists():
+                    try:
+                        rec['twopart'] = TP.read(sess, tpj, H.EV / label / 'game.log')
+                    except Exception as ex:
+                        rec['twopart_error'] = f'{type(ex).__name__}: {ex}'
+                    c.jsave(H.WORK / 'runs' / f'{label}.json', rec)
+                show(rec)
+                print(json.dumps(dict(label=label, twopart=rec.get('twopart'), err=rec.get('twopart_error')), default=str), flush=True)
+    elif ph == 'autofix':
+        build = sys.argv[2]
+        rec = auto_fix(build, f'P_AUTO_OL_FIX_{build}')
+        show(rec)
+    elif ph == 'olcensus':
+        build, mp = sys.argv[2], (c.MAP_MW if len(sys.argv) > 3 and sys.argv[3] == 'mw' else c.MAP_FIX)
+        tag = 'MW' if mp == c.MAP_MW else 'FIX'
+        label = f'P_CEN_OL_{tag}_{build}'
+        cmds = FOCUS + STRESS + ['PYSTEP ' + str(H.PY / 'texmods.py'), 'WAIT 10', 'IAI.TexCorrupt.Census allreasons', 'WAIT 75']
+        spec = dict(mode='pie', build=build, map=mp, arbiter=False, pre=cmds, hold_s=5.0, wait=480, extra=[DPCVARS, '-IAIBench'],
+                    plan_extra=dict(texmods=OL_TEXMODS, texmods_wait_s=12.0, texmods_out=str(H.WORK / 'runs' / f'{label}.texmods.json')))
+        place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 (090-10f2 office-like census)')
+        try:
+            rec = H.C.run(label, spec)
+        finally:
+            remove(HOST_DP, 'scratch texture-group LODBias=1 (090-10f2 office-like census)')
+        lines = H.C.grep(label, r'IAI-TEXCORRUPT-CENSUS v1 (id=|subs|uniform|allreasons id=\S+ (objects|key))', 80)
+        c.jsave(H.WORK / 'runs' / f'{label}.census.json', dict(label=label, lines=lines))
+        print('\n'.join(lines), flush=True)
+    elif ph == 'cenmw':
+        build = sys.argv[2]
+        label = f'CEN_MW_{build}'
+        spec = dict(mode='pie', build=build, map=c.MAP_MW, census=False, kind='exit', record_dt=True, settle_s=12.0, hold_s=40.0,
+                    wait=900, arbiter=False, pre=['IAI.Targets.AllowNanite 0', 'WAIT 5', 'IAI.TexCorrupt.Census all', 'WAIT 35'])
+        rec = H.C.run(label, spec)
+        lines = H.C.grep(label, r'IAI-TEXCORRUPT-CENSUS v1 (begin|uniform|timing|scanned|end|id=)', 20)
+        dt = H.WORK / 'runs' / f'{label}.dt.json'
+        mx = None
+        if dt.exists():
+            d = json.loads(dt.read_text(encoding='utf-8'))
+            vals = d if isinstance(d, list) else d.get('dts') or d.get('frames') or []
+            nums = [v[1] if isinstance(v, (list, tuple)) else v for v in vals]
+            nums = [float(x) for x in nums if isinstance(x, (int, float))]
+            mx = max(nums) if nums else None
+        c.jsave(H.WORK / 'runs' / f'{label}.census.json', dict(label=label, lines=lines, dt_max=mx))
+        print('\n'.join(lines), flush=True)
+        print(json.dumps(dict(label=label, dt_max_raw=mx)), flush=True)
+    elif ph == 'staged':
+        build, container = sys.argv[2], Path(sys.argv[3])
+        variants = sys.argv[4].split(',')
+        kinds = sys.argv[5].split(',')
+        for n in c.CONTAINER:
+            if not (container / n).exists():
+                raise SystemExit(f'container file missing: {container / n}')
+        c.DC2 = container
+        try:
+            for v in variants:
+                for kind in kinds:
+                    label = f'S_{v}_{kind}_{build}'
+                    rec = H.run(label, s_spec(build, v, kind))
+                    rec['census_lines'] = H.C.grep(label, r'TexCorruptCensus|IAI-TEXCORRUPT|REFUSED|texture_uniform|UNIFORM-STATS|TEXTURE UNIFORMITY', 16)
+                    c.jsave(H.WORK / 'runs' / f'{label}.json', rec)
+                    show(rec)
+                    print(json.dumps(dict(label=label, stage=rec.get('stage'), census=rec['census_lines'][:10]), default=str), flush=True)
+        finally:
+            print(json.dumps(c.restore_s1()), flush=True)
+    elif ph == 'mread':
+        tot = dict(sessions=0, labelled_frames=0, labelled_without_measured_mask=0, legs_with=0)
+        for s in sorted(glob.glob(sys.argv[2])):
+            leg = Path(s).parent.name
+            ev = Path(s).parent.parent.parent / 'ev' / leg / 'game.log'
+            m = H.mask_reading(s, ev)
+            tot['sessions'] += 1
+            tot['labelled_frames'] += m['labelled_frames']
+            tot['labelled_without_measured_mask'] += m['labelled_without_measured_mask']
+            tot['legs_with'] += 1 if m['labelled_without_measured_mask'] else 0
+            print(json.dumps(dict(leg=leg, **{k: v for k, v in m.items() if k != 'bad'})), flush=True)
+        print('MREAD ' + json.dumps(tot), flush=True)

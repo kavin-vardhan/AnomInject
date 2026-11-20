@@ -1,0 +1,73 @@
+FMW='/Game/StackOBot/Maps/MainWorld'
+FGATE='/Game/CaptureBenchGate/CB_GateLevel'
+FLOD='/Game/AnomalyFixtures/CB_LodFixture'
+ROCK='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+SHARED='BP_SpawnPad_C_UAID_B42E9936F54253D500_1492231360'
+GATE_TARGET='StaticMeshActor_49'
+AA_OFF=['r.AntiAliasingMethod 0']
+AA_OFF_ARBITER=['r.AntiAliasingMethod 0','r.Lumen.DiffuseIndirect.Allow 0','r.DynamicGlobalIlluminationMethod 0','r.ReflectionMethod 0']
+SYN=['IAI.Bench.SynthTickOrder 1']
+OFF16=['IAI.Label.TransitionOffFrames 16']
+CFG_M52='2 4 8 30 0'
+CFG_EDGE='2 4 8 14 0'
+CFG_LOD='2 4 16 14 0'
+BENCH='-IAIBench'
+BENCH_FIX='-IAIBench -IAIBenchFixture'
+CC_LEVERS=['IAI.Bench.InputLock 1','IAI.Bench.CameraSchedule cc_v1','IAI.Anomaly.CameraClipTriggerRadius 100000']
+LOD=['IAI.Anomaly.LodMaxDistance 0','IAI.Anomaly.LodHalfPeriod 8']
+NULL_FRAMES=1800
+MASK_MIN_PEAK_LIVE=2
+MASK_MIN_RECYCLES=1
+def leg(leg_id,group,role,map_,anomaly,target,frames,cfg,levers=(),seed=777,auto=False,required=True,extra=BENCH,start_args=(),null=None,pair=None,near=None,
+        premise=None,flag=None,note='',variant=None,cond=None,off_frames=None,predict='',kind='capture',pkg=None):
+    return dict(leg=leg_id,group=group,role=role,map=map_,anomaly=anomaly,target=target,frames=frames,cfg=cfg,levers=list(levers),seed=seed,auto=auto,
+                required=required,extra=extra,start_args=list(start_args),kind=kind,null=null,pair=pair,near=near,premise=premise,flag=flag,note=note,build='FIX',
+                variant=variant,cond=cond,off_frames=off_frames,predict=predict,pkg=pkg)
+LEGS=[
+ leg('B0','M52','SYNC',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,OFF16,null='B5',off_frames=16,
+     predict='valid with label_transition_off_frames 16 read back; E1 (aligned null) PASS on every judged event, 0 FAIL, 0 CENSORED from drift; ends at t50 in +4..+8; onsets partial-flagged (record-backed); 0 UNJUDGEABLE (the null covers the leg); KIT-GT 0 fail; KIT (office, own-detrend) censors some ends (G396), 0 fail'),
+ leg('B3','M52','SYNC',FMW,'stuck_low_mip',None,1200,CFG_M52,['IAI.Auto.Pool all 0','IAI.Auto.Pool stuck_low_mip 1']+OFF16,seed=4242,auto=True,null='B5',off_frames=16,
+     predict='as B0 on every held event (auto pool, rock only); si-181-shaped TSR tails below 50 % by +8 and flagged to +16; 0 FAIL; 0 UNJUDGEABLE'),
+ leg('B9','M52','AA_OFF',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,AA_OFF,null='B5',
+     predict='E1 (aligned null) PASS 16/16 (or all held events): onset +0 transition-aware with 1-5 partial frames record-backed, offset +0, 0 temporal flags, 0 unflagged off frames; E2 086-01 own-run reference may still FAIL ends on scene drift (a CONFOUND shown on its own note, 089-01); KIT-GT 0 fail'),
+ leg('B0L','M52','LEVER',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,['IAI.Bench.StuckMipLegacyTiming 1']+OFF16,null='B5',off_frames=16,
+     predict='FAIL on E1 with the aligned null (the timing can-fail: labels one frame early); KIT-GT FAIL'),
+ leg('P1','M52','PURITY_CANFAIL',FMW,'stuck_low_mip',SHARED,300,CFG_M52,['IAI.Bench.StuckMipLegacyPurity 1']+OFF16,off_frames=16,
+     predict='purity (iii) FAIL (can-fail), as 084-06 / 084-09'),
+ leg('B5','M52','NULL',FMW,'stuck_low_mip',ROCK,NULL_FRAMES,CFG_M52,['IAI.Bench.StuckMipNoHold 1'],
+     note='the matched null, 1800 frames, run IMMEDIATELY after the m52 legs (089-01 ruling 1): E1 and KIT-GT divide by it at the SAME GAME TIME; it must cover every m52 leg t(first label - 12) .. t(last label) + 2 s',
+     predict='null_check_v2 PASS (0 events, 0 labelled / held rows); game time 0 .. >= 60 s; covers B0, B3, B9, B0L and MASK55A (coverage PASS on each)'),
+ leg('MASK55A','MASK55A','MASK',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,OFF16+['IAI.Bench.TagPoolLimit 12'],null='B5',off_frames=16,
+     note='089-01 Route A: B0 recipe (as re-benched, OffFrames 16) + IAI.Bench.TagPoolLimit 12; validity mask_tag_peak_live >= 2 AND mask_tag_recycles >= 1 (read from run_summary), else INVALID and re-run (3 attempts)',
+     predict='valid on attempt 1 or 2 (peak live 2 on 11 of 15 banked targeted legs; recycles >= 6 with 18 events on a 12-tag pool); gate PASS: 0 shared TAG-OWNERS frames, exhausted 0, prior collisions 0, every labelled frame masked (the rock is measurable) apart from G295-signature frames (TARGET MASK UNAVAILABLE in the log), which the gate counts apart (the night B0: 198 of 200 masked + 2 G295); if peak live falls to 1 whenever recycles > 0 that is a FINDING, not a pass'),
+ leg('REAL_BL_SYN','BREAL','ORDER',FMW,'blinking',ROCK,300,CFG_EDGE,SYN,
+     predict='E1 089-03 PASS 10/10 with ends +0 (G405 fixed); E1 084-09 (as banked) reproduces FAIL on the one-frame runs (ends +1 / +14); E2 086-01 PASS; KIT 0 fail'),
+ leg('REAL_BL_NAT','BREAL','SYNC',FMW,'blinking',ROCK,300,CFG_EDGE,
+     note='control for the G405 reading: two-frame runs, immune to G405',predict='all four readings PASS 10/10, +0 / +0'),
+]
+FLOD_TARGETS=(('FN','N','CB_LodFix_N'),('FD','D','CB_LodFix_D'))
+LODF_FRAMES=720
+LODF_CONDS=(('NAT',[],'SYNC'),('SYN',SYN,'ORDER'),('NAT_AAOFF',AA_OFF,'AA_OFF'),('SYN_AAOFF',SYN+AA_OFF,'AA_OFF'))
+for tcode,var,tgt in FLOD_TARGETS:
+    LEGS.append(leg(f'LODP_{tcode}','BLODF','PREMISE',FLOD,'lod_popping',tgt,300,CFG_LOD,LOD+AA_OFF,variant=var,cond='NAT_AAOFF',
+                    note='first premise check (G402): the frames are not black (whole-frame mean luma >= 20 and the target ROI non-uniform) AND >= 80 % of non-warm-up, camera-still events MEASURABLE',
+                    predict='luma PASS (median frame mean well above 20; the first proof that the relit fixture renders, G411: no offline render exists); PREMISE PASS: every eligible event MEASURABLE (about 9 of 10); COVERAGE 26.96 +- 1 %; CURRENT-LOD level 0'))
+for tcode,var,tgt in FLOD_TARGETS:
+    for cond,lv,role in LODF_CONDS:
+        LEGS.append(leg(f'LOD_{tcode}_{cond}','BLODF',role,FLOD,'lod_popping',tgt,LODF_FRAMES,CFG_LOD,LOD+lv,premise=f'LODP_{tcode}',variant=var,cond=cond,
+                        predict='gate PASS: >= 16 judged (about 22-23), 0 off frames at t50 outside transition frames; AA off start 0 / end 0; TAA edge frames carry temporal_aa flags; 0 D multi-frame fade edges AA off (G372, source-read); any D fade is a FINDING'))
+LEGS+=[
+ leg('CC_ON_AAOFF','BCC','CC_ON',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,AA_OFF_ARBITER+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['100'],pair=('CC_NULL_AAOFF_A','CC_NULL_AAOFF_B'),near=100,
+     note='the camera_clipping AA-off reading owed (night ruling item 6): two AA-off nulls give the null-vs-null floor; read by the as-built gate AND by the PROPOSED confirmed-hold reading (a reading, not a gate: P over the colliding wall_near hold, unconfirmed prop frames reported apart)',
+     predict='as-built gate UNJUDGEABLE again (P is the minimum over positive holds and the unconfirmed prop hold changes no pixel at AA off, D 0 in 084-09); proposed reading judgeable: P(wall_near) > 2F with F = 0, 0 disagreements on confirmed frames, 20 unconfirmed prop frames at D 0 reported apart'),
+ leg('CC_NULL_AAOFF_A','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,AA_OFF_ARBITER+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('CC_NULL_AAOFF_B','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,AA_OFF_ARBITER+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10,note='null-vs-null floor (G352)'),
+ leg('P0_A','PART0','PART0',None,None,None,30,None,kind='part0',pkg='A',
+     note='088-01 launch check of rehearsal package A (no bench flags, nothing staged), LAST (after every leg and the restore): G401 prompts cannot delay a leg',
+     predict='token == bundle config.json; bench levers DISABLED x3 (subsystem_init x2, post_engine_init), no ENABLED, no bench-gate line; 10 ids, no null_effect / solid_swap; pool (4) blinking, missing_texture, corrupted_texture, lod_popping; probe EFFECTIVE=0 deliveryMode=1'),
+ leg('P0_B','PART0','PART0',None,None,None,30,None,kind='part0',pkg='B',
+     predict='as A with 12 ids (uv/normal_corruption registered, not in the pool); the two census commands print counts only and end stats_unchanged=1'),
+]
+ORDER=['M52','MASK55A','BREAL','BLODF','BCC','PART0']
+def legs_sorted():return sorted(LEGS,key=lambda L:(ORDER.index(L['group']),LEGS.index(L)))
+def by_id(i):return next(L for L in LEGS if L['leg']==i)

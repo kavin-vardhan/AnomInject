@@ -1,0 +1,20 @@
+from pathlib import Path
+import datetime,hashlib,json,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-11-evidence';R=B/'StackOBot/Plugins/AnomalyInjector'
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(r,*args):return subprocess.check_output(['git','-C',str(r),*args]).decode().strip()
+assert not E.exists();E.mkdir();old=json.loads((B/'_reviews/081-10-evidence/postflight.json').read_text())
+pre={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'repos':{},'verified_binaries':old['verified_binaries']}
+for name,r in {'AnomalyInjector':R,'Lyra':Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector'),'CaptureBench':B/'StackOBot/Plugins/CaptureBench'}.items():
+    assert not git(r,'diff','--name-only') and not git(r,'diff','--cached','--name-only')
+    state={'head':git(r,'rev-parse','HEAD'),'branch':git(r,'branch','--show-current'),'refs':git(r,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes'),'untracked':{p:sha(r/p) for p in git(r,'ls-files','--others','--exclude-standard').splitlines()}}
+    assert all(state[k]==old['repos'][name][k] for k in state),name;pre['repos'][name]=state
+for p,h in pre['verified_binaries'].items():assert sha(p)==h,p
+pre['prior_artifacts']={str(p.relative_to(B)):sha(p) for folder in ('081-08-evidence','081-08-frozen','081-09-evidence','081-09-frozen','081-10-evidence','081-10-frozen') for p in (B/'_reviews'/folder).rglob('*') if p.is_file()}
+for name in ('081-08-codex-m55-stage-2-report.md','081-09-codex-m55-fixture-diagnosis.md','081-10-codex-m55-fixture-fix.md'):pre['prior_artifacts']['_reviews/'+name]=sha(B/'_reviews'/name)
+current=(B/'ToCodex/CURRENT.md').read_bytes();assert b'# 081-09 m55 R1 fixture diagnosis boundary' in current
+(E/'CURRENT.before.md').write_bytes(current);pre['current_sha256']=sha(B/'ToCodex/CURRENT.md')
+pre['continuity_note']='CURRENT has newer unrelated Blender/video workstream entries; preserve all bytes. Plugin repos and binaries match081-10 boundary.'
+(E/'preflight.json').write_text(json.dumps(pre,indent=2));git(R,'checkout','feat/m55-change-evidence')
+print('Preflight and preserved prior evidence: PASS')

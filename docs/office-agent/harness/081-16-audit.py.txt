@@ -1,0 +1,158 @@
+"""Pre-build source audit. No Unreal launch, build, or candidate mutation."""
+from pathlib import Path
+import datetime, hashlib, json, subprocess
+
+B = Path(r'D:\IntrusiveAnomalies')
+E = B / '_reviews/081-16-evidence'
+R = B / 'StackOBot/Plugins/AnomalyInjector'
+F = B / '_reviews/081-15-frozen/AnomalyInjector'
+SOURCE = '5649a6dddbb46fa32c4b056db92d13e8e37bb090'
+
+def sha(p):
+    with Path(p).open('rb') as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+def git(r, *args):
+    return subprocess.check_output(['git', '-C', str(r), *args]).decode().strip()
+
+def idle():
+    s = subprocess.check_output(['powershell', '-NoProfile', '-Command',
+        '@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue | Select-Object Id,ProcessName) | ConvertTo-Json -Compress']).decode().strip()
+    assert not s or s == '[]', s
+
+def state(r):
+    assert not git(r, 'diff', '--name-only') and not git(r, 'diff', '--cached', '--name-only')
+    return dict(head=git(r, 'rev-parse', 'HEAD'), branch=git(r, 'branch', '--show-current'),
+        refs=git(r, 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/heads', 'refs/remotes'),
+        untracked={p: sha(r/p) for p in git(r, 'ls-files', '--others', '--exclude-standard').splitlines()})
+
+def main():
+    idle()
+    # An initial schema comparison stopped before writing any evidence: historical
+    # postflight adds ref_delta metadata. An empty directory is safe to resume.
+    assert not E.exists() or not any(E.iterdir()), 'Never overwrite audit evidence'
+    E.mkdir(exist_ok=True)
+    old = json.loads((B/'_reviews/081-15-evidence/postflight.json').read_text())
+    pre = dict(utc=datetime.datetime.now(datetime.timezone.utc).isoformat(), repos={},
+               verified_binaries=old['verified_binaries'])
+    repos = dict(AnomalyInjector=R, Lyra=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector'),
+                 CaptureBench=B/'StackOBot/Plugins/CaptureBench')
+    for name, repo in repos.items():
+        pre['repos'][name] = state(repo)
+        assert all(v == old['repos'][name][k] for k, v in pre['repos'][name].items()), name
+    for p, h in pre['verified_binaries'].items():
+        assert sha(p) == h, p
+    pre['prior_artifacts'] = {}
+    for n in range(8, 16):
+        for suffix in ('evidence', 'frozen'):
+            for p in (B/f'_reviews/081-{n:02}-{suffix}').rglob('*'):
+                if p.is_file(): pre['prior_artifacts'][str(p.relative_to(B))] = sha(p)
+        for p in (B/'_reviews').glob(f'081-{n:02}*.md'):
+            pre['prior_artifacts'][str(p.relative_to(B))] = sha(p)
+    banks = {}
+    for p in (B/'_reviews').glob('081-*-evidence/bank-manifest.json'):
+        if p.parent == E: continue
+        data = json.loads(p.read_text())
+        if isinstance(data, dict):
+            for path, h in data.items():
+                if isinstance(h, str) and len(h) == 64 and Path(path).is_file():
+                    assert path not in banks or banks[path] == h, path
+                    banks[path] = h
+    for p, h in banks.items(): assert sha(p) == h, p
+    pre['bank_files'] = banks
+    current = (B/'ToCodex/CURRENT.md').read_bytes()
+    (E/'CURRENT.before.md').write_bytes(current)
+    pre['current_sha256'] = sha(B/'ToCodex/CURRENT.md')
+    (E/'preflight.json').write_text(json.dumps(pre, indent=2))
+    source_audit()
+    print(json.dumps(dict(preflight='PASS', verified_binaries=len(pre['verified_binaries']),
+          preserved_bank_files=len(banks)), indent=2))
+
+def source_audit(verify=False):
+    assert (E/'preflight.json').is_file()
+    assert verify or not (E/'source-bound-audit.json').exists(), 'Preserve original audit'
+    names = ['AnomalyChangeStage.cpp', 'AnomalyChangeStage.h', 'AnomalyChangeMeasurement.cpp',
+             'AnomalyAsyncWriter.cpp', 'AnomalyCaptureSubsystem.cpp']
+    sources = {}
+    for name in names:
+        rel = 'Source/AnomalyCapture/Private/' + name
+        raw = subprocess.check_output(['git', '-C', str(R), 'show', SOURCE+':'+rel])
+        frozen = (F/rel).read_bytes()
+        assert raw.replace(b'\r\n', b'\n') == frozen.replace(b'\r\n', b'\n'), rel
+        assert raw == subprocess.check_output(['git', '-C', str(R), 'show', 'feat/m55-change-evidence:'+rel])
+        if verify: assert (E/name).read_bytes() == frozen
+        else:
+            assert not (E/name).exists()
+            (E/name).write_bytes(frozen)
+        sources[rel] = dict(git_blob_sha256=hashlib.sha256(raw).hexdigest(),
+                            frozen_and_audit_sha256=hashlib.sha256(frozen).hexdigest(),
+                            comparison='exact content after CRLF-to-LF normalization')
+    s = (E/'AnomalyChangeStage.cpp').read_text()
+    m = (E/'AnomalyChangeMeasurement.cpp').read_text()
+    # Guard the assumptions below against drift. This is a source-derived model,
+    # explicitly not an Unreal runtime test or a new observed high-water reading.
+    guards = [
+        'Bytes > MaxBytes - BytesHeld',
+        'Phase.bClosing && !Phase.bFinal && Cursor <= Phase.Last',
+        'ColourCompletionsAfterLocked(Phase.Last)',
+        'Now >= Phase.Deadline || Completions >= 8',
+        '!bAwaitingClosure && ColourCompletionsAfterLocked(Cursor) >= 4',
+        'Item.MaskPixels = Pixels;',
+        'if (bWorkerActive || bClosed) { return; }',
+    ]
+    assert all(x in s for x in guards)
+    assert 'Phase.Deadline = FPlatformTime::Seconds() + 5.0' in m
+    assert 'Phase.Last = SI; Phase.Required = FMath::Min(4, Phase.Labelled)' in m
+    assert 'CS.Unlock();' in m and 'if (W.Label.Window == 3) { ReleaseColourLocked(Phase.Reference)' in m
+
+    def queue_model(w, h, cap):
+        c, mask = 4*w*h, w*h
+        held = c  # SI2 is the previous colour; cursor3 has not finalized onset.
+        colours, masks, trace = [], [], []
+        def work():
+            # observed+sealed true, missing colour SI3, Reason=None.
+            # Phase [3,18] is now closing, deadline=5s, wall_now=1s.
+            closing = sum(i > 18 for i in colours)
+            gap = sum(i > 3 for i in colours)
+            terminal = (1.0 >= 5.0) or closing >= 8
+            return dict(cursor=3, ready=False, awaiting_closure=True,
+                        completions_after_phase_last=closing,
+                        completions_after_head=gap, terminal=terminal,
+                        gap_rule_enabled=False, action='break' if not terminal else 'finalize')
+        for si in range(3, 19):
+            assert mask <= cap-held
+            held += mask; masks.append(si)
+        # Colour4..15 complete only after GT closes the phase; Work runs after
+        # EVERY callback, so this counterexample does not rely on worker starvation.
+        for si in range(4, 16):
+            assert c <= cap-held
+            held += c; colours.append(si)
+            decision = work(); assert decision['action'] == 'break'
+            trace.append(dict(callback_colour=si, held_bytes=held, **decision))
+        bound = 11*c+9*mask
+        assert bound < held <= cap
+        return dict(resolution=[w,h], colour_bytes=c, mask_bytes=mask, cap=cap,
+                    proposed_bound=bound, retained_colours=13, retained_masks=16,
+                    distinct_phase_references=0, phase_count=1, final_held=held,
+                    exceeded_by=held-bound, trace=trace)
+
+    result = dict(source_commit=SOURCE, source_hashes=sources, source_guards=guards,
+        kind='source-derived state-machine counterexample; NOT an Unreal runtime test',
+        schedule='Previous SI2 retained; phase3..18 observed, sealed, closed; SI3 colour missing; '
+                 'masks3..18 admitted; colours4..15 complete after phase closure and before5s; '
+                 'worker runs after every colour callback; no completion index exceeds18.',
+        cases=[queue_model(1280,720,64*1024*1024), queue_model(1920,1080,256*1024*1024)],
+        formula_at_resolutions={f'{w}x{h}':11*4*w*h+9*w*h for w,h in
+                                [(1280,720),(1920,1080),(2560,1440),(3840,2160)]},
+        conclusion='11C+9M is not a structural upper bound. No proof of after-last-use leak. '
+                   'MaxBytes bounds admitted payload, not total process/writer RAM. Build held.')
+    if verify: assert json.loads((E/'source-bound-audit.json').read_text()) == result
+    else: (E/'source-bound-audit.json').write_text(json.dumps(result, indent=2))
+    print(json.dumps(dict(source_files=len(sources),
+          cases=[{k:v for k,v in c.items() if k != 'trace'} for c in result['cases']]), indent=2))
+
+if __name__ == '__main__':
+    import sys
+    if '--verify-model' in sys.argv: source_audit(verify=True)
+    elif '--source-only' in sys.argv: source_audit()
+    else: main()

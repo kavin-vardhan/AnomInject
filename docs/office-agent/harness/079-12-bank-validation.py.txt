@@ -1,0 +1,28 @@
+"""Read-only bank validation of the working079-12 implementation."""
+import hashlib
+import importlib.util
+import json
+import pathlib
+import sys
+sys.dont_write_bytecode = True
+ROOT = pathlib.Path(__file__).resolve().parent
+OUT = ROOT / "079-12-evidence"
+OUT.mkdir(exist_ok=True)
+TOOLS = pathlib.Path(r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\tools")
+sys.path.insert(0, str(TOOLS))
+import verify_capture as vc
+BANK = pathlib.Path(r"D:\IntrusiveAnomalies\_bench_sessions_bank")
+NAMES = ["M49_GEDGE_BL_NAT", "M49_GEDGE_CT_NAT", "M49_GEDGE_MO_NAT", "M49_GEDGE_MT_NAT",
+         "M49_GEDGE_BL_SYN", "M49_GEDGE_MT_SYN", "A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA", "M50L_LG9"]
+result = {"verify_sha256": hashlib.sha256((TOOLS / "verify_capture.py").read_bytes()).hexdigest(), "bank": []}
+for name in NAMES:
+    source = next(p for p in sorted((BANK / name).iterdir()) if p.is_dir() and p.name.startswith("session_"))
+    detail = []
+    code, lines = vc.label_pixel_gate(str(source), 8, 4, 1, out_detail=detail)
+    result["bank"].append({"name": name, "path": str(source), "code": code, "lines": lines, "detail": detail})
+    (OUT / ("gate_" + name + ".txt")).write_text("\n".join(lines)+"\n", encoding="utf-8")
+    print(name, "exit", code, next(s.strip() for s in lines if s.startswith("  VERDICT")), flush=True)
+    print("  observations", {o: sum(e["observation"] == o for e in detail)
+          for o in (vc.O_TRANSITION, vc.O_NONE, vc.O_UNASSESSABLE)}, flush=True)
+(OUT / "bank.json").write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
+print("Saved", OUT / "bank.json")

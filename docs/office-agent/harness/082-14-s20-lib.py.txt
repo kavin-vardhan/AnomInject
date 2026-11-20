@@ -1,0 +1,485 @@
+import collections,importlib.util,itertools,json,os,re,shutil,subprocess,sys,time
+from pathlib import Path
+import numpy as np
+from PIL import Image
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+C=_load('c_s20',R/'082-14-s20-common.py')
+S1=C.S1;c1=C.c1
+Stop=S1.Stop
+TOL=2;WRONG=16;MIN_PX=32
+ATTEMPTS=S1.ATTEMPTS;POSE_ATTEMPTS=S1.POSE_ATTEMPTS;PP_CAP=S1.PP_CAP;TIMING_ATTEMPTS=2
+KBOX=(0,440,370,490)
+ZONES=((516,26,766,496),(58,224,188,318),(305,53,370,107),(44,132,100,179));ZONE_DIL=20
+TCHECKS=('T1','T2','T3','T4','T5','T6','T7','T8')
+CODES=dict(NOT_RUN=2,NOT_QUIET=4,FOREIGN=5,BANK=6,STAGED=10,FIXTURE=12,TIMING_MODEL=20,TIMING_TWICE=21,KNOWN_ANSWER=22,TOKENS=23,NOT_REPRODUCED=24)
+NULL_WINDOW_RULE='082-14 (R22.5): the nulls must agree (N1 vs N2 max <= 2 in K) at every si from the first labelled si to the last (A si 39-106, B si 61-128). The bank nulls differ by up to 55 in K at si 0-31 (streaming settle) and agree within 2 from si 32, so a literal every-si rule would read every cell INCONCLUSIVE; the per-si null reading is still reported for every si'
+REGION_R_RULE='082-14 (R22.5): region R = the frame minus the four class-A zones of plan 3.2, each rectangle grown by 20 px; the reported first si is the first si where the arm differs from BOTH nulls inside R (>=16 on >=32 px) while the nulls agree inside R at that si (N1 vs N2 >=16 on fewer than 32 px), the frame-by-frame null check of plan 3.2; the first si without the null condition is reported beside it'
+M1_RULE='082-14 (M1, _reviews/082-13-chat-ruling-minidelta.md ruling 1): a restore-defect class needs an actual Effective-material mismatch after revert (post-revert census vs pre-event census, same slot keys) on every arm the class names; a left-to-game / unresolved count alone never classifies; anything short of that reads CAUSE UNRESOLVED'
+def sched(fam,**over):
+    d=dict(C.FAM[fam],**over);w=2 if d['warm'] else 0;pre,K,pos,post,frames=d['pre'],d['settle'],d['pos'],d['post'],d['frames']
+    F=w+pre;Rv=F+K+pos
+    def fi(si):
+        if si<=pre-1:return si+w+1
+        if si<=pre+pos-1:return si+w+K+1
+        return si+w+2*K+1
+    return dict(fam=fam,warm=d['warm'],pre=pre,settle=K,pos=pos,post=post,frames=frames,F=F,R=Rv,cfg=f'{K} {pre} {pos} {post} 0',
+                census=(F-2,F+40),reattach=(F,Rv),event=(pre-1,pre+pos-2),tail=(pre+pos-1,frames-1),fi=[fi(s) for s in range(frames)])
+def legs():
+    out=[];i=0
+    for fam,arm,cache in C.ORDER:
+        for role in ('N1',arm,'N2'):
+            out.append(dict(leg=f'{fam}_{arm}_{cache}_{role}',fam=fam,cell=f'{fam}_{arm}_{cache}',cell_arm=arm,role=role,cache=cache,anomaly=C.ARM_ANOMALY[role],frames=C.FAM[fam]['frames'],order=i));i+=1
+    return out
+def leg_by_id(lid):return {l['leg']:l for l in legs()}[lid]
+def defer(n,cmd):return 'DEFER '*n+cmd
+def levers(leg):
+    fam,role=leg['fam'],leg['role'];lv=[]
+    if fam=='B':lv.append(C.WARM_OFF)
+    if role in ('IDP','IDF','N1','N2','R'):lv.append('IAI.Bench.TexCorruptIdentity 1')
+    if role=='N1':lv.append('IAI.Bench.TexCorruptNoApply 1')
+    if role in ('N2','R'):lv.append('IAI.Bench.TexCorruptNoApply 2')
+    if fam=='B':lv.append(C.CAP_LEVER)
+    return lv
+def batch(leg,label,sch=None):
+    s=sch or sched(leg['fam']);cmds=list(S1.BASE)
+    if leg['cache']=='OFF':cmds.append('r.Shadow.Virtual.Cache 0')
+    cmds.append('r.Shadow.Virtual.Cache');cmds.append(f'IAI.Capture.Config {s["cfg"]}')
+    cmds+=levers(leg)
+    cmds.append(f'IAI.Capture.Start {label} png 777 {s["frames"]} {leg["anomaly"]} {C.MW_FLOOR}')
+    for k in s['census']:cmds.append(defer(k-1,f'IAI.Bench.TexCorruptCensus {C.MW_FLOOR}'))
+    if leg['role']=='R':
+        for k in s['reattach']:cmds.append(defer(k-1,'Reattach.Components class=InstancedStaticMeshComponent'))
+    return cmds
+def runner_leg(leg):return dict(map=C.MAP,kind='capture',frames=leg['frames'])
+def validity_leg(leg):return dict(kind='capture',frames=leg['frames'],fixture='F-MW',role='NULL',anomaly=leg['anomaly'],map=C.MAP)
+V=r'(?:(?:Warning|Error|Display|Verbose|Log): )?'
+IDR=r'(?P<id>uv_corruption|normal_corruption)'
+RX=dict(
+ fire=re.compile(r"LogAnomaly: "+V+r"Auto\.FireSpecific: '(?P<id>[^']*)' on '(?P<actor>[^']*)' -> (?P<disp>applied|not applied|0 matched)\.\s*$"),
+ iapply=re.compile(r"LogAnomaly: "+V+r"IAI\.Apply '(?P<id>[^']*)' -> (?P<disp>applied|not applied)\.\s*$"),
+ irevert=re.compile(r"LogAnomaly: "+V+r"IAI\.Revert '(?P<id>[^']*)' -> reverted\.\s*$"),
+ applied=re.compile(r"LogAnomaly: "+V+IDR+r": APPLIED mode=(?P<mode>\S+) tile=\d+ fault=\S+ noapply=(?P<na>\d) on '(?P<target>[^']*)' - .*?slots (?P<n>\d+)/(?P<tot>\d+) committed"),
+ na1=re.compile(r"LogAnomaly: "+V+IDR+r": IAI\.Bench\.TexCorruptNoApply 1 - the whole transaction ran"),
+ na2=re.compile(r"LogAnomaly: "+V+IDR+r": IAI\.Bench\.TexCorruptNoApply 2 - the decision tree said APPLY"),
+ m53rev=re.compile(r"LogAnomaly: "+V+IDR+r": REVERT restored-exact=(?P<exact>\d+) restored-default=(?P<default>\d+) left-to-game=(?P<left>\d+) unresolved=(?P<unres>\d+) swept=(?P<swept>\d+);"),
+ m53slot=re.compile(r"LogAnomaly: "+V+IDR+r": revert '(?P<comp>[^']*)' slot (?P<slot>\d+) -> (?P<how>restored-exact|restored-default) \('(?P<mat>[^']*)'\); override_len_before_apply=(?P<lb>\d+) before_revert=(?P<br>\d+) after=(?P<la>\d+)\."),
+ m53left=re.compile(r"LogAnomaly: "+V+IDR+r": revert left '(?P<comp>[^']*)' slot (?P<slot>\d+) to the game \(left-to-game\)"),
+ m53unres=re.compile(r"LogAnomaly: "+V+IDR+r": revert could not resolve '(?P<comp>[^']*)' slot (?P<slot>\d+) \(unresolved\)"),
+ m53tree=re.compile(r"LogAnomaly: "+V+r"TEXCORRUPT-(?P<tag>DECIDE|REFUSED) family="),
+ ctover=re.compile(r"LogAnomaly: "+V+r"corrupted_texture: overrode (?P<s>\d+) slot\(s\) across (?P<m>\d+) component\(s\) for '(?P<t>[^']*)' \(pink\)\.\s*$"),
+ ctrev=re.compile(r"LogAnomaly: "+V+r"corrupted_texture: revert of (?P<s>\d+) captured slot\(s\) .*?restored=(?P<restored>\d+) default-reset=(?P<dr>\d+) left-to-game=(?P<left>\d+) unresolved=(?P<unres>\d+) swept=(?P<swept>\d+) \(re-found=(?P<rf>\d+)\)\.\s*$"),
+ ctleft=re.compile(r"LogAnomaly: "+V+r"corrupted_texture: revert left '(?P<comp>[^']*)' slot (?P<slot>\d+) untouched"),
+ cbegin=re.compile(r"LogAnomaly: "+V+r"TEXCORRUPT-CENSUS BEGIN targets=(?P<n>\d+) "),
+ cend=re.compile(r"LogAnomaly: "+V+r"TEXCORRUPT-CENSUS END targets=(?P<n>\d+)\s*$"),
+ cfam=re.compile(r"LogAnomaly: "+V+r"TEXCORRUPT-CENSUS family=(?P<fam>\w+) mode=\S+ target='(?P<target>[^']*)' final=(?P<final>\S+) step=\S+ slots=(?P<slots>\d+) "),
+ cslot=re.compile(r"LogAnomaly: "+V+r"TEXCORRUPT-CENSUS   slot (?P<owner>[^ .]+)\.(?P<comp>[^ \[]+)\[(?P<idx>\d+)\] disposition=(?P<disp>\S+) raw=(?P<raw>[^(\s]*)\(len (?P<len>\d+)\) asset=(?P<asset>\S+) resolved=(?P<res>\S+) effective=(?P<eff>\S+) nanite_routed=(?P<nr>\d)"),
+ reattach=re.compile(r"LogConsoleResponse: "+V+r"Reattach\.Components:\s*$"),
+ recomp=re.compile(r"LogConsoleResponse: "+V+r"   Component: (?P<name>\S+)\s*$"),
+ warm=re.compile(r"LogAnomalyCapture: "+V+r"=== Capture\(m53\): TEXCORRUPT WARM DRAW (?P<state>ON|OFF) FOR THIS RUN \(from (?P<src>.*?)\) - "),
+ warmiss=re.compile(r"LogAnomaly: "+V+r"texcorrupt: WARM DRAW issued \d+ draw"),
+ warmrel=re.compile(r"LogAnomaly: "+V+r"texcorrupt: WARM DRAW released its scratch targets"),
+ cq=re.compile(r'r\.Shadow\.Virtual\.Cache = "(?P<v>[^"]*)"\s+LastSetBy: (?P<by>\S+)\s*$'),
+ cs=re.compile(r'r\.Shadow\.Virtual\.Cache = "(?P<v>[^"]*)"\s*$'),
+ aeq=re.compile(r'r\.DefaultFeature\.AutoExposure = "(?P<v>[^"]*)"\s+LastSetBy: (?P<by>\S+)\s*$'),
+ started=re.compile(r"LogAnomalyCapture: "+V+r"=== Capture run STARTED: (?P<label>[^/ ]+)/"),
+ finished=re.compile(r"LogAnomalyCapture: "+V+r"=== Capture run FINISHED: (?P<label>[^/ ]+)/"))
+class Lg:
+    def __init__(self,text):
+        self.items=[]
+        for i,l in enumerate(text.splitlines()):
+            m=S1.PFX.match(l)
+            if m:self.items.append((i,int(m.group(2)),l[m.end():]))
+        self._c={}
+    def find(self,key):
+        if key not in self._c:
+            rx=RX[key];out=[]
+            for i,f,t in self.items:
+                m=rx.match(t)
+                if m:out.append(dict(m.groupdict(),line=i,frame=f))
+            self._c[key]=out
+        return self._c[key]
+def read_lg(p):
+    p=Path(p);return Lg(p.read_text(encoding='utf-8-sig',errors='replace') if p.exists() else '')
+def _r(ok,why):return dict(ok=bool(ok),why=why)
+def t1(rows,s):
+    si=[r['session_index'] for r in rows]
+    if si!=list(range(s['frames'])):return _r(False,f'rows are si {si[:3]}..{si[-3:] if si else []} (n={len(si)}), expected 0..{s["frames"]-1}')
+    bad=[(r['session_index'],r['frame_index'],s['fi'][r['session_index']]) for r in rows if r['frame_index']!=s['fi'][r['session_index']]]
+    return _r(not bad,f'{len(bad)} row(s) off the declared si->fi map (first si,fi,want {bad[0]})' if bad else 'every si->fi matches the declared map')
+def t2(lg,s):
+    w=lg.find('warm');iss=lg.find('warmiss');rel=lg.find('warmrel')
+    if s['warm']:
+        ok=len(w)==1 and w[0]['state']=='ON' and len(iss)==1 and iss[0]['frame']==1 and len(rel)==1 and rel[0]['frame']==2
+        return _r(ok,f"warm echo {[x['state'] for x in w]}, issued at {[x['frame'] for x in iss]}, released at {[x['frame'] for x in rel]} (want ON, [1], [2])")
+    ok=len(w)==1 and w[0]['state']=='OFF' and w[0]['src']=='IAI.Capture.TexCorruptWarmDraw (console)' and not iss and not rel
+    return _r(ok,f"warm echo {[(x['state'],x['src']) for x in w]}, issued {len(iss)}, released {len(rel)} (want OFF from console, none issued)")
+def t3(lg,leg,s):
+    fr=lg.find('fire');ia=lg.find('iapply')
+    ok=(len(fr)==1 and fr[0]['disp']=='applied' and fr[0]['frame']==s['F'] and fr[0]['id']==leg['anomaly'] and fr[0]['actor']==C.MW_FLOOR
+        and len(ia)==1 and ia[0]['disp']=='applied' and ia[0]['id']==leg['anomaly'] and ia[0]['frame']==s['F'])
+    proto='INVALID-PROTOCOL: a second fire line' if len(fr)>1 else ''
+    return _r(ok,(proto+'; ' if proto else '')+f"fire lines {[(x['id'],x['disp'],x['frame']) for x in fr]}, IAI.Apply {[(x['id'],x['disp'],x['frame']) for x in ia]} (want exactly one each, applied, at [{s['F']}])")
+def t4(lg,leg,s):
+    F=s['F'];role=leg['role'];ap=lg.find('applied');n1=lg.find('na1');n2=lg.find('na2')
+    at=lambda xs:[x['frame'] for x in xs]
+    if role in ('IDP','IDF'):
+        ok=len(ap)==1 and ap[0]['na']=='0' and ap[0]['frame']==F and int(ap[0]['n'])>=1 and not n1 and not n2
+        why=f"APPLIED {[(x['na'],x['n']+'/'+x['tot'],x['frame']) for x in ap]}, NoApply-1 {at(n1)}, NoApply-2 {at(n2)} (want one noapply=0 with n>=1 at [{F}], no marker)"
+    elif role=='N1':
+        ok=len(n1)==1 and n1[0]['frame']==F and len(ap)==1 and ap[0]['na']=='1' and ap[0]['n']=='0' and ap[0]['frame']==F and not n2
+        why=f"NoApply-1 {at(n1)}, APPLIED {[(x['na'],x['n'],x['frame']) for x in ap]}, NoApply-2 {at(n2)} (want the marker and APPLIED noapply=1 slots 0 at [{F}])"
+    elif role in ('N2','R'):
+        ok=len(n2)==1 and n2[0]['frame']==F and not ap and not n1
+        why=f"NoApply-2 {at(n2)}, APPLIED {len(ap)}, NoApply-1 {at(n1)} (want one NoApply-2 marker at [{F}] and zero APPLIED)"
+        if role=='R':
+            ra=[x for x in lg.find('reattach') if x['frame']==F];ok=ok and len(ra)==1;why+=f'; Reattach at [{F}]: {len(ra)}'
+    elif role=='C':
+        co=lg.find('ctover');tr=lg.find('m53tree')
+        ok=len(co)==1 and co[0]['frame']==F and not tr and not ap and not n1 and not n2
+        why=f"overrode {[(x['s'],x['m'],x['frame']) for x in co]}, m53 DECIDE/REFUSED {len(tr)}, APPLIED {len(ap)}, markers {len(n1)+len(n2)} (want one overrode line at [{F}] and no m53 line)"
+    else:return _r(False,f'unknown role {role}')
+    return _r(ok,why)
+def t5(lg,leg,s):
+    Rv=s['R'];role=leg['role'];ir=lg.find('irevert')
+    ok=len(ir)==1 and ir[0]['id']==leg['anomaly'] and ir[0]['frame']==Rv;why=f"IAI.Revert {[(x['id'],x['frame']) for x in ir]} (want one at [{Rv}])"
+    if role=='C':
+        cr=lg.find('ctrev');mr=lg.find('m53rev');ok=ok and len(cr)==1 and cr[0]['frame']==Rv and not mr;why+=f"; corrupted_texture revert {[(x['s'],x['frame']) for x in cr]}, m53 REVERT {len(mr)}"
+        return _r(ok,why)
+    mr=lg.find('m53rev');per=lg.find('m53slot')+lg.find('m53left')+lg.find('m53unres');ok=ok and len(mr)==1 and mr[0]['frame']==Rv and all(x['frame']==Rv for x in per)
+    tot=sum(int(mr[0][k]) for k in ('exact','default','left','unres')) if len(mr)==1 else None
+    if role in ('IDP','IDF'):
+        ap=lg.find('applied');n=int(ap[0]['n']) if len(ap)==1 else None
+        ok=ok and n is not None and len(per)==n and tot==n
+        why+=f"; m53 REVERT {[(x['frame'],x['exact'],x['default'],x['left'],x['unres']) for x in mr]}, per-slot lines {len(per)} (want the summary and one line per committed slot, {n}, at [{Rv}])"
+    else:
+        ok=ok and not per and tot==0;why+=f"; m53 REVERT {[(x['frame'],x['exact'],x['default'],x['left'],x['unres']) for x in mr]}, per-slot lines {len(per)} (want the summary at [{Rv}], zero slots)"
+    return _r(ok,why)
+def t6(lg,s):
+    b=lg.find('cbegin');e=lg.find('cend');want=list(s['census'])
+    ok=[x['frame'] for x in b]==want and all(x['n']=='1' for x in b) and [x['frame'] for x in e]==want and all(x['n']=='1' for x in e)
+    return _r(ok,f"census BEGIN at {[(x['frame'],x['n']) for x in b]}, END at {[(x['frame'],x['n']) for x in e]} (want targets=1 at {want})")
+def t7(lg,leg,s):
+    ra=lg.find('reattach')
+    if leg['role']=='R':ok=[x['frame'] for x in ra]==list(s['reattach']);return _r(ok,f"Reattach.Components at {[x['frame'] for x in ra]} (want {list(s['reattach'])})")
+    return _r(not ra,f"Reattach.Components lines {len(ra)} (want none on a non-R leg)")
+def t8(lg,leg):
+    q=lg.find('cq');st=lg.find('started');cs=lg.find('cs');first=st[0]['line'] if st else 10**12
+    if leg['cache']=='ON':
+        ok=len(q)==1 and q[0]['line']<first and q[0]['v']=='1' and q[0]['by']!='Console' and not cs
+    else:
+        ok=len(q)==1 and q[0]['line']<first and q[0]['v']=='0' and q[0]['by']=='Console' and len(cs)==1 and cs[0]['v']=='0' and cs[0]['line']<q[0]['line']
+    return _r(ok,f"query echo {[(x['v'],x['by'],x['line']<first) for x in q]}, set echo {[x['v'] for x in cs]}, STARTED lines {len(st)} (cache {leg['cache']})")
+def tchecks(lg,rows,leg,s=None):
+    s=s or sched(leg['fam'])
+    return dict(T1=t1(rows,s),T2=t2(lg,s),T3=t3(lg,leg,s),T4=t4(lg,leg,s),T5=t5(lg,leg,s),T6=t6(lg,s),T7=t7(lg,leg,s),T8=t8(lg,leg))
+def census_blocks(lg):
+    out=[];cur=None;cf=None
+    for i,f,t in lg.items:
+        m=RX['cbegin'].match(t)
+        if m:cur=dict(frame=f,n=int(m.group('n')),targets={},closed=False);out.append(cur);cf=None;continue
+        if cur is None or cur['closed']:continue
+        m=RX['cfam'].match(t)
+        if m:
+            fams=cur['targets'].setdefault(m.group('target'),{})
+            cf=fams[m.group('fam')]=dict(target=m.group('target'),final=m.group('final'),slots_declared=int(m.group('slots')),slots={});continue
+        m=RX['cslot'].match(t)
+        if m and cf is not None:
+            d=m.groupdict();cf['slots'][f"{d['owner']}.{d['comp']}[{d['idx']}]"]=dict(comp=d['comp'],idx=int(d['idx']),raw=d['raw'],len=int(d['len']),asset=d['asset'],res=d['res'],eff=d['eff'],disp=d['disp']);continue
+        if RX['cend'].match(t):cur['closed']=True
+    return out
+def floor_fams(b):return b['targets'].get('='+C.MW_FLOOR) or {}
+def slot_state(lg,s):
+    bl=census_blocks(lg);F2,F40=s['census']
+    pre=[b for b in bl if b['frame']==F2];post=[b for b in bl if b['frame']==F40]
+    res=dict(readable=False,complete=False,why='',eff_mismatch=[],raw_changed=[],len_changed=[],resolved_changed=[],n_slots=0,comps=[])
+    if len(pre)!=1 or len(post)!=1:res['why']=f'census blocks at [{F2}]={len(pre)}, [{F40}]={len(post)} (want one each)';return res
+    p=floor_fams(pre[0]).get('uv');q=floor_fams(post[0]).get('uv')
+    if not p or not q:res['why']='a uv census block for the floor is missing';return res
+    res['readable']=True
+    if not p['slots'] or set(p['slots'])!=set(q['slots']) or len(p['slots'])!=p['slots_declared'] or len(q['slots'])!=q['slots_declared']:
+        res['why']=f"slot keys differ or incomplete (pre {len(p['slots'])}/{p['slots_declared']}, post {len(q['slots'])}/{q['slots_declared']})";return res
+    res['complete']=True;res['n_slots']=len(p['slots']);res['comps']=sorted({v['comp'] for v in p['slots'].values()})
+    for k in sorted(p['slots']):
+        a,b=p['slots'][k],q['slots'][k]
+        if a['eff']!=b['eff']:res['eff_mismatch'].append(dict(slot=k,pre=a['eff'],post=b['eff']))
+        if a['raw']!=b['raw']:res['raw_changed'].append(dict(slot=k,pre=a['raw'],post=b['raw']))
+        if a['len']!=b['len']:res['len_changed'].append(dict(slot=k,pre=a['len'],post=b['len']))
+        if a['res']!=b['res']:res['resolved_changed'].append(dict(slot=k,pre=a['res'],post=b['res']))
+    res['normal_block_consistent']=all(floor_fams(b).get('normal') is not None and all(floor_fams(b)['normal']['slots'].get(k,{}).get('eff')==v['eff'] for k,v in floor_fams(b)['uv']['slots'].items()) for b in (pre[0],post[0]))
+    res['why']=f"{len(res['eff_mismatch'])} Effective mismatch(es) of {res['n_slots']} slots; override arrays grown on {len(res['len_changed'])}"
+    return res
+def dispositions(lg,leg):
+    if leg['role']=='C':
+        cr=lg.find('ctrev');x=cr[0] if len(cr)==1 else None
+        return dict(kind='corrupted_texture',summary={k:int(x[k]) for k in ('s','restored','dr','left','unres','swept')} if x else None,left_lines=len(lg.find('ctleft')))
+    mr=lg.find('m53rev');x=mr[0] if len(mr)==1 else None
+    return dict(kind='m53',summary={k:int(x[k]) for k in ('exact','default','left','unres','swept')} if x else None,left_lines=len(lg.find('m53left')),unresolved_lines=len(lg.find('m53unres')))
+def left_or_unresolved(d):
+    s=d.get('summary') or {};return int(s.get('left',0))+int(s.get('unres',0))
+def footprint(lg,leg,s):
+    r=leg['role']
+    if r in ('IDP','IDF'):
+        ap=lg.find('applied');return dict(committed=int(ap[0]['n']) if len(ap)==1 else None,total=int(ap[0]['tot']) if len(ap)==1 else None)
+    if r=='C':
+        co=lg.find('ctover');return dict(slots=int(co[0]['s']) if len(co)==1 else None,components=int(co[0]['m']) if len(co)==1 else None)
+    if r=='R':
+        lists=[];cur=None
+        for i,f,t in lg.items:
+            if RX['reattach'].match(t):cur=[];lists.append(dict(frame=f,names=cur));continue
+            m=RX['recomp'].match(t)
+            if m and cur is not None:cur.append(m.group('name'));continue
+            if cur is not None and t.startswith('LogConsoleResponse'):cur=None
+        return dict(lists=[dict(frame=x['frame'],n=len(x['names']),names=sorted(set(x['names']))) for x in lists])
+    return {}
+def fx_check(lg,leg,s,st):
+    r=leg['role'];errs=[];fp=footprint(lg,leg,s)
+    if r=='C' and fp.get('components')!=12:errs.append(f"fixture: the corrupted_texture overrode line names {fp.get('components')} component(s), want 12")
+    if r=='R':
+        comps=set(st.get('comps') or [])
+        if len(comps)!=12:errs.append(f'fixture: the pre-event census names {len(comps)} floor component(s), want 12')
+        for x in fp.get('lists') or []:
+            miss=sorted(comps-set(x['names']))
+            if miss:errs.append(f"fixture: the Reattach list at [{x['frame']}] lacks floor component name(s) {miss[:3]}")
+        if len(fp.get('lists') or [])!=2:errs.append('fixture: fewer than two Reattach lists')
+    return errs,fp
+def region_r_mask(h=720,w=1280):
+    m=np.ones((h,w),bool)
+    for x0,y0,x1,y1 in ZONES:m[max(0,y0-ZONE_DIL):min(h,y1+ZONE_DIL+1),max(0,x0-ZONE_DIL):min(w,x1+ZONE_DIL+1)]=False
+    return m
+_RM=[None]
+def rmask():
+    if _RM[0] is None:_RM[0]=region_r_mask()
+    return _RM[0]
+def kc(img):return img[KBOX[1]:KBOX[3],KBOX[0]:KBOX[2]]
+def dmax(a,b):return np.abs(a-b).max(axis=2)
+def kpair(a,b):d=dmax(kc(a),kc(b));return [int(d.max()),int((d>=WRONG).sum())]
+def rpair(a,b):
+    d=dmax(a,b)[rmask()];return [int(d.max()),int((d>=WRONG).sum())]
+def load_img(p):return np.asarray(Image.open(p).convert('RGB'),dtype=np.int16)
+def sess_getter(sd):
+    s=S1.Sess(sd);return lambda si:load_img(s.dir/s.by_si[si]['image'])
+def read_cell(get,s):
+    frames=s['frames'];per=[];ev0=s['event'][0];t0=s['tail'][0]
+    for si in range(frames):
+        a=get('arm',si);n1=get('N1',si);n2=get('N2',si)
+        per.append(dict(si=si,k_arm_n1=kpair(a,n1),k_arm_n2=kpair(a,n2),k_n1_n2=kpair(n1,n2),r_arm_n1=rpair(a,n1),r_arm_n2=rpair(a,n2),r_n1_n2=rpair(n1,n2)))
+    tail=[p for p in per if p['si']>=t0];nwin=[p for p in per if p['si']>=ev0]
+    nulls_ok=all(p['k_n1_n2'][0]<=TOL for p in nwin)
+    present=all(p['k_arm_n1'][1]>=MIN_PX and p['k_arm_n2'][1]>=MIN_PX for p in tail)
+    absent=all(p['k_arm_n1'][0]<=TOL and p['k_arm_n2'][0]<=TOL for p in tail)
+    state='INCONCLUSIVE' if not nulls_ok else 'present' if present else 'absent' if absent else 'partial'
+    fr=next((p for p in per if p['r_arm_n1'][1]>=MIN_PX and p['r_arm_n2'][1]>=MIN_PX and p['r_n1_n2'][1]<MIN_PX),None)
+    fu=next((p for p in per if p['r_arm_n1'][1]>=MIN_PX and p['r_arm_n2'][1]>=MIN_PX),None)
+    return dict(state=state,nulls_ok=nulls_ok,null_window=[ev0,frames-1],tail=[t0,frames-1],region_r_rule=REGION_R_RULE,
+                region_r_first_unconditioned=fu['si'] if fu else None,
+                null_max_window=max(p['k_n1_n2'][0] for p in nwin),null_max_all=max(p['k_n1_n2'][0] for p in per),
+                tail_min_px16=min(min(p['k_arm_n1'][1],p['k_arm_n2'][1]) for p in tail),tail_max_max=max(max(p['k_arm_n1'][0],p['k_arm_n2'][0]) for p in tail),
+                partial_si=[p['si'] for p in tail if not (p['k_arm_n1'][1]>=MIN_PX and p['k_arm_n2'][1]>=MIN_PX)] if state=='partial' else [],
+                region_r_first=dict(si=fr['si'],arm_n1=fr['r_arm_n1'],arm_n2=fr['r_arm_n2'],n1_n2=fr['r_n1_n2']) if fr else None,per_si=per)
+def read_cross(ga,gb,s):
+    per=[dict(si=si,k=kpair(ga(si),gb(si))) for si in range(s['frames'])];t0=s['tail'][0]
+    tail=[p for p in per if p['si']>=t0]
+    return dict(tail_max=max(p['k'][0] for p in tail),tail_px16_max=max(p['k'][1] for p in tail),same_le2=all(p['k'][0]<=TOL for p in tail),per_si=per)
+def flags(cells,cross,states,fps,disp):
+    st=lambda k:(cells.get(k) or {}).get('state')
+    def ok(*ks):return all(st(k) not in (None,'INCONCLUSIVE') for k in ks)
+    F={};notes=[]
+    if ok('A_IDP_ON'):F['REPRODUCED']=st('A_IDP_ON')=='present';F['NOT-REPRODUCED']=st('A_IDP_ON')=='absent'
+    for arm,on,off in (('IDP','A_IDP_ON','A_IDP_OFF'),('IDF','B_IDF_ON','B_IDF_OFF'),('C','B_C_ON','B_C_OFF'),('R','B_R_ON','B_R_OFF')):
+        if ok(on,off):F[f'CACHE-DEPENDENT[{arm}]']=st(on)=='present' and st(off)=='absent'
+    if ok('B_C_ON'):F['REPRODUCED-BY-SWAP']=st('B_C_ON')=='present'
+    fmatch=(fps.get('B_IDF_ON',{}).get('committed')==30 and fps.get('B_C_ON',{}).get('slots')==30 and fps.get('B_C_ON',{}).get('components')==12)
+    for cache in ('ON','OFF'):
+        ci,cc=f'B_IDF_{cache}',f'B_C_{cache}';x=cross.get(f'C_vs_IDF_{cache}')
+        if ok(ci,cc) and x is not None:
+            F[f'SAME-TRACE-AS-ID-F[{cache}]']=st(cc)=='present' and st(ci)=='present' and x['same_le2']
+            F[f'DIFFERENT-TRACE[{cache}]']=st(cc)=='present' and not x['same_le2']
+    F['FOOTPRINT-MATCHED']=fmatch
+    if not fmatch:notes.append('FOOTPRINT-UNMATCHED: ID-F did not commit 30/30 or C did not override 30 slots on 12 components; the ID-F-vs-C comparison is reported but cannot carry a class')
+    xr=cross.get('R_vs_IDF_ON')
+    if ok('B_R_ON','B_IDF_ON') and xr is not None:F['REPRODUCED-BY-REFRESH']=st('B_R_ON')=='present' and xr['same_le2']
+    if ok('B_IDF_ON','B_C_ON','B_R_ON'):F['SPECIFIC-TO-M53-PATH']=st('B_IDF_ON')=='present' and st('B_C_ON')=='absent' and st('B_R_ON')=='absent'
+    cls=classify(F,states,disp,fmatch);return dict(flags=F,classification=cls,notes=notes)
+def eff_mismatch(states,k):
+    s=states.get(k);return bool(s and s.get('complete') and s['eff_mismatch'])
+def eff_equal(states,k):
+    s=states.get(k);return bool(s and s.get('complete') and not s['eff_mismatch'])
+def classify(F,states,disp,fmatch):
+    out=[];why={}
+    if F.get('NOT-REPRODUCED'):out.append('NOT-REPRODUCED');why['NOT-REPRODUCED']='ID-P cache on reads absent; report and stop, the bank reading stays a banked observation'
+    swap=F.get('REPRODUCED-BY-SWAP');same=F.get('SAME-TRACE-AS-ID-F[ON]');refr=F.get('REPRODUCED-BY-REFRESH')
+    if swap:
+        conj=dict(same_trace=bool(same),footprint_matched=bool(fmatch),not_refresh=(refr is False),c_effective_mismatch=eff_mismatch(states,'B_C_ON_C'),idf_effective_mismatch=eff_mismatch(states,'B_IDF_ON_IDF'))
+        if all(conj.values()):out.append('PLUGIN-WIDE-RESTORE-DEFECT');why['PLUGIN-WIDE-RESTORE-DEFECT']=conj
+        else:
+            out.append('REPRODUCED-BY-SWAP, CAUSE UNRESOLVED')
+            why['REPRODUCED-BY-SWAP, CAUSE UNRESOLVED']=dict(failed=[k for k,v in conj.items() if not v],left_or_unresolved_counts={k:left_or_unresolved(disp.get(k) or {}) for k in ('B_C_ON_C','B_IDF_ON_IDF')},rule=M1_RULE)
+    if refr:
+        if eff_equal(states,'B_IDF_ON_IDF'):out.append('STALE-NULL');why['STALE-NULL']='REPRODUCED-BY-REFRESH and ID-F post-revert Effective == pre-event on every slot'
+        else:why['STALE-NULL (not established)']='REPRODUCED-BY-REFRESH, but ID-F state is '+('mismatched' if eff_mismatch(states,'B_IDF_ON_IDF') else 'unreadable or incomplete')
+    if F.get('SPECIFIC-TO-M53-PATH'):
+        if eff_mismatch(states,'B_IDF_ON_IDF'):out.append('M53-RESTORE-DEFECT');why['M53-RESTORE-DEFECT']=dict(eff_mismatch=states['B_IDF_ON_IDF']['eff_mismatch'][:5])
+        elif eff_equal(states,'B_IDF_ON_IDF'):
+            out.append('M53-SPECIFIC, CAUSE NOT IN SLOT STATE');why['M53-SPECIFIC, CAUSE NOT IN SLOT STATE']=dict(left_or_unresolved_count=left_or_unresolved(disp.get('B_IDF_ON_IDF') or {}),rule=M1_RULE)
+        else:out.append('M53-SPECIFIC, CAUSE UNRESOLVED (state unreadable)')
+    if not out:out.append('UNCLASSIFIED')
+    order=['NOT-REPRODUCED','PLUGIN-WIDE-RESTORE-DEFECT','M53-RESTORE-DEFECT','STALE-NULL','M53-SPECIFIC, CAUSE NOT IN SLOT STATE','M53-SPECIFIC, CAUSE UNRESOLVED (state unreadable)','REPRODUCED-BY-SWAP, CAUSE UNRESOLVED','UNCLASSIFIED']
+    return dict(primary=sorted(out,key=order.index)[0],all=sorted(out,key=order.index),why=why,m1_rule=M1_RULE)
+def known_answer(bank=None,ref_path=None):
+    bank=Path(bank or C.REAL_BANK);ref=json.loads(Path(ref_path or C.CODEX_SHADOW).read_text(encoding='utf-8'))
+    ss={n:S1.Sess(S1.find_session(bank/('M53S1_'+n+'_A1'))) for n in C.KA_LEGS}
+    mism=[];pairs=0;rows=[]
+    for si in range(100):
+        im={n:kc(load_img(ss[n].dir/ss[n].by_si[si]['image'])) for n in C.KA_LEGS}
+        nm=max(int(np.abs(im[a]-im[b]).max()) for a,b in itertools.combinations(C.KA_NULLS,2))
+        cross=[]
+        for a in C.KA_INSTALL:
+            for b in C.KA_NULLS:
+                d=np.abs(im[a]-im[b]).max(axis=2);cross.append(dict(a=a,b=b,max=int(d.max()),px16=int((d>=16).sum())))
+        mine=dict(si=si,null_max=nm,install_max_min=min(v['max'] for v in cross),install_max_max=max(v['max'] for v in cross),install_px16_min=min(v['px16'] for v in cross),install_px16_max=max(v['px16'] for v in cross),pairs=cross)
+        pairs+=len(cross)
+        if mine!=ref['readings'][si]:mism.append(si)
+        rows.append(mine)
+    base=ss[C.KA_LEGS[0]].by_si
+    meta={n:{k:all(r[k]==base[si][k] for si,r in s.by_si.items()) for k in ('frame_index','t','view')} for n,s in ss.items()}
+    tfs=next(r['si'] for r in rows if r['install_px16_min']>0)
+    ok=not mism and meta==ref['metadata_equal'] and tfs==ref['trace_first_si'] and len(ref['readings'])==100
+    return dict(ok=ok,si_compared=100,pairs_compared=pairs,mismatched_si=mism,metadata_equal_match=(meta==ref['metadata_equal']),trace_first_si=tfs,
+                control_bound_si32_99=max(r['null_max'] for r in rows[32:]),control_bound_si36_99=max(r['null_max'] for r in rows[36:]),null_max_si0_31=max(r['null_max'] for r in rows[:32]),
+                install_si39_99_min_px16=min(r['install_px16_min'] for r in rows[39:]),install_si39_99_min_max=min(r['install_max_min'] for r in rows[39:]),
+                all_si39_99_ge16_on_ge32=all(r['install_px16_min']>=MIN_PX and r['install_max_min']>=WRONG for r in rows[39:]))
+def ledger():return S1.jload(c1.RUN/'ledger.json',[])
+def ledger_add(row):v=ledger();v.append(row);S1.jsave(c1.RUN/'ledger.json',v)
+def accepted(lid):
+    r=[x for x in ledger() if x['leg']==lid and x['status']=='ACCEPTED'];return r[-1] if r else None
+def validated_types():
+    v=set()
+    for x in ledger():
+        if x.get('timing_ok'):
+            lg=leg_by_id(x['leg']);v.add((lg['fam'],lg['role']))
+            if lg['cache']=='OFF':v.add((lg['fam'],'OFF'))
+    return v
+def gates_leg(leg,tfail,val):
+    if (leg['fam'],leg['role']) not in val:return True
+    if leg['cache']=='OFF' and 'T8' in tfail and (leg['fam'],'OFF') not in val:return True
+    return False
+def stub_fill(leg,label,ev,model=None):
+    syn=_load('s20_synth',R/'082-14-s20-synth.py')
+    s=sched(leg['fam']);m=model or syn.dry_model(leg)
+    out=C.c1.EXE_SIDE/label/'session_20260928-000000';syn.write_leg(leg,label,s,m,ev/'game.log',out,batch(leg,label),edit=m.get('edit'),rowfix=m.get('rowfix'))
+    la=S1.jload(ev/'launch.json',{}) or {};t=c1.now()
+    la.update(status='COMPLETE',pid=424242,focus_at_s=1.0,focus_held=True,capture_focus=[dict(seconds=0.1,foreground_pid=424242)],sampling_started_utc=t,anchor_start=dict(utc=t),anchor_end=dict(utc=c1.now()),session=str(out),stub_fill='082-14-s20-synth (dry run)')
+    S1.jsave(ev/'launch.json',la)
+def run_leg(leg,runner=None,quiet=None,pp=None,stage_check=None,model=None):
+    runner=runner or S1.real_runner
+    rows=[x for x in ledger() if x['leg']==leg['leg']]
+    if any(x['status']=='ACCEPTED' for x in rows):return 'done'
+    if any(x['status'] in ('NOT-RUN',) for x in rows):raise Stop(CODES['NOT_RUN'],f"{leg['leg']} already recorded NOT-RUN")
+    for st,code in (('TIMING-MODEL-FAIL','TIMING_MODEL'),('FIXTURE-CANNOT-EXERCISE','FIXTURE')):
+        if any(x['status']==st for x in rows):raise Stop(CODES[code],f"{leg['leg']} already recorded {st}; never re-run without a ruling")
+    if len([x for x in rows if x['status']=='INVALID-TIMING'])>=TIMING_ATTEMPTS:raise Stop(CODES['TIMING_TWICE'],f"{leg['leg']} already has {TIMING_ATTEMPTS} INVALID-TIMING attempts; never re-run without a ruling")
+    while True:
+        rows=[x for x in ledger() if x['leg']==leg['leg']]
+        cnt=collections.Counter(x['status'] for x in rows)
+        if cnt['ENV-INTERRUPTED']>=PP_CAP:raise Stop(CODES['NOT_QUIET'],f"NOT-QUIET: {leg['leg']} has {cnt['ENV-INTERRUPTED']} ENV-INTERRUPTED attempts")
+        if cnt['INVALID']>=ATTEMPTS or cnt['INVALID-POSE']>=POSE_ATTEMPTS:
+            ledger_add(dict(leg=leg['leg'],status='NOT-RUN',recorded=c1.now(),reason=f"{cnt['INVALID']} invalid + {cnt['INVALID-POSE']} pose-invalid attempts (budgets {ATTEMPTS}/{POSE_ATTEMPTS})"))
+            raise Stop(CODES['NOT_RUN'],f"{leg['leg']} NOT-RUN")
+        (pp or S1.pp_gate)('before-attempt',leg=leg['leg'])
+        q=(quiet or c1.quiet)()
+        if not q['quiet']:c1.log_event('leg-refused-not-quiet',leg=leg['leg'],blocking=q['blocking']);raise Stop(CODES['NOT_QUIET'],f"NOT-QUIET before {leg['leg']}: {q['blocking']}")
+        (stage_check or S1.staged_check)()
+        n=len([x for x in rows if x.get('label')])+1;label=f"{C.BANK_PREFIX}{leg['leg']}_A{n}";ev=c1.RUN/label
+        if ev.exists():raise Stop(CODES['STAGED'],f'evidence dir exists for a new attempt: {ev}')
+        cmds=batch(leg,label);args=S1.runner_args(runner_leg(leg),label,ev,cmds)
+        t0=c1.now()
+        with S1.PersonMonitor(label) as mon:rc=runner(args,c1.RUN/f'runner-{label}.log')
+        ev.mkdir(parents=True,exist_ok=True)
+        if C.STUB:stub_fill(leg,label,ev,model=(model(leg) if callable(model) else None))
+        S1.jsave(ev/'command.json',dict(args=args,cmds=cmds,execcmds_chars=len(', '.join(cmds))))
+        if (c1.RUN/f'runner-{label}.log').exists():shutil.copy2(c1.RUN/f'runner-{label}.log',ev/'runner.log')
+        launch=S1.jload(ev/'launch.json',{}) or {}
+        row=dict(leg=leg['leg'],label=label,attempt=n,started=t0,finished=c1.now(),runner_exit=rc,stub=C.STUB)
+        if 'FOREIGN-EDITOR-APPEARED' in str(launch.get('error') or ''):
+            row.update(status='INVALID-FOREIGN',errors=['foreign editor appeared']);ledger_add(row);raise Stop(CODES['FOREIGN'],f'INVALID-FOREIGN {label}')
+        if launch.get('status')=='REFUSED-NOT-IDLE':row.update(status='INVALID-NOT-IDLE',errors=['runner refused: bench not idle']);ledger_add(row);raise Stop(CODES['NOT_QUIET'],f'NOT-QUIET at launch of {label}')
+        try:bk=S1.bank_attempt(label,ev)
+        except S1.BankError as ex:row.update(status='INVALID-BANK',errors=[str(ex)]);ledger_add(row);raise Stop(CODES['BANK'],str(ex))
+        bsd=S1.find_session(c1.BANK/label);sess=None
+        if bsd is not None:
+            try:sess=S1.Sess(bsd)
+            except Exception as ex:row['session_error']=repr(ex)[:200]
+        errs,fg=S1.validity(validity_leg(leg),launch,sess,S1.read_log(ev/'game.log'),None,sdir=bsd)
+        pe=S1.pp_evidence(launch,mon);S1.pp_record(label,leg['leg'],mon,pe);row.update(person_evidence=pe.get('person_evidence'),person_reasons=pe.get('reasons'),bank=dict(files=bk.get('dst_files'),exe_side_deleted=bk.get('exe_side_deleted')))
+        nonpose=[e for e in errs if not e.startswith('pose:')];pose=[e for e in errs if e.startswith('pose:')]
+        if nonpose:
+            stt='ENV-INTERRUPTED' if all(e in S1.FG_ERRORS for e in nonpose) and pe.get('person_evidence') else 'INVALID'
+            row.update(status=stt,errors=errs);ledger_add(row);print(json.dumps(dict(label=label,status=stt,errors=errs)),flush=True);continue
+        s=sched(leg['fam']);lg=read_lg(ev/'game.log');T=tchecks(lg,sess.rows,leg,s);tfail=[k for k in TCHECKS if not T[k]['ok']]
+        row['timing']=T;row['timing_ok']=not tfail
+        if tfail:
+            val=validated_types()
+            if gates_leg(leg,tfail,val):
+                row.update(status='TIMING-MODEL-FAIL',errors=[f'{k}: '+T[k]['why'] for k in tfail]);ledger_add(row)
+                raise Stop(CODES['TIMING_MODEL'],f"{label}: {','.join(tfail)} failed on the first leg of type {leg['fam']}-{leg['role']}{' / '+leg['fam']+'-OFF' if leg['cache']=='OFF' else ''}: the schedule model is wrong; stop for a declared amendment (not re-run)")
+            row.update(status='INVALID-TIMING',errors=[f'{k}: '+T[k]['why'] for k in tfail]);ledger_add(row);print(json.dumps(dict(label=label,status='INVALID-TIMING',failed=tfail)),flush=True)
+            if len([x for x in ledger() if x['leg']==leg['leg'] and x['status']=='INVALID-TIMING'])>=TIMING_ATTEMPTS:raise Stop(CODES['TIMING_TWICE'],f"{leg['leg']}: a second INVALID-TIMING")
+            continue
+        if pose:row.update(status='INVALID-POSE',errors=pose);ledger_add(row);print(json.dumps(dict(label=label,status='INVALID-POSE')),flush=True);continue
+        st=slot_state(lg,s);fxe,fp=fx_check(lg,leg,s,st);row.update(state=dict((k,v) for k,v in st.items() if k!='comps'),footprint=fp,dispositions=dispositions(lg,leg))
+        if fxe:row.update(status='FIXTURE-CANNOT-EXERCISE',errors=fxe);ledger_add(row);raise Stop(CODES['FIXTURE'],f'{label}: '+'; '.join(fxe))
+        try:al=S1.alias_hardlinks(label,C.BANK_PREFIX+leg['leg'])
+        except S1.BankError as ex:row.update(status='INVALID-BANK',errors=['alias: '+str(ex)]);ledger_add(row);raise Stop(CODES['BANK'],'alias: '+str(ex))
+        row.update(status='ACCEPTED',alias=al.get('alias'),session=str(bsd),speed_ratio=sess.summary.get('speed_ratio'),sustained_wall_fps=sess.summary.get('sustained_wall_fps'))
+        ledger_add(row);print(json.dumps(dict(label=label,status='ACCEPTED')),flush=True);return 'accepted'
+def cell_legs(cell):return {l['role'] if l['role'] in ('N1','N2') else 'arm':l for l in legs() if l['cell']==cell}
+def cell_getter(cell):
+    g={}
+    for k,l in cell_legs(cell).items():
+        a=accepted(l['leg']);sd=S1.find_session(c1.bank_read(a['label'])) if a else None
+        if sd is None:return None
+        g[k]=sess_getter(sd)
+    return lambda role,si:g[role](si)
+def arm_getter(cell):
+    l=cell_legs(cell)['arm'];a=accepted(l['leg']);sd=S1.find_session(c1.bank_read(a['label'])) if a else None
+    return sess_getter(sd) if sd else None
+def leg_lg(lid):
+    a=accepted(lid);return read_lg(c1.RUN/a['label']/'game.log') if a else None
+def evaluate(write=True):
+    cells={};cross={};states={};fps={};disp={};tele={}
+    for fam,arm,cache in C.ORDER:
+        cell=f'{fam}_{arm}_{cache}';g=cell_getter(cell)
+        if g is None:continue
+        r=read_cell(g,sched(fam));cells[cell]=r
+        for l in cell_legs(cell).values():
+            lg=leg_lg(l['leg']);a=accepted(l['leg']);s=sched(fam)
+            states[l['leg']]=slot_state(lg,s);disp[l['leg']]=dispositions(lg,l);fps[l['leg']]=footprint(lg,l,s);tele[l['leg']]=dict(speed_ratio=a.get('speed_ratio'),sustained_wall_fps=a.get('sustained_wall_fps'))
+    for cache in ('ON','OFF'):
+        gi=arm_getter(f'B_IDF_{cache}') if f'B_IDF_{cache}' in cells else None
+        for arm in ('C','R'):
+            ga=arm_getter(f'B_{arm}_{cache}') if f'B_{arm}_{cache}' in cells else None
+            if gi and ga:cross[f'{arm}_vs_IDF_{cache}']=read_cross(ga,gi,sched('B'))
+    cf={k.rsplit('_',1)[0]:v for k,v in fps.items() if k.endswith('_IDF') or k.endswith('_C')}
+    fl=flags(cells,cross,states,cf,disp)
+    summary=dict(cells={k:{kk:vv for kk,vv in v.items() if kk!='per_si'} for k,v in cells.items()},cross={k:{kk:vv for kk,vv in v.items() if kk!='per_si'} for k,v in cross.items()},
+                 flags=fl['flags'],classification=fl['classification'],notes=fl['notes']+[NULL_WINDOW_RULE],states={k:{kk:vv for kk,vv in v.items()} for k,v in states.items()},footprints=fps,dispositions=disp,telemetry=tele)
+    if write:
+        S1.jsave(c1.RUN/'readings.json',dict(cells=cells,cross=cross));S1.jsave(c1.RUN/'flags.json',summary)
+    return summary
+def early_a_on():
+    g=cell_getter('A_IDP_ON')
+    if g is None:return None
+    r=read_cell(g,sched('A'));S1.jsave(c1.RUN/'cell-A_IDP_ON.json',{k:v for k,v in r.items() if k!='per_si'})
+    if r['state']=='absent':raise Stop(CODES['NOT_REPRODUCED'],'NOT-REPRODUCED: ID-P cache on reads absent (report and stop)')
+    return r['state']
+def run_sequence(runner=None,quiet=None,pp=None,stage_check=None,model=None):
+    done=[]
+    for leg in legs():
+        r=run_leg(leg,runner=runner,quiet=quiet,pp=pp,stage_check=stage_check,model=model);done.append((leg['leg'],r))
+        if leg['leg']=='A_IDP_ON_N2':early_a_on()
+    return summary()
+def summary():
+    L=ledger();c=collections.Counter(x['status'] for x in L)
+    return dict(attempts=len([x for x in L if x.get('label')]),by_status=dict(c),accepted=[x['leg'] for x in L if x['status']=='ACCEPTED'],validated_types=sorted('-'.join(t) for t in validated_types()))

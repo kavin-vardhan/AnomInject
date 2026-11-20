@@ -1,0 +1,69 @@
+r"""090-10f2 bench harness. Reuses 090-10c-common (idle gate with the clarified open-but-idle editor rule, editor-DLL swap, PIE
+driver, staged runner, pixel reader) and 090-10e's edge reader, with its own work dir on D: (E: is below its 50 GB floor).
+Nothing here kills a process it did not start."""
+from pathlib import Path
+import importlib.util, json, sys, re
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+_s = importlib.util.spec_from_file_location('c910c', str(R / '090-10c-common.py'))
+C = importlib.util.module_from_spec(_s); _s.loader.exec_module(C)
+b2 = C.b2
+c = C.c
+WORK = Path(r'D:\IA_BankOverflow\_r910f2'); OUT = WORK / 'out'; EV = WORK / 'ev'; PY = WORK / 'py'
+for _m in (c, b2, C):
+    _m.WORK = WORK; _m.OUT = OUT; _m.EV = EV
+b2.PY = PY
+C.PY = PY
+for _root in (WORK / 'builds', Path(r'E:\IA_BuildCache\_r910e\builds')):
+    for _p in sorted(_root.glob('*')) if _root.exists() else []:
+        if (_p / 'StackOBot.exe').exists():
+            C.add_build(c.sha8(_p / 'StackOBot.exe'), _p)
+_e = importlib.util.spec_from_file_location('e910e', str(R / '090-10e-edges.py'))
+E = importlib.util.module_from_spec(_e); _e.loader.exec_module(E)
+
+MEASURED = ('present', 'empty')
+
+
+def mask_reading(sess, log=None):
+    rows = [json.loads(l) for l in (Path(sess) / 'labels.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+    labelled = unmeasured = 0
+    bad = []
+    for r in rows:
+        lab = [a for a in (r.get('anomalies') or []) if a.get('labelled') is True]
+        if not lab:
+            continue
+        labelled += 1
+        st = r.get('mask_state')
+        if st not in MEASURED:
+            unmeasured += 1
+            bad.append(dict(si=r.get('session_index'), mask_state=st, mask_file=r.get('mask_file'),
+                            target_pixels=[a.get('target_pixels') for a in lab]))
+        elif st == 'present' and r.get('mask_file') and not (Path(sess) / r['mask_file']).exists():
+            unmeasured += 1
+            bad.append(dict(si=r.get('session_index'), mask_state=st, mask_file=r.get('mask_file'), missing_png=True))
+    out = dict(rows=len(rows), labelled_frames=labelled, labelled_without_measured_mask=unmeasured, bad=bad[:12])
+    if log and Path(log).exists():
+        t = Path(log).read_text(encoding='utf-8', errors='replace')
+        out['log_unavailable'] = len(re.findall(r'TARGET MASK UNAVAILABLE|TARGET MASK NEVER RESOLVED', t))
+        out['log_served_ge2'] = len(re.findall(r'captureArms=[2-9]', t))
+        m = re.findall(r'ARM HOLD SUMMARY holds=(\d+) familiesWithoutBound=(\d+)', t)
+        out['arm_hold_summary'] = [list(map(int, x)) for x in m]
+        out['arm_hold_lines'] = len(re.findall(r'Capture\(mask\): ARM HOLD family', t))
+    return out
+
+
+def run(label, spec):
+    rec = C.run(label, spec)
+    sess = c.find_session(label)
+    if sess:
+        try:
+            r = E.edges(sess)
+            rec['edges'] = dict(summary=E.summary(r), events=[{k: v for k, v in x.items() if k != 'diffs'} for x in r['events']])
+        except Exception as ex:
+            rec['edges_error'] = f'{type(ex).__name__}: {ex}'
+        try:
+            rec['mask'] = mask_reading(sess, EV / label / 'game.log')
+        except Exception as ex:
+            rec['mask_error'] = f'{type(ex).__name__}: {ex}'
+        c.jsave(WORK / 'runs' / f'{label}.json', rec)
+    return rec

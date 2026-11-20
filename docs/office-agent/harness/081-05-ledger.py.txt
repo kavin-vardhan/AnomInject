@@ -1,0 +1,47 @@
+from pathlib import Path
+from importlib.machinery import SourceFileLoader
+import json, re, sys, collections
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'; bank=base/'_bench_sessions_bank'
+audit=SourceFileLoader('finalaudit',str(base/'_reviews/081-05-audit.py')).load_module().audit
+version=sys.argv[1]
+ledger=[]; missing=[]
+for fixture in ('STACK','LYRA'):
+    for g in range(1,16):
+        for order in ('N','S'):
+            candidates=[]
+            for attempt in range(1,4):
+                v=version if attempt==1 else f'{version}R{attempt}'
+                label=f'M55S1{v}_{"LYRA_" if fixture=="LYRA" else ""}G{g}_{order}'
+                p=ev/f'audit-{label.lower()}.json'
+                if not p.exists(): continue
+                r=json.loads(p.read_text())
+                r.update(fixture=fixture,attempt=attempt,order=order)
+                if r.get('session'):
+                    session=Path(r['session'])
+                    if fixture=='LYRA': log=session.parent/'_leg_game.log'
+                    else: log=next(t for t in bank.glob('M55S1_'+label+'_try*') if (t/session.name).exists())/'_leg_game.log'
+                    r.update(audit(session,log))
+                    ann=json.loads((session/'annotation.json').read_text(encoding='utf-8-sig'))
+                    rows=[json.loads(l) for l in (session/'change_evidence.jsonl').read_text().splitlines()]
+                    r['event_count']=len(ann['anomalies'])
+                    r['formats']=dict(collections.Counter(x['receipt']['format'] for x in rows))
+                    r['camera_caveat_rows']=sum(x['cam_moved'] for x in rows)
+                    r['fixture_exposure_and_aa']=[l for l in log.read_text(encoding='utf-8-sig',errors='replace').splitlines() if re.search(r'^(?:\[[^\n]*\])?(?:LogConsoleResponse: )?r\.(?:AntiAliasingMethod|EyeAdaptationQuality) =',l)]
+                    if g!=11 and r['event_count']<3 and 'fewer than three events in ordinary leg' not in r['errors']: r['errors'].append('fewer than three events in ordinary leg')
+                candidates.append(r)
+            ledger.extend(candidates)
+            if not any(not x.get('errors') for x in candidates): missing.append(dict(fixture=fixture,gate=g,order=order))
+out=dict(version=version,accepted=sum(not x['errors'] for x in ledger),attempts=len(ledger),missing_or_failed=missing,legs=ledger)
+(ev/f'final-ledger-{version.lower()}.json').write_text(json.dumps(out,indent=2))
+print(json.dumps({k:v for k,v in out.items() if k!='legs'},indent=2))
+lines=['| Gate | Stack N/S valid pairs | Lyra N/S valid pairs |','|---|---:|---:|']
+for g in range(1,16):
+    cells=[]
+    for f in ('STACK','LYRA'):
+        cell=[]
+        for o in ('N','S'):
+            accepted=next((x for x in ledger if x['fixture']==f and x['gate']==g and x['order']==o and not x['errors']),None)
+            cell.append(str(accepted['reasons'].get('identity_valid',0)) if accepted else ('FAILED' if any(x['fixture']==f and x['gate']==g and x['order']==o for x in ledger) else 'UNRUN'))
+        cells.append('/'.join(cell))
+    lines.append(f'| {g} | {cells[0]} | {cells[1]} |')
+(ev/f'matrix-{version.lower()}.md').write_text('\n'.join(lines)+'\n')

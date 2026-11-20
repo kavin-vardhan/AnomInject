@@ -1,0 +1,88 @@
+from pathlib import Path
+import collections,json,re,sys,zlib
+from PIL import Image
+REASONS=set('first_frame predecessor_missing predecessor_undelivered out_of_order_timeout epoch_reset view_mismatch extent_mismatch mask_payload_missing unsupported_delivery budget_exceeded empty_region no_labelled_frames current_undelivered closure_timeout'.split())
+def audit(session,log,case):
+    read=lambda p:json.loads(p.read_text(encoding='utf-8-sig'))
+    summary=read(session/'run_summary.json'); annotation=read(session/'annotation.json')
+    records=[json.loads(l) for l in (session/'change_evidence.jsonl').read_text(encoding='utf-8-sig').splitlines()]
+    rows=[r for r in records if r['kind']=='pair']; events=[r for r in records if r['kind']=='event']
+    labels={r['session_index']:r for r in map(json.loads,(session/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines())}
+    text=log.read_text(encoding='utf-8-sig',errors='replace'); errors=[]
+    def need(condition,reason):
+        if not condition:errors.append(reason)
+    need('=== Handled ensure: ===' not in text,'runtime handled ensure in gate fixture')
+    frozen=0
+    for si,n,crc in re.findall(r'FROZEN-MASK si=(\d+) bytes=(\d+) crc32=([0-9a-fA-F]+)',text):
+        png=session/f'target_mask/frame_{int(si):05}.png'
+        need(png.exists(),'frozen mask missing')
+        if png.exists():
+            raw=Image.open(png).convert('L').tobytes();frozen+=1
+            need(len(raw)==int(n) and zlib.crc32(raw)==int(crc,16),'frozen mask differs from PNG')
+    need(summary.get('change_stage_version')==2,'stage version')
+    need(summary.get('change_bytes_retained')==0,'retained bytes at closure')
+    need(summary.get('change_bytes_high_water',1e99)<=summary.get('change_max_bytes',0),'byte cap')
+    for counter in ('denominator_mismatch','histogram_mismatch','ref_onset_mismatch','persist_failed','late_record_mutations','rows_dropped'):
+        need(summary.get('change_'+counter)==0,'nonzero/missing '+counter)
+    keys=[(r['session_index'],r['event'],r['phase_ordinal']) for r in rows]
+    need(len(keys)==len(set(keys)),'duplicate pair')
+    need([k[0] for k in keys]==sorted(k[0] for k in keys),'unordered pairs')
+    need(len({e['event'] for e in events})==len(events),'duplicate final event')
+    need(bool(events),'no final events')
+    floor=case.get('event_floor',3)
+    need(len(events)>=floor,f'fewer than {floor} final events')
+    if case.get('normal',True):need(len(annotation['anomalies'])>=floor,f'fewer than {floor} legacy events')
+    grouped=collections.defaultdict(list)
+    for r in rows:
+        si=r['session_index'];grouped[(r['event'],r['phase_ordinal'])].append(r)
+        need(r['reason'] is None or r['reason'] in REASONS,'unknown pair reason')
+        need(r['chg_measured']==r['chg_eligible']==(r['reason'] is None),'measurement validity')
+        need(0<=r['window_index']<4,'window outside K=4')
+        if r['window_index']==0:need(r['prev_target_pixels']==-1,'onset pre-visibility invented')
+        if r['chg_measured']:
+            c,m,p=r['receipt'],r['mask_receipt'],r['prev_receipt']
+            need(r['prev_session_index']==si-1,'nonadjacent measured pair')
+            need(c['capture_token']==c['serving_token']==m['capture_token']==m['serving_token'],'token mismatch')
+            need(c['view_family_id']==m['view_family_id'] and c['view_family_id']>0,'family mismatch')
+            need(c['run_epoch']==m['run_epoch']==p['run_epoch'] and c['cut_counter']==p['cut_counter'],'epoch/cut mismatch')
+            need(c['rect']==m['rect']==p['rect'] and c['extent']==m['extent']==p['extent'],'geometry mismatch')
+            for prefix in ('chg','ctl'):
+                n,gt,hist,total=(r[prefix+'_'+k] for k in ('n','gt8','hist','sum'))
+                need(n>0 and n==sum(hist) and len(hist)==8 and gt==sum(hist[4:]),'histogram conservation')
+                need(abs(r[prefix+'_mean']-round(total/n/255,4))<1e-8,'mean normalization')
+            matches=[a for a in labels[si]['anomalies'] if a['id']+'@'+str(a['start_frame'])==r['event']]
+            need(len(matches)==1 and matches[0]['mask_value']==r['mask_value'] and matches[0]['target_pixels']==r['chg_n'],'legacy denominator join')
+            if r['window_index']==0:need(r['ref_gt8']==r['chg_gt8'] and r['ref_mean']==r['chg_mean'],'onset reference equality')
+    for e in events:
+        need(e['phase_count']>=len(e['phases']) and len(e['phases'])==min(8,e['phase_count']),'phase cap/count')
+        need(e['reason']==('no_labelled_frames' if e['phase_count']==0 else None),'event reason')
+        for p in e['phases']:
+            rr=grouped[(e['event'],p['ordinal'])];need(len(rr)==p['pairs_required'],'window missing required row')
+            need(sum(r['chg_measured'] for r in rr)==p['pairs_measured'],'phase coverage count')
+            onset=next((r for r in rr if r['window_index']==0),None)
+            need(p['state']==('measured' if onset and onset['chg_measured'] else 'indeterminate'),'onset coverage repaired by later row')
+            need(p['onset_prev_index']==p['first_labelled_index']-1,'phase onset index')
+            if rr:need(rr[0]['session_index']==p['first_labelled_index'],'phase start mismatch')
+            measured=[r for r in rr if r['chg_measured']]
+            need(p['chg_gt8_max']==max((r['chg_gt8'] for r in measured),default=-1),'final max')
+    if case.get('nohold'):
+        need(not rows and all(e['phase_count']==0 for e in events),'nohold produced phase/pair')
+    elif case.get('empty'):
+        need(any(r['reason']=='empty_region' for r in rows),'empty-region refusal absent')
+        need(all(r['view']['origin']==[-1500,0,260] and r['view']['rot']==[0,0,0] for r in labels.values()),'camera moved in target geometry fault')
+    else:need(any(r['chg_measured'] for r in rows),'no measured window pair')
+    if case.get('blink'):need(any(e['phase_count']>8 and len(e['phases'])==8 for e in events),'phase truncation not exercised')
+    if case.get('short'):need(any(p['pairs_required']<4 for e in events for p in e['phases']),'short phase not exercised')
+    if case.get('teardown'):
+        need(summary.get('change_teardown_flush')==1,'actual teardown flush absent')
+        need(any(e['finalized_by']=='teardown' for e in events),'teardown final event absent')
+    if case.get('drop'):need(any(e['finalized_by']=='fire_removed_or_target_lost' for e in events),'drop finalization absent')
+    if case.get('runend'):need(any(e['finalized_by']=='run_end' for e in events),'run-end finalization absent')
+    readings=[{k:r[k] for k in ('session_index','event','window_index','chg_n','chg_gt8','chg_mean','ctl_n','ctl_gt8','ctl_mean','ref_gt8','ref_mean','cam_moved')} for r in rows if r['chg_measured']]
+    return dict(session=str(session),errors=errors,events=len(events),legacy_events=len(annotation['anomalies']),
+        pairs=len(rows),frozen_masks_verified=frozen,measured=sum(r['chg_measured'] for r in rows),reasons=dict(collections.Counter(r['reason'] for r in rows)),
+        readings=readings,final_events=events,summary={k:v for k,v in summary.items() if k.startswith('change_')})
+
+if __name__=='__main__':
+    result=audit(Path(sys.argv[1]),Path(sys.argv[2]),json.loads(sys.argv[3]) if len(sys.argv)>3 else {})
+    print(json.dumps(result,indent=2));sys.exit(bool(result['errors']))

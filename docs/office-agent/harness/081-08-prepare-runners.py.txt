@@ -1,0 +1,42 @@
+from pathlib import Path
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-08-evidence'
+s=(base/'_reviews/081-05-evidence/run_leg_owned.ps1').read_text(encoding='utf-8-sig')
+s=s.replace('[string]$Anomaly = "blinking",', '[string]$Anomaly = "blinking",\n  [string]$AnomalyArgs = "",')
+s=s.replace('$MaxFrames $Anomaly $Target"', '$MaxFrames $Anomaly $Target $AnomalyArgs"')
+s=s.replace('"-unattended","-nosplash")', '"-unattended","-nosplash","-IAIBenchFixture")')
+(ev/'run_leg_owned.ps1').write_text(s,encoding='utf-8-sig')
+s=(base/'_reviews/081-06-evidence/lyra_leg_l1.ps1').read_text(encoding='utf-8-sig')
+s=s.replace('"-abslog=$log")','"-abslog=$log", "-IAIBenchFixture")')
+needle="Send @{ type = 'subscribe'; channels = @('snapshot'); snapshotHz = 1 }"
+insert='''# L2, exactly one placement after settle; protocol acknowledgement is not pose success.
+Send @{ type = 'bench_place_view'; request = 1 }
+$placed = $false
+for ($j=0; $j -lt 8; $j++) {
+  $m = Recv
+  if ($m -and $m -ne '<AIF1 frame>') {
+    $d = $m | ConvertFrom-Json
+    if ($d.type -eq 'bench_place_view') { $placed = $d.executed; break }
+  }
+}
+if (-not $placed) { $ws.Dispose(); Stop-Process -Id $p.Id -Force; exit 12 }
+Start-Sleep -Milliseconds 700
+'''
+assert needle in s;s=s.replace(needle,insert+needle)
+s=s.replace('# L1: a fresh pre-capture camera read; no movement/pose setter is used.', '# L2 placement followed by an unchanged independent L1 snapshot.')
+needle="$poseCheckedUtc = [DateTime]::UtcNow.ToString('o')"
+insert='''Send @{ type = 'bench_log_barrier' }
+for ($j=0; $j -lt 8; $j++) {
+  $m = Recv
+  if ($m -and $m -ne '<AIF1 frame>' -and ($m | ConvertFrom-Json).type -eq 'bench_log_barrier') { break }
+}
+& C:\\Python313\\python.exe -X utf8 'D:\\IntrusiveAnomalies\\_reviews\\081-08-l2.py' $log (Join-Path $dir '_l2_pre.json') pre
+if ($LASTEXITCODE -ne 0) { $ws.Dispose(); Stop-Process -Id $p.Id -Force; exit 10 }
+'''
+s=s.replace(needle,insert+needle)
+s=s.replace('if ($ok) { exit 0 } else { exit 1 }', '''if ($ok) {
+  & C:\\Python313\\python.exe -X utf8 'D:\\IntrusiveAnomalies\\_reviews\\081-08-l2.py' $log (Join-Path $dir '_l2_post.json') post
+  if ($LASTEXITCODE -ne 0) { exit 10 }
+  exit 0
+} else { exit 1 }''')
+(ev/'lyra_leg_l2.ps1').write_text(s,encoding='utf-8-sig')
+print('Prepared fresh Stage 2 harness copies; original harnesses untouched.')

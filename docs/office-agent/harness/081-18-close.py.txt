@@ -1,0 +1,77 @@
+from pathlib import Path
+import datetime,hashlib,json,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-18-evidence';R=B/'StackOBot/Plugins/AnomalyInjector'
+L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector');C=B/'StackOBot/Plugins/CaptureBench';FEATURE='feat/m55-change-evidence'
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(r,*a):return subprocess.check_output(['git','-C',str(r),*a]).decode().strip()
+def procs():
+    s=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool,ShaderCompileWorker -ErrorAction SilentlyContinue | Select-Object Id,ProcessName) | ConvertTo-Json -Compress']).decode().strip()
+    return [] if not s or s=='[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+def state(r):
+    return {'head':git(r,'rev-parse','HEAD'),'branch':git(r,'branch','--show-current'),
+            'refs':git(r,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes'),
+            'untracked':{p:sha(r/p) for p in git(r,'ls-files','--others','--exclude-standard').splitlines()}}
+pre=json.loads((E/'preflight.json').read_text());problems=[]
+def classify():
+    s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'UnrealEditor.exe','StackOBot.exe','LyraGame.exe','UnrealBuildTool.exe','ShaderCompileWorker.exe' } | Select-Object ProcessId,Name,ExecutablePath,CommandLine) | ConvertTo-Json -Compress"]).decode().strip()
+    v=[] if not s or s=='[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+    ours=[];foreign=[]
+    for x in v:
+        t=((x.get('ExecutablePath') or '')+' '+(x.get('CommandLine') or '')).lower()
+        (ours if ('uesource' in t or 'intrusiveanomalies' in t or 'lyrastartergame' in t or 'stackobot' in t or x['Name'] in ('StackOBot.exe','LyraGame.exe','UnrealBuildTool.exe')) else foreign).append(dict(pid=x['ProcessId'],name=x['Name'],path=x.get('ExecutablePath'),cmd=(x.get('CommandLine') or '')[:200]))
+    return ours,foreign
+ours,foreign=classify();p=ours
+if ours:problems.append(['bench processes of ours present at close',ours])
+feature=git(R,'rev-parse',FEATURE)
+if feature!=git(R,'rev-parse','origin/'+FEATURE):problems.append(['feature not pushed',feature])
+wt=git(R,'worktree','list','--porcelain')
+if '_scratch_081_18' in wt:problems.append(['scratch worktree still registered',wt])
+repos={}
+for name,r in {'AnomalyInjector':R,'Lyra':L,'CaptureBench':C}.items():
+    if git(r,'diff','--name-only') or git(r,'diff','--cached','--name-only'):problems.append([name,'tracked modifications'])
+    st=state(r);old=pre['repos'][name]
+    for k in ('head','branch','untracked'):
+        if st[k]!=old[k]:problems.append([name,k,old[k] if k!='untracked' else None,st[k] if k!='untracked' else sorted(set(st[k])^set(old[k]))])
+    a=dict(l.split(' ',1) for l in old['refs'].splitlines());z=dict(l.split(' ',1) for l in st['refs'].splitlines())
+    delta={k:[a.get(k),z.get(k)] for k in a.keys()|z.keys() if a.get(k)!=z.get(k)}
+    allowed={'refs/heads/'+FEATURE,'refs/remotes/origin/'+FEATURE} if name in ('AnomalyInjector','Lyra') else set()
+    if set(delta)-allowed:problems.append([name,'unexpected ref delta',delta])
+    st['ref_delta']=delta;repos[name]=st
+bins={}
+for path,h in pre['verified_binaries'].items():
+    a=sha(path);bins[path]=a
+    if a!=h:problems.append(['binary changed (no build this round)',path])
+lyra_names=sorted(q.name for q in (L/'Binaries/Win64').iterdir() if q.is_file())
+if lyra_names!=pre['lyra_module_names']:problems.append(['Lyra module set',lyra_names])
+restored=json.loads((E/'lyra-restored.json').read_text()) if (E/'lyra-restored.json').exists() else None
+if not restored:problems.append(['Lyra restore record absent'])
+else:
+    for r in restored['restored_modules']:
+        if sha(L/'Binaries/Win64'/r['name'])!=r['sha256']:problems.append(['Lyra module hash',r['name']])
+for path,h in pre['prior_artifacts'].items():
+    if sha(B/path)!=h:problems.append(['artifact',path])
+for path,h in pre['bank_files'].items():
+    if sha(B/path)!=h:problems.append(['bank',path])
+cur=sha(B/'ToCodex/CURRENT.md')
+if cur!=pre['current_sha256']:problems.append(['ToCodex CURRENT.md changed'])
+remote=git(R,'ls-remote','origin','refs/heads/'+FEATURE,'refs/heads/master')
+if feature+'\trefs/heads/'+FEATURE not in remote or '031a103b18b90b2ce9dd626b22e9498717c60815\trefs/heads/master' not in remote:problems.append(['remote',remote])
+if repos['AnomalyInjector']['head']!='53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67' or repos['AnomalyInjector']['branch']!='m51':problems.append(['main checkout not m51'])
+if repos['Lyra']['head']!='caa68c6799db023f7a24c0d6cfc56124ce27b542':problems.append(['Lyra head'])
+ph=json.loads((E/'predictions-hash.json').read_text(encoding='utf-8-sig'))
+if sha(E/'predictions.md')!=ph['sha256']:problems.append(['predictions.md changed after it was frozen'])
+bank={str(q.relative_to(B)):sha(q) for d in (B/'_bench_sessions_bank').glob('M55L18_*') for q in d.rglob('*') if q.is_file()}
+(E/'bank-manifest.json').write_text(json.dumps(bank,indent=2))
+out=dict(utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),feature_commit=feature,repos=repos,verified_binaries=bins,
+    lyra_module_names=lyra_names,prior_artifacts_verified=len(pre['prior_artifacts']),prior_bank_files_verified=len(pre['bank_files']),
+    new_bank_files_hashed=len(bank),current_sha256_unchanged=cur==pre['current_sha256'],remote_refs=remote,bench_processes=p,foreign_processes_present=foreign,
+    predictions_sha256=ph['sha256'],problems=problems,
+    verdict='PASS: boundary restored (main m51 53bf725, Lyra caa68c6 with original 9 modules, all binaries byte-identical to preflight)' if not problems else 'FAIL: see problems')
+(E/'postflight.json').write_text(json.dumps(out,indent=2))
+man={str(q.relative_to(B)):sha(q) for q in E.rglob('*') if q.is_file() and q.name!='evidence-manifest.json'}
+for q in sorted((B/'_reviews').glob('081-18-*')):
+    if q.is_file():man[str(q.relative_to(B))]=sha(q)
+(E/'evidence-manifest.json').write_text(json.dumps(man,indent=2))
+print(json.dumps({k:v for k,v in out.items() if k not in ('repos','verified_binaries')},indent=2))
+sys.exit(1 if problems else 0)

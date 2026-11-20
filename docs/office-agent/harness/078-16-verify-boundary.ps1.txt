@@ -1,0 +1,57 @@
+$ErrorActionPreference = 'Stop'
+$taskRoot = 'D:/IntrusiveAnomalies'
+$pluginRoot = "$taskRoot/StackOBot/Plugins/AnomalyInjector"
+$preflight = Get-Content -LiteralPath "$taskRoot/_reviews/078-16-preflight.json" -Raw | ConvertFrom-Json
+$predictionChecks = @($preflight.old_prediction_hashes | ForEach-Object {
+    $actual = (Get-FileHash -LiteralPath $_.Path -Algorithm SHA256).Hash
+    [pscustomobject]@{ Path = $_.Path; Hash = $actual; Matches = ($actual -eq $_.Hash) }
+})
+$runtimePaths = @(
+    "$taskRoot/_binary_baselines/StackOBot.exe.m49b-gate-B8AC65D8",
+    "$taskRoot/_binary_baselines/StackOBot.exe.m51-f1-candidate-D50DDE78",
+    "$taskRoot/StackOBot/Builds/BenchGate/Windows/StackOBot/Binaries/Win64/StackOBot.exe"
+)
+$runtimePaths += @(Get-ChildItem -LiteralPath "$taskRoot/StackOBot/Builds/BenchGate/Windows/StackOBot/Content/Paks" -File | ForEach-Object FullName)
+$runtimeHashes = @($runtimePaths | ForEach-Object { Get-FileHash -LiteralPath $_ -Algorithm SHA256 | Select-Object Path,Hash })
+$pluginUntracked = @(git -C $pluginRoot ls-files --others --exclude-standard)
+$watchers = @(Get-CimInstance Win32_Process | Where-Object {
+    $_.Name -eq 'powershell.exe' -and $_.ProcessId -ne $PID -and $_.CommandLine -notmatch '(?i)-Command' -and $_.CommandLine -match '(?i)-File\s+[^\r\n]*watcher\.ps1'
+} | Select-Object ProcessId,CreationDate,CommandLine)
+$codeCli = @(Get-CimInstance Win32_Process | Where-Object {
+    ($_.Name -eq 'claude.exe' -and $_.ExecutablePath -notlike '*WindowsApps*') -or ($_.Name -eq 'node.exe' -and $_.CommandLine -match 'claude.*cli')
+} | Select-Object ProcessId,Name,ExecutablePath)
+$benchBuild = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(StackOBot.*|UnrealBuildTool|ShaderCompileWorker|MSBuild|cl|link|AutomationTool)\.exe$' } | Select-Object ProcessId,Name)
+$snapshot = [ordered]@{
+    time = (Get-Date).ToString('o')
+    plugin_head = (git -C $pluginRoot rev-parse HEAD)
+    branch = (git -C $pluginRoot branch --show-current)
+    master = (git -C $pluginRoot rev-parse master)
+    origin_master = (git -C $pluginRoot rev-parse origin/master)
+    plugin_tracked_changes = @(git -C $pluginRoot status --porcelain --untracked-files=no)
+    source_shader_diff = @(git -C $pluginRoot diff 6713f510166a0d9458387caaae711779b07fad64 -- Source Shaders)
+    plugin_untracked = $pluginUntracked
+    untracked_delta = @(Compare-Object @($preflight.untracked) $pluginUntracked)
+    commit_paths = @(git -C $pluginRoot diff --name-status a031b469315daa7815efd5a3fc732e1eca556525 HEAD)
+    commit_diffstat = @(git -C $pluginRoot diff --stat a031b469315daa7815efd5a3fc732e1eca556525 HEAD)
+    commit_diffcheck = @(git -C $pluginRoot diff --check a031b469315daa7815efd5a3fc732e1eca556525 HEAD)
+    old_predictions = $predictionChecks
+    runtime_hashes = $runtimeHashes
+    capturebench_head = (git -C "$taskRoot/StackOBot/Plugins/CaptureBench" rev-parse HEAD)
+    capturebench_status = @(git -C "$taskRoot/StackOBot/Plugins/CaptureBench" status --porcelain)
+    lyra_head = (git -C 'E:/UEProjects/LyraStarterGame/Plugins/AnomalyInjector' rev-parse HEAD)
+    lyra_branch = (git -C 'E:/UEProjects/LyraStarterGame/Plugins/AnomalyInjector' branch --show-current)
+    lyra_status = @(git -C 'E:/UEProjects/LyraStarterGame/Plugins/AnomalyInjector' status --porcelain)
+    watchers = $watchers
+    code_cli = $codeCli
+    bench_build = $benchBuild
+    queue = @(Get-ChildItem -LiteralPath "$taskRoot/_mailbox/to_code" -File | Select-Object Name)
+    active = @(Get-ChildItem -LiteralPath "$taskRoot/_mailbox" -Filter '_active_*.md' | Select-Object Name)
+    watcher_status = (Get-Content -LiteralPath "$taskRoot/_mailbox/watcher_status.txt" -Raw)
+    verdict = (Get-Content -LiteralPath "$taskRoot/_mailbox/last_verdict.txt" -Raw)
+    chat_responses = @(Get-ChildItem -LiteralPath "$taskRoot/_reviews" -Filter '*chat*review*' | Select-Object Name,LastWriteTime)
+}
+$json = $snapshot | ConvertTo-Json -Depth 8
+[System.IO.File]::WriteAllText("$taskRoot/_reviews/078-16-final-boundary.json", $json, [System.Text.UTF8Encoding]::new($false))
+[pscustomobject]$snapshot | Select-Object time,plugin_head,branch,plugin_tracked_changes,source_shader_diff,untracked_delta,commit_paths,commit_diffstat,commit_diffcheck,capturebench_head,capturebench_status,lyra_head,lyra_status,watchers,code_cli,bench_build,queue,active,watcher_status,verdict | ConvertTo-Json -Depth 5
+Write-Output ('Old prediction hash mismatches: ' + @($predictionChecks | Where-Object { -not $_.Matches }).Count)
+$runtimeHashes | ConvertTo-Json

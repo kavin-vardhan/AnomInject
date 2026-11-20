@@ -1,0 +1,96 @@
+"""Prepend the completed boundary, preserving every prior CURRENT byte."""
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+E = ROOT / "_reviews/079-13-evidence"
+b = json.loads((E / "final/boundary.json").read_text())
+c = json.loads((E / "characterisation_v3.json").read_text())
+report = ROOT / "_reviews/079-13-codex-delta-report.md"
+assert report.read_text(encoding="utf-8").rstrip().endswith("VERDICT: NEEDS-DECISION")
+current = ROOT / "ToCodex/CURRENT.md"
+old = current.read_bytes()
+assert old == (E / "CURRENT.before.md").read_bytes(), "CURRENT changed; reconcile instead of replacing"
+prefix = f"""# 079-13 implementation boundary — 2026-09-20
+
+Owner supplied D:/IntrusiveAnomalies/_reviews/079-13-codex-ruling-cap-decoupled-peaks-ties.md.
+Implementation and authorized feature push complete: **NEEDS-DECISION**.
+079-12 is accepted as implemented; R7-R10 are applied. Prior reports and every
+earlier CURRENT byte remain preserved. **Codex implemented; Claude Code independently
+reviews next; Chat orchestrates.** No mailbox or Code brief was sent.
+
+Read in order:
+1. D:/IntrusiveAnomalies/_reviews/079-13-codex-delta-report.md (full report).
+2. D:/IntrusiveAnomalies/_reviews/079-13-frozen/2026-09-20-verifier-consistency-semantics.md,
+   including predictions-first AMENDMENT 3.
+3. D:/IntrusiveAnomalies/_reviews/079-13-frozen/verifier-characterisation.md and
+   D:/IntrusiveAnomalies/_reviews/079-13-frozen/2026-09-20-079-13-codex-delta.md.
+4. D:/IntrusiveAnomalies/_reviews/079-13-frozen/manifest.json, report-linked ledgers,
+   079-13-evidence/final/boundary.json and runtime-audit.json.
+The live checkout is m51 again. Use frozen feature tools or the pushed feature
+ref when reviewing; the report contains exact hashes and reproduction commands.
+
+Base53e6e5154d4f36e3cfbcfa5ad524eac2fa092852; AMENDMENT3 committed before edits/results
+at d08899750f8aa4cc38f6f9d2b9d52a8841626896. Local and remote feature:
+{b['feature_sha']}.
+Restored m51 {b['m51_sha']}; master/origin-master
+{b['master_sha']}, unchanged. CaptureBench stays
+{b['capturebench_sha']}, tracked clean, no remote; only its
+permitted local/untracked scorer changes. Source/, Shaders/ and measure_label_offset.py
+match the feature base. Other pre-existing untracked hashes match preflight.
+Both tracked trees are clean; no owned validation/sweep or scratch root remains.
+
+R7: regional motion never refuses an edge. m_edge stays a reading; >0.42 adds a
+run caveat using max available median, alongside lighting. Caveated CONSISTENT
+runs contribute to the event caveat count. Numeric/refuse-all cap states, API/CLI
+cap arguments and derivation are removed. Threshold, region, baseline and input/
+identity/session-coverage guards remain. R8: nearest distance, larger d, earlier k;
+print both tied strengths. R9: >tau and >=1.5*min(neighbours), outside window zero.
+R10: keep exclusion and print assignment inversions; monotonicity claim withdrawn.
+Accepted missing6 answer stays OFFSET-NOTE/PARTIAL,4/8/10/none; Chat's earlier
+prediction was wrong because A.end may take free8.
+
+Final validation:94/94 fixtures,22/22 contracts, scorer controls and CLI2/0/3 pass.
+One predeclared string misses: c08_one_frame_late is PARTIAL, not OFFSET-NOTE.
+R9 admits60/61; onset61 takes61; end62 only has consumed61. First mismatch retained
+before correcting the known answer. Nine event strings change (eight predeclared);
+23 fixtures change shared edge/run fields, plus moving_fast's motion-caveat wording.
+No algorithm was tuned after observing results. NEEDS-DECISION retains this miss.
+
+P2-prime passes:64/64 zero-offset TRANSITION edges, tau0.0040; all six pinned legs
+have four CONSISTENT events each, including synthetic one-frame blink. Lighting
+caveats on all24 events; no pinned motion caveat. P3: A2L3C/4U; LYRA3C/2P/1U;
+A1L4C/1O/1U, with m=.4275369507 motion caveat on event4. M50 remains6READING,
+5NO-TRANSITION/11UNASSESSABLE observations, five motion-caveated runs. No NO-TRACE.
+P4: one572-key characterisation sweep, {len(c['cells'])} scored and {len(c['unscored'])}
+unscored, all keys reconciled:218 recovered/55 wrong/2 no-transition/39 unassessable/
+0 unsupported. Of22 prior wrong cells,16 recover and6 stay wrong;49 other keys
+become wrong.24 wrong cells belong to CONSISTENT runs,23 to OFFSET-NOTE and8 to
+PARTIAL. Thus a wrong association does not always produce OFFSET-NOTE, contrary
+to R7's rationale. Four inversion cells are disclosed (LYRA23>22 and A1L6>5).
+See every wrong recovery with competing peaks and all22 prior statuses in the
+report and frozen characterisation. No cap is derived or installed.
+
+**Chat review NOT REQUIRED** for the authorized implementation and push, now complete.
+**Chat review REQUIRED** for the delayed one-frame prediction miss, completed evidence
+and independent Code review before merge; this is the next mandatory checkpoint.
+Chat owns the next disposition. Client/Section G, m51 campaign and release holds
+remain. No independent review, merge or release approval is claimed. No watcher,
+build, cook, capture, merge, tag, office-data transfer or owner-app action occurred.
+
+Measured start {b['start_utc']} to verified push/restoration {b['end_utc']}
+({b['elapsed']}); final report/handoff bookkeeping follows. Billing unavailable.
+Same coherent workstream; no fresh Codex session or context-setting change recommended.
+
+---
+
+"""
+new = prefix.replace("\n", "\r\n").encode("utf-8") + old
+current.write_bytes(new)
+assert current.read_bytes().endswith(old)
+result = {"old_sha256": hashlib.sha256(old).hexdigest(), "new_sha256": hashlib.sha256(new).hexdigest(),
+          "old_bytes": len(old), "prefix_bytes": len(new) - len(old), "old_bytes_preserved": True,
+          "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest()}
+(E / "final/current-prepend.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(result, indent=2))

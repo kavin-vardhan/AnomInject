@@ -1,0 +1,20 @@
+param([string]$Tag = 'rb1', [string]$StagingDir = '')
+$ev = 'D:\IntrusiveAnomalies\_reviews\089-04-evidence\cook'
+New-Item -ItemType Directory -Force $ev | Out-Null
+$pak = 'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealPak.exe'
+$maps = '/Game/CaptureBenchGate/CB_GateLevel+/Game/StackOBot/UI/MainMenu/MainMenu+/Game/StackOBot/Maps/MainWorld+/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel'
+$env:MSBUILDDISABLENODEREUSE = '1'
+$out = "E:\IA_BuildCache\_r53_cookout_$Tag"
+if (Test-Path $out) { Add-Content "$ev\cooks.progress.txt" "$Tag EXISTS - stop"; exit 3 }
+New-Item -ItemType Directory $out | Out-Null
+$a = @('BuildCookRun', '-project=E:\IA_BuildCache\_r53_host\StackOBot\StackOBot.uproject', '-platform=Win64', '-clientconfig=Development', '-cook', '-stage', '-pak', '-archive', "-archivedirectory=$out", '-build', '-utf8output', '-nocompileeditor', "-map=$maps")
+if ($StagingDir) { $a += "-stagingdirectory=$StagingDir" }
+$t0 = Get-Date
+$p = Start-Process -FilePath D:\UESource\UnrealEngine\Engine\Build\BatchFiles\RunUAT.bat -ArgumentList $a -PassThru -WindowStyle Hidden -RedirectStandardOutput "$ev\cook-$Tag.log" -RedirectStandardError "$ev\cook-$Tag.err.log"
+Add-Content "$ev\cooks.progress.txt" ("{0} started pid={1} at {2}" -f $Tag, $p.Id, (Get-Date -Format HH:mm:ss))
+$p.WaitForExit()
+$ok = [bool](Select-String -Path "$ev\cook-$Tag.log" -Pattern 'BUILD SUCCESSFUL' -Quiet)
+$utoc = "$out\Windows\StackOBot\Content\Paks\StackOBot-Windows.utoc"
+& $pak D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject IoStore "-List=$utoc" "-csv=$ev\iostore-$Tag.csv" *> "$ev\iostore-$Tag.log"; $le = $LASTEXITCODE
+Add-Content "$ev\cooks.progress.txt" ("{0} success={1} secs={2} list={3} at {4}" -f $Tag, $ok, [int]((Get-Date) - $t0).TotalSeconds, $le, (Get-Date -Format HH:mm:ss))
+Add-Content "$ev\cooks.progress.txt" "DONE"

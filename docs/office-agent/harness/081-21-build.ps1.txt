@@ -1,0 +1,23 @@
+param([string]$Round = 'v1')
+$ErrorActionPreference = 'Stop'
+$ev = 'D:\IntrusiveAnomalies\_reviews\081-21-evidence'
+& python D:\IntrusiveAnomalies\_reviews\081-21-idle.py "build-$Round"
+if ($LASTEXITCODE -ne 0) { throw 'A process of our engine or folders is running; refusing to build' }
+$head = git -C D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector rev-parse HEAD
+git -C E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector checkout --detach $head
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$targets = @(
+    @('StackOBot','D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject'),
+    @('StackOBotEditor','D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject'),
+    @('LyraEditor','E:\UEProjects\LyraStarterGame\LyraStarterGame.uproject')
+)
+foreach ($target in $targets) {
+    if ((Get-PSDrive E).Free -lt 15GB -or (Get-PSDrive D).Free -lt 15GB) { throw 'Disk floor' }
+    $taskLog = "$ev\build-$Round-$($target[0]).log"
+    if (Test-Path -LiteralPath $taskLog) { throw 'Existing build log' }
+    $t0 = Get-Date
+    & D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat $target[0] Win64 Development "-project=$($target[1])" -waitmutex *> $taskLog
+    $code = $LASTEXITCODE
+    Write-Output ("{0} exit={1} seconds={2:N0}" -f $target[0], $code, ((Get-Date) - $t0).TotalSeconds)
+    if ($code -ne 0) { exit $code }
+}

@@ -1,0 +1,57 @@
+"""085-03 container diff: list two cooked pairings with UnrealPak -List (utoc chunks + pak entries) and compare per-entry
+hashes. Usage: 085-03-container-diff.py <tag> <old_paks_dir> <new_paks_dir>  -> 085-03-evidence/container-diff-<tag>.json
+Named entries are compared by path; anonymous (shader/bulk) chunks are compared as a multiset of (size, hash)."""
+import collections
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+UP = r'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealPak.exe'
+EV = Path(r'D:\IntrusiveAnomalies\_reviews\085-03-evidence')
+RX = re.compile(r'"([^"]+)" offset: \d+, size: (\d+) bytes, hash: ([0-9A-F]+)')
+PRX = re.compile(r'"([^"]+)" offset: \d+, size: (\d+) bytes, sha1: ([0-9A-F]+)')
+
+
+def listing(path, tag):
+    out = EV / f'list-{tag}.txt'
+    with open(out, 'w', encoding='utf-8') as f:
+        rc = subprocess.run([UP, str(path), '-List'], stdout=f, stderr=subprocess.STDOUT).returncode
+    txt = out.read_text(encoding='utf-8', errors='replace')
+    named, anon = {}, collections.Counter()
+    for rx in (RX, PRX):
+        for m in rx.finditer(txt):
+            name, size, h = m.group(1), int(m.group(2)), m.group(3)
+            if name.startswith('<') or not name.strip():
+                anon[(size, h)] += 1
+            else:
+                named[name] = (size, h)
+    return rc, named, anon
+
+
+def main(tag, old, new):
+    res = dict(tag=tag, old=str(old), new=str(new))
+    for kind in ('StackOBot-Windows.utoc', 'StackOBot-Windows.pak'):
+        rc1, n1, a1 = listing(Path(old) / kind, f'{tag}-old-{kind}')
+        rc2, n2, a2 = listing(Path(new) / kind, f'{tag}-new-{kind}')
+        added = sorted(k for k in n2 if k not in n1)
+        removed = sorted(k for k in n1 if k not in n2)
+        changed = sorted(k for k in n1 if k in n2 and n1[k] != n2[k])
+        res[kind] = dict(rc=[rc1, rc2], named=[len(n1), len(n2)], added=added, removed=removed, changed=changed,
+                         anon_only_old=sum((a1 - a2).values()), anon_only_new=sum((a2 - a1).values()),
+                         anon=[sum(a1.values()), sum(a2.values())])
+        print('%s %s: named %d -> %d, added %d, removed %d, changed %d, anon only-old %d only-new %d' % (
+            tag, kind, len(n1), len(n2), len(added), len(removed), len(changed),
+            res[kind]['anon_only_old'], res[kind]['anon_only_new']))
+        for k in added:
+            print('   + ' + k)
+        for k in removed:
+            print('   - ' + k)
+        for k in changed:
+            print('   ~ ' + k)
+    (EV / f'container-diff-{tag}.json').write_text(json.dumps(res, indent=1), encoding='utf-8')
+
+
+if __name__ == '__main__':
+    main(sys.argv[1], sys.argv[2], sys.argv[3])

@@ -1,0 +1,390 @@
+import collections,importlib.util,json,math,os,re,subprocess,sys,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+MODES=('preflight','premise','lock','live','night','dry','gates','postflight','restore','freeze','evalleg')
+MODE=sys.argv[1] if len(sys.argv)>1 else 'preflight'
+if MODE not in MODES:raise SystemExit('usage: 089-04-window.py '+'|'.join(MODES)+' [--only GROUP[,GROUP]] [--commit]')
+ONLY=None
+if '--only' in sys.argv:ONLY=set(sys.argv[sys.argv.index('--only')+1].split(','))
+COMMIT='--commit' in sys.argv
+if MODE=='dry':
+    os.environ['IAI_R894_STUB_LAUNCH']='1'
+    os.environ.setdefault('IAI_R894_ROOT',str(R/'089-04-evidence'/f'dry-{int(time.time())}'))
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c894w',R/'089-04-common.py');L=load('lib894w',R/'089-04-lib.py');EV=load('ev894w',R/'089-04-eval.py');LG=L.LG
+ORC=EV.ORC
+c.RUN.mkdir(parents=True,exist_ok=True)
+NIGHT=Path(r'D:\IA_BankOverflow')
+LOCK_DOC=c.FEAT/'docs'/'predictions'/'2026-09-30-m53-rebench-lock.md'
+FREEZE=c.EV/'freeze.json'
+FROZEN=['089-04-common.py','089-04-legs.py','089-04-lib.py','089-04-eval.py','089-04-make-eval.py','089-04-make-lib.py','089-04-window.py',
+        '089-04-run.ps1','089-04-gateselftest.py','085-04-eval.py','085-04-m53rows.py','085-04-oracle.py','089-03-eval.py','089-03-common.py',
+        '089-03-kit.py','084-09-eval.py','084-09-common.py','084-06-eval.py','084-03-lib.py','086-01-work/ls086.py','085-04-evidence/tools/verify_capture.py',
+        '085-04-evidence/tools/census_readonly_check.py','085-04-evidence/tools/exclusion_gate.py','085-04-evidence/tools/texcorrupt_draw_kat.py']
+def frozen_files():
+    fs=list(FROZEN)
+    if c.ORACLE_PATH.name not in [Path(x).name for x in fs]:fs.append(c.ORACLE_PATH.name)
+    if c.M53ROWS_PATH.name not in [Path(x).name for x in fs]:fs.append(c.M53ROWS_PATH.name)
+    if c.DC2_PIN.exists():fs.append(c.DC2_PIN.name)
+    return fs
+def freeze():
+    d=dict(utc=c.now(),note='089-02b: the 089-04 harness frozen before any 089-04 leg runs; live and dry refuse if any byte differs',
+           files={f:c.sha(R/f) for f in frozen_files()})
+    L.jsave(FREEZE,d);return d
+def freeze_problems():
+    fz=L.jload(FREEZE)
+    if not fz:return ['no freeze.json (run: 089-04-window.py freeze)']
+    out=[]
+    for f in frozen_files():
+        if f not in fz['files']:out.append(f'{f} not in freeze.json');continue
+        if not (R/f).exists() or c.sha(R/f)!=fz['files'][f]:out.append(f'{f} changed since the freeze')
+    return out
+def _one(d):
+    d=Path(d)
+    if not d.exists():return None
+    s=[x for x in d.iterdir() if x.is_dir() and x.name.startswith('session_')]
+    return s[0] if len(s)==1 else None
+def _night(n):return _one(NIGHT/f'M53DC_{n}')
+def _night_log(n):
+    p=NIGHT/f'M53DC_{n}'/'_leg'/'game.log';return p if p.exists() else None
+STANDIN={'P_ORC_UV':'P_ORC_UV','P_ORC_N':'P_ORC_N','P_HOST_FIRE_1U':'F_NULL_UV_AAON','P_HOST_FIRE_2U':'P_FLOOR','LEVER_OFF':'LEVER_OFF',
+         'F_TILE_NAT':'F_TILE_NAT','F_SCRAMBLE_NAT':'F_SCRAMBLE_NAT','F_INVERT_NAT':'F_INVERT_NAT','F_GREEN_FLIP_NAT':'F_GREEN_FLIP_NAT',
+         'MODE_TILE':'MODE_TILE','MODE_SCRAMBLE':'MODE_SCRAMBLE','MODE_UVNULL':'MODE_UVNULL','MODE_INVERT':'MODE_INVERT','MODE_GREENFLIP':'MODE_GREENFLIP','MODE_NNULL':'MODE_NNULL',
+         'ARM_CD3_AAOFF':'ARM_CD3_AAOFF','ARM_CD3_AAON':'ARM_CD3_AAON','ARM_CD5_AAOFF':'ARM_CD3_AAOFF','ARM_CD5_AAON':'ARM_CD3_AAON',
+         'ARM_RD3_AAOFF':'ARM_RD3_AAOFF','ARM_RD3_AAON':'ARM_RD3_AAON','ARM_RD5_AAOFF':'ARM_RD3_AAOFF','ARM_RD5_AAON':'ARM_RD3_AAON','ARM_NOAPPLY1':'ARM_NOAPPLY1',
+         'REASON_MIXED_N':'REASON_MIXED_N','REASON_MIXED_UV':'REASON_MIXED_UV','BIND_TILE':'BIND_TILE','BIND_TILENULL':'BIND_TILENULL','BIND_ID':'BIND_ID','BIND_IDNULL':'BIND_IDNULL',
+         'COST_DISCARD':'F_NULL_UV_AAON','COST_A1':'F_NULL_UV_AAON','COST_B1':'F_TILE_NAT','COST_B2':'F_TILE_NAT','COST_A2':'F_NULL_UV_AAON',
+         'MW_H1U_TILE_NAT':'ARM_CD3_AAON','MW_H1U_TILE_NAT_AAOFF':'MODE_TILE'}
+def standin_name(Lg):
+    k=Lg['leg']
+    if k in STANDIN:return STANDIN[k]
+    if Lg['group']=='BM53MW':
+        fam=Lg.get('family');aa=Lg.get('cond')=='NAT_AAOFF'
+        if Lg['role']=='NULL':return ('F_NULL_UV_' if fam=='U' else 'F_NULL_N_')+('AAOFF' if aa else 'AAON')
+        return f'F_{Lg["mode"].upper()}_'+('NAT_AAOFF' if aa else 'NAT')
+    return None
+def standin(Lg):
+    if Lg['kind']=='census':return None
+    n=standin_name(Lg);return _night(n) if n else None
+def standin_log(Lg):
+    if Lg['kind']=='census':return _night_log(Lg['leg'])
+    return None
+def selected(groups=None):
+    out=[]
+    for Lg in LG.legs_sorted():
+        if ONLY and Lg['group'] not in ONLY:continue
+        if groups and Lg['group'] not in groups:continue
+        if not Lg['required']:continue
+        out.append(Lg)
+    return out
+def preflight(need_lock=False):
+    p=[];n={}
+    fp=freeze_problems();n['freeze']='OK' if not fp else fp
+    p+=['freeze: '+x for x in fp]
+    p+=c.e1_pin_problems()
+    for name in (c.UNDER_TEST,'M53'):
+        try:n[f'{name}_set']={Path(k).name:v[:8] for k,v in c.verify_set(name).items()};n[f'{name}_archive']=str(c.archive(name))
+        except SystemExit as ex:p.append(str(ex))
+    try:
+        cm=c.cooked_maps(c.UNDER_TEST);n['cooked_maps']=cm
+        if not all(cm.values()):p.append(f'{c.UNDER_TEST} container is missing required map(s): {[k for k,v in cm.items() if not v]}')
+    except SystemExit as ex:p.append(str(ex))
+    if c.SETS.get(c.UNDER_TEST) and c.SETS[c.UNDER_TEST][1].get('Binaries/Win64/StackOBot.exe')!=c.DC_SET['Binaries/Win64/StackOBot.exe']:p.append('the build under test exe is not the m53 DC exe 6B671987')
+    fh=c.git(c.FEAT,'rev-parse',c.FEAT_BRANCH);fo=c.git(c.FEAT,'rev-parse','refs/remotes/origin/'+c.FEAT_BRANCH);n.update(feat_head=fh,feat_origin=fo)
+    if fh!=fo:
+        ahead=c.git(c.FEAT,'rev-list',f'{fo}..{fh}').split()
+        files=c.git(c.FEAT,'diff','--name-only',fo,fh).split() if ahead else []
+        n['feat_ahead']=dict(commits=len(ahead),files=files)
+        if not (len(ahead)==1 and files==[f'docs/predictions/{LOCK_DOC.name}']):p.append(f'feat branch {fh[:7]} != origin {fo[:7]} (only origin + the premise-lock commit is allowed)')
+    if subprocess.run(['git','-C',str(c.FEAT),'merge-base','--is-ancestor',c.FEAT_SOURCE_COMMIT,fh],capture_output=True).returncode!=0:p.append(f'feat head does not contain {c.FEAT_SOURCE_COMMIT}')
+    l2=EV.l2_capability();n['l2']=l2
+    if l2.get('framable_on_mainworld') is not False:p.append('L2 capability changed or unreadable: re-plan the host tiers before running ('+str(l2)[:200]+')')
+    if c.git(c.RP,'rev-parse','HEAD')!=c.M51_HEAD or c.git(c.RP,'branch','--show-current')!='m51':p.append('main checkout moved off m51 53bf725')
+    for f,blob in c.TOOLS_PINNED.items():
+        got=c.git_blob(c.tool(f))[:10] if c.tool(f).exists() else None
+        if got!=blob:p.append(f'pinned tool {f} blob {got} != {blob}')
+    g=subprocess.run([c.PYTHON,str(c.tool('m53_glue_check.py')),'--root',str(c.FEAT)],capture_output=True,text=True,encoding='utf-8',errors='replace')
+    if g.returncode!=0:g=subprocess.run([c.PYTHON,str(c.tool('m53_glue_check.py'))],capture_output=True,text=True,encoding='utf-8',errors='replace',cwd=str(c.FEAT))
+    n['m53_glue_check']=dict(exit=g.returncode,tail=((g.stdout or '')+(g.stderr or '')).strip().splitlines()[-2:])
+    if g.returncode!=0:p.append('m53_glue_check.py did not PASS on the feat worktree')
+    js=L.jload(c.EV/'gateselftest.json');ok=bool(js) and js.get('all_pass') is True;n['gateselftest']=ok
+    if not ok:p.append(f'089-04 gate selftest missing or not all-pass ({c.EV/"gateselftest.json"})')
+    if need_lock:
+        lk=L.lock()
+        if not lk:p.append('no premise lock: run the premise window and the lock step first')
+        elif not c.STUB:
+            h=c.sha(L.PREMISE_LOCK())[:16]
+            try:doc=c.git(c.FEAT,'show',f'HEAD:docs/predictions/{LOCK_DOC.name}')
+            except Exception:doc=''
+            if h not in doc:p.append(f'premise lock {h} is not in a COMMITTED {LOCK_DOC.name} at the feat head (run: window.py lock --commit)')
+            n['lock_sha16']=h
+    if not c.STUB:
+        cur=c.which_set();n['staged_now']=cur
+        if cur is None:p.append('staged set is none of the pinned sets: '+json.dumps(c.staged_state()))
+        fe=c.free_gb('E:\\');fd=c.free_gb('D:\\');n.update(free_e_gb=fe,free_d_gb=fd)
+        if fe<c.E_FLOOR_GB:p.append(f'E: free {fe} < {c.E_FLOOR_GB}')
+        if fd<c.D_FLOOR_GB:p.append(f'D: free {fd} < {c.D_FLOOR_GB}')
+        ours,foreign=c.classify();n['foreign']=[(x['pid'],x['name']) for x in foreign]
+        if [x for x in ours if x['name']!='UnrealTraceServer.exe']:p.append('our engine/game processes present')
+    n['legs']=[x['leg'] for x in selected()]
+    out=dict(utc=c.now(),mode=MODE,problems=p,notes=n);L.jsave(c.RUN/f'preflight-{int(time.time())}.json',out);return out
+def sess_of(leg_id):
+    return L.leg_session(leg_id)
+def run_groups(groups):
+    done=[]
+    for Lg in selected(groups):
+        stand=standin(Lg) if c.STUB else None;slog=standin_log(Lg) if c.STUB else None
+        r=L.run_leg(Lg,stub_session=stand,stub_log=slog);done.append((Lg['leg'],r));c.log_event('leg',leg=Lg['leg'],result=r)
+    return done
+def _rows(sd):
+    rows=EV.E9.read_jsonl(Path(sd)/'labels.jsonl') if sd else [];rows.sort(key=lambda r:r.get('session_index',0));return rows
+def write_candidates():
+    bl=L.leg_log('P_HOST_BENCH');cl=L.leg_log('P_HOST_CEN')
+    bench=EV.census_bench(bl);prod=EV.census_product(cl)
+    cd=EV.g403_candidates(bench['per_actor'],prod['blocks'],EV.l2_capability())
+    cd.update(utc=c.now(),stub=c.STUB,bench_actors=bench['actors'])
+    L.jsave(L.CANDIDATES(),cd);return cd
+def acts_json():
+    return c.FIXTURE_DC_ACTORS if c.FIXTURE_DC_ACTORS.exists() else c.FIXTURE_DC_ACTORS_NIGHT
+def build_lock():
+    lk=dict(utc=c.now(),harness='089-04',stub=c.STUB,dispositions={},e1=EV.E1_NOTE);D=lk['dispositions']
+    cl=L.leg_log('P_HOST_CEN');prod=EV.census_product(cl)
+    lk['yield_128']=[dict(head=b['head'],ids=b['ids'],end=b['end']) for b in prod['blocks']]
+    lk['census_grammar']=dict(pass_=prod['grammar_pass'],violations=prod['grammar_violations'])
+    lk['census_cold']=EV.census_cold(L.leg_log_path('P_HOST_CEN'))
+    bl=L.leg_log('P_HOST_BENCH');bench=EV.census_bench(bl);lk['census_join']=EV.census_join(EV.census_product(bl),bench)
+    cd=L.candidates() or {};lk['candidates']={k:cd.get(k) for k in ('C1U','C2U','C1N','C2N')};lk['tiers']=cd.get('tiers');lk['l2']=cd.get('l2')
+    probes={}
+    for k in ('1U','2U','1N','2N'):
+        leg=f'P_HOST_FIRE_{k}';probes[leg]=EV.probe_reading(L.leg_log(leg)) if L.accepted(leg) else None
+    lk['probes']=probes
+    hs=EV.hosts_from_probes(cd,probes);disp=hs.pop('_disp');lk.update(hs)
+    D['G403']=('G403 fixed (final parsed as head[:detail]). Host tiers, best first: view 128 MiB -> whole-world 128 MiB framed by L2 -> the declared raise. '
+               +' | '.join((cd.get('_why') or {}).get(k,'') for k in ('U','N')))
+    D['hosts']=(f"uv H1 {lk.get('H1U')} / H2 {lk.get('H2U')} (cap {lk.get('cap_U') or '134217728 delivered'}); normal H1 {lk.get('H1N')} / H2 {lk.get('H2N')} "
+                f"(cap {lk.get('cap_N') or '134217728 delivered'}); probes {json.dumps(disp,default=str)[:600]}")
+    if lk.get('cap_declared'):
+        D['ND-4']=(f"bench-only cap raise DECLARED before any gate leg: uv {lk.get('cap_U')}, normal {lk.get('cap_N')} B on that family's MainWorld and COST legs only; "
+                   'the delivered default stays 134217728; declared because no 128 MiB host can be framed (L2 cannot frame MainWorld on this build)')
+    else:D['ND-4']='no cap raise declared'
+    try:
+        fr=lambda sd,n=3:[EV.E9.np.asarray(EV.E9.Image.open(Path(sd)/r['image']).convert('RGB')) for r in _rows(sd)[-n:]] if sd else []
+        u=sess_of('P_ORC_UV');nn=sess_of('P_ORC_N')
+        lk['p_orc']=ORC.p_orc(fr(u)+fr(nn),str(acts_json())) if (u and nn) else dict(pass_=False,reason='premise nulls not accepted')
+    except Exception as ex:lk['p_orc']=dict(pass_=False,error=f'{type(ex).__name__}: {ex}')
+    D['P-ORC']='PASS' if (lk['p_orc'] or {}).get('pass') or (lk['p_orc'] or {}).get('pass_') else 'FAIL: the G-MODE rows cannot run (reported, never PASS)'
+    if c.STUB:
+        for k,v in L.STUB_LOCK.items():lk.setdefault(k,v)
+    L.jsave(L.PREMISE_LOCK(),lk);write_lock_doc(lk);return lk
+def write_lock_doc(lk):
+    h=c.sha(L.PREMISE_LOCK())[:16]
+    ln=[f'# m53 re-bench premise lock (089-04) - AMENDMENT to `2026-09-29-m53-dc.md` and `2026-09-29-m53-dc-lock.md`, committed BEFORE any gate leg','',
+        f'Premise lock `premise-lock.json` sha256[:16] **{h}** (run root `{c.RUN}`; stub={lk.get("stub")}). Build under test: exe `6B671987` + the 089-02b re-cooked container `{(c.DC2_ARCHIVE_NAME or "-")}`.','',
+        '## Dispositions','']+[f'- **{k}:** {v}' for k,v in lk['dispositions'].items()]+['',
+        '## Values the gate legs read','',f'- uv hosts H1 `{lk.get("H1U")}`, H2 `{lk.get("H2U")}`, cap {lk.get("cap_U")}; normal hosts H1 `{lk.get("H1N")}`, H2 `{lk.get("H2N")}`, cap {lk.get("cap_N")}',
+        f'- ND-4 yield at 128 MiB: `{json.dumps(lk.get("yield_128"))[:700]}`',f'- E1: {lk.get("e1")}','']
+    p=c.RUN/'premise-amendment-draft.md';p.write_text('\n'.join(ln)+'\n',encoding='utf-8');return p
+def lock_step():
+    lk=L.lock()
+    if not lk:raise SystemExit('no premise lock to commit')
+    draft=c.RUN/'premise-amendment-draft.md'
+    if c.STUB:return dict(stub=True,draft=str(draft),note='DRY: the lock is not committed; live requires a committed lock doc')
+    LOCK_DOC.write_text(draft.read_text(encoding='utf-8'),encoding='utf-8')
+    if COMMIT:
+        subprocess.check_call(['git','-C',str(c.FEAT),'add','--',str(LOCK_DOC.relative_to(c.FEAT)).replace('\\','/')])
+        subprocess.check_call(['git','-C',str(c.FEAT),'commit','-m','docs(m53): 089-04 re-bench premise lock (amendment before any gate leg)\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'])
+    return dict(doc=str(LOCK_DOC),committed=COMMIT)
+PREMISE_GROUPS=['PREMISE'];FIRE_GROUPS=['PREMISE_FIRE']
+GATE_GROUPS=[g for g in LG.ORDER if g not in ('PREMISE','PREMISE_FIRE')]
+def leg_cmds(leg_id):
+    a=L.accepted(leg_id)
+    if not a:return []
+    js=L.jload(c.RUN/a['label']/'command.json',{}) or {};return js.get('cmds') or []
+EVAL_WORKERS=int(os.environ.get('IAI_R894_EVAL_WORKERS','6'))
+def eval_one(Lg):
+    k=Lg['leg'];sd=sess_of(k);log=L.leg_log(k)
+    r=dict(group=Lg['group'],role=Lg['role'],mode=Lg.get('mode'),cond=Lg.get('cond'),family=Lg.get('family'),host=Lg.get('host'),session=str(sd) if sd else None,
+           recipe=EV.recipe_check_log(log) if Lg.get('arbiter') else None,prediction=Lg.get('prediction'))
+    try:
+        g=Lg['group']
+        if g in ('BM53F','BM53MW','BM53ARM','GMODE','REASON','LEVER') and Lg['kind']!='census':
+            if Lg['role']=='NULL':r.update(EV.leg_null(Lg,sd,log,L.label_rule))
+            else:r.update(EV.leg_m53(Lg,sd,log,sess_of(Lg['null']) if Lg.get('null') else None,L.label_rule,fixture=(Lg['map']==LG.FSYN)))
+            if g=='BM53ARM':r['can_fail']=EV.arm_canfail(Lg,r)
+            if g=='REASON':r['reason']=EV.reason_gate(Lg,log)
+            if g=='LEVER':r['lever']=EV.lever_gate(Lg,log,leg_cmds(k))
+            if g=='BM53MW' and Lg['role']!='NULL':
+                r['gt_null']=EV.gt_null_rows(Lg,sd,sess_of(Lg['null']) if Lg.get('null') else None,log,c.RUN/'_gtnull',r.get('e1_events'))
+                for f in (r['gt_null'].get('fails') or []):r['fail_reasons'].append(f)
+                if r['gt_null'].get('fails'):r['m53_verdict']='FAIL'
+                if Lg.get('cond')=='NAT_AAOFF' and Lg.get('mode')=='tile':r['can_fail']=dict(doctored_labels=EV.doctored_canfail(sd,log,c.RUN/'_doctor'))
+        elif g in ('CENSUS','PREMISE') and Lg['kind']=='census':
+            r['census']=EV.census_product(log);r['cold']=EV.census_cold(L.leg_log_path(k)) if Lg.get('extra')=='' else None
+            if 'Bench' in ' '.join(Lg['post_cmds']):r['join']=EV.census_join(EV.census_product(log),EV.census_bench(log))
+        elif g=='PREMISE_FIRE':
+            r['probe']=EV.probe_reading(log)
+        elif g in ('BIND','COST','PREMISE'):
+            r['label_rule']=L.label_rule(sd) if sd else None
+            if Lg['anomaly'] in EV.M53:r['rows']=EV.m53_rows(Lg,sd,log);r['mode_source']=EV.mode_source_check(Lg,log)
+    except Exception:
+        import traceback;r['error']=traceback.format_exc()[-1500:]
+    return r
+def eval_pool(legs):
+    import concurrent.futures as cf
+    d=c.RUN/'eval';d.mkdir(parents=True,exist_ok=True);out={}
+    def one(k):
+        p=d/f'{k}.json'
+        if p.exists():p.unlink()
+        cp=subprocess.run([c.PYTHON,'-B',str(R/'089-04-window.py'),'evalleg',k],capture_output=True,text=True,encoding='utf-8',errors='replace')
+        if p.exists():return json.loads(p.read_text(encoding='utf-8'))
+        return dict(error='evalleg exit %s: %s'%(cp.returncode,((cp.stdout or '')+(cp.stderr or ''))[-1200:]))
+    with cf.ThreadPoolExecutor(max_workers=EVAL_WORKERS) as ex:
+        fut={Lg['leg']:ex.submit(one,Lg['leg']) for Lg in legs}
+        for k,f in fut.items():out[k]=f.result()
+    return out
+def evaluate(legs=None):
+    rep=dict(utc=c.now(),mode=MODE,evaluator=EV.EVALUATOR,e1=EV.E1_NOTE,release_threshold=EV.RELEASE,legs={},gates={},can_fail={},harness={},lock=L.lock(),stub=c.STUB)
+    legs=legs or selected();logs={};sess={};heavy=[]
+    for Lg in legs:
+        k=Lg['leg'];sd=sess_of(k);logs[k]=L.leg_log(k);sess[k]=sd
+        if sd is None and Lg['kind']!='census':
+            nr=[x for x in L.ledger() if x['leg']==k];rep['legs'][k]=dict(status=(nr[-1]['status'] if nr else 'NOT ACCEPTED'),group=Lg['group'],reason=(nr[-1].get('reason') if nr else None));continue
+        heavy.append(Lg)
+    t=time.time();rep['legs'].update(eval_pool(heavy));rep['eval_pool']=dict(workers=EVAL_WORKERS,legs=len(heavy),seconds=round(time.time()-t,1))
+    G=rep['gates'];lg=rep['legs']
+    def safe(name,fn):
+        try:G[name]=fn()
+        except Exception:
+            import traceback;G[name]=dict(verdict='ERROR',error=traceback.format_exc()[-900:])
+    kit_items=[(k,sess[k]) for k,v in lg.items() if isinstance(v,dict) and v.get('group') in ('BM53F','BM53MW','BM53ARM','GMODE','REASON') and v.get('role')!='NULL' and sess.get(k)]
+    safe('KIT',lambda:EV.kit_pool(kit_items,c.RUN/'kit'))
+    safe('G-MODE',lambda:mode_gates(sess))
+    safe('G-BIND',lambda:EV.bind_gate(sess,logs))
+    safe('COST',lambda:EV.cost_reading(logs))
+    safe('ND-5',lambda:EV.nd5_rate(lg))
+    safe('G-CENSUS',lambda:dict(host_cold=(lg.get('P_HOST_CEN') or {}).get('cold'),fixture_cold=(lg.get('CENSUS_FSYN') or {}).get('cold'),
+                               join_mw=(lg.get('P_HOST_BENCH') or {}).get('join'),join_fsyn=(lg.get('CENSUS_FSYN_BENCH') or {}).get('join'),
+                               grammar=all(((lg.get(x) or {}).get('census') or {}).get('grammar_pass') for x in ('P_HOST_CEN','P_HOST_BENCH','CENSUS_FSYN','CENSUS_FSYN_BENCH') if lg.get(x)),
+                               consistency={x:EV.census_consistency((lg.get(x) or {}).get('census') or {}) for x in ('P_HOST_CEN','P_HOST_BENCH','CENSUS_FSYN','CENSUS_FSYN_BENCH') if lg.get(x)}))
+    safe('G-LEVER-OFF',lambda:(lg.get('LEVER_OFF') or {}).get('lever'))
+    safe('G-REASON-DC',lambda:{k:(lg.get(k) or {}).get('reason') for k in ('REASON_MIXED_N','REASON_MIXED_UV')})
+    safe('ARMS',lambda:{k:(v.get('can_fail') or {}) for k,v in lg.items() if isinstance(v,dict) and v.get('group')=='BM53ARM'})
+    safe('B-M53',lambda:bm53_summary(lg))
+    safe('GT-NULL',lambda:{k:dict(verdict=(v.get('gt_null') or {}).get('verdict'),coverage=((v.get('gt_null') or {}).get('coverage') or {}).get('covered'),
+                                 wrong_object=((v.get('gt_null') or {}).get('wrong_object') or {}).get('verdict'),arbiter=((v.get('gt_null') or {}).get('arbiter') or {}).get('verdict'))
+                           for k,v in lg.items() if isinstance(v,dict) and v.get('gt_null')})
+    for k,v in lg.items():
+        if isinstance(v,dict) and v.get('can_fail'):rep['can_fail'][k]=v['can_fail']
+    rep['label_rule_all_pass']=all((v.get('label_rule') or {}).get('pass_') for v in lg.values() if isinstance(v,dict) and v.get('label_rule'))
+    rep['harness']={f:c.sha(R/f)[:16] for f in frozen_files()}
+    L.jsave(c.RUN/'report.json',rep);write_md(rep,c.RUN/'report.md');return rep
+def bm53_summary(lg):
+    per=collections.defaultdict(lambda:dict(onsets=0,offsets=0,fails=0,legs=[]))
+    for k,v in lg.items():
+        if not isinstance(v,dict) or v.get('group') not in ('BM53F','BM53MW') or v.get('role')=='NULL' or not v.get('edges'):continue
+        key=f"BM53F:{v.get('mode')}:{v.get('cond')}" if v['group']=='BM53F' else f"BM53MW:{v.get('host')}{v.get('family')}:{v.get('mode')}:{v.get('cond')}"
+        e=v['edges'];p=per[key];p['onsets']+=e['onsets'];p['offsets']+=e['offsets'];p['fails']+=len(e['fails'])+(1 if (v.get('gt_null') or {}).get('fails') else 0);p['legs'].append(k)
+    out={}
+    for key,p in per.items():
+        floor=16 if key.startswith('BM53F') else (8 if ':H1' in key and key.endswith(':NAT') else 1)
+        out[key]=dict(p,floor=floor,verdict=('FAIL' if p['fails'] else ('PASS' if p['onsets']>=floor and p['offsets']>=floor else 'INSUFFICIENT')))
+    legv={k:v.get('m53_verdict') for k,v in lg.items() if isinstance(v,dict) and v.get('group') in ('BM53F','BM53MW')}
+    return dict(per_mode_condition=out,leg_verdicts=legv,rule='t50: 0 off frames at onset and offset; >= 16 judged per mode (fixture regression), >= 8 per mode on H1 AA-on (MainWorld), fewer = INSUFFICIENT (to chat), never PASS; a GT-null FAIL (wrong object / arbiter) FAILS the cell')
+def mode_gates(sess):
+    acts=acts_json();out={}
+    null_uv=sess.get('MODE_UVNULL');null_n=sess.get('MODE_NNULL')
+    if not (null_uv and null_n):return dict(verdict='NOT RUN',reason='oracle nulls not accepted')
+    for k in ('MODE_TILE','MODE_SCRAMBLE','MODE_INVERT','MODE_GREENFLIP'):
+        sd=sess.get(k)
+        if not sd:out[k]=dict(verdict='NOT RUN');continue
+        log=L.leg_log(k)
+        try:out[k]=EV.mode_leg(sd,null_uv if k in ('MODE_TILE','MODE_SCRAMBLE') else null_n,acts,log,
+                               dict(MODE_TILE='tile',MODE_SCRAMBLE='scramble',MODE_INVERT='invert',MODE_GREENFLIP='green_flip')[k],LG.by_id(k)['seed'])
+        except Exception:
+            import traceback;out[k]=dict(verdict='ERROR',error=traceback.format_exc()[-700:])
+    try:out['NULL_AS_MODES']=EV.null_modes(null_uv,null_n,acts,777)
+    except Exception:
+        import traceback;out['NULL_AS_MODES']=dict(verdict='ERROR',error=traceback.format_exc()[-700:])
+    vs=[v.get('verdict') for kk,v in out.items() if kk.startswith('MODE_')]
+    nm=out.get('NULL_AS_MODES') or {}
+    nulls_ok=bool(nm) and all(isinstance(x,dict) and x.get('pass_') is True for x in nm.values())
+    out['verdict']='PASS' if vs and all(v=='PASS' for v in vs) and nulls_ok else ('FAIL' if any(v=='FAIL' for v in vs) else 'INCOMPLETE')
+    return out
+def write_md(rep,path):
+    ln=[f'# 089-04 m53 re-bench report ({rep["mode"]}, {rep["utc"]}, evaluator {rep["evaluator"]}, release {rep["release_threshold"]}; stub={rep.get("stub")})','',
+        f'E1: {rep.get("e1")}','','| leg | group | verdict | t50 start / end | edges (on/off/fail) | NM | label-rule | recipe | GT null | fail reasons |','|---|---|---|---|---|---|---|---|---|---|']
+    for k,v in rep['legs'].items():
+        if not isinstance(v,dict):continue
+        e1=v.get('e1') or {};ed=v.get('edges') or {};lr=v.get('label_rule') or {}
+        verdict=v.get('m53_verdict') or e1.get('leg_verdict') or ((v.get('probe') or {}).get('usable') and 'USABLE') or (v.get('cold') or {}).get('verdict') or v.get('status') or ''
+        ln.append(f"| {k} | {v.get('group')} | {verdict} | {(e1.get('t50') or {}).get('start','')} / {(e1.get('t50') or {}).get('end','')} | {ed.get('onsets','')}/{ed.get('offsets','')}/{len(ed.get('fails') or [])} | {(v.get('not_measurable') or {}).get('count','')} | {lr.get('verdict','')} | {(v.get('recipe') or {}).get('verdict','')} | {(v.get('gt_null') or {}).get('verdict','')} | {'; '.join(v.get('fail_reasons') or [])[:160]} |")
+    ln+=['','## gates','']+[f'- **{k}:** `{json.dumps(v,default=str)[:900]}`' for k,v in rep['gates'].items()]
+    ln+=['','## can-fail','']+[f'- {k}: {json.dumps(v,default=str)[:400]}' for k,v in rep['can_fail'].items()]
+    ln+=['',f'label_rule_all_pass: {rep.get("label_rule_all_pass")}','',f'lock: `{json.dumps(rep.get("lock"),default=str)[:1200]}`']
+    Path(path).write_text('\n'.join(ln)+'\n',encoding='utf-8')
+def postflight():
+    problems=[]
+    def chk(ok,msg):
+        if not ok:problems.append(msg)
+    ours,foreign=c.classify()
+    chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present at close')
+    st=c.staged_state();chk(st==c.M53,'staged set is not the m53 S1 set: '+json.dumps(st))
+    chk(c.git(c.RP,'rev-parse','HEAD')==c.M51_HEAD and c.git(c.RP,'branch','--show-current')=='m51','main checkout moved off m51 53bf725')
+    led=L.ledger();acc=[x for x in led if x.get('status')=='ACCEPTED'];links=0
+    for x in acc:
+        a=c.BANK/x['label'];al=c.BANK/(c.BANK_PREFIX+x['leg'])
+        for p in [p for p in a.rglob('*') if p.is_file()]:
+            q=al/p.relative_to(a)
+            if not q.exists() or os.stat(q).st_ino!=os.stat(p).st_ino:problems.append(f'alias not a hardlink: {q}');break
+            links+=1
+    left=[d.name for d in c.EXE_SIDE.iterdir() if d.is_dir() and d.name.startswith(c.BANK_PREFIX)] if c.EXE_SIDE.exists() else []
+    chk(not left,f'leg copies left after banking: {left[:5]}')
+    out=dict(utc=c.now(),problems=problems,accepted_legs=len(acc),attempts=len([x for x in led if x.get('label')]),not_accepted=[x for x in led if x.get('status')!='ACCEPTED'],
+             alias_hardlinks_verified=links,left=left,staged=c.which_set(st),foreign_present=[(p['pid'],p['name']) for p in foreign],verdict='PASS' if not problems else 'FAIL')
+    L.jsave(c.RUN/'postflight.json',out);return out
+def window(phases):
+    code=0;why=None;t0=time.time();restore=None;staged=None;lk=None;tm={}
+    try:
+        staged=L.stage(c.UNDER_TEST if not c.STUB else 'DC2','01-dc2',stub_start='M53')
+        if 'premise' in phases:
+            t=time.time();run_groups(PREMISE_GROUPS);write_candidates();run_groups(FIRE_GROUPS);lk=build_lock();tm['premise_s']=round(time.time()-t,1)
+            if 'lock' in phases:lock_step()
+        if 'live' in phases:
+            pf=preflight(need_lock=True)
+            if pf['problems']:raise L.Stop(10,'gate preflight: '+'; '.join(pf['problems']))
+            t=time.time();run_groups(GATE_GROUPS);tm['gates_s']=round(time.time()-t,1)
+    except BaseException as ex:
+        if isinstance(ex,KeyboardInterrupt):why='interrupted'
+        code=getattr(ex,'code',99) if isinstance(ex,L.Stop) else 99;why=(why or '')+f' {type(ex).__name__}: {getattr(ex,"msg",ex)}';c.log_event('window-stop',code=code,why=why)
+    finally:
+        if 'live' in phases or code!=0:
+            try:restore=L.restore_m53()
+            except BaseException as ex:
+                code=code or 12;why=(why or '')+' | RESTORE FAILED: '+str(getattr(ex,'msg',ex));c.log_event('restore-failed',why=why)
+    t=time.time();rep=evaluate();tm['evaluate_s']=round(time.time()-t,1);elapsed=round(time.time()-t0,1)
+    pf2=postflight() if (not c.STUB and 'live' in phases) else dict(verdict='SKIPPED (dry or premise-only)')
+    led=L.ledger()
+    summ=dict(result='COMPLETE' if code==0 else 'STOPPED',code=code,why=why,elapsed_s=elapsed,timing=tm,run=str(c.RUN),postflight=pf2.get('verdict'),
+              staged=dict(before=(staged or {}).get('before_set'),receipt=str(c.RUN/'receipt-01-dc2.json')),
+              restore=dict(attempts=(restore or {}).get('restore_attempts'),copies=[(Path(x['dst']).name,x['attempt']) for x in (restore or {}).get('copies',[])],injected_lock=(restore or {}).get('injected_lock')),
+              launches=len([x for x in led if x.get('label')]),accepted=len([x for x in led if x.get('status')=='ACCEPTED']),
+              not_accepted=[(x['leg'],x['status'],(x.get('reason') or '')[:160]) for x in led if x.get('status')!='ACCEPTED'],
+              label_rule_all_pass=rep.get('label_rule_all_pass'),gates={k:(v.get('verdict') if isinstance(v,dict) and 'verdict' in v else None) for k,v in rep['gates'].items()})
+    L.jsave(c.RUN/'summary.json',summ);print(json.dumps(summ,default=str)[:8000]);return code
+def main():
+    if MODE=='freeze':print(json.dumps(freeze(),default=str)[:3000]);return
+    if MODE=='evalleg':
+        Lg=LG.by_id(sys.argv[2]);r=eval_one(Lg);(c.RUN/'eval').mkdir(parents=True,exist_ok=True)
+        (c.RUN/'eval'/f'{Lg["leg"]}.json').write_text(json.dumps(r,default=str),encoding='utf-8');return
+    if MODE=='postflight':pf=postflight();print(json.dumps(pf,default=str)[:3000]);sys.exit(1 if pf['problems'] else 0)
+    if MODE=='restore':r=L.restore_m53('98-manual-restore');print(json.dumps(r,default=str)[:2000]);return
+    if MODE=='lock':print(json.dumps(lock_step(),default=str));return
+    pf=preflight(need_lock=(MODE=='live'))
+    if MODE=='preflight':print(json.dumps(pf,default=str)[:6000]);sys.exit(1 if pf['problems'] else 0)
+    if pf['problems']:print(json.dumps(dict(result='PREFLIGHT-FAILED',problems=pf['problems'],notes=pf['notes']),default=str));sys.exit(10)
+    if MODE=='gates':evaluate();print(json.dumps(dict(result='GATES',report=str(c.RUN/'report.json'))));return
+    phases={'premise':['premise'],'live':['live'],'night':['premise','lock','live'],'dry':['premise','lock','live']}[MODE]
+    sys.exit(window(phases))
+if __name__=='__main__':main()

@@ -1,0 +1,201 @@
+import importlib.util,json,os,shutil,subprocess,sys,copy,re,traceback,time
+from pathlib import Path
+os.environ['IAI_R23_WINDOW']='dryrun'
+spec=importlib.util.spec_from_file_location('lib23',r'D:\IntrusiveAnomalies\_reviews\081-23-lib.py');L=importlib.util.module_from_spec(spec);spec.loader.exec_module(L)
+R=L.R;B=L.B;bank=L.bank;D=R/'081-23-evidence/dryrun';D.mkdir(parents=True,exist_ok=True);TMP=Path(os.environ.get('TEMP','C:/ClaudeTemp'))/'r23dry'
+if TMP.exists():shutil.rmtree(TMP)
+TMP.mkdir(parents=True)
+results=[]
+def rec(evaluator,case,expect,got_pass,detail,standin):
+    ok=(got_pass==(expect=='pass'))
+    results.append(dict(evaluator=evaluator,case=case,expect=expect,observed='pass' if got_pass else 'fail',as_expected=ok,standin=standin,detail=detail))
+    print(json.dumps(dict(ev=evaluator,case=case,expect=expect,ok=ok,detail=str(detail)[:300])),flush=True)
+def out(name):
+    d=D/name;d.mkdir(parents=True,exist_ok=True);return d
+def launch_session(ev,label):
+    l=json.loads((R/ev/label/'launch.json').read_text(encoding='utf-8-sig'));return Path(l['session']),R/ev/label/'game.log'
+def guard(fn):
+    try:fn()
+    except Exception as ex:results.append(dict(evaluator='harness',case=fn.__name__,expect='no exception',observed=repr(ex)[:400],as_expected=False,trace=traceback.format_exc()[-1500:]));print('EXC',fn.__name__,repr(ex)[:300],flush=True)
+
+MEASURE_STANDINS=[('null','081-11-evidence','V2_NULL_N_A1','stage'),('null','081-11-evidence','V2_NULL_S_A1','stage'),('solid','081-11-evidence','V2_SOLID_N_A1','stage'),('solid','081-11-evidence','V2_SOLID_S_A1','stage'),
+ ('delay','081-11-evidence','V2_DELAY_N_A1','stage'),('delay','081-11-evidence','V2_DELAY_S_A1','stage'),('hide','081-11-evidence','V2_HIDE_N_A1','stage'),('hide','081-11-evidence','V2_HIDE_S_A1','stage'),
+ ('hide_depth','081-11-evidence','V2_HIDE_DEPTH_N_A1','stage'),('hide_depth','081-11-evidence','V2_HIDE_DEPTH_S_A1','stage'),('empty','081-11-evidence','V2_EMPTY_N_A1','stage'),('empty','081-11-evidence','V2_EMPTY_S_A1','stage'),
+ ('blink','081-11-evidence','V2_BLINK_N_A1','stage'),('blink','081-11-evidence','V2_BLINK_S_A1','stage'),('short','081-11-evidence','V2_SHORT_N_A1','stage'),('short','081-11-evidence','V2_SHORT_S_A1','stage'),
+ ('drop','081-11-evidence','V2_DROP_N_A1','stage'),('drop','081-11-evidence','V2_DROP_S_A1','stage'),('runend','081-11-evidence','V2_RUNEND_N_A2','stage'),('runend','081-11-evidence','V2_RUNEND_S_A1','stage'),
+ ('teardown','081-11-evidence','V2_TEARDOWN_N_A1','stage'),('teardown','081-11-evidence','V2_TEARDOWN_S_A2','stage'),
+ ('moving_null','081-12-evidence','V2_MOVING_NULL_N_A1','stage'),('moving_solid','081-12-evidence','V2_MOVING_SOLID_N_A1','stage'),
+ ('count_fail','081-15-evidence','B_COUNT_FAIL_N_A1','build1'),('count_fail','081-15-evidence','B_COUNT_FAIL_S_A1','build1'),('wall_fail','081-15-evidence','B_WALL_FAIL_N_A1','build1'),('wall_fail','081-15-evidence','B_WALL_FAIL_S_A1','build1'),
+ ('null1080','081-17-evidence','B_NULL1080_N_A1','build2'),('null1080','081-17-evidence','B_NULL1080_S_A1','build2'),('solid1080','081-17-evidence','B_SOLID1080_N_A1','build2'),('solid1080','081-17-evidence','B_SOLID1080_S_A1','build2'),
+ ('solid1080','081-22-evidence','A_SOLID1080_N_A1','build3')]
+def measure_good():
+    for case,ev,label,era in MEASURE_STANDINS:
+        s,log=launch_session(ev,label);o=out(f'measure-{case}-{label}')
+        r=L.measure_eval(case,s,log,era=era,outdir=o)
+        rec('measure_eval',case,'pass',not r['errors'],r['errors'][:6] or dict(skipped=r['readings']['skipped_categories'],oracle=r['readings']['oracle_summary'],hw=r['readings']['high_water']),f'{ev}/{label} ({era})')
+def measure_bad():
+    s,log=launch_session('081-15-evidence','B_SOLID1080_S_A1')
+    r=L.measure_eval('solid1080',s,log,era='build1',outdir=out('bad-solid1080-partial'))
+    rec('measure_eval','solid1080 partial yield (16/20, 3 budget refusals)','fail',not r['errors'],r['errors'][:6],'081-15-evidence/B_SOLID1080_S_A1 (build1)')
+    s,log=launch_session('081-11-evidence','V2_NULL_N_A1')
+    r=L.measure_eval('solid',s,log,era='stage',outdir=out('bad-null-as-solid'))
+    rec('measure_eval','null session judged as delay (wrong case)','fail',not L.measure_eval('delay',s,log,era='stage',run_oracle_flag=False)['errors'],'delay predicates on a null session','081-11-evidence/V2_NULL_N_A1')
+    s,log=launch_session('081-22-evidence','A_SOLID1080_N_A1')
+    r=L.measure_eval('low',s,log,era='build3',run_oracle_flag=False)
+    rec('measure_eval','low-cap predicates on a normal 256 MiB session','fail',not r['errors'],r['errors'][:6],'081-22-evidence/A_SOLID1080_N_A1 (build3)')
+    r=L.measure_eval('g10',s,log,era='build3',run_oracle_flag=False)
+    rec('measure_eval','G10 predicates on a session without the forced refusal','fail',not r['errors'],r['errors'][:6],'081-22-evidence/A_SOLID1080_N_A1 (build3)')
+    src,log=launch_session('081-11-evidence','V2_SOLID_N_A1')
+    for name,mut in (('budget_exceeded injected into run_summary',lambda d:mut_summary(d,dict(change_reason_budget_exceeded=1))),
+                     ('retained bytes at close',lambda d:mut_summary(d,dict(change_bytes_retained=4096))),
+                     ('measured row mean corrupted',lambda d:mut_row(d))):
+        d=TMP/('m_'+re.sub(r'\W','_',name));shutil.copytree(src,d)
+        mut(d);era='build2' if 'budget' in name else 'stage'
+        r=L.measure_eval('solid',d,log,era=era,outdir=out('bad-'+re.sub(r'\W','_',name)))
+        rec('measure_eval','mutation: '+name,'fail',not r['errors'],r['errors'][:6],'copy of 081-11-evidence/V2_SOLID_N_A1')
+def mut_summary(d,kv):
+    p=d/'run_summary.json';s=json.loads(p.read_text(encoding='utf-8-sig'));s.update(kv);p.write_text(json.dumps(s))
+def mut_row(d):
+    p=d/'change_evidence.jsonl';rows=[json.loads(l) for l in p.read_text(encoding='utf-8-sig').splitlines()]
+    for x in rows:
+        if x['kind']=='pair' and x['chg_measured']:x['chg_gt8']=x['chg_gt8']+1;x['chg_hist'][-1]+=1;x['chg_n']+=1;break
+    p.write_text('\n'.join(json.dumps(x) for x in rows)+'\n')
+
+def stage1_trace(session):
+    rows=L.read_jsonl(session/'change_evidence.jsonl')
+    by={x['session_index']:x for x in rows};trace={x['session_index']:(x.get('reason') or 'null') for x in rows}
+    return by,trace
+def identity():
+    for g in (1,2,3,4,5,6,7,8,9,10,11,12,13,15):
+        for o in ('N','S'):
+            d=bank/f'M55S1_M55S1V6_G{g}_{o}'
+            if not d.exists():continue
+            s=next(d.glob('session*'));summ=json.loads((s/'run_summary.json').read_text(encoding='utf-8-sig'))
+            att=next(t for t in bank.glob(f'M55S1_M55S1V6_G{g}_{o}_try*') if (t/s.name).exists());text=(att/'_leg_game.log').read_text(encoding='utf-8-sig',errors='replace')
+            by,trace=stage1_trace(s);pngs=len(list((s/'Actual_Frames').glob('*.png')));nl=len(L.read_jsonl(s/'labels.jsonl'))
+            allerrs=L.identity_checks(g,by,trace,summ,nl,pngs,text,s)
+            errs=[e_ for e_ in allerrs if not e_.startswith('build-3 D:')];derrs=[e_ for e_ in allerrs if e_.startswith('build-3 D:')]
+            rec('identity_checks',f'G{g} {o} (base predicates)','pass',not errs,errs[:4] or dict(si8=trace.get(8),si9=trace.get(9)),f'Stage-1 V6 bank (trace synthesised from the sidecar: Stage-1 logs carry no PAIR lines)')
+            if g in (2,8):rec('identity_checks',f'G{g} {o} (build-3 D clauses on the pre-build-3 shape)','fail',not derrs,derrs[:3] or 'D clauses passed',f'Stage-1 V6 bank: SI8={trace.get(8)} SI9={trace.get(9)}')
+            if g==2 and not errs:
+                s2=dict(summ);s2['change_capture_arm_dropped']=0
+                e2=[x for x in L.identity_checks(g,by,trace,s2,nl,pngs,text,s) if not x.startswith('build-3 D:')];rec('identity_checks',f'G2 {o} base predicates with the arm drop absent','fail',not e2,e2[:3],'mutation of the V6 G2 summary')
+            if g==15 and not errs:
+                e2=L.identity_checks(g,by,trace,summ,nl+1,pngs,text,s);rec('identity_checks',f'G15 {o} with 90 labels','fail',not e2,e2[:3],'mutation: label count')
+            if g==9 and not errs:
+                t2={k:v for k,v in trace.items() if k!=90};t2.pop(max(t2));e2=L.identity_checks(g,by,t2,summ,nl,pngs,text,s);rec('identity_checks',f'G9 {o} trace missing an index','fail',not e2,e2[:3],'mutation: trace')
+def census():
+    s,log=launch_session('081-22-evidence','A_SOLID1080_N_A1');summ=json.loads((s/'run_summary.json').read_text(encoding='utf-8-sig'));text=log.read_text(encoding='utf-8-sig',errors='replace')
+    e,peak=L.peak_census_check(summ,text);rec('peak_census_check','build-3 1080 smoke','pass',not e,e,'081-22-evidence/A_SOLID1080_N_A1')
+    bad=copy.deepcopy(summ);bad['change_bytes_peak_census']['unaccounted_bytes']=8
+    e,_=L.peak_census_check(bad,text);rec('peak_census_check','mutation: unaccounted bytes','fail',not e,e[:3],'mutated summary')
+    for lab in ('B_NULL1080_N_A1','B_SOLID1080_S_A1'):
+        s2,log2=launch_session('081-17-evidence',lab);e,_=L.peak_census_check(json.loads((s2/'run_summary.json').read_text(encoding='utf-8-sig')),log2.read_text(encoding='utf-8-sig',errors='replace'))
+        rec('peak_census_check',lab,'pass',not e,e,'081-17-evidence/'+lab+' (build2)')
+    cz=copy.deepcopy(peak);cz.update(trigger='budget_exceeded',kind='colour',si=26,requested_bytes=8294400)
+    records=[dict(kind='pair',session_index=26,reason='budget_exceeded',budget_census=[cz])]
+    line=f"Capture(m55): BUDGET-EXCEEDED si=26 kind=colour requested=8294400 held={cz['bytes_held']} max={cz['max_bytes']} census={json.dumps(cz,separators=(',',':'))}"
+    e,info=L.refusal_census_check(records,line);rec('refusal_census_check','synthetic refusal built from a real build-3 peak census','pass',not e,e or info,'synthetic (no banked build-2+ refusal exists)')
+    e,_=L.refusal_census_check([dict(kind='pair',session_index=26,reason='budget_exceeded')],line);rec('refusal_census_check','refused row without budget_census','fail',not e,e[:2],'synthetic')
+    cz2=copy.deepcopy(cz);cz2['colours_unowned']=1;cz2['colours']+=1
+    e,_=L.refusal_census_check([dict(kind='pair',session_index=26,reason='budget_exceeded',budget_census=[cz2])],line);rec('refusal_census_check','census with an unowned colour','fail',not e,e[:2],'synthetic')
+    e,_=L.refusal_census_check(records,line.replace('held=','held=1'));rec('refusal_census_check','log line disagrees with its census','fail',not e,e[:2],'synthetic')
+
+def legacy_prep(tag,label,kind,mapkind,prefix):
+    s=next((bank/(prefix+label)).glob('session*'));att=next(t for t in bank.glob(prefix+label+'_try*') if (t/s.name).exists())
+    rec_,fl,fr=L.legacy_reading(tag,kind,s,att/'_leg_game.log',mapkind,outdir=out('legacy-'+tag))
+    return rec_,fl
+def legacy():
+    hist=json.loads((R/'081-22-evidence/legacy-historical-run-unique.json').read_text())['paths']
+    for order in ('N','S'):
+        legs=[(f'D_{order}1','pre'),(f'D_{order}2','b3off'),(f'D_{order}3','b3off'),(f'D_{order}4','pre')]
+        rd={};fl={}
+        for l,k in legs:rd[l],fl[l]=legacy_prep(l,'R22_'+l,k,'MAIN','M55B3')
+        res=L.legacy_compare('MAIN',order,legs,rd,fl,hist)
+        (out('legacy-results')/f'D_{order}-new-rule.json').write_text(json.dumps(res,indent=1,default=str))
+        rec('legacy_compare',f'081-22 (d) MAIN OFF {order} under the 081-22 ruling (timing-sampled set)','pass',res['verdict']=='PASS',res['problems'][:4] or [x['timing_sampled_differing'] for x in res['cross']][:1],'081-22 banked legs (pre-m55 0844220E vs build 3)')
+        saved=L.TIMING_SAMPLED;L.TIMING_SAMPLED=()
+        try:res2=L.legacy_compare('MAIN',order,legs,rd,fl,hist)
+        finally:L.TIMING_SAMPLED=saved
+        expect='fail' if order=='N' else 'pass'
+        rec('legacy_compare',f'081-22 (d) MAIN OFF {order} WITHOUT the timing-sampled set (reproduces 081-22)',expect,res2['verdict']=='PASS',res2['problems'][:3],'081-22 banked legs')
+        if order=='N':
+            extra=sorted({L.norm(q) for x in res2['cross'] for q in x['strict_extra']})
+            results[-1]['strict_extra_paths_without_set']=extra
+            rd2=copy.deepcopy(rd);k='D_N2';si=sorted(rd2[k]['counts'],key=int)[40];rd2[k]['counts'][si]=[[*t[:2],(t[2] or 0)+1,*t[3:]] for t in rd2[k]['counts'][si]] or [['x']]
+            fl2=copy.deepcopy(fl);p=next(q for q in fl2[k] if q.endswith('/target_pixels'));fl2[k][p]=(fl2[k][p] or 0)+1
+            r3=L.legacy_compare('MAIN','N',legs,rd2,fl2,hist);rec('legacy_compare','mutation: one build-3 label target_pixels +1','fail',r3['verdict']=='PASS',r3['problems'][:3],'mutated 081-22 D_N2')
+            fl3=copy.deepcopy(fl);p=next(q for q in fl3[k] if q.endswith('coverage_pct'));fl3[k][p]=fl3[k][p]+0.01;fl3['D_N3'][p]=fl3['D_N3'][p]+0.01
+            r4=L.legacy_compare('MAIN','N',legs,rd,fl3,hist);rec('legacy_compare','mutation: coverage_pct moved on both build-3 legs (timing-sampled)','pass',r4['verdict']=='PASS',r4['problems'][:3],'mutated 081-22 D_N2/D_N3')
+            fl4=copy.deepcopy(fl);fl4[k]['run_summary/change_issued']=90
+            r5=L.legacy_compare('MAIN','N',legs,rd,fl4,hist);rec('legacy_compare','mutation: evidence-OFF build-3 leg carries a change_* key','fail',r5['verdict']=='PASS',r5['problems'][:3],'mutated 081-22 D_N2')
+    for mapkind in ('MAIN','CB'):
+        legs=[(f'{mapkind}1','pre'),(f'{mapkind}2','pre'),(f'{mapkind}3','b3off'),(f'{mapkind}4','b3on'),(f'{mapkind}5','b3on'),(f'{mapkind}6','b3off')]
+        labels={f'{mapkind}1':f'M55S2R12_{mapkind}1_E0',f'{mapkind}2':f'M55S2R12_{mapkind}2_E0',f'{mapkind}3':f'M55S2R12_{mapkind}3_E0',f'{mapkind}4':f'M55S2R12_{mapkind}4_E1',f'{mapkind}5':f'M55S2R12_{mapkind}5_E1',f'{mapkind}6':f'M55S2R12_{mapkind}6_E0'}
+        rd={};fl={}
+        for l,k in legs:rd[l],fl[l]=legacy_prep(l,labels[l],k,mapkind,'M55S2_')
+        res=L.legacy_compare(mapkind,'N',legs,rd,fl,hist,era='stage')
+        memres=L.legacy_compare(mapkind,'N',legs,rd,fl,hist,era='build3')
+        rec('legacy_compare',f'081-12 {mapkind} ON legs judged by the build-3 memory gate (stage-era 64 MiB/3-colour refusals)','fail',memres['verdict']=='PASS',[x for x in memres['problems'] if 'budget' in x][:3],'081-12 bank')
+        (out('legacy-results')/f'{mapkind}-081-12.json').write_text(json.dumps(res,indent=1,default=str))
+        rec('legacy_compare',f'081-12 {mapkind} six-leg ON/OFF shape (stage-1 m55 OFF as the A-side)','pass',res['verdict']=='PASS',res['problems'][:4],'081-12 bank (A-side AEBD09EA is m55 stage 1 with evidence OFF, not pre-m55)')
+        bad=[(l,'b3off' if l.endswith('4') else k) for l,k in legs]
+        r2=L.legacy_compare(mapkind,'N',bad,rd,fl,hist,era='stage');rec('legacy_compare',f'{mapkind}: an evidence-ON leg declared OFF','fail',r2['verdict']=='PASS',r2['problems'][:3],'081-12 bank, relabelled')
+        if mapkind=='CB':
+            rd2=copy.deepcopy(rd);nm=sorted(rd2['CB4']['occupancy'])[0];rd2['CB4']['occupancy'][nm]='0'*64
+            r3=L.legacy_compare(mapkind,'N',legs,rd2,fl,hist,era='stage');rec('legacy_compare','CB: one ON leg mask occupancy changed','fail',r3['verdict']=='PASS',r3['problems'][:3],'mutated 081-12 CB4')
+def nohold():
+    for lab,order,expect in (('M55S2R14_NOHOLD_S_A1',1,'pass'),('M55S2R13_NOHOLD_N_A3',0,'pass'),('M55S2R13_NOHOLD_N_A2',0,'pass')):
+        att=bank/f'M55S2_{lab}_try1';s=next(att.glob('session*'));focus=json.loads((att/'_focus.json').read_text(encoding='utf-8-sig'))
+        r=L.nohold_eval(s,att/'_leg_game.log',order,focus['valid'],outdir=out('nohold-'+lab))
+        got=r['status']=='PASS'
+        if expect=='invalid':
+            results.append(dict(evaluator='nohold_eval',case=lab,expect='INVALID-FIXTURE (as recorded by 081-13)',observed=r['status'],as_expected=r['status']=='INVALID-FIXTURE',standin='081-13 bank',detail=r['errors'][:3]));print(lab,r['status'],flush=True)
+        else:rec('nohold_eval',lab,'pass',got,r['errors'][:4] or dict(fires=r['fires'],oracle=r['oracle_summary']),'081-14 bank (A699E9EE); R13 natural legs are PASS-REQUALIFIED by the 081-14 dated amendment on this same G2 policy')
+    att=bank/'M55S2_M55S2R14_NOHOLD_S_A1_try1';s=next(att.glob('session*'))
+    d=TMP/'nohold_mut';shutil.copytree(s,d)
+    p=d/'annotation.json';a=json.loads(p.read_text(encoding='utf-8-sig'));a['anomalies'][0]['injected_frames']['frame_count']=1;p.write_text(json.dumps(a))
+    r=L.nohold_eval(d,att/'_leg_game.log',1,True,run_oracle_flag=False);rec('nohold_eval','mutation: a labelled legacy frame','fail',r['status']=='PASS',r['errors'][:3],'copy of 081-14 NoHold S')
+def lyra():
+    s,log=launch_session('081-17-evidence','LYRA_G3_N_A2');r=L.lyra_g270_eval(s,log,outdir=out('lyra-g270-081-17'),era='build2')
+    rec('lyra_g270_eval','081-17 G270 300 frames (build 2)','pass',r['branch']=='PASS',dict(branch=r['branch'],why=r['why'],oracle=r['oracle_summary']),'081-17-evidence/LYRA_G3_N_A2')
+    s,log=launch_session('081-14-evidence','LYRA_G3_N_A2');r=L.lyra_g270_eval(s,log,outdir=out('lyra-g270-081-14'),era='stage')
+    rec('lyra_g270_eval','081-14 G270 150 frames under the old 3-colour cap (budget refusals)','fail',r['branch'] in ('PASS','OBSERVED-BELOW-EVENT-FLOOR'),dict(branch=r['branch'],why=r['why']),'081-14-evidence/LYRA_G3_N_A2')
+    for lab,an in (('LYRA_NULL_N_A3','null_effect'),('LYRA_SOLID_N_A1','solid_swap')):
+        s,log=launch_session('081-14-evidence',lab);r=L.lyra_twin_eval(s,log,an,outdir=out('lyra-'+lab),era='stage')
+        rec('lyra_twin_eval',lab,'pass',r['status']=='PASS',r['errors'][:4] or dict(onsets=r['onsets'][:2],oracle=r['oracle_summary']),'081-14-evidence (A699E9EE, 720p)')
+    s,log=launch_session('081-14-evidence','LYRA_SOLID_N_A1');d=TMP/'lyra_mut';shutil.copytree(s,d);mut_summary(d,dict(change_reason_budget_exceeded=2))
+    r=L.lyra_twin_eval(d,log,'solid_swap',run_oracle_flag=False,era='build2');rec('lyra_twin_eval','mutation: budget refusal','fail',r['status']=='PASS',r['errors'][:3],'copy of 081-14 LYRA_SOLID_N_A1')
+def oracle():
+    s,log=launch_session('081-22-evidence','A_SOLID1080_N_A1');code,summ=L.run_oracle(s,out('oracle-good'))
+    rec('oracle (frozen verify_capture.py --change-oracle)','build-3 1080 smoke','pass',code==0 and summ.get('mismatched')==0 and summ.get('compared')==20,dict(exit=code,summary=summ),'081-22-evidence/A_SOLID1080_N_A1')
+    src,_=launch_session('081-11-evidence','V2_SOLID_N_A1');d=TMP/'oracle_mut';shutil.copytree(src,d);mut_row(d)
+    code,summ=L.run_oracle(d,out('oracle-bad'));rec('oracle (frozen verify_capture.py --change-oracle)','mutation: one measured row corrupted','fail',code==0,dict(exit=code,summary=summ),'copy of 081-11 V2_SOLID_N_A1')
+    d2=TMP/'oracle_nosidecar';shutil.copytree(src,d2);(d2/'change_evidence.jsonl').unlink()
+    code,summ=L.run_oracle(d2,out('oracle-cannot-run'));results.append(dict(evaluator='oracle',case='session without a sidecar',expect='exit 3',observed=f'exit {code}',as_expected=code==3,standin='copy of 081-11 V2_SOLID_N_A1'));print('oracle no-sidecar exit',code,flush=True)
+def fixture():
+    d=R/'081-22-evidence/A_SOLID1080_N_A1';launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace')
+    o=out('fixture-good');e,fg=L.fixture_errors_measure(o,launch,text,0);rec('fixture_errors_measure','081-22 A leg','pass',not e,e or fg,'081-22-evidence/A_SOLID1080_N_A1')
+    bad=copy.deepcopy(launch);bad['capture_focus'][5]['foreground_pid']=1
+    e,_=L.fixture_errors_measure(out('fixture-bad1'),bad,text,0);rec('fixture_errors_measure','mutation: one foreground sample lost','fail',not e,e,'mutated launch')
+    e,_=L.fixture_errors_measure(out('fixture-bad2'),launch,text.replace('IAI-L2 PLACED','IAI-L2 SKIPPED'),0);rec('fixture_errors_measure','mutation: placement line absent','fail',not e,e,'mutated log')
+    ll=json.loads((R/'081-17-evidence/LYRA_G3_N_A1/launch.json').read_text(encoding='utf-8-sig'))
+    st,e=L.lyra_fixture(ll,'',1);results.append(dict(evaluator='lyra_fixture',case='081-17 LYRA_G3_N_A1 (recorded INVALID-FIXTURE)',expect='INVALID-FIXTURE',observed=st,as_expected=st=='INVALID-FIXTURE',standin='081-17-evidence'))
+    ll=json.loads((R/'081-17-evidence/LYRA_G3_N_A2/launch.json').read_text(encoding='utf-8-sig'));tx=(R/'081-17-evidence/LYRA_G3_N_A2/game.log').read_text(encoding='utf-8-sig',errors='replace')
+    st,e=L.lyra_fixture(ll,tx,0);results.append(dict(evaluator='lyra_fixture',case='081-17 LYRA_G3_N_A2 (recorded fixture-valid)',expect='FIXTURE-VALID',observed=st,as_expected=st=='FIXTURE-VALID',standin='081-17-evidence',detail=e))
+def chunk0():
+    (R/'081-23-evidence/c0').mkdir(parents=True,exist_ok=True);env=dict(os.environ,IAI_R23_WINDOW='c0');p=subprocess.run([sys.executable,str(R/'081-23-c0-analyze.py'),'--selftest'],capture_output=True,text=True,env=env)
+    (D/'c0-analyzer-selftest.txt').write_text(p.stdout+p.stderr)
+    sel=R/'081-23-evidence/c0/analyzer-selftest-081-17.json';ok=p.returncode==0 and sel.exists()
+    good=False;det=None
+    if ok:
+        ref=json.loads((R/'081-22-evidence/analyzer-selftest-081-17.json').read_text());new=json.loads(sel.read_text())
+        good=json.dumps(ref,sort_keys=True,default=str)==json.dumps(new,sort_keys=True,default=str);det='selftest output byte-equal (as JSON) to 081-22 and 081-18 analyzer selftests' if good else 'differs from 081-22 selftest'
+    results.append(dict(evaluator='chunk-0 analyzer (081-18 lineage)',case='081-17R known answers',expect='reproduce 081-22 selftest',observed=det or p.stderr[-400:],as_expected=ok and good,standin='081-17-evidence (3 legs)'))
+    print('c0 selftest',ok,good,flush=True)
+t0=time.time()
+for f in (measure_good,measure_bad,identity,census,legacy,nohold,lyra,oracle,fixture,chunk0):guard(f)
+shutil.rmtree(TMP,ignore_errors=True)
+summary=dict(total=len(results),as_expected=sum(1 for x in results if x.get('as_expected')),unexpected=[x for x in results if not x.get('as_expected')],seconds=round(time.time()-t0))
+(D/'dryrun-results.json').write_text(json.dumps(dict(summary=summary,results=results),indent=2,default=str))
+print(json.dumps(dict(total=summary['total'],as_expected=summary['as_expected'],unexpected=[(x['evaluator'],x['case'],x.get('observed'),str(x.get('detail'))[:200]) for x in summary['unexpected']]),default=str,indent=1))

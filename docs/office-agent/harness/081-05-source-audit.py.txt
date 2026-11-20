@@ -1,0 +1,32 @@
+from pathlib import Path
+import json, hashlib, subprocess, re
+base=Path(r'D:\IntrusiveAnomalies'); repo=base/'StackOBot/Plugins/AnomalyInjector'; ev=base/'_reviews/081-05-evidence'
+def git(*args): return subprocess.check_output(['git',*args],cwd=repo)
+ref='ae2a9677edf9efcb49e315b47966489606747ac6'
+changed=git('diff','--name-only',ref).decode().splitlines()
+assert not any(p.startswith(('Shaders/','Content/','Source/AnomalyShaders/','Source/AnomalyInjector/','tools/')) for p in changed)
+old=git('show',ref+':docs/gotchas.md'); new=(repo/'docs/gotchas.md').read_bytes().replace(b'\r\n',b'\n')
+assert new.startswith(old.replace(b'\r\n',b'\n'))
+oldplan=git('show',ref+':docs/predictions/2026-09-20-m55-change-evidence.md').decode()
+newplan=(repo/'docs/predictions/2026-09-20-m55-change-evidence.md').read_text(encoding='utf-8')
+fold=oldplan[oldplan.index('<details>'):]
+assert newplan[newplan.index('<details>'):]==fold
+sub='Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp'
+oldsub=git('show',ref+':'+sub).decode()
+newsub=(repo/sub).read_text(encoding='utf-8')
+# Preserve all observable assignments and the existing field emit sites exactly.
+observable=lambda s: [l for l in s.splitlines() if re.search(r'\bObservable\b|\bbObservable\b|\bFrameObservable\b',l)]
+assert observable(oldsub)==observable(newsub)
+reduce='Source/AnomalyCapture/Private/AnomalyMaskSceneViewExtension.cpp'
+oldreduce=git('show',ref+':'+reduce).decode()
+newreduce=(repo/reduce).read_text(encoding='utf-8')
+# All old shader dispatch/count accumulation statements remain in source, in order.
+critical=lambda s: [l for l in s.splitlines() if re.search(r'AddAnomaly|CpuCounts\[|GpuCounts\[|Result\.Counts|Result\.Drawn|DrawnCounts\[',l)]
+assert critical(oldreduce)==critical(newreduce)
+results=dict(base=ref,head=git('rev-parse','HEAD').decode().strip(),changed=changed,
+    no_shader_content_injector_or_tool_change=True,gotchas_append_only=True,superseded_plan_fold_unchanged=True,
+    observable_assignment_lines_identical=True,observable_line_count=len(observable(oldsub)),
+    reduce_critical_statement_lines_identical=True,reduce_line_count=len(critical(oldreduce)),
+    diff_check=subprocess.run(['git','diff','--check',ref],cwd=repo,capture_output=True,text=True).stdout)
+(ev/'source-audit.json').write_text(json.dumps(results,indent=2))
+print(json.dumps(results,indent=2))

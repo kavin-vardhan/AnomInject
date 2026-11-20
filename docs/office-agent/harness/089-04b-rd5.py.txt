@@ -1,0 +1,85 @@
+import json,os,sys
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+import numpy as np
+from PIL import Image
+R=Path(r'D:\IntrusiveAnomalies\_reviews');RUN=R/'089-04-evidence'/'run';OUT=R/'089-04b-evidence'
+OUT.mkdir(parents=True,exist_ok=True)
+REP=json.loads((RUN/'report.json').read_text(encoding='utf-8'))
+def rows_of(sd):
+    rs=[json.loads(l) for l in open(Path(sd)/'labels.jsonl',encoding='utf-8') if l.strip()];rs.sort(key=lambda r:r['session_index']);return {r['session_index']:r for r in rs}
+def img(sd,r):return np.asarray(Image.open(Path(sd)/r['image']).convert('RGB')).astype(np.int16)
+def mask(sd,r):
+    return np.asarray(Image.open(Path(sd)/r['mask_file'])) if r.get('mask_file') else None
+def labelled(r):return any(a.get('id')=='uv_corruption' and a.get('labelled',True) for a in r.get('anomalies') or [])
+def events_of(rows):
+    ev=[];cur=None
+    for si in sorted(rows):
+        r=rows[si];L=labelled(r)
+        sf=next((a.get('start_frame') for a in r.get('anomalies') or [] if a.get('id')=='uv_corruption'),None)
+        if L:
+            if cur and cur['start_frame']==sf:cur['L'].append(si)
+            else:cur=dict(start_frame=sf,L=[si]);ev.append(cur)
+    return ev
+def measure(leg,n_events=9):
+    sd=REP['legs'][leg]['session'];rows=rows_of(sd);evs=events_of(rows);out=[]
+    for i,e in enumerate(evs):
+        a,b=min(e['L']),max(e['L'])
+        mv=None;roi=None
+        for si in e['L']:
+            m=mask(sd,rows[si])
+            if m is None:continue
+            vals=[v for v in np.unique(m) if v]
+            if vals:
+                mv=int(vals[0]);roi=(m==mv) if roi is None else (roi|(m==mv))
+        if roi is None:continue
+        prev_b=max(evs[i-1]['L']) if i>0 else -1
+        pre=[si for si in range(max(prev_b+12,a-10),a) if si in rows and not labelled(rows[si])]
+        if len(pre)<3:continue
+        ref=np.median(np.stack([img(sd,rows[si]) for si in pre]),axis=0)
+        nxt=min(evs[i+1]['L']) if i+1<len(evs) else max(rows)+1
+        ser={}
+        for si in range(a-3,min(b+13,nxt)):
+            if si not in rows:continue
+            d=np.abs(img(sd,rows[si])-ref).max(axis=2)
+            ser[si]=dict(gfc=rows[si].get('frame_index'),labelled=labelled(rows[si]),mean_d=round(float(d[roi].mean()),2),
+                         px16=int((d[roi]>=16).sum()))
+        noise=max(v['mean_d'] for si,v in ser.items() if si<a)
+        on=[si for si,v in ser.items() if v['mean_d']>max(8.0,4*noise)]
+        runs=[];
+        for si in sorted(on):
+            if runs and si==runs[-1][1]+1:runs[-1][1]=si
+            else:runs.append([si,si])
+        plateau=float(np.median([ser[si]['mean_d'] for si in e['L'] if si in ser]))
+        t50=[si for si,v in sorted(ser.items()) if v['mean_d']>=0.5*plateau]
+        run50=[];
+        for si in t50:
+            if run50 and si==run50[-1][1]+1:run50[-1][1]=si
+            else:run50.append([si,si])
+        main=next((r for r in run50 if r[0]<=a<=r[1] or r[0]>=a),None)
+        e1=next((x for x in (REP['legs'][leg].get('e1_events') or []) if x.get('start_frame')==e['start_frame']),None) or {}
+        rn=(e1.get('runs') or [{}])[0]
+        e1ref=dict(ref_on=rn.get('ref_on'),ref_off=rn.get('ref_off'),thrD_on=rn.get('thrD_on'),thrD_off=rn.get('thrD_off'),
+                   depth_on=rn.get('depth_on'),depth_off=rn.get('depth_off'),drift_D=rn.get('drift_D'),
+                   trim=(rn.get('ref_off_trim') or {}),e1_edges=((e1.get('per') or {}).get('t50') or {}).get('edges'),
+                   e1_labelled_not_visible=(((e1.get('per') or {}).get('t50') or {}).get('transition_gate') or {}).get('labelled_not_visible'))
+        ref_off=rn.get('ref_off') or []
+        out.append(dict(start_frame=e['start_frame'],label=[a,b],roi_px=int(roi.sum()),mask_value=mv,pre_ref=pre,noise_mean_d=noise,
+                        pixel_on_runs=runs,pixel_last_on=max(on) if on else None,end_offset_pixels=(max(on)-b) if on else None,
+                        start_offset_pixels=(min(on)-a) if on else None,plateau_mean_d=round(plateau,2),
+                        t50_runs=run50,t50_start_offset=(main[0]-a) if main else None,t50_end_offset=(main[1]-b) if main else None,
+                        labelled_mean_d_min=min(ser[si]['mean_d'] for si in e['L'] if si in ser),
+                        e1=e1ref,ref_off_corrupted=[si for si in ref_off if si in ser and ser[si]['mean_d']>=0.5*plateau],
+                        series=ser))
+        if len(out)>=n_events:break
+    return dict(leg=leg,session=sd,events=out)
+if __name__=='__main__':
+    res={}
+    for leg in sys.argv[1:] or ['ARM_RD5_AAOFF','ARM_RD5_AAON','ARM_RD3_AAOFF','F_TILE_NAT']:
+        res[leg]=measure(leg);ev=res[leg]['events']
+        print(leg,'events',len(ev),'pixel end offsets',[x['end_offset_pixels'] for x in ev],'start offsets',[x['start_offset_pixels'] for x in ev],
+              't50 start',[x['t50_start_offset'] for x in ev],'t50 end',[x['t50_end_offset'] for x in ev],
+              'E1 t50 end',[(x['e1']['e1_edges'] or [{}])[0].get('end') for x in ev],
+              'ref_off corrupted',[len(x['ref_off_corrupted']) for x in ev],'trim settled/dropped',[(x['e1']['trim'].get('settled'),x['e1']['trim'].get('dropped_leading')) for x in ev],
+              'thrD_off',[x['e1']['thrD_off'] for x in ev],'labelled min mean_d',[x['labelled_mean_d_min'] for x in ev],flush=True)
+    (OUT/'rd5-pixels.json').write_text(json.dumps(res,indent=1),encoding='utf-8')

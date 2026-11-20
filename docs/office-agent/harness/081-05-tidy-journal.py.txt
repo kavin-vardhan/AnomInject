@@ -1,0 +1,16 @@
+from pathlib import Path
+import re
+p=Path(r'D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\docs\sessions\2026-09-21-081-05-codex-m55-stage-1.md')
+s=p.read_text(encoding='utf-8')
+s=re.sub(r'^## Review boundary[^\n]*\n\n','',s,flags=re.M)
+boundary='Chat review NOT REQUIRED for the released Stage 1 amendments/implementation/gates.\nChat review REQUIRED at the Stage 1 report before Stage 2 starts. No release approval.\n'
+assert s.count(boundary)==1
+s=s.replace(boundary+'\n','')
+start=s.index('### AMENDMENT 2026-09-21 08:27 UTC')
+end=s.index('### AMENDMENT 2026-09-21 08:09 UTC',start)
+block=s[start:end]
+s=s[:start]+s[end:]
+insert=s.index('### AMENDMENT 2026-09-21 08:40 UTC')
+s=s[:insert]+block+s[insert:]
+s=s.rstrip()+'\n\n## Review boundary\n\n'+boundary
+p.write_text(s,encoding='utf-8')

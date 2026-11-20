@@ -1,0 +1,45 @@
+from pathlib import Path
+import hashlib, json, shutil, subprocess, sys
+base=Path(r'D:\IntrusiveAnomalies')
+ev=base/'_reviews/081-05-evidence'
+before=json.loads((ev/'binary-before.json').read_text())
+def sha(p):
+    with p.open('rb') as f: return hashlib.file_digest(f,'sha256').hexdigest()
+previous=json.loads((ev/sys.argv[1]).read_text()) if len(sys.argv)>1 else None
+output=sys.argv[2] if len(sys.argv)>2 else 'binary-candidate.json'
+assert not (ev/output).exists()
+for i,r in enumerate(before):
+    expected=previous['sha256'] if i==0 and previous else r['sha256']
+    assert sha(Path(r['path']))==expected, r['path']
+if previous: assert sha(Path(previous['archive']))==previous['sha256']
+built=base/'StackOBot/Binaries/Win64/StackOBot.exe'
+assert built.stat().st_size>200_000_000
+h=sha(built)
+archive=base/('_binary_baselines/StackOBot.exe.m55-stage1-'+h[:8].upper())
+assert not archive.exists()
+shutil.copy2(built,archive)
+assert sha(archive)==h
+staged=Path(before[0]['path'])
+shutil.copy2(built,staged)
+assert sha(staged)==h
+for r in before[2:]: assert sha(Path(r['path']))==r['sha256']
+tokens=['Capture(m55): EFFECTIVE','FROZEN-MASK','change_evidence.jsonl','MASK-TIE','M55_INVENTED_NOT_A_REAL_SYMBOL']
+def scan(p):
+    b=p.read_bytes()
+    return {t:dict(ascii=b.count(t.encode('ascii')),utf16=b.count(t.encode('utf-16le'))) for t in tokens}
+dll=base/'StackOBot/Plugins/AnomalyInjector/Binaries/Win64/UnrealEditor-AnomalyCapture.dll'
+lyra=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector\Binaries\Win64')
+ldst=base/('_binary_baselines/m55-stage1-lyra-'+sha(lyra/'UnrealEditor-AnomalyCapture.dll')[:8])
+ldst.mkdir(exist_ok=False)
+mods=[]
+for p in lyra.iterdir():
+    if p.is_file():
+        shutil.copy2(p,ldst/p.name)
+        assert sha(p)==sha(ldst/p.name)
+        mods.append(dict(name=p.name,size=p.stat().st_size,sha256=sha(p)))
+(ldst/'manifest.json').write_text(json.dumps(mods,indent=2))
+result=dict(source_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=base/'StackOBot/Plugins/AnomalyInjector',text=True).strip(),
+    built=str(built),staged=str(staged),archive=str(archive),size=built.stat().st_size,sha256=h,
+    containers=before[2:],a44_game=scan(staged),a44_editor=scan(dll),a44_lyra=scan(lyra/'UnrealEditor-AnomalyCapture.dll'),lyra_archive=str(ldst),lyra_modules=mods)
+(ev/output).write_text(json.dumps(result,indent=2))
+print(json.dumps({k:v for k,v in result.items() if k not in ('lyra_modules','containers')},indent=2))

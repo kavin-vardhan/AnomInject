@@ -1,0 +1,124 @@
+import json
+import math
+import sys
+from pathlib import Path
+
+EV = Path(r'D:\IntrusiveAnomalies\_reviews\084-09-evidence')
+SCAN = EV / 'lodscan-mainworld.json'
+CAM = dict(origin=(3075.7885751142931, 4333.9884412620395, 1634.479398727417), pitch=0.0, yaw=-39.998901367187528,
+           hfov=90.0, aspect=1.7777777910232544, w=1280, h=720, source='bank M52SYNC_LOD_NAT_A1 labels.jsonl frame 59')
+KNOWN = dict(actor='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803', runtime_bounds_coverage_pct=8.6518,
+             source='084-06 LOD_NAT game.log, lod_popping COVERAGE line at frame 38 (settled camera)')
+MIN_COV = 7.0
+MAX_COV = 60.0
+MIN_RATIO = 8.0
+
+
+def basis(pitch, yaw):
+    p = math.radians(pitch)
+    y = math.radians(yaw)
+    f = (math.cos(p) * math.cos(y), math.cos(p) * math.sin(y), math.sin(p))
+    r = (-math.sin(y), math.cos(y), 0.0)
+    u = (-math.sin(p) * math.cos(y), -math.sin(p) * math.sin(y), math.cos(p))
+    return f, r, u
+
+
+def dot(a, b):
+    return sum(x * y for x, y in zip(a, b))
+
+
+def project(pt):
+    f, r, u = basis(CAM['pitch'], CAM['yaw'])
+    d = [pt[i] - CAM['origin'][i] for i in range(3)]
+    x = dot(d, f)
+    if x <= 1e-3:
+        return None
+    tanh = math.tan(math.radians(CAM['hfov'] / 2.0))
+    tanv = tanh / CAM['aspect']
+    nx = (dot(d, r) / x) / tanh
+    ny = (dot(d, u) / x) / tanv
+    return ((nx + 1.0) * 0.5 * CAM['w'], (1.0 - ny) * 0.5 * CAM['h'])
+
+
+def rect_of(origin, extent):
+    pts = []
+    behind = 0
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            for sz in (-1, 1):
+                q = project((origin[0] + sx * extent[0], origin[1] + sy * extent[1], origin[2] + sz * extent[2]))
+                if q is None:
+                    behind += 1
+                else:
+                    pts.append(q)
+    if not pts:
+        return None, behind
+    x0 = max(0.0, min(p[0] for p in pts))
+    x1 = min(CAM['w'], max(p[0] for p in pts))
+    y0 = max(0.0, min(p[1] for p in pts))
+    y1 = min(CAM['h'], max(p[1] for p in pts))
+    if behind:
+        x0, y0, x1, y1 = 0.0, 0.0, float(CAM['w']), float(CAM['h'])
+    if x1 <= x0 or y1 <= y0:
+        return None, behind
+    return (x0, y0, x1, y1), behind
+
+
+def overlap(a, b):
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    sa = (a[2] - a[0]) * (a[3] - a[1])
+    sb = (b[2] - b[0]) * (b[3] - b[1])
+    return ix * iy / max(1e-9, min(sa, sb))
+
+
+def main():
+    scan = json.loads(SCAN.read_text(encoding='utf-8'))
+    meshes = scan['meshes']
+    rows = []
+    for c in scan['components']:
+        m = meshes.get(c['mesh']) or {}
+        tris = [t for t in (m.get('triangles') or []) if t]
+        ratio = (tris[0] / tris[-1]) if len(tris) >= 2 and tris[-1] else None
+        rect, behind = rect_of(c['origin'], c['extent'])
+        cov = 100.0 * (rect[2] - rect[0]) * (rect[3] - rect[1]) / (CAM['w'] * CAM['h']) if rect else 0.0
+        dist = math.dist(c['origin'], CAM['origin'])
+        s = 2.0 * max(0.5, 0.5 * CAM['aspect']) * c['sphere'] / max(1.0, dist)
+        checks = dict(
+            multi_lod=m.get('lods', 0) >= 2,
+            not_nanite=m.get('nanite') is False,
+            visible=bool(c.get('visible')) and not c.get('hidden_in_game'),
+            unique_name=bool(c.get('unique_name')),
+            predicted_lod0='unknown (LOD screen sizes are not readable from the 5.1 commandlet; screen size %.4f)' % s,
+            in_frustum_coverage=MIN_COV <= cov <= MAX_COV,
+            triangle_ratio=(ratio is not None and ratio >= MIN_RATIO))
+        hard = [k for k in ('multi_lod', 'not_nanite', 'visible', 'unique_name', 'in_frustum_coverage', 'triangle_ratio') if not checks[k]]
+        rows.append(dict(actor=c['actor'], label=c.get('label'), component=c['component'], mesh=c['mesh'].split('.')[-1],
+                         lods=m.get('lods'), triangles=m.get('triangles'), triangle_ratio=None if ratio is None else round(ratio, 4),
+                         nanite=m.get('nanite'), distance_cm=round(dist, 1), sphere=round(c['sphere'], 1), screen_size=round(s, 4),
+                         bounds_coverage_pct=round(cov, 4), rect=None if rect is None else [round(v, 1) for v in rect],
+                         corners_behind=behind, checks=checks, failed=hard, qualifies=not hard))
+    multi = [r for r in rows if r['lods'] and r['lods'] >= 2]
+    known = next((r for r in rows if r['actor'] == KNOWN['actor']), None)
+    ok = sorted([r for r in rows if r['qualifies']], key=lambda r: -(r['triangle_ratio'] * r['bounds_coverage_pct']))
+    picked = []
+    for r in ok:
+        if all(overlap(r['rect'], p['rect']) < 0.5 for p in picked):
+            picked.append(r)
+        if len(picked) == 2:
+            break
+    best = sorted(multi, key=lambda r: (len(r['failed']), -((r['triangle_ratio'] or 0) * r['bounds_coverage_pct'])))
+    out = dict(rule=str(EV / 'lod-selection-rule.md'), camera=CAM, thresholds=dict(min_cov=MIN_COV, max_cov=MAX_COV, min_ratio=MIN_RATIO),
+               scan=dict(actor_descs=scan['actor_descs'], actors=scan['actors'], components=len(scan['components']),
+                         meshes=len(meshes), multi_lod_meshes=sorted(k.split('.')[-1] for k, v in meshes.items() if v.get('lods', 0) >= 2)),
+               known_answer=dict(expected=KNOWN, computed=None if known is None else known['bounds_coverage_pct'],
+                                 within_1pt=None if known is None else abs(known['bounds_coverage_pct'] - KNOWN['runtime_bounds_coverage_pct']) <= 1.0),
+               multi_lod_components=multi, qualifying=ok, selected=picked, shortfall=max(0, 2 - len(picked)),
+               best_remaining=best[:4])
+    (EV / 'lod-selection.json').write_text(json.dumps(out, indent=1), encoding='utf-8')
+    print(json.dumps(dict(known_answer=out['known_answer'], multi_lod=[(r['actor'][-10:], r['mesh'], r['triangle_ratio'], r['bounds_coverage_pct'], r['failed']) for r in multi],
+                          selected=[r['actor'] for r in picked], shortfall=out['shortfall']), indent=1))
+
+
+if __name__ == '__main__':
+    sys.exit(main())

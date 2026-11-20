@@ -1,0 +1,421 @@
+"""Build the completed 079-12 report from retained evidence, never inferred verdicts."""
+from collections import Counter
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+REV = ROOT / "_reviews"
+E = REV / "079-12-evidence"
+F = E / "final"
+FROZEN = REV / "079-12-frozen"
+
+
+def read(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def link(label, path):
+    return f"[{label}]({path.as_posix()})"
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def table(headers, rows):
+    def row(values):
+        return "| " + " | ".join(str(v).replace("|", " / ").replace("\n", " ") for v in values) + " |"
+    return "\n".join([row(headers), row(["---"] * len(headers)), *(row(r) for r in rows)])
+
+
+def event_tokens(case):
+    return ", ".join(s.split(" runs{")[0].split()[-1] for s in case["lines"] if s.startswith("idx="))
+
+
+def runs(case):
+    return ", ".join(e["run_outcome"] for e in case["detail"] if e["kind"] == "onset")
+
+
+def edges(case):
+    values = []
+    for e in case["detail"]:
+        if e["observation"] == "TRANSITION":
+            values.append(f"T{e['best_k']}({e['offset']:+d})")
+        elif e["observation"] == "NO-TRANSITION":
+            values.append("N")
+        else:
+            values.append("U(" + e["reason"] + ")")
+    return "; ".join(values)
+
+
+bank = read(E / "bank.json")["bank"]
+pre_cap_bank = read(E / "pre_cap/bank.json")["bank"]
+old_bank = {r["name"]: r for r in read(REV / "079-10-evidence/bank.json")["bank"]}
+fixtures = read(F / "selftest_details.json")
+old_fixtures = {r["name"]: r for r in read(REV / "079-10-evidence/final/selftest_details.json")["fixtures"]}
+scorer = read(E / "cohort_v3.json")
+boundary = read(F / "boundary.json")
+manifest = read(FROZEN / "manifest.json")
+audit = read(F / "source_equivalence.json")
+changes = read(E / "initial/changed_readings.json")
+initial_changes = {r["name"] for r in changes}
+final_changes = set()
+for r in fixtures["fixtures"]:
+    if r["name"] in old_fixtures:
+        old = old_fixtures[r["name"]]
+        if (event_tokens(old), runs(old), edges(old)) != (event_tokens(r), runs(r), edges(r)):
+            final_changes.add(r["name"])
+assert final_changes == initial_changes, (final_changes, initial_changes)
+assert fixtures["exit"] == 0 and len(fixtures["fixtures"]) == 94
+assert scorer["planned"] == 572
+
+parts = []
+def add(text):
+    parts.append(text.strip())
+
+
+add("# 079-12 — local peaks and ordered nearest assignment\n\n**Disposition: NEEDS-DECISION. Implementation and authorized feature push complete; unmerged.**")
+add(f"""
+R6′ is implemented as specified, but calibration derives **NO ADMISSIBLE ENVELOPE**:
+wrong recovery cells exist even at baseline median0. The required final default
+therefore refuses all otherwise-assessable edges. **Final P2′:0/64 edges observed;
+all six pinned legs have four UNASSESSABLE events**, with tau=0.0040.
+
+The separate pre-calibration reading at the prior numeric cap0.42 isolates R6′:
+**60/64 observed:56 TRANSITION, four NO-TRANSITION, four UNASSESSABLE**. Five legs
+have four CONSISTENT events; BL_SYN has four PARTIAL events from one-frame runs.
+The four non-blink legs match 079-10's shared observation/numeric fields at that
+same numeric cap. These diagnostic readings are not the final default readings.
+
+**94/94 permanent fixtures and 18/18 contract tests pass the implemented rule.**
+That does not make the supplied predictions pass: the missing-peak6 prediction
+conflicts with the ordered walk, as AMENDMENT 2 recorded before implementation.
+Exclusion also does not guarantee monotonic assigned frames when edge regions
+admit different peaks. Both limitations remain explicit; no extra reservation,
+ordering floor or peak-ratio tuning was added.
+
+**Codex implemented; Claude Code independently reviews next; Chat orchestrates.**
+**Chat review NOT REQUIRED** for the authorized implementation and push, now complete.
+**Chat review REQUIRED** for this evidence, the prediction/monotonicity conflicts
+and independent Code review before merge; this is the next mandatory checkpoint.
+Client/Section G, m51 campaign and release holds remain.
+
+Wall time: **{boundary['elapsed']}**, {boundary['start_utc']} to {boundary['end_utc']}.
+This includes implementation, tests, calibration, commit/push and checkout restoration.
+Monetary/token billing is unavailable; no charge is inferred.
+""")
+
+add("## 1. Authority, revisions and scope")
+add(f"""
+Authority: {link('079-12 ruling', REV / '079-12-codex-ruling-monotone-nearest-assignment.md')},
+superseding 079-11's withdrawn R6 while retaining 079-09/10's scope.
+The {link('079-11 clarification report', REV / '079-11-codex-delta-report.md')} is byte-unchanged
+(SHA256 `{boundary['previous_report_sha256']}`). Earlier reports and predictions remain historical.
+""")
+add(table(["Revision", "SHA"], [
+    ["Feature base", "e6351ce396c53ede5a7acd8186497811776e9e34"],
+    ["AMENDMENT 2, committed before implementation/results", "1ea76240f388b6824dd74164f94bb3668b605663"],
+    ["Implementation: local and remote fix/verifier-field-validity", boundary["feature_sha"]],
+    ["Restored m51", boundary["m51_sha"]],
+    ["Unchanged master / origin-master", boundary["master_sha"]],
+    ["Unchanged CaptureBench HEAD", boundary["capturebench_sha"]],
+]))
+add(f"""
+Both tracked trees are clean at the completed boundary. Source/, Shaders/ and
+tools/measure_label_offset.py retain their base trees/blob. All ten pre-existing
+plugin handoffs and seven other CaptureBench untracked tools retain their hashes.
+Only the permitted local/untracked CaptureBench scorer changed: its NO-TRANSITION
+reason now says “no local peak in labelled window”; its scoring, key set and cap
+derivation are unchanged. CaptureBench has no remote. No mailbox/Code brief,
+merge, tag, build, cook, capture, office-data transfer or owner-app action occurred.
+No owned process or scratch junction remains in flight.
+
+Boundary evidence: {link('preflight', E / 'preflight.json')} and
+{link('final audit', F / 'boundary.json')}. The report's frozen files remain
+usable after restoration; m51's live verifier is an older version.
+""")
+
+add("## 2. Implementation and interpretations")
+add("""
+- Keep the existing per-edge mask union, labelled bounds, baselines, cap and hard
+  refusals. A peak satisfies d(k)>tau and d(k)>=1.5*d(k−1), d(k)>=1.5*d(k+1).
+  “Observed range” means the edge's scanned [lo..hi]; outside neighbours count as zero.
+- Group all edges of all runs by (target, mode); sort by nominal frame, then onset
+  before end at ties, then event index/run ordinal. Subtract previously selected
+  frame numbers, choose nearest nominal frame, tie earlier, consume it. Hard-refused
+  or session-truncated edges consume nothing. Detected frames do not clip windows.
+- No peak gives NO-TRANSITION. A nonempty peak set entirely consumed gives
+  `UNASSESSABLE(all peaks in window assigned to earlier edges: …)`.
+  Ring values come from the selected peak. Same-line alternatives exclude already
+  consumed peaks. Multi-peak run lines disclose both selections and the candidates
+  available at each turn; `none` means no selection.
+- Structured detail adds `peaks`, `available_peaks`, `consumed_peaks`, `other_peaks`.
+  `eligible` now counts local peaks; `best_k`/`best_d` describe the actual selection.
+  Obsolete global-winner `second_d` and `ratio` fields are removed.
+- NO-TRANSITION is not absence of above-threshold change. The unchanged whole-span
+  plus window check is still required for NO-TRACE. Producer-class, identity,
+  mask extrapolation, run/event aggregation, caveats and exit contracts remain.
+
+Implementation touches the verifier, contract tests, client guidance, prospective
+office-card correction, dated G264 correction, CLAUDE.md current block and journal.
+The predictions-only commit appends AMENDMENT 2 without rewriting earlier text.
+""")
+add(link("Full committed diff", F / "implementation.diff"))
+
+add("## 3. Per-P readings")
+add(table(["Prediction", "Reading / disposition"], [
+    ["P1 — regression suite and ruled examples", "94/94 + 18/18 pass the literal rule. Supplied missing6 reading misses; four additional older expected event strings were corrected after first measurement, with original output preserved."],
+    ["P2′ — all64 observed, four C per pinned leg", "MISS: final default0/64 observed, all24 events UNASSESSABLE. Prior-cap diagnostic60/64 observed,56 transitions; BL_SYN4 PARTIAL. All tau.0040; non-blink fields match only at the prior cap."],
+    ["P3 — three masked gameplay sessions + M50", "Completed at final derived default; full lines in Appendix A. No NO-TRACE. M50 retains6 READING events / UNREAD-BBOX-ONLY."],
+    ["P4 — immutable572-key calibration", f"Completed OFF and ON; cap={scorer['cap']}, N={scorer['n']} baseline-bearing perturbation cells. No tuning; tables and all ledgers below."],
+    ["P5 — batch and exit contracts", "Pass: flattened-path collisions retain both reports; forced key collision fails before writes; error3 survives report-only and valid siblings remain; direct CLI2/0/3 verified."],
+    ["P6 — limitations and independent review", "Cause/producer/noise-floor/extrapolation limits retained. Missing-peak and monotonicity conflicts disclosed. Independent Code review and Chat disposition pending."],
+]))
+
+add("### P1: ruled examples and changed expectations")
+add(table(["Fixture", "Selected peaks A.onset / A.end / B.onset / B.end", "Run outcomes", "Prediction status"], [
+    ["r6_blink_aligned", "4 / 6 / 8 / 10; delta0 each", "CONSISTENT / CONSISTENT", "Supplied prediction met"],
+    ["r6_blink_late_second_onset", "4 / 6 / 8 / 10; B.onset delta−1", "CONSISTENT / OFFSET-NOTE", "Supplied prediction met"],
+    ["r6_blink_missing_peak6", "4 / 8 / 10 / none; delta0,+2,+2,n/a", "OFFSET-NOTE / PARTIAL", "Supplied PARTIAL / CONSISTENT misses; literal result predeclared"],
+    ["adjacent_late_second_onset (079-07 / 079-08 F4)", "10 / 12 / 15 / 17; B.onset delta−1", "CONSISTENT / OFFSET-NOTE", "New supplied prediction met; no A.end15 / +3 reading"],
+    ["r6_blink_one_frame_second", "4 / 7 / none / none", "CONSISTENT / PARTIAL", "Added after the measured synthetic-bank miss"],
+]))
+add("""
+For missing6, A.end's unchanged window[4..8] contains peaks4 and8. Frame4 is
+consumed; frame8 is still free, so A.end must take8. B.onset then takes10;
+B.end's peaks8/10 are exhausted. Nothing in the specified walk reserves8 for B.
+
+Six old event-token changes were explicitly predicted in AMENDMENT 2. Four more
+were measured in the first run: previous_end_refusal_masked, previous_end_control_masked,
+partial_multirun_masked and mixed_runs. The first run and explanations were saved
+before updating those known answers. The missing6 fixture's initial callback also
+incorrectly required a printed alternative although none remained; only that
+assertion was corrected. No peak or assignment rule changed after the first fixture
+results; the default cap was subsequently rederived as predeclared.
+""")
+reasons = {
+    "c07_previous_end_refusal": "Input refusals survive; B now takes its nearer15 and17 instead of old13 and an ambiguity refusal.",
+    "c07_partial_multirun": "Separate10/12 peaks resolve A; oversized B remains unread. Bbox event remains READING.",
+    "c07_early_refusal_control": "Separate10/12 peaks replace duplicate refusal; bbox event remains READING.",
+    "c07_previous_end_control": "Ordered10/13/15/17 resolves duplicates; bbox event remains READING.",
+    "c07_previous_end_refusal_masked": "Measured correction: three oversized-region refusals remain; B.end17 is now observed, giving B PARTIAL.",
+    "c07_previous_end_control_masked": "Measured correction:10/13/15/17 yields A.end+1, then an aligned B.",
+    "c07_partial_multirun_masked": "Measured correction: A10/12 is CONSISTENT; B stays UNASSESSABLE. R4 leaves B in coverage.",
+    "c07_mixed_runs": "Measured correction: masked A10/12 is CONSISTENT; bbox B25/27 stays READING in its separate group.",
+    "c08_occluder_aligned": "Nearest end68 replaces stronger end66; onset61 stays+1, so event remains OFFSET-NOTE.",
+    "c08_one_frame_aligned": "Adjacent equal changes60/61 suppress both peaks; whole-span above-tau change prevents NO-TRACE.",
+    "c08_one_frame_late": "Predeclared: onset has no peak, end61 survives at its window boundary with delta−1.",
+    "c08_one_frame_early": "Predeclared: onset60 survives at its window boundary with delta+1; end has no peak.",
+    "adjacent_control": "Predeclared: isolated10/12/15/17 can each be assigned once at delta0.",
+    "adjacent_late_second_onset": "Predeclared: A.end12 and B.onset15, delta−1, replace competing peak15 refusals.",
+    "adjacent_early_second_onset": "Predeclared:10/12/15/17; B.onset delta+1.",
+    "mixed_late_second_onset": "Predeclared: separate bbox/mask groups choose10/12 and15/17; masked B has delta−1.",
+}
+new_by_name = {r["name"]: r for r in fixtures["fixtures"]}
+add("**Every changed old event string (10 of90):**")
+add(table(["Fixture", "079-10", "079-12", "Reason"], [
+    [r["name"], r["old_tokens"][0], r["new_tokens"][0], reasons[r["name"]]]
+    for r in changes if r["old_tokens"] != r["new_tokens"]]))
+add("**Every changed old edge/run reading (16 of90), including unchanged event tokens:** T=TRANSITION(frame, delta), N=NO-TRANSITION, U=UNASSESSABLE. Old refused candidate frames are not counted as observations.")
+add(table(["Fixture / reason", "079-10 edges; runs", "079-12 edges; runs"], [
+    [r["name"] + ": " + reasons[r["name"]],
+     edges(old_fixtures[r["name"]]) + "; runs " + runs(old_fixtures[r["name"]]),
+     edges(new_by_name[r["name"]]) + "; runs " + runs(new_by_name[r["name"]])]
+    for r in changes]))
+add(f"""
+The other74 prior fixtures retain their observation/run/event readings. Both
+lighting fixtures keep their outcomes: aligned OFFSET-NOTE and late-onset
+CONSISTENT with a caveat. The occluder event stays OFFSET-NOTE with the changed
+end observation shown above. Every prior fixture remains in the suite.
+
+Evidence: {link('first run', E / 'initial/selftest.txt')},
+{link('measured corrections', E / 'initial/measured-expectation-corrections.md')},
+{link('all final fixture lines', F / 'selftest_full.txt')},
+{link('all structured fixture readings', F / 'selftest_details.json')},
+{link('18 contract tests', F / 'contracts.txt')}.
+""")
+
+add("### P2′: six pinned legs")
+def counts(r):
+    c = Counter(e["observation"] for e in r["detail"])
+    return [len(r["detail"]) - c["UNASSESSABLE"], c["TRANSITION"], c["NO-TRANSITION"], c["UNASSESSABLE"]]
+add("**Final default (NO ADMISSIBLE ENVELOPE):**")
+add(table(["Leg", "Observed", "T", "N", "U", "Event outcomes", "Tau"], [
+    [r["name"], *counts(r), event_tokens(r), ",".join(str(v) for v in sorted({e["tau"] for e in r["detail"]}))]
+    for r in bank[:6]]))
+add("**Pre-calibration diagnostic, previous numeric cap0.42:**")
+add(table(["Leg", "Observed", "T", "N", "U", "Event outcomes", "Tau"], [
+    [r["name"], *counts(r), event_tokens(r), ",".join(str(v) for v in sorted({e["tau"] for e in r["detail"]}))]
+    for r in pre_cap_bank[:6]]))
+add("""
+At cap0.42, BL_NAT has eight CONSISTENT runs and four CONSISTENT events, all with caveats.
+BL_SYN has four longer CONSISTENT runs and four one-frame PARTIAL runs, so each
+event is PARTIAL; its caveated consistent runs remain printed even though the
+consistent-event count is zero. Both use exactly the same ruled algorithm.
+
+At BL_SYN's second run[10..10], onset window[7..11] has d10=0.5454314227149633
+and d11=0.545536155123659, both far above tau0.004. Neither is1.5 times the other.
+Only peak7 remains in that onset's original peak set, already assigned to A.end.
+The end window[10..15] has no local peak. The same structure repeats at32/33,
+54/55 and76/77. Cap tuning cannot create local peaks here: every baseline median
+is0 and every edge tau is0.0040.
+""")
+add(link("Exact synthetic blink pair values and peak sets", E / "synthetic_blink_peak_audit.json"))
+add(f"""
+At the prior numeric cap, the four non-blink legs have **zero differences in all shared structured fields**
+against 079-10 (32edges), including observation, selected frame/delta, d, tau,
+baseline, window, ring, identity, extrapolation and run outcome. Removed global-
+winner fields and new peak/disclosure fields are outside that schema intersection.
+The final default refuses these edges, so that final comparison does NOT meet P2′.
+Comparison (both stages): {link('bank comparison', E / 'bank_comparison.json')}.
+""")
+
+add("### P3: gameplay and bbox-only control")
+add(table(["Session", "079-10 events", "079-12 events", "Observed / total", "Exit"], [
+    [r["name"], event_tokens(old_bank[r["name"]]), event_tokens(r),
+     f"{counts(r)[0]}/{len(r['detail'])}", r["code"]] for r in bank[6:]]))
+add("All final bank readings use the derived configured cap. Appendix A preserves every header, event, run, edge and summary line. No bank event produces NO-TRACE; M50 remains UNREAD-BBOX-ONLY.")
+add("**Pre-calibration diagnostic at0.42, retained separately:**")
+add(table(["Session", "Event outcomes", "Observed / total"], [
+    [r["name"], event_tokens(r), f"{counts(r)[0]}/{len(r['detail'])}"] for r in pre_cap_bank[6:]]))
+
+add("### P4: calibration without a shrinking denominator")
+stats = []
+for guard in ("guard_off", "guard_on"):
+    cells, unscored = scorer[guard], scorer[guard + "_unscored"]
+    c = Counter(r["outcome"] for r in cells)
+    support = {(r["session"], r["event"], r["ordinal"], r["kind"]) for r in cells if r["outcome"] == "recovered"}
+    assert len(cells) + len(unscored) == scorer["planned"]
+    stats.append([guard, len(cells), len(unscored), *(c[k] for k in ("recovered", "wrong", "no-transition", "unassessable", "unsupported")), len(support)])
+add(table(["Guard", "Scored", "Unscored", "Recovered", "Wrong", "No-transition", "Unassessable", "Unsupported", "Positive original edges"], stats))
+add(f"""
+**572 immutable keys per guard setting**: 208 A2L, 208 LYRA_SMOKE, 156 A1L,
+44 original edges × 13 perturbation/variant combinations. Scored plus unscored
+exactly reconciles to those keys; no READING/UNASSESSABLE run contributes scored
+cells. Unsupported controls retain all 26 tiny keys, including 8 unsupported.
+Rates, if compared, must use 572; positive support counts distinct original edges,
+not perturbation cells or independently proven causal effects.
+
+**Derived/default cap: {scorer['cap']}; N={scorer['n']} baseline-bearing perturbation cells.**
+Derivation: {scorer['note']}. No threshold was changed to satisfy P2′.
+The final verifier header includes this cohort's provenance.
+""")
+wrong = [r for r in scorer["guard_off"] if r["outcome"] == "wrong"]
+if wrong:
+    add(table(["Wrong OFF cell", "Expected", "Observed", "m_edge"], [
+        [f"{r['session']} event{r['event']} run{r['run']} {r['kind']} {r['which']}{r['delta']:+d}/{r['variant']}",
+         r["expected"], r["offset"], r["m_edge"]] for r in wrong]))
+else:
+    add("No wrong cell was observed. The unchanged fallback floors the largest usable baseline median; this is a PROVISIONAL extrapolation, not a validated wrong-cell boundary.")
+add(f"""
+The zero-baseline boundary has a concrete nearest-tie explanation. In A2L event5
+with end−1/annotation, the labelled clear is82; candidates81 and83 are equally
+near. The specified tie rule takes81 (delta−1) although the injected perturbation
+expects83 (delta+1). Their d values are0.04412661455734797 and0.9999445645545761;
+both are local peaks above tau0.004, with baseline median0. The former global
+winner would have preferred83, but R6′ deliberately selects by proximity and
+earlier-frame tie. No positive regional cap can remove a wrong cell at median0.
+The reproduced full candidate/pair evidence is
+{link('zero_baseline_wrong_cell.json', E / 'zero_baseline_wrong_cell.json')}.
+Its tie explanation was recorded before that diagnostic rerun.
+
+Guard ON's zero wrong cells with zero scored cells supplies **no recovery
+validation**: all572 planned keys remain explicitly unscored. The cap is installed
+as the separate refuse-all state, not numeric0 and not the old0.42 fallback.
+""")
+for guard in ("guard_off", "guard_on"):
+    add(f"**{guard}: unscored reasons**")
+    add(table(["Reason", "Keys"], Counter(r["reason"] for r in scorer[guard + "_unscored"]).most_common()))
+    add(f"**{guard}: scored non-recovery reasons**")
+    add(table(["Reason", "Cells"], Counter(r["reason"] for r in scorer[guard] if r["reason"]).most_common()))
+add(f"""
+Full tables/progress: {link('scorer output', E / 'scorer_v3.txt')}.
+Every scored/unscored key and value: {link('cohort_v3.json', E / 'cohort_v3.json')}.
+The frozen sweep scorer's legacy reason `no change above tau` is textually stale
+under R6′; interpret those **NO-TRANSITION** cells as no qualifying local peak.
+The final local scorer corrects that reason without changing scoring or derivation.
+The raw calibration ledger is preserved, not rewritten to hide the wording change.
+
+Calibration ran once against {link('the frozen sweep tools', REV / '079-12-sweep-tools/manifest.json')}.
+Afterward, verifier changes are limited to cap/provenance, CLI help wording and the
+added synthetic-blink regression; scorer changes are module documentation and the reason string.
+An AST comparison proves all calibration logic otherwise identical, including
+regions/identity/baselines, local peaks, assignment, eligibility, scoring and cap
+derivation. Both sweep phases explicitly pass their cap. No second full sweep is
+claimed. Final regressions, scorer controls/CLI and default-cap bank run afterward.
+Audit: {link('source equivalence', F / 'source_equivalence.json')} and its linked diffs.
+""")
+
+add("### P5 and P6: contracts and remaining decisions")
+add(f"""
+{link('Complete checks', F / 'complete_checks.json')} verify scorer recovered,
+wrong, no-transition and unassessable classes; {link('scorer self-test', F / 'scorer_selftest.txt')}
+verifies bbox-only exclusion, partially masked eligibility, unsupported denominators
+and numeric-zero/refuse-all/undetermined cap distinctions. Direct CLI exits are
+NO-TRACE2, report-only0, execution error with report-only3. The18contract tests
+include the old9batch/region/mask contracts plus9peak/assignment contracts.
+Semantic fixtures use explicit cap1, as AMENDMENT1 predeclared, with separate
+numeric/zero/refuse-all guard cases. Passing those fixtures does not imply that
+the final refuse-all default provides usable observations.
+
+The non-monotonic contract uses two separate labelled runs10..11 and15..16.
+A.end window[10..15] admits only15; B.onset window[12..17] admits only12 in its
+different region. The literal walk assigns15 then12, without duplication.
+This is a controlled per-pair signal contract, not a claim about the bank's geometry.
+It disproves the general monotonicity assertion without adding the forbidden
+ordering constraint. The supplied algorithm remains implemented exactly.
+
+Chat's pending decisions are the zero-baseline wrong cells and resulting refuse-all
+default, the synthetic one-frame P2′ miss even at the old numeric cap, the missing6
+prediction conflict, and the monotonicity claim. No new brief is dispatched.
+Independent Code review is pending; implementation self-review is not presented
+as independent approval. No fresh Codex session or context-setting change is
+recommended for this same workstream. CURRENT.md preserves the completed state
+and links the current report, predictions and evidence.
+""")
+
+add("## 4. Reproduction and source provenance")
+add(r"""
+Use frozen final tools after checkout restoration (PowerShell):
+
+```powershell
+$env:IAI_VERIFIER_TOOLS='D:\IntrusiveAnomalies\_reviews\079-12-frozen'
+python -B D:\IntrusiveAnomalies\_reviews\079-12-frozen\verify_capture.py --label-pixel-gate --selftest
+python -B D:\IntrusiveAnomalies\_reviews\079-12-frozen\test_verify_capture_consistency.py
+python -B D:\IntrusiveAnomalies\_reviews\079-12-frozen\m079_shift_recovery.py --selftest
+python -B D:\IntrusiveAnomalies\_reviews\079-12-frozen\verify_capture.py --dir D:\IntrusiveAnomalies\_bench_sessions_bank\M49_GEDGE_BL_SYN\session_20260904-135302 --label-pixel-gate
+```
+
+To reproduce the entire calibration, run that frozen scorer without `--selftest`
+and with a NEW `--json` output path. Its default three bank sessions and planned
+keys are unchanged. Preserve this round's original artifacts.
+""")
+add(table(["File", "Final SHA256"], [[name, data["sha256"]] for name, data in manifest["files"].items()]))
+add(f"Sweep source SHA256: verifier `{scorer['verifier_sha256']}`; scorer `{scorer['scorer_sha256']}`. Final artifact manifest: {link('manifest.json', FROZEN / 'manifest.json')}.")
+add(table(["Evidence", "SHA256"], [[p.name, sha(p)] for p in (E / "cohort_v3.json", E / "bank.json", F / "selftest_details.json", F / "complete_checks.json", F / "source_equivalence.json")]))
+
+add("## Appendix A — complete final bank readings")
+for r in bank:
+    add("### " + r["name"])
+    add("```text\n" + "\n".join(r["lines"]) + "\n```")
+
+add("## Appendix A2 — complete pre-calibration readings at cap0.42 (diagnostic)")
+for r in pre_cap_bank:
+    add("### " + r["name"])
+    add("```text\n" + "\n".join(r["lines"]) + "\n```")
+
+add("## Appendix B — full new ruled-fixture readings")
+for r in fixtures["fixtures"]:
+    if r["name"].startswith("r6_") or r["name"] == "adjacent_late_second_onset":
+        add("### " + r["name"])
+        add("```text\n" + "\n".join(r["lines"]) + "\n```")
+
+add("## Appendix C — final regression summary")
+add("```text\n" + (F / "selftest.txt").read_text(encoding="utf-8").rstrip() + "\n```")
+add("**Chat review REQUIRED for this evidence and independent Code review before merge.** P2′ and one supplied fixture prediction still miss; the branch remains unmerged and all release holds remain.\n\nVERDICT: NEEDS-DECISION")
+
+dest = REV / "079-12-codex-delta-report.md"
+dest.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
+assert "\ufffd" not in dest.read_text(encoding="utf-8")
+print(f"Wrote {dest}: {len(dest.read_bytes())} bytes")

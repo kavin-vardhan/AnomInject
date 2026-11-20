@@ -1,0 +1,39 @@
+import importlib.util,json,os,sys
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c53',R/'082-07-common.py');lib=load('lib53',R/'082-07-lib.py')
+problems=[];bd=json.loads((c.EV/'boundary.json').read_text())
+def chk(ok,msg):
+    if not ok:problems.append(msg)
+ours,foreign=c.classify()
+chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present at close')
+st=c.staged_state()
+for k,v in c.STAGED.items():chk(st[k]==v,f'staged {k} changed')
+for p,h in bd['harness'].items():
+    q=Path(p) if Path(p).is_absolute() else R/p
+    chk(q.exists() and c.sha(q)==h,f'harness file changed {p}')
+chk(c.git(c.RP,'rev-parse','HEAD')==c.M51_HEAD and c.git(c.RP,'branch','--show-current')=='m51','main checkout moved')
+chk(c.git(c.SRC,'rev-parse',c.FEATURE)==bd['feature_head'],'feature head moved during the window')
+led=lib.ledger_live();acc=[x for x in led if x.get('status')=='ACCEPTED'];links=0
+for x in acc:
+    a=c.bank_read(x['label']);al=c.bank_read(c.BANK_PREFIX+x['leg'])
+    files=[p for p in a.rglob('*') if p.is_file()]
+    for p in files:
+        q=al/p.relative_to(a)
+        if not q.exists() or os.stat(q).st_ino!=os.stat(p).st_ino:problems.append(f'alias not a hardlink: {q}');break
+        links+=1
+left=[d.name for d in c.EXE_SIDE.iterdir() if d.is_dir() and d.name.startswith(c.BANK_PREFIX)]
+banked_fail={x['label'] for x in led if x.get('status')=='INVALID-BANK'}
+chk(not [d for d in left if d not in banked_fail],f'exe-side leg copies left after banking: {left[:5]}')
+man={str(q.relative_to(c.RUN)):c.sha(q) for q in c.RUN.rglob('*') if q.is_file() and q.name not in ('evidence-manifest.json','postflight.json')}
+(c.RUN/'evidence-manifest.json').write_text(json.dumps(man,indent=1))
+for e in lib.sup()['entries']:
+    for m in e.get('aliases') or []:
+        if (c.REAL_BANK/m['from']).exists() and not c.STUB:
+            live=[x for x in acc if c.BANK_PREFIX+x['leg']==m['from']]
+            if not live:problems.append(f"superseded alias {m['from']} is back without a live accepted attempt")
+out=dict(utc=c.now(),problems=problems,accepted_legs=len(acc),superseded_attempts=len(lib.sup_labels()),stub=c.STUB,alias_hardlinks_verified=links,exe_side_left=left,evidence_files=len(man),foreign_present=[(p['pid'],p['name']) for p in foreign],
+         verdict='PASS: staged build, harness, m51 and the feature head unchanged; every accepted leg aliased by hardlinks; no exe-side copy left' if not problems else 'FAIL: see problems')
+(c.RUN/'postflight.json').write_text(json.dumps(out,indent=2,default=str));print(json.dumps(out,default=str)[:2000]);sys.exit(1 if problems else 0)

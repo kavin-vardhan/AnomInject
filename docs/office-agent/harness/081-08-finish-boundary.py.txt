@@ -1,0 +1,92 @@
+from pathlib import Path
+import datetime,hashlib,json,shutil,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-08-evidence';R=B/'StackOBot/Plugins/AnomalyInjector';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector');F=B/'_reviews/081-08-frozen'
+FEATURE='feat/m55-change-evidence';SOURCE='989da8b12ccf9fb7b70409f08a6321d5f7d78087'
+repos={'AnomalyInjector':R,'Lyra':L,'CaptureBench':B/'StackOBot/Plugins/CaptureBench'}
+def git(r,*args):return subprocess.check_output(['git','-C',str(r),*args]).decode().strip()
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def idle():
+    s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue | Select-Object Id,ProcessName) | ConvertTo-Json -Compress"]).decode().strip()
+    assert not s or s=='[]',s
+def clean(r):
+    assert not git(r,'diff','--name-only') and not git(r,'diff','--cached','--name-only'),str(r)
+def write(p,o):p.write_text(json.dumps(o,indent=2),encoding='utf-8')
+before=json.loads((E/'preflight.json').read_text());candidate=json.loads((E/'binary-v3.json').read_text());entry=json.loads((B/'_reviews/081-06-evidence/lyra-binary-before.json').read_text())
+idle()
+if sys.argv[1]=='restore':
+    for r in repos.values():clean(r)
+    assert git(R,'branch','--show-current')==FEATURE
+    feature=git(R,'rev-parse','HEAD');assert feature==git(R,'rev-parse','origin/'+FEATURE)
+    assert not git(R,'diff','--name-only',SOURCE,feature,'--','Source','Shaders','Config','AnomalyInjector.uplugin')
+    assert git(L,'rev-parse','HEAD')==SOURCE
+    assert not F.exists();F.mkdir()
+    files=[p for p in git(R,'ls-files').splitlines() if p.startswith(('Source/','Shaders/','Config/')) or p=='AnomalyInjector.uplugin']
+    files+=['CLAUDE.md','docs/PRE-DELIVERY-CHECKLIST.md','docs/architecture.md','docs/gotchas.md','docs/change-evidence-fields.md','docs/predictions/2026-09-20-m55-change-evidence.md','docs/sessions/2026-09-21-081-08-codex-m55-stage-2.md']
+    manifest={'source_commit':SOURCE,'feature_commit':feature,'files':{}}
+    for rel in files:
+        dst=F/'AnomalyInjector'/rel;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(R/rel,dst)
+        manifest['files'][rel]={'sha256':sha(dst),'git_blob':git(R,'rev-parse',feature+':'+rel)}
+        assert git(R,'hash-object','--path='+rel,str(R/rel))==manifest['files'][rel]['git_blob'],rel
+    write(F/'manifest.json',manifest)
+    # All restore inputs verified before either checkout is changed.
+    orig=B/'_binary_baselines/m55-stage1-lyra-entry-caa68c6';target=(L/'Binaries/Win64').resolve()
+    for row in entry:assert sha(orig/row['name'])==row['sha256']
+    for row in candidate['lyra_modules']:
+        assert sha(target/row['name'])==row['sha256']
+        assert sha(Path(candidate['lyra_archive'])/row['name'])==row['sha256']
+    mainmods={str(p):sha(p) for p in (R/'Binaries/Win64').glob('*') if p.is_file() and (p.name.startswith('UnrealEditor-Anomaly') or p.name=='UnrealEditor.modules')}
+    git(L,'checkout','--detach',before['repos']['Lyra']['head'])
+    for row in entry:shutil.copy2(orig/row['name'],target/row['name'])
+    removed=[]
+    for name in ('UnrealEditor-AnomalyBench.dll','UnrealEditor-AnomalyBench.pdb'):
+        p=(target/name).resolve();assert p.parent==target and p.name==name
+        p.unlink();removed.append(str(p))
+    for row in entry:assert sha(target/row['name'])==row['sha256']
+    git(R,'checkout','m51')
+    write(E/'restoration.json',{'feature_commit':feature,'source_commit':SOURCE,'main_editor_candidate_modules_left_in_place':mainmods,'lyra_restored_entry_modules':entry,'removed_exact_new_module_files':removed,'main_head':git(R,'rev-parse','HEAD'),'lyra_head':git(L,'rev-parse','HEAD')})
+    print(json.dumps({'restored':True,'frozen_files':len(files),'feature_commit':feature}))
+elif sys.argv[1]=='post':
+    after={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'repos':{},'verified_binaries':{}}
+    for name,r in repos.items():
+        clean(r);old=before['repos'][name]
+        new={'head':git(r,'rev-parse','HEAD'),'branch':git(r,'branch','--show-current'),'refs':git(r,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes'),'untracked':{p:sha(r/p) for p in git(r,'ls-files','--others','--exclude-standard').splitlines()}}
+        for k in ('head','branch','untracked'):assert new[k]==old[k],(name,k)
+        oldrefs=dict(l.split(' ',1) for l in old['refs'].splitlines());newrefs=dict(l.split(' ',1) for l in new['refs'].splitlines())
+        delta={k:[oldrefs.get(k),newrefs.get(k)] for k in oldrefs.keys()|newrefs.keys() if oldrefs.get(k)!=newrefs.get(k)}
+        assert set(delta)<={'refs/heads/'+FEATURE,'refs/remotes/origin/'+FEATURE},delta
+        new['ref_delta']=delta;after['repos'][name]=new
+    expected=dict(before['verified_binaries'])
+    for key in ('built','staged','archive'):expected[candidate[key]]=candidate['sha256']
+    for row in candidate['containers']:expected[row['path']]=row['sha256']
+    for row in candidate['lyra_modules']:expected[str(Path(candidate['lyra_archive'])/row['name'])]=row['sha256']
+    restoration=json.loads((E/'restoration.json').read_text())
+    expected.update(restoration['main_editor_candidate_modules_left_in_place'])
+    for p,h in expected.items():assert sha(p)==h,p
+    after['verified_binaries']=expected
+    for p,h in before['prior_artifacts'].items():assert sha(B/p)==h,p
+    after['prior_artifacts_preserved']=len(before['prior_artifacts'])
+    prior7=json.loads((B/'_reviews/081-07-evidence/postflight.json').read_text())
+    assert sha(B/'_reviews/081-07-codex-m55-stage-1-lyra-matrix.md')==prior7['report_sha256']
+    assert sha(E/'CURRENT.before.md')==prior7['current_sha256']
+    prior7f=json.loads((B/'_reviews/081-07-frozen/manifest.json').read_text())
+    for row in prior7f['files']:assert sha(B/'_reviews/081-07-frozen'/row['path'])==row['sha256']
+    after['prior_08107_report_and_frozen_verified']=len(prior7f['files'])
+    for p,h in json.loads((E/'bank-manifest.json').read_text()).items():assert sha(B/p)==h,p
+    after['bank_files_verified']=len(json.loads((E/'bank-manifest.json').read_text()))
+    m=json.loads((F/'manifest.json').read_text())
+    for p,info in m['files'].items():assert sha(F/'AnomalyInjector'/p)==info['sha256'],p
+    after['frozen_files_verified']=len(m['files']);after['feature_commit']=git(R,'rev-parse',FEATURE)
+    assert after['feature_commit']==git(R,'rev-parse','origin/'+FEATURE)==m['feature_commit']
+    remote=git(R,'ls-remote','origin','refs/heads/'+FEATURE,'refs/heads/master')
+    assert after['feature_commit']+'\trefs/heads/'+FEATURE in remote
+    assert '031a103b18b90b2ce9dd626b22e9498717c60815\trefs/heads/master' in remote
+    after['remote_refs']=remote
+    current=(B/'ToCodex/CURRENT.md').read_bytes();assert current.endswith((E/'CURRENT.before.md').read_bytes())
+    assert (E/'coverage-limits-verbatim.md').read_bytes()==(E/'prior-coverage-limits-verbatim.md').read_bytes()
+    after['current_history_preserved']=True;after['current_sha256']=sha(B/'ToCodex/CURRENT.md')
+    report=B/'_reviews/081-08-codex-m55-stage-2-report.md';assert report.read_text(encoding='utf-8').rstrip().endswith('VERDICT: NEEDS-DECISION')
+    after['report_sha256']=sha(report);after['bench_processes']=[];idle();after['verdict']='PASS: restored boundary; Stage 2 NEEDS-DECISION, Stage 3 HELD'
+    write(E/'postflight.json',after)
+    print(json.dumps({k:v for k,v in after.items() if k not in ('repos','verified_binaries')},indent=2))
+else:raise ValueError(sys.argv[1])

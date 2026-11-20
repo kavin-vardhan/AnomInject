@@ -1,0 +1,21 @@
+import importlib.util,os,sys
+os.environ['IAI_R23_WINDOW']='c1'
+spec=importlib.util.spec_from_file_location('lib23',r'D:\IntrusiveAnomalies\_reviews\081-23-lib.py');L=importlib.util.module_from_spec(spec);spec.loader.exec_module(L)
+L.env_for_window()
+def m(leg,case,order):
+    f=lambda:L.run_measure_leg(leg,case,order);f.__name__=leg;return f
+def lg(mapkind,order,legs):
+    f=lambda:L.run_legacy_group(mapkind,order,legs);f.__name__=f'legacy_{mapkind}_{order}';return f
+steps=[]
+for g in (8,9,2,15):
+    for o in (0,1):steps.append(m(f'C1_G{g}_{"S" if o else "N"}',f'g{g}',o))
+for case in ('low','g10'):
+    for o in (0,1):steps.append(m(f'C1_{case.upper()}_{"S" if o else "N"}',case,o))
+for case in ('count_fail','wall_fail'):
+    for o in (0,1):steps.append(m(f'C1_{case.upper()}_{"S" if o else "N"}',case,o))
+steps+=[m('C1_NULL1080_N','null1080',0),m('C1_NULL1080_S','null1080',1),m('C1_SOLID1080_S','solid1080',1)]
+CB6=lambda p:[(p+'1','pre'),(p+'2','b3off'),(p+'3','b3on'),(p+'4','b3on'),(p+'5','b3off'),(p+'6','pre')]
+MAIN4=lambda p:[(p+'1','pre'),(p+'2','b3on'),(p+'3','b3on'),(p+'4','pre')]
+steps+=[lg('CB','N',CB6('CB_N')),lg('CB','S',CB6('CB_S')),lg('MAIN','N',MAIN4('MAINON_N')),lg('MAIN','S',MAIN4('MAINON_S'))]
+if len(sys.argv)>1 and sys.argv[1]=='--list':print('\n'.join(s.__name__ for s in steps));sys.exit(0)
+sys.exit(L.run_sequence(steps,'chunk1-summary.json'))

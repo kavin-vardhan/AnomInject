@@ -1,0 +1,30 @@
+from pathlib import Path
+import json, hashlib, shutil, subprocess, sys
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'; repo=base/'StackOBot/Plugins/AnomalyInjector'
+lyra=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+before=json.loads((ev/'preflight.json').read_text()); mods=json.loads((ev/'lyra-binary-before.json').read_text())
+candidate=json.loads((ev/sys.argv[1]).read_text())
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+subprocess.run([pwsh,'-NoProfile','-Command',"if (Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue) { throw 'Not idle' }"],check=True)
+def sha(p):
+    with p.open('rb') as f: return hashlib.file_digest(f,'sha256').hexdigest()
+def git(p,*a): return subprocess.check_output(['git','-C',str(p),*a]).decode().strip()
+for p in (repo,lyra):
+    assert not git(p,'diff','--name-only')
+    assert not git(p,'diff','--cached','--name-only')
+assert sha(Path(candidate['staged']))==candidate['sha256']
+for r in candidate['lyra_modules']: assert sha(lyra/'Binaries/Win64'/r['name'])==r['sha256']
+archive=base/'_binary_baselines/m55-stage1-lyra-entry-caa68c6'
+assert {p.name for p in (lyra/'Binaries/Win64').iterdir() if p.is_file()}=={r['name'] for r in mods}
+for r in mods: assert sha(archive/r['name'])==r['sha256']
+subprocess.run(['git','-C',str(lyra),'checkout','--detach','caa68c6799db023f7a24c0d6cfc56124ce27b542'],check=True)
+for r in mods:
+    shutil.copy2(archive/r['name'],lyra/'Binaries/Win64'/r['name'])
+    assert sha(lyra/'Binaries/Win64'/r['name'])==r['sha256']
+subprocess.run(['git','-C',str(repo),'checkout','m51'],check=True)
+assert git(repo,'rev-parse','HEAD')==before['AnomalyInjector']['head']
+assert git(repo,'branch','--show-current')=='m51'
+assert git(lyra,'rev-parse','HEAD')=='caa68c6799db023f7a24c0d6cfc56124ce27b542'
+result=dict(main_checkout=git(repo,'rev-parse','HEAD'),lyra_checkout=git(lyra,'rev-parse','HEAD'),lyra_module_set_restored=True,staged_candidate_sha256=sha(Path(candidate['staged'])))
+(ev/'restoration.json').write_text(json.dumps(result,indent=2))
+print(json.dumps(result,indent=2))

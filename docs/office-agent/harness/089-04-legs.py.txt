@@ -1,0 +1,121 @@
+FMW='/Game/StackOBot/Maps/MainWorld'
+FGATE='/Game/CaptureBenchGate/CB_GateLevel'
+FSYN='/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel'
+UV='uv_corruption';NM='normal_corruption'
+UC1='StaticMeshActor_0';NN1='StaticMeshActor_12';LAYER='StaticMeshActor_57'
+ORC16='StaticMeshActor_75';ORC64='StaticMeshActor_76';M52HOLD='StaticMeshActor_77';M52SHARE='StaticMeshActor_78'
+ORCN='StaticMeshActor_79';MIXED='StaticMeshActor_80'
+FIXTURE_LABELS={UC1:'TC_UC1',NN1:'TC_NN1',LAYER:'TC_Layer',ORC16:'TC_OracleUV16',ORC64:'TC_OracleUV64',M52HOLD:'TC_M52Hold',
+                M52SHARE:'TC_M52Share',ORCN:'TC_OracleN',MIXED:'TC_Mixed'}
+ROCK='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+ROCK2='StaticMeshActor_UAID_A036BC6AB247EBF902_2048592804'
+AA_OFF_ARBITER=['r.AntiAliasingMethod 0','r.Lumen.DiffuseIndirect.Allow 0','r.DynamicGlobalIlluminationMethod 0','r.ReflectionMethod 0']
+SYN=['IAI.Bench.SynthTickOrder 1']
+TONEMAP_OFF=['ShowFlag.Tonemapper 0'];LIGHTING_OFF=['ShowFlag.Lighting 0']
+ID='IAI.Bench.TexCorruptIdentity 1';NOAPPLY1='IAI.Bench.TexCorruptNoApply 1';TILEPROBE='IAI.Bench.TexCorruptTileProbe 2'
+CFG_EDGE='2 4 8 14 0'
+CFG_S1='2 16 8 4 0'
+BENCH='-IAIBench'
+NOFLAG=''
+CAP='@CAP';CCAP='@CCAP'
+MW_ON_FRAMES=300;MW_NULL_FRAMES=400
+def leg(leg_id,group,role,map_,anomaly,target,frames,cfg,levers=(),seed=777,auto=False,required=True,extra=BENCH,mode=None,
+        start_args=(),null=None,kind='capture',pre_cmds=(),post_cmds=(),runs=None,cond=None,note='',premise=None,expect=None,
+        flag=None,wait_pattern=None,wait_count=1,lever=None,arbiter=False,family=None,host=None,prediction=''):
+    sa=list(start_args)
+    if mode and not sa:sa=[mode]
+    return dict(leg=leg_id,group=group,role=role,map=map_,anomaly=anomaly,target=target,frames=frames,cfg=cfg,levers=list(levers),
+                seed=seed,auto=auto,required=required,extra=extra,mode=mode,start_args=sa,null=null,kind=kind,pre_cmds=list(pre_cmds),
+                post_cmds=list(post_cmds),runs=runs,cond=cond,note=note,premise=premise,expect=expect,flag=flag,build='DC2',
+                wait_pattern=wait_pattern,wait_count=wait_count,lever=lever,arbiter=bool(arbiter) or any(x in list(levers) for x in AA_OFF_ARBITER[:1]),
+                family=family,host=host,prediction=prediction,showflags=[x for x in list(levers) if str(x).startswith('ShowFlag.')])
+LEGS=[]
+LEGS+=[
+ leg('P_HOST_CEN','PREMISE','CENSUS',FMW,None,None,0,CFG_EDGE,extra=NOFLAG,kind='census',
+     post_cmds=['IAI.TexCorrupt.Census','IAI.TexCorrupt.Census all'],wait_pattern='IAI-TEXCORRUPT-CENSUS v1 end',wait_count=2,
+     note='G-CENSUS host (MainWorld, cold, no -IAIBench) + the ND-4 yield at the delivered 128 MiB; ONE census command per engine frame (night ruling item 10)',
+     prediction='census_readonly_check --log --cold PASS (the two blocks land in consecutive engine frames); view: uv 0 eligible (over_budget 2, partial_footprint 1, texture_not_parameter 2), normal 0; all: uv 26, normal 9 (the night counts; MainWorld is not re-cooked)'),
+ leg('P_HOST_BENCH','PREMISE','CENSUS',FMW,None,None,0,CFG_EDGE,kind='census',post_cmds=['IAI.TexCorrupt.Census','IAI.Bench.TexCorruptCensus'],
+     wait_pattern='TEXCORRUPT-CENSUS END',wait_count=1,note='G403: per-actor decisions on the settled view, final parsed as head[:detail] (over_budget:need_<n>_available_<n>_cap_<n>); the count join',
+     prediction='uv budget-only view hosts SM_Ramp2 (need 213,949,084) and RoomBuilderSquare (219,541,488); no normal host at any cap; count join exact'),
+ leg('P_ORC_UV','PREMISE','NULL',FSYN,UV,ORC16,120,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+[ID],note='P-ORC: the UV oracle tiles on a null',prediction='P-ORC uv16 16/16 and uv64 64/64 cells located, interior <= 2, separation >= 32, residual <= 0.5 px, 1:1; ShowFlag.Tonemapper read back 0 (089-02b: the filmic curve mixed channels and added vignette / bloom / dither)'),
+ leg('P_ORC_N','PREMISE','NULL',FSYN,NM,ORCN,120,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+LIGHTING_OFF+[ID],note='P-ORC: the normal oracle tile on a null',prediction='P-ORC n PASS: 16 cells, separation >= 32, interior <= 2, residual <= 0.5 px, pattern; ShowFlag.Tonemapper and ShowFlag.Lighting read back 0 and the readout linearised (089-02b dcfix)'),
+]
+for i,fam,anom in ((1,'U',UV),(2,'U',UV),(1,'N',NM),(2,'N',NM)):
+    LEGS.append(leg(f'P_HOST_FIRE_{i}{fam}','PREMISE_FIRE','FIRE',FMW,anom,f'@C{i}{fam}',120,CFG_EDGE,[CCAP,ID],premise='CANDIDATES',family=fam,
+                    note='G403 host probe: an identity fire on candidate {i}{fam} at the tier cap (128 MiB, or the declared raise for a budget-only host); the first applied decision decides H1/H2'.format(i=i,fam=fam),
+                    prediction='uv: SM_Ramp2 APPLIED under 256 MiB (candidate order = required bytes ascending); RoomBuilderSquare may refuse not_fully_resident (the night P_FLOOR read 0/30); normal: NOT-RUN-PREMISE (no candidate)'))
+LEGS+=[
+ leg('LEVER_OFF','LEVER','LEVER_OFF',FSYN,UV,UC1,60,CFG_EDGE,mode='tile',extra=NOFLAG,
+     post_cmds=['IAI.Bench.SynthTickOrder 1','IAI.Bench.TexCorruptIdentity 1','IAI.Bench.DestroyTarget StaticMeshActor_12','IAI.ListAnomalies'],
+     note='G-LEVER-OFF (night ruling item 10): the lever had no effect + the DISABLED echo + no twin listed; packaged logs never print "not recognized"',
+     prediction='DISABLED echo (n masked, preset 0) and no ENABLED; none of the three levers echoes or acts (no "-> " set line, SYNTH TICK ORDER stays off, no DestroyTarget ARMED/DESTROYING, the fire reads mode_source=argument, StaticMeshActor_12 never destroyed); IAI.ListAnomalies printed and lists no null_effect / solid_swap'),
+ leg('CENSUS_FSYN','CENSUS','CENSUS',FSYN,None,None,0,CFG_EDGE,extra=NOFLAG,kind='census',post_cmds=['IAI.TexCorrupt.Census'],
+     wait_pattern='IAI-TEXCORRUPT-CENSUS v1 end',wait_count=1,note='G-CENSUS on the re-cooked fixture, cold, no -IAIBench',prediction='four count lines, grammar PASS, stats_unchanged=1, cold read PASS'),
+ leg('CENSUS_FSYN_BENCH','CENSUS','CENSUS',FSYN,None,None,0,CFG_EDGE,kind='census',post_cmds=['IAI.TexCorrupt.Census','IAI.Bench.TexCorruptCensus'],
+     wait_pattern='TEXCORRUPT-CENSUS END',wait_count=1,note='the fixture count join, one command per frame',prediction='count join exact; TC_Mixed uv APPLY, normal partial_footprint:1/2:no_normal_map'),
+]
+for anom,mode,tgt in ((UV,'tile',UC1),(UV,'scramble',UC1),(NM,'invert',NN1),(NM,'green_flip',NN1)):
+    LEGS.append(leg(f'F_{mode.upper()}_NAT','BM53F','SYNC',FSYN,anom,tgt,400,CFG_EDGE,[],mode=mode,cond='NAT',
+                    note='fixture B-M53 regression on the re-cooked fixture, once per mode (delivered AA)',
+                    prediction='PASS: E1 (frozen 089-03) t50 onset 0 / offset 0 on >= 16 judged, 0 NOT-MEASURABLE (bar predicted-invisible scramble pairs), 0 m53 transition flags, masks exact, label-rule exit 0 (the night: 17/17 +0/+0 per mode)'))
+LEGS+=[
+ leg('MODE_TILE','GMODE','MODE',FSYN,UV,ORC16,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF,mode='tile',null='MODE_UVNULL',prediction='G-MODE-UV tile PASS on >= 4 counted events; wrong-mode negatives < 50 %'),
+ leg('MODE_SCRAMBLE','GMODE','MODE',FSYN,UV,ORC64,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF,mode='scramble',null='MODE_UVNULL',prediction='G-MODE-UV scramble PASS; the logged pair equals the recomputation'),
+ leg('MODE_UVNULL','GMODE','NULL',FSYN,UV,ORC16,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+[ID],prediction='null as each uv mode < 50 %'),
+ leg('MODE_INVERT','GMODE','MODE',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+LIGHTING_OFF,mode='invert',null='MODE_NNULL',prediction='G-MODE-N invert PASS'),
+ leg('MODE_GREENFLIP','GMODE','MODE',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+LIGHTING_OFF,mode='green_flip',null='MODE_NNULL',prediction='G-MODE-N green_flip PASS'),
+ leg('MODE_NNULL','GMODE','NULL',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+LIGHTING_OFF+[ID],prediction='null as each normal mode < 50 %'),
+]
+ARM_ROWS=(('CD3','IAI.Bench.TexCorruptCommitDelay 3','start+1'),('CD5','IAI.Bench.TexCorruptCommitDelay 5','start+3'),
+          ('RD3','IAI.Bench.TexCorruptRestoreDelay 3','end+1'),('RD5','IAI.Bench.TexCorruptRestoreDelay 5','end+3'))
+for code,lever,exp in ARM_ROWS:
+    for aa,lv in (('AAOFF',AA_OFF_ARBITER),('AAON',[])):
+        edge,k=exp.split('+');other='end' if edge=='start' else 'start'
+        LEGS.append(leg(f'ARM_{code}_{aa}','BM53ARM','CANFAIL',FSYN,UV,UC1,200,CFG_EDGE,lv+[lever],mode='tile',expect=exp,cond='NAT_AAOFF' if aa=='AAOFF' else 'NAT',
+                        note=f'can-fail (c), 089-01 ruling 4: the lever counts ENGINE frames and the capture skips 2 settle frames, so D={lever.split()[-1]} reads {edge} +{k} in captured frames',
+                        prediction=f'E1 (frozen) FAIL at t50 with the {edge} edge modal +{k} on >= 4 judged events and the {other} edge modal 0; E2 and the kit read the same shift (a reading)'))
+LEGS+=[
+ leg('ARM_NOAPPLY1','BM53ARM','CANFAIL',FSYN,UV,UC1,200,CFG_EDGE,AA_OFF_ARBITER+[NOAPPLY1],mode='tile',expect='holes',cond='NAT_AAOFF',
+     note='can-fail (d): labelled, never visible',prediction='FAIL: every event NOT-MEASURABLE (7 of 7 at night)'),
+ leg('REASON_MIXED_N','REASON','REASON',FSYN,NM,MIXED,120,CFG_EDGE,mode='invert',
+     note='TC_Mixed normal after the 089-02b fixture fix (slot 0 = M_TC_MixedN, no component override; slot 1 = M_TC_MixedC colour texture, no normal map)',
+     prediction='RE-DECLARED before any run: every decision final=partial_footprint:1/2:no_normal_map (slot 0 qualified, slot 1 no_normal_map), 0 APPLIED'),
+ leg('REASON_MIXED_UV','REASON','REASON',FSYN,UV,MIXED,120,CFG_EDGE,mode='tile',
+     note='TC_Mixed uv after the fixture fix: both slots carry a texture',prediction='RE-DECLARED before any run: APPLIED (both slots qualified), no partial_footprint line; label-sync PASS on its events (a reading at 120 frames)'),
+ leg('BIND_TILE','BIND','TILE',FSYN,UV,LAYER,100,CFG_S1,AA_OFF_ARBITER+[TILEPROBE],prediction='G-BIND per-frame minimum PASS (every measured tile-probe frame changes the layer half) and far strip <= 2; recipe read-back 0/0/0/0'),
+ leg('BIND_TILENULL','BIND','TILENULL',FSYN,UV,LAYER,100,CFG_S1,AA_OFF_ARBITER+[TILEPROBE,NOAPPLY1],prediction='the NoApply null the halves are located from'),
+ leg('BIND_ID','BIND','ID',FSYN,UV,LAYER,100,CFG_S1,AA_OFF_ARBITER+[ID],prediction='(S1 recipe, reading)'),
+ leg('BIND_IDNULL','BIND','NULL',FSYN,UV,LAYER,100,CFG_S1,AA_OFF_ARBITER+[ID,NOAPPLY1],prediction='(S1 recipe, reading)'),
+]
+MW_PLAN=(('U',UV,(('H1',(('tile','NAT'),('scramble','NAT'),(None,'NAT'),('tile','NAT_AAOFF'),(None,'NAT_AAOFF'))),
+                  ('H2',(('tile','NAT'),('scramble','NAT'),(None,'NAT'))))),
+         ('N',NM,(('H1',(('invert','NAT'),('green_flip','NAT'),(None,'NAT'),('invert','NAT_AAOFF'),(None,'NAT_AAOFF'))),
+                  ('H2',(('invert','NAT'),('green_flip','NAT'),(None,'NAT'))))))
+for fam,anom,hosts in MW_PLAN:
+    for host,rows in hosts:
+        for mode,cond in rows:
+            lv=[CAP]+(AA_OFF_ARBITER if cond=='NAT_AAOFF' else [])
+            tgt='@'+host+fam;nul=f'MW_{host}{fam}_NULL_{cond}'
+            if mode:
+                LEGS.append(leg(f'MW_{host}{fam}_{mode.upper()}_{cond}','BM53MW','SYNC' if cond=='NAT' else 'AA_OFF',FMW,anom,tgt,MW_ON_FRAMES,CFG_EDGE,lv,
+                                mode=mode,null=nul,cond=cond,premise='LOCK',family=fam,host=host,
+                                prediction=('PASS on every judged edge (E1 frozen, t50); >= 8 judged per mode on H1 AA-on or the shortfall goes to chat; the GT-aligned null covers t(first label - 12) .. t(last label) + 2 s; '
+                                            'no ON outside-blob absent from the null at the same game time; ND-5 NOT-MEASURABLE rate reported (no number predicted)'+
+                                            ('; AA-off arbiter: every labelled frame reads >= 16 inside the mask against the null at the same game time' if cond=='NAT_AAOFF' else ''))))
+            else:
+                LEGS.append(leg(nul,'BM53MW','NULL',FMW,anom,tgt,MW_NULL_FRAMES,CFG_EDGE,lv+[ID],cond=cond,premise='LOCK',family=fam,host=host,
+                                note=f'the game-time-aligned identity null (G406) for the {host}{fam} {cond} legs: same schedule, {MW_NULL_FRAMES} frames so it covers every ON leg to t(last label) + 2 s; runs immediately after them',
+                                prediction='mode_source=bench_lever lever=identity on every fire; label-rule exit 0; covers its ON legs'))
+COST_LV=[CAP,'IAI.Capture.Pace 0']
+LEGS+=[
+ leg('COST_DISCARD','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV+[ID],premise='LOCK',note='declared discard, run first (G186)'),
+ leg('COST_A1','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV+[ID],premise='LOCK'),
+ leg('COST_B1','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV,mode='tile',premise='LOCK'),
+ leg('COST_B2','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV,mode='tile',premise='LOCK'),
+ leg('COST_A2','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV+[ID],premise='LOCK',
+     prediction='a reading: per fire apply_ms / revert_ms, per frame GPU / GT from TEXCORRUPT-COST; "below the resolution of this instrument" wherever the A spread exceeds B - A; no threshold'),
+]
+ORDER=['PREMISE','PREMISE_FIRE','LEVER','CENSUS','BM53F','GMODE','BM53ARM','REASON','BIND','BM53MW','COST']
+def legs_sorted():return sorted(LEGS,key=lambda L:(ORDER.index(L['group']),LEGS.index(L)))
+def by_id(i):return next(L for L in LEGS if L['leg']==i)

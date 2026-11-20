@@ -1,0 +1,6 @@
+from pathlib import Path
+import importlib.util,json,sys
+B=Path(r'D:\IntrusiveAnomalies'); E=B/'_reviews/081-18-evidence'
+spec=importlib.util.spec_from_file_location('b1',B/'_reviews/081-15-b1-core.py');mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod);mod.E=E
+r=mod.audit(sys.argv[1]);ok=r['status']=='B1-VALID' and r['settle_sample_index']==0 and r['modal_rotation']==(0,0,0) and r['modal_coverage']==1
+print(json.dumps(dict(b1=ok,errors=r['errors'],focus=r['focus_valid_samples'])));sys.exit(not ok)

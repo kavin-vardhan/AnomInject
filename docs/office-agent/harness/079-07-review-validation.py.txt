@@ -1,0 +1,278 @@
+"""Independent bff1b00 review: frozen modules, scratch writes only, bank read-only."""
+import contextlib
+import hashlib
+import io
+import json
+import os
+import pathlib
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import types
+from collections import Counter
+
+sys.dont_write_bytecode = True
+ROOT = pathlib.Path(__file__).resolve().parent
+FROZEN = ROOT / "079-07-frozen"
+REPO = pathlib.Path(r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector")
+BANK = pathlib.Path(r"D:\IntrusiveAnomalies\_bench_sessions_bank")
+BANK_RESOLVED = BANK.resolve()  # Verified bank junction: E:/IA_BuildCache/_bench_sessions_bank.
+REF = "bff1b0058688feb1dfe427f840e1c1ce8eac4a37"
+
+def module(name, raw, filename):
+    m = types.ModuleType(name)
+    m.__file__ = str(filename)
+    sys.modules[name] = m
+    exec(compile(raw, str(filename), "exec"), m.__dict__)
+    return m
+
+mlo_raw = subprocess.check_output(["git", "-C", str(REPO), "show", REF + ":tools/measure_label_offset.py"])
+mlo = module("measure_label_offset", mlo_raw, REPO / "tools/measure_label_offset.py")
+vc_raw = (FROZEN / "verify_capture.py").read_bytes()
+assert vc_raw == subprocess.check_output(["git", "-C", str(REPO), "show", REF + ":tools/verify_capture.py"])
+vc = module("verify_capture", vc_raw, FROZEN / "verify_capture.py")
+sc_raw = (FROZEN / "m079_shift_recovery.py").read_bytes()
+sc = module("review_scorer", sc_raw, FROZEN / "m079_shift_recovery.py")
+RESULT = {"candidate": REF, "verify_sha256": hashlib.sha256(vc_raw).hexdigest(),
+          "measure_sha256": hashlib.sha256(mlo_raw).hexdigest(),
+          "scorer_sha256": hashlib.sha256(sc_raw).hexdigest()}
+
+scratch = pathlib.Path(tempfile.mkdtemp(prefix="079-07-scratch-", dir=ROOT)).resolve()
+assert scratch.is_relative_to(ROOT) and scratch.name.startswith("079-07-scratch-")
+links = []
+
+def junction(src, dst):
+    src, dst = pathlib.Path(src).resolve(), pathlib.Path(dst).absolute()
+    assert dst.is_relative_to(scratch)
+    assert src.is_relative_to(scratch) or src.is_relative_to(BANK_RESOLVED)
+    try:
+        os.symlink(src, dst, target_is_directory=True)
+    except OSError:
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(dst), str(src)], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    links.append(dst)
+
+sc.junction = junction  # Same read-only sharing; registered so cleanup cannot recurse into the bank.
+
+def gate(path, **kwargs):
+    detail = []
+    code, lines = vc.label_pixel_gate(str(path), 8, 4, 1, quiet=False, out_detail=detail, **kwargs)
+    r = {"path": str(path), "code": code, "lines": lines, "detail": detail}
+    print(pathlib.Path(path).name, "exit", code, flush=True)
+    for line in lines:
+        if line.startswith("idx=") or line.strip().startswith(("run[", "onset ", "end ", "VERDICT")):
+            print(line, flush=True)
+    return r
+
+def fixture(name, runs=((60, 67),), label_runs=None, burst_at=None, onset_delta=0,
+            full_boxes=(), total=100, patch_sides=None):
+    """RGB truth is declared by runs; labels may differ. One persistent 10px scroll burst."""
+    from PIL import Image, ImageDraw
+    p = scratch / name
+    (p / "Actual_Frames").mkdir(parents=True)
+    w, h = 160, 120
+    x, y, rw, rh = 40, 30, 50, 50
+    bg = vc._synth_backdrop(w, h, total, 10, 16, 0)
+    lr = list(label_runs if label_runs is not None else runs)
+    if onset_delta:
+        lr[0] = (lr[0][0] + onset_delta, lr[0][1])
+    idxs = [k for a, b in lr for k in range(a, b + 1)]
+    rows = []
+    for k in range(total):
+        offset = 10 if burst_at is not None and k >= burst_at else 0
+        im = Image.new("RGB", (w, h), (90, 90, 90))
+        im.paste(bg.crop((offset, 0, offset + rw, rh)).convert("RGB"), (x, y))
+        for n, (a, b) in enumerate(runs):
+            if a <= k <= b:
+                side = patch_sides[n] if patch_sides else 20
+                ImageDraw.Draw(im).rectangle((x + 5, y + 5, x + 4 + side, y + 4 + side), fill=(255, 255, 255))
+        im.save(p / "Actual_Frames" / ("frame_%05d.png" % k))
+        box = [0, 0, w, h] if k in full_boxes else [x, y, rw, rh]
+        entry = {"id": "missing_texture", "target_name": "SynthTarget", "start_frame": 1000 + min(idxs),
+                 "bbox_valid": True, "bbox_px": box}
+        rows.append({"frame_index": 1000 + k, "session_index": k,
+                     "image": "Actual_Frames/frame_%05d.png" % k, "width": w, "height": h,
+                     "anomaly_present": k in idxs, "visible_positive": k in idxs,
+                     "anomalies": [entry] if k in idxs else []})
+    (p / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+                          "affected_frames": {"start_frame": min(idxs), "end_frame": max(idxs),
+                                              "frame_count": len(idxs), "frame_indices": idxs},
+                          "affected_objects": {"primary_index": 0, "nodes": [{"name": "SynthTarget"}]}}]}
+    (p / "annotation.json").write_text(json.dumps(ann), encoding="utf-8")
+    return p
+
+def key(c):
+    return tuple(c[k] for k in ("session", "event", "ordinal", "kind", "which", "delta", "variant"))
+
+def do_probes():
+    RESULT["predictions"] = {
+        "old_fixtures": "Three aligned 079-05 controls must refuse; burst-free shifted controls must recover -1 with cap OFF.",
+        "burst_aligned": "RGB patch 60..67, aligned labels, one 10px regional scroll at61. No label disagreement is valid; PASS or refusal only.",
+        "burst_onset_label_late": "Same RGB, label onset61/end67. Must recover onset -1 or refuse, never full PASS.",
+        "onset_early_refusal": "Aligned patch10..11, scroll at10; onset bbox whole frame, end bbox50x50. Onset must refuse; end must not reuse onset10 as clear12.",
+        "previous_end_refusal": "RGB runs10..12 and15..16, label first end11, whole-frame box there. Second onset15 is aligned and must not reuse previous clear13.",
+        "partial_multirun": "One event:10..11 readable/aligned;25..26 whole-frame boxes refused. PARTIAL / PASS-PARTIAL, not UNREAD.",
+        "missing_edge_frames": "All RGB files covering both edge searches absent; must refuse or cannot-run, never NOT-VISIBLE.",
+        "batch_collision": "a__b/session_same and a/b__session_same must retain two distinct outputs; missing input must preserve exit3 in report-only.",
+        "cohort_skip": "A one-frame run has2 original edges and13 combinations:26 retained cells, including unsupported perturbations as explicit refusals.",
+        "zero_cap": "A wrong cell at m_edge0 must produce an explicit no-admissible-cap outcome without crashing; cap0 must not be described as refusing all if zero-motion edges pass."
+    }
+    (ROOT / "079-07-probe-predictions.json").write_text(json.dumps(RESULT, indent=2) + "\n", encoding="utf-8")
+    old_raw = (ROOT / "079-05-review-validation.py").read_text(encoding="utf-8")
+    start = old_raw.index("def custom_motion_fixture")
+    end = old_raw.index("\n\nmode =", start)
+    old = {"vc": vc, "mlo": mlo, "json": json, "read_gate": gate}
+    # Keep the original RGB/label generator exactly; use the candidate's per-edge diagnostics.
+    old_function = old_raw[start:end].split("    base, values = clean_pool(path)")[0] + "    return result\n"
+    exec(old_function, old)
+    RESULT["old_fixtures"] = [old["custom_motion_fixture"](scratch, "old_quiet_prefix"),
+        old["custom_motion_fixture"](scratch, "old_small_region", local_only=True),
+        old["custom_motion_fixture"](scratch, "old_alternating", local_only=True, alternating=True)]
+    RESULT["new_fixtures"] = {}
+    paths = {
+        "burst_aligned": fixture("burst_aligned", burst_at=61),
+        "burst_onset_label_late": fixture("burst_onset_label_late", burst_at=61, onset_delta=1),
+        "static_aligned": fixture("static_aligned"),
+        "static_onset_label_late": fixture("static_onset_label_late", onset_delta=1),
+        "onset_early_refusal": fixture("onset_early_refusal", runs=((10, 11),), burst_at=10, full_boxes=(10,)),
+        "previous_end_refusal": fixture("previous_end_refusal", runs=((10, 12), (15, 16)),
+                                        label_runs=((10, 11), (15, 16)), full_boxes=(11,), patch_sides=(40, 15)),
+        "partial_multirun": fixture("partial_multirun", runs=((10, 11), (25, 26)), full_boxes=(25, 26)),
+        "missing_edge_frames": fixture("missing_edge_frames")
+    }
+    for k in range(55, 74):
+        (paths["missing_edge_frames"] / "Actual_Frames" / ("frame_%05d.png" % k)).unlink()
+    for name, p in paths.items():
+        RESULT["new_fixtures"][name] = gate(p)
+    RESULT["zero_cap_static"] = gate(paths["static_aligned"], region_cap=0.0)
+    try:
+        RESULT["zero_cap_derivation"] = sc.derive_cap([{"m_edge": 0.0, "outcome": "wrong"}])
+    except Exception as e:
+        RESULT["zero_cap_derivation"] = {"error": type(e).__name__, "message": str(e)}
+
+    batch = scratch / "batch"
+    vc._synth_session(str(batch), "a__b/session_same")
+    vc._synth_session(str(batch), "a/b__session_same", blank_region=True)
+    (batch / "c/session_missing/Actual_Frames").mkdir(parents=True)
+    out = scratch / "batch_output"
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        rc = vc.label_pixel_batch(str(batch), str(out), 8, 4, 1, True, True)
+    RESULT["batch"] = {"rc_report_only": rc, "stdout": stream.getvalue(),
+        "files": {p.name: p.read_text(encoding="utf-8") for p in out.iterdir() if p.is_file()}}
+    print("BATCH", rc, list(RESULT["batch"]["files"]), flush=True)
+    print(RESULT["batch"]["files"]["SUMMARY.txt"], flush=True)
+    one = fixture("tiny_bank/TINY/session_one", runs=((10, 10),))
+    stream = io.StringIO()
+    with contextlib.redirect_stdout(stream):
+        cells = sc.sweep(str(scratch / "tiny_bank"), ["TINY"], str(scratch / "tiny_shadows"), vc.REGION_CAP, mlo)
+    RESULT["cohort_skip"] = {"original_edges": sc.cohort_of(str(one), mlo), "expected_cells": 26,
+                             "actual_cells": len(cells), "cells": cells, "stdout": stream.getvalue()}
+    print("TINY_COHORT", len(cells), "of26", flush=True)
+
+def do_cohort():
+    saved = json.loads((BANK / "M079_VERIFIER_EVIDENCE/079-06/cohort.json").read_text(encoding="utf-8"))
+    RESULT["audit"] = {}
+    expected_keys = set()
+    for name in ("A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA", "M50L_LG9"):
+        src = sc.session_of(str(BANK), name)
+        cohort = sc.cohort_of(src, mlo)
+        for c in cohort:
+            for which, delta in sc.PERTURBATIONS:
+                for variant in sc.VARIANTS:
+                    if delta == 0 and variant == "coherent":
+                        continue
+                    expected_keys.add((name, c["event"], c["ordinal"], c["kind"], which, delta, variant))
+    for side in ("guard_off", "guard_on"):
+        cells = saved[side]
+        keys = [key(c) for c in cells]
+        errors = []
+        for c in cells:
+            want = -c["delta"] if c["which"] in ("both", c["kind"]) else 0
+            if c["expected"] != want:
+                errors.append(["expected", c])
+            if c["outcome"] != "refused":
+                outcome = "recovered" if c["offset"] == want else "wrong"
+                if c["outcome"] != outcome:
+                    errors.append(["classification", c])
+        RESULT["audit"][side] = {"count": len(cells), "unique": len(set(keys)),
+            "missing_keys": sorted(expected_keys - set(keys)), "extra_keys": sorted(set(keys) - expected_keys),
+            "counts": dict(Counter(c["outcome"] for c in cells)), "errors": errors,
+            "by_session": dict(Counter(c["session"] for c in cells)),
+            "refusal_reasons": dict(Counter(c["reason"] for c in cells if c["outcome"] == "refused"))}
+    RESULT["audit"]["derived_cap"] = sc.derive_cap(saved["guard_off"])
+    RESULT["audit"]["minimum_wrong"] = sorted([c for c in saved["guard_off"] if c["outcome"] == "wrong"], key=lambda c: c["m_edge"])
+    successes = [c for c in saved["guard_on"] if c["outcome"] == "recovered"]
+    RESULT["audit"]["success_edges"] = sorted(set((c["session"], c["event"], c["ordinal"], c["kind"]) for c in successes))
+    RESULT["audit"]["success_m_range"] = [min(c["m_edge"] for c in successes), max(c["m_edge"] for c in successes)]
+    targets = []
+    for side, outcome, cap in (("guard_off", "wrong", 1.0), ("guard_on", "recovered", vc.REGION_CAP)):
+        groups = sorted(set((c["session"], c["which"], c["delta"], c["variant"]) for c in saved[side] if c["outcome"] == outcome))
+        targets.extend((side, cap, group) for group in groups)
+    RESULT["audit"]["rerun_groups"] = targets
+    print("COHORT_AUDIT", json.dumps(RESULT["audit"]), flush=True)
+    RESULT["reruns"] = []
+    for n, (side, cap, group) in enumerate(targets, 1):
+        name, which, delta, variant = group
+        src = sc.session_of(str(BANK), name)
+        cells = sc.run_cell(src, str(scratch / "bank_shadows"), name, which, delta, variant,
+                            cap, mlo, sc.cohort_of(src, mlo))
+        want = {key(c): c for c in saved[side] if (c["session"], c["which"], c["delta"], c["variant"]) == group}
+        diffs = []
+        for c in cells:
+            old = want[key(c)]
+            for k in ("expected", "m_edge", "tau", "offset", "outcome", "reason"):
+                if c[k] != old[k]:
+                    diffs.append({"key": key(c), "field": k, "was": old[k], "now": c[k]})
+        RESULT["reruns"].append({"guard": side, "group": group, "cells": cells, "differences": diffs})
+        print("RERUN", n, "of", len(targets), side, group, "cells", len(cells), "differences", len(diffs), flush=True)
+
+def do_bank():
+    names = ["M49_GEDGE_BL_NAT", "M49_GEDGE_CT_NAT", "M49_GEDGE_MO_NAT", "M49_GEDGE_MT_NAT",
+             "M49_GEDGE_BL_SYN", "M49_GEDGE_MT_SYN", "A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA", "M50L_LG9"]
+    RESULT["bank"] = []
+    for name in names:
+        r = gate(sc.session_of(str(BANK), name))
+        r["name"] = name
+        RESULT["bank"].append(r)
+
+def do_followups():
+    RESULT["predictions"] = {
+        "early_refusal_control": "Same RGB as onset_early_refusal, both boxes50x50: must PASS. Changing only onset readability should not change which physical transition is called the end.",
+        "previous_end_control": "Same RGB/labels as previous_end_refusal with readable prior end: first end +1, second onset0. Tests whether next-onset constraint ignores even a read end.",
+        "below_tau": "Known visible1px patch60..67 inside50x50 bbox: d=.0004<tau. Gate may report no detectable change, but scorer must distinguish a returned no-signal verdict from an actual refusal.",
+        "zero_cap_burst": "Same aligned motion burst, cap0: no false label disagreement allowed; establish whether zero is really refuse-all."
+    }
+    (ROOT / "079-07-followup-predictions.json").write_text(json.dumps(RESULT, indent=2) + "\n", encoding="utf-8")
+    RESULT["early_refusal_control"] = gate(fixture("early_refusal_control", runs=((10, 11),), burst_at=10))
+    RESULT["previous_end_control"] = gate(fixture("previous_end_control", runs=((10, 12), (15, 16)),
+                                            label_runs=((10, 11), (15, 16)), patch_sides=(40, 15)))
+    p = fixture("below_tau", patch_sides=(1,))
+    RESULT["below_tau"] = gate(p)
+    RESULT["below_tau_score"] = sc.run_cell(str(p), str(scratch / "low_shadows"), "below_tau", "both", 0,
+                                           "annotation", vc.REGION_CAP, mlo, sc.cohort_of(str(p), mlo))
+    RESULT["zero_cap_burst"] = gate(fixture("zero_cap_burst", burst_at=61), region_cap=0.0)
+
+mode = sys.argv[1] if len(sys.argv) > 1 else "probes"
+try:
+    {"probes": do_probes, "cohort": do_cohort, "bank": do_bank, "followups": do_followups}[mode]()
+finally:
+    for p in reversed(links):
+        assert p.absolute().is_relative_to(scratch)
+        assert p.resolve().is_relative_to(BANK_RESOLVED) or p.resolve().is_relative_to(scratch)
+        if p.is_symlink():
+            p.unlink()
+        else:
+            os.rmdir(p)  # A registered junction only; never recursive.
+    assert scratch.resolve().is_relative_to(ROOT) and scratch.name.startswith("079-07-scratch-")
+    for d, dirs, files in os.walk(scratch, followlinks=False):
+        for name in dirs:
+            p = pathlib.Path(d) / name
+            assert not (p.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT), p
+    shutil.rmtree(scratch)
+    out = ROOT / ("079-07-validation-" + mode + ".json")
+    out.write_text(json.dumps(RESULT, indent=2) + "\n", encoding="utf-8")
+    print("SAVED", out, flush=True)

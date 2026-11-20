@@ -1,0 +1,102 @@
+"""090-10e label edges from pixels, with pie_end_settle frames left out. Per annotation.json event: L = its labelled frame list
+(injected_frames; affected_frames is the mask-observable subset since m49 and drops frames whose mask was unmeasured), P = the
+rows whose entry for the same event (id, target_name, start_frame) carries transition_reason pie_end_settle, V = the contiguous run of
+frames whose drawn box differs from the clean reference (two frames before the label) by >= max(4, 4 x null) (090-10b-edges rule).
+Off frames = (V xor L) inside the span [first-1, last+3], minus P. raw_end = first clean frame minus the frame after the label (P
+ignored), as 090-10b-edges reported it. A flag excuses only its own frame: a picture still changed one frame after a flagged frame is
+an off frame. Verdict IN-SYNC when no off frame remains on either edge."""
+import importlib.util, json, sys
+from collections import Counter
+from pathlib import Path
+sys.dont_write_bytecode = True
+_s = importlib.util.spec_from_file_location('c910b', str(Path(__file__).with_name('090-10b-common.py')))
+c = importlib.util.module_from_spec(_s); _s.loader.exec_module(c)
+PIE = 'pie_end_settle'
+
+
+def _rows(sess):
+    rows = {}
+    for ln in (sess / 'labels.jsonl').read_text(encoding='utf-8').splitlines():
+        if ln.strip():
+            r = json.loads(ln); rows[r['session_index']] = r
+    return rows
+
+
+def edges(sess):
+    sess = Path(sess)
+    ann = json.loads((sess / 'annotation.json').read_text(encoding='utf-8'))
+    rs = json.loads((sess / 'run_summary.json').read_text(encoding='utf-8'))
+    rows = _rows(sess)
+    pie_rows = sorted(si for si, r in rows.items() if any(PIE in (a.get('transition_reason') or []) for a in r.get('anomalies', [])))
+    out = []
+    for e in ann.get('anomalies', []):
+        fr = (e.get('injected_frames') or {}).get('frame_indices') or (e.get('affected_frames') or {}).get('frame_indices') or []
+        tgt = ((e.get('affected_objects') or {}).get('nodes') or [{}])[0].get('name')
+        typ = e.get('anomaly_type')
+        sfc = Counter()
+        for i in fr:
+            for a in (rows.get(i) or {}).get('anomalies', []):
+                if a.get('target_name') == tgt and a.get('id') == typ and a.get('labelled'):
+                    sfc[a.get('start_frame')] += 1
+        sf = sfc.most_common(1)[0][0] if sfc else None
+        rec = dict(type=typ, target=tgt, start_frame=sf, label=[fr[0], fr[-1]] if fr else None)
+        if not fr:
+            rec['verdict'] = 'UNJUDGED'; out.append(rec); continue
+        P = sorted(si for si in range(fr[0] - 1, fr[-1] + 5) if any(
+            a.get('id') == typ and a.get('target_name') == tgt and a.get('start_frame') == sf and PIE in (a.get('transition_reason') or [])
+            for a in (rows.get(si) or {}).get('anomalies', [])))
+        rec['pie'] = P
+        rec['pie_on_end_plus_1'] = (fr[-1] + 1) in P
+        boxes = []
+        for i in fr:
+            for a in (rows.get(i) or {}).get('anomalies', []):
+                if a.get('target_name') == tgt and a.get('id') == typ:
+                    bx = a.get('bbox_drawn_px') or (a.get('bbox_px') if a.get('bbox_valid') else None)
+                    if bx and bx[2] > 0 and bx[3] > 0:
+                        boxes.append(bx)
+        if not boxes or (fr[0] - 2) not in rows or (fr[-1] + 3) not in rows:
+            rec['verdict'] = 'UNJUDGED'; out.append(rec); continue
+        x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
+        box = (x0, y0, max(b[0] + b[2] for b in boxes) - x0, max(b[1] + b[3] for b in boxes) - y0)
+        ref = c._img(sess / rows[fr[0] - 2]['image'])
+        null = c._bbox_diff(c._img(sess / rows[fr[0] - 1]['image']), ref, box)
+        thr = max(c.T_ABS, c.T_REL * max(null or 0.0, c.NULL_FLOOR))
+        span = [i for i in range(fr[0] - 1, fr[-1] + 4) if i in rows]
+        d = {i: c._bbox_diff(c._img(sess / rows[i]['image']), ref, box) for i in span}
+        changed = [i for i in span if d.get(i) is not None and d[i] >= thr]
+        rec.update(thr=round(thr, 2), diffs={i: (round(d[i], 1) if d.get(i) is not None else None) for i in span})
+        if not changed:
+            rec.update(verdict='NO-CHANGE'); out.append(rec); continue
+        first = changed[0]
+        after = next((i for i in span if i > first and d.get(i) is not None and d[i] < thr), None)
+        V = set(range(first, after if after is not None else span[-1] + 1))
+        L = set(fr)
+        off = sorted(((V ^ L) & set(span)) - set(P))
+        mid = (fr[0] + fr[-1]) / 2.0
+        rec.update(onset=first - fr[0], raw_end=(after - (fr[-1] + 1)) if after is not None else None,
+                   onset_off=[i for i in off if i <= mid], end_off=[i for i in off if i > mid])
+        rec['verdict'] = 'IN-SYNC' if not off else 'OFFSET'
+        out.append(rec)
+    return dict(session=str(sess), pie_end_settle_active=rs.get('pie_end_settle_active'), pie_end_settle_frames=rs.get('pie_end_settle_frames'),
+                label_transition_pie_end_settle_entries=rs.get('label_transition_pie_end_settle_entries'), pie_rows=pie_rows, events=out)
+
+
+def summary(res):
+    ev = res['events']
+    judged = [x for x in ev if x.get('verdict') in ('IN-SYNC', 'OFFSET')]
+    return dict(events=len(ev), judged=len(judged), in_sync=sum(1 for x in judged if x['verdict'] == 'IN-SYNC'),
+                onset_off=sum(1 for x in judged if x.get('onset_off')), end_off=sum(1 for x in judged if x.get('end_off')),
+                raw_end_plus1=sum(1 for x in judged if x.get('raw_end') == 1),
+                raw_end_plus1_flagged=sum(1 for x in judged if x.get('raw_end') == 1 and x.get('pie_on_end_plus_1')),
+                end_edges_flagged=sum(1 for x in ev if x.get('pie_on_end_plus_1')),
+                pie_rows=len(res['pie_rows']), rs_frames=res.get('pie_end_settle_frames'), rs_active=res.get('pie_end_settle_active'),
+                raw_ends=sorted(Counter(x.get('raw_end') for x in judged).items(), key=lambda kv: (kv[0] is None, kv[0] or 0)),
+                not_judged=[x.get('verdict') for x in ev if x.get('verdict') not in ('IN-SYNC', 'OFFSET')])
+
+
+if __name__ == '__main__':
+    for p in sys.argv[1:]:
+        r = edges(p)
+        for x in r['events']:
+            print(json.dumps({k: v for k, v in x.items() if k != 'diffs'}))
+        print('EDGES', json.dumps(summary(r)))

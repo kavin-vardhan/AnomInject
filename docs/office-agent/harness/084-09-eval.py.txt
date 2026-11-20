@@ -1,0 +1,1026 @@
+import collections,hashlib,importlib.util,json,os,re,sys
+from pathlib import Path
+import numpy as np
+from PIL import Image
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=_load('c59',R/'084-09-common.py')
+L3=_load('lib52ro',R/'084-03-lib.py')
+sys.path.insert(0,str(R/'086-01-work'))
+import ls086
+EVALUATOR='084-09'
+ID52='stuck_low_mip'
+TYPE_MAP={'blink':'blinking','flicker':'blinking'}
+HIDE={'blinking','missing_object'}
+PRE_W=12;PRE_N=8;SPAN_AFTER=60;POST_N=6;K_SIGMA=5.0;REL_FLOOR=0.02;DEPTH_K=3.0;NOISE_WIN=40;ONSET_CONFIRM=2;SUFFIX=3
+LAG_MAX=30;LAG_MIN_CORR=0.6;DECAY_K=3.0
+THRESH=(('strict',0.0),('t10',0.10),('t50',0.50))
+RELEASE='t50'
+def jload(p,d=None):
+    try:return json.loads(Path(p).read_text(encoding='utf-8-sig'))
+    except Exception:return d
+def read_jsonl(p):
+    out=[]
+    try:
+        for l in Path(p).read_text(encoding='utf-8-sig').splitlines():
+            if l.strip():out.append(json.loads(l))
+    except Exception:pass
+    return out
+def runs_of(v):
+    out=[]
+    for x in sorted(v):
+        if out and x==out[-1][1]+1:out[-1][1]=x
+        else:out.append([x,x])
+    return out
+def rolling_median(v,w=9):
+    v=np.asarray(v,dtype=np.float64);h=w//2;out=np.empty_like(v)
+    for i in range(len(v)):out[i]=np.median(v[max(0,i-h):i+h+1])
+    return out
+def robust_sigma(x):
+    x=np.asarray(x,dtype=np.float64)
+    return float(1.4826*np.median(np.abs(x-np.median(x)))) if len(x) else 0.0
+class CSess(L3.Sess):
+    def _lab_key(self):
+        if not hasattr(self,'_lk'):self._lk=hashlib.sha1((self.dir/'labels.jsonl').read_bytes()).hexdigest()
+        return self._lk
+    def table(self,rois):
+        need=[r for r in rois if r not in self._tables]
+        for r in need:
+            key=hashlib.sha1((self._lab_key()+'|'+','.join(map(str,r))+'|'+str(len(self.rows))).encode()).hexdigest()[:20]
+            p=c.CACHE/f'sharp_{key}.json'
+            if p.exists():
+                d=jload(p);self._tables[r]={int(k):v for k,v in d.items()};continue
+            super().table([r]);c.CACHE.mkdir(parents=True,exist_ok=True)
+            p.write_text(json.dumps({str(k):v for k,v in self._tables[r].items()}),encoding='utf-8')
+        return {r:self._tables[r] for r in rois}
+_SC={}
+def sess(d):
+    k=str(Path(d).resolve())
+    if k not in _SC:_SC[k]=CSess(d)
+    return _SC[k]
+def row_entries(row,typ=None):
+    out=[]
+    for a in (row.get('anomalies') or []):
+        t=TYPE_MAP.get(a.get('id'),a.get('id'))
+        if typ is None or t==typ:out.append(a)
+    return out
+def anno_events(s):
+    rows=s.by_si;out=[]
+    for i,a in enumerate((s.anno or {}).get('anomalies') or []):
+        t=TYPE_MAP.get(a.get('anomaly_type'),a.get('anomaly_type'))
+        inj=(a.get('injected_frames') or a.get('affected_frames') or {}).get('frame_indices') or []
+        nodes=((a.get('affected_objects') or {}).get('nodes') or [])
+        node=nodes[0].get('name') if nodes else None
+        st=collections.Counter()
+        for si in inj:
+            for x in row_entries(rows.get(si,{}),t):
+                if node is None or x.get('target_name')==node:st[x.get('start_frame')]+=1
+        sf=st.most_common(1)[0][0] if st else None
+        ev=dict(ord=i,type=t,L=sorted(inj),node=node,start_frame=sf,T=set(),entries={},mv={},tp={},bbox={},held={},rstate={})
+        for si,r in rows.items():
+            for x in row_entries(r,t):
+                if x.get('start_frame')==sf and (node is None or x.get('target_name')==node):
+                    ev['entries'][si]=x
+                    if x.get('transition')==1:ev['T'].add(si)
+                    ev['mv'][si]=x.get('mask_value');ev['tp'][si]=x.get('target_pixels');ev['bbox'][si]=x.get('bbox_px')
+                    if 'stuck_mip.held' in x:ev['held'][si]=bool(x.get('stuck_mip.held'))
+                    if 'stuck_mip.render_state' in x:ev['rstate'][si]=x.get('stuck_mip.render_state')
+        out.append(ev)
+    return out
+def detect_temporal_aa(s,log=''):
+    sm=s.summary or {}
+    if 'label_temporal_aa' in sm:return bool(sm.get('label_temporal_aa')),'run_summary.label_temporal_aa'
+    m=re.findall(r'r\.AntiAliasingMethod = "(\d+)"',log or '')
+    if m:return m[-1] in ('2','4'),'log echo r.AntiAliasingMethod (last)'
+    return None,'unknown'
+def build_has_transitions(s):
+    sm=s.summary or {}
+    return any(k.startswith('label_transition') for k in sm)
+def gate_transition(L,T,vis,span,drop=None,sigma=None,runs=None,temporal_aa=None):
+    Ls=set(L);Ts=set(T);sp=set(span);V=set(vis)&sp
+    unl=sorted(V-Ls);lnv=sorted((Ls&sp)-V)
+    unl_x=[si for si in unl if si not in Ts];lnv_x=[si for si in lnv if si not in Ts]
+    out=dict(unlabelled_visible=unl,labelled_not_visible=lnv,unlabelled_visible_without_transition=unl_x,labelled_not_visible_outside_transition=lnv_x,
+             strict_0_0=not unl and not lnv,transition_used=sorted(Ts&(set(unl)|set(lnv))),transition_unused=len(Ts-(set(unl)|set(lnv))))
+    decay=[]
+    for a,b in (runs or runs_of(Ls)):
+        after=[si for si in unl if si>b and si in Ts and all((x in V) for x in range(b+1,si+1))]
+        if not after or drop is None or sigma is None:continue
+        if (b+1) not in drop or b not in drop:continue
+        ok=drop[b+1]<drop[b]-DECAY_K*sigma
+        decay.append(dict(run_end=b,drop_last_labelled=round(drop[b],4),drop_first_after=round(drop[b+1],4),need_below=round(drop[b]-DECAY_K*sigma,4),ok=bool(ok)))
+    out['offset_decay_checks']=decay
+    fails=[]
+    if unl_x:fails.append('unlabelled pixel-visible frame(s) without transition=1')
+    if lnv_x:fails.append('labelled frame(s) not pixel-visible outside transition frames')
+    if any(not d['ok'] for d in decay):fails.append('transition-excused frames after a label end whose effect had not started to decay at the first unlabelled frame (an early end, not a smear)')
+    if temporal_aa is False and Ts:fails.append('transition flag(s) on a leg without temporal AA (the build emits none there)')
+    out['fail_reasons']=fails;out['pass']=not fails
+    if Ls and V:
+        out['start']=min(V)-min(Ls);out['end']=max(V)-max(Ls)
+    return out
+def window_084(s,vis,span):
+    S=set(span);lo=span[0];hi=span[-1];fv=None;onset_c=None
+    for si in span:
+        if si not in vis:continue
+        if si>=hi:fv=si;onset_c=f'the {ONSET_CONFIRM}-frame onset confirmation of si {si} falls beyond the span';break
+        b=L3.brk(s,si)
+        if b:fv=si;onset_c=f'the {ONSET_CONFIRM}-frame onset confirmation of si {si} crosses a break ({b})';break
+        if si+1 in vis:fv=si;break
+    if fv is not None and onset_c is None:
+        b=L3.brk(s,fv-1)
+        if b:onset_c=f'break adjacent to the onset ({b})'
+    lv=None;offset_c=None;conf=None
+    if fv is not None:
+        cand=fv;clean=0;sb=None
+        for si in range(fv+1,hi+1):
+            b=L3.brk(s,si-1)
+            if b:
+                clean=0
+                if sb is None:sb=b
+            if si not in S:continue
+            if si in vis:cand=si;clean=0;sb=None
+            else:
+                clean+=1
+                if clean>=SUFFIX:conf=si;break
+        lv=cand
+        if conf is None:offset_c=f'no {SUFFIX}-frame contiguous clean suffix before the span ends at si {hi}'+(f' ({sb})' if sb else '')
+        elif sb:offset_c=f'break adjacent to the offset or inside its {SUFFIX}-frame clean suffix ({sb})'
+    return fv,lv,conf,onset_c,offset_c
+def gate_two_sided(L,vis,fv,lv,onset_c,offset_c,conf,span,T=(),has_record=False,render_held=()):
+    Ls=set(L);sp=set(span);Ts=set(T)
+    inwin={si for si in vis if fv is not None and lv is not None and fv<=si<=lv}
+    outside=sorted(si for si in vis if si not in inwin and si in sp)
+    unl=sorted(si for si in inwin if si not in Ls)
+    lb=sorted(si for si in Ls if fv is None or si<fv);la=sorted(si for si in Ls if lv is not None and si>lv)
+    lb_def=[] if onset_c else lb
+    la_def=[si for si in la if conf is not None and si>conf] if offset_c else la
+    fails=[]
+    if unl:fails.append('unlabelled pixel-visible frame(s) inside the pixel window')
+    out_unl=[si for si in outside if si not in Ls]
+    if out_unl:fails.append('pixel-visible frame(s) outside the pixel window')
+    if lb_def:fails.append('labelled frame(s) before the first visible frame')
+    if la_def:fails.append('labelled frame(s) after the last visible frame')
+    early=[]
+    if has_record:
+        rh=sorted(render_held)
+        early=sorted(si for si in Ls if (not rh) or si<rh[0])
+        if early:fails.append('labelled frame(s) before the first render-held frame')
+    cens=[x for x in ((f'onset: {onset_c}' if onset_c else None),(f'offset: {offset_c}' if offset_c else None)) if x]
+    v='FAIL' if fails else ('CENSORED' if cens else 'PASS')
+    return dict(verdict=v,fail_reasons=fails,censored_edges=cens,first_visible=fv,last_visible=lv,
+                start=(fv-min(Ls)) if (Ls and fv is not None) else None,end=(lv-max(Ls)) if (Ls and lv is not None) else None,
+                unlabelled_inside=unl,visible_outside_window=outside,labelled_before=lb,labelled_after=la,labelled_before_render_held=early)
+def split_censored(tg,L,onset_c,offset_c):
+    L=sorted(L);L0=L[0];L1=L[-1];mid=(L0+L1)/2.0;amb=[]
+    unl=[];lnv=[]
+    for si in tg['unlabelled_visible_without_transition']:
+        if (si>L1 and offset_c) or (si<L0 and onset_c):amb.append(si)
+        else:unl.append(si)
+    for si in tg['labelled_not_visible_outside_transition']:
+        if (si>mid and offset_c) or (si<=mid and onset_c):amb.append(si)
+        else:lnv.append(si)
+    fails=[]
+    if unl:fails.append('unlabelled pixel-visible frame(s) without transition=1')
+    if lnv:fails.append('labelled frame(s) not pixel-visible outside transition frames')
+    if any(not d['ok'] for d in tg['offset_decay_checks']) and not offset_c:fails.append('transition-excused frames after a label end whose effect had not started to decay at the first unlabelled frame (an early end, not a smear)')
+    if any(not d['ok'] for d in tg['offset_decay_checks']) and offset_c:amb.append('decay-check')
+    fails+=[x for x in tg['fail_reasons'] if 'without temporal AA' in x]
+    return fails,sorted(amb,key=str)
+def combine(two,tg,onset_c,offset_c,has_record_fail=False,L=None):
+    if L:fails,amb=split_censored(tg,L,onset_c,offset_c)
+    else:fails,amb=list(tg['fail_reasons']),[]
+    if two['labelled_before_render_held']:fails.append('labelled frame(s) before the first render-held frame')
+    tg['ambiguous_on_censored_edges']=amb
+    cens=two['censored_edges']
+    return 'FAIL' if fails else ('CENSORED' if cens else 'PASS'),fails
+def estimate_lag(T,NT,mask):
+    si=sorted(set(T)&set(NT))
+    if len(si)<300:return None
+    a=np.array([T[x] for x in si]);b=np.array([NT[x] for x in si]);m=np.array([x not in mask for x in si]);best=None
+    for lag in range(-LAG_MAX,LAG_MAX+1):
+        j=np.arange(len(si))+lag;ok=(j>=0)&(j<len(si))
+        idx=np.nonzero(ok)[0];idx=idx[m[idx]&m[j[idx]]]
+        if len(idx)<200:continue
+        x=a[idx];y=b[j[idx]]
+        if x.std()<1e-9 or y.std()<1e-9:continue
+        cc=float(np.corrcoef(x,y)[0,1])
+        if best is None or cc>best[1]:best=(lag,cc)
+    return best
+def event_mask_frames(evs,lab_key):
+    m=set()
+    for e in evs:
+        lw=lab_key(e)
+        if lw:m.update(range(lw[0]-2,lw[-1]+SPAN_AFTER//2))
+    return m
+def m52_label(e):return sorted(si for si,v in e['held'].items() if v)
+def m52_transitions(s,e):
+    out=set()
+    for si in e['rows']:
+        r=s.by_si.get(si)
+        for a in (r.get('anomalies') or []) if r else []:
+            if a.get('id')==ID52 and a.get('start_frame')==e['start_frame'] and a.get('transition')==1:out.add(si)
+    return out
+def m52_basis(s,null,target,evs,labfn):
+    roi,src=L3.target_roi(s,target,null)
+    if roi is None:return None
+    T=s.table([roi])[roi];info=dict(roi=roi,roi_src=src,basis='own-detrend',lag=None,corr=None)
+    if null is not None:
+        NT=null.table([roi])[roi];info['null_series_frames']=len(NT);info['null_events_for_target']=sum(1 for e in L3.events(null) if e['target']==target)
+        mask=event_mask_frames(evs,lambda e:labfn(e) or e['rows'])
+        lg=estimate_lag(T,NT,mask)
+        if lg and lg[1]>=LAG_MIN_CORR:
+            info.update(basis='null-ratio',lag=lg[0],corr=round(lg[1],4),null_dir=str(null.dir))
+            rho={si:T[si]/NT[si+lg[0]] for si in T if (si+lg[0]) in NT and NT[si+lg[0]]>0}
+            info['NT']=NT;info['rho']=rho
+        else:info['lag_rejected']=lg
+    if 'rho' not in info:info['rho']=dict(T)
+    info['T']=T
+    return info
+def local_sigma(rho,center_lo,center_hi,excl,win=NOISE_WIN):
+    si=[x for x in range(center_lo-win,center_hi+win+1) if x in rho and x not in excl]
+    if len(si)<12:
+        si=[x for x in range(center_lo-3*win,center_hi+3*win+1) if x in rho and x not in excl]
+    if len(si)<12:return None,len(si)
+    v=np.array([rho[x] for x in si]);res=(v-rolling_median(v))/np.median(v)
+    return robust_sigma(res),len(si)
+def null_excursion(NT,lo,hi,lag):
+    if NT is None:return 0.0
+    si=[x for x in range(lo-20,hi+21) if (x+lag) in NT]
+    if len(si)<15:return 0.0
+    v=np.array([NT[x+lag] for x in si]);tr=rolling_median(v,31)
+    w=[i for i,x in enumerate(si) if lo<=x<=hi]
+    return float(max(0.0,max((tr[i]-v[i])/tr[i] for i in w))) if w else 0.0
+def m52_measure(s,e,next_first,basis,excl_all,has_record=False,label=None,T=None,legacy_ref=None,oracle_label=None,temporal_aa=None):
+    Lw=sorted(label if label is not None else m52_label(e));Tset=set(T if T is not None else m52_transitions(s,e))
+    if not Lw:return dict(status='NO-LABEL')
+    Lo=sorted(oracle_label) if oracle_label else Lw
+    rho=basis['rho'];L0=Lo[0];L1=Lo[-1]
+    hi_cap=s.rows[-1]['session_index']
+    span_hi=min(L1+SPAN_AFTER,hi_cap,(next_first-PRE_W-1) if next_first is not None else hi_cap)
+    span=[si for si in range(L0-PRE_W,span_hi+1) if si in s.by_si and si in rho]
+    if len(span)<PRE_W+len(Lo)+SUFFIX+2:return dict(status='SHORT-SPAN',span=[L0-PRE_W,span_hi])
+    prew=[si for si in range(L0-PRE_N,L0) if si in rho]
+    if len(prew)<4:return dict(status='NO-PRE-LEVEL')
+    pre=float(np.median([rho[x] for x in prew]))
+    postw=[si for si in span[-POST_N:]] if span_hi-L1>=20 else []
+    post=float(np.median([rho[x] for x in postw])) if len(postw)>=4 else None
+    own=set(range(L0-1,L1+SPAN_AFTER//2))
+    excl=(excl_all|own)
+    s_on,n_on=local_sigma(rho,L0-PRE_W,L0-1,excl)
+    s_off,n_off=local_sigma(rho,span_hi-10,span_hi+10,excl|set(range(L0-1,L1+12)))
+    if s_on is None and s_off is None:return dict(status='NO-NOISE-MODEL')
+    s_on=s_on if s_on is not None else s_off;s_off=s_off if s_off is not None else s_on
+    lag=basis.get('lag') or 0;NT=basis.get('NT')
+    ne_on=null_excursion(NT,L0-PRE_W,L0+2,lag) if basis['basis']=='null-ratio' else 0.0
+    ne_off=null_excursion(NT,L1-2,min(L1+20,span_hi),lag) if basis['basis']=='null-ratio' else 0.0
+    trend_on=0.0
+    if basis['basis']=='own-detrend':
+        tw=[x for x in range(L0-30,L0) if x in rho and x not in excl]
+        if len(tw)>=10:
+            xs=np.array(tw,dtype=float);ys=np.array([rho[x] for x in tw]);p=np.polyfit(xs,ys,1);trend_on=float(np.max(np.abs(ys-np.polyval(p,xs))/np.median(ys)))
+    thr_on=max(K_SIGMA*s_on,REL_FLOOR,ne_on,trend_on);thr_off=max(K_SIGMA*s_off,REL_FLOOR,ne_off,trend_on)
+    cpre=float(np.mean(prew));ref={}
+    drift=(post/pre-1.0) if post is not None else None
+    use_detrend=post is not None
+    cpost=float(np.mean(postw)) if postw else None
+    for si in span:
+        if use_detrend and cpost is not None and cpost>cpre:
+            f=min(1.0,max(0.0,(si-cpre)/(cpost-cpre)));ref[si]=pre+(post-pre)*f
+        else:ref[si]=pre
+    drop={si:1.0-rho[si]/ref[si] for si in span}
+    depth=max(drop[si] for si in span if L0<=si<=L1+SPAN_AFTER//2) if any(L0<=si<=L1+SPAN_AFTER//2 for si in span) else max(drop.values())
+    mid=(L0+L1)/2.0
+    thr={si:(thr_on if si<=mid else thr_off) for si in span}
+    strict={si for si in span if drop[si]>thr[si]}
+    measurable=depth>=DEPTH_K*max(thr_on,thr_off)
+    drift_c=None
+    if drift is not None and abs(drift)>max(thr_off,0.25*max(depth,1e-9)):
+        drift_c=f'the picture does not return to its pre-event level (post/pre {drift:+.4f} against the {basis["basis"]} reference, beyond max(thr_off, 25% of depth))'
+    rh=sorted(si for si,v in e['rstate'].items() if v=='held') if e.get('rstate') else []
+    per={}
+    for name,frac in THRESH:
+        vis={si for si in strict if drop[si]>=frac*depth}
+        fv,lv,conf,onc,offc=window_084(s,vis,span)
+        if drift_c:offc=offc or drift_c
+        two=gate_two_sided(Lw,vis,fv,lv,onc,offc,conf,span,Tset,has_record,rh)
+        Tex,pg,tg=m52_transition_gate(s,e,Lw,Tset,vis,span,drop,thr,s_off,temporal_aa)
+        verd,fails=combine(two,tg,onc,offc,L=Lw)
+        if pg['fail_reasons']:fails=fails+pg['fail_reasons'];verd='FAIL'
+        per[name]=dict(verdict=verd,fail_reasons=fails,two_sided_084_04a=two['verdict'],two_sided=two,transition_gate=tg,partial_guard=pg,visible=sorted(vis))
+    leg_thr=None
+    if legacy_ref is not None:
+        leg_thr=max(K_SIGMA*legacy_ref['sigma']/max(legacy_ref['mu'],1e-9),REL_FLOOR,legacy_ref.get('drop_rel') or 0.0)
+    return dict(status='OK',basis=basis['basis'],lag=basis.get('lag'),corr=basis.get('corr'),roi=basis['roi'],label=[Lw[0],Lw[-1]],label_n=len(Lw),oracle_label=[L0,L1],temporal_aa=temporal_aa,
+                transition=sorted(Tset),span=[span[0],span[-1]],pre=round(pre,5),post=None if post is None else round(post,5),post_drift=None if drift is None else round(drift,4),
+                sigma_on=round(s_on,5),sigma_off=round(s_off,5),noise_n=[n_on,n_off],null_excursion_on=round(ne_on,4),null_excursion_off=round(ne_off,4),own_trend_resid=round(trend_on,4),
+                thr_on=round(thr_on,4),thr_off=round(thr_off,4),depth=round(depth,4),measurable=bool(measurable),
+                legacy_whole_leg_thr=None if leg_thr is None else round(leg_thr,4),legacy_measurable=None if leg_thr is None else bool(depth>=DEPTH_K*leg_thr),
+                drop={str(si):round(drop[si],4) for si in span},per=per,release=per[RELEASE]['verdict'])
+def m52_leg(sd,null_sd=None,log='',has_record=None,transition_override=None,label_override=None,temporal_aa=None,freeze_oracle=True):
+    s=sess(sd);null=sess(null_sd) if null_sd else None
+    evs=L3.events(s)
+    if has_record is None:has_record=any(v for e in evs for v in e['rstate'].values())
+    ann={x['start_frame']:x['L'] for x in anno_events(s) if x['type']==ID52}
+    if temporal_aa is None:temporal_aa=detect_temporal_aa(s,log)[0]
+    base_lab=lambda e:ann.get(e['start_frame']) or m52_label(e)
+    labfn=label_override or base_lab
+    targets=sorted({e['target'] for e in evs});bases={};legacy={}
+    for t in targets:
+        bases[t]=m52_basis(s,null,t,evs,(lambda e:labfn(e) or base_lab(e)))
+        legacy[t]=L3.null_ref(null,t) if null is not None else None
+    firsts=[(base_lab(e) or e['rows'])[0] for e in evs]
+    infl=lambda lw:set(range(lw[0]-1,lw[-1]+SPAN_AFTER//2))
+    excl=set()
+    for e in evs:excl|=infl(base_lab(e) or e['rows'])
+    res=[]
+    for i,e in enumerate(evs):
+        b=bases.get(e['target'])
+        row=dict(start_frame=e['start_frame'],target=e['target'])
+        if b is None:row['status']='NO-ROI';res.append(row);continue
+        lw=labfn(e)
+        if not lw:row['status']='NO-LABEL';res.append(row);continue
+        tt=transition_override(e,lw) if transition_override else None
+        own=base_lab(e) or e['rows']
+        cand=[f for f in firsts[i+1:] if f>max(own[-1],lw[-1])]
+        nf=min(cand) if cand else None
+        cam=L3.moved(s,[si for si in range(lw[0]-PRE_W,min(lw[-1]+20,s.rows[-1]['session_index'])+1) if si in s.by_si])
+        row['label_source']='annotation' if ann.get(e['start_frame']) else 'stuck_mip.held'
+        if ann.get(e['start_frame']) and m52_label(e) and ann[e['start_frame']]!=m52_label(e):row['annotation_vs_held_disagree']=True
+        m=m52_measure(s,e,nf,b,excl-infl(own),has_record,lw,tt,legacy.get(e['target']),(base_lab(e) if (freeze_oracle and label_override) else None),temporal_aa)
+        row.update(camera_moved=cam,**{k:v for k,v in m.items()})
+        if m.get('status')=='OK':
+            ov=dict(status='OK',vis=m['per'][RELEASE]['visible'])
+            row['window_ii']=L3.gate_window(s,e,ov) if has_record else None
+        res.append(row)
+    return dict(session=str(s.dir),events=len(evs),has_record=has_record,bases={t:{k:v for k,v in (b or {}).items() if k not in ('rho','T','NT')} for t,b in bases.items()},rows=res,evaluator=EVALUATOR)
+def summarize_rows(rows,kind='m52'):
+    ev=[r for r in rows if r.get('status')=='OK' and r.get('measurable') and not r.get('camera_moved')]
+    out=dict(events=len(rows),judgeable=len(ev),not_measurable=sum(1 for r in rows if r.get('status')=='OK' and not r.get('measurable')),
+             camera_moved=sum(1 for r in rows if r.get('camera_moved')),status=dict(collections.Counter(r.get('status') for r in rows)))
+    for name,_ in THRESH:
+        st=collections.Counter(r['per'][name]['verdict'] for r in ev)
+        two=collections.Counter(r['per'][name]['two_sided_084_04a'] for r in ev)
+        S=[r['per'][name]['two_sided']['start'] for r in ev if r['per'][name]['two_sided']['start'] is not None and not any(x.startswith('onset') for x in r['per'][name]['two_sided']['censored_edges'])]
+        E=[r['per'][name]['two_sided']['end'] for r in ev if r['per'][name]['two_sided']['end'] is not None and not any(x.startswith('offset') for x in r['per'][name]['two_sided']['censored_edges'])]
+        strict00=sum(1 for r in ev if r['per'][name]['transition_gate']['strict_0_0'])
+        out[name]=dict(verdicts=dict(st),two_sided_084_04a=dict(two),start=hist(S),end=hist(E),strict_0_0_events=strict00,
+                       fail_reasons=dict(collections.Counter(x for r in ev for x in r['per'][name]['fail_reasons'])),
+                       unexcused_frames=sum(len(r['per'][name]['transition_gate']['unlabelled_visible_without_transition'])+len(r['per'][name]['transition_gate']['labelled_not_visible_outside_transition']) for r in ev))
+    rv=out[RELEASE]['verdicts']
+    out['leg_verdict']='FAIL' if rv.get('FAIL') else ('PASS' if rv.get('PASS') and not rv.get('CENSORED') else ('PASS-WITH-CENSORED' if rv.get('PASS') else 'NO-JUDGEABLE-EVENT'))
+    if kind=='m52':
+        lm=[r for r in rows if r.get('status')=='OK' and r.get('legacy_measurable') is not None]
+        out['legacy_whole_leg_threshold']=dict(events=len(lm),measurable=sum(1 for r in lm if r['legacy_measurable']),thr=sorted({r['legacy_whole_leg_thr'] for r in lm}))
+        wi=[r['window_ii'] for r in rows if r.get('window_ii')]
+        out['window_ii']=dict(checked=len(wi),failed=sum(1 for w in wi if not w['pass_']),mask_miss_reasons=dict(collections.Counter(k for w in wi for k,v in (w.get('labelled_without_mask_reasons') or {}).items() for _ in range(v))))
+        out['bases']=sorted({(r.get('basis'),r.get('lag')) for r in rows if r.get('basis')},key=str)
+    return out
+def hist(v):
+    cc=collections.Counter(v)
+    return '{'+', '.join(f'{k:+d}:{cc[k]}' for k in sorted(cc))+'}' if v else '{}'
+class DSession(ls086.Session):
+    def __init__(self,d,exclude_transition=True,labelref=False):
+        super().__init__(d)
+        self.label_rule=detect_label_rule(self.rows.values())
+        if labelref:
+            keep=set()
+            for a in self.anno.get('anomalies') or []:
+                fi=(a.get('injected_frames') or a.get('affected_frames') or {}).get('frame_indices') or [];sf=None
+                for si in fi:
+                    for x in (self.rows.get(si) or {}).get('anomalies') or []:
+                        if TYPE_MAP.get(x.get('id'),x.get('id'))==TYPE_MAP.get(a.get('anomaly_type'),a.get('anomaly_type')):sf=x.get('start_frame');break
+                    if sf is not None:break
+                for si in fi:keep.add((sf,si))
+            for si,r in self.rows.items():
+                k=[x for x in (r.get('anomalies') or []) if (x.get('start_frame'),si) in keep or x.get('transition')==1]
+                r['anomalies']=k;r['anomaly_present']=any((x.get('start_frame'),si) in keep for x in k)
+        if exclude_transition:
+            for si,r in self.rows.items():
+                if r.get('transition_present') or any(x.get('transition')==1 for x in (r.get('anomalies') or [])):r['anomaly_present']=True
+def ls086_verdict(sd,types=None,labelref=False,T_by_start=None):
+    orig=ls086.Session
+    try:
+        ls086.Session=lambda d:DSession(d,True,labelref)
+        rs=ls086.analyse_session(sd,types=types,want_ce=True)
+    finally:ls086.Session=orig
+    out=[]
+    for r in rs:
+        slim={k:r.get(k) for k in ('type','ord','node','status','start_frame','measurable','confounded','depth','censored','gap_bounded','label_runs','mask_missing','mask_extra')}
+        per={}
+        for t,p in (r.get('per') or {}).items():
+            T=set((T_by_start or {}).get((r.get('type'),r.get('start_frame')),()))
+            unl_x=[si for si in p['unl'] if si not in T];linv_x=[si for si in p['linv'] if si not in T]
+            tv=p['status']
+            if tv=='FAIL' and not unl_x and not linv_x and not any(k=='holes' for k,_ in p['definite']):tv='PASS(transition-excused)'
+            per[t]=dict(status=p['status'],transition_aware=tv,edges=[{k:e[k] for k in ('a','b','start','end','cs','ce','us','ue')} for e in p['edges']],unl=p['unl'],linv=p['linv'],definite=p['definite'],
+                        unl_without_transition=unl_x,linv_outside_transition=linv_x)
+        slim['per']=per;out.append(slim)
+    return out
+def summarize_ls086(rs):
+    out={}
+    for t in ('t50','t10','strict'):
+        st=collections.Counter();ta=collections.Counter();S=[];E=[]
+        for r in rs:
+            p=(r.get('per') or {}).get(t)
+            if not p:st[r.get('status')]+=1;continue
+            st[p['status']]+=1;ta[p['transition_aware']]+=1
+            for e in p['edges']:
+                if e['start'] is not None and not e['cs'] and not e['us']:S.append(e['start'])
+                if e['end'] is not None and not e['ce'] and not e['ue']:E.append(e['end'])
+        out[t]=dict(status=dict(st),transition_aware=dict(ta),start=hist(S),end=hist(E))
+    return out
+class DiffCtx:
+    pass
+def _views(s,ctx,sis):
+    out=[]
+    for si in sis:
+        f=s.frame(si)
+        if f is None:return None
+        out.append(ctx.view(f))
+    return out
+def diff_event(s,ev,all_evs,temporal_aa=None,oracle_L=None):
+    L=list(ev['L']);res=dict(type=ev['type'],node=ev['node'],ord=ev['ord'],start_frame=ev['start_frame'],label_n=len(L),transition=sorted(ev['T']))
+    if not L:res['status']='NO-LABELLED-FRAMES';return res
+    Ls=set(L);Ts=set(ev['T']);mine=set(ev['entries'])|Ls|Ts
+    other=set()
+    for o in all_evs:
+        if o is ev:continue
+        other.update(o['L']);other.update(o['T']);other.update(o['entries'])
+    other-=mine
+    lo=min(L);hi=max(L)
+    span_lo=lo-ls086.SPAN_PAD;span_hi=hi+ls086.SPAN_PAD+max([x-hi for x in Ts if x>hi] or [0])
+    for si in range(lo-1,lo-ls086.SPAN_PAD-1,-1):
+        if si in other:span_lo=si+1;break
+    for si in range(hi+1,span_hi+1):
+        if si in other:span_hi=si-1;break
+    span_lo=max(span_lo,s.sis[0]);span_hi=min(span_hi,s.sis[-1])
+    span=[si for si in range(span_lo,span_hi+1) if si in s.rows]
+    res['span']=[span_lo,span_hi]
+    clean=lambda si:si in s.rows and si not in Ls and si not in Ts and si not in other and not (s.rows[si].get('anomaly_present') and si not in mine)
+    refc=[si for si in range(lo-ls086.REF_BACK,lo) if clean(si)]
+    if len(refc)<3:refc=[si for si in range(lo-30,lo) if clean(si)][-8:]
+    if REF_AMENDMENT:
+        ra=reference_amendment(s,ev,other,lo,hi,Ts,clean)
+        res['reference']=ra
+        if ra['status']=='CONFOUNDED':res['status']='CONFOUNDED-REFERENCE';return res
+        refc=ra['frames']
+    if len(refc)<2:res['status']='NO-REFERENCE';return res
+    if lo<ls086.SETTLE_SKIP or max(refc)<ls086.SETTLE_SKIP:res['status']='WARMUP';return res
+    if ls086.moved(s,refc+span):res['status']='CAMERA-MOVED';return res
+    mvs=collections.Counter(v for si,v in ev['mv'].items() if si in Ls and v)
+    mv=mvs.most_common(1)[0][0] if mvs else None
+    bb=[ev['bbox'][si] for si in L if ev['bbox'].get(si)]
+    f0=s.frame(refc[0])
+    if f0 is None:res['status']='NO-FRAMES';return res
+    roi,src,_=ls086.roi_for(s,dict(L=L,type=ev['type']),mv,bb,f0.shape)
+    if roi is None:res['status']='NO-ROI';return res
+    ctx=ls086.Ctx(roi,src=='fullframe');res['roi_src']=src;res['roi_px']=int(roi.sum())
+    vc={}
+    def V(si):
+        if si not in vc:
+            f=s.frame(si);vc[si]=ctx.view(f) if f is not None else None
+        return vc[si]
+    rv=[V(si) for si in refc]
+    if any(x is None for x in rv):res['status']='NO-FRAMES';return res
+    ctx.build_out(rv)
+    lab_runs=runs_of(Ls);series={};run_info=[];cens={};sig_by_si={}
+    for i,(a,b) in enumerate(lab_runs):
+        lo_w=(lab_runs[i-1][1]+a)//2+1 if i>0 else span_lo
+        hi_w=(b+lab_runs[i+1][0])//2 if i+1<len(lab_runs) else span_hi
+        if i==0:ron=refc
+        else:
+            ron=[si for si in range(lab_runs[i-1][1]+1,a) if clean(si)]
+            if len(ron)<2:ron=refc
+        nxt=lab_runs[i+1][0] if i+1<len(lab_runs) else span_hi+1
+        roff=[si for si in range(b+1,nxt) if clean(si)][:6]
+        on_views=[V(x) for x in ron];Ron=ls086.median_view(on_views);mu_on,thD_on,thP_on,_=ls086._noise(on_views,ctx)
+        off_ok=len(roff)>=2
+        if off_ok:
+            off_views=[V(x) for x in roff];Roff=ls086.median_view(off_views);mu_off,thD_off,thP_off,_=ls086._noise(off_views,ctx)
+            d_first=ls086.metrics(off_views[0],Roff,ctx)[0]
+            settled=d_first<=thD_off
+            drift=ls086.metrics(Roff,Ron,ctx)[0]
+        else:
+            Roff=Ron;mu_off,thD_off,thP_off=mu_on,thD_on,thP_on;settled=False;drift=None
+        midr=(a+b)/2.0;ser={}
+        for si in range(lo_w,hi_w+1):
+            if si not in s.rows:continue
+            v=V(si)
+            if v is None:continue
+            if si<=midr:D,P,_,_=ls086.metrics(v,Ron,ctx);ser[si]=(D,P,mu_on,thD_on,thP_on)
+            else:D,P,_,_=ls086.metrics(v,Roff,ctx);ser[si]=(D,P,mu_off,thD_off,thP_off)
+        dD_on=max(ser[si][0] for si in ser if si<=midr) if any(si<=midr for si in ser) else 0.0
+        dD_off=max(ser[si][0] for si in ser if si>midr) if any(si>midr for si in ser) else dD_on
+        for si,(D,P,mu,thD,thP) in ser.items():
+            dd=dD_on if si<=midr else dD_off
+            series[si]=dict(D=D,P=P,frac=(D-mu)/max(dd-mu,1e-6),strict=bool(D>thD or P>thP))
+            sig_by_si[si]=(thD-mu)/ls086.K_SIG
+        if not settled:cens[b]=('post reference not settled (its first frame still differs from the post median beyond noise)' if off_ok else 'no clean post-reference frames before the span ends')
+        run_info.append(dict(a=a,b=b,lo=lo_w,hi=hi_w,ref_on=ron,ref_off=roff,thrD_on=round(thD_on,3),thrD_off=round(thD_off,3),depth_on=round(dD_on,3),depth_off=round(dD_off,3),
+                             post_settled=settled,drift_D=None if drift is None else round(drift,3)))
+    if not series:res['status']='NO-FRAMES';return res
+    res['runs']=run_info
+    res['levels']={int(k):round(float(v['frac']),4) for k,v in series.items()};res['strict_frames']=sorted(int(k) for k,v in series.items() if v['strict'])
+    peak=max(series,key=lambda si:series[si]['D']);res['peak_si']=peak
+    res['confounded']=not (min(L)-1<=peak<=max(L)+SUFFIX+max([x-max(L) for x in Ts if x>max(L)] or [0]))
+    depthD=max(r['depth_on'] for r in run_info);res['depth_D']=round(depthD,3)
+    depthP=max(series[si]['P'] for si in series)
+    res['measurable']=bool(depthP>=ls086.MEAS_P or any(r['depth_on']>=ls086.MEAS_K*r['thrD_on'] for r in run_info))
+    gap={}
+    for a,b in lab_runs:
+        w=s.brk(a-1)
+        if w and not w.startswith('engine-frame jump'):cens.setdefault(('s',a),w)
+        w=s.brk(b)
+        if w and not w.startswith('engine-frame jump'):cens.setdefault(('e',b),w)
+        if s.brk(a-1) and s.brk(a-1).startswith('engine-frame jump'):gap[('s',a)]=s.brk(a-1)
+        if s.brk(b) and s.brk(b).startswith('engine-frame jump'):gap[('e',b)]=s.brk(b)
+    res['censored']=[f'{k}: {v}' for k,v in cens.items()];res['gap_bounded']=[str(k) for k in gap]
+    drop={si:series[si]['frac'] for si in series}
+    sig=float(np.median(list(sig_by_si.values())))/max(depthD,1e-6) if sig_by_si else None
+    per={}
+    for name,t in THRESH:
+        vis={si for si,v in series.items() if v['strict'] and v['frac']>=t}
+        tg=gate_transition(L,Ts,vis,[si for si in span if si in series],drop,sig,lab_runs,temporal_aa)
+        on_c=any(isinstance(k,tuple) and k[0]=='s' and k[1]==lab_runs[0][0] for k in cens)
+        off_c=(lab_runs[-1][1] in cens) or any(isinstance(k,tuple) and k[0]=='e' and k[1]==lab_runs[-1][1] for k in cens)
+        fails,amb=split_censored(tg,L,on_c,off_c);tg['ambiguous_on_censored_edges']=amb
+        edges=[]
+        for rinfo in run_info:
+            a,b=rinfo['a'],rinfo['b'];vv=sorted(si for si in vis if rinfo['lo']<=si<=rinfo['hi'])
+            edges.append(dict(a=a,b=b,start=(vv[0]-a) if vv else None,end=(vv[-1]-b) if vv else None,cs=('s',a) in cens,ce=(b in cens) or (('e',b) in cens),gs=('s',a) in gap,ge=('e',b) in gap))
+        strays=[si for si in tg['unlabelled_visible_without_transition'] if not any(e['a']-3<=si<=e['b']+3 for e in edges)]
+        cen_any=any(e['cs'] or e['ce'] for e in edges)
+        if not res['measurable']:st='NOT-MEASURABLE'
+        elif res['confounded']:st='CONFOUNDED'
+        elif fails:st='FAIL'
+        elif cen_any:st='CENSORED'
+        else:st='PASS'
+        per[name]=dict(verdict=st,fail_reasons=fails,transition_gate=tg,edges=edges,strays=strays,visible=sorted(vis))
+    res['per']=per;res['status']='OK';res['release']=per[RELEASE]['verdict']
+    mm=[];mx=[]
+    if mv:
+        for si in L:
+            m=s.mask(si)
+            if m is None or not (m==mv).any():mm.append(si)
+        for si in span:
+            if si in Ls:continue
+            m=s.mask(si)
+            if m is not None and (m==mv).any():mx.append(si)
+    else:mm=list(L)
+    res['mask_value']=mv;res['mask_missing']=mm;res['mask_extra']=mx
+    return res
+def diff_leg(sd,types=None,log='',temporal_aa=None):
+    s=DSession(sd,True,False);sm=sess(sd)
+    if temporal_aa is None:temporal_aa=detect_temporal_aa(sm,log)[0]
+    evs=anno_events(sm);out=[]
+    for ev in evs:
+        if types and ev['type'] not in types:continue
+        try:r=diff_event(s,ev,evs,temporal_aa)
+        except Exception:
+            import traceback;r=dict(type=ev['type'],ord=ev['ord'],status='ERROR',error=traceback.format_exc()[-700:])
+        out.append(r)
+    return dict(session=str(Path(sd)),events=out,evaluator=EVALUATOR)
+def summarize_diff(rs):
+    ev=[r for r in rs if r.get('status')=='OK']
+    out=dict(events=len(rs),ok=len(ev),status=dict(collections.Counter(r.get('status') for r in rs)),by_type=dict(collections.Counter(r.get('type') for r in rs)))
+    for name,_ in THRESH:
+        st=collections.Counter(r['per'][name]['verdict'] for r in ev)
+        S=[e['start'] for r in ev if r['per'][name]['verdict'] not in ('NOT-MEASURABLE','CONFOUNDED') for e in r['per'][name]['edges'] if e['start'] is not None and not e['cs']]
+        E=[e['end'] for r in ev if r['per'][name]['verdict'] not in ('NOT-MEASURABLE','CONFOUNDED') for e in r['per'][name]['edges'] if e['end'] is not None and not e['ce']]
+        out[name]=dict(verdicts=dict(st),start=hist(S),end=hist(E),fail_reasons=dict(collections.Counter(x for r in ev for x in r['per'][name]['fail_reasons'])),
+                       strict_0_0_events=sum(1 for r in ev if r['per'][name]['verdict'] in ('PASS','FAIL','CENSORED') and r['per'][name]['transition_gate']['strict_0_0']))
+    out['mask_missing_frames']=sum(len(r.get('mask_missing') or []) for r in ev);out['mask_extra_frames']=sum(len(r.get('mask_extra') or []) for r in ev)
+    rv=out[RELEASE]['verdicts']
+    out['leg_verdict']='FAIL' if rv.get('FAIL') else ('PASS' if rv.get('PASS') and not rv.get('CENSORED') else ('PASS-WITH-CENSORED' if rv.get('PASS') else 'NO-JUDGEABLE-EVENT'))
+    return out
+RECYCLE_RX=re.compile(r'Capture\(mask\): TAG RECYCLED')
+OWNER_VIOL_RX=re.compile(r'Capture\(mask\): TAG-OWNER VIOLATION si=')
+OWNER_SUM_RX=re.compile(r'TAG-OWNER VIOLATIONS = (\d+)')
+UNAVAIL_RX=re.compile(r'TARGET MASK UNAVAILABLE for session_index (\d+)')
+def mask_gate_v1(sd,log='',min_events=90,bbox_pad=16,outside_tol=0.005):
+    s=sess(sd);evs=anno_events(s);sm=s.summary or {}
+    unavailable={int(x) for x in UNAVAIL_RX.findall(log or '')}
+    cov=dict(labelled=0,masked=0,missing=[],g295=[]);alias=[];spatial=[];px_mismatch=[]
+    by_frame=collections.defaultdict(list)
+    for e in evs:
+        for si in e['L']:
+            cov['labelled']+=1;mv=e['mv'].get(si);tp=e['tp'].get(si)
+            if not mv:cov['missing'].append((e['ord'],si,'no mask_value'));continue
+            if tp is None or tp<0:
+                (cov['g295'] if si in unavailable else cov['missing']).append((e['ord'],si,f'target_pixels {tp}'));continue
+            m=s.mask(si)
+            if tp>0 and (m is None or not (m==mv).any()):cov['missing'].append((e['ord'],si,'png absent or without the value'));continue
+            cov['masked']+=1
+            if m is not None and tp>0:
+                hit=(m==mv);n=int(hit.sum())
+                if n!=tp:px_mismatch.append((e['ord'],si,tp,n))
+                bb=e['bbox'].get(si)
+                if bb and len(bb)==4 and bb[2]>0 and bb[3]>0:
+                    H,W=m.shape;x0=max(0,int(bb[0])-bbox_pad);y0=max(0,int(bb[1])-bbox_pad);x1=min(W,int(bb[0]+bb[2])+bbox_pad);y1=min(H,int(bb[1]+bb[3])+bbox_pad)
+                    inside=int(hit[y0:y1,x0:x1].sum());outn=n-inside
+                    if n and outn/n>outside_tol:spatial.append(dict(ord=e['ord'],si=si,value=mv,px=n,outside=outn,bbox=bb))
+        for si,mv in e['mv'].items():
+            if mv:by_frame[si].append((e['ord'],mv))
+    for si,lst in by_frame.items():
+        vals=collections.Counter(v for _,v in lst)
+        for v,k in vals.items():
+            if k>1:alias.append(dict(si=si,value=v,events=[o for o,x in lst if x==v]))
+    holders=collections.defaultdict(list)
+    for e in evs:
+        vs={v for si,v in e['mv'].items() if v}
+        fr=[si for si,v in e['mv'].items() if v]
+        for v in vs:holders[v].append((e['ord'],min(fr),max(fr)))
+    overlap=[]
+    for v,h in holders.items():
+        h=sorted(h,key=lambda x:x[1])
+        for (o1,a1,b1),(o2,a2,b2) in zip(h,h[1:]):
+            if a2<=b1:overlap.append(dict(value=v,first=o1,second=o2,first_range=[a1,b1],second_range=[a2,b2]))
+    rec_lines=len(RECYCLE_RX.findall(log or ''));viol=len(OWNER_VIOL_RX.findall(log or ''));vsum=[int(x) for x in OWNER_SUM_RX.findall(log or '')];viol=max([viol]+vsum)
+    reused=sum(1 for v,h in holders.items() if len(h)>1)
+    fails=[]
+    if len(evs)<min_events:fails.append(f'{len(evs)} events < {min_events}')
+    if cov['missing']:fails.append(f'{len(cov["missing"])} labelled frame(s) without a measured mask (G295-signature frames counted apart: {len(cov["g295"])})')
+    if alias:fails.append(f'{len(alias)} frame(s) where two events carry one mask value')
+    if overlap:fails.append(f'{len(overlap)} recycled value(s) whose holders overlap in time')
+    if spatial:fails.append(f'{len(spatial)} labelled frame(s) whose mask pixels lie outside their own target box (aliasing onto another object)')
+    if (sm.get('mask_tag_recycles') or 0)<=0:fails.append('mask_tag_recycles is 0: the recycling path was not exercised')
+    if (sm.get('mask_tag_exhausted') or 0)!=0:fails.append(f'mask_tag_exhausted {sm.get("mask_tag_exhausted")} != 0')
+    if log and rec_lines!=(sm.get('mask_tag_recycles') or 0):fails.append(f'TAG RECYCLED log lines {rec_lines} != run_summary.mask_tag_recycles {sm.get("mask_tag_recycles")}')
+    if viol:fails.append(f'{viol} TAG-OWNER VIOLATION line(s)')
+    if reused==0 and (sm.get('mask_tag_recycles') or 0)>0:fails.append('run_summary reports recycles but no mask value is held by two events in labels.jsonl')
+    return dict(pass_=not fails,fail_reasons=fails,events=len(evs),labelled_frames=cov['labelled'],masked=cov['masked'],missing=cov['missing'][:20],g295_frames=cov['g295'][:20],
+                alias_frames=alias[:20],holder_overlap=overlap[:20],spatial_outside=spatial[:20],px_mismatch=px_mismatch[:20],px_mismatch_n=len(px_mismatch),
+                recycles_summary=sm.get('mask_tag_recycles'),recycle_log_lines=rec_lines,peak_live=sm.get('mask_tag_peak_live'),exhausted=sm.get('mask_tag_exhausted'),
+                values_reused=reused,owner_violation_lines=viol)
+CC_FRAME_RX=re.compile(r'IAI-CC-SCHEDULE FRAME k=(\d+) seg=(\S+) designed=(\d) pawn_mesh=(\d) want=\(([^)]*)\) got=\(([^)]*)\) err_cm=([\d.]+) err_deg=([\d.]+)')
+CC_ARMED_RX=re.compile(r'IAI-CC-SCHEDULE ARMED version=(\S+) frames=(\d+).*?pawn_mesh=(\d)')
+NEG_SEGS=('control_start','wall_far','wall_far_2','control_end')
+POS_HOLDS=('wall_near','prop_noncolliding')
+PROXY_WRONG=('behind','beside','prop_noncolliding')
+def cc_schedule(log):
+    fr={}
+    for m in CC_FRAME_RX.finditer(log or ''):
+        k=int(m.group(1));fr[k]=dict(seg=m.group(2),designed=int(m.group(3)),pawn=int(m.group(4)),err_cm=float(m.group(7)),err_deg=float(m.group(8)))
+    a=CC_ARMED_RX.search(log or '')
+    return fr,(dict(version=a.group(1),frames=int(a.group(2)),pawn_mesh=int(a.group(3))) if a else None)
+def frame_arr(s,si):
+    r=s.by_si.get(si)
+    if not r:return None
+    p=s.dir/r['image']
+    return np.asarray(Image.open(p).convert('RGB'),dtype=np.int16) if p.exists() else None
+def dcount(a,b):
+    if a is None or b is None:return None
+    return int((np.abs(a-b).max(axis=2)>8).sum())
+def cc_validity(s,log,is_null,frames=200):
+    errs=[];fr,armed=cc_schedule(log)
+    sis=sorted(s.by_si)
+    if sis!=list(range(frames)):errs.append(f'rows {len(sis)} session_index {sis[:1]}..{sis[-1:]} != 0..{frames-1}')
+    pngs=list((s.dir/'Actual_Frames').glob('*.png'))
+    if len(pngs)!=frames:errs.append(f'{len(pngs)} PNGs != {frames}')
+    if armed is None:errs.append('no IAI-CC-SCHEDULE ARMED line')
+    missing=[k for k in range(frames) if k not in fr]
+    if missing:errs.append(f'{len(missing)} k without a FRAME line (first {missing[:5]})')
+    bad=[k for k,v in fr.items() if k<frames and (v['err_cm']>0.5 or v['err_deg']>0.1)]
+    if bad:errs.append(f'{len(bad)} FRAME lines over tolerance (first {bad[:5]})')
+    if not is_null:
+        noslab=[si for si in sis if 'camera_clipping.slab' not in s.by_si[si]]
+        if noslab:errs.append(f'{len(noslab)} ON rows without camera_clipping.slab')
+    else:
+        cc=[si for si in sis if row_entries(s.by_si[si],'camera_clipping')]
+        if cc:errs.append(f'{len(cc)} null rows carry a camera_clipping entry')
+    return errs,fr,armed
+def cc_pair(on_sd,null_sd,on_log,null_log,nullB_sd=None,nullB_log=None,frames=200):
+    on=sess(on_sd);nu=sess(null_sd);nb=sess(nullB_sd) if nullB_sd else None
+    ev_on,fr_on,arm_on=cc_validity(on,on_log,False,frames);ev_nu,fr_nu,arm_nu=cc_validity(nu,null_log,True,frames)
+    errs=[f'ON: {x}' for x in ev_on]+[f'NULL: {x}' for x in ev_nu]
+    if nb is not None:
+        ev_nb,fr_nb,_=cc_validity(nb,nullB_log,True,frames);errs+=[f'NULL_B: {x}' for x in ev_nb]
+    if {k:v['seg'] for k,v in fr_on.items()}!={k:v['seg'] for k,v in fr_nu.items()}:errs.append('ON and null k->segment maps differ')
+    if arm_on and arm_nu and arm_on['pawn_mesh']!=arm_nu['pawn_mesh']:errs.append('pawn_mesh differs between ON and null')
+    if errs:return dict(valid=False,errors=errs)
+    D={};N={}
+    for k in range(frames):
+        a=frame_arr(on,k);b=frame_arr(nu,k);D[k]=dcount(a,b)
+        if nb is not None:N[k]=dcount(frame_arr(nb,k),b)
+    seg={k:fr_on[k]['seg'] for k in range(frames)};des={k:fr_on[k]['designed'] for k in range(frames)}
+    pawn=arm_on['pawn_mesh'] if arm_on else 0
+    pos=POS_HOLDS+(('pawn_mesh',) if pawn else ())
+    S=[D[k] for k in range(frames) if seg[k] in NEG_SEGS]
+    F=max(([max(N.values())] if N else [])+([max(S)] if S else [0]))
+    P=min(D[k] for k in range(frames) if seg[k] in pos) if any(seg[k] in pos for k in range(frames)) else 0
+    theta=float(np.sqrt(max(F,1)*max(P,1)))
+    unj=P<=2*F
+    clipped={k:D[k]>theta for k in range(frames)}
+    segs=collections.OrderedDict()
+    for k in range(frames):segs.setdefault(seg[k],[]).append(k)
+    med={g:float(np.median([D[k] for k in ks])) for g,ks in segs.items()}
+    trans=[k for k in range(1,frames) if des[k]!=des[k-1]]
+    edge_frac={}
+    for k0 in trans:
+        for k in range(k0-2,k0+2):
+            if 0<=k<frames:
+                side=[x for x in range(k0,min(frames,k0+6))] if des[k0]==1 else [x for x in range(max(0,k0-6),k0)]
+                ref=float(np.median([D[x] for x in side])) if side else None
+                edge_frac[k]=None if not ref else round((D[k]-F)/max(ref-F,1),3)
+    rules={}
+    for name,t in THRESH:
+        cl={}
+        for k in range(frames):
+            if k in edge_frac and edge_frac[k] is not None:cl[k]=bool(D[k]>theta and edge_frac[k]>=t) if t>0 else bool(D[k]>theta)
+            else:cl[k]=clipped[k]
+        lab={k:bool(on.by_si[k].get('camera_clipping.slab')) for k in range(frames)}
+        dis=[k for k in range(frames) if lab[k]!=cl[k]]
+        rules[name]=dict(label_vs_clipped_disagree=dis,n=len(dis))
+    lab={k:bool(on.by_si[k].get('camera_clipping.slab')) for k in range(frames)}
+    ent={k:bool(row_entries(on.by_si[k],'camera_clipping')) for k in range(frames)}
+    prox={k:bool(on.by_si[k].get('camera_clipping.sphere_proxy')) for k in range(frames)}
+    pw={}
+    for g in PROXY_WRONG+(('pawn_mesh',) if pawn else ()):
+        ks=segs.get(g,[]);pw[g]=dict(frames=len(ks),proxy_disagrees_with_clipped=sum(1 for k in ks if prox[k]!=clipped[k]),slab_disagrees_with_clipped=sum(1 for k in ks if lab[k]!=clipped[k]))
+    canfail=all(v['proxy_disagrees_with_clipped']>0 for v in pw.values()) if pw else False
+    designed_dis=[k for k in range(frames) if des[k]!=int(clipped[k])]
+    sm=on.summary or {}
+    cost={k:v for k,v in sm.items() if k.startswith('camera_clipping_')}
+    g1=(not unj) and rules[RELEASE]['n']==0
+    return dict(valid=True,F=F,N_max=max(N.values()) if N else None,S_max=max(S) if S else None,P=P,theta=round(theta,1),unjudgeable=unj,margin_P_over_F=round(P/max(F,1),2),
+                gate1_label_equals_clipped=g1,rules=rules,label_vs_entry_disagree=[k for k in range(frames) if lab[k]!=ent[k]],proxy_can_fail=pw,gate2_canfail_proven=canfail,
+                designed_vs_oracle_disagree=designed_dis,segment_median_D={g:round(v,1) for g,v in med.items()},edge_frac=edge_frac,pawn_mesh=pawn,
+                eye_inside_box_frames=sum(1 for k in range(frames) if (on.by_si[k].get('camera_clipping.eye_inside_box') or 0)>0),cost=cost,D={str(k):D[k] for k in range(frames)})
+def cc_mw_pair(on_sd,null_sd,nullB_sd=None,frames=200):
+    on=sess(on_sd);nu=sess(null_sd);nb=sess(nullB_sd) if nullB_sd else None
+    n=min(len(on.rows),len(nu.rows),frames);D={};N={}
+    for k in range(n):
+        D[k]=dcount(frame_arr(on,k),frame_arr(nu,k))
+        if nb is not None:N[k]=dcount(frame_arr(nb,k),frame_arr(nu,k))
+    F=max(N.values()) if N else None
+    lab={k:bool((on.by_si.get(k) or {}).get('camera_clipping.slab')) for k in range(n)}
+    eye={k:int((on.by_si.get(k) or {}).get('camera_clipping.eye_inside_box') or 0) for k in range(n)}
+    floor=2*F if F is not None else None
+    lab_low=[k for k in range(n) if lab[k] and floor is not None and D[k]<=floor]
+    lab_low_eye=[k for k in lab_low if eye[k]>0]
+    unl_high=[k for k in range(n) if (not lab[k]) and floor is not None and D[k]>floor]
+    sm=on.summary or {}
+    verdict=('OVER-LABEL-SUSPECT (hollow mesh around the eye)' if lab_low_eye else ('LABEL-WITHOUT-PIXEL-CHANGE' if lab_low else 'NO-OVER-LABEL-SEEN')) if floor is not None else 'NO-NULL-FLOOR'
+    return dict(frames=n,labelled=sum(lab.values()),eye_inside_box_frames=sum(1 for v in eye.values() if v>0),floor_2F=floor,N_max=F,
+                labelled_D=dict(min=min([D[k] for k in range(n) if lab[k]] or [None]) if any(lab.values()) else None,median=float(np.median([D[k] for k in range(n) if lab[k]])) if any(lab.values()) else None),
+                unlabelled_D=dict(median=float(np.median([D[k] for k in range(n) if not lab[k]])) if any(not v for v in lab.values()) else None,max=max([D[k] for k in range(n) if not lab[k]] or [0])),
+                labelled_at_floor=lab_low[:30],labelled_at_floor_with_eye_inside_box=lab_low_eye[:30],unlabelled_above_floor_G352_candidates=len(unl_high),
+                first_hits=sm.get('camera_clipping_first_hits'),eye_inside_box_frames_summary=sm.get('camera_clipping_eye_inside_box_frames'),
+                cost={k:v for k,v in sm.items() if k.startswith('camera_clipping_eval')},verdict=verdict)
+REF_AMENDMENT=True
+REF_MIN=4
+PREV_SETTLE=4
+POST_SKIP=2
+POST_REF_MAX=6
+AMENDMENT='084-09 reference amendment, declared 2026-09-29 before the MASK55 re-check (084-06 ruling 5): an onset reference uses only clean frames at least PREV_SETTLE=4 frames after the previous event last labelled or transition frame; if fewer than REF_MIN=4 remain, the post-event clean frames (after the event last labelled or transition frame + POST_SKIP=2, up to 6, before the next event) are added; if still fewer than 4 the event is CONFOUNDED-REFERENCE, counted per type, never dropped. Applied to every type.'
+LEGACY_T='temporal_aa(legacy: transition without transition_reason)'
+PARTIAL_EDGE_INVESTIGATE=8
+def detect_label_rule(rows):
+    n=0;m=0
+    for r in rows:
+        for a in (r.get('anomalies') or []):
+            n+=1;m+=1 if 'labelled' in a else 0
+    if n==0:return 'empty'
+    return 'new' if m==n else ('old' if m==0 else 'mixed')
+def entry_of(s,si,typ,start_frame):
+    rows=s.by_si if hasattr(s,'by_si') else s.rows
+    r=rows.get(si)
+    for a in ((r.get('anomalies') or []) if r else []):
+        if TYPE_MAP.get(a.get('id'),a.get('id'))==typ and a.get('start_frame')==start_frame:return a
+    return None
+def reasons_of(a):
+    if not a:return set()
+    rs=a.get('transition_reason')
+    if rs is None:return {LEGACY_T} if a.get('transition')==1 else set()
+    if isinstance(rs,str):rs=[rs]
+    return set(rs)
+def held_textures(a):
+    if not a:return 0
+    return sum(1 for t in (a.get('stuck_mip.render_textures') or []) if str(t.get('level'))=='held')
+def partial_guard(s,e,Lw,Tset,vis,span,drop,thr,temporal_aa):
+    Ls=set(Lw);sp=set(span);V=set(vis)&sp
+    ents={si:entry_of(s,si,ID52,e['start_frame']) for si in span}
+    R={si:reasons_of(a) for si,a in ents.items()}
+    info=dict(partial=[],unresolved=[],confirmed_partial=[],flagged_invisible=[],flagged_invisible_counted=[],partial_without_held_texture=[],
+              partial_on_unlabelled=[],unresolved_only_off=[],legacy_transition=[],fail_reasons=[])
+    Tex=set()
+    for si in sorted(span):
+        rs=R.get(si,set())
+        if not rs:continue
+        if 'temporal_aa' in rs or 'hide_return' in rs or LEGACY_T in rs:Tex.add(si)
+        if LEGACY_T in rs:info['legacy_transition'].append(si)
+        if 'unresolved' in rs:info['unresolved'].append(si)
+        if 'partial' in rs:
+            info['partial'].append(si)
+            if si not in Ls:info['partial_on_unlabelled'].append(si);continue
+            above=drop.get(si,0.0)>thr.get(si,0.0)
+            (info['confirmed_partial'] if above else info['flagged_invisible']).append(si)
+            if held_textures(ents[si])>=1:
+                Tex.add(si)
+                if not above:info['flagged_invisible_counted'].append(si)
+            else:info['partial_without_held_texture'].append(si)
+    off=((Ls&sp)-V)|(V-Ls)
+    for si in sorted(off):
+        rs=R.get(si,set())
+        if rs and rs<={'unresolved'}:info['unresolved_only_off'].append(si)
+    P=[si for si in Lw if si in set(info['partial'])];nonp=[si for si in Lw if si not in set(P)]
+    if nonp:on=[si for si in P if si<nonp[0]];offp=[si for si in P if si>nonp[-1]];mid=[si for si in P if nonp[0]<si<nonp[-1]]
+    else:on=list(P);offp=[];mid=[]
+    info['edges']=dict(onset=len(on),offset=len(offp),mid=len(mid))
+    info['edges_over_investigate']=[k for k,v in info['edges'].items() if v>PARTIAL_EDGE_INVESTIGATE]
+    if info['partial_without_held_texture']:info['fail_reasons'].append('partial flag on a labelled frame whose render record shows NO texture at the held level - the flag cannot excuse it (084-07 decision 1)')
+    if info['partial_on_unlabelled']:info['fail_reasons'].append('partial flag on an unlabelled frame - partial is a labelled-frame reason and cannot excuse a late label')
+    if info['unresolved_only_off']:info['fail_reasons'].append('off frame backed only by unresolved - FAIL to investigate (084-07b N4)')
+    tmp=[si for si in sorted(span) if R.get(si,set())&{'temporal_aa','hide_return',LEGACY_T}]
+    info['temporal_flags']=tmp
+    if temporal_aa is False and tmp:info['fail_reasons'].append('temporal transition flag(s) on a leg without temporal AA (the build emits temporal_aa / hide_return only under TAA or TSR; partial and unresolved are exempt)')
+    return Tex,info
+def m52_transition_gate(s,e,Lw,Tset,vis,span,drop,thr,sig,temporal_aa):
+    Tex,pg=partial_guard(s,e,Lw,Tset,vis,span,drop,thr,temporal_aa)
+    tg=gate_transition(Lw,Tex,vis,span,drop,sig,None,None)
+    return Tex,pg,tg
+def reference_amendment(s,ev,other,lo,hi,Ts,clean):
+    prev=[x for x in other if x<lo];nxt=[x for x in other if x>hi]
+    prev_last=max(prev) if prev else None
+    start=max(lo-ls086.REF_BACK,(prev_last+PREV_SETTLE+1) if prev_last is not None else lo-ls086.REF_BACK)
+    pre=[si for si in range(start,lo) if clean(si)]
+    out=dict(prev_last=prev_last,pre=pre,post=[],basis='pre',frames=pre,status='OK',rule=AMENDMENT)
+    if len(pre)>=REF_MIN:return out
+    tail=max([hi]+[x for x in Ts if x>hi]);lim=min(nxt) if nxt else tail+1+POST_SKIP+POST_REF_MAX
+    post=[si for si in range(tail+1+POST_SKIP,lim) if clean(si)][:POST_REF_MAX]
+    out.update(post=post,basis='pre+post',frames=sorted(pre+post))
+    if len(pre)+len(post)<REF_MIN:out.update(status='CONFOUNDED',basis='none')
+    return out
+def labelled_membership(sd):
+    s=sess(sd);rule=detect_label_rule(s.rows);evs=anno_events(s)
+    if rule!='new':
+        return dict(rule=rule,pass_=rule in ('old','empty'),mismatch=[],mismatch_n=0,
+                    note='read under the OLD rule: no entry carries labelled, and visible_positive meant event active + a box (084-07 changed it); membership is not checkable' if rule=='old' else ('no entries' if rule=='empty' else 'MIXED rules in one session: refused'))
+    mism=[]
+    for e in evs:
+        L=set(e['L'])
+        for si,a in e['entries'].items():
+            lab=a.get('labelled') is True
+            if lab!=(si in L):mism.append(dict(ord=e['ord'],type=e['type'],si=si,labelled=lab,in_annotation=si in L))
+    return dict(rule='new',pass_=not mism,mismatch=mism[:30],mismatch_n=len(mism),
+                note='new rule: every entry labelled == its frame is in its event annotation list (N1: one authority); the 086-01 checker judges exactly that list')
+def presence_contract_v2(sd):
+    s=sess(sd);rule=detect_label_rule(s.rows);evs=anno_events(s);lab=set()
+    for e in evs:lab|=set(e['L'])
+    fam=collections.Counter();defect=[];old_pu=collections.Counter();lnp=0
+    for si,r in s.by_si.items():
+        ap=bool(r.get('anomaly_present'))
+        if si in lab and not ap:lnp+=1
+        if not ap or si in lab:continue
+        ents=r.get('anomalies') or []
+        if rule=='new':
+            if any(a.get('labelled') is True for a in ents):defect.append(si)
+            for a in ents:fam[(TYPE_MAP.get(a.get('id'),a.get('id')),'labelled' if a.get('labelled') else 'unlabelled')]+=1
+        else:
+            for a in ents:old_pu[TYPE_MAP.get(a.get('id'),a.get('id'))]+=1
+    return dict(rule=rule,labelled_rows=len(lab),present_not_in_annotation_rows=sum(fam.values()) if rule=='new' else sum(old_pu.values()),
+                families={f'{k[0]}:{k[1]}':v for k,v in fam.items()} if rule=='new' else dict(old_pu),defect_rows=defect[:20],defect_n=len(defect),
+                labelled_but_not_present_rows=lnp,
+                note=('new rule: an event-active row outside the annotation must carry labelled:false (an allowed family); a labelled:true entry outside it is a defect' if rule=='new'
+                      else 'old rule: anomaly_present rows outside the annotation are reported by type, as 084-06 did'))
+def null_check_v2(null_sd,on_sd,target):
+    nu=sess(null_sd);on=sess(on_sd) if on_sd else None
+    roi,src=L3.target_roi(on if on is not None else nu,target,nu)
+    evs=L3.events(nu)
+    held=sum(1 for e in evs for v in e['held'].values() if v);rh=sum(1 for e in evs for v in e['rstate'].values() if v=='held')
+    n=L3.noise_of(nu,roi) if roi else None
+    ok=bool(roi is not None and n and n['n']>=200 and held==0 and rh==0 and len(nu.rows)>0)
+    return dict(pass_=ok,roi=roi,roi_src=src,events=len(evs),labelled_held_rows=held,render_held_rows=rh,frames=len(nu.rows),
+                noise=None if not n else {k:(round(v,5) if isinstance(v,float) else v) for k,v in n.items()},
+                note='G356: the null calibrates from its OWN sharpness series at the ON leg ROI; it writes no event on a G350 build and needs none. Pass = rows present, no labelled or render-held row, and >= 200 settled frames on the ROI')
+def partial_summary(rows):
+    ok=[r for r in rows if r.get('status')=='OK']
+    warm=lambda i,r:(i==0) or ((r.get('label') or [10**9])[0]<L3.SETTLE_SKIP)
+    agg=dict(all=collections.Counter(),warmup=collections.Counter(),steady=collections.Counter())
+    hist=dict(all={'onset':collections.Counter(),'offset':collections.Counter(),'mid':collections.Counter()},
+              warmup={'onset':collections.Counter(),'offset':collections.Counter(),'mid':collections.Counter()},
+              steady={'onset':collections.Counter(),'offset':collections.Counter(),'mid':collections.Counter()})
+    over=[];fails=[]
+    for i,r in enumerate(ok):
+        pg=((r.get('per') or {}).get(RELEASE) or {}).get('partial_guard')
+        if not pg:continue
+        grp='warmup' if warm(i,r) else 'steady'
+        for k in ('partial','confirmed_partial','flagged_invisible','flagged_invisible_counted','partial_without_held_texture','partial_on_unlabelled','unresolved','unresolved_only_off','legacy_transition'):
+            agg['all'][k]+=len(pg[k]);agg[grp][k]+=len(pg[k])
+        for ed,n in pg['edges'].items():hist['all'][ed][n]+=1;hist[grp][ed][n]+=1
+        if pg['edges_over_investigate']:over.append(dict(start_frame=r.get('start_frame'),label=r.get('label'),edges=pg['edges']))
+        if pg['fail_reasons']:fails.append(dict(start_frame=r.get('start_frame'),label=r.get('label'),reasons=pg['fail_reasons'],
+                                                 without_held=pg['partial_without_held_texture'],on_unlabelled=pg['partial_on_unlabelled'],unresolved_only_off=pg['unresolved_only_off']))
+    fmt=lambda cc:'{'+', '.join(f'{k}:{cc[k]}' for k in sorted(cc))+'}'
+    return dict(counts={g:dict(v) for g,v in agg.items()},edge_histograms={g:{ed:fmt(c) for ed,c in v.items()} for g,v in hist.items()},
+                edges_over_8_investigate=over,guard_fails=fails,
+                note='partial frames per edge (count of partial frames on the edge -> number of events); warm-up = the capture first event or one starting before the settle skip, reported separately AND included in all')
+TAGOWN_RX=re.compile(r'Capture\(mask\): TAG-OWNERS si=(\d+) tick=\d+ values=(\d+) shared=(\d+)')
+def mask_gate(sd,log='',min_events=56,require_peak_live=2,bbox_pad=16,outside_tol=0.005):
+    g=mask_gate_v1(sd,log,min_events=min_events,bbox_pad=bbox_pad,outside_tol=outside_tol)
+    s=sess(sd);sm=s.summary or {}
+    own=[(int(a),int(b),int(c_)) for a,b,c_ in TAGOWN_RX.findall(log or '')]
+    have={si for si,_,_ in own};shared=sorted({si for si,_,sh in own if sh>0})
+    missing=[si for si in sorted(s.by_si) if si not in have]
+    peak=sm.get('mask_tag_peak_live') or 0
+    invalid=[]
+    if missing:invalid.append(f'{len(missing)} captured frame(s) without a TAG-OWNERS line (first {missing[:5]}): the ownership instrument was not live')
+    if peak<require_peak_live:invalid.append(f'mask_tag_peak_live {peak} < {require_peak_live}: no two mask records were ever live together, so the concurrent path was NOT exercised (not a pass)')
+    fails=list(g['fail_reasons'])
+    if shared:fails.append(f'{len(shared)} frame(s) where one mask value is carried by two holders (TAG-OWNERS shared>0; first {shared[:5]})')
+    g.update(tag_owner_lines=len(own),tag_owner_shared_frames=shared[:20],tag_owner_missing=missing[:20],peak_live=peak,
+             prior_collision=sm.get('mask_prior_collision'),prior_collision_quarantined=sm.get('mask_prior_collision_quarantined'),
+             retire_quarantined=sm.get('mask_tag_retire_quarantined'),invalid=invalid,fail_reasons=fails,
+             verdict='INVALID' if invalid else ('PASS' if not fails else 'FAIL'))
+    g['pass_']=g['verdict']=='PASS'
+    return g
+def _flag(r,key):
+    if r.get(key):return True
+    for a in (r.get('anomalies') or []):
+        if a.get(key) or ('camera_clipping_unconfirmed' in reasons_of(a) and key=='camera_clipping.unconfirmed'):return True
+    return False
+def cc_gate(on_sd,null_sd,on_log,null_log,nullB_sd=None,nullB_log=None,frames=200):
+    r=cc_pair(on_sd,null_sd,on_log,null_log,nullB_sd,nullB_log,frames)
+    if not r.get('valid'):r['gate']='INVALID';return r
+    on=sess(on_sd);unc={k:_flag(on.by_si[k],'camera_clipping.unconfirmed') for k in range(frames)}
+    lab={k:bool(on.by_si[k].get('camera_clipping.slab')) for k in range(frames)}
+    D={int(k):v for k,v in r['D'].items()};theta=r['theta'];clipped={k:D[k]>theta for k in range(frames)}
+    fr,_=cc_schedule(on_log);des={k:fr[k]['designed'] for k in range(frames)}
+    edges=[]
+    for k0 in [k for k in range(1,frames) if des[k]!=des[k-1]]:
+        lo=max(0,k0-6);hi=min(frames-1,k0+6)
+        lf=next((k for k in range(lo+1,hi+1) if lab[k]!=lab[k-1]),None);of=next((k for k in range(lo+1,hi+1) if clipped[k]!=clipped[k-1]),None)
+        edges.append(dict(designed=k0,to=des[k0],label_flip=lf,pixel_flip=of,off=None if lf is None or of is None else lf-of))
+    dis=r['rules'][RELEASE]['label_vs_clipped_disagree']
+    r.update(unconfirmed_frames=sum(unc.values()),unconfirmed_disagreeing=[k for k in dis if unc[k]],confirmed_disagreeing=[k for k in dis if not unc[k]],
+             edges=edges,edge_offsets=[e['off'] for e in edges])
+    r['gate']='UNJUDGEABLE' if r['unjudgeable'] else ('PASS' if not dis and all((e['off'] in (0,None)) for e in edges) else 'FAIL')
+    return r
+def cc_mw_gate(on_sd,null_sd,nullB_sd=None,frames=200):
+    base=cc_mw_pair(on_sd,null_sd,nullB_sd,frames)
+    on=sess(on_sd);nu=sess(null_sd);nb=sess(nullB_sd) if nullB_sd else None
+    if nb is None:base['gate']='INVALID';base['gate_note']='no second null: the per-frame floor needs null-vs-null';return base
+    n=base['frames'];per=[]
+    for k in range(n):
+        d=dcount(frame_arr(on,k),frame_arr(nu,k));nn=dcount(frame_arr(nb,k),frame_arr(nu,k))
+        r=on.by_si.get(k) or {};lab=bool(r.get('camera_clipping.slab'));unc=_flag(r,'camera_clipping.unconfirmed')
+        per.append(dict(k=k,D=d,N=nn,ratio=None if d is None or nn is None else round(d/max(nn,1),3),labelled=lab,unconfirmed=unc))
+    over=[p['k'] for p in per if p['labelled'] and not p['unconfirmed'] and p['ratio'] is not None and p['ratio']<=2.0]
+    over_unc=[p['k'] for p in per if p['labelled'] and p['unconfirmed'] and p['ratio'] is not None and p['ratio']<=2.0]
+    under=[p['k'] for p in per if (not p['labelled']) and p['ratio'] is not None and p['ratio']>2.0]
+    base.update(per_frame_floor='labelled confirmed frame must have D_k > 2 * N_k (ON-vs-null over null-vs-null, per frame)',
+                labelled_confirmed=sum(1 for p in per if p['labelled'] and not p['unconfirmed']),labelled_unconfirmed=sum(1 for p in per if p['labelled'] and p['unconfirmed']),
+                over_label_confirmed=over[:30],over_label_confirmed_n=len(over),over_label_unconfirmed=over_unc[:30],over_label_unconfirmed_n=len(over_unc),
+                unlabelled_above_floor_G352=len(under),per_frame=per)
+    base['gate']='PASS' if not over else 'FAIL'
+    return base
+FADE_LO=0.10
+FADE_HI=0.90
+FADE_MIN=2
+FADE_PRE=3
+FADE_POST_OFF=9
+LOD_MIN_JUDGED=16
+LOD_FADE_RULE='084-08b: at each pop edge of a judged event (onset window a-3..mid, offset window mid+1..b+9, clipped to the run window), a frame is INTERMEDIATE when its per-frame effect level (the E1 frac: 0 = the unforced reference, 1 = the run peak) is in [0.10, 0.90); an edge with >= 2 intermediate frames is a MULTI-FRAME FADE. For variant D it is a FINDING, reported and never excused (084-08 ruling 1); for variant N it is the control reading. Transition flags do not remove a frame from this count.'
+def lod_edges(r):
+    lv={int(k):float(v) for k,v in (r.get('levels') or {}).items()};out=[]
+    for run in r.get('runs') or []:
+        a,b=run['a'],run['b'];mid=(a+b)//2
+        for kind,lo,hi in (('onset',a-FADE_PRE,mid),('offset',mid+1,b+FADE_POST_OFF)):
+            lo=max(lo,run['lo']);hi=min(hi,run['hi'])
+            seq=[(si,lv[si]) for si in range(lo,hi+1) if si in lv]
+            inter=[si for si,v in seq if FADE_LO<=v<FADE_HI]
+            out.append(dict(kind=kind,a=a,b=b,window=[lo,hi],levels=[[si,round(v,3)] for si,v in seq],intermediate=inter,
+                            n_intermediate=len(inter),multi_frame_fade=len(inter)>=FADE_MIN))
+    return out
+def hist_of(v):
+    return dict(sorted(collections.Counter(v).items()))
+def lod_gate(events,variant=None,min_judged=LOD_MIN_JUDGED):
+    ok=[r for r in events if r.get('status')=='OK']
+    judged=[r for r in ok if ((r.get('per') or {}).get(RELEASE) or {}).get('verdict') in ('PASS','FAIL')]
+    off=[]
+    for r in judged:
+        tg=r['per'][RELEASE]['transition_gate']
+        off+=[dict(start_frame=r.get('start_frame'),si=si,kind='unlabelled-visible') for si in tg['unlabelled_visible_without_transition']]
+        off+=[dict(start_frame=r.get('start_frame'),si=si,kind='labelled-not-visible') for si in tg['labelled_not_visible_outside_transition']]
+    fails=[dict(start_frame=r.get('start_frame'),reasons=r['per'][RELEASE]['fail_reasons']) for r in judged if r['per'][RELEASE]['verdict']=='FAIL']
+    edges=[dict(start_frame=r.get('start_frame'),**e) for r in judged for e in lod_edges(r)]
+    fades=[e for e in edges if e['multi_frame_fade']]
+    ih={k:hist_of([e['n_intermediate'] for e in edges if e['kind']==k]) for k in ('onset','offset')}
+    st=collections.Counter(r.get('status') if r.get('status')!='OK' else 'OK:'+str(((r.get('per') or {}).get(RELEASE) or {}).get('verdict')) for r in events)
+    verdict='INSUFFICIENT' if len(judged)<min_judged else ('FAIL' if (off or fails) else 'PASS')
+    return dict(verdict=verdict,variant=variant,judged=len(judged),min_judged=min_judged,events=len(events),status=dict(st),
+                off_frames_t50_outside_transition=len(off),off=off[:40],fail_events=fails[:20],
+                start=hist_of([e['start'] for r in judged for e in r['per'][RELEASE]['edges'] if e['start'] is not None and not e['cs']]),
+                end=hist_of([e['end'] for r in judged for e in r['per'][RELEASE]['edges'] if e['end'] is not None and not e['ce']]),
+                edges=len(edges),intermediate_hist=ih,fade_edges=len(fades),fades=fades[:24],
+                fade_finding=bool(fades) and variant=='D',fade_control=(bool(fades) if variant=='N' else None),fade_rule=LOD_FADE_RULE,
+                rule='gate: >= %d judged events (t50 PASS or FAIL) AND 0 off frames at t50 outside transition frames; fewer judged = INSUFFICIENT, never PASS'%min_judged)
+def lod_fade_compare(gD,gN):
+    if not gD or not gN:return None
+    fd=gD['fade_edges']/max(1,gD['edges']);fn=gN['fade_edges']/max(1,gN['edges'])
+    return dict(D_fade_edges=gD['fade_edges'],D_edges=gD['edges'],N_fade_edges=gN['fade_edges'],N_edges=gN['edges'],
+                D_rate=round(fd,3),N_rate=round(fn,3),D_exceeds_N=fd>fn,
+                reading='a D fade with no N fade at the same condition points at the dithered material; fades in both point at the capture/TAA path, which is still reported')

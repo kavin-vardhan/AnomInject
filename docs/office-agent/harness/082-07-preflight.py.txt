@@ -1,0 +1,38 @@
+import importlib.util,json,os,subprocess,sys
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+spec=importlib.util.spec_from_file_location('c53',R/'082-07-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+out_dir=Path(sys.argv[1]) if len(sys.argv)>1 else c.RUN;out_dir.mkdir(parents=True,exist_ok=True)
+problems=[];notes={}
+def chk(ok,msg):
+    if not ok:problems.append(msg)
+bp=c.EV/'boundary.json'
+if not bp.exists():problems.append('no boundary.json - the harness is not locked');bd={}
+else:bd=json.loads(bp.read_text())
+head=c.git(c.SRC,'rev-parse',c.FEATURE);origin=c.git(c.SRC,'rev-parse','refs/remotes/origin/'+c.FEATURE)
+chk(head==bd.get('feature_head'),f'feature head {head[:7]} != boundary {str(bd.get("feature_head"))[:7]}')
+chk(head==origin,f'feature head {head[:7]} != origin {origin[:7]}')
+blob=subprocess.check_output(['git','-C',str(c.SRC),'show',f'{head}:{c.PRED}']);import hashlib
+chk(hashlib.sha256(blob).hexdigest()==bd.get('predictions_sha256'),'predictions at the head != boundary')
+for p,h in (bd.get('harness') or {}).items():
+    q=Path(p) if Path(p).is_absolute() else R/p
+    chk(q.exists() and c.sha(q)==h,f'harness file changed or missing: {p}')
+st=c.staged_state()
+for k,v in c.STAGED.items():chk(st[k]==v,f'staged {k} {st[k][:8]} != {v[:8]}')
+chk(bd.get('staged')==c.STAGED,'boundary staged set != the harness constant')
+chk(c.git(c.RP,'rev-parse','HEAD')==c.M51_HEAD and c.git(c.RP,'branch','--show-current')=='m51','main checkout moved off m51 53bf725')
+chk(not c.git(c.RP,'diff','--name-only') and not c.git(c.RP,'diff','--cached','--name-only'),'main checkout has tracked modifications')
+hp=c.git(c.HOST_PLUGIN,'rev-parse','HEAD');notes['host_plugin_head']=hp[:7]
+chk(not c.git(c.SRC,'diff','--name-only') and not c.git(c.SRC,'diff','--cached','--name-only'),'branch worktree has tracked modifications')
+chk(c.sha(c.FIXTURE_ACTORS)==(bd.get('inputs') or {}).get('fixture_actors'),'fixture actor map changed')
+rel='082-07-evidence/run/supersede.json';sp=R/rel
+if rel in (bd.get('harness') or {}):chk(sp.exists(),'the locked supersede record is missing')
+notes.update(stub=c.STUB,run_root=str(c.RUN),supersede_locked=rel in (bd.get('harness') or {}))
+ours,foreign=c.classify()
+chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present: '+str([(p['pid'],p['name']) for p in ours]))
+fe=c.free_gb('E:\\');fd=c.free_gb('D:\\');notes.update(free_e_gb=fe,free_d_gb=fd)
+chk(fe>=c.E_FLOOR_GB,f'E: free {fe} GB < {c.E_FLOOR_GB}');chk(fd>=c.D_FLOOR_GB,f'D: free {fd} GB < {c.D_FLOOR_GB}')
+q=c.quiet()
+out=dict(utc=c.now(),feature_head=head,problems=problems,notes=notes,quiet_now=q['quiet'],blocking=q['blocking'],foreign=[(p['pid'],p['name']) for p in foreign])
+n=len(list(out_dir.glob('preflight*.json')));(out_dir/f'preflight-{n+1}.json').write_text(json.dumps(out,indent=2,default=str))
+print(json.dumps(out,default=str)[:2000]);sys.exit(1 if problems else 0)

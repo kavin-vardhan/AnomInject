@@ -1,0 +1,35 @@
+from pathlib import Path
+import json, subprocess, sys
+sys.path.insert(0,str(Path(__file__).parent))
+from importlib.machinery import SourceFileLoader
+audit=SourceFileLoader('stage1audit',str(Path(__file__).with_name('081-05-audit.py'))).load_module().audit
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'; bank=base/'_bench_sessions_bank'
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+version=sys.argv[1]
+results=[]
+for spec in sys.argv[2:]:
+    g,order=map(int,spec.split(':'))
+    label=f'M55S1{version}_G{g}_{"S" if order else "N"}'
+    log=ev/f'leg-{label.lower()}.log'
+    assert not log.exists(),str(log)
+    args=[pwsh,'-NoProfile','-File',str(ev/'run_leg_owned.ps1'),'-Label',label,'-BankPrefix','M55S1_',
+          '-Anomaly','corrupted_texture','-Target','StaticMeshActor_49','-MaxFrames','9' if g==11 else '90',
+          '-MaxAttempts','3','-WaitSec','60','-ExtraExecCmds',
+          f'r.AntiAliasingMethod 0, IAI.Capture.Config 2 4 16 4 0, IAI.Bench.ChangeGate {g}, IAI.Bench.SynthTickOrder {order}']
+    (ev/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+    with log.open('w',encoding='utf-8') as f:
+        run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=base/'StackOBot/Plugins/CaptureBench/tools')
+    result=dict(label=label,exit=run.returncode)
+    if run.returncode==0:
+        accepted=bank/('M55S1_'+label)
+        session=next(accepted.glob('session*'))
+        tries=list(bank.glob('M55S1_'+label+'_try*'))
+        match=next(t for t in tries if (t/session.name).exists())
+        result.update(audit(session,match/'_leg_game.log'))
+    else: result.update(errors=['fixture validity failed; no gate verdict'])
+    results.append(result)
+    (ev/f'audit-{label.lower()}.json').write_text(json.dumps(result,indent=2))
+    print(json.dumps({k:result[k] for k in ('label','exit','reasons','errors') if k in result}),flush=True)
+    if result['errors']:
+        print('Stopped batch for review; remaining requested cases UNRUN.',flush=True)
+        sys.exit(1)

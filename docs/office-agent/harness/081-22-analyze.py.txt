@@ -1,0 +1,213 @@
+from pathlib import Path
+import datetime,json,os,re,statistics as st,sys,subprocess
+B=Path(r'D:\IntrusiveAnomalies');R=B/'_reviews';E=R/'081-22-evidence'
+TS=re.compile(r'^\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]\[\s*\d+\]')
+def ts(line):
+    m=TS.match(line)
+    return datetime.datetime.strptime(m[1],'%Y.%m.%d-%H.%M.%S:%f').replace(tzinfo=datetime.timezone.utc).timestamp() if m else None
+def pct(v,p):
+    if not v:return None
+    v=sorted(v);k=max(0,min(len(v)-1,-(-len(v)*p//100)-1));return v[k]
+def q3(v):return None if not v else dict(n=len(v),p50=round(pct(v,50),1),p95=round(pct(v,95),1),max=round(max(v),1))
+def ols(xs,ys):
+    if len(xs)<3:return None
+    mx,my=st.fmean(xs),st.fmean(ys);sxx=sum((x-mx)**2 for x in xs)
+    return None if sxx==0 else sum((x-mx)*(y-my) for x,y in zip(xs,ys))/sxx
+def verdict_latency(meds):
+    m2,m10=meds[1],meds[9]
+    band=max(100.0,0.25*m2);steps=[meds[i+1]-meds[i] for i in range(1,9)]
+    if m10-m2>=max(250.0,0.5*m2) and sum(s>0 for s in steps)>=6:return 'GROWTH'
+    if abs(m10-m2)<=band and max(meds[5:])-min(meds[5:])<=band:return 'PLATEAU'
+    return 'INDETERMINATE'
+def analyze(row,EV=None):
+    EV=EV or E
+    label=row['label'];d=EV/label;s=Path(row['session']);out=dict(label=label,leg=row['leg'],evidence=row['evidence'],attempt=row['attempt'],status=row['status'])
+    launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'))
+    lines=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace').splitlines()
+    summ=json.loads((s/'run_summary.json').read_text(encoding='utf-8-sig'))
+    rows={}
+    for l in (s/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines():
+        j=json.loads(l);rows[j['session_index']]=j
+    N=max(rows)+1 if rows else 0;out['armed']=N;out['labels_rows']=len(rows);out['labels_rows_missing']=sorted(set(range(N))-set(rows))[:50]
+    arm={}
+    for l in lines:
+        m=re.search(r'Capture\(m47\): SHADERS pending=(\d+) incomplete=(\d+) si=(\d+) ',l)
+        if m and int(m[3]) not in arm:arm[int(m[3])]=(ts(l),int(m[1]),int(m[2]))
+    offs=[arm[i][0]-rows[i]['t_wall'] for i in arm if i in rows]
+    off=st.median(offs);out['anchor']=dict(log_lines=len(arm),offset_spread_ms=round((max(offs)-min(offs))*1000,2),shaders_pending_max=max(a[1] for a in arm.values()),shaders_incomplete_max=max(a[2] for a in arm.values()))
+    a=launch.get('anchor_start')
+    if a:
+        ua=datetime.datetime.fromisoformat(a['utc'].replace('Z','+00:00')).timestamp();oq=ua-16777216.0-a['qpc']/a['freq']
+        out['anchor']['qpc_anchor_minus_log_anchor_ms']=round((oq-off)*1000,2)
+    frames=s/'Actual_Frames';masks=s/'target_mask'
+    png={int(p.stem.split('_')[1]):p for p in frames.glob('frame_*.png')}
+    mpng={int(p.stem.split('_')[1]):p for p in masks.glob('frame_*.png')} if masks.exists() else {}
+    mt={i:os.stat(p).st_mtime for i,p in png.items()};mmt={i:os.stat(p).st_mtime for i,p in mpng.items()}
+    sizes=[p.stat().st_size for p in png.values()]
+    out['files']=dict(png=len(png),png_zero_bytes=sum(z==0 for z in sizes),png_mean_mb=round(st.fmean(sizes)/1e6,3) if sizes else None,png_total_gb=round(sum(sizes)/1e9,3),masks=len(mpng),missing_png=sorted(set(range(N))-set(png))[:50],missing_png_count=len(set(range(N))-set(png)))
+    armu={i:rows[i]['t_wall']+off for i in rows}
+    lat={i:(mt[i]-armu[i])*1000 for i in rows if i in mt}
+    def logt(pat):return [(ts(l),l) for l in lines if re.search(pat,l)]
+    started=logt(r'=== Capture run STARTED');finished=logt(r'=== Capture run FINISHED')
+    t_start=started[0][0] if started else None;t_fin=finished[0][0] if finished else None
+    first_arm=min(armu.values());last_arm=max(armu.values());first_png=min(mt.values());last_png=max(mt.values())
+    backlog_at_last_arm=sum(1 for i in rows if armu[i]<=last_arm and mt.get(i,1e30)>last_arm)
+    steady=[i for i in rows if first_arm+5<=armu[i]<=last_arm]
+    wins=[t for t in mt.values() if first_arm+5<=t<=last_arm]
+    out['wall']=dict(capture_start_utc=launch.get('capture_start_utc'),started_to_finished_s=round(t_fin-t_start,2) if t_start and t_fin else None,
+        arm_span_s=round(last_arm-first_arm,2),last_arm_to_finished_s=round(t_fin-last_arm,2) if t_fin else None,last_arm_to_last_png_s=round(last_png-last_arm,2),
+        finished_to_last_png_s=round(last_png-t_fin,2) if t_fin else None,capture_start_to_last_png_s=round(last_png-datetime.datetime.fromisoformat(launch['capture_start_utc'].replace('Z','+00:00')).timestamp(),2),
+        arm_rate_fps=round((len(steady)-1)/(max(armu[i] for i in steady)-min(armu[i] for i in steady)),3) if len(steady)>2 else None,
+        png_completion_rate_fps_same_window=round(len(wins)/(last_arm-first_arm-5),3) if last_arm-first_arm>5 else None,
+        png_completion_rate_fps_overall=round((len(mt)-1)/(last_png-first_png),3) if len(mt)>2 else None,backlog_frames_at_last_arm=backlog_at_last_arm)
+    keys=('total_frames','positive_frames','bursts_done','zero_match_bursts','sustained_wall_fps','speed_ratio','stamped_fps','game_clock_speed_ratio','ticks_per_captured_frame','capture_game_ticks','key_ring_published','key_ring_missed','key_ring_corrupted','wanted_matches','target_mask_frames_measured','target_mask_frames_unavailable','frames_shaders_pending','non_manifested_events','vetoed_events')
+    out['summary']={k:summ.get(k) for k in keys}
+    wc={}
+    for pat,name in ((r'writer flush timed out with (\d+) job',"flush_timeout_jobs_pending"),(r'Capture\(async\): (\d+) frame\(s\) failed to encode/write','frames_failed_encode_write'),(r'Capture\(async\): (\d+) frame\(s\) did not resolve','frames_unresolved_at_run_end')):
+        v=[int(re.search(pat,l)[1]) for _,l in logt(pat)];wc[name]=v
+    wc['mask_write_failed_lines']=len(logt(r'TARGET MASK WRITE FAILED'));wc['dimension_change_lines']=len(logt(r'FRAME DIMENSIONS CHANGED'))
+    rb=logt(r'M1 readbackLatencyFrames');wc['readback_latency_line']=rb[0][1].split('LogAnomalyCapture: ')[-1][:200] if rb else None
+    wc['png_written_minus_summary_total_frames']=len(png)-(summ.get('total_frames') or 0)
+    out['writer_counters']=wc
+    dec=lambda i:min(9,i*10//N)
+    per={k:[] for k in range(10)}
+    for i,v in lat.items():per[dec(i)].append(v)
+    meds=[st.median(per[k]) if per[k] else None for k in range(10)]
+    out['writer_latency_ms']=dict(overall=q3(list(lat.values())),deciles=[q3(per[k]) for k in range(10)])
+    xs=[i for i in lat if dec(i)>=1];out['writer_latency_ms']['ols_slope_ms_per_frame_d2_d10']=round(ols(xs,[lat[i] for i in xs]),3) if xs else None
+    out['writer_latency_ms']['verdict']=verdict_latency(meds) if all(m is not None for m in meds) else 'INDETERMINATE'
+    out['writer_latency_ms']['first_frames']=[round(lat[i]) for i in sorted(lat)[:8]]
+    samples=launch.get('capture_samples',[])
+    if len(samples)>=3:
+        def utc(x):return datetime.datetime.fromisoformat(x['utc'].replace('Z','+00:00')).timestamp()
+        win=[x for x in samples if 'cpu_ms' in x and first_arm<=utc(x)<=last_arm]
+        res=dict(samples=len(samples),in_arm_window=len(win))
+        if len(win)>=2:
+            a0,a1=win[0],win[-1];dt=(utc(a1)-utc(a0))*1000
+            res['game_cpu_logical_cores']=round((a1['cpu_ms']-a0['cpu_ms'])/dt,2)
+            i0,k0,u0=map(int,a0['sys'].split(','));i1,k1,u1=map(int,a1['sys'].split(','))
+            res['system_busy_pct']=round(100*(1-(i1-i0)/((k1-k0)+(u1-u0))),1)
+            per_s=[]
+            for x,y in zip(win,win[1:]):
+                dd=(utc(y)-utc(x))*1000
+                if dd>0:per_s.append((y['cpu_ms']-x['cpu_ms'])/dd)
+            res['game_cpu_cores_per_1s']=q3(per_s)
+        res['private_gb']=dict(first=round(samples[0].get('priv',0)/1e9,3),max=round(max(x.get('priv',0) for x in samples)/1e9,3),last=round(samples[-1].get('priv',0)/1e9,3))
+        res['working_set_gb_max']=round(max(x.get('ws',0) for x in samples)/1e9,3)
+        res['threads_max']=max(x.get('threads',0) for x in samples)
+        res['shader_compile_workers_max']=max(x.get('scw',0) for x in samples);res['shader_compile_worker_cpu_s']=round(max(x.get('scw_cpu_ms',0) for x in samples)/1000,2)
+        pv=[(utc(x),x['priv']) for x in samples if 'priv' in x]
+        res['private_gb_at_last_arm']=round(min(pv,key=lambda z:abs(z[0]-last_arm))[1]/1e9,3) if pv else None
+        out['process']=res
+    focus=launch.get('capture_focus',[]);out['foreground']=[sum(x['foreground_pid']==launch.get('pid') for x in focus),len(focus)]
+    view=[(i,rows[i]['view']) for i in sorted(rows)]
+    o0,r0=view[0][1]['origin'],view[0][1]['rot']
+    moved=[(i,max(abs(a-b) for a,b in zip(v['origin'],o0)),max(abs(((a-b)+180)%360-180) for a,b in zip(v['rot'],r0))) for i,v in view]
+    first_move=next((i for i,dp,dr in moved if dp>1 or dr>0.1),None)
+    out['pose']=dict(first_si_moved_gt_1cm_or_0p1deg=first_move,max_origin_delta_cm=round(max(x[1] for x in moved),2),max_rot_delta_deg=round(max(x[2] for x in moved),3),in_capture_host_event_lines=row.get('in_capture_host_events',[])[:10])
+    out['events']=dict(labelled_frames=sum(1 for r in rows.values() if r.get('anomaly_present')),mask_present=sum(1 for r in rows.values() if r.get('mask_state')=='present'),mask_empty=sum(1 for r in rows.values() if r.get('mask_state')=='empty'))
+    ann=json.loads((s/'annotation.json').read_text(encoding='utf-8-sig')) if (s/'annotation.json').exists() else {}
+    out['events']['annotation_events']=len(ann.get('anomalies',[]));out['events']['annotation_video_total_frames']=(ann.get('video') or {}).get('total_frames')
+    if row['evidence']=='ON':out['evidence']=evidence(s,lines,summ,rows,N,dec,mt,mmt,lat,t_start)
+    return out
+def evidence(s,lines,summ,rows,N,dec,mt,mmt,lat,t_start):
+    ev={k:v for k,v in summ.items() if k.startswith('change_') and k!='change_bytes_peak_census'}
+    peak=summ.get('change_bytes_peak_census')
+    recs=[json.loads(l) for l in (s/'change_evidence.jsonl').read_text(encoding='utf-8-sig').splitlines()]
+    pairs=[x for x in recs if x['kind']=='pair'];events=[x for x in recs if x['kind']=='event']
+    budget=[];high=[];closure=[];late=0;peak_lines=0
+    for l in lines:
+        t=ts(l)
+        m=re.search(r'Capture\(m55\): BUDGET-EXCEEDED si=(\d+) kind=(\w+) requested=(\d+) held=(\d+) max=(\d+) census=(\{.*\})$',l)
+        if m:budget.append(dict(t=t,si=int(m[1]),kind=m[2],c=json.loads(m[6])));continue
+        m=re.search(r'Capture\(m55\): HIGH-WATER bytes=(\d+) max=(\d+) census=(\{.*\})$',l)
+        if m:high.append(dict(t=t,si=json.loads(m[3])['si'],kind=json.loads(m[3])['kind'],c=json.loads(m[3])));continue
+        m=re.search(r'Capture\(m55\): CLOSURE-TIMEOUT si=(\d+) clock=(\w+) laterCompletions=(\d+) elapsedMs=(\d+)',l)
+        if m:closure.append(dict(t=t,si=int(m[1]),clock=m[2]));continue
+        if 'Capture(m55): LATE-REJECT' in l:late+=1
+        if 'Capture(m55): HIGH-WATER-PEAK' in l:peak_lines+=1
+    def reduce(x):
+        c=x['c'];h=c['head'];hs=h['si'];ready=None
+        if hs in mt:ready=max(mt[hs],mmt.get(hs,0))
+        return dict(t_rel_s=round(x['t']-t_start,3) if t_start else None,trigger=c['trigger'],kind=x['kind'],si=x['si'],cursor=c['cursor'],latest=c['latest_index'],lag=c['latest_index']-c['cursor'],
+            bytes_held=c['bytes_held'],colours=c['colours'],pending=c['colours_pending'],previous=c['colours_previous'],phase_ref=c['colours_phase_ref'],in_hand=c['colours_in_hand'],masks=c['masks'],
+            open_phases=len(c['open_phases']),head_state=h['state'],waits_on=h['waits_on'],head_wait_ms=round((x['t']-ready)*1000) if ready and h['state']=='pending' and not h['waits_on'] else None,
+            head_writer_latency_ms=round(lat[hs]) if hs in lat else None)
+    census=sorted([reduce(x) for x in high+budget],key=lambda z:(z['t_rel_s'] or 0))
+    bsi=sorted({x['si'] for x in budget});bcol={x['si'] for x in budget if x['kind']=='colour'};bmask={x['si'] for x in budget if x['kind']=='mask'};csi={x['si'] for x in closure}
+    recon={};prev_admit=False
+    for i in range(N):
+        r=rows.get(i,{});ms=r.get('mask_state')
+        if i in csi:reason='closure_timeout';admit=True
+        elif i in bcol:reason='budget_exceeded';admit=False
+        elif i in bmask:reason='budget_exceeded';admit=True
+        elif i==0:reason='first_frame';admit=True
+        elif not prev_admit:reason='predecessor_missing';admit=True
+        elif ms=='present':reason=None;admit=True
+        elif ms=='empty':reason='empty_region';admit=True
+        else:reason='mask_payload_missing';admit=True
+        recon[i]=reason;prev_admit=admit
+    tot={}
+    for v in recon.values():tot[v]=tot.get(v,0)+1
+    check={k[len('change_reason_'):]:v for k,v in summ.items() if k.startswith('change_reason_') and v}
+    rec_nonnull={k:v for k,v in tot.items() if k}
+    recon_ok=rec_nonnull==check and tot.get(None,0)==summ.get('change_pairs_identity_valid')
+    win_mism=[(p['session_index'],p.get('reason'),recon.get(p['session_index'])) for p in pairs if p.get('reason')!=recon.get(p['session_index']) and p.get('reason') in ('budget_exceeded','predecessor_missing','closure_timeout','first_frame','mask_payload_missing',None)]
+    deciles=[]
+    for k in range(10):
+        idx=[i for i in range(N) if dec(i)==k];d=dict(decile=k+1,si=[idx[0],idx[-1]] if idx else None,issued=len(idx))
+        if recon_ok:
+            rr={}
+            for i in idx:rr[recon[i] or 'identity_valid']=rr.get(recon[i] or 'identity_valid',0)+1
+            d['by_reason']=rr
+        d['budget_lines']=sum(1 for x in budget if dec(x['si'])==k);d['budget_indices']=len({x['si'] for x in budget if dec(x['si'])==k})
+        d['closure_timeout_lines']=sum(1 for x in closure if dec(x['si'])==k)
+        wp=[p for p in pairs if dec(p['session_index'])==k]
+        wr={}
+        for p in wp:
+            if not p['chg_measured']:wr[p.get('reason') or 'unmeasured_null']=wr.get(p.get('reason') or 'unmeasured_null',0)+1
+        d['window_pairs']=dict(required=len(wp),measured=sum(p['chg_measured'] for p in wp),refused=wr)
+        lv=[p['colour_completion_latency_ms'] for p in wp if p['colour_completion_latency_ms']>=0];lf=[p['colour_completion_latency_frames'] for p in wp if p['colour_completion_latency_frames']>=0]
+        d['window_colour_latency_ms']=q3(lv);d['window_colour_latency_frames']=q3(lf)
+        cs=[c for c in census if dec(c['si'])==k]
+        d['census']=dict(lines=len(cs),lag=q3([c['lag'] for c in cs]),pending=q3([c['pending'] for c in cs]),bytes_held_max=max([c['bytes_held'] for c in cs],default=None),
+            head_states={x:sum(1 for c in cs if c['head_state']==x and (not c['waits_on'] if x=='pending' else True)) for x in ('pending','in_hand','none')},head_pending_waiting_on_inputs=sum(1 for c in cs if c['head_state']=='pending' and c['waits_on']),
+            head_wait_ms=q3([c['head_wait_ms'] for c in cs if c['head_wait_ms'] is not None]))
+        deciles.append(d)
+    res=[lat[p['session_index']]-p['colour_completion_latency_ms'] for p in pairs if p['colour_completion_latency_ms']>=0 and p['session_index'] in lat]
+    ka=dict(n=len(res),median_ms=round(st.median(res),2) if res else None,min_ms=round(min(res),2) if res else None,max_ms=round(max(res),2) if res else None)
+    ka['pass']=bool(res) and abs(ka['median_ms'])<=5 and max(abs(ka['min_ms']),abs(ka['max_ms']))<=50
+    hw_lines=[c for c in census if c['trigger']=='high_water']
+    first30=[c['bytes_held'] for c in census if c['si']<0.3*N];last_hw_si=max([c['si'] for c in hw_lines],default=None)
+    if budget:sv='GROWTH'
+    elif last_hw_si is not None and last_hw_si<0.5*N:sv='PLATEAU'
+    elif last_hw_si is not None and last_hw_si>=0.7*N and first30 and summ.get('change_bytes_high_water',0)>=1.5*max(first30):sv='GROWTH'
+    else:sv='INDETERMINATE'
+    phases=[ph for e in events for ph in e['phases']]
+    return dict(summary=ev,peak_census={k:peak.get(k) for k in ('si','bytes_held','colours','colours_pending','colours_previous','colours_phase_ref','colours_in_hand','masks','cursor','latest_index','head','open_phases')} if isinstance(peak,dict) else peak,
+        first_budget_exceeded_si=bsi[0] if bsi else None,budget_lines=len(budget),budget_indices=len(bsi),budget_by_kind={'colour':len(bcol),'mask':len(bmask)},
+        high_water_lines=len(hw_lines),last_high_water_line_si=last_hw_si,high_water_peak_lines=peak_lines,closure_timeout_lines=len(closure),closure_clocks={c:sum(1 for x in closure if x['clock']==c) for c in ('wall','completions')},
+        late_reject_lines=late,retention_verdict=sv,
+        events=dict(final_events=len(events),phases=len(phases),phases_fully_measured=sum(1 for ph in phases if ph['pairs_measured']==ph['pairs_required']),pairs_required=sum(ph['pairs_required'] for ph in phases),pairs_measured=sum(ph['pairs_measured'] for ph in phases)),
+        reconstruction=dict(ok=recon_ok,reconstructed=tot,summary=check,identity_valid_summary=summ.get('change_pairs_identity_valid'),window_row_mismatches=win_mism[:20],window_row_mismatch_count=len(win_mism)),
+        known_answer=ka,deciles=deciles,census_series=census)
+if __name__=='__main__' and '--selftest' in sys.argv:
+    E17=R/'081-17-evidence';res=[]
+    for lab,leg,evd in (('LYRA_G3_N_A2','LYRA','ON'),('B_SOLID1080_N_A1','STACK','ON'),('B_NULL1080_N_A1','STACK','ON')):
+        l=json.loads((E17/lab/'launch.json').read_text(encoding='utf-8-sig'))
+        a=analyze(dict(label=lab,leg=leg,evidence=evd,attempt=0,status='READING',session=l['session']),E17);a['evidence'].pop('census_series',None);res.append(a)
+        ev=a['evidence'];summ=ev['summary']
+        print(json.dumps(dict(label=lab,armed=a['armed'],png=a['files']['png'],lat_overall=a['writer_latency_ms']['overall'],summary_lat=[summ.get('change_colour_completion_latency_ms_p50'),summ.get('change_colour_completion_latency_ms_p95'),summ.get('change_colour_completion_latency_ms_max')],verdict=a['writer_latency_ms']['verdict'],slope=a['writer_latency_ms']['ols_slope_ms_per_frame_d2_d10'],known_answer=ev['known_answer'],recon=ev['reconstruction'],retention=ev['retention_verdict'],hw_lines=ev['high_water_lines'],last_hw_si=ev['last_high_water_line_si'],wall=a['wall'],writer=a['writer_counters'],anchor=a['anchor'])),flush=True)
+    (E/'analyzer-selftest-081-17.json').write_text(json.dumps(res,indent=2,default=str));sys.exit(0)
+if __name__=='__main__':
+    rows=[]
+    for f in ('lyra-results.json','stack-results.json'):
+        p=E/f
+        if p.exists():rows+=[x for x in json.loads(p.read_text()) if x['status']=='READING']
+    out=[]
+    for r in rows:
+        a=analyze(r);out.append(a)
+        series=a.get('evidence',{}).pop('census_series',None)
+        if series is not None:(E/f"census-series-{r['label']}.json").write_text(json.dumps(series,indent=1))
+        print(json.dumps({k:a.get(k) for k in ('label','armed','wall','writer_latency_ms')},default=str)[:1500],flush=True)
+    (E/'analysis.json').write_text(json.dumps(out,indent=2,default=str))

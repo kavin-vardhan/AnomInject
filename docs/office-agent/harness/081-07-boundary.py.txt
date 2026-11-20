@@ -1,0 +1,91 @@
+from pathlib import Path
+import datetime, hashlib, json, subprocess, sys
+
+BASE = Path(r'D:\IntrusiveAnomalies')
+EV = BASE / '_reviews/081-07-evidence'
+REPO = BASE / 'StackOBot/Plugins/AnomalyInjector'
+REPOS = {'AnomalyInjector': REPO, 'CaptureBench': BASE / 'StackOBot/Plugins/CaptureBench',
+         'Lyra': Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')}
+FEATURE = 'feat/m55-change-evidence'
+
+def git(repo, *args):
+    return subprocess.check_output(['git', '-C', str(repo), *args]).decode().strip()
+
+def sha(path):
+    with Path(path).open('rb') as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+def snapshot():
+    result = {'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'repos': {}}
+    for name, repo in REPOS.items():
+        assert not git(repo, 'diff', '--name-only')
+        assert not git(repo, 'diff', '--cached', '--name-only')
+        result['repos'][name] = {
+            'head': git(repo, 'rev-parse', 'HEAD'), 'branch': git(repo, 'branch', '--show-current'),
+            'refs': git(repo, 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/heads', 'refs/remotes'),
+            'untracked': {p: sha(repo / p) for p in git(repo, 'ls-files', '--others', '--exclude-standard').splitlines()}}
+    candidate = json.loads((BASE / '_reviews/081-06-evidence/binary-candidate-v6.json').read_text())
+    expected = {candidate[k]: candidate['sha256'] for k in ('built', 'staged', 'archive')}
+    expected.update({r['path']: r['sha256'] for r in candidate['containers']})
+    expected.update({str(Path(candidate['lyra_archive']) / r['name']): r['sha256'] for r in candidate['lyra_modules']})
+    original = json.loads((BASE / '_reviews/081-06-evidence/lyra-binary-before.json').read_text())
+    expected.update({str(REPOS['Lyra'] / 'Binaries/Win64' / r['name']): r['sha256'] for r in original})
+    predecessor = BASE / '_binary_baselines/StackOBot.exe.m52-veto-arm-window-0844220E'
+    expected[str(predecessor)] = '0844220e16019485ee6f6b1068ba84fdcb9ade903686461aecdf17ea91fadbd4'
+    for p, digest in expected.items():
+        assert sha(p) == digest, p
+    result['verified_binaries'] = expected
+    result['prior_artifacts'] = {str(p.relative_to(BASE)): sha(p)
+        for folder in ('081-05-evidence', '081-06-evidence', '081-05-frozen', '081-06-frozen')
+        for p in (BASE / '_reviews' / folder).rglob('*') if p.is_file()}
+    for p in (BASE / '_reviews').glob('081-0[56]-codex-*.md'):
+        result['prior_artifacts'][str(p.relative_to(BASE))] = sha(p)
+    proc = subprocess.check_output(['powershell', '-NoProfile', '-Command',
+        "@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue | Select-Object Id,ProcessName) | ConvertTo-Json -Compress"]).decode().strip()
+    assert not proc or proc == '[]', proc
+    result['bench_processes'] = []
+    return result
+
+mode = sys.argv[1]
+if mode == 'pre':
+    assert not EV.exists()
+    EV.mkdir()
+    before = snapshot()
+    (EV / 'preflight.json').write_text(json.dumps(before, indent=2))
+    (EV / 'CURRENT.before.md').write_bytes((BASE / 'ToCodex/CURRENT.md').read_bytes())
+    for name in ('final-ledger.json', 'qualification-attempts.json', 'l1-reference.json', 'coverage-limits-verbatim.md'):
+        (EV / ('prior-' + name)).write_bytes((BASE / '_reviews/081-06-evidence' / name).read_bytes())
+    ledger = json.loads((EV / 'prior-final-ledger.json').read_text())
+    summary = {'accepted': ledger['accepted'], 'required': 60, 'missing': ledger['missing'],
+        'new_l2_attempts': [], 'remaining_allowance_per_missing_leg': 3,
+        'prior_ledger': 'prior-final-ledger.json', 'prior_attempts': 'prior-qualification-attempts.json',
+        'disposition': 'NEEDS-DECISION: no permitted existing placement setter; rebuild forbidden'}
+    (EV / 'final-ledger.json').write_text(json.dumps(summary, indent=2))
+    print(json.dumps({'preflight': 'PASS', 'accepted': ledger['accepted'], 'missing': len(ledger['missing'])}))
+elif mode == 'post':
+    before = json.loads((EV / 'preflight.json').read_text())
+    after = snapshot()
+    assert before['verified_binaries'] == after['verified_binaries']
+    assert before['prior_artifacts'] == after['prior_artifacts']
+    for name, old in before['repos'].items():
+        new = after['repos'][name]
+        assert all(old[k] == new[k] for k in ('head', 'branch', 'untracked')), name
+        oldrefs = dict(l.split(' ', 1) for l in old['refs'].splitlines())
+        newrefs = dict(l.split(' ', 1) for l in new['refs'].splitlines())
+        delta = {k: [oldrefs.get(k), newrefs.get(k)] for k in oldrefs.keys() | newrefs.keys() if oldrefs.get(k) != newrefs.get(k)}
+        assert set(delta) <= {'refs/heads/' + FEATURE, 'refs/remotes/origin/' + FEATURE}
+        new['ref_delta'] = delta
+    assert git(REPO, 'rev-parse', FEATURE) == git(REPO, 'rev-parse', 'origin/' + FEATURE)
+    remote = git(REPO, 'ls-remote', 'origin', 'refs/heads/' + FEATURE, 'refs/heads/master')
+    assert git(REPO, 'rev-parse', FEATURE) + '\trefs/heads/' + FEATURE in remote
+    assert '031a103b18b90b2ce9dd626b22e9498717c60815\trefs/heads/master' in remote
+    after['remote_refs'] = remote
+    current = (BASE / 'ToCodex/CURRENT.md').read_bytes()
+    assert current.endswith((EV / 'CURRENT.before.md').read_bytes())
+    after['current_history_preserved'] = True
+    after['report_sha256'] = sha(BASE / '_reviews/081-07-codex-m55-stage-1-lyra-matrix.md')
+    after['current_sha256'] = sha(BASE / 'ToCodex/CURRENT.md')
+    after['verdict'] = 'PASS: boundary preserved; matrix remains incomplete'
+    (EV / 'postflight.json').write_text(json.dumps(after, indent=2))
+    print(json.dumps({'boundary': 'PASS', 'prior_artifacts_preserved': len(after['prior_artifacts']),
+                      'binaries_verified': len(after['verified_binaries']), 'report_sha256': after['report_sha256']}))

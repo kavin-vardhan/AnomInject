@@ -1,0 +1,35 @@
+import importlib.util
+import json
+from pathlib import Path
+
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+s = importlib.util.spec_from_file_location('cd', R / '084-08b-container-diff.py')
+CD = importlib.util.module_from_spec(s)
+s.loader.exec_module(CD)
+BB = Path(r'D:\IntrusiveAnomalies\_binary_baselines')
+E1 = Path(r'E:\IA_BuildCache\_r84_cookout_e1\Windows\StackOBot\Content\Paks')
+SETS = [('07b', BB / 'm52fix-cook-87A46A27'), ('07c', BB / 'm52fix-cook-59C20959'), ('08', BB / 'm52fix-cook-4BF63FB8'), ('08b', E1)]
+
+
+def main():
+    L = {t: CD.listing(p / 'StackOBot-Windows.utoc', 'utoc-' + t) for t, p in SETS}
+    out = {}
+    for (ta, _), (tb, _) in zip(SETS, SETS[1:]):
+        d = CD.diff(L[ta], L[tb])
+        no, nn = L[ta][1], L[tb][1]
+        lower_o = {k.lower(): (k, v) for k, v in no.items()}
+        case_only = []
+        for k in d['added']:
+            if k.lower() in lower_o and lower_o[k.lower()][0] != k:
+                case_only.append(dict(new=k, old=lower_o[k.lower()][0], same_hash=lower_o[k.lower()][1] == nn[k]))
+        out[f'{ta}->{tb}'] = dict(named_old=d['named_old'], named_new=d['named_new'], same=d['same'],
+                                  added=[k for k in d['added'] if not any(c['new'] == k for c in case_only)],
+                                  removed=[k for k in d['removed'] if not any(c['old'] == k for c in case_only)],
+                                  case_only_renames=case_only, changed=[c['name'] for c in d['changed']],
+                                  anon_added=d['anon_added'], anon_removed=d['anon_removed'])
+    (CD.EV / 'cook-baseline.json').write_text(json.dumps(out, indent=1), encoding='utf-8')
+    print(json.dumps(out, indent=1))
+
+
+if __name__ == '__main__':
+    main()

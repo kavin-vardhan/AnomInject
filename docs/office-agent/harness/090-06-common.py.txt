@@ -1,0 +1,225 @@
+from pathlib import Path
+import ctypes,ctypes.wintypes,datetime,hashlib,json,os,re,shutil,subprocess,sys,time
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+B=Path(r'D:\IntrusiveAnomalies');R=B/'_reviews';EV=R/'090-06-evidence'
+PIN_PATH=R/'090-06-pin.json'
+DRY=os.environ.get('IAI_R906_DRY')=='1'
+LIVE_RUN=EV/'run'
+RUN=Path(os.environ.get('IAI_R906_ROOT') or str(LIVE_RUN))
+if DRY and RUN.resolve()==LIVE_RUN.resolve():raise SystemExit('IAI_R906_DRY=1 refused: the run root is the live evidence dir '+str(LIVE_RUN))
+SANDBOX=Path(os.environ.get('IAI_R906_SANDBOX') or r'E:\IA_BuildCache\_r90_06_dry')
+REAL_BUILDS=B/'StackOBot'/'Builds'
+REAL_STAGED_ROOT=REAL_BUILDS/'BenchGate'/'Windows'/'StackOBot'
+REAL_EXE=REAL_STAGED_ROOT/'Binaries'/'Win64'/'StackOBot.exe'
+PROTECTED=(B/'StackOBot'/'Plugins'/'AnomalyInjector',B/'ToCodex',Path(r'E:\<personal-folder>'))
+STAGED_ROOT=(SANDBOX/'staged'/'Windows'/'StackOBot') if DRY else REAL_STAGED_ROOT
+EXE=STAGED_ROOT/'Binaries'/'Win64'/'StackOBot.exe'
+EXE_SIDE=(SANDBOX/'exe_side') if DRY else REAL_EXE.parent
+PRERUN_BACKUP=(SANDBOX/'prerun_backup') if DRY else Path(r'E:\IA_BuildCache\_r90_06_prerun_backup')
+BANK=(RUN/'_bank') if DRY else Path(os.environ.get('IAI_BANK_OVERRIDE') or r'D:\IA_BankOverflow')
+STANDIN_BANK=Path(r'D:\IA_BankOverflow')
+BANK_PREFIX='M90S06_'
+CACHE=Path(os.environ.get('IAI_R906_CACHE') or str(RUN/'_cache'))
+TOOLS=EV/'tools'
+VERIFY_CAPTURE=TOOLS/'verify_capture.py'
+KIT=TOOLS/'label_sync_check.py'
+TOOLS_SOURCE=Path(r'E:\IA_BuildCache\_r84_host\StackOBot\Plugins\AnomalyInjector\tools')
+TOOLS_PINNED={'verify_capture.py':'10c5939de4c8a1f0','measure_label_offset.py':'f422dfa7995ba6a4','label_sync_check.py':'340f7433581a4265'}
+M51_HEAD='53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67'
+KEYS=('Binaries/Win64/StackOBot.exe','Content/Paks/StackOBot-Windows.utoc','Content/Paks/StackOBot-Windows.ucas',
+      'Content/Paks/StackOBot-Windows.pak','Content/Paks/global.utoc','Content/Paks/global.ucas')
+EXE_KEY=KEYS[0];CONTAINER_KEYS=KEYS[1:]
+PWSH=r'C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe'
+PYTHON=r'C:\Python313\python.exe'
+RUNNER=R/'090-06-run.ps1'
+E_FLOOR_GB=5.0;D_FLOOR_GB=40.0
+RESTORE_TRIES=6;RESTORE_BACKOFF_S=(3,6,12,24,48,96)
+FROZEN_IMPORTS=('089-03-common.py','089-03-eval.py','089-03-kit.py','084-09-eval.py','084-09-common.py','084-06-eval.py','084-03-lib.py','084-03-common.py',
+                '086-01-work/ls086.py','089-03-evidence/freeze.json','089-04-common.py','089-04-eval.py','089-04-oracle.py','085-04-m53rows.py',
+                '085-04-evidence/tools/exclusion_gate.py','085-04-evidence/tools/texcorrupt_draw_kat.py','089-04-evidence/freeze.json',
+                '089-04b-gmode.py','089-04-lib.py','089-04-run.ps1','089-04-legs.py','089-04-dc2pin.json','089-03-part0.ps1')
+OWN_FILES=('090-06-common.py','090-06-legs.py','090-06-lib.py','090-06-eval.py','090-06-gateselftest.py','090-06-run.ps1')
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def blob(p):
+    """git's blob id of a text file as `git hash-object` reports it on this box (core.autocrlf=true: CRLF normalised to LF), computed without git."""
+    b=Path(p).read_bytes().replace(b'\r\n',b'\n');return hashlib.sha1(b'blob %d\x00'%len(b)+b).hexdigest()
+def now():return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def jload(p,default=None):
+    p=Path(p)
+    try:return json.loads(p.read_text(encoding='utf-8-sig')) if p.exists() else default
+    except Exception:return default
+def jsave(p,v):
+    guard_write(p);Path(p).parent.mkdir(parents=True,exist_ok=True);Path(p).write_text(json.dumps(v,indent=1,default=str),encoding='utf-8')
+def _under(p,root):
+    try:Path(p).resolve().relative_to(Path(root).resolve());return True
+    except Exception:return False
+def guard_write(p):
+    """Every write of this harness goes through here. Nothing is ever written under a protected root; in a dry run nothing is written
+    outside the 090-06 evidence folder or the E: sandbox, and above all nothing under StackOBot\\Builds (the real bench)."""
+    p=Path(p)
+    for pr in PROTECTED:
+        if _under(p,pr):raise SystemExit(f'090-06 write refused: {p} is under the protected {pr}')
+    if DRY:
+        if _under(p,REAL_BUILDS):raise SystemExit(f'090-06 DRY write refused: {p} is under the real bench {REAL_BUILDS}')
+        if not (_under(p,EV) or _under(p,SANDBOX)):raise SystemExit(f'090-06 DRY write refused: {p} is outside {EV} and {SANDBOX}')
+    return p
+def log_event(kind,**kw):
+    p=RUN/'environment-events.json';ev=jload(p,[]) or []
+    ev.append(dict(utc=now(),kind=kind,**kw));jsave(p,ev)
+def free_gb(drive):return round(shutil.disk_usage(drive).free/1e9,1)
+def pin():return json.loads(PIN_PATH.read_text(encoding='utf-8-sig'))
+def is_placeholder(v,ph=None):
+    ph=ph or pin().get('placeholder','PENDING-090-05-M53-EXE')
+    return (v is None) or (isinstance(v,str) and (v==ph or v.startswith('PENDING')))
+def pin_placeholders():
+    p=pin();ph=p.get('placeholder');out=[]
+    for name,b in (p.get('binaries') or {}).items():
+        for k in ('sha256','path','size'):
+            if is_placeholder(b.get(k),ph):out.append(f'{name}.{k}')
+    for k,v in ((p.get('container') or {}).get('files') or {}).items():
+        if is_placeholder(v,ph):out.append(f'container.{k}')
+    return out
+def binary_placeholders(name):
+    b=(pin().get('binaries') or {}).get(name) or {};ph=pin().get('placeholder')
+    return [k for k in ('sha256','path','size') if is_placeholder(b.get(k),ph)]
+def container_archive():
+    cp=pin()['container'];return Path(cp['archive_root'])/cp['archive']
+def container_sources():
+    a=container_archive();return {k:a/Path(k).name for k in CONTAINER_KEYS}
+def binary_problems(name):
+    """A pin is usable only when it is not a placeholder, the file exists, and its size and SHA-256 equal the pin."""
+    ph=binary_placeholders(name)
+    if ph:return [f'{name} pin is a placeholder ({", ".join(ph)} = {pin().get("placeholder")}): fill 090-06-pin.json before any {name} leg']
+    b=pin()['binaries'][name];p=Path(b['path']);out=[]
+    if not p.exists():return [f'{name} exe {p} does not exist']
+    if p.stat().st_size!=int(b['size']):out.append(f'{name} exe size {p.stat().st_size} != pinned {b["size"]}')
+    h=sha(p)
+    if h!=str(b['sha256']).lower():out.append(f'{name} exe sha256 {h[:16]} != pinned {str(b["sha256"])[:16]}')
+    return out
+def container_problems():
+    cp=pin()['container'];a=container_archive();out=[]
+    if not a.is_dir():return [f'container archive {a} missing']
+    for k,want in cp['files'].items():
+        p=a/Path(k).name
+        if not p.exists():out.append(f'container file missing: {p}');continue
+        if cp.get('sizes') and p.stat().st_size!=int(cp['sizes'][k]):out.append(f'container {p.name} size {p.stat().st_size} != {cp["sizes"][k]}')
+        if sha(p)!=want:out.append(f'container {p.name} sha256 != pinned {want[:16]}')
+    return out
+def cooked_maps():
+    raw=(container_archive()/'StackOBot-Windows.utoc').read_bytes()
+    txt=raw.decode('latin-1')+raw.decode('utf-16-le',errors='ignore')
+    return {m:(m+'.umap') in txt for m in pin()['container']['required_maps']}
+def string_scan(path,tokens):
+    b=Path(path).read_bytes()
+    return {t:dict(ascii=b.count(t.encode('ascii')),utf16=b.count(t.encode('utf-16-le'))) for t in tokens}
+def a44(name):
+    """A44 on a pinned binary: every must_contain token present in ASCII or UTF-16, every must_not_contain token absent in both."""
+    if binary_placeholders(name):return dict(name=name,pending=True,problems=[f'{name}: A44 not run, pin pending'])
+    b=pin()['binaries'][name];tok=list(b.get('must_contain') or [])+list(b.get('must_not_contain') or [])
+    sc=string_scan(b['path'],tok);pr=[]
+    for t in b.get('must_contain') or []:
+        if sc[t]['ascii']+sc[t]['utf16']==0:pr.append(f'{name}: required token {t!r} absent from the exe')
+    for t in b.get('must_not_contain') or []:
+        if sc[t]['ascii']+sc[t]['utf16']>0:pr.append(f'{name}: token {t!r} must be absent and is present')
+    return dict(name=name,scan=sc,problems=pr)
+def binary_set(name):
+    """The six staged files a leg runs on: the pinned container + the named exe (sha only; placeholders stay placeholders)."""
+    cp=pin()['container'];b=pin()['binaries'][name]
+    s={EXE_KEY:(None if is_placeholder(b.get('sha256')) else str(b['sha256']).lower())}
+    s.update(cp['files']);return s
+def binary_sources(name):
+    b=pin()['binaries'][name];s={EXE_KEY:None if is_placeholder(b.get('path')) else Path(b['path'])};s.update(container_sources());return s
+def staged_state(root=None):
+    root=Path(root or STAGED_ROOT);return {k:(sha(root/k) if (root/k).exists() else None) for k in KEYS}
+def known_archived_sets():
+    """Pinned archived pairings a pre-run state may equal (their archives are restore sources): 089-04's set table, plus DC2 + each 090-06 exe."""
+    out={}
+    try:
+        import importlib.util
+        s=importlib.util.spec_from_file_location('c894_906',R/'089-04-common.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+        for n,(arch,pins) in m.SETS.items():
+            if pins:out[n]=dict(archive=m.ARCHIVE_ROOT/arch,pins=dict(pins),sources={k:m.ARCHIVE_ROOT/arch/Path(k).name for k in KEYS})
+    except SystemExit:pass
+    return out
+GPU_SM_PCT=10
+EDITOR_RX=re.compile(r'^(UnrealEditor.*|UE4Editor.*|LyraEditor.*)\.exe$',re.I)
+GAME_NAMES={'stackobot.exe','lyragame.exe','lyraclient.exe','lyraserver.exe'}
+BUILD_OK={'unrealbuildtool.exe','dotnet.exe','cl.exe','link.exe','lib.exe','msbuild.exe','shadercompileworker.exe','unrealtraceserver.exe',
+          'crashreportclient.exe','crashreportclienteditor.exe','unrealpak.exe','zen.exe','zenserver.exe','git.exe'}
+GPU_EXEMPT={'dwm.exe','csrss.exe','system','idle','explorer.exe','searchhost.exe','textinputhost.exe','startmenuexperiencehost.exe','shellexperiencehost.exe'}
+GPU_HARNESS_HOSTS={'claude.exe'}
+def processes():
+    s='';cmd="@(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine) | ConvertTo-Json -Compress"
+    for attempt in range(4):
+        try:s=subprocess.check_output([PWSH,'-NoProfile','-Command',cmd],timeout=120).decode('utf-8','replace').strip();break
+        except Exception:
+            if attempt==3:raise
+            time.sleep(5)
+    v=[] if not s or s=='[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+    return [dict(pid=x['ProcessId'],ppid=x.get('ParentProcessId'),name=x.get('Name') or '',path=x.get('ExecutablePath'),cmd=(x.get('CommandLine') or '')[:300]) for x in v]
+def gpu_pmon():
+    """Per-process SM utilisation from nvidia-smi pmon (two 1 s samples, the minimum kept). None when nvidia-smi is unavailable (then only names classify)."""
+    exe=shutil.which('nvidia-smi') or r'C:\Windows\system32\nvidia-smi.exe'
+    if not Path(exe).exists():return None
+    try:out=subprocess.run([exe,'pmon','-c','2','-s','u'],capture_output=True,text=True,timeout=30).stdout
+    except Exception as ex:return dict(error=f'{type(ex).__name__}: {ex}')
+    per={}
+    for ln in out.splitlines():
+        if ln.startswith('#') or not ln.strip():continue
+        f=ln.split()
+        if len(f)<4 or not f[1].isdigit():continue
+        sm=int(f[3]) if f[3].isdigit() else 0
+        p=per.setdefault(int(f[1]),dict(pid=int(f[1]),type=f[2],samples=[],name=f[-1]));p['samples'].append(sm)
+    rows=[dict(p,sm=min(p['samples'])) for p in per.values()]
+    return dict(rows=rows,rule='sustained = the MINIMUM SM % over two 1 s samples')
+def idle_gate():
+    """Legs run only when no UnrealEditor of ANY engine (editor or commandlet, ours or foreign) and no foreign GPU-heavy process is running.
+    Builds may run (UBT, cl, link, dotnet, ShaderCompileWorker ...). Processes are classified by name, path and command line; nothing is ever killed."""
+    return classify(processes(),gpu_pmon(),{os.getpid(),os.getppid()})
+def classify(ps,gp,me=frozenset()):
+    blocking=[];allowed=[];games=[]
+    for p in ps:
+        n=p['name'].lower();t=((p.get('path') or '')+' '+(p.get('cmd') or '')).lower()
+        if EDITOR_RX.match(p['name']):blocking.append(dict(p,why='UnrealEditor (any engine; a cook or commandlet counts)'))
+        elif n in GAME_NAMES:blocking.append(dict(p,why='a game is already running'));games.append(p)
+        elif n in BUILD_OK and ('\\binaries\\' in t or 'unrealbuildtool' in t or n in ('cl.exe','link.exe','lib.exe','msbuild.exe','git.exe')):allowed.append(dict(pid=p['pid'],name=p['name'],path=p.get('path')))
+    heavy=[];exempt_readings=[]
+    if gp and gp.get('rows'):
+        byname={x['pid']:x for x in ps}
+        for r in gp['rows']:
+            if r['sm'] is None or r['sm']<GPU_SM_PCT or r['pid'] in me:continue
+            pn=(byname.get(r['pid']) or {}).get('name') or r['name']
+            if pn.lower() in GPU_EXEMPT:continue
+            if pn.lower() in GPU_HARNESS_HOSTS:exempt_readings.append(dict(pid=r['pid'],name=pn,sm=r['sm']));continue
+            heavy.append(dict(pid=r['pid'],name=pn,sm=r['sm'],why=f'GPU SM {r["sm"]} % >= {GPU_SM_PCT} % sustained (nvidia-smi pmon, 2 samples)'))
+    seen={x['pid'] for x in blocking}
+    blocking+=[x for x in heavy if x['pid'] not in seen]
+    return dict(idle=not blocking,blocking=[{k:x.get(k) for k in ('pid','name','path','why','sm')} for x in blocking],allowed_builds=allowed,
+                harness_host_gpu=exempt_readings,
+                gpu=('nvidia-smi pmon, threshold %d %% SM'%GPU_SM_PCT) if gp and gp.get('rows') is not None else ('unavailable: '+str((gp or {}).get('error','no nvidia-smi'))),
+                rule=('blocking = any UnrealEditor* / UE4Editor* / LyraEditor* process of any engine, any StackOBot/Lyra game, any non-exempt process >= %d %% GPU SM '
+                      'sustained over two samples; builds allowed; the agent host (claude.exe) that drives the harness is reported, not blocking')%GPU_SM_PCT)
+_W=ctypes.wintypes
+class _LII(ctypes.Structure):_fields_=[('cbSize',_W.UINT),('dwTime',_W.DWORD)]
+_U32=ctypes.WinDLL('user32',use_last_error=True);_K32=ctypes.WinDLL('kernel32',use_last_error=True)
+_U32.GetLastInputInfo.argtypes=(ctypes.POINTER(_LII),);_U32.GetLastInputInfo.restype=_W.BOOL
+_K32.GetTickCount.restype=_W.DWORD
+_WNDENUMPROC=ctypes.WINFUNCTYPE(_W.BOOL,_W.HWND,_W.LPARAM)
+_U32.EnumWindows.argtypes=(_WNDENUMPROC,_W.LPARAM);_U32.EnumWindows.restype=_W.BOOL
+_U32.IsWindowVisible.argtypes=(_W.HWND,);_U32.IsWindowVisible.restype=_W.BOOL
+_U32.GetWindowTextLengthW.argtypes=(_W.HWND,);_U32.GetWindowTextLengthW.restype=ctypes.c_int
+_U32.GetWindowTextW.argtypes=(_W.HWND,_W.LPWSTR,ctypes.c_int);_U32.GetWindowTextW.restype=ctypes.c_int
+def person_idle_s():
+    x=_LII();x.cbSize=ctypes.sizeof(_LII);ok=_U32.GetLastInputInfo(ctypes.byref(x));n=_K32.GetTickCount()
+    return round(((n-x.dwTime)&0xFFFFFFFF)/1000.0,1) if ok else None
+def security_windows():
+    out=[]
+    def cb(h,l):
+        try:
+            if _U32.IsWindowVisible(h):
+                n=_U32.GetWindowTextLengthW(h);buf=ctypes.create_unicode_buffer(n+1);_U32.GetWindowTextW(h,buf,n+1)
+                if 'Windows Security' in buf.value:out.append(dict(hwnd=int(h),title=buf.value))
+        except Exception:pass
+        return True
+    _U32.EnumWindows(_WNDENUMPROC(cb),0);return out

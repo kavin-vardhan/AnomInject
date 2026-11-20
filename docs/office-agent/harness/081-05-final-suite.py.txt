@@ -1,0 +1,12 @@
+from pathlib import Path
+import subprocess,sys
+base=Path(r"D:\IntrusiveAnomalies")
+def run(script,*args):
+    print("START",script,*args,flush=True)
+    subprocess.run([sys.executable,str(base/"_reviews"/script),*args],check=True,cwd=base)
+cases=[f"{g}:{order}" for g in (15,13,14,*range(1,13)) for order in (0,1)]
+run("081-05-matrix.py","V6",*cases)
+run("081-05-controls.py","V6","main","low","bench")
+run("081-05-lyra-suite.py","V6",*cases)
+run("081-05-predecessor-diagnostic.py")
+run("081-05-ledger.py","V6")

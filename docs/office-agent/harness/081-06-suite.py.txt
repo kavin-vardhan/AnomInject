@@ -1,0 +1,43 @@
+from pathlib import Path
+from importlib.machinery import SourceFileLoader
+import json,subprocess,sys,shutil,hashlib,datetime
+base=Path(r'D:/IntrusiveAnomalies');ev=base/'_reviews/081-06-evidence';bank=base/'_bench_sessions_bank'
+audit=SourceFileLoader('audit08106',str(base/'_reviews/081-05-audit.py')).load_module().audit
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+manifest=json.loads((ev/'candidate-restaged.json').read_text());lyra=Path(r'E:/UEProjects/LyraStarterGame/Plugins/AnomalyInjector/Binaries/Win64')
+def sha(p):
+ with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+ledger=[]
+cases=[(14,1)]+[(g,o) for g in range(1,13) for o in (0,1)]
+for g,order in cases:
+    for attempt in range(1,4):
+        if (ev/'pause-suite').exists():print('Paused before new launch.',flush=True);sys.exit(2)
+        label=f'M55S1Q1_LYRA_G{g}_{"S" if order else "N"}_A{attempt}'
+        for r in manifest['modules']:assert sha(lyra/r['name'])==r['sha256']
+        log=ev/f'leg-{label.lower()}.log';assert not log.exists()
+        args=[pwsh,'-NoProfile','-File',str(ev/'lyra_leg_l1.ps1'),'-Label',label,'-Map','/ShooterCore/Maps/L_ShooterGym','-Seed','4242','-ResX','1280','-ResY','720','-Anomaly','corrupted_texture','-Target','Cube4','-MaxFrames','9' if g==11 else '90','-WaitSec','150','-SettleSec','45','-ExtraExecCmds',f'IAI.Capture.Config 2 4 16 4 0, IAI.Bench.ChangeGate {g}, IAI.Bench.SynthTickOrder {order}']
+        (ev/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+        with log.open('w',encoding='utf-8') as f:run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=base)
+        source=Path(r'E:/UEProjects/_lyra_legs')/label;dest=bank/label;assert not dest.exists()
+        if source.exists():shutil.copytree(source,dest)
+        else:dest.mkdir()
+        game_log=source.with_suffix('.log')
+        if game_log.exists():shutil.copy2(game_log,dest/'_leg_game.log');assert sha(game_log)==sha(dest/'_leg_game.log')
+        verified=0
+        for p in source.rglob('*'):
+            if p.is_file():assert sha(p)==sha(dest/p.relative_to(source));verified+=1
+        pose_path=dest/'_l1_result.json';pose=json.loads(pose_path.read_text()) if pose_path.exists() else None
+        r=dict(label=label,gate=g,order='S' if order else 'N',attempt=attempt,exit=run.returncode,bank=str(dest),bank_files_verified=verified,l1=pose,capture_started=(dest/'_l1_capture_start.json').exists(),utc=datetime.datetime.now(datetime.timezone.utc).isoformat())
+        if run.returncode==10 and pose and pose['status']=='INVALID-FIXTURE':
+            assert not r['capture_started'] and not list(dest.glob('session*'))
+            r.update(status='INVALID-FIXTURE',errors=['L1 pose precondition failed'])
+        elif run.returncode==0 and pose and pose['status']=='PASS-L1':
+            session=next(dest.glob('session*'));r.update(audit(session,dest/'_leg_game.log'))
+            r['status']='PASS' if not r['errors'] else ('INVALID-FIXTURE' if r['errors']==['runtime handled ensure in gate fixture'] else 'FAIL')
+        else:r.update(status='FAIL',errors=['runner/protocol failed; no gate verdict'])
+        ledger.append(r);(ev/f'audit-{label.lower()}.json').write_text(json.dumps(r,indent=2));(ev/'qualification-attempts.json').write_text(json.dumps(ledger,indent=2))
+        print(json.dumps({k:r[k] for k in ('label','status','exit','errors','reasons') if k in r}|dict(distance_cm=pose.get('position_distance_cm') if pose else None,rotation_deg=pose.get('rotation_distance_deg') if pose else None)),flush=True)
+        if r['status']=='PASS':break
+        if r['status']!='INVALID-FIXTURE' or attempt==3:
+            print('HALT: real failure or three invalid-fixture attempts; remaining legs UNRUN.',flush=True);sys.exit(1)
+print('All 25 newly required Lyra legs passed.',flush=True)

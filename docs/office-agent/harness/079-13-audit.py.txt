@@ -1,0 +1,57 @@
+"""Check measured banks, frozen-source identity and prior fixture coverage."""
+from collections import Counter
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+E = ROOT / "_reviews/079-13-evidence"
+F = ROOT / "_reviews/079-13-sweep-tools"
+P = ROOT / "StackOBot/Plugins/AnomalyInjector"
+manifest = json.loads((F / "manifest.json").read_text())
+for name, digest in manifest.items():
+    live = (ROOT / "StackOBot/Plugins/CaptureBench/tools" if name == "m079_shift_recovery.py" else P / "tools") / name
+    assert hashlib.sha256(live.read_bytes()).hexdigest() == digest
+    assert live.read_bytes() == (F / name).read_bytes()
+bank = json.loads((E / "bank.json").read_text())
+assert bank["verify_sha256"] == manifest["verify_capture.py"]
+summary = []
+for c in bank["bank"]:
+    edges = c["detail"]
+    assert c["code"] == 0
+    runs = {(e["event"], e["ordinal"]): e for e in edges}
+    for e in edges:
+        assert e["run_motion_caveat"] == (e["run_max_m_edge"] is not None and e["run_max_m_edge"] > .42)
+    for e in runs.values():
+        run_line = next(s for s in c["lines"] if s.startswith("      run[%d..%d]" % tuple(e["run"])))
+        assert ("high regional change" in run_line) == e["run_motion_caveat"]
+    row = {"name": c["name"], "event_lines": [s for s in c["lines"] if s.startswith("idx=")],
+           "observations": dict(Counter(e["observation"] for e in edges)),
+           "runs": dict(Counter(e["run_outcome"] for e in runs.values())),
+           "motion_caveated_runs": sum(e["run_motion_caveat"] for e in runs.values()),
+           "lighting_caveated_runs": sum(e["run_lighting_caveat"] for e in runs.values()),
+           "tau_values": sorted({e["tau"] for e in edges if e["tau"] is not None}),
+           "edges": [{k: e[k] for k in ("event", "ordinal", "kind", "nominal", "best_k", "offset",
+                       "observation", "m_edge", "tau", "reason", "run_reason")} for e in edges]}
+    if c["name"].startswith("M49_"):
+        assert all(e["observation"] == "TRANSITION" and e["offset"] == 0 and e["tau"] == .004
+                   and e["run_outcome"] == "CONSISTENT" for e in edges)
+        assert len(row["event_lines"]) == 4
+    else:
+        assert all(e["run_outcome"] != "NO-TRACE" for e in edges)
+    summary.append(row)
+assert sum(len(c["detail"]) for c in bank["bank"][:6]) == 64
+old = json.loads((ROOT / "_reviews/079-12-evidence/final/selftest_details.json").read_text())
+new = json.loads((E / "final/selftest_details.json").read_text())
+assert [c["name"] for c in old["fixtures"]] == [c["name"] for c in new["fixtures"]]
+assert len(new["fixtures"]) == 94 and new["exit"] == 0
+assert new["verifier_sha256"] == manifest["verify_capture.py"]
+result = {"source_equal_to_frozen": True, "fixtures_retained": 94, "P2_observed": 64,
+          "P2_total": 64, "bank": summary}
+(E / "audit.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+print("Exact live/frozen sources; all94 retained; P2 64/64 zero-offset transitions, tau0.004; P3 no NO-TRACE; all motion caveats verified.")
+for r in summary:
+    print(r["name"], r["observations"], "motion caveated runs", r["motion_caveated_runs"])
+    if not r["name"].startswith("M49_"):
+        for e in r["edges"]:
+            print(e)

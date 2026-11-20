@@ -1,0 +1,38 @@
+from pathlib import Path
+import hashlib,importlib.util,json,os,subprocess,sys
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+EV=R/'082-14-s20-evidence'
+LIVE_RUN=EV/'run'
+RUN=Path(os.environ.get('IAI_S20_ROOT',str(LIVE_RUN)))
+STUB=os.environ.get('IAI_S20_STUB_LAUNCH')=='1'
+STUB_GATES=STUB and os.environ.get('IAI_S20_STUB_GATES')=='1'
+if STUB and RUN.resolve()==LIVE_RUN.resolve():raise SystemExit('IAI_S20_STUB_LAUNCH=1 refused: the run root is the live S2-0 evidence dir '+str(LIVE_RUN))
+if not STUB and RUN.resolve()!=LIVE_RUN.resolve():raise SystemExit('a real (non-stub) S2-0 run must use the live root '+str(LIVE_RUN))
+os.environ['IAI_R53_ROOT']=str(RUN)
+if STUB:os.environ['IAI_R53_STUB_LAUNCH']='1'
+else:os.environ.pop('IAI_R53_STUB_LAUNCH',None)
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+S1=_load('lib53_for_s20',R/'082-07-lib.py')
+c1=S1.c
+S1_FILES=('082-07-common.py','082-07-legs.py','082-07-lib.py','082-07-run.ps1','082-07-mw-trajectory.json')
+SRC=c1.SRC;FEATURE=c1.FEATURE;RP=c1.RP;M51_HEAD=c1.M51_HEAD;HOST_PLUGIN=c1.HOST_PLUGIN;CB=c1.CB
+PRED='docs/predictions/2026-09-28-m53-s2.md'
+STAGED=dict(c1.STAGED)
+EXE=c1.EXE
+BANK_PREFIX='M53S20_'
+MAP='/Game/StackOBot/Maps/MainWorld'
+MW_FLOOR='RoomBuilderSquare_C_UAID_00155DE1D4771FCF00_1080865874'
+CAP_LEVER='IAI.Anomaly.TexCorruptMaxRtBytes 268435456'
+WARM_OFF='IAI.Capture.TexCorruptWarmDraw 0'
+CODEX_SHADOW=Path(r'D:\IntrusiveAnomalies\_relay\runs\2026-09-28-082-11-m53-s2-design-review\independent-shadow.json')
+KA_LEGS=('FMW_ID','COLL_A_FMW','FMW_CTL_A','FMW_CTL_B','COLL_N_FMW','REASON_S3O','REASON_A2')
+KA_INSTALL=KA_LEGS[:2];KA_NULLS=KA_LEGS[2:]
+REAL_BANK=c1.REAL_BANK
+FAM={'A':dict(warm=True,pre=40,settle=2,pos=8,post=60,frames=107),
+     'B':dict(warm=False,pre=62,settle=2,pos=8,post=60,frames=129)}
+ORDER=(('A','IDP','ON'),('A','IDP','OFF'),('B','IDF','ON'),('B','C','ON'),('B','R','ON'),('B','IDF','OFF'),('B','C','OFF'),('B','R','OFF'))
+ARM_ANOMALY={'IDP':'uv_corruption','IDF':'uv_corruption','N1':'uv_corruption','N2':'uv_corruption','R':'uv_corruption','C':'corrupted_texture'}
+sha=c1.sha;now=c1.now;git=c1.git
+def log_event(kind,**kw):return c1.log_event(kind,**kw)

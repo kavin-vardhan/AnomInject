@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""079-14 mutation probe: does the 94-case selftest + 22 contracts actually PIN
+the rules they claim to? Each mutation is applied to a COPY in scratch; the
+branch is never touched."""
+import os
+import shutil
+import subprocess
+import sys
+
+SRC = r"C:\ClaudeTemp\079-14\wt\tools"
+WORK = r"C:\ClaudeTemp\079-14\mutwork"
+
+MUTATIONS = [
+    ("M0_control", None, None),
+    ("M1_peak_ratio_1.0", "PEAK_NEIGHBOUR_RATIO = 1.5", "PEAK_NEIGHBOUR_RATIO = 1.0"),
+    ("M2_peak_ratio_9.0", "PEAK_NEIGHBOUR_RATIO = 1.5", "PEAK_NEIGHBOUR_RATIO = 9.0"),
+    ("M3_marker_0.99", "HIGH_REGIONAL_CHANGE_MARKER = 0.42", "HIGH_REGIONAL_CHANGE_MARKER = 0.99"),
+    ("M4_min_baseline_1", "MIN_BASELINE_FRAMES = 3", "MIN_BASELINE_FRAMES = 1"),
+    ("M5_region_frac_0.999", "MAX_REGION_FRAC = 0.90", "MAX_REGION_FRAC = 0.999"),
+    ("M6_DELETE_whole_span_change_check",
+     '    changed = [(k, p["d"]) for k, p in span if p["d"] > tau]',
+     '    changed = []'),
+    ("M7_span_tau_max", '    tau = min(e["tau"] for e in edges)',
+     '    tau = max(e["tau"] for e in edges)'),
+    ("M8_DELETE_unresolved_guard",
+     '    if any(e["mask_id_unresolved"] for e in edges) or any(p["unresolved"] for _k, p in span):',
+     '    if False:'),
+    ("M9_DELETE_span_error_guard", "    if errors:\n        return R_UNASSESSABLE,",
+     "    if False:\n        return R_UNASSESSABLE,"),
+    ("M10_DELETE_class_allowlist", '    if run["type"] not in NO_TRACE_TYPES:',
+     '    if False:'),
+    ("M11_span_lo_hi_narrowed",
+     '    lo = min([run["start"]] + [e["lo"] for e in edges])\n'
+     '    hi = max([run["end"]] + [e["hi"] for e in edges])',
+     '    lo = run["start"]\n    hi = run["end"]'),
+    ("M12_edge_window_bad_ignored",
+     '    if bad:\n        rec["reason"] = bad[0]\n        return rec',
+     '    if False:\n        rec["reason"] = bad[0]\n        return rec'),
+    ("M13_identity_check_removed",
+     '                    elif wanted != 0 and wanted not in present:',
+     '                    elif False:'),
+    ("M14_partial_promoted_to_consistent",
+     '        return R_PARTIAL, "one zero-delta transition; the other edge has NO-TRANSITION"',
+     '        return R_CONSISTENT, "one zero-delta transition; the other edge has NO-TRANSITION"'),
+    ("M15_event_token_ignores_no_trace",
+     "    for outcome in (R_NO_TRACE, R_OFFSET, R_PARTIAL, R_CONSISTENT):",
+     "    for outcome in (R_OFFSET, R_PARTIAL, R_CONSISTENT, R_NO_TRACE):"),
+    ("M16_report_only_swallows_exit3",
+     "        sys.exit(0 if (args.report_only and code != 3) else code)",
+     "        sys.exit(0 if args.report_only else code)"),
+]
+
+
+def run(name, old, new):
+    d = os.path.join(WORK, name)
+    if os.path.isdir(d):
+        shutil.rmtree(d)
+    os.makedirs(d)
+    for f in ("verify_capture.py", "measure_label_offset.py",
+              "test_verify_capture_consistency.py"):
+        shutil.copy2(os.path.join(SRC, f), os.path.join(d, f))
+    applied = "control"
+    if old is not None:
+        p = os.path.join(d, "verify_capture.py")
+        text = open(p, "r", encoding="utf-8").read()
+        if old not in text:
+            return name, "PATTERN-NOT-FOUND", "-", "-"
+        text = text.replace(old, new, 1)
+        open(p, "w", encoding="utf-8", newline="").write(text)
+        applied = "mutated"
+    st = subprocess.run([sys.executable, "-B", os.path.join(d, "verify_capture.py"),
+                         "--label-pixel-gate", "--selftest"],
+                        capture_output=True, text=True)
+    ct = subprocess.run([sys.executable, "-B",
+                         os.path.join(d, "test_verify_capture_consistency.py")],
+                        capture_output=True, text=True)
+    return name, applied, st.returncode, ct.returncode
+
+
+print("%-40s %-18s %-10s %s" % ("mutation", "applied", "selftest", "contracts"))
+print("-" * 82)
+for name, old, new in MUTATIONS:
+    n, a, s, c = run(name, old, new)
+    flag = ""
+    if a == "mutated" and s == 0 and c == 0:
+        flag = "   <-- SURVIVES BOTH SUITES"
+    print("%-40s %-18s %-10s %s%s" % (n, a, s, c, flag))

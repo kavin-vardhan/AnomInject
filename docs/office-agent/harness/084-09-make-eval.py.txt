@@ -1,0 +1,57 @@
+from pathlib import Path
+import sys
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+src = (R / '084-06-eval.py').read_text(encoding='utf-8')
+
+
+def sub(old, new, text):
+    n = text.count(old)
+    if n != 1:
+        sys.exit(f'anchor count {n} != 1: {old[:120]!r}')
+    return text.replace(old, new)
+
+
+t = src
+t = sub("c=_load('c56',R/'084-06-common.py')", "c=_load('c59',R/'084-09-common.py')", t)
+t = sub("EVALUATOR='084-06'", "EVALUATOR='084-09'", t)
+t = sub("""    if null is not None and any(e['target']==target for e in L3.events(null)):
+        NT=null.table([roi])[roi]""",
+        """    if null is not None:
+        NT=null.table([roi])[roi];info['null_series_frames']=len(NT);info['null_events_for_target']=sum(1 for e in L3.events(null) if e['target']==target)""", t)
+t = sub("""        tg=gate_transition(Lw,Tset,vis,span,drop,s_off,None,temporal_aa)
+        verd,fails=combine(two,tg,onc,offc,L=Lw)
+        per[name]=dict(verdict=verd,fail_reasons=fails,two_sided_084_04a=two['verdict'],two_sided=two,transition_gate=tg,visible=sorted(vis))""",
+        """        Tex,pg,tg=m52_transition_gate(s,e,Lw,Tset,vis,span,drop,thr,s_off,temporal_aa)
+        verd,fails=combine(two,tg,onc,offc,L=Lw)
+        if pg['fail_reasons']:fails=fails+pg['fail_reasons'];verd='FAIL'
+        per[name]=dict(verdict=verd,fail_reasons=fails,two_sided_084_04a=two['verdict'],two_sided=two,transition_gate=tg,partial_guard=pg,visible=sorted(vis))""", t)
+t = sub("""    clean=lambda si:si in s.rows and si not in Ls and si not in Ts and si not in other and not (s.rows[si].get('anomaly_present') and si not in mine)
+    refc=[si for si in range(lo-ls086.REF_BACK,lo) if clean(si)]
+    if len(refc)<3:refc=[si for si in range(lo-30,lo) if clean(si)][-8:]
+    if len(refc)<2:res['status']='NO-REFERENCE';return res""",
+        """    clean=lambda si:si in s.rows and si not in Ls and si not in Ts and si not in other and not (s.rows[si].get('anomaly_present') and si not in mine)
+    refc=[si for si in range(lo-ls086.REF_BACK,lo) if clean(si)]
+    if len(refc)<3:refc=[si for si in range(lo-30,lo) if clean(si)][-8:]
+    if REF_AMENDMENT:
+        ra=reference_amendment(s,ev,other,lo,hi,Ts,clean)
+        res['reference']=ra
+        if ra['status']=='CONFOUNDED':res['status']='CONFOUNDED-REFERENCE';return res
+        refc=ra['frames']
+    if len(refc)<2:res['status']='NO-REFERENCE';return res""", t)
+
+t = sub("""def mask_gate(sd,log='',min_events=90,bbox_pad=16,outside_tol=0.005):""",
+        """def mask_gate_v1(sd,log='',min_events=90,bbox_pad=16,outside_tol=0.005):""", t)
+t = sub("""class DSession(ls086.Session):
+    def __init__(self,d,exclude_transition=True,labelref=False):
+        super().__init__(d)""",
+        """class DSession(ls086.Session):
+    def __init__(self,d,exclude_transition=True,labelref=False):
+        super().__init__(d)
+        self.label_rule=detect_label_rule(self.rows.values())""", t)
+t = sub("""    res['runs']=run_info
+""", """    res['runs']=run_info
+    res['levels']={int(k):round(float(v['frac']),4) for k,v in series.items()};res['strict_frames']=sorted(int(k) for k,v in series.items() if v['strict'])
+""", t)
+t = t.rstrip('\n') + '\n' + (R / '084-09-eval-new.py').read_text(encoding='utf-8')
+(R / '084-09-eval.py').write_text(t, encoding='utf-8')
+print('084-09-eval.py written', len(t))

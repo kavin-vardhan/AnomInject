@@ -1,0 +1,107 @@
+from pathlib import Path
+import datetime,hashlib,json,shutil,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-09-evidence';R=B/'StackOBot/Plugins/AnomalyInjector';F=B/'_reviews/081-09-frozen';feature='feat/m55-change-evidence'
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(r,*args):return subprocess.check_output(['git','-C',str(r),*args]).decode().strip()
+def write(p,data):p.write_text(json.dumps(data,indent=2),encoding='utf-8')
+def idle():
+    s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue | Select-Object Id,ProcessName) | ConvertTo-Json -Compress"]).decode().strip();assert not s or s=='[]',s
+before=json.loads((E/'preflight.json').read_text());idle();assert not git(R,'diff','--name-only') and not git(R,'diff','--cached','--name-only')
+head=git(R,'rev-parse','HEAD');assert git(R,'branch','--show-current')==feature and head==git(R,'rev-parse','origin/'+feature)
+changed=git(R,'diff','--name-only','99adbbb',head).splitlines()
+assert set(changed)=={'CLAUDE.md','docs/gotchas.md','docs/predictions/2026-09-20-m55-change-evidence.md','docs/sessions/2026-09-21-081-09-codex-m55-fixture-diagnosis.md'}
+assert not F.exists();F.mkdir();frozen={'feature_commit':head,'implementation_commit':'989da8b12ccf9fb7b70409f08a6321d5f7d78087','files':{}}
+for name in changed:
+    p=F/'AnomalyInjector'/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(R/name,p);frozen['files'][str(p.relative_to(F))]=sha(p)
+for name in ('081-09-preflight.ps1','081-09-diagnose.py'):
+    p=F/'review-tools'/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(B/'_reviews'/name,p);frozen['files'][str(p.relative_to(F))]=sha(p)
+write(F/'manifest.json',frozen)
+git(R,'checkout','m51')
+header=f'''# 081-09 m55 R1 fixture diagnosis boundary — 2026-09-21
+
+Owner supplied `_reviews/081-08-chat-rulings-stage-2-continuation.md`.
+Disposition NEEDS-DECISION at the explicit R1 report/ferry stop. No capture or injection.
+Five complete no-capture observations each, alternating Stage1 AEBD09EA and Stage2 2C21EDE5:
+raw B1 passes A4/5, B2/5. Sustained foreground for90/90 samples A2/5, B0/5. Both binaries
+show orientation failures; focus is confounded. Four late raw B1 passes had0/90 foreground.
+PID18684 observed owning foreground maps by read-only lookup to SearchHost. No owner-app change.
+No Stage-2-only regression or similar-rate host failure established. No correction branch,
+rebuild, flag bisect or fresh qualification allowance. Earlier capture-failure cause remains
+NOT ESTABLISHED after the requested comparison. Report seeks a bounded comparable-focus ruling.
+Codex implements; Chat orchestrates; Code reviews after Stage3. No mailbox brief.
+
+Read in order:
+1. D:/IntrusiveAnomalies/_reviews/081-09-codex-m55-fixture-diagnosis.md (full).
+2. D:/IntrusiveAnomalies/_reviews/081-08-chat-rulings-stage-2-continuation.md.
+3. D:/IntrusiveAnomalies/_reviews/081-09-frozen/AnomalyInjector/docs/sessions/2026-09-21-081-09-codex-m55-fixture-diagnosis.md.
+4. 081-09-evidence/diagnosis-summary.json and diagnosis-v3-results.json; all ten R1V3
+   complete observation directories (A2's reading is A2R1), snapshots, results and launch logs.
+5. Four ancillary launches: R1_A1 binary-frame observer error; R1V2_A1 valid earlier pilot;
+   R1V2_B1 focus failure before sampling; R1V3_A2 empty-log observer error. All retained.
+6. source-mechanism-read.json, evidence-manifest.json, preflight.json, postflight.json,
+   081-09-frozen/manifest.json. Then prior081-08 report/evidence and limits in history below.
+
+14 launches total:10 comparison observations +4 ancillary, no qualification captures.900 main
+snapshots independently verified capture idle/frames0/empty runDir/no active anomalies, origin
+(-1500,0,260), FOV90, viewport1280x720. Settle indices are snapshot indices, not capture frames.
+Observer framing/empty-log repairs and focus method correction are disclosed. No B1 failure
+was replaced; unavailable protocol observations are not reconstructed. No fourth DELAY_N try.
+
+Feature local/origin {head}; this round changed four docs only.
+Implementation989da8b12ccf9fb7b70409f08a6321d5f7d78087 unchanged; built/staged/archive Game
+2c21ede58f54b947e014f29e7c81181872c90a8334eea8f004bb0c1f4ab6b392 restored after every batch.
+All prior binary archives, module files, five containers and081-08 artifacts verified unchanged.
+Main restored m51 53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67, clean tracked,11 handoffs retained.
+Lyra stays detached caa68c6799db023f7a24c0d6cfc56124ce27b542 with nine entry modules unchanged.
+Main StackOBotEditor modules and built/staged Game still Stage2 candidate despite m51 source.
+CaptureBench b2ca7646e094b61d423f879dbad47af116f0ae10 and eight untracked files preserved.
+Master local/origin031a103b18b90b2ce9dd626b22e9498717c60815 unchanged; no other refs altered.
+Four docs and final two observer helpers frozen. No owned process/watcher/build remains in flight.
+No cook/merge/tag/host edit. Earlier CURRENT bytes preserved verbatim below.
+
+Accepted static twin legs remain accepted under081-08. Stage1 accepted36, Lyra24 remain
+DROPPED-BY-OWNER-DECISION; historical invalid evidence retained. DELAY_N allowance remains0,
+new allowances conditional on R1 resolution and final5/5 validity. R2 true cooked-mesh occluder,
+R3 natural moving twins, R4 remaining gates/actual teardown/six-leg AEBD09EA invariance all
+deferred to next block; withdrawn offscreen/private B1 exception remains deleted. R5 scoped
+Lyra runs last, zero attempts used; first-leg3-attempt auto-drop still applies. No Lyra cost.
+Stage3 release now requires GREEN R2–R4 report PLUS R5 resolved, per latest ruling.
+Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4**, prior verbatim coverage limits and open teardown.
+
+**Chat review REQUIRED** for the ambiguous R1 continuation and before R2–R4 at this mandatory
+report/ferry boundary. **Chat review NOT REQUIRED** for completed authorized diagnosis and
+boundary documentation. Next mandatory checkpoint is Chat's ruling on081-09. No fresh session
+or context change recommended; this remains the same workstream. Recheck live state first.
+
+Earlier CURRENT content is preserved byte-for-byte below as history.
+
+---
+
+'''
+current=B/'ToCodex/CURRENT.md';previous=(E/'CURRENT.before.md').read_bytes();assert current.read_bytes()==previous
+current.write_bytes(header.replace('\n','\r\n').encode()+previous)
+after={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'feature_commit':head,'repos':{},'verified_binaries':before['verified_binaries']}
+for name,r in {'AnomalyInjector':R,'Lyra':Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector'),'CaptureBench':B/'StackOBot/Plugins/CaptureBench'}.items():
+    assert not git(r,'diff','--name-only') and not git(r,'diff','--cached','--name-only')
+    old=before['repos'][name];new={'head':git(r,'rev-parse','HEAD'),'branch':git(r,'branch','--show-current'),'refs':git(r,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes'),'untracked':{p:sha(r/p) for p in git(r,'ls-files','--others','--exclude-standard').splitlines()}}
+    assert all(old[k]==new[k] for k in ('head','branch','untracked')),name
+    a=dict(l.split(' ',1) for l in old['refs'].splitlines());z=dict(l.split(' ',1) for l in new['refs'].splitlines())
+    delta={k:[a.get(k),z.get(k)] for k in a.keys()|z.keys() if a.get(k)!=z.get(k)}
+    assert set(delta)<={'refs/heads/'+feature,'refs/remotes/origin/'+feature},delta
+    new['ref_delta']=delta;after['repos'][name]=new
+for p,h in before['verified_binaries'].items():assert sha(p)==h,p
+for p,h in before['prior_artifacts'].items():assert sha(B/p)==h,p
+after['prior_artifacts_preserved']=len(before['prior_artifacts'])
+remote=git(R,'ls-remote','origin','refs/heads/'+feature,'refs/heads/master');assert head+'\trefs/heads/'+feature in remote and '031a103b18b90b2ce9dd626b22e9498717c60815\trefs/heads/master' in remote
+after['remote_refs']=remote;after['current_history_preserved']=current.read_bytes().endswith(previous);assert after['current_history_preserved']
+after['current_sha256']=sha(current);after['report_sha256']=sha(B/'_reviews/081-09-codex-m55-fixture-diagnosis.md')
+assert (B/'_reviews/081-09-codex-m55-fixture-diagnosis.md').read_text(encoding='utf-8').rstrip().endswith('VERDICT: NEEDS-DECISION')
+for p,h in frozen['files'].items():assert sha(F/p)==h,p
+evmanifest={str(p.relative_to(B)):sha(p) for p in E.rglob('*') if p.is_file() and p.name not in ('postflight.json','evidence-manifest.json')}
+evmanifest.update({str(p.relative_to(B)):sha(p) for p in (B/'_reviews').glob('081-09-*.py')})
+evmanifest['_reviews/081-09-preflight.ps1']=sha(B/'_reviews/081-09-preflight.ps1');write(E/'evidence-manifest.json',evmanifest)
+after['evidence_files_hashed']=len(evmanifest);after['frozen_files_verified']=len(frozen['files']);after['bench_processes']=[];idle()
+after['verdict']='PASS: restored boundary; R1 NEEDS-DECISION, allowances unchanged, R2–R5 and Stage 3 held'
+write(E/'postflight.json',after)
+print(json.dumps({k:v for k,v in after.items() if k not in ('repos','verified_binaries')},indent=2))

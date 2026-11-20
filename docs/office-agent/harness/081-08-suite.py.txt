@@ -1,0 +1,41 @@
+from pathlib import Path
+from importlib.machinery import SourceFileLoader
+import hashlib,json,subprocess,sys
+base=Path(r'D:\IntrusiveAnomalies');ev=base/'_reviews/081-08-evidence';bank=base/'_bench_sessions_bank'
+audit=SourceFileLoader('audit_stage2',str(base/'_reviews/081-08-audit.py')).load_module().audit
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+version=sys.argv[1]
+cases={
+ 'null':dict(anomaly='null_effect'),
+ 'solid':dict(anomaly='solid_swap'),
+ 'delay':dict(anomaly='solid_swap',args='delay=3'),
+ 'hide':dict(anomaly='missing_object'),
+ 'hide_depth':dict(anomaly='missing_object',extra='IAI.Bench.HideOmitDepthPassSilencing 1'),
+ 'blink':dict(anomaly='blinking',config='2 4 100 4 0',frames=360,blink=True),
+ 'short':dict(anomaly='null_effect',config='2 4 2 4 0',short=True),
+ 'runend':dict(anomaly='null_effect',config='2 4 100 4 0',frames=20,event_floor=1,runend=True),
+ 'drop':dict(anomaly='solid_swap',extra='IAI.Bench.DestroyTarget StaticMeshActor_49 15',frames=45,event_floor=1,drop=True,normal=False),
+ 'nohold':dict(anomaly='stuck_low_mip',extra='IAI.Bench.StuckMipNoHold 1, IAI.Capture.DeferredOnsetTimeout 8',nohold=True,normal=False),
+ 'teardown':dict(anomaly='null_effect',config='2 4 1000 4 0',frames=1000,event_floor=1,teardown=True,extra='IAI.Bench.ChangeTeardownAt 30'),
+}
+for spec in sys.argv[2:]:
+    name,order=spec.split(':');case=cases[name];order=int(order)
+    label=f'M55S2{version}_{name.upper()}_{"S" if order else "N"}'
+    log=ev/f'leg-{label.lower()}.log';assert not log.exists()
+    extra=f'r.AntiAliasingMethod 0, IAI.Capture.Config {case.get("config","2 4 16 4 0")}, IAI.Bench.ChangeEvidenceCases 1, IAI.Bench.ChangeGate 14, IAI.Bench.SynthTickOrder {order}'
+    if case.get('extra'):extra+=', '+case['extra']
+    args=[pwsh,'-NoProfile','-File',str(ev/'run_leg_owned.ps1'),'-Label',label,'-BankPrefix','M55S2_',
+        '-Anomaly',case['anomaly'],'-Target','StaticMeshActor_49','-MaxFrames',str(case.get('frames',90)),
+        '-MaxAttempts','3','-WaitSec','120','-ExtraExecCmds',extra]
+    if case.get('args'):args+=['-AnomalyArgs',case['args']]
+    (ev/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+    with log.open('w',encoding='utf-8') as f:run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=base/'StackOBot/Plugins/CaptureBench/tools')
+    result=dict(label=label,case=case,order=order,exit=run.returncode)
+    if run.returncode==0:
+        session=next((bank/('M55S2_'+label)).glob('session*'))
+        attempt=next(t for t in bank.glob('M55S2_'+label+'_try*') if (t/session.name).exists())
+        result.update(audit(session,attempt/'_leg_game.log',case))
+    else:result['errors']=['runner fixture failure']
+    (ev/f'audit-{label.lower()}.json').write_text(json.dumps(result,indent=2))
+    print(json.dumps({k:v for k,v in result.items() if k in ('label','exit','events','legacy_events','pairs','measured','reasons','errors')}),flush=True)
+    if result['errors']:sys.exit(1)

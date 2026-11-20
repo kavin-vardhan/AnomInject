@@ -1,0 +1,764 @@
+import collections,ctypes,ctypes.wintypes,datetime,importlib.util,json,os,re,shutil,subprocess,sys,threading,time
+from pathlib import Path
+import numpy as np
+from PIL import Image
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=_load('c52',R/'084-03-common.py')
+ID='stuck_low_mip'
+FMW='/Game/StackOBot/Maps/MainWorld'
+ROCK='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+SHARED='BP_SpawnPad_C_UAID_B42E9936F54253D500_1492231360'
+ECHO=['r.TextureStreaming','r.Streaming.UseAllMips','r.Streaming.FramesForFullUpdate','r.Streaming.OverlapAssetAndLevelTicks','r.AntiAliasingMethod','sg.TextureQuality','IAI.StuckMip.SettleTailFrames']
+BASE=['r.DefaultFeature.AutoExposure 0','r.EyeAdaptationQuality 0','CaptureBench.Marker 0','CaptureBench.Stall.GameMs 0','IAI.Capture.SVE 1',
+      'IAI.Capture.Delivery 0','IAI.Capture.Pace 1','IAI.Capture.Fps 30','IAI.Bench.SynthTickOrder 0','IAI.Capture.Mask 1','IAI.Capture.TargetMask 1','IAI.Capture.RunLog 1']+ECHO
+CFG='2 4 8 30 0'
+ATTEMPTS=3;PP_CAP=5;MIN_MODAL=0.5
+MOVE_CM=0.5;MOVE_DEG=0.05;CONFIRM=3;SPAN_AFTER=60;K_SIGMA=5.0;REL_FLOOR=0.02;DEPTH_K=3.0;ROI_SHRINK=0.15
+class Stop(Exception):
+    def __init__(self,code,msg):super().__init__(msg);self.code=code;self.msg=msg
+def jload(p,default=None):
+    p=Path(p);return json.loads(p.read_text(encoding='utf-8-sig')) if p.exists() else default
+def jsave(p,v):Path(p).parent.mkdir(parents=True,exist_ok=True);Path(p).write_text(json.dumps(v,indent=1,default=str),encoding='utf-8')
+def read_jsonl(p):return [json.loads(l) for l in Path(p).read_text(encoding='utf-8-sig').splitlines() if l.strip()]
+def leg(leg_id,build,role,target=ROCK,levers=(),frames=1200,auto=False,required=True,seed=777,extra=None):
+    return dict(leg=leg_id,build=build,role=role,map=FMW,anomaly=ID,target=None if auto else target,levers=list(levers),frames=frames,
+                cfg=CFG,auto=auto,required=required,seed=seed,extra=extra if extra is not None else ('-IAIBench' if build=='FIX' else ''),kind='capture')
+LEGS=[
+ leg('B0_BASE','BASELINE','SYNC'),
+ leg('B5_BASE','BASELINE','NULL',levers=['IAI.Bench.StuckMipNoHold 1']),
+ leg('B3_BASE','BASELINE','SYNC',auto=True,seed=4242,levers=['IAI.Auto.Pool all 0','IAI.Auto.Pool stuck_low_mip 1']),
+ leg('B9_BASE','BASELINE','AA_OFF',levers=['r.AntiAliasingMethod 0']),
+ leg('B7_BASE','BASELINE','ORDER',levers=['IAI.Bench.SynthTickOrder 1'],required=False),
+ leg('B0_FIX','FIX','SYNC'),
+ leg('B5_FIX','FIX','NULL',levers=['IAI.Bench.StuckMipNoHold 1']),
+ leg('B3_FIX','FIX','SYNC',auto=True,seed=4242,levers=['IAI.Auto.Pool all 0','IAI.Auto.Pool stuck_low_mip 1']),
+ leg('B0L_FIX','FIX','LEVER',levers=['IAI.Bench.StuckMipLegacyTiming 1']),
+ leg('P0_FIX','FIX','PURITY',target=SHARED,frames=300),
+ leg('P1_FIX','FIX','PURITY_CANFAIL',target=SHARED,frames=300,levers=['IAI.Bench.StuckMipLegacyPurity 1']),
+ leg('B7_FIX','FIX','ORDER',levers=['IAI.Bench.SynthTickOrder 1'],required=False),
+ leg('B9_FIX','FIX','AA_OFF',levers=['r.AntiAliasingMethod 0'])]
+def legs_by(build):return [L for L in LEGS if L['build']==build]
+def find_session(root):
+    root=Path(root)
+    if not root.exists():return None
+    s=[d for d in root.iterdir() if d.is_dir() and d.name.startswith('session_') and (d/'run_summary.json').exists()]
+    return s[0] if len(s)==1 else None
+class Sess:
+    def __init__(self,d):
+        self.dir=Path(d);self.rows=sorted(read_jsonl(self.dir/'labels.jsonl'),key=lambda r:r['session_index'])
+        self.by_si={r['session_index']:r for r in self.rows};self.summary=jload(self.dir/'run_summary.json',{});self.anno=jload(self.dir/'annotation.json',{})
+        self.runj=jload(self.dir/'run.json',{});self._shape=None;self._tables={}
+    def grey(self,si):
+        a=np.asarray(Image.open(self.dir/self.by_si[si]['image']).convert('RGB'),dtype=np.float32)
+        return a[...,0]*0.299+a[...,1]*0.587+a[...,2]*0.114
+    def shape(self):
+        if self._shape is None:self._shape=self.grey(self.rows[0]['session_index']).shape
+        return self._shape
+    def mask(self,si):
+        r=self.by_si.get(si);mf=r.get('mask_file') if r else None
+        return np.asarray(Image.open(self.dir/mf).convert('L'),dtype=np.uint8) if mf and (self.dir/mf).exists() else None
+    def table(self,rois):
+        need=[r for r in rois if r not in self._tables]
+        if need:
+            out={r:{} for r in need}
+            for row in self.rows:
+                g=self.grey(row['session_index'])
+                for r in need:out[r][row['session_index']]=sharp(g,r)
+            self._tables.update(out)
+        return {r:self._tables[r] for r in rois}
+SESS_CACHE={}
+def get_sess(d):
+    k=str(Path(d).resolve())
+    if k not in SESS_CACHE:SESS_CACHE[k]=Sess(d)
+    return SESS_CACHE[k]
+def entries(row):return [a for a in (row.get('anomalies') or []) if a.get('id')==ID]
+def events(s):
+    ev=collections.OrderedDict()
+    for r in s.rows:
+        for a in entries(r):
+            e=ev.setdefault(a.get('start_frame'),dict(start_frame=a.get('start_frame'),target=a.get('target_name'),rows=[],held={},rstate={},trailing={},mv={},tp={},bbox={},contam={},textures=None))
+            si=r['session_index'];e['rows'].append(si);e['held'][si]=bool(a.get('stuck_mip.held'));e['rstate'][si]=a.get('stuck_mip.render_state');e['contam'][si]=bool(a.get('stuck_mip.contaminated'))
+            e['trailing'][si]=bool(a.get('stuck_mip.trailing'));e['mv'][si]=a.get('mask_value');e['tp'][si]=a.get('target_pixels');e['bbox'][si]=a.get('bbox_px')
+            if a.get('stuck_mip.textures') and e['textures'] is None:e['textures']=[t.get('name') for t in a['stuck_mip.textures']]
+    return list(ev.values())
+def pose(r):
+    v=r.get('view') or {};return [float(x) for x in v.get('origin',[0,0,0])],[float(x) for x in v.get('rot',[0,0,0])]
+def angd(a,b):return abs(((a-b)+180.0)%360.0-180.0)
+def moved(s,si_list):
+    if not si_list:return False
+    o0,r0=pose(s.by_si[si_list[0]])
+    for si in si_list[1:]:
+        o,r=pose(s.by_si[si])
+        if max(abs(a-b) for a,b in zip(o,o0))>MOVE_CM or max(angd(a,b) for a,b in zip(r,r0))>MOVE_DEG:return True
+    return False
+def roi_of(bboxes,shape):
+    b=[x for x in bboxes if x and len(x)==4 and x[2]>8 and x[3]>8]
+    if not b:return None
+    x,y,w,h=(float(np.median([q[i] for q in b])) for i in range(4))
+    x0=int(x+w*ROI_SHRINK);y0=int(y+h*ROI_SHRINK);x1=int(x+w*(1-ROI_SHRINK));y1=int(y+h*(1-ROI_SHRINK))
+    H,W=shape;x0=max(0,x0);y0=max(0,y0);x1=min(W,x1);y1=min(H,y1)
+    return (x0,y0,x1,y1) if x1-x0>8 and y1-y0>8 else None
+def sharp(g,roi):
+    x0,y0,x1,y1=roi;a=g[y0:y1,x0:x1]
+    return float((np.abs(a[:,1:]-a[:,:-1])[:-1,:]+np.abs(a[1:,:]-a[:-1,:])[:,:-1]).mean())
+SETTLE_SKIP=30;LEVEL_N=6
+def rolling_median(v,w=9):
+    v=np.asarray(v,dtype=np.float64);h=w//2;out=np.empty_like(v)
+    for i in range(len(v)):out[i]=np.median(v[max(0,i-h):i+h+1])
+    return out
+def robust_sigma(x):
+    x=np.asarray(x,dtype=np.float64)
+    return float(1.4826*np.median(np.abs(x-np.median(x)))) if len(x) else 0.0
+def target_roi(s,target,null_sess=None):
+    for src in ((null_sess,) if null_sess is not None else ())+(s,):
+        evs=[e for e in events(src) if e['target']==target]
+        roi=roi_of([b for e in evs for b in e['bbox'].values()],src.shape()) if evs else None
+        if roi:return roi,('null' if src is null_sess else 'own')
+    return None,None
+def noise_of(sess,roi,exclude=()):
+    t=sess.table([roi])[roi];ex=set(exclude)
+    si=[x for x in sorted(t) if x>=SETTLE_SKIP and x not in ex]
+    if len(si)<20:return None
+    v=np.array([t[x] for x in si]);res=v-rolling_median(v)
+    return dict(sigma=robust_sigma(res),mu=float(np.median(v)),n=len(si))
+def span_of(s,e,next_first):
+    first=e['rows'][0];last_row=e['rows'][-1];end=min((next_first-1) if next_first is not None else last_row+SPAN_AFTER,last_row+SPAN_AFTER,s.rows[-1]['session_index'])
+    return [si for si in range(first,end+1) if si in s.by_si]
+EVALUATOR='084-04a'
+MEMBER_STATES=('held','unknown','settle_tail')
+def brk(s,a):
+    ra=s.by_si.get(a);rb=s.by_si.get(a+1)
+    if ra is None or rb is None:return f'session_index {a if ra is None else a+1} missing'
+    fa=ra.get('frame_index');fb=rb.get('frame_index')
+    if fa is None or fb is None:return f'no frame_index at si {a if fa is None else a+1}'
+    if fb-fa!=1:return f'engine-frame jump of {fb-fa} between si {a} and {a+1}'
+    return None
+def runs_of(v):
+    out=[];v=sorted(v)
+    for x in v:
+        if out and x==out[-1][1]+1:out[-1][1]=x
+        else:out.append([x,x])
+    return out
+def pre_level(T,first):
+    pre_si=[si for si in range(first-6,first+2) if si in T]
+    return float(np.median([T[x] for x in pre_si])) if len(pre_si)>=4 else None
+def null_ref(null_sess,target):
+    if null_sess is None:return None
+    roi,_=target_roi(null_sess,target)
+    if roi is None:return None
+    n=noise_of(null_sess,roi)
+    if not n:return None
+    T=null_sess.table([roi])[roi];evs=[e for e in events(null_sess) if e['target']==target and e['rows'][0]>=SETTLE_SKIP]
+    firsts=[e['rows'][0] for e in events(null_sess)];drops=[]
+    for e in evs:
+        i=firsts.index(e['rows'][0]);sp=span_of(null_sess,e,firsts[i+1] if i+1<len(firsts) else None);pre=pre_level(T,e['rows'][0])
+        if pre is not None and sp:drops.append(max(0.0,max(pre-T[x] for x in sp))/pre)
+    return dict(roi=roi,drop_rel=max(drops) if drops else None,null_events=len(drops),**n)
+def measure_event(s,e,next_first,ref,own_exclude=(),rock_drop_rel=None):
+    first=e['rows'][0];span=span_of(s,e,next_first)
+    if len(span)<LEVEL_N*2+4:return dict(status='SHORT-SPAN')
+    if ref:
+        roi=ref['roi'];sig=ref['sigma'];drop_rel=ref.get('drop_rel');basis='null of this target'
+    else:
+        roi,_=target_roi(s,e['target'])
+        if roi is None:return dict(status='NO-ROI')
+        nz=noise_of(s,roi,own_exclude)
+        if not nz:return dict(status='NO-NOISE-MODEL')
+        sig=nz['sigma'];drop_rel=rock_drop_rel;basis='own noise outside events; drop threshold transferred from the rock null'
+    T=s.table([roi])[roi]
+    pre=pre_level(T,first)
+    if pre is None:return dict(status='NO-PRE-LEVEL')
+    thr=max(K_SIGMA*sig,REL_FLOOR*pre,(drop_rel or 0.0)*pre)
+    S={si:T[si] for si in span}
+    vis={si for si in span if S[si]<pre-thr}
+    depth=max(pre-S[si] for si in span)
+    measurable=depth>=DEPTH_K*thr
+    mu=pre;post=float(np.median([T[x] for x in span[-LEVEL_N:]]))
+    gfc={si:s.by_si[si].get('frame_index') for si in span}
+    lo=span[0];hi=span[-1];first_vis=None;onset_c=None
+    for si in span:
+        if si not in vis:continue
+        if si>=hi:first_vis=si;onset_c=f'the 2-frame onset confirmation of si {si} falls beyond the span';break
+        b=brk(s,si)
+        if b:first_vis=si;onset_c=f'the 2-frame onset confirmation of si {si} crosses a break ({b})';break
+        if si+1 in vis:first_vis=si;break
+    if first_vis is not None and onset_c is None:
+        b=brk(s,first_vis-1)
+        if b:onset_c=f'break adjacent to the onset ({b})'
+        elif first_vis-1 not in S and (first_vis-1) in T and T[first_vis-1]<pre-thr:onset_c=f'si {first_vis-1} before the event span is already visible: the onset precedes the span'
+    last_vis=None;offset_c=None;confirm_si=None
+    if first_vis is not None:
+        cand=first_vis;clean=0;sb=None
+        for si in range(first_vis+1,hi+1):
+            b=brk(s,si-1)
+            if b:
+                clean=0
+                if sb is None:sb=b
+            if si not in S:continue
+            if si in vis:cand=si;clean=0;sb=None
+            else:
+                clean+=1
+                if clean>=CONFIRM:confirm_si=si;break
+        last_vis=cand
+        if confirm_si is None:offset_c=f'no {CONFIRM}-frame contiguous clean suffix before the span ends at si {hi}'+(f' ({sb})' if sb else '')
+        elif sb:offset_c=f'break adjacent to the offset or inside its {CONFIRM}-frame clean suffix ({sb})'
+    return dict(status='OK',roi=roi,mu=mu,pre=pre,post=post,thr=thr,sigma=sig,basis=basis,depth=depth,measurable=measurable,span=[lo,hi],S=S,vis=sorted(vis),
+                first_vis=first_vis,last_vis=last_vis,confirm_si=confirm_si,onset_censored=onset_c,offset_censored=offset_c,censored=bool(onset_c or offset_c),
+                gfc_first=gfc.get(first_vis),gfc_last=gfc.get(last_vis))
+def label_window(e):return sorted(si for si,v in e['held'].items() if v)
+def render_window(e):return sorted(si for si,v in e['rstate'].items() if v in ('held','unknown','settle_tail'))
+def render_held(e):return sorted(si for si,v in e['rstate'].items() if v=='held')
+def mask_window(s,e):
+    out=[]
+    for si,mv in e['mv'].items():
+        m=s.mask(si)
+        if m is not None and mv and int((m==mv).sum())>0:out.append(si)
+    return sorted(out)
+def doctor(e,onset=0,offset=0):
+    L=label_window(e)
+    drop=set(L[:onset])|(set(L[-offset:]) if offset>0 else set())
+    d=dict(e);d['held']={si:(v and si not in drop) for si,v in e['held'].items()};d['_mask_drop']=drop;return d
+def shifted_window(first,last,onset=0,offset=0):
+    return list(range(first+onset,last+offset+1))
+def null_explained(frames,e,m,ctx):
+    out={}
+    if not ctx or not frames or m.get('roi') is None or not m.get('pre'):return out
+    ns=ctx.get('sess');k=ctx.get('ordinal')
+    if ns is None or k is None:return out
+    ne=[x for x in events(ns) if x['target']==e['target']]
+    if k>=len(ne):return out
+    n0=ne[k]['rows'][0];NT=ns.table([m['roi']])[m['roi']];npre=pre_level(NT,n0)
+    if npre is None:return out
+    rel=m['thr']/m['pre']
+    for si in frames:
+        nsi=n0+(si-e['rows'][0])
+        if nsi in NT and NT[nsi]<npre*(1.0-rel):out[si]=nsi
+    return out
+def gate_sync(s,e,m,has_record,null_ctx=None):
+    L=set(label_window(e));out=dict(label=sorted(L));fv=m.get('first_vis');lv=m.get('last_vis')
+    on_c=m.get('onset_censored');off_c=m.get('offset_censored');cf=m.get('confirm_si')
+    inwin={si for si in m['vis'] if fv is not None and lv is not None and fv<=si<=lv}
+    outside=[si for si in m['vis'] if si not in inwin]
+    expl=null_explained(outside,e,m,null_ctx);failing=[si for si in outside if si not in expl]
+    out['visible_outside_window']=outside
+    out['visible_outside_window_null_explained']={str(k):v for k,v in expl.items()}
+    out['visible_outside_window_failing']=failing
+    out['visible_outside_window_runs']=runs_of(failing)
+    out['recurrence_runs']=[r for r in runs_of(failing) if r[1]>r[0] and (lv is None or r[0]>lv)]
+    unl=sorted(si for si in inwin if si not in L)
+    out['unlabelled_visible']=unl
+    out['unlabelled_before']=[si for si in unl if L and si<min(L)] if L else unl
+    out['unlabelled_after']=[si for si in unl if L and si>max(L)] if L else []
+    out['unlabelled_visible_outside_window']=[si for si in failing if si not in L]
+    lb=sorted(si for si in L if fv is None or si<fv);la=sorted(si for si in L if lv is not None and si>lv)
+    out['labelled_before_first_visible']=lb;out['labelled_after_last_visible']=la
+    lb_def=[] if on_c else lb
+    la_def=[si for si in la if cf is not None and si>cf] if off_c else la
+    out['labelled_outside_window_ambiguous']=sorted(set(lb)-set(lb_def))+sorted(set(la)-set(la_def))
+    out['label_start_minus_first_visible']=(min(L)-fv) if (L and fv is not None) else None
+    out['label_end_minus_last_visible']=(max(L)-lv) if (L and lv is not None) else None
+    out['onset_censored']=on_c;out['offset_censored']=off_c
+    fails=[]
+    if unl:fails.append('unlabelled pixel-visible frame(s) inside the pixel window')
+    if out['unlabelled_visible_outside_window']:fails.append('unlabelled pixel-visible frame(s) outside the pixel window that the paired null does not show')
+    if lb_def:fails.append('labelled frame(s) before the first visible frame')
+    if la_def:fails.append('labelled frame(s) after the last visible frame')
+    cens=[x for x in ((f'onset: {on_c}' if on_c else None),(f'offset: {off_c}' if off_c else None)) if x]
+    out['two_sided_pixel_pass']=not fails and not cens
+    if has_record:
+        rh=render_held(e);out['first_render_held']=rh[0] if rh else None
+        early=[si for si in L if rh and si<rh[0]] if L else []
+        if L and not rh:early=sorted(L)
+        out['labelled_before_render_held']=early
+        if early:fails.append('labelled frame(s) before the first render-held frame')
+    out['fail_reasons']=fails;out['censored_edges']=cens
+    out['verdict']='FAIL' if fails else ('CENSORED' if cens else 'PASS')
+    out['pass']=out['verdict']=='PASS';return out
+def mask_misses(s,e,m=None):
+    L=label_window(e);drop=e.get('_mask_drop') or set();M={si for si in mask_window(s,e) if si not in drop}
+    vis=set(m['vis']) if m and m.get('status')=='OK' else set();miss={}
+    for si in L:
+        mv=e['mv'].get(si);tp=e['tp'].get(si)
+        if not mv:r='no mask_value'
+        elif tp is None or tp<0:r=f'target_pixels unmeasured ({tp})'
+        elif tp>0 and si not in M:r='mask png absent or without the event value'
+        elif tp==0 and si in vis:r='pixel-visible but the mask is empty'
+        else:continue
+        miss[si]=r
+    return miss
+def gate_window(s,e,m=None):
+    L=label_window(e);Rw=render_window(e);drop=e.get('_mask_drop') or set()
+    M=[si for si in mask_window(s,e) if si not in drop];Ls=set(L)
+    outside=[si for si in M if si not in Ls]
+    miss=mask_misses(s,e,m)
+    reasons=collections.Counter(miss.values())
+    return dict(pass_=(L==Rw and not outside and not miss),label=L,render=Rw,mask=M,mask_outside_label=outside,
+                labelled_without_mask=sorted(miss),labelled_without_mask_reasons=dict(reasons),labelled_drawn_without_mask=sorted(si for si,r in miss.items() if r.startswith('mask png')),
+                label_minus_render=sorted(Ls-set(Rw)),render_minus_label=sorted(set(Rw)-Ls))
+TEX_RX=re.compile(r'Capture\(m52-bench\): TEXUSERS event=(?P<event>\S+) target=(?P<target>\S*) texture=(?P<tex>\S+) users=(?P<users>\d+) target_users=(?P<tu>\d+) scanned=(?P<scanned>\d+)(?: scope=(?P<scope>\S+) levels=(?P<levels>\d+) inactive_users=(?P<inact>\d+) unregistered_users=(?P<unreg>\d+))? list=\[ (?P<list>.*)\]')
+HOLDING_RX=re.compile(r"stuck_low_mip: matched \d+ component\(s\) for '[^']*' - HOLDING (?P<n>\d+) of")
+CONTAM_RX=re.compile(r'Capture\(m52\): HOLD CONTAMINATED event=(?P<event>.+?) from si=(?P<si>\d+) - (?P<reason>.*?)\. The hold was reverted immediately')
+ANOM_CONTAM_RX=re.compile(r"stuck_low_mip: HOLD CONTAMINATED - (?P<reason>.*?) while '(?P<owner>[^']*)' holds it\.")
+REVERT_NOW='REVERTING THE HOLD NOW'
+TRAIL_CLOSED_RX=re.compile(r'Capture\(m52\): RESTORE TRAIL CLOSED event=(?P<event>\S+) at si=(?P<si>\d+)')
+UNRESOLVED_RX=re.compile(r'Capture\(m52\): RESTORE UNRESOLVED(?: AT RUN END)? event=(?P<event>\S+)')
+REQUIRED_SCOPE='all_loaded_levels'
+HOLD_RX=re.compile(r"stuck_low_mip: HOLD '(?P<tex>[^']+)'")
+REFUSE_RX=re.compile(r"stuck_low_mip: REFUSED TEXTURE '(?P<tex>[^']+)' shared_world - (?P<users>\d+) user")
+ECHO_RX=re.compile(r'(?P<name>r\.TextureStreaming|r\.Streaming\.UseAllMips|r\.Streaming\.FramesForFullUpdate|r\.Streaming\.OverlapAssetAndLevelTicks|r\.AntiAliasingMethod|sg\.TextureQuality|IAI\.StuckMip\.SettleTailFrames) = "(?P<val>[^"]*)"')
+def log_text(p):
+    p=Path(p);return p.read_text(encoding='utf-8-sig',errors='replace') if p.exists() else ''
+def fire_hold_sets(log):
+    sets=[];cur=[]
+    for ln in log.splitlines():
+        m=HOLD_RX.search(ln)
+        if m:cur.append(m.group('tex'));continue
+        h=HOLDING_RX.search(ln)
+        if h:
+            if int(h.group('n'))>0:sets.append(sorted(cur))
+            cur=[]
+    return sets
+def contamination_check(log,s=None):
+    cap=[m.groupdict() for m in CONTAM_RX.finditer(log)]
+    anom=[]
+    for ln in log.splitlines():
+        m=ANOM_CONTAM_RX.search(ln)
+        if m:anom.append(dict(reason=m.group('reason'),owner=m.group('owner'),revert_logged=REVERT_NOW in ln))
+    closed=collections.defaultdict(list)
+    for m in TRAIL_CLOSED_RX.finditer(log):closed[m.group('event')].append(int(m.group('si')))
+    unresolved={m.group('event') for m in UNRESOLVED_RX.finditer(log)}
+    evs={e['start_frame']:e for e in events(s)} if s is not None else {}
+    recs=[];used=set();logged=set()
+    for c in cap:
+        key=c['event'];fsi=int(c['si']);r=dict(event=key,from_si=fsi,reason=c['reason'],problems=[])
+        if not re.fullmatch(re.escape(ID)+r'@\d+',key):r['problems'].append('contamination not attributable to an event')
+        mi=next((i for i,a in enumerate(anom) if i not in used and a['reason']==c['reason']),None)
+        if mi is None:r['problems'].append('no anomaly-side HOLD CONTAMINATED line with this reason')
+        else:
+            used.add(mi);r['revert_logged']=anom[mi]['revert_logged']
+            if not anom[mi]['revert_logged']:r['problems'].append(f'anomaly-side line does not say {REVERT_NOW}')
+        cs=[x for x in closed.get(key,[]) if x>=fsi];r['trail_closed_at']=cs[0] if cs else None
+        if key in unresolved:r['problems'].append('RESTORE UNRESOLVED after contamination: the revert is not confirmed back at baseline')
+        elif not cs:r['problems'].append('no RESTORE TRAIL CLOSED at or after the contamination: the revert is not confirmed back at baseline')
+        if s is None:r['problems'].append('no session supplied: per-frame stuck_mip.contaminated flags not verified')
+        else:
+            sf=int(key.split('@')[1]) if '@' in key and key.split('@')[1].isdigit() else None;e=evs.get(sf)
+            if e is None:r['problems'].append('event not present in labels.jsonl')
+            else:
+                logged.add(sf);mem=sorted(si for si,st in e['rstate'].items() if st in MEMBER_STATES)
+                need=[si for si in mem if si>=fsi];r['member_frames_from_si']=len(need)
+                r['unflagged_member_frames']=[si for si in need if not e['contam'].get(si)]
+                r['wrongly_flagged_frames']=sorted(si for si,v in e['contam'].items() if v and (si<fsi or si not in mem))
+                r['flagged_frames']=len(need)-len(r['unflagged_member_frames'])
+                if r['unflagged_member_frames']:r['problems'].append('member frame(s) from the contamination si without stuck_mip.contaminated = 1')
+                if r['wrongly_flagged_frames']:r['problems'].append('stuck_mip.contaminated = 1 on frame(s) before the contamination si or outside membership')
+                if not need:r['problems'].append('no member frame at or after the contamination si to carry the flag')
+        r['handled_as_ruled']=not r['problems'];recs.append(r)
+    orphan_flags=[]
+    for sf,e in evs.items():
+        if sf not in logged and any(e['contam'].values()):orphan_flags.append(dict(event=f'{ID}@{sf}',frames=sorted(si for si,v in e['contam'].items() if v)))
+    unmatched_anom=[a for i,a in enumerate(anom) if i not in used]
+    sm=(s.summary if s is not None else {}) or {}
+    return dict(events=recs,flags_without_contamination_line=orphan_flags,anomaly_lines_without_capture_line=unmatched_anom,
+                counters=dict(capture_lines=len(cap),anomaly_lines=len(anom),summary_hold_contaminations=sm.get('stuck_mip_hold_contaminations'),
+                              summary_contaminated_frames=sm.get('stuck_mip_contaminated_frames'),
+                              row_flags=sum(1 for e in evs.values() for v in e['contam'].values() if v) if s is not None else None),
+                failed=[r['event'] for r in recs if not r['handled_as_ruled']]+[x['event'] for x in orphan_flags]+(['(anomaly-side contamination with no capture-side event)'] if unmatched_anom else []))
+def gate_purity(log,s=None):
+    tex=[m.groupdict() for m in TEX_RX.finditer(log)];holds=[m.group('tex') for m in HOLD_RX.finditer(log)];ref=[m.groupdict() for m in REFUSE_RX.finditer(log)]
+    bad=[t for t in tex if int(t['users'])!=1 or int(t['tu'])!=1]
+    wrong_scope=[t for t in tex if t.get('scope')!=REQUIRED_SCOPE]
+    by_event=collections.OrderedDict()
+    for t in tex:by_event.setdefault(t['event'],[]).append(t['tex'])
+    fires=fire_hold_sets(log);ev=list(by_event.items());join=[]
+    for i,hs in enumerate(fires):
+        got=sorted(ev[i][1]) if i<len(ev) else None
+        join.append(dict(fire=i,event=ev[i][0] if i<len(ev) else None,held=hs,enumerated=got,match=(got==hs)))
+    join_ok=all(j['match'] for j in join) and len(ev)==len(fires)
+    if bad:v='FAIL'
+    elif wrong_scope:v='FAIL-SCOPE'
+    elif tex:v='PASS' if join_ok else 'FAIL-JOIN'
+    elif ref and not fires:v='PASS-REFUSED'
+    elif fires:v='FAIL-NO-ENUMERATION'
+    else:v='NO-ENUMERATION'
+    census=v;cc=contamination_check(log,s)
+    if cc['failed'] and v in ('PASS','PASS-REFUSED','NO-ENUMERATION'):v='FAIL-CONTAMINATED'
+    return dict(pass_=v in ('PASS','PASS-REFUSED'),enumerated=len(tex),held_lines=len(holds),fires_holding=len(fires),events_enumerated=len(ev),
+                per_event_join=join[:20],join_ok=join_ok,wrong_scope=wrong_scope[:5],bad=bad[:20],refused_shared_world=ref[:20],
+                inactive_level_users=sum(int(t.get('inact') or 0) for t in tex),unregistered_users=sum(int(t.get('unreg') or 0) for t in tex),
+                apply_census_verdict=census,contaminations=cc['events'],contamination=cc,contaminated_events=[r['event'] for r in cc['events']],
+                lifetime_note=('the Apply census is joined per fire; lifetime purity is judged only through the contaminations the build '
+                               'itself detects and logs (HOLD CONTAMINATED). A new user the hold monitor misses (084-02b Codex F4 routes) '
+                               'is invisible to this gate'),verdict=v)
+EDGE_LINES={
+ 'trail_reopened':r'Capture\(m52\): RESTORE TRAIL REOPENED event=','order_hold':r'Capture\(m52\): ORDER HOLD si=',
+ 'trail_gap':r'Capture\(m52\): TRAIL GAP event=','late_receipt':r'Capture\(m52\): LATE RECEIPT event=',
+ 'restore_carried':r'Capture\(m52\): RESTORE CARRIED event=','restore_inherited':r'Capture\(m52\): RESTORE INHERITED ',
+ 'live_window_cut':r'Capture\(m52\): LIVE WINDOW CUT','hold_contaminated_capture':r'Capture\(m52\): HOLD CONTAMINATED event=',
+ 'hold_contaminated_anomaly':r'stuck_low_mip: HOLD CONTAMINATED - ','restore_unresolved':r'Capture\(m52\): RESTORE UNRESOLVED event=',
+ 'restore_unresolved_at_run_end':r'Capture\(m52\): RESTORE UNRESOLVED AT RUN END event=','restore_timeout':r'stuck_low_mip: RESTORE TIMEOUT ',
+ 'hold_timeout':r'Capture\(m52\): HOLD TIMEOUT after','watch_not_refrozen':r'Capture\(m52\): WATCH NOT RE-FROZEN si=',
+ 'target_mask_dropped':r'Capture\(m52\): TARGET MASK DROPPED','resource_replaced':r'Capture\(m52\): RENDER RESOURCE REPLACED event=',
+ 'trail_opened':r'Capture\(m52\): RESTORE TRAIL OPEN event=','trail_closed':r'Capture\(m52\): RESTORE TRAIL CLOSED event='}
+RT_RX=re.compile(r'Capture\(m52\): RENDER-TRUTH SUMMARY (?P<body>.*)')
+def edge_paths(s,log):
+    cnt={k:len(re.findall(p,log)) for k,p in EDGE_LINES.items()}
+    rt={}
+    for m in RT_RX.finditer(log):rt=dict(re.findall(r'(\w+)=(\S+)',m.group('body')))
+    sm=(s.summary if s is not None else {}) or {};smm={k:v for k,v in sm.items() if k.startswith('stuck_mip_')}
+    rows=dict(labelled=0,unknown=0,settle_tail=0,trailing=0,watch_missing=0,contaminated=0) if s is not None else None
+    if s is not None:
+        for r in s.rows:
+            for a in entries(r):
+                rows['labelled']+=bool(a.get('stuck_mip.held'));rows['unknown']+=a.get('stuck_mip.render_state')=='unknown'
+                rows['settle_tail']+=a.get('stuck_mip.render_state')=='settle_tail';rows['trailing']+=bool(a.get('stuck_mip.trailing'))
+                rows['watch_missing']+=bool(a.get('stuck_mip.watch_missing'));rows['contaminated']+=bool(a.get('stuck_mip.contaminated'))
+    g=lambda k:sm.get('stuck_mip_'+k)
+    named=collections.OrderedDict(
+     trail_reopens=dict(log_lines=cnt['trail_reopened'],summary=g('trail_reopens'),render_truth=rt.get('reopens'),unwatched_after_close=g('unwatched_after_close')),
+     order_hold=dict(log_lines=cnt['order_hold'],summary_frames=g('order_held_frames'),render_truth=rt.get('orderHeld')),
+     gap_unknowns=dict(trail_gap_lines=cnt['trail_gap'],late_receipt_lines=cnt['late_receipt'],trail_missing_frames=g('trail_missing_frames'),
+                       watch_missing_frames=g('watch_missing_frames'),render_record_missing_frames=g('render_record_missing_frames'),
+                       render_unknown_frames=g('render_unknown_frames'),rows_unknown=rows['unknown'] if rows else None,rows_watch_missing=rows['watch_missing'] if rows else None),
+     carried_trails=dict(carried_lines=cnt['restore_carried'],inherited_lines=cnt['restore_inherited'],live_window_cut_lines=cnt['live_window_cut'],
+                         restore_carried_at_end=g('restore_carried_at_end'),restore_inherited_at_start=g('restore_inherited_at_start'),live_window_cut=g('live_window_cut')),
+     contaminated_events=dict(capture_lines=cnt['hold_contaminated_capture'],anomaly_lines=cnt['hold_contaminated_anomaly'],
+                              hold_contaminations=g('hold_contaminations'),contaminated_frames=g('contaminated_frames'),rows_flagged=rows['contaminated'] if rows else None),
+     unresolved_timeout=dict(restore_unresolved_lines=cnt['restore_unresolved'],restore_unresolved_at_run_end_lines=cnt['restore_unresolved_at_run_end'],
+                             restore_timeout_lines=cnt['restore_timeout'],hold_timeout_lines=cnt['hold_timeout'],restore_unresolved=g('restore_unresolved'),
+                             restore_unresolved_at_end=g('restore_unresolved_at_end'),restore_timeout=g('restore_timeout'),hold_timeouts=g('hold_timeouts'),
+                             observe_unresolved=g('observe_unresolved'),observe_forced_64_tick_fallback=rt.get('observeForced')))
+    def nz(v):
+        try:return float(v)>0
+        except (TypeError,ValueError):return False
+    occurred=[k for k,d in named.items() if any(nz(v) for v in d.values())]
+    return dict(named=named,occurred=occurred,log_lines=cnt,render_truth_summary=rt,run_summary=smm,rows=rows,
+                note='counts are per leg; a path is reported as occurred when any of its log lines, run_summary counters or row flags is non-zero')
+MON_RX=re.compile(r'stuck_low_mip: HOLD MONITOR ON - (?P<n>\d+) existing component\(s\).*?\((?P<loading>\d+) still loading')
+PURITY_MS_RX=re.compile(r"stuck_low_mip: PURITY ENUMERATION for '[^']*' - scope ALL LOADED LEVELS \((?P<levels>\d+), active or not\): (?P<comps>\d+) component\(s\).*? in (?P<ms>[\d.]+) ms")
+def monitor_cost(s,log):
+    sm=(s.summary if s is not None else {}) or {}
+    mon=[dict(components=int(m.group('n')),still_loading=int(m.group('loading'))) for m in MON_RX.finditer(log)]
+    pe=[dict(ms=float(m.group('ms')),components=int(m.group('comps')),levels=int(m.group('levels'))) for m in PURITY_MS_RX.finditer(log)]
+    keys={k:v for k,v in sm.items() if 'monitor' in k.lower()}
+    return dict(measured=False,
+                reason=('this build carries no timer around the per-tick hold-monitor scan (ScanHoldForNewUsers counts HoldMonitorScans and '
+                        'emits neither the count nor a time), and every leg is paced at 30 fps, whose pacer sleeps inside the game tick and '
+                        'absorbs any sub-budget cost (G-M6). The per-tick game-thread cost cannot be read from these artifacts; it needs a '
+                        'source timer. What follows are proxies, NOT the cost'),
+                monitor_starts=len(mon),components_walked_per_tick=[x['components'] for x in mon],still_loading_at_start=[x['still_loading'] for x in mon],
+                apply_purity_enumeration=pe,apply_purity_enumeration_ms_max=sm.get('stuck_mip_purity_enumeration_ms_max'),
+                apply_purity_note=('the Apply-time census walks every component of every loaded level AND enumerates their materials once; '
+                                   'the monitor walks the same component classes every tick but enumerates materials only for new or dirty ones. '
+                                   'The census time is a reference scale, not the monitor per-tick cost'),
+                run_summary_monitor_keys=keys,sustained_wall_fps=sm.get('sustained_wall_fps'),speed_ratio=sm.get('speed_ratio'))
+def premise(L,launch,s,log):
+    out=dict(focus_at_s=launch.get('focus_at_s'),focus_held_whole_leg=None,echo={},run_log=None,label_source=None,bench_levers=None)
+    cf=launch.get('capture_focus') or [];cf=[cf] if isinstance(cf,dict) else cf;pid=launch.get('pid')
+    if cf:out['focus_held_whole_leg']=all(x.get('foreground_pid')==pid for x in cf)
+    for m in ECHO_RX.finditer(log):out['echo'][m.group('name')]=m.group('val')
+    m=re.search(r'stuck_low_mip label source ([^,]+),',log);out['label_source']=m.group(1) if m else None
+    out['bench_levers']='IAI.Bench.StuckMipLegacyTiming and IAI.Bench.StuckMipLegacyPurity are registered' in log
+    pr=re.findall(r'PRECONDITION READ-BACK r\.TextureStreaming=(\d+) r\.Streaming\.UseAllMips=(\d+)',log)
+    out['precondition_readback']=sorted(set(pr))
+    if s is not None:
+        out['run_log']=(s.dir/'anomaly_log.txt').exists()
+        out['frames']=len(s.rows)
+    return out
+def analyse_leg(L,sdir,log,null_sess=None,launch=None,doctored=None):
+    s=get_sess(sdir);evs=events(s);has_record=any(v for e in evs for v in e['rstate'].values())
+    firsts=[e['rows'][0] for e in evs];res=[];refs={};excl=collections.defaultdict(set)
+    for e in evs:excl[e['target']].update(range(e['rows'][0],e['rows'][-1]+SPAN_AFTER+1))
+    rock=null_ref(null_sess,ROCK);rock_drop=rock['drop_rel'] if rock else None;ordinal=collections.Counter()
+    for i,e in enumerate(evs):
+        if doctored:e=doctor(e,*doctored)
+        k=ordinal[e['target']];ordinal[e['target']]+=1
+        nf=firsts[i+1] if i+1<len(firsts) else None
+        if e['target'] not in refs:refs[e['target']]=null_ref(null_sess,e['target'])
+        cam=moved(s,[si for si in range(e['rows'][0]-6,min(e['rows'][-1]+10,s.rows[-1]['session_index'])+1) if si in s.by_si])
+        m=measure_event(s,e,nf,refs[e['target']],excl[e['target']],rock_drop)
+        row=dict(start_frame=e['start_frame'],target=e['target'],rows=[e['rows'][0],e['rows'][-1]],textures=e['textures'],camera_moved=cam,measure_status=m.get('status'),
+                 contaminated=any(e['contam'].values()))
+        if m.get('status')=='OK':
+            row.update(measurable=m['measurable'],depth=round(m['depth'],4),thr=round(m['thr'],4),basis=m['basis'],first_visible=m['first_vis'],last_visible=m['last_vis'],
+                       censored=m['censored'],onset_censored=m['onset_censored'],offset_censored=m['offset_censored'],
+                       dither_phase_first=(m['gfc_first']%8) if m['gfc_first'] is not None else None,dither_phase_last=(m['gfc_last']%8) if m['gfc_last'] is not None else None)
+            row['sync']=gate_sync(s,e,m,has_record,dict(sess=null_sess,ordinal=k))
+            rw=render_window(e);rh=render_held(e);on_ok=m['first_vis'] is not None and not m['onset_censored'];off_ok=m['last_vis'] is not None and not m['offset_censored']
+            if has_record and rw and off_ok:
+                row['post_restore_visible']=max(0,m['last_vis']-max(rw))
+                row['residual_after_record']=m['last_vis']-max(rw)
+            if has_record and (rh or rw) and on_ok:row['residual_before_record']=min(rh or rw)-m['first_vis']
+            lw=label_window(e)
+            if lw and off_ok:row['after_label_visible']=max(0,m['last_vis']-max(lw))
+            if lw and on_ok:row['onset_label_minus_visible']=min(lw)-m['first_vis']
+        if has_record:row['window']=gate_window(s,e,m if m.get('status')=='OK' else None)
+        res.append(row)
+    return dict(session=str(s.dir),events=len(evs),has_record=has_record,rows=res,premise=premise(L,launch or {},s,log) if L else None,evaluator=EVALUATOR)
+def summarize(a):
+    ev=[r for r in a['rows'] if r.get('measure_status')=='OK' and r.get('measurable') and not r.get('camera_moved')]
+    fails=[r for r in ev if r['sync']['verdict']=='FAIL'];passes=[r for r in ev if r['sync']['verdict']=='PASS'];cens=[r for r in ev if r['sync']['verdict']=='CENSORED']
+    judged=fails+passes
+    win=[r for r in a['rows'] if 'window' in r];win_fail=[r for r in win if not r['window']['pass_']]
+    targets=sorted({r['target'] for r in judged})
+    after=[r['after_label_visible'] for r in ev if 'after_label_visible' in r]
+    post=[r['post_restore_visible'] for r in ev if 'post_restore_visible' in r]
+    res_after=[r['residual_after_record'] for r in ev if 'residual_after_record' in r]
+    res_before=[r['residual_before_record'] for r in ev if 'residual_before_record' in r]
+    sv='FAIL' if fails else ('PASS' if passes and not cens else ('PASS-WITH-CENSORED' if passes else 'NO-JUDGEABLE-EVENT'))
+    mm=collections.Counter()
+    for r in win:mm.update(r['window'].get('labelled_without_mask_reasons') or {})
+    return dict(evaluator=EVALUATOR,visible_outside_window_failing=sum(len(r['sync']['visible_outside_window_failing']) for r in ev),
+                visible_outside_window_null_explained=sum(len(r['sync']['visible_outside_window_null_explained']) for r in ev),
+                recurrence_runs={r['start_frame']:r['sync']['recurrence_runs'] for r in ev if r['sync']['recurrence_runs']},
+                two_sided_fail_over=[r['start_frame'] for r in fails if any('labelled frame(s) before the first visible' in x or 'after the last visible' in x for x in r['sync']['fail_reasons'])],
+                two_sided_fail_under=[r['start_frame'] for r in fails if any(x.startswith('unlabelled') for x in r['sync']['fail_reasons'])],
+                fail_reasons={r['start_frame']:r['sync']['fail_reasons'] for r in fails},
+                censored_events=[dict(start_frame=r['start_frame'],edges=r['sync']['censored_edges']) for r in cens],
+                partially_censored_failures=[dict(start_frame=r['start_frame'],edges=r['sync']['censored_edges']) for r in fails if r['sync']['censored_edges']],
+                residual_after_record=res_after,residual_before_record=res_before,closure_rule=closure_rule(res_after,res_before),events=a['events'],measurable_static=len(ev),
+                judged=len(judged),censored=len(cens),targets=targets,sync_fail=len(fails),sync_verdict=sv,
+                window_checked=len(win),window_fail=len(win_fail),window_verdict=('PASS' if win and not win_fail else ('FAIL' if win_fail else ('N/A' if not a['has_record'] else 'NO-EVENT'))),
+                window_fail_events=[r['start_frame'] for r in win_fail],mask_miss_reasons=dict(mm),
+                contaminated_events=[r['start_frame'] for r in a['rows'] if r.get('contaminated')],
+                unlabelled_visible_after=after,post_restore_visible=post,
+                onset_label_minus_visible=[r.get('onset_label_minus_visible') for r in ev if r.get('onset_label_minus_visible') is not None])
+def closure_rule(after,before):
+    if not after:return dict(rule='NO-JUDGEABLE-EVENT')
+    out=dict(after_min=min(after),after_max=max(after),before_min=min(before) if before else None,before_max=max(before) if before else None,n=len(after))
+    onset_ok=bool(before) and min(before)==0 and max(before)==0
+    if min(after)==max(after) and min(after)>=0:
+        out['rule']=f'constant settle tail {min(after)} frame(s) gives 0 at the offset on every judged event'
+        out['constant_tail']=min(after)
+    else:
+        out['rule']='no constant tail gives 0 at the offset (the residual varies by event); an in-engine settling detector is needed'
+        out['constant_tail']=None
+    out['onset_exact_from_record']=onset_ok
+    if not onset_ok:out['onset_note']='the first record-held frame is not the first pixel-visible frame on every event; the onset needs its own rule'
+    return out
+def null_check(null_sess):
+    s=null_sess;evs=events(s);out=dict(events=len(evs),labelled_held_rows=0,measurable_depth_events=0,frames=len(s.rows),render_held_rows=0)
+    for e in evs:
+        out['labelled_held_rows']+=sum(1 for v in e['held'].values() if v)
+        out['render_held_rows']+=len(render_held(e))
+    firsts=[e['rows'][0] for e in evs]
+    for t in sorted({e['target'] for e in evs}):
+        ref=null_ref(s,t)
+        if not ref:continue
+        out.setdefault('refs',{})[t]=dict(mu=round(ref['mu'],4),sigma_resid=round(ref['sigma'],4),worst_drop_rel=round(ref['drop_rel'],4) if ref['drop_rel'] is not None else None,
+                                         null_events_used=ref['null_events'],floor_rel=REL_FLOOR,n=ref['n'])
+    out['note']='the null CALIBRATES the threshold (its own worst drop below its pre-event level under the same procedure), so its own events cannot exceed it by construction; the null gate is: no labelled or render-held row, and at least one settled null event to calibrate from'
+    out['pass']=out['events']>0 and out['labelled_held_rows']==0 and out['render_held_rows']==0 and any((v.get('null_events_used') or 0)>0 for v in (out.get('refs') or {}).values())
+    return out
+def manifest(root,exclude=('_leg',)):
+    root=Path(root);out={}
+    for p in sorted(root.rglob('*')):
+        if p.is_file() and not any(part in exclude for part in p.relative_to(root).parts):out[str(p.relative_to(root)).replace('\\','/')]=[p.stat().st_size,c.sha(p)]
+    return out
+class BankError(Exception):pass
+def bank_attempt(label,ev_dir,exe_side=None,bank=None):
+    exe_side=Path(exe_side or c.EXE_SIDE);bank=Path(bank or c.BANK);src=exe_side/label;dst=bank/label;ev_dir=Path(ev_dir)
+    rec=dict(label=label,src=str(src),dst=str(dst),utc=c.now())
+    if dst.exists():
+        prev=jload(ev_dir/'bank-manifest.json')
+        if prev and prev.get('verified') and manifest(dst)==prev['manifest'] and not src.exists():return dict(prev,resumed=True)
+        raise BankError(f'bank destination exists without a verified record: {dst}')
+    dst.mkdir(parents=True)
+    if src.exists():shutil.copytree(src,dst,dirs_exist_ok=True)
+    legd=dst/'_leg';legd.mkdir()
+    for f in ('game.log','launch.json','runner.log','command.json'):
+        if (ev_dir/f).exists():shutil.copy2(ev_dir/f,legd/f)
+    ms=manifest(src) if src.exists() else {};md=manifest(dst)
+    rec.update(manifest=md,src_files=len(ms),dst_files=len(md),verified=(ms==md))
+    if not rec['verified']:
+        rec['mismatch']=sorted(k for k in set(ms)|set(md) if ms.get(k)!=md.get(k))[:20]
+        jsave(ev_dir/'bank-manifest.json',rec);raise BankError(f'bank manifest mismatch for {label}: exe-side copy KEPT')
+    if src.exists():
+        shutil.rmtree(src)
+        if src.exists():raise BankError(f'exe-side copy not deleted: {src}')
+        rec['exe_side_deleted']=True
+    else:rec['exe_side_deleted']=None
+    jsave(ev_dir/'bank-manifest.json',rec);jsave(legd/'bank-manifest.json',dict(rec,manifest=None));return rec
+def alias_hardlinks(accepted,alias,bank=None):
+    bank=Path(bank or c.BANK);src=bank/accepted;dst=bank/alias
+    if not src.exists():raise BankError(f'accepted attempt not banked: {src}')
+    files=[p for p in src.rglob('*') if p.is_file()]
+    if dst.exists():
+        ok=all((dst/p.relative_to(src)).exists() and os.stat(dst/p.relative_to(src)).st_ino==os.stat(p).st_ino for p in files)
+        if ok:return dict(alias=str(dst),files=len(files),resumed=True)
+        raise BankError(f'alias exists and is not a hardlink set of {accepted}: {dst}')
+    dst.mkdir(parents=True)
+    for p in files:
+        q=dst/p.relative_to(src);q.parent.mkdir(parents=True,exist_ok=True);os.link(p,q)
+    bad=[str(p.relative_to(src)) for p in files if os.stat(p).st_ino!=os.stat(dst/p.relative_to(src)).st_ino]
+    if bad:raise BankError(f'alias files are not hardlinks: {bad[:5]}')
+    return dict(alias=str(dst),files=len(files),hardlinks=True)
+PP_IDLE_S=60.0;PP_POLL_S=15.0;PP_BUDGET_S=2700.0;PP_SAMPLE_S=0.25;PP_MARGIN_S=1.0;PP_FORCE_S=0.75;PP_FORCE_SAMPLES=15
+SHELL_PROCS=('searchhost.exe','startmenuexperiencehost.exe','shellexperiencehost.exe','explorer.exe')
+_W=ctypes.wintypes
+class _LII(ctypes.Structure):_fields_=[('cbSize',_W.UINT),('dwTime',_W.DWORD)]
+_U32=ctypes.WinDLL('user32',use_last_error=True);_K32=ctypes.WinDLL('kernel32',use_last_error=True)
+_U32.GetLastInputInfo.argtypes=(ctypes.POINTER(_LII),);_U32.GetLastInputInfo.restype=_W.BOOL
+_U32.GetCursorPos.argtypes=(ctypes.POINTER(_W.POINT),);_U32.GetCursorPos.restype=_W.BOOL
+_U32.GetForegroundWindow.restype=_W.HWND
+_U32.GetWindowThreadProcessId.argtypes=(_W.HWND,ctypes.POINTER(_W.DWORD));_U32.GetWindowThreadProcessId.restype=_W.DWORD
+_K32.GetTickCount.restype=_W.DWORD
+def _epoch(s):return datetime.datetime.fromisoformat(str(s).replace('Z','+00:00')).timestamp()
+def _input_reading():
+    x=_LII();x.cbSize=ctypes.sizeof(_LII);ok=_U32.GetLastInputInfo(ctypes.byref(x));n=_K32.GetTickCount()
+    return dict(t=time.time(),input_tick=int(x.dwTime) if ok else None,idle_ms=((n-x.dwTime)&0xFFFFFFFF) if ok else None)
+def _desktop_sample():
+    s=_input_reading();p=_W.POINT();s['cursor']=f'{p.x},{p.y}' if _U32.GetCursorPos(ctypes.byref(p)) else None
+    h=_U32.GetForegroundWindow();pid=_W.DWORD(0)
+    if h:_U32.GetWindowThreadProcessId(h,ctypes.byref(pid))
+    s['fg_pid']=int(pid.value) or None;return s
+class PersonMonitor:
+    def __init__(self,label,interval=PP_SAMPLE_S):
+        self.label=label;self.interval=interval;self.samples=[];self._stop=threading.Event();self._th=None;self.start=self.end=None
+    def _loop(self):
+        while True:
+            try:self.samples.append(_desktop_sample())
+            except Exception:pass
+            if self._stop.wait(self.interval):return
+    def __enter__(self):
+        self.start=time.time();self._th=threading.Thread(target=self._loop,daemon=True);self._th.start();return self
+    def __exit__(self,*a):
+        self._stop.set()
+        if self._th:self._th.join(5)
+        self.end=time.time();return False
+def person_evidence(launch,mon):
+    if not launch.get('sampling_started_utc'):return dict(person_evidence=False,reasons=[],note='no steady-state span')
+    lo=_epoch(launch['sampling_started_utc']);hi=_epoch((launch.get('anchor_end') or {}).get('utc') or launch.get('finished_utc') or launch['sampling_started_utc'])
+    pid=launch.get('pid');ms=[x for x in mon.samples if lo<=x['t']<=hi];reasons=[]
+    ticks=[x for x in ms if x.get('input_tick') is not None]
+    inputs=sum(1 for a,b in zip(ticks,ticks[1:]) if a['input_tick']!=b['input_tick'] and a.get('fg_pid')==pid and b.get('fg_pid')==pid)
+    foreign_fg=sum(1 for x in ms if x.get('fg_pid') not in (pid,None))
+    if inputs:reasons.append(f'non-harness input while the game held focus: {inputs}')
+    if foreign_fg>PP_FORCE_SAMPLES:reasons.append(f'foreground left the game for {foreign_fg} samples')
+    return dict(person_evidence=bool(reasons),reasons=reasons,samples=len(ms))
+def person_idle():
+    r=_input_reading()
+    if r['idle_ms'] is None:return dict(clear=False,idle_s=None)
+    idle=r['idle_ms']/1000.0
+    return dict(clear=idle>=PP_IDLE_S,idle_s=round(idle,1))
+def pp_gate(where,leg_id=None,sleep=time.sleep,budget=None):
+    waited=0.0;budget=PP_BUDGET_S if budget is None else budget
+    while True:
+        st=person_idle()
+        if st['clear'] or c.STUB:c.log_event('person-present-gate',where=where,leg=leg_id,waited_s=round(waited,1),**st);return st
+        if waited>=budget:c.log_event('person-present-budget-exhausted',where=where,leg=leg_id,**st);raise Stop(4,f'NOT-QUIET: a person is at the PC before {leg_id or where}')
+        dt=max(1.0,min(PP_POLL_S,PP_IDLE_S-(st['idle_s'] or 0.0)));c.log_event('person-present-wait',where=where,leg=leg_id,idle_s=st['idle_s']);sleep(dt);waited+=dt
+def ledger():return jload(c.RUN/'ledger.json',[])
+def ledger_add(row):v=ledger();v.append(row);jsave(c.RUN/'ledger.json',v)
+def build_cmds(L,label):
+    cmds=BASE+[f'IAI.Capture.Config {L["cfg"]}']+L['levers']
+    if L['auto']:cmds.append(f'IAI.Capture.Start {label} png {L["seed"]} {L["frames"]}')
+    else:cmds.append(f'IAI.Capture.Start {label} png {L["seed"]} {L["frames"]} {L["anomaly"]} {L["target"]}')
+    return cmds
+def runner_args(L,label,ev_dir,cmds,stub=False):
+    a=[c.PWSH,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(R/'084-03-run.ps1'),'-Label',label,'-EvDir',str(ev_dir),'-Map',L['map'],'-ExecCmds',', '.join(cmds),'-Kind','capture','-OutLabel',label,'-WaitSec','420']
+    if L.get('extra'):a+=['-ExtraArgs',L['extra']]
+    if stub or c.STUB:a.append('-Stub')
+    return a
+def real_runner(args,runlog):
+    with open(runlog,'w',encoding='utf-8') as f:return subprocess.run(args,stdout=f,stderr=subprocess.STDOUT).returncode
+def validity(L,launch,sess):
+    errs=[]
+    if launch.get('status')!='COMPLETE':errs.append('protocol: '+str(launch.get('error')))
+    fa=launch.get('focus_at_s')
+    if fa is None or fa<0 or fa>=20.0:errs.append(f'A63: focus not held within 20 s (focus_at_s={fa})')
+    cf=launch.get('capture_focus') or [];cf=[cf] if isinstance(cf,dict) else cf
+    if cf and not all(x.get('foreground_pid')==launch.get('pid') for x in cf):errs.append('whole-leg foreground failed')
+    if sess is None:errs.append('artifact: no session with run_summary');return errs
+    n=len(sess.rows);pngs=list((sess.dir/'Actual_Frames').glob('*.png'))
+    if n!=L['frames']:errs.append(f'artifact: {n} label rows != {L["frames"]} frames')
+    if len(pngs)!=n:errs.append(f'artifact: {len(pngs)} PNGs != {n} rows')
+    if any(p.stat().st_size==0 for p in pngs):errs.append('artifact: zero-byte PNG')
+    return errs
+def run_leg(L,runner=real_runner,stub_session=None):
+    rows=[x for x in ledger() if x['leg']==L['leg']]
+    if any(x['status']=='ACCEPTED' for x in rows):return 'done'
+    if any(x['status']=='NOT-RUN' for x in rows):return 'not-run'
+    while True:
+        rows=[x for x in ledger() if x['leg']==L['leg']];bad=[x for x in rows if x['status']=='INVALID'];env=[x for x in rows if x['status']=='ENV-INTERRUPTED']
+        if len(env)>=PP_CAP:raise Stop(4,f'NOT-QUIET: {L["leg"]} has {len(env)} ENV-INTERRUPTED attempts')
+        if len(bad)>=ATTEMPTS:
+            ledger_add(dict(leg=L['leg'],status='NOT-RUN',recorded=c.now(),reason='; '.join('|'.join(x.get('errors') or []) for x in bad)));return 'not-run'
+        pp_gate('before-attempt',L['leg'])
+        if not c.STUB:
+            q=c.quiet()
+            if not q['quiet']:raise Stop(4,f'NOT-QUIET before {L["leg"]}: {q["blocking"]}')
+        n=len(rows)+1;label=f'{c.BANK_PREFIX}{L["leg"]}_A{n}';ev=c.RUN/label
+        if ev.exists():raise Stop(10,f'evidence dir exists for a new attempt: {ev}')
+        cmds=build_cmds(L,label);args=runner_args(L,label,ev,cmds);t0=c.now()
+        with PersonMonitor(label) as mon:rc=runner(args,c.RUN/f'runner-{label}.log')
+        ev.mkdir(parents=True,exist_ok=True);jsave(ev/'command.json',dict(args=args,cmds=cmds))
+        if (c.RUN/f'runner-{label}.log').exists():shutil.copy2(c.RUN/f'runner-{label}.log',ev/'runner.log')
+        launch=jload(ev/'launch.json',{}) or {}
+        row=dict(leg=L['leg'],build=L['build'],label=label,attempt=n,started=t0,finished=c.now(),runner_exit=rc)
+        if c.STUB:
+            if stub_session:
+                d=c.EXE_SIDE/label;shutil.copytree(stub_session,d/Path(stub_session).name)
+                for cand in (Path(stub_session).parent/'_leg_game.log',Path(stub_session).parent/'_leg'/'game.log',Path(stub_session)/'anomaly_log.txt'):
+                    if cand.exists():shutil.copy2(cand,ev/'game.log');break
+                launch.update(status='COMPLETE',focus_at_s=1.0,pid=0,capture_focus=[],stub_session=str(stub_session));jsave(ev/'launch.json',launch)
+            else:
+                row.update(status='STUB-NO-SESSION');ledger_add(row);return 'stub'
+        if 'FOREIGN-EDITOR-APPEARED' in str(launch.get('error') or ''):row.update(status='INVALID-FOREIGN',errors=['foreign editor appeared']);ledger_add(row);raise Stop(5,f'INVALID-FOREIGN {label}')
+        if launch.get('status')=='REFUSED-NOT-IDLE':row.update(status='INVALID-NOT-IDLE');ledger_add(row);raise Stop(4,f'NOT-QUIET at launch of {label}')
+        try:bk=bank_attempt(label,ev)
+        except BankError as ex:row.update(status='INVALID-BANK',errors=[str(ex)]);ledger_add(row);raise Stop(6,str(ex))
+        bsd=find_session(c.BANK/label);sess=None
+        if bsd is not None:
+            try:sess=Sess(bsd)
+            except Exception as ex:row['session_error']=repr(ex)[:200]
+        errs=[] if c.STUB else validity(L,launch,sess)
+        pe=person_evidence(launch,mon) if not c.STUB else dict(person_evidence=False,reasons=[])
+        row.update(person_evidence=pe['person_evidence'],person_reasons=pe['reasons'],bank_files=bk.get('dst_files'))
+        if errs:
+            st='ENV-INTERRUPTED' if pe['person_evidence'] and all(e.startswith(('whole-leg','A63')) for e in errs) else 'INVALID'
+            row.update(status=st,errors=errs);ledger_add(row);print(json.dumps(dict(label=label,status=st,errors=errs)),flush=True);continue
+        try:al=alias_hardlinks(label,c.BANK_PREFIX+L['leg'])
+        except BankError as ex:row.update(status='INVALID-BANK',errors=['alias: '+str(ex)]);ledger_add(row);raise Stop(6,'alias: '+str(ex))
+        row.update(status='ACCEPTED',alias=al.get('alias'),session=str(bsd) if bsd else None);ledger_add(row);print(json.dumps(dict(label=label,status='ACCEPTED')),flush=True)
+        return 'accepted'
+def accepted(leg_id):
+    r=[x for x in ledger() if x['leg']==leg_id and x['status']=='ACCEPTED'];return r[-1] if r else None
+def leg_session(leg_id):
+    a=accepted(leg_id);return find_session(c.BANK/a['label']) if a else None
+def leg_log(leg_id):
+    a=accepted(leg_id)
+    if not a:return ''
+    t=log_text(c.RUN/a['label']/'game.log')
+    return t or log_text(c.BANK/a['label']/'_leg'/'game.log')
+def leg_launch(leg_id):
+    a=accepted(leg_id);return jload(c.RUN/a['label']/'launch.json',{}) if a else {}
+def backup_m53():
+    dst=c.M53_BACKUP
+    if dst.exists():
+        st={k:c.sha(dst/k) for k in c.KEYS if (dst/k).exists()}
+        if st!=c.M53:raise Stop(10,f'M53 backup exists and does not match the m53 set: {st}')
+        return dict(resumed=True,path=str(dst))
+    if c.staged_state()!=c.M53:raise Stop(10,'refusing to back up: the staged set is not the m53 set')
+    for k in c.KEYS:(dst/k).parent.mkdir(parents=True,exist_ok=True);shutil.copy2(c.STAGED_ROOT/k,dst/k)
+    st={k:c.sha(dst/k) for k in c.KEYS}
+    if st!=c.M53:raise Stop(10,'M53 backup copy does not verify')
+    return dict(path=str(dst),verified=True)
+def stage(name,tag):
+    rec=dict(set=name,tag=tag,utc=c.now(),stub=c.STUB)
+    if c.STUB:rec.update(note='STUB: nothing staged');jsave(c.RUN/f'receipt-{tag}.json',rec);return rec
+    want={'BASELINE':c.BASELINE,'FIX':c.fix_set() if name=='FIX' else None,'M53':c.M53}[name]
+    q=c.quiet()
+    if not q['quiet']:raise Stop(4,f'NOT-QUIET at staging {name}: {q["blocking"]}')
+    before=c.staged_state();src=c.sources(name);copied=[]
+    for k in c.KEYS:
+        if before[k]==want[k]:continue
+        if c.sha(src[k])!=want[k]:raise Stop(10,f'source for {k} does not match {name}: {src[k]}')
+        shutil.copy2(src[k],c.STAGED_ROOT/k);copied.append(k)
+    after=c.staged_state()
+    rec.update(before=before,after=after,copied=copied,verified=(after==want))
+    jsave(c.RUN/f'receipt-{tag}.json',rec)
+    if after!=want:raise Stop(10,f'staging {name} did not verify: {[k for k in c.KEYS if after[k]!=want[k]]}')
+    return rec

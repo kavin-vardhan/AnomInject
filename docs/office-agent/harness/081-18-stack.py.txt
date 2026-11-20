@@ -1,0 +1,47 @@
+from pathlib import Path
+import importlib.util,json,subprocess,sys,re
+spec=importlib.util.spec_from_file_location('c',r'D:\IntrusiveAnomalies\_reviews\081-18-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+B,E,R=c.B,c.E,c.R
+m=json.loads((R/'081-17-evidence/binary-v2.json').read_text())
+ref=json.loads((R/'081-17-evidence/command-B_SOLID1080_N_A1.json').read_text())
+def refarg(n):return ref[ref.index(n)+1]
+assert refarg('-MaxFrames')=='90' and refarg('-Anomaly')=='solid_swap' and refarg('-Order')=='0' and '-ExtraExecCmds' not in ref
+LEGS=[('S1_STACK_ON',True),('S2_STACK_OFF',False)]
+if len(sys.argv)>1:LEGS=[x for x in LEGS if x[0] in sys.argv[1:]]
+ledger_p=E/'stack-results.json';ledger=json.loads(ledger_p.read_text()) if ledger_p.exists() else []
+for leg,on in LEGS:
+    if any(x['leg']==leg and x['status'] in ('READING','CAPTURE-FAILED','NOT-RUN') for x in ledger):continue
+    done=False
+    for attempt in range(1,4):
+        if not c.wait_idle(f'{leg}_A{attempt}'):
+            ledger.append(dict(leg=leg,label=None,attempt=attempt,status='STOPPED-FOREIGN-PROCESS'));ledger_p.write_text(json.dumps(ledger,indent=2));print('STOP foreign process',flush=True);sys.exit(4)
+        for key in ('built','staged','archive'):assert c.sha(m[key])==m['sha256'],key
+        label=f'{leg}_A{attempt}';d=E/label;runlog=E/f'runner-{label}.log';assert not d.exists() and not runlog.exists()
+        args=[c.PWSH,'-NoProfile','-File',str(R/'081-18-measure.ps1'),'-Label',label,'-Anomaly',refarg('-Anomaly'),'-Order',refarg('-Order'),'-MaxFrames','1800','-Config',refarg('-Config'),'-ResX',refarg('-ResX'),'-ResY',refarg('-ResY')]
+        if not on:args+=['-ExtraExecCmds','IAI.Capture.ChangeEvidence 0']
+        (E/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+        t0=c.now()
+        with runlog.open('w',encoding='utf-8') as f:run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+        launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'))
+        err=launch.get('error','');sent=bool(launch.get('capture_start_sent'))
+        row=dict(leg=leg,evidence=('ON' if on else 'OFF'),label=label,attempt=attempt,runner_exit=run.returncode,started=t0,finished=c.now(),capture_start_sent=sent,error=err,session=launch.get('session'))
+        if (d/'result.json').exists():
+            b1=json.loads((d/'result.json').read_text());row['precapture_b1']={k:b1.get(k) for k in ('status','settle_sample_index','modal_rotation','modal_coverage','distinct','errors','focus_valid_samples')}
+        text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace') if (d/'game.log').exists() else ''
+        on_l=re.findall(r'IAI-INPUT-LOCK ON .*',text);off_l=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+        row['lock_place_release']=[len(on_l),len(place),len(off_l)]
+        focus=launch.get('capture_focus',[]);row['foreground']=[sum(x['foreground_pid']==launch.get('pid') for x in focus),len(focus)]
+        row['handled_ensure']='=== Handled ensure: ===' in text
+        if run.returncode==0:
+            mc=c.mode_check(label,on,launch.get('session'),d/'game.log');row['mode_check']=mc
+            row['status']='READING' if mc['ok'] else 'HARNESS-INVALID-MODE'
+        elif not sent:row['status']='INVALID-PRECAPTURE'
+        else:row['status']='CAPTURE-FAILED'
+        ledger.append(row);ledger_p.write_text(json.dumps(ledger,indent=2))
+        print(json.dumps({k:row.get(k) for k in ('label','status','runner_exit','error','foreground','lock_place_release','precapture_b1')}),flush=True)
+        if row['status']=='HARNESS-INVALID-MODE':print('STOP: evidence switch not in intended state',flush=True);sys.exit(3)
+        if row['status'] in ('READING','CAPTURE-FAILED'):done=True;break
+    if not done:
+        ledger.append(dict(leg=leg,label=None,attempt=None,status='NOT-RUN',reason='3 pre-capture fixture failures'));ledger_p.write_text(json.dumps(ledger,indent=2))
+        print(f'{leg} NOT-RUN after 3 pre-capture fixture failures',flush=True)
+print('Stack legs done',flush=True)

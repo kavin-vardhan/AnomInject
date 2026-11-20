@@ -1,0 +1,20 @@
+import importlib.util,json,shutil
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-22-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+B,E,L=c.B,c.E,c.L
+ours,foreign=c.classify();assert not [p for p in ours if p['name']!='UnrealTraceServer.exe'],ours
+out=E/'lyra-restored.json';assert not out.exists()
+st=json.loads((E/'lyra-staged.json').read_text());entry=st['entry_modules']
+target=(L/'Binaries/Win64').resolve();original=B/'_binary_baselines/m55-stage1-lyra-entry-caa68c6'
+head_before=c.git(L,'rev-parse','HEAD');assert head_before==st['source_commit'] and not c.git(L,'diff','--name-only') and not c.git(L,'diff','--cached','--name-only')
+for r in st['modules']:assert c.sha(target/r['name'])==r['sha256'] and c.sha(Path(st['archive'])/r['name'])==r['sha256'],r['name']
+for r in entry:assert c.sha(original/r['name'])==r['sha256'],r['name']
+c.git(L,'checkout','--detach',c.LYRA)
+for r in entry:shutil.copy2(original/r['name'],target/r['name']);assert c.sha(target/r['name'])==r['sha256']
+removed=[]
+for name in ('UnrealEditor-AnomalyBench.dll','UnrealEditor-AnomalyBench.pdb'):
+    p=(target/name).resolve();assert p.parent==target and p.name==name;p.unlink();removed.append(str(p))
+names=sorted(p.name for p in target.iterdir() if p.is_file());assert names==sorted(r['name'] for r in entry),names
+assert c.git(L,'rev-parse','HEAD')==c.LYRA and not c.git(L,'diff','--name-only') and not c.git(L,'ls-files','--others','--exclude-standard')
+out.write_text(json.dumps(dict(utc=c.now(),foreign_processes_present=foreign,head_before=head_before,source=c.git(L,'rev-parse','HEAD'),restored_modules=entry,removed_exact_files=removed,module_names=names),indent=2))
+print('Lyra restored: detached',c.LYRA[:7],'with original',len(names),'modules; removed',len(removed),'build-3-only files')

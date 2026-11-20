@@ -1,0 +1,135 @@
+from pathlib import Path
+import datetime,hashlib,json,os,shutil,subprocess,sys,time
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+B=Path(r'D:\IntrusiveAnomalies');R=B/'_reviews';EV=R/'085-04-evidence'
+LIVE_RUN=EV/'run'
+RUN=Path(os.environ.get('IAI_R854_ROOT',str(LIVE_RUN)))
+STUB=os.environ.get('IAI_R854_STUB_LAUNCH')=='1'
+if STUB and RUN.resolve()==LIVE_RUN.resolve():raise SystemExit('IAI_R854_STUB_LAUNCH=1 refused: the run root is the live evidence dir '+str(LIVE_RUN))
+if STUB and not str(RUN.resolve()).upper().startswith('E:'):raise SystemExit('dry root must be on E: (the bank is a junction to E:, hardlinks cannot cross drives - WinError 17): '+str(RUN))
+CACHE=Path(os.environ.get('IAI_R854_CACHE',str(EV/'_cache')))
+RP=B/'StackOBot/Plugins/AnomalyInjector'
+FEAT=Path(r'E:\IA_BuildCache\_r53_src\AnomalyInjector')
+FEAT_BRANCH='feat/m53-uv-normal-corruption'
+FEAT_SOURCE_COMMIT='270ed32'
+FIX_BRANCH='fix/m52-label-timing'
+M51_HEAD='53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67'
+STAGED_ROOT=B/'StackOBot/Builds/BenchGate/Windows/StackOBot'
+EXE=STAGED_ROOT/'Binaries/Win64/StackOBot.exe'
+EXE_SIDE=EXE.parent
+KEYS=('Binaries/Win64/StackOBot.exe','Content/Paks/StackOBot-Windows.utoc','Content/Paks/StackOBot-Windows.ucas',
+      'Content/Paks/StackOBot-Windows.pak','Content/Paks/global.utoc','Content/Paks/global.ucas')
+ARCHIVE_ROOT=B/'_binary_baselines'
+M53_ARCHIVE_NAME='m53-s1-maskedfix-cook-20DA6F98'
+M53={
+ 'Binaries/Win64/StackOBot.exe':'2fcdf059176da4e65645b4523c1efd73b13ab2489a8ffc3867ac2de26177cb36',
+ 'Content/Paks/StackOBot-Windows.utoc':'20da6f980e071ca63b9407821bb886b485b9db45f82ebf1bd3653b75726d1f54',
+ 'Content/Paks/StackOBot-Windows.ucas':'534c586357b1844585d14cb946ad05934f86aeedc98af7fe70dea35813333b28',
+ 'Content/Paks/StackOBot-Windows.pak':'fd766b7bad3a8092d60f0a6815e9af3fc12fd2e7f40febeffdd19c75227f1b0e',
+ 'Content/Paks/global.utoc':'462b8ac67ce8bfa278c8bc1763c7dd36f35984b60a91781ba034e8ea82667de6',
+ 'Content/Paks/global.ucas':'bb05cf99f9b05fcdce6b2a1a8972527b62df282533ec9009029e9c6e0c2f3ddb'}
+FIX_ARCHIVE_NAME='m52fix-cook-BF06AE61'
+FIX_SET={
+ 'Binaries/Win64/StackOBot.exe':'8a6074aafa276b8a27ad5c64bd69989d48e1a40d1cf429b31f61b4af2935f69a',
+ 'Content/Paks/StackOBot-Windows.utoc':'bf06ae61406e373431fadff7222cb57865d79fdac0a2643e342f7ba5aed2e705',
+ 'Content/Paks/StackOBot-Windows.ucas':'b294a1c897687a319d2cea1830aa6ca4224a9c0d5a88b130f3460cefb7ad67a4',
+ 'Content/Paks/StackOBot-Windows.pak':'87ff0240c025c55b278a9e8a2cbed22c27aa4cb638ed774f9f197f42b560b1af',
+ 'Content/Paks/global.utoc':'462b8ac67ce8bfa278c8bc1763c7dd36f35984b60a91781ba034e8ea82667de6',
+ 'Content/Paks/global.ucas':'bb05cf99f9b05fcdce6b2a1a8972527b62df282533ec9009029e9c6e0c2f3ddb'}
+DC_ARCHIVE_NAME='m53dc-cook-F76F1119'
+DC_SET={
+ 'Binaries/Win64/StackOBot.exe':'6b671987bd2cda19f21550fdc284ee5debf90284dc110e2b6b24683098db7fdc',
+ 'Content/Paks/StackOBot-Windows.utoc':'f76f1119f7844932b15d6e63de98566b2098200e89ff306e7c0acbcc6e228ec6',
+ 'Content/Paks/StackOBot-Windows.ucas':'b54c2235ffc0b12ef310a8a13c2bdd8a64311b870bff9043e6bd5c6c126ef093',
+ 'Content/Paks/StackOBot-Windows.pak':'bbc9a58c9ece89e16925540747324c1a173ff4133dc60057b5685739dfafedec',
+ 'Content/Paks/global.utoc':'462b8ac67ce8bfa278c8bc1763c7dd36f35984b60a91781ba034e8ea82667de6',
+ 'Content/Paks/global.ucas':'bb05cf99f9b05fcdce6b2a1a8972527b62df282533ec9009029e9c6e0c2f3ddb'}
+DC_REQUIRED_MAPS=('CB_GateLevel','MainMenu','MainWorld','Entry','CB_TexCorruptLevel')
+DC_EXE_PREFIX='6b671987'
+SETS={'M53':(M53_ARCHIVE_NAME,M53),'FIX':(FIX_ARCHIVE_NAME,FIX_SET),'DC':(DC_ARCHIVE_NAME,DC_SET)}
+FIXTURE_DC_ACTORS=R/'085-03-evidence'/'fixture_out'/'texcorrupt_fixture_dc_actors.json'
+FIXTURE_S1_ACTORS=R/'082-06-evidence'/'texcorrupt_fixture_actors.json'
+FIXTURE_SRC=R/'085-03-evidence'/'fixture_src'
+VERIFY_DIR=EV/'tools'
+VERIFY_CAPTURE=VERIFY_DIR/'verify_capture.py'
+TOOLS_COMMIT='c6aa9c9'
+TOOLS_PINNED={'verify_capture.py':'a12ad792aa','measure_label_offset.py':'67b4c42941','exclusion_gate.py':'16509f0b1b',
+              'census_readonly_check.py':'e0faba47e8','m53_glue_check.py':'b54c35bd78','texcorrupt_draw_kat.py':'9112ba3200',
+              'lever_audit.py':'8ad5e92096','check_package_descriptor.py':'6a5b26c4f9'}
+def tool(name):return VERIFY_DIR/name
+LS086=R/'086-01-work'/'ls086.py'
+def archive(name):
+    a=ARCHIVE_ROOT/SETS[name][0]
+    if not (a.is_dir() and (a/'StackOBot.exe').exists()):raise SystemExit(f'pinned archive {a} is missing or has no StackOBot.exe')
+    return a
+def verify_set(name):
+    pins=SETS[name][1]
+    if not pins:raise SystemExit(f'set {name} has no pinned hashes (DC_SET is filled from the 085-03 cook archive)')
+    a=archive(name);got={k:sha(a/Path(k).name) for k in KEYS}
+    bad=[k for k in KEYS if got[k]!=pins[k]]
+    if bad:raise SystemExit(f'archive {a.name} does not hold the pinned {name} pairing: {[(Path(k).name,got[k][:8],pins[k][:8]) for k in bad]}')
+    return dict(pins)
+def cooked_maps(name='DC'):
+    raw=(archive(name)/'StackOBot-Windows.utoc').read_bytes()
+    txt=raw.decode('latin-1')+raw.decode('utf-16-le',errors='ignore')
+    return {m:(m+'.umap') in txt for m in DC_REQUIRED_MAPS}
+def sources(name):
+    a=archive(name);return {k:a/Path(k).name for k in KEYS}
+BANK=Path(os.environ['IAI_BANK_OVERRIDE']) if os.environ.get('IAI_BANK_OVERRIDE') else B/'_bench_sessions_bank'
+REAL_BANK=B/'_bench_sessions_bank'
+BANK_PREFIX='M53DC_'
+if STUB:
+    BANK=RUN/'_stub_bank';EXE_SIDE=RUN/'_stub_exe_side'
+    for _d in (BANK,EXE_SIDE):_d.mkdir(parents=True,exist_ok=True)
+PWSH=r'C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe'
+PYTHON=r'C:\Python313\python.exe'
+OURS_MARKERS=('d:\\uesource','intrusiveanomalies','lyrastartergame','\\stackobot','ia_buildcache')
+NAMES=('UnrealEditor.exe','UnrealEditor-Cmd.exe','StackOBot.exe','LyraGame.exe','LyraEditor.exe','LyraClient.exe','LyraServer.exe','UnrealBuildTool.exe','ShaderCompileWorker.exe','CrashReportClient.exe','CrashReportClientEditor.exe','UnrealTraceServer.exe','dotnet.exe')
+EDITORS=('UnrealEditor.exe','UnrealEditor-Cmd.exe','LyraEditor.exe')
+GAMES=('StackOBot.exe','LyraGame.exe','LyraClient.exe','LyraServer.exe')
+E_FLOOR_GB=50.0;D_FLOOR_GB=25.0
+RESTORE_TRIES=6;RESTORE_BACKOFF_S=(3,6,12,24,48,96)
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def now():return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def git(r,*a):return subprocess.check_output(['git','-C',str(r),*a],stderr=subprocess.DEVNULL).decode().strip()
+def git_blob(p):return subprocess.check_output(['git','hash-object',str(p)],stderr=subprocess.DEVNULL).decode().strip()
+def classify():
+    names=",".join("'"+n+"'" for n in NAMES);s=''
+    for attempt in range(4):
+        try:
+            s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-CimInstance Win32_Process | Where-Object { $_.Name -in "+names+" } | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine,CreationDate) | ConvertTo-Json -Compress"]).decode().strip();break
+        except subprocess.CalledProcessError:
+            if attempt==3:raise
+            time.sleep(5)
+    v=[] if not s or s=='[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+    ours=[];foreign=[]
+    for x in v:
+        t=((x.get('ExecutablePath') or '')+' '+(x.get('CommandLine') or '')).lower()
+        rec=dict(pid=x['ProcessId'],ppid=x.get('ParentProcessId'),name=x['Name'],path=x.get('ExecutablePath'),cmd=(x.get('CommandLine') or '')[:240],created=str(x.get('CreationDate')))
+        if x['Name']=='dotnet.exe' and 'unrealbuildtool' not in t:continue
+        if any(m in t for m in OURS_MARKERS):ours.append(rec)
+        else:foreign.append(rec)
+    return ours,foreign
+def quiet():
+    ours,foreign=classify()
+    editors=[p for p in ours+foreign if p['name'] in EDITORS]
+    games=[p for p in ours+foreign if p['name'] in GAMES]
+    blocking=editors+games+[p for p in ours if p['name'] in ('UnrealBuildTool.exe','ShaderCompileWorker.exe','dotnet.exe')]
+    return dict(quiet=not blocking,blocking=[(p['pid'],p['name'],p['path']) for p in blocking],ours=ours,foreign=foreign)
+def ours_only_quiet():
+    ours,foreign=classify()
+    blocking=[p for p in ours if p['name']!='UnrealTraceServer.exe']
+    return dict(quiet=not blocking,blocking=[(p['pid'],p['name'],p['path']) for p in blocking],foreign=[(p['pid'],p['name'],p['path']) for p in foreign])
+def free_gb(drive):
+    return round(shutil.disk_usage(drive).free/1e9,1)
+def log_event(kind,**kw):
+    RUN.mkdir(parents=True,exist_ok=True);p=RUN/'environment-events.json';ev=json.loads(p.read_text()) if p.exists() else []
+    ev.append(dict(utc=now(),kind=kind,**kw));p.write_text(json.dumps(ev,indent=2,default=str))
+def staged_state(root=None):
+    root=Path(root or STAGED_ROOT);return {k:sha(root/k) for k in KEYS}
+def which_set(state=None):
+    st=state or staged_state()
+    for n,(_,pins) in SETS.items():
+        if pins and st==pins:return n
+    return None

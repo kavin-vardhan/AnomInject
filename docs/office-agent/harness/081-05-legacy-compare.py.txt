@@ -1,0 +1,48 @@
+from pathlib import Path
+import json, hashlib, itertools, re, sys
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'; bank=base/'_bench_sessions_bank'
+version=next((v for v in sys.argv[1:] if v.startswith('V')),'V3')
+names=['M55S1_PRE_A2','M55S1_PRE_A3']+[f'M55S1{version}_MAIN{i}_E{e}' for i,e in enumerate([0,1,1,0],1)]
+bench='bench' in sys.argv
+if bench: names=['M55S1PREBENCH_BENCH_OFF_0','M55S1PREBENCH_BENCH_OFF_1',f'M55S1{version}_BENCH_OFF_0',f'M55S1{version}_BENCH_OFF_1',f'M55S1{version}_G14_N',f'M55S1{version}_G14_S']
+if 'diagnostic' in sys.argv:
+    assert bench
+    names += [f'M55S1PREDIAG_BENCH_DIAG{i}_0' for i in (1,2)]
+
+def keys(v,p=''):
+    if isinstance(v,dict): return {p+'/'+k for k in v}|set().union(*(keys(x,p+'/'+k) for k,x in v.items()))
+    if isinstance(v,list): return set().union(*(keys(x,p+'[]') for x in v)) if v else set()
+    return set()
+def digest(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+readings={}
+for name in names:
+    d=next((bank/('M55S1_'+name)).glob('session*'))
+    labels=sorted((json.loads(l) for l in (d/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines()),key=lambda r:r['session_index'])
+    a=json.loads((d/'annotation.json').read_text(encoding='utf-8-sig'))
+    s=json.loads((d/'run_summary.json').read_text(encoding='utf-8-sig'))
+    t=next(t for t in bank.glob('M55S1_'+name+'_try*') if (t/d.name).exists())
+    log=(t/'_leg_game.log').read_text(encoding='utf-8-sig',errors='replace')
+    oldties=re.findall(r'MASK-TIE session_index=(\d+) tag=(\d+) tableCount=(\d+) pngCount=(\d+) drawnCount=(-?\d+)',log)
+    assert all(r[2]==r[3] for r in oldties)
+    readings[name]=dict(session=str(d),labels=len(labels),events=len(a['anomalies']),
+       counts={r['session_index']:[(x['id'],x['target_name'],x.get('target_pixels'),x.get('target_drawn_pixels'),x.get('observable')) for x in r['anomalies']] for r in labels},
+       mask_files={p.name:digest(p) for p in (d/'target_mask').glob('*.png')},
+       colour_files={p.name:digest(p) for p in (d/'Actual_Frames').glob('*.png')},
+       mask_ties=sorted(oldties,key=lambda r:tuple(map(int,r))),
+       annotation_keys=sorted(keys(a)),label_keys=sorted(set().union(*(keys(r) for r in labels))),
+       summary_keys=sorted(k for k in s if not k.startswith('change_')),
+       event_ranges=[{k:x.get(k) for k in ('anomaly_type','affected_frames','injected_frames','observable_frame_count','unmeasured_frame_count','observability_measured','manifested')} for x in a['anomalies']],
+       onset_indices=[r['session_index'] for i,r in enumerate(labels) if r['anomaly_present'] and (i==0 or not labels[i-1]['anomaly_present'])],
+       camera=[r['view'] for r in labels])
+comparisons=[]
+for n,m in itertools.combinations(names,2):
+    a,b=readings[n],readings[m]
+    r=dict(a=n,b=m)
+    for k in ('counts','mask_files','colour_files'):
+        common=set(a[k])&set(b[k]); r[k+'_equal']=sum(a[k][i]==b[k][i] for i in common); r[k+'_common']=len(common)
+        r[k+'_different_indices']=[i for i in common if a[k][i]!=b[k][i]]
+        r[k+'_key_delta']=list(set(a[k])^set(b[k]))
+    for k in ('mask_ties','annotation_keys','label_keys','summary_keys','event_ranges','onset_indices','camera'): r[k+'_equal']=a[k]==b[k]
+    comparisons.append(r)
+(ev/(f'legacy-comparison{ "-bench-diagnostic" if "diagnostic" in sys.argv else ("-bench" if bench else "")}{"-"+version.lower() if version!="V3" else ""}.json')).write_text(json.dumps(dict(readings=readings,comparisons=comparisons),indent=2))
+for r in comparisons: print(json.dumps({k:v for k,v in r.items() if not k.endswith(('_different_indices','_key_delta'))}))

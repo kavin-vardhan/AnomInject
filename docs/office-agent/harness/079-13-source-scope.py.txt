@@ -1,0 +1,39 @@
+"""Prove unchanged helpers and exact sources used by every final validation."""
+import ast
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+REV = ROOT / "_reviews"
+E = REV / "079-13-evidence"
+F = REV / "079-13-sweep-tools"
+
+
+def definitions(path):
+    return {n.name: ast.dump(n, include_attributes=False) for n in ast.parse(path.read_text(encoding="utf-8")).body
+            if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
+
+
+def compare(name, allowed_changed, added, removed):
+    old = definitions(REV / "079-12-frozen" / name)
+    new = definitions(F / name)
+    changed = {k for k in old.keys() & new.keys() if old[k] != new[k]}
+    assert changed <= allowed_changed, changed - allowed_changed
+    assert new.keys() - old.keys() == added
+    assert old.keys() - new.keys() == removed
+    return {"changed": sorted(changed), "added": sorted(added), "removed": sorted(removed),
+            "unchanged": sorted(k for k in old.keys() & new.keys() if old[k] == new[k])}
+
+
+result = {}
+result["verifier"] = compare("verify_capture.py", {
+    "_local_peaks", "_measure_edge", "_assign_edge", "_observe_windows", "_edge_line", "label_pixel_gate",
+    "_label_pixel_selftest", "label_pixel_batch", "main"}, {"_assignment_notes"}, {"_normalise_cap"})
+result["scorer"] = compare("m079_shift_recovery.py", {"run_cell", "table", "sweep", "selftest", "main"},
+                           {"peak_text", "compare_previous", "write_characterisation"}, {"floor_2sf", "derive_cap"})
+for file in (REV / "079-13-write-report.py", REV / "079-13-boundary.py"):
+    ast.parse(file.read_text(encoding="utf-8"))
+result["frozen_sha256"] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in F.glob("*.py")}
+(E / "source_scope.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(result, indent=2))

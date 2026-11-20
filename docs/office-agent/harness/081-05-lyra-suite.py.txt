@@ -1,0 +1,23 @@
+from pathlib import Path
+import json, subprocess, sys
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'
+results=[]
+versionbase=sys.argv[1]
+for spec in sys.argv[2:]:
+    g,order=map(int,spec.split(':'))
+    for attempt in range(1,4):
+        version=versionbase if attempt==1 else f'{versionbase}R{attempt}'
+        label=f'M55S1{version}_LYRA_G{g}_{"S" if order else "N"}'
+        run=subprocess.run([sys.executable,str(base/'_reviews/081-05-lyra-matrix.py'),version,spec])
+        p=ev/f'audit-{label.lower()}.json'
+        r=json.loads(p.read_text()) if p.exists() else dict(label=label,errors=['runner did not produce audit'])
+        results.append(r)
+        (ev/f'lyra-suite-attempts-{versionbase.lower()}.json').write_text(json.dumps(results,indent=2))
+        if not r['errors']: break
+        if r['errors']!=['runtime handled ensure in gate fixture']:
+            print('Non-fixture audit failure: stop for source/evidence review.',flush=True)
+            sys.exit(1)
+        if attempt==3:
+            print('Three invalid fixture attempts: no verdict; stop.',flush=True)
+            sys.exit(1)
+        print(f'Independent no-ensure fixture rule failed: retaining attempt {attempt}, trying next within limit 3.',flush=True)

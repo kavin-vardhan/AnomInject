@@ -1,0 +1,42 @@
+param([Parameter(Mandatory=$true)][string]$Exe,[Parameter(Mandatory=$true)][string]$EvDir,[int]$WaitSec=150,[switch]$Census)
+$ErrorActionPreference='Stop'
+$log=Join-Path $EvDir 'game.log';$out=Join-Path $EvDir 'capture'
+$cmds=@()
+if($Census){$cmds+='IAI.TexCorrupt.Census';$cmds+='IAI.TexCorrupt.Census all'}
+$cmds+='IAI.ListAnomalies';$cmds+='IAI.Auto.Status';$cmds+='IAI.Server.Start';$cmds+="IAI.Capture.Start $out png 4242 30"
+$exec=($cmds -join ', ')
+$argsList=@('/Game/StackOBot/Maps/MainWorld','-windowed','-ResX=1280','-ResY=720',"-ExecCmds=`"$exec`"",'-unattended','-nosplash',"-abslog=$log")
+$busy=@(Get-Process -Name StackOBot,UnrealEditor,UnrealEditor-Cmd -ErrorAction SilentlyContinue)
+if($busy.Count){throw 'not idle: '+(($busy|ForEach-Object{$_.ProcessName})-join ',')}
+$rec=[ordered]@{exe=$Exe;exe_sha256=(Get-FileHash $Exe -Algorithm SHA256).Hash;args=$argsList;census=[bool]$Census;started=[DateTime]::UtcNow.ToString('o')}
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class P093Fg {
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int cmd);
+ [DllImport("user32.dll")] public static extern void keybd_event(byte k,byte s,uint f,UIntPtr e);
+ public static uint FgPid(){uint p;GetWindowThreadProcessId(GetForegroundWindow(),out p);return p;}
+ public static void Force(IntPtr h){ShowWindow(h,9);keybd_event(0x12,0,0,UIntPtr.Zero);keybd_event(0x12,0,2,UIntPtr.Zero);SetForegroundWindow(h);}
+}
+"@
+$p=Start-Process -FilePath $Exe -ArgumentList $argsList -PassThru
+$rec.pid=$p.Id
+try{
+ $sw=[Diagnostics.Stopwatch]::StartNew()
+ while($sw.Elapsed.TotalSeconds -lt $WaitSec){
+  Start-Sleep -Milliseconds 500
+  if($p.HasExited){$rec.exited_early=$true;break}
+  try{$p.Refresh();if($p.MainWindowHandle -ne 0 -and [P093Fg]::FgPid() -ne $p.Id){[P093Fg]::Force($p.MainWindowHandle)}}catch{}
+  $s=Get-ChildItem $out -Directory -ErrorAction SilentlyContinue|Where-Object{Test-Path (Join-Path $_.FullName 'run_summary.json')}|Select-Object -First 1
+  if($s -and $sw.Elapsed.TotalSeconds -gt 115){$rec.session=$s.FullName;Start-Sleep -Seconds 3;break}
+ }
+ $rec.elapsed_s=[math]::Round($sw.Elapsed.TotalSeconds,1)
+}finally{
+ if(-not $p.HasExited){$rec.close_sent=$p.CloseMainWindow();$rec.exited_after_close=$p.WaitForExit(30000)
+  if(-not $p.HasExited){Stop-Process -Id $p.Id -Force;$p.WaitForExit();$rec.killed_by_pid=$p.Id}}
+ $rec.finished=[DateTime]::UtcNow.ToString('o')
+ $rec|ConvertTo-Json -Depth 5|Set-Content (Join-Path $EvDir 'launch.json') -Encoding utf8
+}
+"done pid=$($p.Id) elapsed=$($rec.elapsed_s) session=$($rec.session)"

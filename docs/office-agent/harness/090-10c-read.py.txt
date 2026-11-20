@@ -1,0 +1,108 @@
+"""090-10c readers: corruption (090-10b pixel rule), edges (090-10b-edges), identity exactness, and B's mask-vs-change coverage.
+Usage: 090-10c-read.py leg <label> [...] | census <label> [...]"""
+import importlib.util, json, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+_s = importlib.util.spec_from_file_location('c910c', str(R / '090-10c-common.py'))
+C = importlib.util.module_from_spec(_s); _s.loader.exec_module(C)
+c = C.c
+_e = importlib.util.spec_from_file_location('e910b', str(R / '090-10b-edges.py'))
+E = importlib.util.module_from_spec(_e); _e.loader.exec_module(E)
+E.c = c
+ID_TOL = 0.05
+CHANGE_PX = 12
+
+
+def rows_of(sess):
+    rows = {}
+    for ln in (sess / 'labels.jsonl').read_text(encoding='utf-8').splitlines():
+        if ln.strip():
+            r = json.loads(ln); rows[r['session_index']] = r
+    return rows
+
+
+def identity(sess):
+    ann = json.loads((sess / 'annotation.json').read_text(encoding='utf-8'))
+    rows = rows_of(sess)
+    out = []
+    for e in ann.get('anomalies', []):
+        fr = (e.get('affected_frames') or {}).get('frame_indices') or []
+        tgt = ((e.get('affected_objects') or {}).get('nodes') or [{}])[0].get('name')
+        boxes = [a.get('bbox_drawn_px') or a.get('bbox_px') for i in fr for a in (rows.get(i) or {}).get('anomalies', [])
+                 if a.get('target_name') == tgt and (a.get('bbox_drawn_px') or a.get('bbox_valid'))]
+        boxes = [b for b in boxes if b and b[2] > 0 and b[3] > 0]
+        if not fr or not boxes or (fr[0] - 2) not in rows:
+            out.append(dict(target=tgt, verdict='UNJUDGED')); continue
+        x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
+        box = (x0, y0, max(b[0] + b[2] for b in boxes) - x0, max(b[1] + b[3] for b in boxes) - y0)
+        ref = c._img(sess / rows[fr[0] - 2]['image'])
+        null = c._bbox_diff(c._img(sess / rows[fr[0] - 1]['image']), ref, box) or 0.0
+        ds = [c._bbox_diff(c._img(sess / rows[i]['image']), ref, box) for i in fr if i in rows]
+        ds = [d for d in ds if d is not None]
+        mx = max(ds) if ds else None
+        out.append(dict(target=tgt, frames=[fr[0], fr[-1]], null=null, max=mx, median=sorted(ds)[len(ds) // 2] if ds else None,
+                        verdict='IDENTITY-EXACT' if mx is not None and mx <= null + ID_TOL else 'DIFFERS'))
+    return out
+
+
+def mask_coverage(sess):
+    """Per labelled frame of each event: changed pixels (max channel diff vs the clean reference > CHANGE_PX) and the event's
+    tagged mask pixels; reports the share of changed pixels inside the mask and the share of mask pixels that changed."""
+    from PIL import Image, ImageChops
+    ann = json.loads((sess / 'annotation.json').read_text(encoding='utf-8'))
+    rows = rows_of(sess)
+    out = []
+    for e in ann.get('anomalies', []):
+        fr = (e.get('affected_frames') or {}).get('frame_indices') or []
+        tgt = ((e.get('affected_objects') or {}).get('nodes') or [{}])[0].get('name')
+        if not fr or (fr[0] - 2) not in rows:
+            continue
+        ref = Image.open(sess / rows[fr[0] - 2]['image']).convert('RGB')
+        per = []
+        for i in fr:
+            r = rows.get(i) or {}
+            mf = r.get('mask_file')
+            tag = next((a.get('mask_value') for a in r.get('anomalies', []) if a.get('target_name') == tgt), None)
+            if not mf or not tag:
+                continue
+            m = Image.open(sess / mf).convert('L')
+            d = ImageChops.difference(Image.open(sess / r['image']).convert('RGB'), ref)
+            dm = d.split()
+            ch = ImageChops.lighter(ImageChops.lighter(dm[0], dm[1]), dm[2]).point(lambda v: 255 if v > CHANGE_PX else 0)
+            mk = m.point(lambda v, t=tag: 255 if v == t else 0)
+            n_ch = sum(1 for v in ch.getdata() if v)
+            n_mk = sum(1 for v in mk.getdata() if v)
+            both = sum(1 for a, b in zip(ch.getdata(), mk.getdata()) if a and b)
+            per.append(dict(i=i, changed=n_ch, mask=n_mk, both=both))
+        if per:
+            ch = sum(p['changed'] for p in per); mk = sum(p['mask'] for p in per); bo = sum(p['both'] for p in per)
+            out.append(dict(target=tgt, frames=len(per), mask_px_per_frame=round(mk / len(per)), changed_px_per_frame=round(ch / len(per)),
+                            changed_inside_mask=round(bo / ch, 3) if ch else None, mask_that_changed=round(bo / mk, 3) if mk else None))
+    return out
+
+
+def leg(label):
+    sess = c.find_session(label) if hasattr(c, 'find_session') else None
+    r = dict(label=label, session=str(sess) if sess else None)
+    if not sess:
+        r['lines'] = C.grep(label, r'REFUSED|TEXCORRUPT-(DECIDE|REFUSED) family|PARTS|COPY SOURCE|MIP TRIPWIRE|HostTexBias', 20)
+        return r
+    ann = json.loads((sess / 'annotation.json').read_text(encoding='utf-8'))
+    r['events'] = len(ann.get('anomalies', []))
+    r['pixels'] = [(p.get('verdict'), p.get('median'), p.get('null')) for p in c.pixels(sess)]
+    r['edges'] = [(x.get('verdict'), x.get('onset'), x.get('end')) for x in E.edges(sess)]
+    r['identity'] = [(x.get('verdict'), x.get('max'), x.get('null')) for x in identity(sess)]
+    rs = json.loads((sess / 'run_summary.json').read_text(encoding='utf-8'))
+    r['summary'] = {k: v for k, v in rs.items() if k.startswith('texcorrupt') and v not in (0, None, {}, [])}
+    r['lines'] = C.grep(label, r'TEXCORRUPT-(DECIDE|REFUSED) family|PARTS|COPY SOURCE|MIP TRIPWIRE|HostTexBias', 12)
+    return r
+
+
+if __name__ == '__main__':
+    if sys.argv[1] == 'leg':
+        for l in sys.argv[2:]:
+            print(json.dumps(leg(l), default=str))
+    elif sys.argv[1] == 'mask':
+        for l in sys.argv[2:]:
+            print(l, json.dumps(mask_coverage(c.find_session(l))))

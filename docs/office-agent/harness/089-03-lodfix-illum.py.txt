@@ -1,0 +1,39 @@
+import json,math
+from pathlib import Path
+EV=Path(r'D:\IntrusiveAnomalies\_reviews\089-03-evidence\lodfix')
+FIX='/Game/AnomalyFixtures/CB_LodFixture';GATE='/Game/CaptureBenchGate/CB_GateLevel'
+TARGETS={FIX:('CB_LodFix_N','CB_LodFix_D'),GATE:('StaticMeshActor_49',)}
+def sub(a,b):return [a[i]-b[i] for i in range(3)]
+def dot(a,b):return sum(a[i]*b[i] for i in range(3))
+def norm(a):
+    l=math.sqrt(dot(a,a));return [x/l for x in a],l
+def window(d,r):
+    if r<=0:return 1.0
+    x=min(1.0,(d/r)**4);return (1.0-x)**2
+def illum(lights,cam,c,R):
+    n,_=norm(sub(cam,c));p=[c[i]+R*n[i] for i in range(3)];out=dict(point_lux=0.0,sun_lux=0.0,per_light=[])
+    for L in lights:
+        if L['cls']=='PointLight':
+            l,d=norm(sub(L['location'],p));dcm=d;dm=d/100.0
+            e=L['intensity']*max(0.0,dot(n,l))/(dm*dm)*window(dcm,L.get('attenuation_radius') or 0.0)
+            out['point_lux']+=e;out['per_light'].append(dict(label=L['label'],distance_cm=round(dcm,1),cos=round(dot(n,l),3),lux=round(e,1)))
+        elif L['cls']=='DirectionalLight':
+            e=L['intensity']*max(0.0,-dot(n,L['forward']));out['sun_lux']+=e
+            out['per_light'].append(dict(label=L['label'],cos=round(-dot(n,L['forward']),3),lux=round(e,3),points_down=L.get('points_down')))
+    out['total_lux']=round(out['point_lux']+out['sun_lux'],2);out['point_lux']=round(out['point_lux'],2);out['sun_lux']=round(out['sun_lux'],3)
+    return out
+def read(tag):return json.loads((EV/f'lodfix-{tag}.json').read_text(encoding='utf-8'))
+res=dict(model='direct illuminance at the camera-facing point of each target bounding sphere, normal toward the camera: point lights I*cos/d^2 with the UE inverse-square window (1-(d/r)^4)^2, the sun I*cos; shadows, the sky light, bounce and exposure are NOT modelled - a light-level comparison, not a render',maps={})
+after=read('readback-lights');patch=read('patch')
+for m,names in TARGETS.items():
+    acts={a['name']:a for a in after['actors'][m]};ps=[a for a in after['actors'][m] if a['cls']=='PlayerStart'][0]['location']
+    for nm in names:
+        a=acts[nm];R=a['bounds_radius'] or 0.0
+        res['maps'].setdefault(m,{})[nm]=dict(center=a['location'],radius=round(R,1),camera=ps,after=illum(after['lights'][m],ps,a['location'],R))
+        if m==FIX:res['maps'][m][nm]['before']=illum(patch['patch']['before'],ps,a['location'],R)
+g=res['maps'][GATE]['StaticMeshActor_49']['after']['total_lux']
+for nm in TARGETS[FIX]:
+    x=res['maps'][FIX][nm];x['before_over_gate']=round(x['before']['total_lux']/g,4) if g else None;x['after_over_gate']=round(x['after']['total_lux']/g,3) if g else None
+(EV/'lodfix-illum.json').write_text(json.dumps(res,indent=1),encoding='utf-8')
+for m,v in res['maps'].items():
+    for nm,x in v.items():print(m.split('/')[-1],nm,'after',x['after']['total_lux'],'lux','before',(x.get('before') or {}).get('total_lux'),'ratio after/gate',x.get('after_over_gate'),'before/gate',x.get('before_over_gate'))

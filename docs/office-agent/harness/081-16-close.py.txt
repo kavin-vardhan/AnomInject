@@ -1,0 +1,152 @@
+from pathlib import Path
+import datetime, json, runpy, sys
+
+A = runpy.run_path(str(Path(__file__).with_name('081-16-audit.py')))
+B, E, R, git, sha, idle, state = [A[k] for k in ('B','E','R','git','sha','idle','state')]
+pre = json.loads((E/'preflight.json').read_text())
+old_feature = 'd0ca84d3f896e54a40820825856e61bc9144a228'
+plan = 'docs/predictions/2026-09-20-m55-change-evidence.md'
+journal = 'docs/sessions/2026-09-23-081-16-codex-budget-bound-audit.md'
+report = B/'_reviews/081-16-codex-budget-bound-prebuild-review.md'
+
+if '--prepare' in sys.argv:
+    assert git(R,'rev-parse','HEAD') == old_feature
+    original = (R/plan).read_bytes()
+    assert not original.startswith(b'## Dated amendment 081-16')
+    (E/'prediction.before.md').write_bytes(original)
+    header = '''## Dated amendment 081-16 (2026-09-23): STOP before build 2
+
+Authority: 081-15-chat-ruling-budget-bound-build-2.md, read FULL. The full-yield
+Stack1080 bar stands and is now Chat-mandated; partial coverage refused. Chat
+records the64MiB specification as its second spec defect in this family.
+No previous failed audit or outcome changes.
+
+Source disproves the requested11C+9M structural bound: one closing phase3..18,
+Cursor3 missing colour, PreviousSI2, masks3..18, then completions4..15 before5s
+retain13C+16M while Work runs after EACH callback and waits. Count beyondLast18
+is0; the closing-phase precedence disables the4-completion gap.720p62,668,800
+exceeds48,844,800 but fits64MiB;1080p141,004,800 exceeds109,900,800 but fits256MiB.
+This is a source-derived counterexample, not a new runtime high-water. No
+after-last-use leak established; deferred demand filtering remains futurev2.
+
+Default256MiB and additive diagnostics NOT implemented; one build UNUSED.
+No numeric bound is promoted into a build prediction. Chat review REQUIRED to
+resolve structural bound vs reference envelope before build; NOT REQUIRED for
+completed source audit/documentation. Next checkpoint:081-16disposition.
+Journal docs/sessions/2026-09-23-081-16-codex-budget-bound-audit.md; full report
+D:/IntrusiveAnomalies/_reviews/081-16-codex-budget-bound-prebuild-review.md.
+After resolution:4Stack1080,thenG270300,thenremaining66inventory+4canfails,
+75candidate legs total; allUNRUN. Original first-valid/full-yield/stop rules
+unchanged. Stage3HELD; allcarry-forwards remain. Previous plan bytes follow.
+
+'''
+    (R/plan).write_bytes(header.encode()+original)
+    print('Prediction preamble added; historical bytes preserved')
+    sys.exit(0)
+
+idle()
+feature = git(R,'rev-parse','feat/m55-change-evidence')
+assert feature == git(R,'rev-parse','origin/feat/m55-change-evidence')
+assert set(git(R,'diff','--name-only',old_feature,feature).splitlines()) == {plan,journal}
+assert git(R,'diff','--name-only',A['SOURCE'],feature,'--','Source','Shaders','Config','AnomalyInjector.uplugin','tools') == ''
+frozen = E/'documentation'
+frozen.mkdir(exist_ok=True)
+for rel in (plan,journal):
+    p = frozen/rel; p.parent.mkdir(parents=True,exist_ok=True)
+    if not p.exists(): p.write_bytes((R/rel).read_bytes())
+    import subprocess
+    blob = subprocess.check_output(['git','-C',str(R),'show',feature+':'+rel])
+    assert p.read_bytes().replace(b'\r\n',b'\n') == blob.replace(b'\r\n',b'\n')
+assert (frozen/plan).read_bytes().endswith((E/'prediction.before.md').read_bytes())
+git(R,'checkout','m51')
+repos = dict(AnomalyInjector=R, Lyra=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector'),
+             CaptureBench=B/'StackOBot/Plugins/CaptureBench')
+states = {}
+for name, repo in repos.items():
+    st = state(repo); entry = pre['repos'][name]
+    for key in ('head','branch','untracked'): assert st[key] == entry[key], (name,key)
+    before = dict(line.split(' ',1) for line in entry['refs'].splitlines())
+    after = dict(line.split(' ',1) for line in st['refs'].splitlines())
+    delta = {k:[before.get(k),after.get(k)] for k in before.keys()|after.keys() if before.get(k)!=after.get(k)}
+    if name in ('AnomalyInjector','Lyra'):
+        assert delta == {k:[old_feature,feature] for k in
+                         ['refs/heads/feat/m55-change-evidence','refs/remotes/origin/feat/m55-change-evidence']}
+    else: assert not delta
+    st['ref_delta'] = delta; states[name] = st
+for p,h in pre['verified_binaries'].items(): assert sha(p)==h, p
+for p,h in pre['prior_artifacts'].items(): assert sha(B/p)==h, p
+for p,h in pre['bank_files'].items(): assert sha(p)==h, p
+assert report.read_text().rstrip().endswith('VERDICT: NEEDS-DECISION')
+remote = git(R,'ls-remote','origin','refs/heads/feat/m55-change-evidence','refs/heads/master')
+assert feature+'\trefs/heads/feat/m55-change-evidence' in remote
+assert '031a103b18b90b2ce9dd626b22e9498717c60815\trefs/heads/master' in remote
+current = B/'ToCodex/CURRENT.md'
+prior = (E/'CURRENT.before.md').read_bytes()
+assert current.read_bytes()==prior
+header = '''# 081-16 pre-build stop: proposed closure memory bound disproved, 2026-09-23
+
+**VERDICT: NEEDS-DECISION. Chat review REQUIRED** before build2 to resolve the
+structural memory bound vs an explicitly named reference envelope/qualification
+threshold. **Chat review NOT REQUIRED** for completed authorized source audit,
+evidence preservation and documentation. Next mandatory checkpoint: Chat's
+081-16disposition. Stage3HELD. No work in flight; one build and all attempts unused.
+
+Read FULL in order:
+1. D:/IntrusiveAnomalies/_reviews/081-16-codex-budget-bound-prebuild-review.md.
+2. 081-15-chat-ruling-budget-bound-build-2.md FULL; inherited081-14/03/07/13.
+3. 081-16-evidence/source-bound-audit.json plus five guarded source copies.
+4. 081-16-evidence/documentation/docs/sessions/2026-09-23-081-16-codex-budget-bound-audit.md
+   and frozen prediction preamble; then preflight/postflight/evidence manifests.
+5. Prior081-15report FULL and its exact binary/measurement preservation evidence.
+Recheck live state before action. Offline replay:081-16-audit.py --verify-model.
+
+Source5649a6d/E8E2E43F remains unchanged. Closing phase counts8completions beyond
+Phase.Last, notCursor; K4does notcap phase length; maskslead colours independently;
+ingress/scheduling impose nobuffer-count bound. Model:oneclosingphase3..18,
+Cursor3missingcolour,Previous2,masks3..18,completions4..15 before5s,worker runs
+afterEACHcallback. Holds13C+16M;720p62,668,800 > proposed48,844,800 but<64MiB;
+1080p141,004,800 >109,900,800 but<256MiB. NOT a runtime reading. No after-last-use
+leak proven; ordinary demand filtering remains futurev2.11-colour arithmetic
+fromoldpeak is notanownershipcensus. ByteCVarboundsm55payload,notwholeprocessRAM.
+
+No default/diagnostic/clock/admission implementation,build,capture,staging,cook,
+merge,tag orCodebrief. Only2featuredocs committed/pushed; exacttip inpostflight.
+Mainrestoredm51 53bf725; unchangedcandidateGame/EditorE8E2E43F despite m51source.
+Lyraunchanged detachedcaa68c6/original9modules; CaptureBench/master/m51/owner
+untracked handoffs unchanged.141binary/container/archive hashes plusprior
+banks/artifacts reverified. CURRENTentirepriorbytes retainedbelow inclBlender/video.
+
+LatestChatacceptscompletionclock/full-yieldbar; refusespartialStackcoverage;
+records64MiB asChatsecond specdefect. Old081-15failedreading unchanged. Budget256MiB
+anddiagnosticsauthorizedinprinciplebutheld; buildunused. Pending75newcandidatelegs:
+4Stack1080,thenG270300underthreebranches,thenremaining66of67inventory+4canfails.
+G270countedonce. AllUNRUN; noE8E2historycredit. Fullpredictionsbeforeeventualbuild.
+
+CarryALLpriorlimitsverbatim+datedamendments, FPS21.5vs30 MAIN4beforecost,
+delay3client/selftest,positive_framescaveat,Codeclientreview,Stage3oracle/cost/docs.
+Priors17.5/19.4/39.4/49.8/66.4MB; costyield/reasons/latency/resolvedmemorycriterion.
+1440p/4Kunexercised; formulavaluesarenotcoverageguarantees. Demandfilter/GPUfuturev2.
+Codeximplements;Chatorchestrates;CodeindependentreviewafterStage3. Sameworkstream,
+no freshsessionrecommendation. Newtasknotneeded; no ownershiptohandoff.
+
+--- Prior CURRENT content preserved byte-for-byte below ---
+
+'''
+(E/'CURRENT.header.md').write_text(header)
+current.write_bytes(header.encode()+prior)
+assert current.read_bytes().endswith(prior)
+idle()
+out = dict(utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+           verdict='PASS: safe boundary restored; qualification NEEDS-DECISION',
+           feature_commit=feature,source_commit=A['SOURCE'],repos=states,
+           verified_binaries=pre['verified_binaries'],
+           prior_artifacts_preserved=len(pre['prior_artifacts']),
+           prior_bank_files_preserved=len(pre['bank_files']),new_capture_count=0,new_build_count=0,
+           remote_refs=remote,current_history_preserved=True,current_sha256=sha(current),
+           report_sha256=sha(report),bench_processes=[])
+(E/'postflight.json').write_text(json.dumps(out,indent=2))
+manifest = {str(p.relative_to(B)):sha(p) for p in E.rglob('*') if p.is_file()}
+for p in [report,Path(__file__),B/'_reviews/081-16-audit.py']:
+    manifest[str(p.relative_to(B))] = sha(p)
+(E/'evidence-manifest.json').write_text(json.dumps(manifest,indent=2))
+print(json.dumps({k:v for k,v in out.items() if k not in ('repos','verified_binaries')},indent=2))

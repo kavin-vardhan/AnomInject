@@ -1,0 +1,19 @@
+import importlib.util,os,sys,subprocess,json
+os.environ['IAI_R23_WINDOW']='c3'
+spec=importlib.util.spec_from_file_location('lib23',r'D:\IntrusiveAnomalies\_reviews\081-23-lib.py');L=importlib.util.module_from_spec(spec);spec.loader.exec_module(L)
+E=L.env_for_window();R=L.R
+def nh(o):
+    f=lambda:L.run_nohold(o);f.__name__='NOHOLD_'+('S' if o else 'N');return f
+def ly(leg,kind):
+    f=lambda:L.run_lyra_leg(leg,kind);f.__name__=leg;return f
+lyra=[ly('C3_LYRA_G270_N','g270'),ly('C3_LYRA_NULL720_N','null_effect'),ly('C3_LYRA_SOLID720_N','solid_swap')]
+if len(sys.argv)>1 and sys.argv[1]=='--list':print('\n'.join(s.__name__ for s in [nh(0),nh(1)]+lyra));sys.exit(0)
+code=L.run_sequence([nh(0),nh(1)],'chunk3-nohold-summary.json')
+if code==0:
+    try:
+        if not (E/'lyra-staged.json').exists():assert subprocess.run([sys.executable,str(R/'081-23-lyra-stage.py')]).returncode==0,'lyra stage failed'
+        code=L.run_sequence(lyra,'chunk3-lyra-summary.json')
+    finally:
+        if (E/'lyra-staged.json').exists() and not (E/'lyra-restored.json').exists():
+            assert subprocess.run([sys.executable,str(R/'081-23-lyra-restore.py')]).returncode==0,'LYRA RESTORE FAILED - restore by hand before any other work'
+sys.exit(code)

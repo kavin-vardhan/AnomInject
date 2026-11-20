@@ -1,0 +1,164 @@
+"""085-03 content manifest: hash the project content roots (M0 before the DC authoring, M1 after it, M2 after the cook) and
+diff two manifests under the DC rule:
+  added   must be exactly the declared DC files under Content/CaptureBenchTexCorrupt/
+  changed must be exactly Content/CaptureBenchTexCorrupt/CB_TexCorruptLevel.umap (the DC actors are added to the level)
+  removed must be empty
+Usage: 085-03-content-manifest.py hash <out.json> | diff <a.json> <b.json> [--rule dc|none] [--out <diff.json>]
+       085-03-content-manifest.py selftest
+Exit: 0 clean, 1 violation, 2 usage/tooling.
+"""
+import hashlib
+import json
+import os
+import sys
+import time
+
+ROOTS = {
+    "StackOBot/Content": r"D:\IntrusiveAnomalies\StackOBot\Content",
+    "StackOBot/Config": r"D:\IntrusiveAnomalies\StackOBot\Config",
+    "RoomGenerator/Content": r"D:\IntrusiveAnomalies\StackOBot\Plugins\RoomGenerator\Content",
+}
+DC_ADDED = sorted(
+    ["StackOBot/Content|CaptureBenchTexCorrupt/Textures/%s.uasset" % n for n in
+     ("T_TC_OracleUV16", "T_TC_OracleUV64", "T_TC_OracleN", "T_TC_MixedN", "T_TC_MixedC", "T_TC_M52Shared")]
+    + ["StackOBot/Content|CaptureBenchTexCorrupt/Materials/%s.uasset" % n for n in
+       ("M_TC_OracleUV16", "M_TC_OracleUV64", "M_TC_OracleN", "M_TC_MixedN", "M_TC_MixedC", "M_TC_M52Shared")]
+    + ["StackOBot/Content|CaptureBenchTexCorrupt/Meshes/SM_TC_Mixed.uasset"])
+DC_CHANGED = ["StackOBot/Content|CaptureBenchTexCorrupt/CB_TexCorruptLevel.umap"]
+
+
+def sha(fp):
+    h = hashlib.sha256()
+    with open(fp, "rb") as fh:
+        for b in iter(lambda: fh.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def hash_roots(roots=ROOTS):
+    ent = {}
+    for label, root in roots.items():
+        if not os.path.isdir(root):
+            raise SystemExit("root missing: %s" % root)
+        for d, _, files in os.walk(root):
+            for f in files:
+                fp = os.path.join(d, f)
+                rel = os.path.relpath(fp, root).replace("\\", "/")
+                ent["%s|%s" % (label, rel)] = [os.path.getsize(fp), sha(fp)]
+    return ent
+
+
+def diff(a, b, rule="dc"):
+    added = sorted(k for k in b if k not in a)
+    removed = sorted(k for k in a if k not in b)
+    changed = sorted(k for k in a if k in b and a[k] != b[k])
+    res = dict(added=added, removed=removed, changed=changed, unchanged=len(a) - len(removed) - len(changed))
+    if rule == "dc":
+        prob = []
+        if added != DC_ADDED:
+            prob.append("added %s != declared %s (extra %s, missing %s)" % (
+                len(added), len(DC_ADDED), sorted(set(added) - set(DC_ADDED)), sorted(set(DC_ADDED) - set(added))))
+        if changed != DC_CHANGED:
+            prob.append("changed %s != %s" % (changed, DC_CHANGED))
+        if removed:
+            prob.append("removed %s" % removed)
+        res["problems"] = prob
+        res["verdict"] = "CLEAN" if not prob else "VIOLATION"
+    elif rule == "same":
+        prob = []
+        if added or removed or changed:
+            prob.append("expected byte-identical: +%d -%d ~%d" % (len(added), len(removed), len(changed)))
+        res["problems"] = prob
+        res["verdict"] = "CLEAN" if not prob else "VIOLATION"
+    return res
+
+
+def selftest():
+    base = {"StackOBot/Content|X/a.uasset": [1, "aa"], DC_CHANGED[0]: [5, "l0"]}
+    good = dict(base)
+    good[DC_CHANGED[0]] = [6, "l1"]
+    for k in DC_ADDED:
+        good[k] = [1, k]
+    cases = [("clean", good, "CLEAN")]
+    extra = dict(good)
+    extra["StackOBot/Content|Developers/<owner>/x.uasset"] = [1, "x"]
+    cases.append(("extra added file outside the list", extra, "VIOLATION"))
+    other = dict(good)
+    other["StackOBot/Content|X/a.uasset"] = [1, "ab"]
+    cases.append(("an existing file changed", other, "VIOLATION"))
+    miss = dict(good)
+    del miss[DC_ADDED[0]]
+    cases.append(("a declared file missing", miss, "VIOLATION"))
+    gone = dict(good)
+    del gone["StackOBot/Content|X/a.uasset"]
+    cases.append(("a file removed", gone, "VIOLATION"))
+    same = dict(base)
+    cases.append(("level not changed", dict(same, **{k: [1, k] for k in DC_ADDED}), "VIOLATION"))
+    ok = True
+    for name, b, want in cases:
+        got = diff(base, b)["verdict"]
+        print("SELFTEST %-36s want %-9s got %-9s %s" % (name, want, got, "OK" if got == want else "FAIL"))
+        ok = ok and got == want
+    return 0 if ok else 1
+
+
+def main(argv):
+    if not argv:
+        print(__doc__)
+        return 2
+    if argv[0] == "selftest":
+        return selftest()
+    if argv[0] == "hash" and len(argv) == 2:
+        t = time.time()
+        ent = hash_roots()
+        doc = dict(tool="085-03-content-manifest.py", made=time.strftime("%Y-%m-%dT%H:%M:%S"), roots=ROOTS, count=len(ent),
+                   manifest_sha=hashlib.sha256(json.dumps(sorted(ent.items())).encode()).hexdigest(), entries=ent)
+        with open(argv[1], "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(doc, fh, indent=0)
+        print("MANIFEST %d files manifest_sha %s in %.1f s -> %s" % (len(ent), doc["manifest_sha"][:16], time.time() - t, argv[1]))
+        return 0
+    if argv[0] == "rollback" and len(argv) == 2:
+        a = json.load(open(argv[1], encoding="utf-8"))["entries"]
+        now = hash_roots()
+        added = sorted(k for k in now if k not in a)
+        undeclared = [k for k in added if k not in DC_ADDED]
+        changed = sorted(k for k in a if k in now and a[k] != now[k])
+        if undeclared or changed:
+            print("ROLLBACK REFUSED: undeclared added %s changed %s" % (undeclared, changed))
+            return 1
+        for k in added:
+            label, rel = k.split("|", 1)
+            fp = os.path.join(ROOTS[label], *rel.split("/"))
+            os.remove(fp)
+            print("  REMOVED " + fp)
+        after = hash_roots()
+        same = after == a
+        print("ROLLBACK %d file(s); tree %s the baseline" % (len(added), "EQUALS" if same else "DIFFERS FROM"))
+        return 0 if same else 1
+    if argv[0] == "diff" and len(argv) >= 3:
+        rule = argv[argv.index("--rule") + 1] if "--rule" in argv else "dc"
+        a = json.load(open(argv[1], encoding="utf-8"))
+        b = json.load(open(argv[2], encoding="utf-8"))
+        res = diff(a["entries"], b["entries"], rule)
+        res.update(a=argv[1], b=argv[2], a_sha=a["manifest_sha"], b_sha=b["manifest_sha"], rule=rule)
+        if "--out" in argv:
+            with open(argv[argv.index("--out") + 1], "w", encoding="utf-8", newline="\n") as fh:
+                json.dump(res, fh, indent=1)
+        print("DIFF %s -> %s: %s added %d changed %d removed %d unchanged %d" % (
+            os.path.basename(argv[1]), os.path.basename(argv[2]), res.get("verdict", "-"), len(res["added"]),
+            len(res["changed"]), len(res["removed"]), res["unchanged"]))
+        for k in res["added"]:
+            print("  ADDED   " + k)
+        for k in res["changed"]:
+            print("  CHANGED " + k)
+        for k in res["removed"]:
+            print("  REMOVED " + k)
+        for p in res.get("problems", []):
+            print("  PROBLEM " + p)
+        return 0 if res.get("verdict", "CLEAN") == "CLEAN" else 1
+    print(__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,45 @@
+from pathlib import Path
+import json, subprocess, sys, shutil, hashlib
+from importlib.machinery import SourceFileLoader
+audit=SourceFileLoader('stage1audit',str(Path(__file__).with_name('081-05-audit.py'))).load_module().audit
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'; bank=base/'_bench_sessions_bank'
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+version=sys.argv[1]
+if (ev/'pause-lyra-suite').exists():
+    print('Paused before launching a new fixture; no process started.',flush=True)
+    sys.exit(2)
+for spec in sys.argv[2:]:
+    g,order=map(int,spec.split(':'))
+    label=f'M55S1{version}_LYRA_G{g}_{"S" if order else "N"}'
+    log=ev/f'leg-{label.lower()}.log'
+    assert not log.exists(),str(log)
+    args=[pwsh,'-NoProfile','-File',str(ev/'lyra_leg_owned.ps1'),'-Label',label,
+          '-Map','/ShooterCore/Maps/L_ShooterGym','-Seed','4242','-ResX','1280','-ResY','720',
+          '-Anomaly','corrupted_texture','-Target','Cube4','-MaxFrames','9' if g==11 else '90',
+          '-WaitSec','150','-SettleSec','45','-ExtraExecCmds',
+          f'IAI.Capture.Config 2 4 16 4 0, IAI.Bench.ChangeGate {g}, IAI.Bench.SynthTickOrder {order}']
+    (ev/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+    with log.open('w',encoding='utf-8') as f:
+        run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=base)
+    result=dict(label=label,exit=run.returncode)
+    source=Path(r'E:\UEProjects\_lyra_legs')/label
+    dest=bank/label
+    assert not dest.exists()
+    if source.exists(): shutil.copytree(source,dest)
+    runtime_log=source.with_suffix('.log')
+    if runtime_log.exists(): shutil.copy2(runtime_log,dest/'_leg_game.log')
+    verified=0
+    for p in source.rglob('*'):
+        if p.is_file():
+            assert hashlib.sha256(p.read_bytes()).digest()==hashlib.sha256((dest/p.relative_to(source)).read_bytes()).digest()
+            verified+=1
+    result['bank_files_verified']=verified
+    if run.returncode==0:
+        session=next(dest.glob('session*'))
+        result.update(audit(session,dest/'_leg_game.log'))
+    else: result.update(errors=['fixture failed; no gate verdict'])
+    (ev/f'audit-{label.lower()}.json').write_text(json.dumps(result,indent=2))
+    print(json.dumps({k:result[k] for k in ('label','exit','reasons','errors') if k in result}),flush=True)
+    if result['errors']:
+        print('Stopped batch for review; remaining requested cases UNRUN.',flush=True)
+        sys.exit(1)

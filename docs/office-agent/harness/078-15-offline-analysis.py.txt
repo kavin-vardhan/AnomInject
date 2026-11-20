@@ -1,0 +1,120 @@
+"""Offline comparisons only. Creates new review evidence; never alters a bank."""
+import collections
+import hashlib
+import itertools
+import json
+import pathlib
+import subprocess
+import sys
+
+ROOT = pathlib.Path(r'D:\IntrusiveAnomalies')
+OUT = ROOT / '_reviews' / '078-15-offline-evidence'
+BANK = ROOT / '_bench_sessions_bank'
+TOOLS = ROOT / 'StackOBot/Plugins/CaptureBench/tools'
+NAMES = ['M51R_F1R_A_REF_NAT_try1'] + [f'M51R_F1R_B_NAT_try{i}' for i in range(1, 5)]
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest().upper()
+
+def dump(path, value):
+    with path.open('x', encoding='utf-8', newline='\n') as f:
+        json.dump(value, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+
+def anomaly_map(row):
+    result = {}
+    for a in row.get('anomalies', []):
+        key = (a.get('id'), a.get('target_name'), a.get('start_frame'))
+        if key in result:
+            raise ValueError(f'duplicate anomaly join key {key}')
+        result[key] = a
+    return result
+
+OUT.mkdir(exist_ok=False)
+sources = {}
+inputs = {}
+order_results = []
+tool_before = {name: sha(TOOLS / name) for name in ['check_pose.py', 'a54_oracle.py']}
+for name in NAMES:
+    sessions = list((BANK / name).glob('session_*'))
+    assert len(sessions) == 1
+    path = sessions[0] / 'labels.jsonl'
+    before = sha(path)
+    data = path.read_bytes()
+    lines = [l for l in data.decode('utf-8-sig').splitlines(keepends=True) if l.strip()]
+    rows = [json.loads(l) for l in lines]
+    ids = [r['session_index'] for r in rows]
+    assert len(ids) == len(set(ids)) == 40 and set(ids) == set(range(40))
+    sources[str(path)] = before
+    inputs[name] = {r['session_index']: r for r in rows}
+    output = dict(bank=name, session=str(sessions[0]), source_sha256=before,
+                  file_order=ids, descents=[(a, b) for a, b in zip(ids, ids[1:]) if a > b],
+                  rotation_histogram=dict(collections.Counter(json.dumps(r['view']['rot']) for r in rows)), variants={})
+    for variant in ['original', 'sorted']:
+        folder = OUT / name / variant
+        folder.mkdir(parents=True)
+        dest = folder / 'labels.jsonl'
+        dest.write_bytes(data if variant == 'original' else ''.join(sorted(lines, key=lambda l: json.loads(l)['session_index'])).encode('utf-8'))
+        copied = [json.loads(l) for l in dest.read_text(encoding='utf-8-sig').splitlines() if l.strip()]
+        assert {r['session_index']: r for r in copied} == inputs[name]
+        command = [sys.executable, '-B', str(TOOLS / 'check_pose.py'), str(folder)]
+        result = subprocess.run(command, cwd=OUT, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=30)
+        (folder / 'checker.stdout.txt').write_text(result.stdout, encoding='utf-8')
+        (folder / 'checker.stderr.txt').write_text(result.stderr, encoding='utf-8')
+        output['variants'][variant] = dict(command=command, returncode=result.returncode,
+                                          stdout=result.stdout, stderr=result.stderr,
+                                          copy_sha256=sha(dest), parsed_rows_unchanged=True)
+    output['verdict_flip'] = output['variants']['original']['returncode'] != output['variants']['sorted']['returncode']
+    output['diagnostic_changed'] = output['variants']['original']['stdout'] != output['variants']['sorted']['stdout']
+    order_results.append(output)
+    print(name, 'descents', len(output['descents']), 'exit', [v['returncode'] for v in output['variants'].values()],
+          'flip', output['verdict_flip'], 'diagnostic_changed', output['diagnostic_changed'])
+    print('  original:', output['variants']['original']['stdout'].splitlines()[0])
+    print('  sorted:  ', output['variants']['sorted']['stdout'].splitlines()[0])
+
+pairs = []
+for left, right in itertools.combinations(NAMES, 2):
+    counts = collections.Counter()
+    details = []
+    for i in range(40):
+        a, b = inputs[left][i], inputs[right][i]
+        av, bv = a.get('view'), b.get('view')
+        same_view = av == bv
+        counts['rows'] += 1
+        counts['same_full_view'] += same_view
+        counts['different_rot'] += av.get('rot') != bv.get('rot')
+        counts['different_origin'] += av.get('origin') != bv.get('origin')
+        counts['different_frame_index'] += a['frame_index'] != b['frame_index']
+        counts['different_dimensions'] += (a['width'], a['height']) != (b['width'], b['height'])
+        am, bm = anomaly_map(a), anomaly_map(b)
+        common = am.keys() & bm.keys()
+        unmatched_a, unmatched_b = sorted(am.keys() - bm.keys()), sorted(bm.keys() - am.keys())
+        counts['left_only_anomaly_records'] += len(unmatched_a)
+        counts['right_only_anomaly_records'] += len(unmatched_b)
+        records = []
+        for key in sorted(common):
+            aa, ba = am[key], bm[key]
+            same_box = aa.get('bbox_px') == ba.get('bbox_px') and aa.get('bbox_valid') == ba.get('bbox_valid')
+            counts['matched_anomaly_records'] += 1
+            counts['different_bbox_records'] += not same_box
+            if same_view:
+                counts['same_view_matched_records'] += 1
+                counts['same_view_different_bbox'] += not same_box
+            if not same_box or not same_view:
+                records.append(dict(key=key, bbox_same=same_box,
+                                    left={k: aa.get(k) for k in ['bbox_px', 'bbox_valid']},
+                                    right={k: ba.get(k) for k in ['bbox_px', 'bbox_valid']}))
+        if not same_view or records or unmatched_a or unmatched_b:
+            details.append(dict(session_index=i, same_full_view=same_view, left_view=av, right_view=bv,
+                                left_only=unmatched_a, right_only=unmatched_b, anomaly_records=records))
+    pair = dict(left=left, right=right, counts=dict(counts), details=details)
+    pairs.append(pair)
+    print(left.removeprefix('M51R_'), right.removeprefix('M51R_'), json.dumps(dict(counts)))
+
+assert all(sha(pathlib.Path(p)) == expected for p, expected in sources.items())
+assert tool_before == {name: sha(TOOLS / name) for name in tool_before}
+dump(OUT / 'order-results.json', order_results)
+dump(OUT / 'field-comparisons.json', pairs)
+dump(OUT / 'provenance.json', dict(sources=sources, tools=tool_before, source_and_tool_hashes_unchanged=True,
+                                 scope='Offline copies; no capture, no gate edit, no candidate pairing read'))
+print('SAVED', OUT)

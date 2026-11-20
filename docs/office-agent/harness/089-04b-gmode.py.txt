@@ -1,0 +1,240 @@
+import copy,difflib,hashlib,importlib.util,inspect,json,os,sys,time
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews');EVD=R/'089-04-evidence';RUN=EVD/'run';OUT=R/'089-04b-evidence'
+OUT.mkdir(parents=True,exist_ok=True)
+os.environ['IAI_R894_CACHE']=str(OUT/'_cache')
+FROZEN_CHECK=('089-04-oracle.py','089-04-eval.py','089-04-window.py','089-04-common.py','089-03-eval.py')
+def sha(p):
+    h=hashlib.sha256()
+    with open(p,'rb') as f:
+        for b in iter(lambda:f.read(1<<20),b''):h.update(b)
+    return h.hexdigest()
+def frozen_problems():
+    fz=json.loads((EVD/'freeze.json').read_text(encoding='utf-8'))['files']
+    return [f'{n}: {sha(R/n)[:16]} != frozen {fz[n][:16]}' for n in FROZEN_CHECK if sha(R/n)!=fz[n]]
+_fp=frozen_problems()
+if _fp:raise SystemExit('089-04b refuses: a frozen 089-04 byte changed: '+'; '.join(_fp))
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+EV=_load('ev894b',R/'089-04-eval.py')
+ORC=EV.ORC
+np=ORC.np
+FAMILY_KINDS={'uv_corruption':('uv16','uv64'),'normal_corruption':('n',)}
+MODE_FAMILY={'tile':'uv_corruption','scramble':'uv_corruption','invert':'normal_corruption','green_flip':'normal_corruption'}
+MODE_LEGS={'MODE_TILE':('tile','MODE_UVNULL'),'MODE_SCRAMBLE':('scramble','MODE_UVNULL'),
+           'MODE_INVERT':('invert','MODE_NNULL'),'MODE_GREENFLIP':('green_flip','MODE_NNULL')}
+def family_porc(porc,aid):
+    kinds=FAMILY_KINDS[aid]
+    med={k:bool(porc['readings'][k]['pass_']) for k in kinds}
+    frames={k:[bool(pf[k]['pass_']) for pf in porc.get('per_frame') or []] for k in kinds}
+    ok=all(med.values()) and all(all(v) for v in frames.values())
+    return dict(family=aid,kinds=list(kinds),pass_=ok,median_pass=med,per_frame_pass=frames,
+                failing={k:porc['readings'][k]['failing'] for k in kinds})
+def judge_session_family(session_dir, log_text=None, log_path=None, null_session_dir=None, null_log_text=None,
+                         dc_actors=None, seed=None, min_events=ORC.MIN_EVENTS, porc_frames=8, porc_fn=None):
+    porc_fn = porc_fn or ORC.p_orc
+    if log_text is None and log_path:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as fh:
+            log_text = fh.read()
+    parsed = ORC.parse_applied(log_text or "", seed=seed)
+    seed_eff = parsed["seed"]
+    if null_session_dir:
+        nulls = ORC._labelled_null_frames(null_session_dir, None)
+        map_src = "null_session_labelled_frames"
+    else:
+        nulls = ORC._clean_frames(session_dir, None)
+        map_src = "production_session_unlabelled_frames"
+    if not nulls:
+        return dict(session=session_dir, null_session=null_session_dir, error="no_null_frames_for_maps", legs={})
+    porc = porc_fn([p for _, p in nulls[:porc_frames]], dc_actors)
+    maps = porc["maps"]
+    out = dict(session=session_dir, null_session=null_session_dir, seed=seed_eff, seed_source=parsed["seed_source"],
+               tile_n=parsed["tile_n"], map_source=map_src, map_frames=[si for si, _ in nulls[:porc_frames]],
+               porc=dict(pass_=porc["pass"], readings=porc["readings"], drift=porc["cell_colour_drift_max"]), legs={},
+               family_porc={aid: family_porc(porc, aid) for aid in FAMILY_KINDS})
+    for aid in ("uv_corruption", "normal_corruption"):
+        events, info = ORC.session_events(session_dir, aid)
+        if not events:
+            continue
+        ORC.attach_applied(events, parsed, aid)
+        for mode in sorted(set(ev["mode"] for ev in events if ev["mode"])):
+            evs = [ev for ev in events if ev["mode"] == mode]
+            imgs = {si: p for ev in evs for si, p in ev["images"].items()}
+            key = "%s/%s" % (aid, mode)
+            if not out["family_porc"][aid]["pass_"]:
+                out["legs"][key] = dict(verdict="INSUFFICIENT", reasons=["porc_failed:%s" % "+".join(FAMILY_KINDS[aid])], label_info=info)
+                continue
+            if mode == "tile":
+                r = ORC.judge_uv(imgs, evs, maps["uv16"], "tile", seed_eff, parsed["tile_n"], min_events)
+            elif mode == "scramble":
+                r = ORC.judge_uv(imgs, evs, maps["uv64"], "scramble", seed_eff, None, min_events)
+            elif mode in ("invert", "green_flip"):
+                r = ORC.judge_n(imgs, evs, maps["n"], mode, min_events)
+            else:
+                r = dict(verdict="NOT_JUDGED", reasons=["mode_has_no_oracle:%s" % mode])
+            r["label_info"] = info
+            r["applied_match"] = [ev.get("applied_match") for ev in evs]
+            out["legs"][key] = r
+    return out
+def mode_leg_family(on_sd,null_sd,acts_json,log,mode,seed,judge=None):
+    judge=judge or judge_session_family
+    anomaly=MODE_FAMILY[mode]
+    need={'tile':'uv16','scramble':'uv64'}.get(mode,'n')
+    try:mp=EV._maps_from_null(null_sd,acts_json).get(need) or {}
+    except Exception as ex:mp={'error':f'{type(ex).__name__}: {ex}'}
+    if mp.get('A') is None:
+        return dict(verdict='NO-MAP',reasons=[f'P-ORC: the null frames yield no {need} oracle map; G-MODE cannot judge (reported, never PASS)'],map=mp.get('error'))
+    js=judge(str(on_sd),log_text=log or '',null_session_dir=str(null_sd) if null_sd else None,
+             dc_actors=str(acts_json) if acts_json else None,seed=seed)
+    leg=dict((js.get('legs') or {}).get(f'{anomaly}/{mode}') or dict(verdict='INSUFFICIENT',reasons=[f'no {anomaly}/{mode} events judged'],legs_seen=sorted((js.get('legs') or {}).keys())))
+    leg['porc']=js.get('porc');leg['family_porc']=(js.get('family_porc') or {}).get(anomaly)
+    leg['seed']=js.get('seed');leg['seed_source']=js.get('seed_source');leg['tile_n']=js.get('tile_n')
+    if js.get('error'):leg.setdefault('reasons',[]).append(js['error'])
+    return leg
+def declared_lock_diff():
+    src=(R/'089-04-window.py').read_text(encoding='utf-8').splitlines(keepends=True)
+    i=next(n for n,l in enumerate(src) if "lk['p_orc']=ORC.p_orc(fr(u)+fr(nn)" in l)
+    a=src[i:i+3];ind=a[0][:len(a[0])-len(a[0].lstrip())]
+    b=[ind+"pu=ORC.p_orc(fr(u),str(acts_json())) if u else None;pn=ORC.p_orc(fr(nn),str(acts_json())) if nn else None\n",
+       ind+"lk['p_orc']={aid:(family_porc(po,aid) if po else dict(pass_=False,reason='premise null not accepted')) for aid,po in (('uv_corruption',pu),('normal_corruption',pn))}\n",
+       a[1],
+       "    D['P-ORC']=' | '.join(f\"{aid} {'PASS' if v.get('pass_') else 'FAIL: that family G-MODE rows cannot run (reported, never PASS)'}\" for aid,v in lk['p_orc'].items())\n"]
+    return ''.join(difflib.unified_diff(a,b,fromfile=f'089-04-window.py:{i+1}-{i+3} (frozen, AEDC1B57) - declared, NOT applied',
+                                        tofile='per-family premise P-ORC on each family own recipe (computed offline by 089-04b-gmode.py porc)'))
+def declared_diff():
+    a=inspect.getsource(ORC.judge_session).splitlines(keepends=True)
+    b=inspect.getsource(judge_session_family).splitlines(keepends=True)
+    return (''.join(difflib.unified_diff(a,b,fromfile='089-04-oracle.py:judge_session (frozen, 3E756C0F)',tofile='089-04b-gmode.py:judge_session_family'))
+            +'\n'+declared_lock_diff())
+def acts_json():
+    p=EVD/'fixture_out'/'texcorrupt_fixture_dc_actors.json'
+    return p if p.exists() else R/'085-03-evidence'/'fixture_out'/'texcorrupt_fixture_dc_actors.json'
+def report():
+    return json.loads((RUN/'report.json').read_text(encoding='utf-8'))
+def leg_session(rep,k):return rep['legs'][k]['session']
+def leg_log(k):
+    p=RUN/f'M53DC2_{k}_A1'/'game.log'
+    return p.read_text(encoding='utf-8',errors='replace') if p.exists() else ''
+def summarize(leg):
+    if not isinstance(leg,dict):return leg
+    neg={k:dict(frac=v.get('frac'),kept=v.get('kept'),matched=v.get('matched'),failed_as_required=v.get('failed_as_required'))
+         for k,v in (leg.get('negatives') or {}).items()}
+    return dict(verdict=leg.get('verdict'),reasons=leg.get('reasons'),events_counted=leg.get('events_counted'),
+                events_total=leg.get('events_total'),frames=leg.get('frames'),match_frac=leg.get('match_frac'),
+                cells=leg.get('cells'),matched=leg.get('matched'),kept=leg.get('kept'),negatives=neg,
+                family_porc=(leg.get('family_porc') or {}).get('pass_'),
+                porc_overall=(leg.get('porc') or {}).get('pass_'),
+                porc_readings={k:(v.get('pass_'),v.get('failing')) for k,v in ((leg.get('porc') or {}).get('readings') or {}).items()},
+                pair_checks=[dict(ordinal=pc.get('ordinal'),recomputed=pc.get('recomputed'),logged=pc.get('logged'),equal=pc.get('equal')) for pc in (leg.get('pair_checks') or [])][:12],
+                applied_match=leg.get('applied_match'),seed=leg.get('seed'))
+def fake_porc(real_fn,fail_kinds):
+    def fn(frames,acts):
+        po=real_fn(frames,acts);po=dict(po);rd=copy.deepcopy(po['readings']);pf=copy.deepcopy(po['per_frame'])
+        for k in fail_kinds:
+            rd[k]['pass_']=False;rd[k]['failing']=list(rd[k]['failing'])+['doctored']
+            for f in pf:f[k]['pass_']=False
+        po['readings']=rd;po['per_frame']=pf
+        po['pass']=all(r['pass_'] for r in rd.values()) and all(r['pass_'] for f in pf for r in f.values())
+        return po
+    return fn
+def selftest():
+    rep=report();acts=acts_json();cases=[]
+    def case(name,ok,detail):cases.append(dict(name=name,pass_=bool(ok),detail=detail));print(('OK  ' if ok else 'FAIL'),name,flush=True)
+    syn=dict(readings={k:dict(pass_=(k!='n'),failing=[] if k!='n' else ['interior']) for k in ('uv16','uv64','n')},
+             per_frame=[{k:dict(pass_=(k!='n')) for k in ('uv16','uv64','n')}])
+    case('family_porc: uv passes and n fails -> uv family PASS, normal family FAIL',
+         family_porc(syn,'uv_corruption')['pass_'] and not family_porc(syn,'normal_corruption')['pass_'],family_porc(syn,'uv_corruption'))
+    syn2=copy.deepcopy(syn);syn2['readings']['uv64']['pass_']=False
+    case('family_porc: uv64 fails -> uv family FAIL (both uv oracles gate the uv family)',not family_porc(syn2,'uv_corruption')['pass_'],family_porc(syn2,'uv_corruption'))
+    syn3=copy.deepcopy(syn);syn3['per_frame'].append({'uv16':dict(pass_=False),'uv64':dict(pass_=True),'n':dict(pass_=True)})
+    case('family_porc: one failing per-frame uv16 reading -> uv family FAIL (per-frame clause kept)',not family_porc(syn3,'uv_corruption')['pass_'],family_porc(syn3,'uv_corruption'))
+    sd=leg_session(rep,'MODE_TILE');nu=leg_session(rep,'MODE_UVNULL');log=leg_log('MODE_TILE')
+    frozen=EV.mode_leg(sd,nu,acts,log,'tile',777)
+    fixed=mode_leg_family(sd,nu,acts,log,'tile',777)
+    case('real MODE_TILE on MODE_UVNULL (n oracle lit, fails): the FROZEN gate reads INSUFFICIENT porc_failed (the defect, reproduced)',
+         frozen.get('verdict')=='INSUFFICIENT' and frozen.get('reasons')==['porc_failed'],summarize(frozen))
+    case('real MODE_TILE: with only the normal oracle failed, the uv row is NOT read INSUFFICIENT under the family gate',
+         fixed.get('verdict')!='INSUFFICIENT' and not (fixed.get('porc') or {}).get('pass_') and fixed['family_porc']['pass_'],summarize(fixed))
+    sdn=leg_session(rep,'MODE_INVERT');nn=leg_session(rep,'MODE_NNULL');logn=leg_log('MODE_INVERT')
+    wrong=mode_leg_family(sdn,nu,acts,logn,'invert',777)
+    case('real MODE_INVERT judged on a null whose normal oracle FAILS (MODE_UVNULL, lit): the normal row does NOT PASS (INSUFFICIENT porc_failed:n)',
+         wrong.get('verdict')=='INSUFFICIENT' and wrong.get('reasons')==['porc_failed:n'] and not wrong['family_porc']['pass_'],summarize(wrong))
+    dn=mode_leg_family(sdn,nn,acts,logn,'invert',777,judge=lambda *a,**k:judge_session_family(*a,porc_fn=fake_porc(ORC.p_orc,('n',)),**k))
+    case('real MODE_INVERT on MODE_NNULL with the n reading DOCTORED to fail: the normal row does NOT PASS',
+         dn.get('verdict')=='INSUFFICIENT' and dn.get('reasons')==['porc_failed:n'],summarize(dn))
+    du=mode_leg_family(sd,nu,acts,log,'tile',777,judge=lambda *a,**k:judge_session_family(*a,porc_fn=fake_porc(ORC.p_orc,('uv64',)),**k))
+    case('real MODE_TILE with the uv64 reading DOCTORED to fail: the uv row does NOT PASS (INSUFFICIENT porc_failed:uv16+uv64)',
+         du.get('verdict')=='INSUFFICIENT' and du.get('reasons')==['porc_failed:uv16+uv64'],summarize(du))
+    dnu=mode_leg_family(sd,nu,acts,log,'tile',777,judge=lambda *a,**k:judge_session_family(*a,porc_fn=fake_porc(ORC.p_orc,('n',)),**k))
+    case('real MODE_TILE with the n reading doctored (already failing): the uv verdict equals the undoctored family-gated verdict',
+         dnu.get('verdict')==fixed.get('verdict') and dnu.get('match_frac')==fixed.get('match_frac'),dict(doctored=summarize(dnu)['verdict'],undoctored=summarize(fixed)['verdict']))
+    frozen_n=EV.mode_leg(sdn,nn,acts,logn,'invert',777);fixed_n=mode_leg_family(sdn,nn,acts,logn,'invert',777)
+    case('real MODE_INVERT on its own null (all readings PASS): frozen and family gate give the same verdict and match counts',
+         frozen_n.get('verdict')==fixed_n.get('verdict') and frozen_n.get('matched')==fixed_n.get('matched') and frozen_n.get('cells')==fixed_n.get('cells'),
+         dict(frozen=summarize(frozen_n)['verdict'],fixed=summarize(fixed_n)['verdict']))
+    ps=porc_split_data()
+    case('premise lock: pooling the P_ORC_UV and P_ORC_N frames reproduces the as-built lock exactly (n FAIL) - the second family mix-up, reproduced',
+         ps['pooled_reproduces_lock'] and not ps['pooled_as_lock']['median']['n']['pass_'],dict(pooled=ps['pooled_as_lock']['median']['n']))
+    case('premise per family on its own recipe: uv16+uv64 on P_ORC_UV PASS, n on P_ORC_N PASS, and n read on the lit P_ORC_UV frames FAILS',
+         ps['family']['uv_on_uv_recipe']['pass_'] and ps['family']['n_on_n_recipe']['pass_'] and not ps['family']['n_on_uv_recipe']['pass_'],
+         {k:(v['pass_'],v['failing']) for k,v in ps['family'].items()})
+    n=sum(c['pass_'] for c in cases)
+    res=dict(utc=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),passed=n,total=len(cases),cases=cases,
+             frozen_sha={k:sha(R/k)[:16] for k in FROZEN_CHECK},self_sha=sha(__file__)[:16])
+    (OUT/'gmode-selftest.json').write_text(json.dumps(res,indent=1,default=str),encoding='utf-8')
+    print(f'SELFTEST {n}/{len(cases)}');return 0 if n==len(cases) else 1
+def reeval():
+    rep=report();acts=acts_json();out=dict(utc=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),rule=
+        'each family gated on its own P-ORC: uv rows on uv16 AND uv64 (median and every per-frame reading), normal rows on n; computed on the leg\'s own null (MODE_UVNULL for tile / scramble, MODE_NNULL for invert / green_flip), as the as-built harness did',legs={})
+    for k,(mode,nk) in MODE_LEGS.items():
+        sd=leg_session(rep,k);nu=leg_session(rep,nk);log=leg_log(k)
+        t0=time.time();r=mode_leg_family(sd,nu,acts,log,mode,777)
+        out['legs'][k]=dict(null=nk,as_built=rep['gates']['G-MODE'][k].get('verdict'),as_built_reasons=rep['gates']['G-MODE'][k].get('reasons'),
+                            fixed=summarize(r),seconds=round(time.time()-t0,1))
+        print(k,out['legs'][k]['as_built'],'->',r.get('verdict'),r.get('match_frac'),flush=True)
+    nm=EV.null_modes(leg_session(rep,'MODE_UVNULL'),leg_session(rep,'MODE_NNULL'),acts,777)
+    out['NULL_AS_MODES']={k:dict(pass_=v.get('pass_'),reasons=v.get('reasons'),frames=v.get('frames'),
+                                 modes={m:dict(frac=x.get('frac'),failed_as_required=x.get('failed_as_required')) for m,x in (v.get('modes') or {}).items()}) for k,v in nm.items()}
+    out['NULL_AS_MODES_as_built_equal']=all(out['NULL_AS_MODES'][k]['pass_']==rep['gates']['G-MODE']['NULL_AS_MODES'][k].get('pass_') for k in nm)
+    vs=[v['fixed']['verdict'] for v in out['legs'].values()]
+    nulls_ok=all(v.get('pass_') is True for v in nm.values())
+    out['verdict']='PASS' if vs and all(v=='PASS' for v in vs) and nulls_ok else ('FAIL' if any(v=='FAIL' for v in vs) else 'INCOMPLETE')
+    out['as_built_verdict']=rep['gates']['G-MODE'].get('verdict')
+    (OUT/'gmode-reeval.json').write_text(json.dumps(out,indent=1,default=str),encoding='utf-8')
+    (OUT/'gmode-fix.diff').write_text(declared_diff(),encoding='utf-8')
+    print('G-MODE re-evaluated:',out['verdict'],'(as built',out['as_built_verdict']+')');return 0
+def porc_split_data():
+    rep=report();acts=str(acts_json());out={}
+    def last(sd,n=3):
+        rows=ORC.load_labels(sd);rows.sort(key=lambda r:r.get('session_index',0))
+        return [str(Path(sd)/r['image']) for r in rows[-n:]]
+    u=last(leg_session(rep,'P_ORC_UV'));n=last(leg_session(rep,'P_ORC_N'))
+    def rd(po):return dict(pass_=po['pass'],median={k:dict(pass_=v['pass_'],failing=v['failing'],interior_spread=v.get('interior_spread'),
+                          sep_min=v.get('sep_min'),residual_px=v.get('residual_px'),pattern_worst_same=v.get('pattern_worst_same'),
+                          pattern_worst_diff=v.get('pattern_worst_diff'),cells_found=v.get('cells_found')) for k,v in po['readings'].items()},
+                          per_frame=[{k:(v['pass_'],v.get('interior_spread'),v.get('residual_px'),v.get('pattern_worst_same')) for k,v in f.items()} for f in po['per_frame']],
+                          drift=po['cell_colour_drift_max'])
+    pooled=ORC.p_orc(u+n,acts);out['pooled_as_lock']=rd(pooled)
+    lk=json.loads((RUN/'premise-lock.json').read_text(encoding='utf-8'))['p_orc']
+    out['pooled_reproduces_lock']=all(lk['readings'][k]['pass_']==pooled['readings'][k]['pass_'] and lk['readings'][k].get('interior_spread')==pooled['readings'][k].get('interior_spread') for k in ('uv16','uv64','n'))
+    pu=ORC.p_orc(u,acts);pn=ORC.p_orc(n,acts)
+    out['P_ORC_UV_alone']=rd(pu);out['P_ORC_N_alone']=rd(pn)
+    out['family']=dict(uv_on_uv_recipe=family_porc(pu,'uv_corruption'),n_on_n_recipe=family_porc(pn,'normal_corruption'),
+                       n_on_uv_recipe=family_porc(pu,'normal_corruption'),uv_on_n_recipe=family_porc(pn,'uv_corruption'))
+    for k in ('MODE_UVNULL','MODE_NNULL'):
+        fr=[p for _,p in ORC._labelled_null_frames(leg_session(rep,k),None)][:8]
+        po=ORC.p_orc(fr,acts);out[k+'_first8_labelled']=rd(po)
+    (OUT/'porc-split.json').write_text(json.dumps(out,indent=1,default=str),encoding='utf-8')
+    return out
+def porc_split():
+    out=porc_split_data()
+    print(json.dumps(dict(pooled=out['pooled_as_lock']['median'],reproduces=out['pooled_reproduces_lock'],
+                          uv_alone={k:v['pass_'] for k,v in out['P_ORC_UV_alone']['median'].items()},
+                          n_alone={k:v['pass_'] for k,v in out['P_ORC_N_alone']['median'].items()},
+                          uvnull={k:v['pass_'] for k,v in out['MODE_UVNULL_first8_labelled']['median'].items()},
+                          nnull={k:v['pass_'] for k,v in out['MODE_NNULL_first8_labelled']['median'].items()}),default=str,indent=1))
+    return 0
+if __name__=='__main__':
+    cmd=sys.argv[1] if len(sys.argv)>1 else 'selftest'
+    raise SystemExit(dict(selftest=selftest,reeval=reeval,porc=porc_split)[cmd]())

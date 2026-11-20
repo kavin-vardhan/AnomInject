@@ -1,0 +1,210 @@
+import importlib.util,json,os,re,shutil,subprocess,sys,tempfile,time,traceback
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+OUT=R/'089-04-evidence'/'selftest';OUT.mkdir(parents=True,exist_ok=True)
+os.environ.setdefault('IAI_R894_ROOT',str(OUT/'root'))
+FAST='--fast' in sys.argv
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c894t',R/'089-04-common.py');L=load('lib894t',R/'089-04-lib.py');EV=load('ev894t',R/'089-04-eval.py');LG=L.LG
+NIGHT=Path(r'D:\IA_BankOverflow')
+S1BANK=Path(r'D:\IntrusiveAnomalies\_bench_sessions_bank')
+CASES=[];T0=time.time()
+def case(name,kind,expected,got,ok,**kw):
+    CASES.append(dict(name=name,kind=kind,expected=expected,got=got if isinstance(got,(str,int,float,bool,type(None))) else json.dumps(got,default=str)[:600],pass_=bool(ok),**kw))
+    print(('OK   ' if ok else 'FAIL ')+name,flush=True)
+def run(name,fn):
+    try:fn()
+    except Exception:case(name,'error','no exception',traceback.format_exc()[-900:],False)
+def nlog(n):return (NIGHT/f'M53DC_{n}'/'_leg'/'game.log').read_text(encoding='utf-8',errors='replace')
+def nsess(n):
+    d=NIGHT/f'M53DC_{n}';s=[x for x in d.iterdir() if x.is_dir() and x.name.startswith('session_')];return s[0]
+def ncmds(n):return json.loads((NIGHT/f'M53DC_{n}'/'_leg'/'command.json').read_text(encoding='utf-8-sig'))['cmds']
+def t_e1_pin():
+    p=c.e1_pin_problems();case('E1 pin: the frozen 089-03 evaluator and its dependencies match 089-03 freeze.json','a','[]',p,p==[])
+    tmp=OUT/'tmp_e1';tmp.mkdir(exist_ok=True);bad=tmp/'089-03-eval.py';b=bytearray(c.E1_PATH.read_bytes());b[-2]^=1;bad.write_bytes(bytes(b))
+    old=c.E1_PATH;c.E1_PATH=bad
+    try:p2=c.e1_pin_problems()
+    finally:c.E1_PATH=old
+    case('E1 pin can fail: one flipped byte in a copy of 089-03-eval.py is refused','b','problem reported',p2,any('089-03-eval.py' in x for x in p2))
+    case('E1 loaded is the frozen module with every fix flag on','a',"{'GT_ALIGN': True, 'G395_FIX': True, 'G405_FIX': True}",EV.E9.fix_flags(),EV.E9.fix_flags()==dict(GT_ALIGN=True,G395_FIX=True,G405_FIX=True))
+def t_g403():
+    pf=EV.parse_final('over_budget:need_213949084_available_134217728_cap_134217728')
+    case('G403 parse: over_budget:need_... reads head over_budget and need 213949084','b','head over_budget need 213949084',pf,pf['head']=='over_budget' and pf['need']==213949084 and pf['cap']==134217728)
+    case('G403 parse: APPLY and partial_footprint:18/30:no_normal_map keep their heads','b','APPLY / partial_footprint',[EV.parse_final('APPLY')['head'],EV.parse_final('partial_footprint:18/30:no_normal_map')['head']],
+         EV.parse_final('APPLY')['head']=='APPLY' and EV.parse_final('partial_footprint:18/30:no_normal_map')['head']=='partial_footprint')
+    bench=EV.census_bench(nlog('P_HOST_BENCH'));prod=EV.census_product(nlog('P_HOST_CEN'));l2=EV.l2_capability()
+    case('L2 read from the build source: IAI.Bench.PlaceView cannot frame MainWorld (map_not_allowed :109, fixed pose :475)','a','framable_on_mainworld False',l2,l2.get('framable_on_mainworld') is False)
+    cd=EV.g403_candidates(bench['per_actor'],prod['blocks'],l2)
+    ok=(cd['C1U'] or {}).get('actor','').startswith('SM_Ramp2') and (cd['C2U'] or {}).get('actor','').startswith('RoomBuilderSquare') and cd['C1U']['cap_bytes']==268435456 and cd['C1N'] is None and cd['C2N'] is None
+    case('G403 on the night P_HOST_BENCH + P_HOST_CEN logs: uv candidates SM_Ramp2 / RoomBuilderSquare under a 256 MiB raise, normal none; 26 / 9 whole-world hosts not framable','a',
+         'C1U SM_Ramp2 cap 268435456, C2U RoomBuilderSquare, C1N/C2N None',dict(C1U=cd['C1U'],C2U=cd['C2U'],C1N=cd['C1N'],why=cd['_why']),ok)
+    old=[a for a,v in bench['per_actor'].items() if (v.get('uv') or {}).get('final')=='over_budget']
+    case('G403 can fail: the 085-04 rule (final == "over_budget") on the same data names no host (the night bug reproduced)','a','0 hosts',old,old==[])
+    syn=dict(bench['per_actor']);syn['StaticMeshActor_Synthetic']={'uv':dict(final='APPLY',head='APPLY'),'normal':dict(final='APPLY',head='APPLY')}
+    cd2=EV.g403_candidates(syn,prod['blocks'],l2)
+    case('G403 tier order: a view actor eligible at 128 MiB beats the raise (synthetic row added to the night view)','b','C1U StaticMeshActor_Synthetic view_128, no raise',cd2['C1U'],cd2['C1U']['actor']=='StaticMeshActor_Synthetic' and cd2['C1U']['tier']=='view_128' and cd2['C1N']['tier']=='view_128')
+def t_probe():
+    a=EV.probe_reading(nlog('F_NULL_UV_AAON'));b=EV.probe_reading(nlog('P_FLOOR'))
+    case('host probe: an identity fire that applied on every decision is clean and usable (night F_NULL_UV_AAON)','a','clean usable',a,a['clean'] and a['usable'])
+    case('host probe can fail: the night P_FLOOR (RoomBuilderSquare at 128 MiB: not_fully_resident, partial, over_budget) is not usable','a','usable False',b,not b['usable'])
+    cands=dict(C1U=dict(actor='A',tier='raise',cap_bytes=268435456),C2U=dict(actor='B',tier='raise',cap_bytes=268435456),C1N=None,C2N=None)
+    hs=EV.hosts_from_probes(cands,{'P_HOST_FIRE_1U':dict(usable=True,clean=False),'P_HOST_FIRE_2U':dict(usable=True,clean=True)})
+    case('hosts: a clean probe ranks before one that refused early; the family cap is the raise; normal none','b','H1U B, H2U A, cap_U 268435456, H1N None',hs,hs['H1U']=='B' and hs['H2U']=='A' and hs['cap_U']==268435456 and hs['H1N'] is None and hs['cap_declared'])
+    hs2=EV.hosts_from_probes(cands,{'P_HOST_FIRE_1U':dict(usable=False),'P_HOST_FIRE_2U':dict(usable=False)})
+    case('hosts can fail: no usable probe leaves H1U empty (the MainWorld uv legs NOT-RUN-PREMISE)','b','H1U None',hs2,hs2['H1U'] is None and not hs2['cap_declared'])
+def t_lever():
+    g=EV.lever_off_gate(nlog('LEVER_OFF'),ncmds('LEVER_OFF'))
+    case('G-LEVER-OFF on the night LEVER_OFF (no flag): PASS under the re-expressed predicate','a','PASS',g['checks'],g['pass_'])
+    g2=EV.lever_off_gate(nlog('LEVER_ON'),ncmds('LEVER_ON'))
+    case('G-LEVER-OFF can fail: the night LEVER_ON (-IAIBench) log read as OFF','a','FAIL',g2['checks'],not g2['pass_'])
+    base=nlog('LEVER_OFF');cm=ncmds('LEVER_OFF')
+    inj=lambda s:base.replace('--- IAI.ListAnomalies',s+'\n[2026.09.29-15.24.48:996][  1]LogAnomaly: --- IAI.ListAnomalies',1)
+    for nm,txt,cmds in (('a SynthTickOrder set echo',inj('[2026.09.29-15.24.48:996][  1]LogAnomaly: IAI.Bench.SynthTickOrder -> ON. x'),cm),
+                        ('an identity mode_source',inj("[2026.09.29-15.24.48:996][  1]LogAnomaly: Auto.FireSpecific: 'uv_corruption' mode_source=bench_lever lever=identity (x)"),cm),
+                        ('a DestroyTarget ARMED echo',inj("[2026.09.29-15.24.48:996][  1]LogAnomaly: IAI.Bench.DestroyTarget -> ARMED on 'StaticMeshActor_12' after 2 anomalous tick(s)."),cm),
+                        ('a twin listed',inj('[2026.09.29-15.24.48:996][  1]LogAnomaly:   null_effect - Bench-only matched change-evidence case.'),cm),
+                        ('no DISABLED echo',re.sub(r'.*IAI bench levers: DISABLED.*\n','',base),cm),
+                        ('a preset lever',base.replace('preset=0','preset=1',1),cm),
+                        ('no ListAnomalies block',base.replace('--- IAI.ListAnomalies','--- (removed)'),cm),
+                        ('the spot commands not in the batch',base,[x for x in cm if 'IAI.Bench' not in x])):
+        r=EV.lever_off_gate(txt,cmds)
+        case(f'G-LEVER-OFF can fail: {nm} FAILS','b','FAIL',{k:v for k,v in r['checks'].items() if not v},not r['pass_'])
+def t_census():
+    Lg=LG.by_id('P_HOST_CEN');cm=L.build_cmds(L.resolve(Lg)[0],'X')
+    d=[x.count('DEFER ') for x in cm if 'Census' in x]
+    case('G-CENSUS: one census command per engine frame (DEFER 90 then DEFER 91)','b','[90, 91]',d,d==[90,91])
+    Lb=LG.by_id('P_HOST_BENCH');d2=[x.count('DEFER ') for x in L.build_cmds(L.resolve(Lb)[0],'X') if 'Census' in x]
+    case('G-CENSUS: the product + bench census pair also lands one per frame','b','[90, 91]',d2,d2==[90,91])
+    tool=c.tool('census_readonly_check.py');src=NIGHT/'M53DC_P_HOST_CEN'/'_leg'/'game.log'
+    p=subprocess.run([c.PYTHON,str(tool),'--log',str(src),'--cold'],capture_output=True,text=True)
+    case('G-CENSUS known answer: the night P_HOST_CEN (both blocks in frame 91) FAILS the cold check','a','exit != 0',p.returncode,p.returncode!=0)
+    txt=src.read_text(encoding='utf-8',errors='replace').splitlines();out=[];seen=0
+    for ln in txt:
+        if 'IAI-TEXCORRUPT-CENSUS v1 scope=' in ln:seen+=1
+        if seen>=2 and '][ 91]' in ln and 'IAI-TEXCORRUPT-CENSUS' in ln:ln=ln.replace('][ 91]','][ 92]',1)
+        out.append(ln)
+    f=OUT/'P_HOST_CEN.split92.log';f.write_text('\n'.join(out)+'\n',encoding='utf-8')
+    p2=subprocess.run([c.PYTHON,str(tool),'--log',str(f),'--cold'],capture_output=True,text=True)
+    case('G-CENSUS: the same log with the second block one frame later PASSES the cold check (what one-per-frame produces)','b','exit 0',((p2.stdout or '')+(p2.stderr or '')).strip().splitlines()[-2:],p2.returncode==0)
+def t_grammar():
+    lg=nlog('CENSUS_FSYN');p=EV.census_product(lg)
+    old=re.compile(r'^(scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=[a-z_+!]+ normal_modes=[a-z_+!]+|id=(uv_corruption|normal_corruption) eligible=\d+ refused=\d+ reasons=([a-z_]+:\d+(,[a-z_]+:\d+)*)?|end stats_unchanged=[01])\s*$')
+    oldbad=[b for b in EV.census_lines(lg) if not old.match(b)]
+    case('G-CENSUS grammar: the night fixture census (reasons=- for uv) PASSES the corrected grammar; the 085-04 grammar rejected it','a','PASS / old rejects reasons=-',dict(new=p['grammar_pass'],old_bad=oldbad),p['grammar_pass'] and bool(oldbad))
+    cc=EV.census_consistency(p);cc2=EV.census_consistency(EV.census_product(nlog('P_HOST_CEN')))
+    case('G-CENSUS consistency: reason counts sum to refused on the night fixture and host logs','a','PASS both',[cc,cc2],cc['pass_'] and cc2['pass_'])
+    bad=lg.replace('id=normal_corruption eligible=0 refused=4 reasons=no_normal_map:4','id=normal_corruption eligible=0 refused=4 reasons=-',1)
+    cc3=EV.census_consistency(EV.census_product(bad))
+    case('G-CENSUS consistency can fail: reasons=- beside refused=4 FAILS','b','FAIL',cc3,not cc3['pass_'])
+def t_arms():
+    mk=lambda st,en,v='FAIL':dict(e1=dict(leg_verdict=v,t50=dict(start=st,end=en)))
+    Lg=lambda e:dict(expect=e)
+    rows=[('start+1','{+1:7}','{+0:7}','FAIL',True),('start+3','{+1:7}','{+0:7}','FAIL',False),('start+3','{+3:6, +2:1}','{+0:7}','FAIL',True),
+          ('end+1','{+0:7}','{+1:7}','FAIL',True),('end+3','{+0:7}','{+1:7}','FAIL',False),('start+1','{+1:7}','{+0:7}','PASS',False),
+          ('start+1','{+1:3}','{+0:3}','FAIL',False),('end+1','{-14:5}','{-4:5}','FAIL',False)]
+    for exp,st,en,v,want in rows:
+        r=EV.arm_canfail(Lg(exp),mk(st,en,v))
+        case(f'arm classifier: expect {exp}, start {st} end {en} leg {v} -> proven {want}','b',want,r,bool(r['proven'])==want)
+    if FAST:return
+    for leg,exp,want in (('ARM_CD3_AAOFF','start+1',True),('ARM_CD3_AAOFF','start+3',False),('ARM_RD3_AAOFF','end+1',True),('ARM_RD3_AAOFF','end+3',False)):
+        sd=nsess(leg);lg=nlog(leg);res=EV.e1(sd,lg,types=EV.M53)
+        r=EV.arm_canfail(dict(expect=exp),res)
+        case(f'arms on the night {leg} under the frozen E1: expect {exp} -> proven {want}','a',want,dict(t50=res['e1'].get('t50',{}).get('start'),end=res['e1'].get('t50',{}).get('end'),verdict=res['e1'].get('leg_verdict'),r=r),bool(r['proven'])==want)
+def t_reason():
+    n=EV.reason_gate(dict(leg='REASON_MIXED_N'),nlog('REASON_MIXED_N'));u=EV.reason_gate(dict(leg='REASON_MIXED_UV'),nlog('REASON_MIXED_UV'))
+    case('MIXED known answer: the night MIXED_N (no_textures x6, slot 0 BasicShapeMaterial) FAILS the re-declared prediction','a','FAIL',n['finals'],not n['pass_'])
+    case('MIXED known answer: the night MIXED_UV (partial_footprint:1/2:no_textures) FAILS the re-declared prediction','a','FAIL',u['finals'],not u['pass_'])
+    L1="[2026.09.30-01.00.00:000][ 10]LogAnomaly: TEXCORRUPT-REFUSED family=normal mode=invert target='=StaticMeshActor_80' final=partial_footprint:1/2:no_normal_map step=V1P slots=2 qualified=1 required_bytes=0 distinct_textures=0 scratch_classes=0 cap=134217728(compiled) levers=[]"
+    n2=EV.reason_gate(dict(leg='REASON_MIXED_N'),'\n'.join([L1]*4))
+    case('MIXED_N: partial_footprint:1/2:no_normal_map on every decision and 0 APPLIED PASSES','b','PASS',n2,n2['pass_'])
+    n3=EV.reason_gate(dict(leg='REASON_MIXED_N'),'\n'.join([L1]*3+[L1.replace('partial_footprint:1/2:no_normal_map','no_textures')]))
+    case('MIXED_N can fail: one no_textures decision among them FAILS','b','FAIL',n3['finals'],not n3['pass_'])
+    L2=L1.replace('REFUSED','DECIDE').replace('family=normal mode=invert','family=uv mode=tile').replace('final=partial_footprint:1/2:no_normal_map','final=APPLY')
+    A="[2026.09.30-01.00.00:000][ 10]LogAnomaly: uv_corruption: APPLIED mode=tile tile=4 fault=none noapply=0 on '=StaticMeshActor_80'"
+    u2=EV.reason_gate(dict(leg='REASON_MIXED_UV'),'\n'.join([L2,A]*3))
+    case('MIXED_UV: APPLY decisions with APPLIED lines PASS','b','PASS',u2,u2['pass_'])
+def t_bind():
+    rc={k:EV.recipe_check_log(nlog(k))['verdict'] for k in ('BIND_TILE','BIND_TILENULL','BIND_ID','BIND_IDNULL')}
+    case('G-BIND known answer: the four night BIND legs read INVALID-RECIPE (TSR / Lumen on)','a','INVALID-RECIPE x4',rc,set(rc.values())=={'INVALID-RECIPE'})
+    s1=[d for d in (S1BANK.iterdir() if S1BANK.exists() else []) if d.is_dir() and d.name.startswith('M53S1_') and 'BIND' in d.name and not re.search(r'_A\d+$',d.name)]
+    got={}
+    for d in s1[:4]:
+        lp=d/'_leg'/'game.log' if (d/'_leg'/'game.log').exists() else d/'_leg_game.log'
+        if lp.exists():got[d.name]=EV.recipe_check_log(lp.read_text(encoding='utf-8',errors='replace'))['verdict']
+    case('G-BIND recipe check can pass: the S1 BIND bank (S1 BASE carried the arbiter) reads OK','a','OK on every S1 BIND leg read',got,bool(got) and set(got.values())=={'OK'})
+    Lb=dict(arbiter=True,showflags=[]);e=L.readback_errors(Lb,nlog('BIND_TILE'));e2=L.readback_errors(Lb,nlog('MODE_TILE'))
+    case('validity: an arbiter leg whose echo is not 0/0/0/0 is INVALID (night BIND_TILE), a true arbiter echo is valid (night MODE_TILE)','a','error / none',[e,e2],bool(e) and not e2)
+    e3=L.readback_errors(dict(showflags=['ShowFlag.Tonemapper 0']),nlog('MODE_TILE'));e4=L.readback_errors(dict(showflags=['ShowFlag.Tonemapper 0']),nlog('MODE_TILE')+'\n[x][  1]ShowFlag.Tonemapper = "0"      LastSetBy: Console\n')
+    case('validity: a declared show flag must echo its value (missing -> INVALID; echoed 0 -> valid)','b','error / none',[e3,e4],bool(e3) and not e4)
+    e5=L.readback_errors(dict(cap_expected=268435456),nlog('P_FLOOR'));e6=L.readback_errors(dict(cap_expected=134217728),nlog('P_FLOOR'))
+    case('validity: decision lines must read the declared cap (night P_FLOOR at 134217728: a declared raise is INVALID, the delivered cap valid)','a','error / none',[e5,e6],bool(e5) and not e6)
+def t_gt():
+    on=nsess('F_TILE_NAT_AAOFF');nu=nsess('F_NULL_UV_AAOFF');so=EV.M53R.Sess(on);sn=EV.M53R.Sess(nu)
+    g=EV.gt_map(so,sn)
+    case('GT map: the same schedule aligns every frame exactly (t is capture-relative)','a','400 aligned, max dt 0',dict(n=len(g['map']),gap=len(g['gap']),dt=max(g['dt_frames'].values())),len(g['map'])==400 and not g['gap'] and max(g['dt_frames'].values())==0 and all(k==v for k,v in g['map'].items()))
+    cov=EV.gt_coverage(so,sn,{'uv_corruption'})
+    case('GT coverage can fail: a null of the SAME length does not reach t(last label) + 2 s (why the MainWorld nulls are 400 frames against 300)','a','covered False',cov,cov['covered'] is False)
+    rows=[r for r in sn.rows if r['session_index']<300];short=EV.M53R.MemSess(rows);on300=EV.M53R.MemSess([r for r in so.rows if r['session_index']<240])
+    cov2=EV.gt_coverage(on300,sn,{'uv_corruption'})
+    case('GT coverage: a 240-frame ON prefix is covered by the 400-frame null','a','covered True',cov2,cov2['covered'] is True)
+    shifted=EV.M53R.MemSess([dict(r,t=float(r['t'])+0.25/30.0) for r in sn.rows])
+    g2=EV.gt_map(so,shifted)
+    case('GT map: a null 0.25 frame off pairs each frame with the same session_index at dt 0.25 (nearest within half a frame)','b','400 aligned, same si, dt 0.25',
+         dict(n=len(g2['map']),dt=sorted(set(g2['dt_frames'].values()))),len(g2['map'])==400 and all(k==v for k,v in g2['map'].items()) and set(g2['dt_frames'].values())=={0.25})
+    sparse=EV.M53R.MemSess([r for r in sn.rows if r['session_index']%2==0])
+    g3=EV.gt_map(so,sparse)
+    case('GT map can fail: a null missing every other frame leaves those ON frames as GAP (never paired 1 frame away)','b','200 aligned, 200 gap',dict(n=len(g3['map']),gap=len(g3['gap'])),
+         len(g3['map'])==200 and len(g3['gap'])==200 and all(si%2==1 for si in g3['gap']))
+    if FAST:return
+    root=OUT/'gt';root.mkdir(exist_ok=True)
+    vsd,_=EV.gt_null_session(on,nu,root)
+    a=EV.arbiter_gt(on,vsd,'uv_corruption')
+    case('GT arbiter: tile vs the identity null at the same game time reads >= 16 on every labelled frame (night F_TILE_NAT_AAOFF)','a','READS-WRONG',dict(v=a['verdict'],me=a['measured_events'],min=[e['min_frame_max'] for e in a['events']][:6]),a['verdict']=='READS-WRONG')
+    vsd2,_=EV.gt_null_session(nu,nu,root/'self')
+    a2=EV.arbiter_gt(nu,vsd2,'uv_corruption')
+    case('GT arbiter can fail: the null read against itself is BELOW-16','a','BELOW-16',a2['verdict'],a2['verdict']=='BELOW-16')
+    w=EV.wrong_object_gt(on,vsd,['uv_corruption'])
+    case('GT wrong object: no ON-only outside blob on the fixture pair','a','PASS',dict(v=w['verdict'],ev=w['events'],blob_ev=w['on_blob_events']),w['verdict']=='PASS')
+    doc=root/'doctored';doc.mkdir(exist_ok=True);dst=doc/on.parent.name/on.name
+    if dst.parent.exists():shutil.rmtree(dst.parent)
+    shutil.copytree(on.parent,dst.parent,copy_function=os.link)
+    rows=[json.loads(l) for l in (dst/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines() if l.strip()]
+    lab=[r for r in rows if any(isinstance(x,dict) and x.get('id')=='uv_corruption' and x.get('labelled',True) for x in (r.get('anomalies') or []))][:40]
+    from PIL import Image
+    for r in lab:
+        p=dst/r['image'];im=Image.open(p).convert('RGB');im.paste((255,255,255),(1100,600,1180,680));os.remove(p);im.save(p)
+    w2=EV.wrong_object_gt(dst,vsd,['uv_corruption'])
+    case('GT wrong object can fail: an 80x80 white blob painted outside the target on labelled ON frames FAILS','b','FAIL',dict(v=w2['verdict'],fails=w2['fails'][:2]),w2['verdict']=='FAIL')
+def t_oracle():
+    js=json.loads((R/'089-04-evidence'/'oracle'/'selftest.json').read_text(encoding='utf-8'))
+    case('oracle (089-04-oracle.py, the 089-02b reader) selftest all-pass','b','39/39',f"{js.get('cases_passed')}/{js.get('cases_total')}",js.get('all_pass') is True)
+    if FAST:return
+    fr=lambda sd:[EV.E9.np.asarray(EV.E9.Image.open(Path(sd)/r['image']).convert('RGB')) for r in sorted(EV.E9.read_jsonl(Path(sd)/'labels.jsonl'),key=lambda r:r['session_index'])[-3:]]
+    po=EV.ORC.p_orc(fr(nsess('P_ORC_UV'))+fr(nsess('P_ORC_N')),str(c.FIXTURE_DC_ACTORS_NIGHT))
+    rd=po.get('readings') or {}
+    got={k:dict(found=v.get('cells_found'),geo=v.get('cells_geo_located'),failing=v.get('failing')) for k,v in rd.items()}
+    ok=rd.get('uv16',{}).get('cells_found')==16 and rd.get('uv64',{}).get('cells_found')==64 and not po.get('pass')
+    case('P-ORC on the night frames with the 089-02b reader: uv16 16/16, uv64 64/64 (geometry-placed), still FAIL on interior (the tonemapper: fixed by the legs)','a','16/16, 64/64, FAIL',got,ok)
+    m=json.loads((R/'085-04-evidence'/'m53rows'/'selftest.json').read_text(encoding='utf-8'))
+    h=c.sha(R/'085-04-m53rows.py')[:16].upper()
+    case('m53 rows (085-04-m53rows.py, unchanged: sha 99B157A83A58EDA6 as in the 085-04 README) selftest on record PASS 98/98','a','PASS 98/98, same bytes',
+         dict(verdict=m.get('verdict'),passed=m.get('proofs_passed'),total=m.get('proofs_total'),sha16=h),m.get('verdict')=='PASS' and m.get('proofs_passed')==m.get('proofs_total')==98 and h=='99B157A83A58EDA6')
+def t_legs():
+    ids=[x['leg'] for x in LG.legs_sorted()]
+    mw=[x for x in LG.LEGS if x['group']=='BM53MW']
+    order_ok=all(ids.index(x['leg'])>max(ids.index(y['leg']) for y in mw if y.get('null')==x['leg']) for x in mw if x['role']=='NULL' and any(y.get('null')==x['leg'] for y in mw))
+    case('legs: every MainWorld null runs after all of its ON legs and is 400 frames against 300','b','True',order_ok,order_ok and all(x['frames']==400 for x in mw if x['role']=='NULL') and all(x['frames']==300 for x in mw if x['role']!='NULL'))
+    arms={x['leg']:x['expect'] for x in LG.LEGS if x['group']=='BM53ARM'}
+    want={'ARM_CD3_AAOFF':'start+1','ARM_CD3_AAON':'start+1','ARM_CD5_AAOFF':'start+3','ARM_CD5_AAON':'start+3','ARM_RD3_AAOFF':'end+1','ARM_RD3_AAON':'end+1','ARM_RD5_AAOFF':'end+3','ARM_RD5_AAON':'end+3','ARM_NOAPPLY1':'holes'}
+    case('legs: CD3 / RD3 are +1 arms, CD5 / RD5 +3 arms (captured frames), both AA conditions','b',want,arms,arms==want)
+    bind=[x for x in LG.LEGS if x['group']=='BIND'];orc=[x for x in LG.LEGS if x['leg'] in ('P_ORC_UV','P_ORC_N') or x['group']=='GMODE']
+    case('legs: the four BIND legs carry the AA-off arbiter (089-02b)','b','all arbiter',[x['arbiter'] for x in bind],all(x['arbiter'] and all(a in x['levers'] for a in LG.AA_OFF_ARBITER) for x in bind))
+    case('legs: every oracle leg turns the tonemapper off; the normal ones also lighting','b','True',{x['leg']:x['showflags'] for x in orc},all('ShowFlag.Tonemapper 0' in x['levers'] for x in orc) and all(('ShowFlag.Lighting 0' in x['levers'])==(x['anomaly']=='normal_corruption') for x in orc))
+for n,f in (('e1',t_e1_pin),('g403',t_g403),('probe',t_probe),('lever',t_lever),('census',t_census),('grammar',t_grammar),('arms',t_arms),('reason',t_reason),('bind',t_bind),('gt',t_gt),('oracle',t_oracle),('legs',t_legs)):run(n,f)
+doc=dict(utc=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),fast=FAST,cases=CASES,cases_total=len(CASES),cases_passed=sum(1 for x in CASES if x['pass_']),elapsed_s=round(time.time()-T0,1))
+doc['all_pass']=doc['cases_passed']==doc['cases_total'] and not FAST
+(R/'089-04-evidence'/('gateselftest-fast.json' if FAST else 'gateselftest.json')).write_text(json.dumps(doc,indent=1,default=str),encoding='utf-8')
+print(f"SELFTEST {doc['cases_passed']}/{doc['cases_total']} in {doc['elapsed_s']} s -> {'ALL PASS' if doc['cases_passed']==doc['cases_total'] else 'FAILURES'}")
+sys.exit(0 if doc['cases_passed']==doc['cases_total'] else 1)

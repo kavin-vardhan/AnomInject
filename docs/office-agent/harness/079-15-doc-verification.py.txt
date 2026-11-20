@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Confirm the regenerated characterisation document differs from 079-14's copy
+only in the intended ways: the added Run outcome column, the added caveat
+sentence, the reworded provenance and disposition lines. Every measured number
+must be unchanged."""
+import difflib
+import json
+import subprocess
+import hashlib
+
+NEW = r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\docs\verifier-characterisation.md"
+OLD_EVID = r"D:\IntrusiveAnomalies\_reviews\079-14-evidence\char_repro.md"
+NEWJSON = r"C:\ClaudeTemp\079-15\out\char.json"
+OLDJSON = r"D:\IntrusiveAnomalies\_reviews\079-14-evidence\char_repro.json"
+
+a = open(OLD_EVID, encoding="utf-8").read().splitlines()
+b = open(NEW, encoding="utf-8").read().splitlines()
+print("079-14 doc lines = %d   079-15 doc lines = %d" % (len(a), len(b)))
+
+import collections
+na = json.load(open(NEWJSON, encoding="utf-8"))
+oa = json.load(open(OLDJSON, encoding="utf-8"))
+
+
+def summary(d):
+    c = d["cells"]
+    return (d["planned"], len(c), len(d["unscored"]),
+            dict(collections.Counter(x["outcome"] for x in c)),
+            dict(collections.Counter(x["run_outcome"] for x in c if x["outcome"] == "wrong")))
+
+
+print()
+print("079-14 ledger:", summary(oa))
+print("079-15 ledger:", summary(na))
+print("ledgers agree :", summary(oa) == summary(na))
+
+
+def key(x):
+    return (x["session"], x["event"], x["ordinal"], x["kind"], x["variant"], x["which"])
+
+
+mk = {key(x): x["outcome"] for x in na["cells"]}
+ck = {key(x): x["outcome"] for x in oa["cells"]}
+print("cell-key sets identical:", set(mk) == set(ck))
+print("cells whose classification differs:", sum(1 for k in mk if ck.get(k) != mk[k]))
+
+print()
+print("=== published SHA vs the repo blob ===")
+blob = subprocess.run(["git", "-C", r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector",
+                       "cat-file", "-p", "HEAD:tools/verify_capture.py"],
+                      capture_output=True).stdout
+lf = hashlib.sha256(blob).hexdigest()
+wt = hashlib.sha256(open(r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\tools\verify_capture.py", "rb").read()).hexdigest()
+print("git blob (LF)      :", lf)
+print("working copy (CRLF):", wt)
+for line in b:
+    if line.startswith("Verifier SHA256"):
+        print("doc says           :", line[:200])
+        print("LF hash appears in doc  :", lf in line)
+        print("CRLF hash appears in doc:", wt in line)
+
+print()
+print("=== prose diff (numbers must not move) ===")
+d = [x for x in difflib.unified_diff(a, b, "079-14", "079-15", lineterm="", n=0)
+     if x[:1] in "+-" and x[:3] not in ("+++", "---")]
+print("differing lines:", len(d))
+for line in d[:6]:
+    print("   ", line[:190])

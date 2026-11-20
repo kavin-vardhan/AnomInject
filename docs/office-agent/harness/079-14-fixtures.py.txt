@@ -1,0 +1,401 @@
+#!/usr/bin/env python3
+"""079-14 independent-review fixtures. Written from the 079-14 brief section 1 semantics.
+
+Deterministic, noise-free sessions so tau collapses to the SIGNAL_FLOOR (0.0040) and every
+reading is arithmetic rather than luck. Background is a constant mid-grey, so a clean frame
+pair is byte-identical and d == 0 exactly.
+
+Geometry: 160x120 picture; target rect (40,40)-(80,70) = 1200 px; mask value 200.
+A full-target colour change therefore gives d == 1.0 against tau == 0.0040.
+"""
+import json
+import os
+import shutil
+import sys
+
+from PIL import Image
+
+W, H = 160, 120
+BG = (100, 100, 100)
+TARGET_BOX = (40, 40, 80, 70)          # x0,y0,x1,y1 -> 40x30 = 1200 px
+MASK_V = 200
+ON = (200, 60, 60)
+OFF = (60, 60, 200)                     # differs from ON by >8 on two channels
+NODE = "StaticMeshActor_49"
+
+
+def _blank():
+    return Image.new("RGB", (W, H), BG)
+
+
+def _rect(img, box, colour):
+    for x in range(box[0], box[1 + 1] if False else box[2]):
+        for y in range(box[1], box[3]):
+            img.putpixel((x, y), colour)
+
+
+def paint(colour, box=TARGET_BOX, extra=None, bg=BG):
+    """One frame: background, the target rect in `colour`, optional extra rects."""
+    img = Image.new("RGB", (W, H), bg)
+    if colour is not None:
+        _rect(img, box, colour)
+    for b, c in (extra or []):
+        _rect(img, b, c)
+    return img
+
+
+def mask_img(box=TARGET_BOX, value=MASK_V, size=(W, H)):
+    im = Image.new("L", size, 0)
+    for x in range(box[0], box[2]):
+        for y in range(box[1], box[3]):
+            im.putpixel((x, y), value)
+    return im
+
+
+class Session(object):
+    def __init__(self, root, name, n_frames=40):
+        self.dir = os.path.join(root, name)
+        self.n = n_frames
+        if os.path.isdir(self.dir):
+            shutil.rmtree(self.dir)
+        os.makedirs(os.path.join(self.dir, "Actual_Frames"))
+        os.makedirs(os.path.join(self.dir, "target_mask"))
+        self.frames = {}
+        self.masks = {}
+        self.events = []
+        self.rows_extra = {}
+
+    def frame(self, k, img):
+        self.frames[k] = img
+
+    def mask(self, k, im):
+        self.masks[k] = im
+
+    def event(self, indices, atype="blink", node=NODE, mask_value=MASK_V,
+              bbox=TARGET_BOX, manifested=True):
+        self.events.append({"indices": sorted(indices), "type": atype, "node": node,
+                            "mask_value": mask_value, "bbox": bbox,
+                            "manifested": manifested})
+
+    def write(self, mask_frames=None, mask_file_always=False, raw_masks=None):
+        """mask_frames: iterable of k that get a mask_file (default = every labelled index).
+        raw_masks: {k: bytes} written verbatim (corrupt-PNG fixtures)."""
+        for k in range(self.n):
+            img = self.frames.get(k) or _blank()
+            img.save(os.path.join(self.dir, "Actual_Frames", "frame_%05d.png" % k))
+        if mask_frames is None:
+            mask_frames = sorted({k for ev in self.events for k in ev["indices"]})
+        mask_frames = set(mask_frames)
+        raw_masks = raw_masks or {}
+        for k in sorted(mask_frames | set(raw_masks)):
+            path = os.path.join(self.dir, "target_mask", "frame_%05d.png" % k)
+            if k in raw_masks:
+                with open(path, "wb") as fh:
+                    fh.write(raw_masks[k])
+            else:
+                (self.masks.get(k) or mask_img()).save(path)
+
+        ann = {"label_schema": 2,
+               "video": {"resolution": [W, H], "total_frames": self.n, "fps": 30},
+               "anomalies": []}
+        for ev in self.events:
+            idx = ev["indices"]
+            ann["anomalies"].append({
+                "anomaly_type": ev["type"],
+                "affected_frames": {"start_frame": idx[0], "end_frame": idx[-1],
+                                    "frame_count": len(idx), "frame_indices": idx},
+                "manifested": ev["manifested"],
+                "bbox_source": "drawn",
+                "observability_measured": True,
+                "affected_objects": {"count": 1, "primary_index": 0,
+                                     "nodes": [{"name": ev["node"], "asset_name": "Cube",
+                                                "component_class": "StaticMeshComponent"}]},
+                "mask": {"provided": True}, "depth": {"provided": False},
+            })
+        with open(os.path.join(self.dir, "annotation.json"), "w", encoding="utf-8") as fh:
+            json.dump(ann, fh, indent=1)
+
+        with open(os.path.join(self.dir, "labels.jsonl"), "w", encoding="utf-8") as fh:
+            for k in range(self.n):
+                entries = []
+                for ev in self.events:
+                    if k in ev["indices"]:
+                        x0, y0, x1, y1 = ev["bbox"]
+                        entries.append({"id": ev["type"], "target_name": ev["node"],
+                                        "mask_value": ev["mask_value"],
+                                        "start_frame": ev["indices"][0],
+                                        "bbox_valid": True,
+                                        "bbox_px": [x0, y0, x1 - x0, y1 - y0]})
+                has_mask = (k in mask_frames or k in raw_masks) or mask_file_always
+                row = {"frame_index": k, "session_index": k, "t": k / 30.0,
+                       "t_wall": 1000.0 + k / 30.0,
+                       "image": "Actual_Frames/frame_%05d.png" % k,
+                       "width": W, "height": H,
+                       "anomaly_present": bool(entries), "anomalies": entries,
+                       "mask_file": ("target_mask/frame_%05d.png" % k) if has_mask else None,
+                       "mask_state": "present" if has_mask else "unmeasured",
+                       "visible_positive": bool(entries),
+                       "view": {"origin": [0, 0, 0], "rot": [0, 0, 0], "fovDeg": 90,
+                                "aspect": W / float(H), "valid": True}}
+                row.update(self.rows_extra.get(k, {}))
+                fh.write(json.dumps(row) + "\n")
+        return self.dir
+
+
+def build(root):
+    os.makedirs(root, exist_ok=True)
+    made = []
+
+    # ---------------------------------------------------------------- F01
+    # Interior-only change, well outside BOTH edge windows.
+    # span [10..25]; target ON everywhere except frame 18, which is OFF.
+    # Edge windows: onset [6..14], end [22..30]. Frame 18 is in neither.
+    s = Session(root, "F01_interior_only_outside_windows")
+    for k in range(s.n):
+        s.frame(k, paint(ON if k != 18 else OFF))
+    s.event(range(10, 26))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F02
+    # Change only inside the END edge window, at its far edge (frame 30).
+    s = Session(root, "F02_edge_window_only")
+    for k in range(s.n):
+        s.frame(k, paint(ON if k < 30 else OFF))
+    s.event(range(10, 26))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F03
+    # Moving target, EXACT per-frame masks, colour change exactly at the label onset/end.
+    s = Session(root, "F03_moving_target_exact_masks")
+    for k in range(s.n):
+        box = (10 + 2 * k, 40, 50 + 2 * k, 70)
+        colour = OFF if 10 <= k <= 15 else ON
+        s.frame(k, paint(colour, box=box))
+        s.mask(k, mask_img(box=box))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F04
+    # Masks ONLY in-span (the real m44 producer shape); the ONLY change is at
+    # frame 8, i.e. on a pre-span pair whose masks must be extrapolated.
+    s = Session(root, "F04_extrapolated_mask_change")
+    for k in range(s.n):
+        s.frame(k, paint(ON if k < 8 else OFF))
+    s.event(range(10, 26))
+    made.append(s.write(mask_frames=range(10, 26)))
+
+    # ---------------------------------------------------------------- F05
+    # TRUE NO-TRACE: nothing ever changes; masks on every frame; allow-listed class.
+    s = Session(root, "F05_true_no_trace")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F06
+    # As F05 but the interior frame 13 has NO mask file at all.
+    s = Session(root, "F06_no_trace_missing_interior_mask")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=[k for k in range(0, 40) if k != 13]))
+
+    # ---------------------------------------------------------------- F07
+    # As F05 but frame 13's mask carries a DIFFERENT id (201, not 200).
+    s = Session(root, "F07_no_trace_wrong_mask_id")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.mask(13, mask_img(value=201))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F08
+    # As F05 but frame 13's mask PNG is truncated.
+    s = Session(root, "F08_no_trace_corrupt_mask_png")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16))
+    good = mask_img()
+    tmp = os.path.join(root, "_tmp.png")
+    good.save(tmp)
+    blob = open(tmp, "rb").read()
+    os.remove(tmp)
+    made.append(s.write(mask_frames=range(0, 40), raw_masks={13: blob[: len(blob) // 2]}))
+
+    # ---------------------------------------------------------------- F09
+    # As F05 but frame 13's mask is all-zero (empty).
+    s = Session(root, "F09_no_trace_empty_mask")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.mask(13, Image.new("L", (W, H), 0))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F10
+    # Blink chain: five one-frame runs at 10,14,18,22,26, each a real toggle.
+    s = Session(root, "F10_blink_chain_five_runs")
+    hidden = {10, 14, 18, 22, 26}
+    for k in range(s.n):
+        s.frame(k, paint(OFF if k in hidden else ON))
+    s.event(sorted(hidden))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F11
+    # Two DIFFERENT targets whose edge windows overlap in time.
+    s = Session(root, "F11_two_targets_overlapping_windows")
+    A = (20, 20, 60, 50)
+    B = (90, 60, 130, 90)
+    for k in range(s.n):
+        img = Image.new("RGB", (W, H), BG)
+        _rect(img, A, OFF if 10 <= k <= 13 else ON)
+        _rect(img, B, OFF if 12 <= k <= 15 else ON)
+        s.frame(k, img)
+    s.event(range(10, 14), node="TargetA", mask_value=200, bbox=A)
+    s.event(range(12, 16), node="TargetB", mask_value=201, bbox=B)
+    for k in range(s.n):
+        im = Image.new("L", (W, H), 0)
+        for x in range(A[0], A[2]):
+            for y in range(A[1], A[3]):
+                im.putpixel((x, y), 200)
+        for x in range(B[0], B[2]):
+            for y in range(B[1], B[3]):
+                im.putpixel((x, y), 201)
+        s.mask(k, im)
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F12
+    # Label span runs past the last captured frame.
+    s = Session(root, "F12_span_past_last_frame", n_frames=30)
+    for k in range(s.n):
+        s.frame(k, paint(OFF if k >= 25 else ON))
+    s.event(range(25, 33))
+    made.append(s.write(mask_frames=range(0, 33)))
+
+    # ---------------------------------------------------------------- F13
+    # A one-frame run immediately followed by a two-frame run.
+    s = Session(root, "F13_one_frame_next_to_two_frame")
+    hidden = {10, 12, 13}
+    for k in range(s.n):
+        s.frame(k, paint(OFF if k in hidden else ON))
+    s.event(sorted(hidden))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F14
+    # Occluder sweeps across the target mid-span; the anomaly itself is a
+    # zero-delta colour change at the labelled onset and end.
+    s = Session(root, "F14_occluder_midspan")
+    for k in range(s.n):
+        colour = OFF if 10 <= k <= 20 else ON
+        extra = []
+        if k == 15:
+            extra = [((40, 40, 80, 70), (10, 240, 10))]
+        s.frame(k, paint(colour, extra=extra))
+    s.event(range(10, 21))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F15
+    # Whole-picture lighting step on the labelled onset frame, accurate masks.
+    s = Session(root, "F15_lighting_step_on_onset")
+    for k in range(s.n):
+        bg = BG if k < 10 else (160, 160, 160)
+        colour = ON if k < 10 else OFF
+        s.frame(k, paint(colour, bg=bg))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F16
+    # A SMALL change: 24 of 1200 target pixels (2%), above tau=0.0040.
+    s = Session(root, "F16_small_change_2pct")
+    for k in range(s.n):
+        extra = []
+        if 10 <= k <= 15:
+            extra = [((40, 40, 48, 43), OFF)]   # 8x3 = 24 px
+        s.frame(k, paint(ON, extra=extra))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F17
+    # Target leaves the frame mid-span (mask empty on frames 13..14) and returns.
+    s = Session(root, "F17_target_leaves_and_returns")
+    for k in range(s.n):
+        if 13 <= k <= 14:
+            s.frame(k, paint(None))
+            s.mask(k, Image.new("L", (W, H), 0))
+        else:
+            s.frame(k, paint(OFF if 10 <= k <= 17 else ON))
+    s.event(range(10, 18))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F18
+    # NO-TRACE on a class that is NOT in the producer allowlist.
+    s = Session(root, "F18_no_trace_unlisted_class")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16), atype="lighting_mismatch")
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F19
+    # No masks at all -> bbox-only READING even though nothing ever changes.
+    s = Session(root, "F19_bbox_only_never_changes")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=[]))
+
+    # ---------------------------------------------------------------- F20
+    # Plateau: the target changes on EVERY frame 11..14 by the same amount, so
+    # no interior frame is a one-sided peak. Real change, inside the span.
+    s = Session(root, "F20_plateau_no_peak_interior")
+    shades = {11: (60, 60, 200), 12: (200, 60, 200), 13: (60, 200, 200), 14: (200, 200, 60)}
+    for k in range(s.n):
+        s.frame(k, paint(shades.get(k, ON)))
+    s.event(range(10, 26))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F21
+    # ONE event, two runs on the SAME target: run A [10..15] is fabricated
+    # (nothing ever changes there), run B [24..24] is real. Far enough apart
+    # that A's windows stay clean.
+    s = Session(root, "F21_fabricated_run_beside_a_real_run")
+    for k in range(s.n):
+        s.frame(k, paint(OFF if k == 24 else ON))
+    s.event(sorted(set(range(10, 16)) | {24}))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F22
+    # TWO events: one fabricated, one real.
+    s = Session(root, "F22_fabricated_event_beside_a_real_event")
+    for k in range(s.n):
+        s.frame(k, paint(OFF if 24 <= k <= 27 else ON))
+    s.event(range(10, 16), node=NODE)
+    s.event(range(24, 28), node=NODE)
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # ---------------------------------------------------------------- F23
+    # Nothing ever changes, but an RGB frame inside the span is ABSENT.
+    s = Session(root, "F23_missing_rgb_in_span")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16))
+    d = s.write(mask_frames=range(0, 40))
+    os.remove(os.path.join(d, "Actual_Frames", "frame_00013.png"))
+    made.append(d)
+
+    # ---------------------------------------------------------------- F24
+    # Nothing ever changes, but an RGB frame inside the span has the WRONG size.
+    s = Session(root, "F24_wrong_rgb_dimensions_in_span")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16))
+    d = s.write(mask_frames=range(0, 40))
+    Image.new("RGB", (W // 2, H // 2), BG).save(
+        os.path.join(d, "Actual_Frames", "frame_00013.png"))
+    made.append(d)
+
+    return made
+
+
+if __name__ == "__main__":
+    root = sys.argv[1] if len(sys.argv) > 1 else r"C:\ClaudeTemp\079-14\fx"
+    for d in build(root):
+        print(d)

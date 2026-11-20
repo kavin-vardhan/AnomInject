@@ -1,0 +1,96 @@
+from pathlib import Path
+import hashlib,importlib.util,json,re,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-12-evidence'
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+m=json.loads((B/'_reviews/081-11-evidence/binary-v2.json').read_text());results=json.loads((E/'suite-v2-results.json').read_text()) if (E/'suite-v2-results.json').exists() else []
+assert json.loads((B/'_reviews/081-11-evidence/validation-v2-summary.json').read_text())['ON_pass']==5
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+cases={
+ 'null':dict(anomaly='null_effect'), 'solid':dict(anomaly='solid_swap'),
+ 'delay':dict(anomaly='solid_swap',delay=3),
+ 'hide':dict(anomaly='missing_object'),
+ 'hide_depth':dict(anomaly='missing_object',extra='IAI.Bench.HideOmitDepthPassSilencing 1',depth=True),
+ 'empty':dict(anomaly='missing_object',scene='occluder',empty=True,normal=False),
+ 'blink':dict(anomaly='blinking',config='2 4 100 4 0',frames=360,blink=True),
+ 'short':dict(anomaly='null_effect',config='2 4 2 4 0',short=True),
+ 'runend':dict(anomaly='null_effect',config='2 4 100 4 0',frames=20,event_floor=1,runend=True),
+ 'drop':dict(anomaly='solid_swap',extra='IAI.Bench.DestroyTarget StaticMeshActor_49 15',frames=45,event_floor=1,drop=True,normal=False),
+ 'nohold':dict(anomaly='stuck_low_mip',extra='IAI.Bench.StuckMipNoHold 1, IAI.Capture.DeferredOnsetTimeout 8',nohold=True,normal=False),
+ 'teardown':dict(anomaly='null_effect',config='2 4 1000 4 0',frames=1000,event_floor=1,teardown=True,extra='IAI.Bench.ChangeTeardownAt 30'),
+ 'moving_null':dict(anomaly='null_effect',scene='motion',motion=True),
+ 'moving_solid':dict(anomaly='solid_swap',scene='motion',motion=True)}
+seq=[('moving_null',0),('moving_solid',0)]
+for case,order in seq:
+ c=cases[case]
+ if any(x['case']==case and x['order']==order and x.get('accepted') for x in results):continue
+ accepted=False
+ for attempt in range(1,4):
+  for key in ('built','staged','archive'):assert sha(m[key])==m['sha256']
+  label=f'V2_{case.upper()}_{"S" if order else "N"}_A{attempt}';d=E/label;log=E/f'runner-{label}.log'
+  args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-12-measure-v2.ps1'),'-Label',label,'-Anomaly',c['anomaly'],'-Order',str(order),'-MaxFrames',str(c.get('frames',90)),'-Config',c.get('config','2 4 16 4 0')]
+  if c.get('extra'):args+=['-ExtraExecCmds',c['extra']]
+  if c.get('scene'):args+=['-SceneMode',c['scene']]
+  if c.get('delay'):args+=['-DelayFrames',str(c['delay'])]
+  if log.exists():
+   from types import SimpleNamespace
+   prior=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));r=SimpleNamespace(returncode=0 if prior['status']=='COMPLETE' else 1)
+  else:
+   with log.open('w') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+  launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace');errors=[]
+  if r.returncode:errors.append('runner: '+launch.get('error',str(r.returncode)))
+  focus=launch.get('capture_focus',[]);hits=sum(x['foreground_pid']==launch['pid'] for x in focus)
+  if not focus or hits!=len(focus):errors.append('whole-leg foreground failed')
+  if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure')
+  on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+  if len(on)!=1 or len(off)!=1 or len(place)!=1:errors.append('lock/placement/release count')
+  elif re.search(r'priorLook=(\d) priorMove=(\d)',on[0]).groups()!=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0]).groups():errors.append('unlock restoration')
+  if launch.get('session'):
+   session=Path(launch['session'])
+   pose=subprocess.run([sys.executable,str(B/'StackOBot/Plugins/CaptureBench/tools/check_pose.py'),str(session)],capture_output=True,text=True)
+   (d/'capture-pose.txt').write_text(pose.stdout+pose.stderr)
+   if pose.returncode and not (c.get('motion') or c.get('nohold')):errors.append('captured-label B1 failed')
+   if c.get('nohold'):
+    labels=list(map(json.loads,(session/'labels.jsonl').read_text().splitlines()))
+    if not labels or not all(x['view']['origin']==[-1500,0,260] and x['view']['rot']==[0,0,0] for x in labels):errors.append('nohold capture pose drift after valid settled B1')
+  row=dict(label=label,case=case,order=order,attempt=attempt,fixture_errors=errors,foreground_hits=hits,foreground_samples=len(focus),session=launch.get('session'))
+  (d/'fixture-result.json').write_text(json.dumps(row,indent=2));results=[x for x in results if x['label']!=label];results.append(row);(E/'suite-v2-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps(row),flush=True)
+  if errors:continue
+  result=a.audit(session,d/'game.log',c);
+  records=list(map(json.loads,(session/'change_evidence.jsonl').read_text().splitlines()));pairs=[x for x in records if x['kind']=='pair'];events=[x for x in records if x['kind']=='event'];labels={x['session_index']:x for x in map(json.loads,(session/'labels.jsonl').read_text().splitlines())}
+  def need(ok,msg):
+   if not ok:result['errors'].append(msg)
+  if c.get('delay'):
+   transitions=[x for x in pairs if x['window_index']==3 and x['chg_measured']]
+   need(len(transitions)>=3 and all(x['chg_gt8']/x['chg_n']>.9 for x in transitions),'delay transition at window_index3')
+   need(all(x['chg_gt8']/x['chg_n']<.1 for x in pairs if x['window_index']<3 and x['chg_measured']),'delay changed before index3')
+  if c.get('depth'):
+   aa=[x for l in labels.values() for x in l['anomalies'] if x.get('target_pixels',-1)>0 and x.get('target_drawn_pixels',-1)>=0]
+   need(bool(aa) and all(x['target_drawn_pixels']==x['target_pixels'] for x in aa),'depth-silencing drawn=count')
+   result['depth_observable_counts']={str(v):sum(x.get('observable')==v for x in aa) for v in (True,False,None)}
+  if c.get('empty'):
+   summary=json.loads((session/'run_summary.json').read_text());annotation=json.loads((session/'annotation.json').read_text())
+   need(len(annotation['anomalies'])+summary.get('vetoed_events',0)==len(events),'occluded legacy-veto/final-event accounting')
+   traces={int(g):int(hit) for g,hit in re.findall(r'IAI-OCCLUSION TRACE gfc=(\d+) hit=\S+ occluder_hit=(\d)',text)}
+   onsets=[x for x in pairs if x['window_index']==0]
+   need(bool(onsets),'occluded onsets absent')
+   for x in onsets:
+    l=labels[x['session_index']];ann=[q for q in l['anomalies'] if q['id']+'@'+str(q['start_frame'])==x['event']]
+    need(len(ann)==1 and ann[0]['target_pixels']==0 and traces.get(l['frame_index'])==1,'independent onset occlusion proof')
+    need(x['reason']=='empty_region' and x['prev_target_pixels']==-1,'empty onset semantics')
+   need(not any(x['chg_measured'] for x in pairs),'occluded phase measured pairs')
+   result['occlusion_trace_count']=len(traces)
+  if c.get('motion'):
+   moving=[x for x in pairs if x['cam_moved'] and x['cam_drot_deg']!=0]
+   need(bool(pairs) and len(moving)/len(pairs)>=.9,'motion gate90%')
+   result['motion_fraction']=len(moving)/len(pairs) if pairs else 0
+  (d/'measurement-audit.json').write_text(json.dumps(result,indent=2));row['measurement_errors']=result['errors'];row['accepted']=not result['errors']
+  (E/'suite-v2-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps({k:result[k] for k in ('events','pairs','measured','errors')}),flush=True)
+  if result['errors']:sys.exit(1)
+  accepted=True;break
+ if not accepted:
+  print('INVALID-FIXTURE-EXHAUSTED: '+label,flush=True);sys.exit(2)
+print('Moving natural twins accepted',flush=True)

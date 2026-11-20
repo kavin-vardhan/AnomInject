@@ -1,0 +1,41 @@
+from pathlib import Path
+import hashlib,json
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def derive(src,dst,pairs):
+    t=(R/src).read_text(encoding='utf-8');done=[]
+    for a,b in pairs:
+        n=t.count(a);assert n==1,(src,a,n);t=t.replace(a,b);done.append(a)
+    assert not (R/dst).exists(),dst
+    (R/dst).write_bytes(t.encode('utf-8'))
+    return dict(src=src,src_sha256=sha(R/src),dst=dst,dst_sha256=sha(R/dst),replacements=done)
+FOREIGN_FN=('$log=Join-Path $dir \'game.log\'\n',
+ '$log=Join-Path $dir \'game.log\'\n'
+ 'function Check-Foreign($where){$fe=@(Get-Process -Name UnrealEditor -ErrorAction SilentlyContinue|Where-Object{(-not $p) -or ($_.Id -ne $p.Id)});if($fe.Count){$record.foreign_editor=@($fe|ForEach-Object{@{pid=$_.Id;path=$_.Path;start=$_.StartTime.ToString(\'o\')}});$record.foreign_where=$where;throw "FOREIGN-EDITOR-APPEARED $where"}}\n')
+STARTUP_OLD="  if($p.HasExited){throw 'Game exited during startup'}\n"
+STARTUP_NEW="  if($p.HasExited){throw 'Game exited during startup'}\n  Check-Foreign 'startup'\n"
+PRECAP_OLD=" $captureDir=\"D:\\IntrusiveAnomalies\\_bench_sessions_bank\\M55L18_$Label\"\n"
+PRECAP_NEW=" Check-Foreign 'before capture_start'\n $captureDir=\"D:\\IntrusiveAnomalies\\_bench_sessions_bank\\M55B3R22_$Label\"\n"
+SAMPLER_OLD="$record.capture_samples=@();$nextSample=0.0\n"
+SAMPLER_NEW="$record.capture_samples=@();$nextSample=0.0;$nextForeign=0.0\n"
+LOOP_OLD="  if($p.HasExited){throw 'Game exited during capture'}\n"
+LOOP_NEW="  if($p.HasExited){throw 'Game exited during capture'}\n  if($runClock.Elapsed.TotalSeconds -ge $nextForeign){$nextForeign+=1.0;Check-Foreign ('capture t='+[math]::Round($runClock.Elapsed.TotalSeconds,1))}\n"
+common=[(r"$root='D:\IntrusiveAnomalies\_reviews\081-18-evidence'",r"$root='D:\IntrusiveAnomalies\_reviews\081-22-evidence'"),
+        FOREIGN_FN,(STARTUP_OLD,STARTUP_NEW),(PRECAP_OLD,PRECAP_NEW),(SAMPLER_OLD,SAMPLER_NEW),(LOOP_OLD,LOOP_NEW)]
+POSTL2_OLD=" if($LASTEXITCODE -ne 0){throw 'POSTCAPTURE-L2-INVALID'}\n"
+POSTL2_NEW=" $record.post_l2_ok=($LASTEXITCODE -eq 0)\n"
+out=[]
+out.append(derive('081-18-lyra-run.ps1','081-22-lyra-run.ps1',common+[('081-18-lyra-pre.py','081-22-lyra-pre.py'),(POSTL2_OLD,POSTL2_NEW)]))
+out.append(derive('081-18-measure.ps1','081-22-measure.ps1',common+[('081-18-b1.py','081-22-b1.py')]))
+out.append(derive('081-18-lyra-pre.py','081-22-lyra-pre.py',[("_reviews/081-18-evidence","_reviews/081-22-evidence")]))
+out.append(derive('081-18-b1.py','081-22-b1.py',[("_reviews/081-18-evidence","_reviews/081-22-evidence")]))
+LEG_OLD="    if(Test-Path -LiteralPath $keep){throw 'Existing legacy bank'}\n    New-Item -ItemType Directory -Path $keep|Out-Null\n    Copy-Item -LiteralPath $session.FullName -Destination $keep -Recurse\n    Copy-Item -LiteralPath (Join-Path $dir '_focus.json') -Destination $keep\n    Copy-Item -LiteralPath \"$outRoot\\..\\..\\Saved\\Logs\\StackOBot.log\" -Destination (Join-Path $keep '_leg_game.log')\n    $attempts += [pscustomobject]@{try=$try;verdict='INVALID whole-leg foreground';focus=$focusOk}"
+t=(R/'081-12-legacy-run.ps1').read_text(encoding='utf-8')
+assert t.count(LEG_OLD)==1
+out.append(derive('081-12-legacy-run.ps1','081-22-legacy-run.ps1',[
+    ("if($session){break};if($p.HasExited){throw 'Owned legacy game exited'}",
+     "if($session){break};if($p.HasExited){throw 'Owned legacy game exited'};if(@(Get-Process -Name UnrealEditor -EA SilentlyContinue).Count){throw 'FOREIGN-EDITOR-APPEARED during legacy leg'}")]))
+out.append(derive('081-18-analyze.py','081-22-analyze.py',[("E=R/'081-18-evidence'","E=R/'081-22-evidence'")]))
+out.append(derive('081-18-compare.py','081-22-compare.py',[(r"E=Path(r'D:\IntrusiveAnomalies\_reviews\081-18-evidence')",r"E=Path(r'D:\IntrusiveAnomalies\_reviews\081-22-evidence')")]))
+(R/'081-22-evidence/harness-derivation.json').write_text(json.dumps(out,indent=2))
+print(json.dumps([(o['dst'],len(o['replacements'])) for o in out]))

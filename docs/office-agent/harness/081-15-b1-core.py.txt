@@ -1,0 +1,35 @@
+from pathlib import Path
+import hashlib,json,shutil,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-15-evidence'
+sys.path.insert(0,str(B/'StackOBot/Plugins/CaptureBench/tools'))
+import a54_oracle as O
+def sha(p):
+    with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def audit(label):
+    d=E/label;launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'))
+    snaps=[json.loads(l) for l in (d/'snapshots.jsonl').read_text(encoding='utf-8').splitlines()]
+    rows=[];errors=[]
+    expected=[int(next(a.split('=')[1] for a in launch['args'] if a.startswith(flag))) for flag in ('-ResX=','-ResY=')]
+    assert expected in ([1280,720],[1920,1080])
+    for i,s in enumerate(snaps):
+        v=s['view'];matches=[a for a in s['visible'] if a['name']=='StaticMeshActor_49']
+        a=matches[0] if len(matches)==1 else None
+        if not v['valid'] or v['viewportPx']!=expected:errors.append(f'geometry/view at sample {i}')
+        if s['capture']['running'] or s['capture']['framesWritten']!=0 or s['active']:errors.append(f'capture/injection active at {i}')
+        anno=[]
+        if a:
+            if a['class']!='StaticMeshActor' or a['comp']!='SM':errors.append('unexpected component/actor type')
+            x0,y0,x1,y1=a['rect'];w,h=1280,720;anno=[{'bbox_valid':a['rectValid'],'bbox_px':[x0*w,y0*h,(x1-x0)*w,(y1-y0)*h]}]
+        rows.append({'session_index':i,'view':{'rot':v['rot']},'anomalies':anno})
+    start,rot,dropped=O.settle_window(rows);bbox,n,distinct,coverage,ok=O.a56_check(rows,start)
+    if start is None:errors.append('never settled')
+    if len(snaps)!=90 or launch['status']!='COMPLETE':errors.append('incomplete protocol')
+    # A missing target must not silently disappear from the modal denominator.
+    missing=sum(not r['anomalies'] or not r['anomalies'][0]['bbox_valid'] for r in rows[(start or 0):])
+    if missing:errors.append(f'{missing} missing/invalid target snapshot rectangles after settle')
+    log=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace')
+    if '=== Handled ensure: ===' in log:errors.append('runtime handled ensure')
+    result={'label':label,'sha256':launch['exe_sha256'],'sample_count':len(snaps),'settle_sample_index':start,'dropped_samples':dropped,'modal_rotation':rot,'first_pose':snaps[0]['view'],'last_pose':snaps[-1]['view'],'modal_bbox':bbox,'bbox_rows':n,'distinct':distinct,'modal_coverage':coverage,'expected_viewport':expected,'bbox_coordinate_space':'1280x720 normalized reference','pose_match':O.pose_match(bbox),'b1_raw':ok,'status':'B1-VALID' if ok and not errors else 'INVALID-FIXTURE','errors':errors,'capture_start_sent':False,'focus_valid_samples':sum(f['foreground_pid']==launch['pid'] for f in launch['focus'])}
+    (d/'control-b1-rows.jsonl').write_text('\n'.join(json.dumps(r) for r in rows)+'\n')
+    (d/'result.json').write_text(json.dumps(result,indent=2))
+    return result

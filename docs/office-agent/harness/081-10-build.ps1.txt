@@ -1,0 +1,19 @@
+param([string]$Round = 'v1')
+$ErrorActionPreference = 'Stop'
+if (Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue) { throw 'Bench not idle' }
+git -C E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector checkout --detach feat/m55-change-evidence
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$targets = @(
+    @('StackOBot','D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject'),
+    @('StackOBotEditor','D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject'),
+    @('LyraEditor','E:\UEProjects\LyraStarterGame\LyraStarterGame.uproject')
+)
+foreach ($target in $targets) {
+    if ((Get-PSDrive E).Free -lt 15GB) { throw 'Disk floor' }
+    $taskLog = "D:\IntrusiveAnomalies\_reviews\081-10-evidence\build-$Round-$($target[0]).log"
+    if (Test-Path -LiteralPath $taskLog) { throw 'Existing build log' }
+    & D:\UESource\UnrealEngine\Engine\Build\BatchFiles\Build.bat $target[0] Win64 Development "-project=$($target[1])" -waitmutex *> $taskLog
+    Write-Output "$($target[0]) exit=$LASTEXITCODE"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+

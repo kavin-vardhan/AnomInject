@@ -1,0 +1,34 @@
+import importlib.util,json,os,sys
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+L=load('l_s20',R/'082-14-s20-lib.py');C=L.C;c1=L.c1
+problems=[];bp=C.EV/'boundary.json';bd=json.loads(bp.read_text()) if bp.exists() else {}
+def chk(ok,msg):
+    if not ok:problems.append(msg)
+chk(bool(bd),'no boundary.json')
+ours,foreign=c1.classify()
+chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present at close')
+st=c1.staged_state()
+for k,v in C.STAGED.items():chk(st[k]==v,f'staged {k} changed')
+for p,h in (bd.get('harness') or {}).items():
+    q=Path(p) if Path(p).is_absolute() else R/p
+    chk(q.exists() and C.sha(q)==h,f'harness file changed {p}')
+chk(C.git(C.RP,'rev-parse','HEAD')==C.M51_HEAD and C.git(C.RP,'branch','--show-current')=='m51','main checkout moved')
+chk(C.git(C.SRC,'rev-parse',C.FEATURE)==bd.get('feature_head'),'feature head moved during the window')
+led=L.ledger();acc=[x for x in led if x.get('status')=='ACCEPTED'];links=0
+for x in acc:
+    a=c1.bank_read(x['label']);al=c1.bank_read(C.BANK_PREFIX+x['leg'])
+    for p in [p for p in a.rglob('*') if p.is_file()]:
+        q=al/p.relative_to(a)
+        if not q.exists() or os.stat(q).st_ino!=os.stat(p).st_ino:problems.append(f'alias not a hardlink: {q}');break
+        links+=1
+left=[d.name for d in c1.EXE_SIDE.iterdir() if d.is_dir() and d.name.startswith(C.BANK_PREFIX)] if c1.EXE_SIDE.exists() else []
+bf={x['label'] for x in led if x.get('status')=='INVALID-BANK'}
+chk(not [d for d in left if d not in bf],f'exe-side leg copies left after banking: {left[:5]}')
+man={str(q.relative_to(c1.RUN)):C.sha(q) for q in c1.RUN.rglob('*') if q.is_file() and q.name not in ('evidence-manifest.json','postflight.json') and '_stub_' not in str(q)}
+(c1.RUN/'evidence-manifest.json').write_text(json.dumps(man,indent=1))
+out=dict(utc=C.now(),problems=problems,accepted_legs=len(acc),attempts=len([x for x in led if x.get('label')]),stub=C.STUB,alias_hardlinks_verified=links,exe_side_left=left,evidence_files=len(man),foreign_present=[(p['pid'],p['name']) for p in foreign],
+         verdict='PASS: staged build, harness, m51 and the feature head unchanged; every accepted leg aliased by hardlinks; no exe-side copy left' if not problems else 'FAIL: see problems')
+(c1.RUN/'postflight.json').write_text(json.dumps(out,indent=2,default=str));print(json.dumps(out,default=str)[:2000]);sys.exit(1 if problems else 0)

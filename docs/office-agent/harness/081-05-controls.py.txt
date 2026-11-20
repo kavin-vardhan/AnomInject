@@ -1,0 +1,46 @@
+from pathlib import Path
+import json, subprocess, sys
+from importlib.machinery import SourceFileLoader
+audit=SourceFileLoader('stage1audit',str(Path(__file__).with_name('081-05-audit.py'))).load_module().audit
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'; bank=base/'_bench_sessions_bank'
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+version=sys.argv[1]
+cases=[]
+if 'diagnostic' in sys.argv:
+    for n in (1,2):
+        cases.append((f'BENCH_DIAG{n}_0','IAI.Capture.Config 2 4 16 4 0, IAI.Capture.ChangeEvidence 0, IAI.Bench.SynthTickOrder 0',[
+            '-Anomaly','corrupted_texture','-Target','StaticMeshActor_49']))
+if 'bench' in sys.argv:
+    for order in (0,1):
+        cases.append((f'BENCH_OFF_{order}',f'IAI.Capture.Config 2 4 16 4 0, IAI.Capture.ChangeEvidence 0, IAI.Bench.SynthTickOrder {order}',[
+            '-Anomaly','corrupted_texture','-Target','StaticMeshActor_49']))
+if 'main' in sys.argv:
+    for n,enabled in enumerate([0,1,1,0],1):
+        cases.append((f'MAIN{n}_E{enabled}',f'IAI.Capture.ChangeEvidence {enabled}',[
+            '-Map','/Game/StackOBot/Maps/MainWorld','-Anomaly','blinking','-Target','StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803']))
+if 'low' in sys.argv:
+    for order in (0,1):
+        cases.append((f'LOW_{order}',f'IAI.Capture.Config 2 4 16 4 0, IAI.Capture.ChangeMaxBytes 1, IAI.Bench.SynthTickOrder {order}',[
+            '-Anomaly','corrupted_texture','-Target','StaticMeshActor_49']))
+for name,extra,recipe in cases:
+    label=f'M55S1{version}_{name}'
+    log=ev/f'leg-{label.lower()}.log'
+    assert not log.exists()
+    args=[pwsh,'-NoProfile','-File',str(ev/'run_leg_owned.ps1'),'-Label',label,'-BankPrefix','M55S1_',
+          '-MaxFrames','90','-MaxAttempts','3','-WaitSec','60','-ExtraExecCmds',f'r.AntiAliasingMethod 0, {extra}']+recipe
+    (ev/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+    with log.open('w',encoding='utf-8') as f:
+        run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=base/'StackOBot/Plugins/CaptureBench/tools')
+    result=dict(label=label,exit=run.returncode)
+    if run.returncode==0:
+        session=next((bank/('M55S1_'+label)).glob('session*'))
+        match=next(t for t in bank.glob('M55S1_'+label+'_try*') if (t/session.name).exists())
+        result.update(audit(session,match/'_leg_game.log'))
+        if name.startswith('LOW'):
+            if result['summary'].get('change_reason_budget_exceeded',0)==0: result['errors'].append('low-cap refusal absent')
+            if result['summary'].get('change_bytes_high_water',-1)!=0: result['errors'].append('low-cap retained a buffer')
+        if name.endswith('E0') and ((session/'change_evidence.jsonl').exists() or result['summary']): result['errors'].append('disabled evidence emitted')
+    else: result.update(errors=['fixture validity failed; no gate verdict'])
+    (ev/f'audit-{label.lower()}.json').write_text(json.dumps(result,indent=2))
+    print(json.dumps({k:result[k] for k in ('label','exit','reasons','errors') if k in result}),flush=True)
+    if result['errors']: sys.exit(1)

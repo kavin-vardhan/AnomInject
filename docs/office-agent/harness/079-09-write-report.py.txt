@@ -1,0 +1,146 @@
+"""Assemble the implementation report from frozen source and captured readings."""
+from collections import Counter
+from datetime import datetime, timezone
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+REV = ROOT / "_reviews"
+E = REV / "079-09-evidence"
+F = REV / "079-09-frozen"
+REPO = ROOT / "StackOBot/Plugins/AnomalyInjector"
+manifest = json.loads((F / "manifest.json").read_text(encoding="utf-8"))
+tests = json.loads((E / "final/selftest_details.json").read_text(encoding="utf-8"))
+bank = json.loads((E / "bank.json").read_text(encoding="utf-8"))
+cohort = json.loads((E / "final/cohort_v3.json").read_text(encoding="utf-8"))
+checks = json.loads((E / "final/complete_checks.json").read_text(encoding="utf-8"))
+cases = {r["name"]: r for r in tests["fixtures"]}
+sha = manifest["commit"]
+final_hash = manifest["files"]["verify_capture.py"]["sha256"]
+assert tests["exit"] == 0 and len(tests["fixtures"]) == 83
+assert tests["verifier_sha256"] == bank["verify_sha256"] == checks["verifier_sha256"] == final_hash
+assert cohort["scorer_sha256"] == checks["scorer_sha256"] == manifest["files"]["m079_shift_recovery.py"]["sha256"]
+assert cohort["verifier_sha256"] == hashlib.sha256((E / "calibration-tools/verify_capture.py").read_bytes()).hexdigest()
+assert len(checks["bounds"]) == 39 and all(x["old"] == x["final"] for x in checks["bounds"])
+
+def link(path, label=None, line=None):
+    return "[%s](%s%s)" % (label or path.name, path.as_posix(), ":%d" % line if line else "")
+
+def loc(filename, needle):
+    p = F / filename
+    line = next(i for i, s in enumerate(p.read_text(encoding="utf-8").splitlines(), 1) if needle in s)
+    return link(p, filename + ":" + str(line), line)
+
+def reading(name):
+    c = cases[name]
+    lines = [s for s in c["lines"] if "run[" in s or s.lstrip().startswith(("onset ", "end "))]
+    return "**%s**, exit %d:\n\n```text\n%s\n```\n\n" % (name, c["code"], "\n".join(lines))
+
+parts = [f"""# 079-09 — Codex implementation report
+
+**Disposition: NEEDS-DECISION.** Implemented and pushed **`fix/verifier-field-validity` at `{sha}`**. The original **m51 checkout is restored**. The fixed computation rules are implemented; three supplied expectations cannot all hold together: P1's lighting result, P2's claimed bench coverage, and P6's absolute interpretation of NO-TRACE. P4 produces no derived cap. The original predictions are preserved, not rewritten to match these results.
+
+Authority: {link(REV / '079-09-spec-for-codex-consistency-semantics.md', 'owner-authorized 079-09 spec')}. **Codex implemented; Claude Code independently reviews afterward; Chat orchestrates.** This report is implementation evidence, not an independent review or merge approval. No brief or mailbox message was sent.
+
+**Chat review REQUIRED** for the conflicts below, the independent Code review and the evidence before merge. That is the next mandatory checkpoint. Chat review was **NOT REQUIRED** for this already-authorized implementation and feature push. Section G, client and m51 campaign holds remain.
+
+## 1. Commits, scope and review copies
+
+| Commit | Purpose |
+|---|---|
+| `2a38d159a5402a363736d7854bcee287c2aec711` | Predictions and interpretations committed before implementation; dated pointer in the old predictions file. |
+| `{sha}` | Consistency observations, actual per-pair regions, whole-span checks, run eligibility, permanent regressions, documentation and session journal. |
+
+Remote `refs/heads/fix/verifier-field-validity` was verified at the implementation SHA after push. No merge or tag. Master/origin-master remain `ac13700d99fe116056f5aa11611f8931a563a3f2`; m51 remains `53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67`. `git diff 1cbc07e {sha} -- Source Shaders tools/measure_label_offset.py` is empty. Both repository tracked trees are clean after restoration; the pre-existing ten plugin handoffs and eight CaptureBench untracked files remain.
+
+CaptureBench remains `472a409dc70ae78d01a38d08fc3bddb15fe41c58`. **Only its pre-existing untracked `tools/m079_shift_recovery.py` changed.** It has no Git remote; the scorer is not included in the plugin push. The local working file and {link(F / 'm079_shift_recovery.py', 'frozen scorer v3')} are retained for the review, with matching hashes. No Source/Shader change, build, cook, capture, office-data transfer or owner-app change occurred.
+
+Read the {link(F / '2026-09-20-verifier-consistency-semantics.md', 'predeclared predictions')}, {link(F / '2026-09-20-079-09-codex-implementation.md', 'session journal')} and {link(F / 'manifest.json', 'frozen source manifest')}. Source links below point to the reviewed feature copies because the live plugin checkout is m51 again.
+
+## 2. 079-08 findings: implementation and limits
+
+| Finding | Change and location | Evidence / remaining limit |
+|---|---|---|
+| **F1 — lighting is not anomaly cause** | {loc('verify_capture.py', 'def _run_outcome')}, {loc('verify_capture.py', 'def _edge_line')}: CONSISTENT carries “does not establish cause”; OFFSET-NOTE requests frame inspection and never fails. Ring fraction is diagnostic only. | Accurate-mask lighting and occlusion now exit 0. Late-label lighting is CONSISTENT under the fixed rule, contradicting P1; no label truth is claimed. |
+| **F2 — fixed-mask reuse / missing coverage** | {loc('verify_capture.py', 'class _PairSignal')}, {loc('verify_capture.py', 'def _measure_edge')}: both actual masks form each pair's union, including baseline pairs; no snapshot substitution. Whole-span validation in `_run_outcome`. Endpoint extent in {loc('verify_capture.py', 'session_indices =')}. | Missing mask 61 refuses the onset; missing interior mask 55 prevents NO-TRACE. Moving-mask contract measures d=0.5 from a pixel only in the previous mask. RGB dimension and endpoint-loss regressions pass. Strict coverage loses all 64 pinned edges. |
+| **F3 — no signal promoted to agreement** | {loc('verify_capture.py', 'def _run_outcome')}, {loc('verify_capture.py', 'def _event_token')}: only two zero-delta TRANSITION observations produce CONSISTENT; zero-delta transition plus NO-TRANSITION is PARTIAL. Run counts are printed. | `no_detected_end` is PARTIAL. A span-level UNASSESSABLE run can have a PARTIAL event because its two NO-TRANSITION edges were observed; the run remains ineligible for scoring. |
+| **F4 — transition association / bbox bounds** | {loc('verify_capture.py', 'def _observe_windows')}: label-only bounds calculated before detection; target/mode groups separate bbox and mask runs; duplicate candidates invalidate every claimant. | 15→16 fixture makes both competing edges UNASSESSABLE at k=15, no wrong delta. Inclusive bounds also make short aligned controls unassessable; coverage cost is explicit. |
+| **F5 — explicit mask-ID mismatch accepted** | {loc('verify_capture.py', '    def mask(self, k):')}: explicit nonzero absent IDs refuse the pair; only ID 0/unresolved may use a sole value. Fallback is tagged and excludes NO-TRACE. | Foreign-value fixture prints `mask id 222 not present`; unresolved blank fixture does not fail. |
+| **F6 — scorer ignores run eligibility** | {loc('verify_capture.py', 'run_eligible=')}, {loc('m079_shift_recovery.py', 'def run_cell')}, {loc('m079_shift_recovery.py', 'def reconcile')}. READING/UNASSESSABLE runs return zero scored cells; their keys stay in an unscored ledger. | `mixed_run`: 0 scored / 2 unscored. Tiny-run denominator: 26 keys including 8 unsupported. All 572 bank keys reconcile in both guard states; no positive support or usable cap follows. |
+
+Documentation: {loc('client-readme.md', '### Step 6')}, {loc('verify_capture.py', 'LABEL-PIXEL CONSISTENCY OBSERVATIONS')}, {loc('office-rdp-card.md', 'CURRENT PROSPECTIVE CORRECTION')}, {loc('gotchas.md', '### G263 — dated correction')}, {loc('gotchas.md', '## G264')}. The previous G263 and historical Section G prediction remain as history; their causal/coverage claims are expressly withdrawn by the current notes.
+
+NO-TRACE's class allowlist is `missing_object`, `blink`/`blinking`, `missing_texture`, `corrupted_texture`, `lod_popping`, `lod_corruption`. {link(F / 'producer-class-excerpts.txt', 'Producer evidence')} records GetId declarations, `MapAnomalyToClient`, `ResolveAnomalyActiveSource` and the active-frame predicate from the unchanged producer. Hidden blink phases are separate active runs. Time dilation, lighting mismatch, camera clipping and unknown classes are excluded. **Class membership is a producer contract, not an independent proof that every injected instance must create visible pixels.** The output's negative remains threshold-qualified.
+
+## 3. P1 — fixture readings; one supplied expectation contradicted
+
+The permanent self-test passes **83 cases** against the fixed semantics and disclosed interpretations. {link(E / 'final/selftest.txt', 'All case outcomes')}, {link(E / 'final/selftest_full.txt', 'every exact observation line')}, {link(E / 'final/selftest_details.json', 'structured edge/run data')}. This is not a claim that all original P1 predictions passed.
+
+"""]
+for name in ("c08_lighting_aligned", "c08_lighting_late_onset", "c08_occluder_aligned"):
+    parts.append(reading(name))
+parts.append("**Conflict:** the true texture onset is 60, the larger lighting transition is 61, and the late label starts at 61. Section 1 requires CONSISTENT for two selected zero-delta transitions; P1 forbids CONSISTENT here. Ring diagnostics cannot change the outcome under section 2. This conflict was recorded before implementation/results.\n\n")
+for name in ("c08_missing_mask61", "c08_no_detected_end", "c08_foreign_mask_value", "adjacent_late_second_onset", "c08_mixed_run", "blank_whole_span", "blank_missing_interior"):
+    parts.append(reading(name))
+parts.append("`missing_mask61` meets the predicted **edge** refusal; its observable end makes the run/event PARTIAL. The missing-interior case has an UNASSESSABLE **run** and a PARTIAL **event** under the event rule because both edges were observed. Neither becomes NO-TRACE. `mixed_run` supplies zero scorer cells, as required. All original blank-region negatives still produce NO-TRACE/2. Other retained review fixtures and exact known answers are in the 83-case evidence above.\n\n")
+parts.append("### Additional coverage corrections found during implementation\n\nThe first/last RGB-file counterexamples initially produced NO-TRACE when the scan used only the existing files' extent. The final implementation uses both labelled and delivered indices, keeping the missing endpoint pairs in view. Before-fix evidence: " + link(E / 'boundary_before.json') + ".\n\n")
+parts.append(reading("missing_first_rgb") + reading("missing_last_rgb"))
+parts.append("Equal-luminance red/green transitions are now detected using RGB-channel differences; changing RGB dimensions invalidates the affected edge. These are permanent cases, alongside the previous-mask union contract.\n\n## 4. P2 and P3 — ten bank sessions\n\n**P2 MISSED:** all six pinned legs have four UNASSESSABLE events, zero CONSISTENT events, 64/64 edges unassessable and unavailable tau. Exit 0 means no NO-TRACE, not observed agreement. P2's `tau=0.0040`/64 observed-edge claim is not reproduced with actual per-pair masks.\n\n| Session | Exact final line | Edge observations | Exit |\n|---|---|---|---|\n")
+for r in bank["bank"]:
+    verdict = next(x.strip() for x in r["lines"] if x.lstrip().startswith("VERDICT"))
+    counts = Counter(e["observation"] for e in r["detail"])
+    parts.append("| %s | `%s` | %d UNASSESSABLE | %d |\n" % (link(E / ("gate_"+r["name"]+".txt"), r["name"]), verdict, counts['UNASSESSABLE'], r['code']))
+pinned = next(r for r in bank["bank"] if r["name"] == "M49_GEDGE_MT_NAT")
+parts.append("\nRepresentative exact pinned lines (full logs linked in the table):\n\n```text\n" + "\n".join([s for s in pinned['lines'] if 'run[' in s or s.lstrip().startswith(('onset ', 'end '))][:3]) + "\n```\n\n**P3 matched:** none of the three masked gameplay sessions produces NO-TRACE. M50L_LG9 has six READING events and prints `coverage                 UNREAD-BBOX-ONLY`. All per-edge lines are retained in the linked logs, including unassessable bbox observations. Structured bank evidence: " + link(E / 'bank.json') + ".\n\n")
+parts.append(f"""## 5. P4 — scorer v3; no cap can be derived
+
+The immutable cohort printed **before scoring** was **572 keys**: A2L_LEGA 208, LYRA_SMOKE_01 208, A1L_LEGA 156 (44 original run-edges × 13 perturbation/variant combinations). Each guard state reconciles the identical unique key set.
+
+| Guard state | Planned | Scored | Recovered | Wrong | No-transition | Unassessable scored | Unsupported | Unscored |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| OFF, cap=1.0 | 572 | 0 | 0 | 0 | 0 | 0 | 0 | 572 |
+| ON, legacy cap=0.00014 | 572 | 0 | 0 | 0 | 0 | 0 | 0 | 572 |
+
+In each state, 392 unscored keys belong to UNASSESSABLE runs and 180 to READING runs. The latter include **170 cells with baseline numbers that remain ineligible**. Zero wrong observations with zero scored cells supplies no validation. Rates retain 572 as their denominator; positive support is zero original edges.
+
+Exact lines:
+
+```text
+PLANNED 572 = SCORED 0 + UNSCORED 572
+DERIVED CAP UNDETERMINED; N=0 perturbation cells, not independent edges; NO ELIGIBLE CELL reached a baseline - nothing to derive from
+GUARD ON uses 0.00014 (legacy configured value; NOT a v3 derivation)
+POSITIVE SUPPORT: 0 original edges: []
+```
+
+{link(E / 'final/scorer_v3.txt', 'Full guard tables and refusal reasons')}; {link(E / 'final/cohort_v3.json', 'all cells and source hashes')}. **P4's numeric rederivation is unavailable.** The code records N=0 and an UNDETERMINED v3 result, retaining the existing numeric default without claiming a new empirical boundary.
+
+The complete 78-group sweep used verifier SHA-256 `{cohort['verifier_sha256']}` in {link(E / 'calibration-tools/verify_capture.py', 'the retained calibration snapshot')}. Its only subsequent runtime change was the missing-endpoint extent correction. The {link(E / 'final/boundary-hardening.diff', 'exact source diff')} and {link(E / 'final/complete_checks.json', '39 rebuilt-shadow checks')} establish that old and final bounds match for **every** calibration input, so no sweep window or reading changes. The final candidate separately reran all ten unperturbed sessions and all fixture/contracts. A full sweep after that last hardening was not repeated; this distinction is explicit.
+
+## 6. P5 — batch and exit contract preserved
+
+{link(E / 'final/contracts.txt', 'Four contract tests')} pass: both flattened-path collision reports survive with opposite consistent/NO-TRACE readings; a forced key collision returns 3 before writing any report; mixed successful and missing-label sessions return 3 even with report-only; and the previous-mask union pixel is measured. The focused batch tests stub only the already-separately-run image self-test.
+
+Actual CLI subprocess checks return **NO-TRACE=2**, **NO-TRACE with report-only=0**, and **execution error with report-only=3**. {link(E / 'final/complete_checks.json', 'Commands’ captured results')}. Scorer class controls produce `recovered/recovered`, `wrong/recovered`, `unassessable/recovered`, and `no-transition/no-transition`; the tiny case retains eight unsupported keys. {link(E / 'final/scorer_selftest.txt', 'Scorer self-test')} passes, also rerun successfully against the frozen tools after m51 restoration. `git diff --check` passes.
+
+## 7. P6 — independent review pending; threshold contradiction remains
+
+Claude Code has not yet independently reviewed this implementation. Its fixture gate is pending. The supplied absolute statement “a wrong NO-TRACE (pixels did change …)” is incompatible with section 1's `d > tau` condition. The existing accurately masked single-pixel change has **d=0.0004 < tau=0.0040** and therefore yields:
+
+""")
+parts.append(reading("c07_below_tau_masked"))
+parts.append("This is the specified threshold outcome, but a false negative under P6's absolute reading. It was predeclared and was not hidden by deleting the fixture or changing its threshold. The wording adds an explicit threshold qualification. Chat must choose whether the intended negative is thresholded absence or literal absence; the current implementation cannot honestly promise both. Producer class membership also does not prove a visible effect for every individual injection.\n\n## 8. Reproduction and final boundary\n\n")
+parts.append("The live plugin is restored to m51. To reproduce the feature tool without changing it, use these **frozen** copies (PowerShell):\n\n```powershell\npython -B D:\\IntrusiveAnomalies\\_reviews\\079-09-frozen\\verify_capture.py --label-pixel-gate --selftest\npython -B D:\\IntrusiveAnomalies\\_reviews\\079-09-frozen\\test_verify_capture_consistency.py\n$env:IAI_VERIFIER_TOOLS='D:\\IntrusiveAnomalies\\_reviews\\079-09-frozen'\npython -B D:\\IntrusiveAnomalies\\_reviews\\079-09-frozen\\m079_shift_recovery.py --selftest\n# Full sweep, if independently repeating it; write a new output file:\npython -B D:\\IntrusiveAnomalies\\_reviews\\079-09-frozen\\m079_shift_recovery.py --json D:\\IntrusiveAnomalies\\_reviews\\079-09-independent-cohort.json\nRemove-Item Env:IAI_VERIFIER_TOOLS\n```\n\n")
+parts.append("| Artifact | SHA-256 |\n|---|---|\n")
+for name in ('verify_capture.py','measure_label_offset.py','m079_shift_recovery.py'):
+    parts.append('| %s | `%s` |\n'%(link(F/name,name), manifest['files'][name]['sha256']))
+parts.append("\nAll implementation tests and calibration processes have finished; their owned scratch links/directories were cleaned. No watcher or new work owner was started. Existing stale watcher/migration records and unrelated scratch content were left intact. A fresh Codex session or context-setting change is not warranted for this coherent workstream. **Claude Code owns the next independent review; Chat owns disposition. No merge is authorized by this report.**\n\n")
+start = datetime(2026,9,20,5,42,55,tzinfo=timezone.utc)
+end = datetime.now(timezone.utc).replace(microsecond=0)
+elapsed = end - start
+parts.append("## 9. Time and cost\n\nFirst recorded task clock: **2026-09-20 05:42:55 UTC / 11:12:55 IST**. Report-generation clock: **%s UTC**. Measured interval: **%s** of wall time, covering source review, implementation, two full calibration sweeps, targeted validation, documentation, commit/push and checkout restoration. Any work before the first recorded clock is outside this measurement. It is not CPU time.\n\n**Monetary cost/token billing is unavailable to this task; no dollar amount is invented.** No paid external service, Unreal build or capture was launched.\n\n**Chat review REQUIRED** before merge: resolve P1/P2/P4/P6 and the disclosed boundary-mask/run-ledger interpretations, then assess Claude Code's independent review. Implementation and feature push are complete; release readiness is not established.\n\nVERDICT: NEEDS-DECISION\n" % (end.strftime('%Y-%m-%d %H:%M:%S'), str(elapsed)))
+report = REV / '079-09-codex-implementation-report.md'
+report.write_text(''.join(parts), encoding='utf-8', newline='\n')
+print(report)
+print('words',len(report.read_text(encoding='utf-8').split()),'elapsed',elapsed)

@@ -1,0 +1,254 @@
+REF_AMENDMENT=True
+REF_MIN=4
+PREV_SETTLE=4
+POST_SKIP=2
+POST_REF_MAX=6
+AMENDMENT='084-09 reference amendment, declared 2026-09-29 before the MASK55 re-check (084-06 ruling 5): an onset reference uses only clean frames at least PREV_SETTLE=4 frames after the previous event last labelled or transition frame; if fewer than REF_MIN=4 remain, the post-event clean frames (after the event last labelled or transition frame + POST_SKIP=2, up to 6, before the next event) are added; if still fewer than 4 the event is CONFOUNDED-REFERENCE, counted per type, never dropped. Applied to every type.'
+LEGACY_T='temporal_aa(legacy: transition without transition_reason)'
+PARTIAL_EDGE_INVESTIGATE=8
+def detect_label_rule(rows):
+    n=0;m=0
+    for r in rows:
+        for a in (r.get('anomalies') or []):
+            n+=1;m+=1 if 'labelled' in a else 0
+    if n==0:return 'empty'
+    return 'new' if m==n else ('old' if m==0 else 'mixed')
+def entry_of(s,si,typ,start_frame):
+    rows=s.by_si if hasattr(s,'by_si') else s.rows
+    r=rows.get(si)
+    for a in ((r.get('anomalies') or []) if r else []):
+        if TYPE_MAP.get(a.get('id'),a.get('id'))==typ and a.get('start_frame')==start_frame:return a
+    return None
+def reasons_of(a):
+    if not a:return set()
+    rs=a.get('transition_reason')
+    if rs is None:return {LEGACY_T} if a.get('transition')==1 else set()
+    if isinstance(rs,str):rs=[rs]
+    return set(rs)
+def held_textures(a):
+    if not a:return 0
+    return sum(1 for t in (a.get('stuck_mip.render_textures') or []) if str(t.get('level'))=='held')
+def partial_guard(s,e,Lw,Tset,vis,span,drop,thr,temporal_aa):
+    Ls=set(Lw);sp=set(span);V=set(vis)&sp
+    ents={si:entry_of(s,si,ID52,e['start_frame']) for si in span}
+    R={si:reasons_of(a) for si,a in ents.items()}
+    info=dict(partial=[],unresolved=[],confirmed_partial=[],flagged_invisible=[],flagged_invisible_counted=[],partial_without_held_texture=[],
+              partial_on_unlabelled=[],unresolved_only_off=[],legacy_transition=[],fail_reasons=[])
+    Tex=set()
+    for si in sorted(span):
+        rs=R.get(si,set())
+        if not rs:continue
+        if 'temporal_aa' in rs or 'hide_return' in rs or LEGACY_T in rs:Tex.add(si)
+        if LEGACY_T in rs:info['legacy_transition'].append(si)
+        if 'unresolved' in rs:info['unresolved'].append(si)
+        if 'partial' in rs:
+            info['partial'].append(si)
+            if si not in Ls:info['partial_on_unlabelled'].append(si);continue
+            above=drop.get(si,0.0)>thr.get(si,0.0)
+            (info['confirmed_partial'] if above else info['flagged_invisible']).append(si)
+            if held_textures(ents[si])>=1:
+                Tex.add(si)
+                if not above:info['flagged_invisible_counted'].append(si)
+            else:info['partial_without_held_texture'].append(si)
+    off=((Ls&sp)-V)|(V-Ls)
+    for si in sorted(off):
+        rs=R.get(si,set())
+        if rs and rs<={'unresolved'}:info['unresolved_only_off'].append(si)
+    P=[si for si in Lw if si in set(info['partial'])];nonp=[si for si in Lw if si not in set(P)]
+    if nonp:on=[si for si in P if si<nonp[0]];offp=[si for si in P if si>nonp[-1]];mid=[si for si in P if nonp[0]<si<nonp[-1]]
+    else:on=list(P);offp=[];mid=[]
+    info['edges']=dict(onset=len(on),offset=len(offp),mid=len(mid))
+    info['edges_over_investigate']=[k for k,v in info['edges'].items() if v>PARTIAL_EDGE_INVESTIGATE]
+    if info['partial_without_held_texture']:info['fail_reasons'].append('partial flag on a labelled frame whose render record shows NO texture at the held level - the flag cannot excuse it (084-07 decision 1)')
+    if info['partial_on_unlabelled']:info['fail_reasons'].append('partial flag on an unlabelled frame - partial is a labelled-frame reason and cannot excuse a late label')
+    if info['unresolved_only_off']:info['fail_reasons'].append('off frame backed only by unresolved - FAIL to investigate (084-07b N4)')
+    tmp=[si for si in sorted(span) if R.get(si,set())&{'temporal_aa','hide_return',LEGACY_T}]
+    info['temporal_flags']=tmp
+    if temporal_aa is False and tmp:info['fail_reasons'].append('temporal transition flag(s) on a leg without temporal AA (the build emits temporal_aa / hide_return only under TAA or TSR; partial and unresolved are exempt)')
+    return Tex,info
+def m52_transition_gate(s,e,Lw,Tset,vis,span,drop,thr,sig,temporal_aa):
+    Tex,pg=partial_guard(s,e,Lw,Tset,vis,span,drop,thr,temporal_aa)
+    tg=gate_transition(Lw,Tex,vis,span,drop,sig,None,None)
+    return Tex,pg,tg
+def reference_amendment(s,ev,other,lo,hi,Ts,clean):
+    prev=[x for x in other if x<lo];nxt=[x for x in other if x>hi]
+    prev_last=max(prev) if prev else None
+    start=max(lo-ls086.REF_BACK,(prev_last+PREV_SETTLE+1) if prev_last is not None else lo-ls086.REF_BACK)
+    pre=[si for si in range(start,lo) if clean(si)]
+    out=dict(prev_last=prev_last,pre=pre,post=[],basis='pre',frames=pre,status='OK',rule=AMENDMENT)
+    if len(pre)>=REF_MIN:return out
+    tail=max([hi]+[x for x in Ts if x>hi]);lim=min(nxt) if nxt else tail+1+POST_SKIP+POST_REF_MAX
+    post=[si for si in range(tail+1+POST_SKIP,lim) if clean(si)][:POST_REF_MAX]
+    out.update(post=post,basis='pre+post',frames=sorted(pre+post))
+    if len(pre)+len(post)<REF_MIN:out.update(status='CONFOUNDED',basis='none')
+    return out
+def labelled_membership(sd):
+    s=sess(sd);rule=detect_label_rule(s.rows);evs=anno_events(s)
+    if rule!='new':
+        return dict(rule=rule,pass_=rule in ('old','empty'),mismatch=[],mismatch_n=0,
+                    note='read under the OLD rule: no entry carries labelled, and visible_positive meant event active + a box (084-07 changed it); membership is not checkable' if rule=='old' else ('no entries' if rule=='empty' else 'MIXED rules in one session: refused'))
+    mism=[]
+    for e in evs:
+        L=set(e['L'])
+        for si,a in e['entries'].items():
+            lab=a.get('labelled') is True
+            if lab!=(si in L):mism.append(dict(ord=e['ord'],type=e['type'],si=si,labelled=lab,in_annotation=si in L))
+    return dict(rule='new',pass_=not mism,mismatch=mism[:30],mismatch_n=len(mism),
+                note='new rule: every entry labelled == its frame is in its event annotation list (N1: one authority); the 086-01 checker judges exactly that list')
+def presence_contract_v2(sd):
+    s=sess(sd);rule=detect_label_rule(s.rows);evs=anno_events(s);lab=set()
+    for e in evs:lab|=set(e['L'])
+    fam=collections.Counter();defect=[];old_pu=collections.Counter();lnp=0
+    for si,r in s.by_si.items():
+        ap=bool(r.get('anomaly_present'))
+        if si in lab and not ap:lnp+=1
+        if not ap or si in lab:continue
+        ents=r.get('anomalies') or []
+        if rule=='new':
+            if any(a.get('labelled') is True for a in ents):defect.append(si)
+            for a in ents:fam[(TYPE_MAP.get(a.get('id'),a.get('id')),'labelled' if a.get('labelled') else 'unlabelled')]+=1
+        else:
+            for a in ents:old_pu[TYPE_MAP.get(a.get('id'),a.get('id'))]+=1
+    return dict(rule=rule,labelled_rows=len(lab),present_not_in_annotation_rows=sum(fam.values()) if rule=='new' else sum(old_pu.values()),
+                families={f'{k[0]}:{k[1]}':v for k,v in fam.items()} if rule=='new' else dict(old_pu),defect_rows=defect[:20],defect_n=len(defect),
+                labelled_but_not_present_rows=lnp,
+                note=('new rule: an event-active row outside the annotation must carry labelled:false (an allowed family); a labelled:true entry outside it is a defect' if rule=='new'
+                      else 'old rule: anomaly_present rows outside the annotation are reported by type, as 084-06 did'))
+def null_check_v2(null_sd,on_sd,target):
+    nu=sess(null_sd);on=sess(on_sd) if on_sd else None
+    roi,src=L3.target_roi(on if on is not None else nu,target,nu)
+    evs=L3.events(nu)
+    held=sum(1 for e in evs for v in e['held'].values() if v);rh=sum(1 for e in evs for v in e['rstate'].values() if v=='held')
+    n=L3.noise_of(nu,roi) if roi else None
+    ok=bool(roi is not None and n and n['n']>=200 and held==0 and rh==0 and len(nu.rows)>0)
+    return dict(pass_=ok,roi=roi,roi_src=src,events=len(evs),labelled_held_rows=held,render_held_rows=rh,frames=len(nu.rows),
+                noise=None if not n else {k:(round(v,5) if isinstance(v,float) else v) for k,v in n.items()},
+                note='G356: the null calibrates from its OWN sharpness series at the ON leg ROI; it writes no event on a G350 build and needs none. Pass = rows present, no labelled or render-held row, and >= 200 settled frames on the ROI')
+def partial_summary(rows):
+    ok=[r for r in rows if r.get('status')=='OK']
+    warm=lambda i,r:(i==0) or ((r.get('label') or [10**9])[0]<L3.SETTLE_SKIP)
+    agg=dict(all=collections.Counter(),warmup=collections.Counter(),steady=collections.Counter())
+    hist=dict(all={'onset':collections.Counter(),'offset':collections.Counter(),'mid':collections.Counter()},
+              warmup={'onset':collections.Counter(),'offset':collections.Counter(),'mid':collections.Counter()},
+              steady={'onset':collections.Counter(),'offset':collections.Counter(),'mid':collections.Counter()})
+    over=[];fails=[]
+    for i,r in enumerate(ok):
+        pg=((r.get('per') or {}).get(RELEASE) or {}).get('partial_guard')
+        if not pg:continue
+        grp='warmup' if warm(i,r) else 'steady'
+        for k in ('partial','confirmed_partial','flagged_invisible','flagged_invisible_counted','partial_without_held_texture','partial_on_unlabelled','unresolved','unresolved_only_off','legacy_transition'):
+            agg['all'][k]+=len(pg[k]);agg[grp][k]+=len(pg[k])
+        for ed,n in pg['edges'].items():hist['all'][ed][n]+=1;hist[grp][ed][n]+=1
+        if pg['edges_over_investigate']:over.append(dict(start_frame=r.get('start_frame'),label=r.get('label'),edges=pg['edges']))
+        if pg['fail_reasons']:fails.append(dict(start_frame=r.get('start_frame'),label=r.get('label'),reasons=pg['fail_reasons'],
+                                                 without_held=pg['partial_without_held_texture'],on_unlabelled=pg['partial_on_unlabelled'],unresolved_only_off=pg['unresolved_only_off']))
+    fmt=lambda cc:'{'+', '.join(f'{k}:{cc[k]}' for k in sorted(cc))+'}'
+    return dict(counts={g:dict(v) for g,v in agg.items()},edge_histograms={g:{ed:fmt(c) for ed,c in v.items()} for g,v in hist.items()},
+                edges_over_8_investigate=over,guard_fails=fails,
+                note='partial frames per edge (count of partial frames on the edge -> number of events); warm-up = the capture first event or one starting before the settle skip, reported separately AND included in all')
+TAGOWN_RX=re.compile(r'Capture\(mask\): TAG-OWNERS si=(\d+) tick=\d+ values=(\d+) shared=(\d+)')
+def mask_gate(sd,log='',min_events=56,require_peak_live=2,bbox_pad=16,outside_tol=0.005):
+    g=mask_gate_v1(sd,log,min_events=min_events,bbox_pad=bbox_pad,outside_tol=outside_tol)
+    s=sess(sd);sm=s.summary or {}
+    own=[(int(a),int(b),int(c_)) for a,b,c_ in TAGOWN_RX.findall(log or '')]
+    have={si for si,_,_ in own};shared=sorted({si for si,_,sh in own if sh>0})
+    missing=[si for si in sorted(s.by_si) if si not in have]
+    peak=sm.get('mask_tag_peak_live') or 0
+    invalid=[]
+    if missing:invalid.append(f'{len(missing)} captured frame(s) without a TAG-OWNERS line (first {missing[:5]}): the ownership instrument was not live')
+    if peak<require_peak_live:invalid.append(f'mask_tag_peak_live {peak} < {require_peak_live}: no two mask records were ever live together, so the concurrent path was NOT exercised (not a pass)')
+    fails=list(g['fail_reasons'])
+    if shared:fails.append(f'{len(shared)} frame(s) where one mask value is carried by two holders (TAG-OWNERS shared>0; first {shared[:5]})')
+    g.update(tag_owner_lines=len(own),tag_owner_shared_frames=shared[:20],tag_owner_missing=missing[:20],peak_live=peak,
+             prior_collision=sm.get('mask_prior_collision'),prior_collision_quarantined=sm.get('mask_prior_collision_quarantined'),
+             retire_quarantined=sm.get('mask_tag_retire_quarantined'),invalid=invalid,fail_reasons=fails,
+             verdict='INVALID' if invalid else ('PASS' if not fails else 'FAIL'))
+    g['pass_']=g['verdict']=='PASS'
+    return g
+def _flag(r,key):
+    if r.get(key):return True
+    for a in (r.get('anomalies') or []):
+        if a.get(key) or ('camera_clipping_unconfirmed' in reasons_of(a) and key=='camera_clipping.unconfirmed'):return True
+    return False
+def cc_gate(on_sd,null_sd,on_log,null_log,nullB_sd=None,nullB_log=None,frames=200):
+    r=cc_pair(on_sd,null_sd,on_log,null_log,nullB_sd,nullB_log,frames)
+    if not r.get('valid'):r['gate']='INVALID';return r
+    on=sess(on_sd);unc={k:_flag(on.by_si[k],'camera_clipping.unconfirmed') for k in range(frames)}
+    lab={k:bool(on.by_si[k].get('camera_clipping.slab')) for k in range(frames)}
+    D={int(k):v for k,v in r['D'].items()};theta=r['theta'];clipped={k:D[k]>theta for k in range(frames)}
+    fr,_=cc_schedule(on_log);des={k:fr[k]['designed'] for k in range(frames)}
+    edges=[]
+    for k0 in [k for k in range(1,frames) if des[k]!=des[k-1]]:
+        lo=max(0,k0-6);hi=min(frames-1,k0+6)
+        lf=next((k for k in range(lo+1,hi+1) if lab[k]!=lab[k-1]),None);of=next((k for k in range(lo+1,hi+1) if clipped[k]!=clipped[k-1]),None)
+        edges.append(dict(designed=k0,to=des[k0],label_flip=lf,pixel_flip=of,off=None if lf is None or of is None else lf-of))
+    dis=r['rules'][RELEASE]['label_vs_clipped_disagree']
+    r.update(unconfirmed_frames=sum(unc.values()),unconfirmed_disagreeing=[k for k in dis if unc[k]],confirmed_disagreeing=[k for k in dis if not unc[k]],
+             edges=edges,edge_offsets=[e['off'] for e in edges])
+    r['gate']='UNJUDGEABLE' if r['unjudgeable'] else ('PASS' if not dis and all((e['off'] in (0,None)) for e in edges) else 'FAIL')
+    return r
+def cc_mw_gate(on_sd,null_sd,nullB_sd=None,frames=200):
+    base=cc_mw_pair(on_sd,null_sd,nullB_sd,frames)
+    on=sess(on_sd);nu=sess(null_sd);nb=sess(nullB_sd) if nullB_sd else None
+    if nb is None:base['gate']='INVALID';base['gate_note']='no second null: the per-frame floor needs null-vs-null';return base
+    n=base['frames'];per=[]
+    for k in range(n):
+        d=dcount(frame_arr(on,k),frame_arr(nu,k));nn=dcount(frame_arr(nb,k),frame_arr(nu,k))
+        r=on.by_si.get(k) or {};lab=bool(r.get('camera_clipping.slab'));unc=_flag(r,'camera_clipping.unconfirmed')
+        per.append(dict(k=k,D=d,N=nn,ratio=None if d is None or nn is None else round(d/max(nn,1),3),labelled=lab,unconfirmed=unc))
+    over=[p['k'] for p in per if p['labelled'] and not p['unconfirmed'] and p['ratio'] is not None and p['ratio']<=2.0]
+    over_unc=[p['k'] for p in per if p['labelled'] and p['unconfirmed'] and p['ratio'] is not None and p['ratio']<=2.0]
+    under=[p['k'] for p in per if (not p['labelled']) and p['ratio'] is not None and p['ratio']>2.0]
+    base.update(per_frame_floor='labelled confirmed frame must have D_k > 2 * N_k (ON-vs-null over null-vs-null, per frame)',
+                labelled_confirmed=sum(1 for p in per if p['labelled'] and not p['unconfirmed']),labelled_unconfirmed=sum(1 for p in per if p['labelled'] and p['unconfirmed']),
+                over_label_confirmed=over[:30],over_label_confirmed_n=len(over),over_label_unconfirmed=over_unc[:30],over_label_unconfirmed_n=len(over_unc),
+                unlabelled_above_floor_G352=len(under),per_frame=per)
+    base['gate']='PASS' if not over else 'FAIL'
+    return base
+FADE_LO=0.10
+FADE_HI=0.90
+FADE_MIN=2
+FADE_PRE=3
+FADE_POST_OFF=9
+LOD_MIN_JUDGED=16
+LOD_FADE_RULE='084-08b: at each pop edge of a judged event (onset window a-3..mid, offset window mid+1..b+9, clipped to the run window), a frame is INTERMEDIATE when its per-frame effect level (the E1 frac: 0 = the unforced reference, 1 = the run peak) is in [0.10, 0.90); an edge with >= 2 intermediate frames is a MULTI-FRAME FADE. For variant D it is a FINDING, reported and never excused (084-08 ruling 1); for variant N it is the control reading. Transition flags do not remove a frame from this count.'
+def lod_edges(r):
+    lv={int(k):float(v) for k,v in (r.get('levels') or {}).items()};out=[]
+    for run in r.get('runs') or []:
+        a,b=run['a'],run['b'];mid=(a+b)//2
+        for kind,lo,hi in (('onset',a-FADE_PRE,mid),('offset',mid+1,b+FADE_POST_OFF)):
+            lo=max(lo,run['lo']);hi=min(hi,run['hi'])
+            seq=[(si,lv[si]) for si in range(lo,hi+1) if si in lv]
+            inter=[si for si,v in seq if FADE_LO<=v<FADE_HI]
+            out.append(dict(kind=kind,a=a,b=b,window=[lo,hi],levels=[[si,round(v,3)] for si,v in seq],intermediate=inter,
+                            n_intermediate=len(inter),multi_frame_fade=len(inter)>=FADE_MIN))
+    return out
+def hist_of(v):
+    return dict(sorted(collections.Counter(v).items()))
+def lod_gate(events,variant=None,min_judged=LOD_MIN_JUDGED):
+    ok=[r for r in events if r.get('status')=='OK']
+    judged=[r for r in ok if ((r.get('per') or {}).get(RELEASE) or {}).get('verdict') in ('PASS','FAIL')]
+    off=[]
+    for r in judged:
+        tg=r['per'][RELEASE]['transition_gate']
+        off+=[dict(start_frame=r.get('start_frame'),si=si,kind='unlabelled-visible') for si in tg['unlabelled_visible_without_transition']]
+        off+=[dict(start_frame=r.get('start_frame'),si=si,kind='labelled-not-visible') for si in tg['labelled_not_visible_outside_transition']]
+    fails=[dict(start_frame=r.get('start_frame'),reasons=r['per'][RELEASE]['fail_reasons']) for r in judged if r['per'][RELEASE]['verdict']=='FAIL']
+    edges=[dict(start_frame=r.get('start_frame'),**e) for r in judged for e in lod_edges(r)]
+    fades=[e for e in edges if e['multi_frame_fade']]
+    ih={k:hist_of([e['n_intermediate'] for e in edges if e['kind']==k]) for k in ('onset','offset')}
+    st=collections.Counter(r.get('status') if r.get('status')!='OK' else 'OK:'+str(((r.get('per') or {}).get(RELEASE) or {}).get('verdict')) for r in events)
+    verdict='INSUFFICIENT' if len(judged)<min_judged else ('FAIL' if (off or fails) else 'PASS')
+    return dict(verdict=verdict,variant=variant,judged=len(judged),min_judged=min_judged,events=len(events),status=dict(st),
+                off_frames_t50_outside_transition=len(off),off=off[:40],fail_events=fails[:20],
+                start=hist_of([e['start'] for r in judged for e in r['per'][RELEASE]['edges'] if e['start'] is not None and not e['cs']]),
+                end=hist_of([e['end'] for r in judged for e in r['per'][RELEASE]['edges'] if e['end'] is not None and not e['ce']]),
+                edges=len(edges),intermediate_hist=ih,fade_edges=len(fades),fades=fades[:24],
+                fade_finding=bool(fades) and variant=='D',fade_control=(bool(fades) if variant=='N' else None),fade_rule=LOD_FADE_RULE,
+                rule='gate: >= %d judged events (t50 PASS or FAIL) AND 0 off frames at t50 outside transition frames; fewer judged = INSUFFICIENT, never PASS'%min_judged)
+def lod_fade_compare(gD,gN):
+    if not gD or not gN:return None
+    fd=gD['fade_edges']/max(1,gD['edges']);fn=gN['fade_edges']/max(1,gN['edges'])
+    return dict(D_fade_edges=gD['fade_edges'],D_edges=gD['edges'],N_fade_edges=gN['fade_edges'],N_edges=gN['edges'],
+                D_rate=round(fd,3),N_rate=round(fn,3),D_exceeds_N=fd>fn,
+                reading='a D fade with no N fade at the same condition points at the dithered material; fades in both point at the capture/TAA path, which is still reported')

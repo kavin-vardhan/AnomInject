@@ -1,0 +1,56 @@
+from pathlib import Path
+import hashlib,json,subprocess,sys,shutil,itertools,re
+base=Path(r'D:\IntrusiveAnomalies');ev=base/'_reviews/081-11-evidence';bank=base/'_bench_sessions_bank'
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+version=sys.argv[1];candidate=json.loads((ev/f'binary-{version.lower()}.json').read_text())
+prior=json.loads((base/'_reviews/081-06-evidence/binary-candidate-v6.json').read_text())
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+assert sha(prior['archive'])==prior['sha256'] and sha(candidate['archive'])==candidate['sha256']
+def idle():
+    output=subprocess.check_output(['powershell','-NoProfile','-Command',"Get-Process -Name StackOBot,UnrealEditor,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id"]).decode().strip()
+    assert not output
+def stage(wanted):
+    idle();assert sha(candidate['staged']) in (prior['sha256'],candidate['sha256'])
+    shutil.copy2(wanted['archive'],candidate['staged']);assert sha(candidate['staged'])==wanted['sha256']
+results=[]
+try:
+    for i,(binary,enabled) in enumerate([(prior,0),(prior,0),(candidate,0),(candidate,1),(candidate,1),(candidate,0)],1):
+        stage(binary);label=f'M55S2R11{version}_MAIN{i}_E{enabled}'
+        args=[pwsh,'-NoProfile','-File',str(base/'_reviews/081-11-legacy-run.ps1'),'-Label',label,'-BankPrefix','M55S2_',
+              '-Map','/Game/StackOBot/Maps/MainWorld','-Anomaly','blinking','-Target','StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803',
+              '-MaxFrames','90','-MaxAttempts','3','-WaitSec','120','-ExtraExecCmds',f'r.AntiAliasingMethod 0, IAI.Capture.ChangeEvidence {enabled}']
+        log=ev/f'leg-{label.lower()}.log';assert not log.exists()
+        (ev/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+        with log.open('w',encoding='utf-8') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=base/'StackOBot/Plugins/CaptureBench/tools')
+        assert r.returncode==0,(label,r.returncode)
+        session=next((bank/('M55S2_'+label)).glob('session*'))
+        attempt=next(t for t in bank.glob('M55S2_'+label+'_try*') if (t/session.name).exists())
+        labels=sorted(map(json.loads,(session/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines()),key=lambda r:r['session_index'])
+        anno=json.loads((session/'annotation.json').read_text(encoding='utf-8-sig'))
+        summary=json.loads((session/'run_summary.json').read_text(encoding='utf-8-sig'))
+        text=(attempt/'_leg_game.log').read_text(encoding='utf-8-sig',errors='replace')
+        ties=re.findall(r'MASK-TIE session_index=(\d+) tag=(\d+) tableCount=(\d+) pngCount=(\d+) drawnCount=(-?\d+)',text)
+        assert all(x[2]==x[3] for x in ties)
+        def keys(v):
+            if isinstance(v,dict):return sorted((k,keys(x)) for k,x in v.items())
+            if isinstance(v,list):return sorted(set(json.dumps(keys(x)) for x in v))
+            return None
+        result=dict(label=label,sha256=binary['sha256'],session=str(session),events=len(anno['anomalies']),
+            counts={r['session_index']:[(a['id'],a['target_name'],a.get('target_pixels'),a.get('target_drawn_pixels'),a.get('observable')) for a in r['anomalies']] for r in labels},
+            masks={p.name:sha(p) for p in (session/'target_mask').glob('*.png')},
+            camera=[r['view'] for r in labels],onsets=[r['session_index'] for j,r in enumerate(labels) if r['anomaly_present'] and (j==0 or not labels[j-1]['anomaly_present'])],
+            label_keys=keys(labels),annotation_keys=keys(anno),summary_keys=sorted(k for k in summary if not k.startswith('change_')),
+            event_ranges=[{k:a.get(k) for k in ('anomaly_type','affected_frames','injected_frames','observable_frame_count','unmeasured_frame_count','observability_measured','manifested')} for a in anno['anomalies']],
+            mask_ties=sorted(ties),ensures='=== Handled ensure: ===' in text)
+        results.append(result);(ev/f'legacy-{version}.json').write_text(json.dumps(results,indent=2))
+        print(json.dumps(dict(label=label,events=result['events'],onsets=result['onsets'])),flush=True)
+finally:stage(candidate)
+checks=[]
+for a,b in itertools.combinations(results,2):
+    fields=('counts','masks','camera','onsets','label_keys','annotation_keys','summary_keys','event_ranges','mask_ties')
+    checks.append(dict(a=a['label'],b=b['label'],equal={k:a[k]==b[k] for k in fields}))
+output=dict(runs=results,comparisons=checks,passed=all(all(c['equal'].values()) for c in checks) and not any(r['ensures'] for r in results))
+(ev/f'legacy-comparison-{version}.json').write_text(json.dumps(output,indent=2))
+print(json.dumps(dict(passed=output['passed'],differences=[c for c in checks if not all(c['equal'].values())])),flush=True)
+sys.exit(not output['passed'])

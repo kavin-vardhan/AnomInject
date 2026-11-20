@@ -1,0 +1,18 @@
+from pathlib import Path
+import hashlib, json, subprocess
+base=Path(r'D:\IntrusiveAnomalies'); repo=base/'StackOBot/Plugins/AnomalyInjector'; out=base/'_reviews/081-05-frozen'
+def git(*args): return subprocess.check_output(['git',*args],cwd=repo)
+assert not out.exists()
+out.mkdir()
+head=git('rev-parse','HEAD').decode().strip()
+paths=git('ls-tree','-r','--name-only',head).decode().splitlines()
+selected=[p for p in paths if p.startswith(('Source/AnomalyCapture/','Source/AnomalyShaders/','Shaders/'))]
+selected += ['docs/change-evidence-fields.md','docs/client-readme.md','docs/gotchas.md',
+             'docs/predictions/2026-09-20-m55-change-evidence.md','docs/sessions/2026-09-21-081-05-codex-m55-stage-1.md']
+records=[]
+for rel in selected:
+    data=git('show',head+':'+rel)
+    p=out/rel; p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(data)
+    records.append(dict(path=rel,size=len(data),sha256=hashlib.sha256(data).hexdigest()))
+(out/'manifest.json').write_text(json.dumps(dict(commit=head,files=records),indent=2))
+print(json.dumps(dict(commit=head,files=len(records),path=str(out))))

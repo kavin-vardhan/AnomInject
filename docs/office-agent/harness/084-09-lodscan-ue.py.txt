@@ -1,0 +1,132 @@
+import json
+import os
+import traceback
+
+import unreal
+
+OUT = os.environ.get("IAI_LODSCAN_OUT", r"E:\IA_BuildCache\_r84_selftest\lodscan\mainworld_lod_scan.json")
+MAP = "/Game/StackOBot/Maps/MainWorld"
+result = dict(map=MAP, ok=False, errors=[], actor_descs=0, loaded=0, actors=0, components=[], meshes={})
+
+
+def err(msg):
+    result["errors"].append(msg)
+    unreal.log_warning("[lodscan] " + msg)
+
+
+def vec(v):
+    return [float(v.x), float(v.y), float(v.z)]
+
+
+def mesh_info(mesh, sme):
+    path = mesh.get_path_name()
+    if path in result["meshes"]:
+        return result["meshes"][path]
+    info = dict(path=path, lods=0, screen_sizes=[], triangles=[], verts=[], nanite=None)
+    try:
+        info["lods"] = int(mesh.get_num_lods())
+    except Exception as ex:
+        err("get_num_lods %s: %s" % (path, ex))
+    ss = None
+    for how in ("subsystem", "library", "source_models"):
+        try:
+            if how == "subsystem" and sme is not None:
+                ss = [float(x) for x in sme.get_lod_screen_sizes(mesh)]
+            elif how == "library" and hasattr(unreal, "EditorStaticMeshLibrary"):
+                ss = [float(x) for x in unreal.EditorStaticMeshLibrary.get_lod_screen_sizes(mesh)]
+            elif how == "source_models":
+                ss = []
+                for sm in mesh.get_editor_property("source_models"):
+                    v = sm.get_editor_property("screen_size")
+                    ss.append(float(v.get_editor_property("default") if hasattr(v, "get_editor_property") else v))
+            if ss:
+                info["screen_sizes_source"] = how
+                break
+        except Exception as ex:
+            err("screen sizes via %s %s: %s" % (how, path, ex))
+            ss = None
+    info["screen_sizes"] = ss or []
+    for lod in range(info["lods"]):
+        t = None
+        try:
+            t = int(mesh.get_num_triangles(lod))
+        except Exception:
+            t = None
+        info["triangles"].append(t)
+        try:
+            info["verts"].append(int(mesh.get_num_vertices(lod)))
+        except Exception:
+            info["verts"].append(None)
+    try:
+        info["nanite"] = bool(mesh.get_editor_property("nanite_settings").enabled)
+    except Exception as ex:
+        err("nanite_settings %s: %s" % (path, ex))
+    result["meshes"][path] = info
+    return info
+
+
+try:
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem) if hasattr(unreal, "StaticMeshEditorSubsystem") else None
+    result["load_level"] = bool(les.load_level(MAP))
+    descs = unreal.WorldPartitionBlueprintLibrary.get_actor_descs()
+    if isinstance(descs, tuple):
+        descs = descs[-1]
+    descs = list(descs or [])
+    result["actor_descs"] = len(descs)
+    guids = []
+    for d in descs:
+        try:
+            guids.append(d.get_editor_property("guid"))
+        except Exception:
+            try:
+                guids.append(d.guid)
+            except Exception as ex:
+                err("actor desc guid: %s" % ex)
+    if guids:
+        unreal.WorldPartitionBlueprintLibrary.load_actors(guids)
+    result["loaded"] = len(guids)
+    actors = list(eas.get_all_level_actors())
+    result["actors"] = len(actors)
+    names = {}
+    for a in actors:
+        names[a.get_name()] = names.get(a.get_name(), 0) + 1
+    for a in actors:
+        try:
+            comps = a.get_components_by_class(unreal.StaticMeshComponent)
+        except Exception:
+            continue
+        for c in comps:
+            if isinstance(c, unreal.InstancedStaticMeshComponent):
+                continue
+            mesh = c.get_editor_property("static_mesh")
+            if mesh is None:
+                continue
+            info = mesh_info(mesh, sme)
+            try:
+                o, e, r = unreal.SystemLibrary.get_component_bounds(c)
+            except Exception as ex:
+                err("bounds %s.%s: %s" % (a.get_name(), c.get_name(), ex))
+                continue
+            try:
+                hidden = bool(a.get_editor_property("hidden"))
+            except Exception:
+                hidden = None
+            rec = dict(actor=a.get_name(), actor_class=a.get_class().get_name(), label=a.get_actor_label(),
+                       component=c.get_name(), mesh=info["path"], lods=info["lods"], origin=vec(o), extent=vec(e),
+                       sphere=float(r), visible=bool(c.is_visible()), hidden_in_game=hidden,
+                       unique_name=names.get(a.get_name(), 0) == 1,
+                       forced_lod=int(c.get_editor_property("forced_lod_model")),
+                       min_lod=int(c.get_editor_property("min_lod")))
+            result["components"].append(rec)
+    result["ok"] = True
+except Exception:
+    err(traceback.format_exc())
+
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
+with open(OUT, "w", encoding="utf-8") as f:
+    json.dump(result, f, indent=1)
+unreal.log("[lodscan] wrote %s ok=%s descs=%d actors=%d components=%d meshes=%d errors=%d" % (
+    OUT, result["ok"], result["actor_descs"], result["actors"], len(result["components"]), len(result["meshes"]),
+    len(result["errors"])))

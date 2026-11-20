@@ -1,0 +1,33 @@
+from pathlib import Path
+import math,json,sys
+REF=Path(__file__).parent/'081-06-evidence/l1-reference.json'
+def quat(rot):
+    p,y,r=[math.radians(v)/2 for v in rot];sp,cp,sy,cy,sr,cr=math.sin(p),math.cos(p),math.sin(y),math.cos(y),math.sin(r),math.cos(r)
+    return (cr*sp*sy-sr*cp*cy,-cr*sp*cy-sr*cp*sy,cr*cp*sy-sr*sp*cy,cr*cp*cy+sr*sp*sy)
+def angle(a,b):
+    dot=abs(sum(x*y for x,y in zip(quat(a),quat(b))))
+    return math.degrees(2*math.acos(min(1.,max(0.,dot))))
+def check(snapshot,ref,geometry=(1280,720)):
+    v=snapshot.get('view',{});pos=v.get('origin',[]);rot=v.get('rot',[])
+    if snapshot.get('type')!='snapshot' or not v.get('valid') or len(pos)!=3 or len(rot)!=3 or not all(isinstance(x,(int,float)) and math.isfinite(x) for x in pos+rot):raise ValueError('missing/invalid finite camera snapshot')
+    if v.get('viewportPx')!=list(geometry) or snapshot.get('capture',{}).get('running') is not False:raise ValueError('wrong geometry or capture already running')
+    distance=math.dist(pos,ref['origin']);degrees=angle(rot,ref['rot']);passed=distance<=150 and degrees<=10+1e-9
+    return dict(status='PASS-L1' if passed else 'INVALID-FIXTURE',reason=None if passed else 'L1 pose',position_distance_cm=distance,rotation_distance_deg=degrees,position_limit_cm=150,rotation_limit_deg=10,reference=ref,observed_view=v,snapshot_world_time=snapshot.get('t'),capture_start_sent=False)
+if __name__=='__main__':
+    ref=json.loads(REF.read_text())
+    if len(sys.argv)==2 and sys.argv[1]=='--selftest':
+        sample=dict(type='snapshot',view=dict(valid=True,origin=ref['origin'][:],rot=ref['rot'][:],viewportPx=[1280,720]),capture=dict(running=False))
+        assert check(sample,ref)['status']=='PASS-L1'
+        sample['view']['origin'][0]+=151;assert check(sample,ref)['status']=='INVALID-FIXTURE'
+        sample['view']['origin']=ref['origin'][:];sample['view']['rot'][1]=10.1;assert check(sample,ref)['status']=='INVALID-FIXTURE'
+        assert abs(angle([0,179,0],[0,-179,0])-2)<1e-8
+        assert abs(angle([0,0,0],[0,10,0])-10)<1e-8
+        sample['view']['origin'][0]=float('nan')
+        try:check(sample,ref);raise AssertionError('nonfinite accepted')
+        except ValueError:pass
+        print('L1 checks passed: reference, distance refusal, rotation refusal, wraparound, threshold, nonfinite.')
+    else:
+        try:result=check(json.loads(Path(sys.argv[1]).read_text(encoding='utf-8-sig')),ref,tuple(map(int,sys.argv[3:5])) if len(sys.argv)>=5 else (1280,720));code=0 if result['status']=='PASS-L1' else 10
+        except Exception as e:result=dict(status='PROTOCOL-FAIL',reason=str(e),capture_start_sent=False);code=12
+        Path(sys.argv[2]).write_text(json.dumps(result,indent=2));print(json.dumps(result));sys.exit(code)
+

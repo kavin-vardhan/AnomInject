@@ -1,0 +1,71 @@
+import importlib.util
+import json
+import shutil
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location('c21', r'D:\IntrusiveAnomalies\_reviews\081-21-common.py')
+c = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(c)
+B = c.B
+E = c.E
+ours, foreign = c.classify()
+assert not ours, ours
+c.log_event('stage-idle-check', ours=ours, foreign=foreign)
+output = E / 'binary-v3.json'
+assert not output.exists()
+prior = json.loads((B / '_reviews/081-17-evidence/binary-v2.json').read_text())
+assert c.sha(prior['archive']) == prior['sha256'] and c.sha(prior['staged']) == prior['sha256']
+for r in prior['containers']:
+    assert c.sha(r['path']) == r['sha256'], r['path']
+source = c.git(c.R, 'rev-parse', 'HEAD')
+assert source == c.git(c.L, 'rev-parse', 'HEAD'), 'Lyra worktree not at build source'
+assert not c.git(c.R, 'diff', '--name-only', 'HEAD', '--', 'Source', 'Shaders', 'Config', 'AnomalyInjector.uplugin')
+built = Path(prior['built'])
+h = c.sha(built)
+assert h != prior['sha256'], 'Game exe unchanged'
+archive = B / f'_binary_baselines/StackOBot.exe.m55-build3-{h[:8].upper()}'
+assert not archive.exists()
+shutil.copy2(built, archive)
+assert c.sha(archive) == h
+lbin = c.L / 'Binaries/Win64'
+ldst = B / f'_binary_baselines/m55-build3-lyra-{c.sha(lbin / "UnrealEditor-AnomalyCapture.dll")[:8]}'
+ldst.mkdir()
+mods = []
+for p in sorted(lbin.iterdir()):
+    if p.is_file():
+        shutil.copy2(p, ldst / p.name)
+        assert c.sha(p) == c.sha(ldst / p.name)
+        mods.append(dict(name=p.name, size=p.stat().st_size, sha256=c.sha(p)))
+assert len(mods) == 11 and {m['name'] for m in mods} >= {'UnrealEditor-AnomalyBench.dll', 'UnrealEditor-AnomalyCapture.dll'}
+mbin = c.R / 'Binaries/Win64'
+mdst = B / f'_binary_baselines/m55-build3-main-editor-{source[:7]}'
+mdst.mkdir()
+main = []
+for p in sorted(mbin.iterdir()):
+    if p.is_file():
+        shutil.copy2(p, mdst / p.name)
+        assert c.sha(p) == c.sha(mdst / p.name)
+        main.append(dict(path=str(p), archive=str(mdst / p.name), sha256=c.sha(p)))
+(E / 'main-editor-binary.json').write_text(json.dumps(main, indent=2))
+shutil.copy2(built, prior['staged'])
+assert c.sha(prior['staged']) == h
+new_tokens = ['multi_view_families', 'unsupported_completion', 'STAGE-DISCARDED', 'BENCH-GATE-REFUSED', 'refused_no_fixture_flag']
+controls = ['BUDGET-EXCEEDED', 'HIGH-WATER-PEAK', 'change_bytes_peak_census', 'IAI-BENCH READY', 'ChangeCase:']
+invented = 'M55_R21_INVENTED_NOT_A_REAL_SYMBOL'
+binary = Path(prior['staged']).read_bytes()
+scan = {t: dict(ascii=binary.count(t.encode()), utf16=binary.count(t.encode('utf-16le'))) for t in new_tokens + controls + [invented]}
+assert all(scan[t]['utf16'] > 0 for t in new_tokens + controls), scan
+assert scan[invented]['utf16'] == 0 and scan[invented]['ascii'] == 0, scan
+lscan_bytes = (ldst / 'UnrealEditor-AnomalyCapture.dll').read_bytes()
+lyra_scan = {t: lscan_bytes.count(t.encode('utf-16le')) for t in new_tokens + ['BUDGET-EXCEEDED', invented]}
+assert all(lyra_scan[t] > 0 for t in new_tokens + ['BUDGET-EXCEEDED']) and lyra_scan[invented] == 0, lyra_scan
+cont = []
+for r in prior['containers']:
+    cont.append(dict(path=r['path'], sha256=c.sha(r['path']), unchanged=c.sha(r['path']) == r['sha256']))
+assert all(x['unchanged'] for x in cont)
+result = dict(source_commit=source, built=str(built), staged=prior['staged'], archive=str(archive), size=built.stat().st_size,
+              sha256=h, previous=dict(sha256=prior['sha256'], archive=prior['archive']), containers=cont,
+              lyra_archive=str(ldst), lyra_modules=mods, main_editor_archive=str(mdst), a44=scan, a44_lyra_capture_dll=lyra_scan,
+              foreign_processes_at_stage=[f['pid'] for f in foreign])
+output.write_text(json.dumps(result, indent=2))
+print(json.dumps({k: v for k, v in result.items() if k not in ('containers', 'lyra_modules')}, indent=2))

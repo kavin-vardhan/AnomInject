@@ -1,0 +1,84 @@
+"""090-10e legs. Usage: 090-10e-go.py <phase> <build> [args]
+  a <build> <mode pie|staged> <runs csv> [types csv]   pie_end_settle legs on the fixture, AA-off arbiter, 150 frames, 7 fires;
+                                                       runs >= 11 add IAI.TexCorrupt.Census before the capture (090-10b2's P_UV recipe)
+  cen <build> <leg csv>                                census timing legs (CEN_MW, CEN_BIG 15k, CEN_HUGE 40k, CEN_MW_WARM, S_CEN_MW)
+Every leg waits for the idle gate (090-10c rule) and writes runs/<label>.json with the 090-10e edge reading."""
+import importlib.util, json, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+_s = importlib.util.spec_from_file_location('h910e', str(Path(__file__).with_name('090-10e-common.py')))
+H = importlib.util.module_from_spec(_s); _s.loader.exec_module(H)
+c = H.c
+FOCUS = ['IAI.Capture.FocusGate 0']
+TYPES = {'uv': ('uv_corruption', c.FIX, ['tile']), 'normal': ('normal_corruption', c.FIX_N, ['invert']),
+         'missing': ('missing_texture', c.FIX, []), 'corrupted': ('corrupted_texture', c.FIX, [])}
+SEEDS = {1: 777, 2: 778, 3: 779, 4: 780}
+
+
+def a_spec(build, mode, t, run):
+    an, tgt, args = TYPES[t]
+    return dict(mode=mode, build=build, map=c.MAP_FIX, census=run >= 11, extra=['-IAIBench'], frames=150, cfg='2 4 8 14 0',
+                anomaly=an, target=tgt, args=args, seed=SEEDS.get(run if run < 11 else run - 10, 777), pre=list(FOCUS), wait=600)
+
+
+def cen_specs(build):
+    cen = ['IAI.Targets.AllowNanite 0']
+    L = {}
+    L['CEN_MW'] = dict(mode='pie', build=build, map=c.MAP_MW, census=False, kind='exit', record_dt=True, settle_s=12.0, hold_s=25.0,
+                       wait=900, arbiter=False, pre=cen + ['WAIT 5', 'IAI.TexCorrupt.Census all', 'WAIT 15'])
+    L['CEN_BIG'] = dict(mode='pie', build=build, map=c.MAP_MW, census=False, kind='exit', record_dt=True, settle_s=12.0, hold_s=60.0,
+                        wait=1500, arbiter=False, pre=cen + ['PYSTEP ' + str(H.PY / 'clones.py'), 'WAIT 8', 'IAI.TexCorrupt.Census all', 'WAIT 45'],
+                        plan_extra=dict(clones=dict(count=15000, per_tick=500, out=str(H.WORK / 'runs' / '{LABEL}.clones.json'))))
+    L['CEN_HUGE'] = dict(L['CEN_BIG'], hold_s=90.0, wait=2400,
+                         plan_extra=dict(clones=dict(count=40000, per_tick=800, out=str(H.WORK / 'runs' / '{LABEL}.clones.json'))))
+    L['CEN_HUGE_GC'] = dict(L['CEN_HUGE'], pre=cen + ['log LogGarbage Verbose', 'log LogStreaming Log', 'PYSTEP ' + str(H.PY / 'clones.py'),
+                                                       'WAIT 8', 'IAI.TexCorrupt.Census all', 'WAIT 45'])
+    L['CEN_MW_WARM'] = dict(mode='pie', build=build, map=c.MAP_MW, census=False, kind='exit', record_dt=True, settle_s=12.0, hold_s=40.0,
+                            wait=900, arbiter=False, pre=cen + FOCUS + ['IAI.Auto.Pool all 0', 'IAI.Capture.Start {OUT} png 777 30', 'WAIT 12',
+                                                                        'IAI.TexCorrupt.Census all', 'WAIT 20'])
+    L['S_CEN_MW'] = dict(mode='staged', build=build, map=c.MAP_MW, census=False, kind='log', pattern='Capture Ended. Writing CSV', count=1,
+                         arbiter=False, wait=600, pre=cen + ['DEFER ' * 300 + 'csvprofile start', 'DEFER ' * 330 + 'IAI.TexCorrupt.Census all',
+                                                            'DEFER ' * 900 + 'csvprofile stop'], post_wait_s=20)
+    return L
+
+
+def fix(v, label):
+    rep = {'{LABEL}': label, '{OUT}': str(H.OUT / label)}
+    if isinstance(v, str):
+        for k, r in rep.items():
+            v = v.replace(k, r)
+        return v
+    if isinstance(v, dict):
+        return {k: fix(x, label) for k, x in v.items()}
+    if isinstance(v, list):
+        return [fix(x, label) for x in v]
+    return v
+
+
+def show(rec):
+    e = (rec.get('edges') or {}).get('summary')
+    print(json.dumps(dict(label=rec.get('label'), status=rec.get('status') or ((rec.get('run') or {}).get('stdout') or '')[-160:],
+                          edges=e, pixels=[(x.get('verdict'), x.get('median')) for x in ((rec.get('reading') or {}).get('pixels') or [])])),
+          flush=True)
+
+
+if __name__ == '__main__':
+    ph, build = sys.argv[1], sys.argv[2]
+    if ph == 'a':
+        mode = sys.argv[3]
+        runs = [int(x) for x in sys.argv[4].split(',')]
+        types = sys.argv[5].split(',') if len(sys.argv) > 5 else ['uv', 'normal', 'missing', 'corrupted']
+        for r in runs:
+            for t in types:
+                label = f'{"P" if mode == "pie" else "S"}_{t}_r{r}_{build}'
+                show(H.run(label, a_spec(build, mode, t, r)))
+        if mode == 'staged':
+            print(json.dumps(c.restore_s1()), flush=True)
+    elif ph == 'cen':
+        L = cen_specs(build)
+        for name in sys.argv[3].split(','):
+            label = f'{name}_{build}'
+            rec = H.C.run(label, fix(L[name], label))
+            print(json.dumps(dict(label=label, status=rec.get('status'), rc=(rec.get('run') or {}).get('rc'))), flush=True)
+        if any(n.startswith('S_') for n in sys.argv[3].split(',')):
+            print(json.dumps(c.restore_s1()), flush=True)

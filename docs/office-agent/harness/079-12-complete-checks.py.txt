@@ -1,0 +1,67 @@
+"""079-12 scored classes, eligibility and CLI contracts."""
+import contextlib
+import hashlib
+import importlib.util
+import io
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+ROOT = Path(r"D:\IntrusiveAnomalies")
+TOOLS = ROOT / "StackOBot/Plugins/AnomalyInjector/tools"
+SCORER = ROOT / "StackOBot/Plugins/CaptureBench/tools/m079_shift_recovery.py"
+OUT = ROOT / "_reviews/079-12-evidence/final"
+OUT.mkdir(parents=True, exist_ok=True)
+sys.path.insert(0, str(TOOLS))
+import verify_capture as vc
+
+
+def module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+m = module("scorer07912", SCORER)
+mlo = vc._offset_module()
+root = tempfile.mkdtemp(prefix="m079_shift_")
+result = {"verifier_sha256": hashlib.sha256(Path(vc.__file__).read_bytes()).hexdigest(),
+          "scorer_sha256": hashlib.sha256(SCORER.read_bytes()).hexdigest(),
+          "classes": [], "cli": []}
+try:
+    for name, opts, expected in (
+        ("control", {}, ["recovered", "recovered"]),
+        ("lighting", {"lighting": True}, ["wrong", "recovered"]),
+        ("partial", {"missing_masks": (61,)}, ["unassessable", "recovered"]),
+        ("blank", {"true_runs": (), "label_runs": ((40, 70),)}, ["no-transition", "no-transition"])):
+        source = vc._codex08_fixture(root, name, **opts)
+        excluded = []
+        cells = m.run_cell(source, str(Path(root) / "shadows"), name, "both", 0, "annotation",
+                           1.0, mlo, m.cohort_of(source, mlo), excluded)
+        assert [c["outcome"] for c in cells] == expected and not excluded
+        result["classes"].append(dict(name=name, cells=cells))
+    negative = str(Path(root) / "blank")
+    missing = str(Path(root) / "not_a_session")
+    for case, path, report_only, expected in (("negative", negative, False, 2),
+            ("negative_report", negative, True, 0), ("execution_error", missing, True, 3)):
+        command = [sys.executable, "-B", str(TOOLS / "verify_capture.py"), "--label-pixel-gate",
+                   "--dir", path, "--region-cap", "1.0"]
+        if report_only:
+            command.append("--report-only")
+        run = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        assert run.returncode == expected, (case, run.returncode, run.stderr)
+        result["cli"].append(dict(case=case, exit=run.returncode, stdout=run.stdout, stderr=run.stderr))
+    log = io.StringIO()
+    with contextlib.redirect_stdout(log):
+        assert m.selftest() == 0
+    (OUT / "scorer_selftest.txt").write_text(log.getvalue(), encoding="utf-8")
+    (OUT / "complete_checks.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print("Scorer recovered/wrong/no-transition/unassessable controls and unsupported denominator pass")
+    print("Scorer bbox-only zero-cell eligibility, partial eligibility and zero-cap contracts pass")
+    print("CLI NO-TRACE=2, report-only=0, execution error with report-only=3")
+finally:
+    m.cleanup(root)

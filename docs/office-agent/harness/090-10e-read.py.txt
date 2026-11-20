@@ -1,0 +1,88 @@
+"""090-10e readings. Usage:
+  090-10e-read.py edges <label>...     per-leg edge summary (090-10e-edges) and every event's onset/raw_end/off/pie
+  090-10e-read.py tools <label>...     verify_capture --label-rule, the kit (label_sync_check) and E1 090-10e (diff_leg) on each session
+  090-10e-read.py census <label>...    census lines, PIE frame times over the census window, staged CSV (090-10b2-read rule)"""
+import importlib.util, json, subprocess, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+WORK = Path(r'E:\IA_BuildCache\_r910e')
+TOOLS = Path(r'E:\IA_BuildCache\_r53_src\AnomalyInjector\tools')
+
+
+def _load(name, path):
+    s = importlib.util.spec_from_file_location(name, str(path)); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+
+
+E = _load('e910e', R / '090-10e-edges.py')
+
+
+def session(label):
+    out = WORK / 'out' / label
+    if not out.exists():
+        return None
+    for d in sorted(out.iterdir()):
+        if (d / 'run_summary.json').exists():
+            return d
+    return None
+
+
+def cmd_edges(labels):
+    for lab in labels:
+        sd = session(lab)
+        if not sd:
+            print(json.dumps(dict(label=lab, session=None))); continue
+        r = E.edges(sd)
+        print(json.dumps(dict(label=lab, **E.summary(r))))
+        for x in r['events']:
+            print('   ', json.dumps({k: x.get(k) for k in ('type', 'label', 'verdict', 'onset', 'raw_end', 'onset_off', 'end_off', 'pie', 'thr')}))
+
+
+def cmd_tools(labels):
+    E1 = _load('e1e', R / '090-10e-eval.py')
+    for lab in labels:
+        sd = session(lab)
+        if not sd:
+            print(json.dumps(dict(label=lab, session=None))); continue
+        vc = subprocess.run([sys.executable, '-B', str(TOOLS / 'verify_capture.py'), '--label-rule', '--dir', str(sd)], capture_output=True, text=True,
+                            cwd=str(TOOLS))
+        vlines = [l.strip() for l in (vc.stdout + vc.stderr).splitlines() if l.strip()]
+        kit_out = WORK / 'kit' / f'{lab}.txt'
+        kit_out.parent.mkdir(parents=True, exist_ok=True)
+        kt = subprocess.run([sys.executable, '-B', str(TOOLS / 'label_sync_check.py'), str(sd), '--out', str(kit_out)], capture_output=True,
+                            text=True, cwd=str(TOOLS))
+        klines = [l.strip() for l in (kt.stdout + kt.stderr).splitlines() if l.strip()]
+        log = (WORK / 'ev' / lab / 'game.log')
+        lt = log.read_text(encoding='utf-8', errors='replace') if log.exists() else ''
+        try:
+            rs = E1.diff_leg(str(sd), None, lt)
+            s1 = dict(summary=E1.summarize_diff(rs['events']), guard=rs.get('pie_end_settle'))
+        except Exception as ex:
+            s1 = f'{type(ex).__name__}: {ex}'
+        kt_lines = kit_out.read_text(encoding='utf-8', errors='replace').splitlines() if kit_out.exists() else klines
+        kit_sum, sec = [], None
+        for l in kt_lines:
+            if l.startswith('== '):
+                sec = l.strip('= ').strip()
+            elif sec and (l.startswith('events ') and not l.startswith('events 0 ')):
+                kit_sum.append(sec + ': ' + l.strip()[:120])
+            elif sec and (l.startswith('RELEASE') or l.strip().startswith('end   t50') or l.strip().startswith('start t50')):
+                kit_sum.append(sec + ': ' + l.strip()[:120])
+            elif 'pie_end_settle' in l and 'events' in l:
+                kit_sum.append(l.strip()[:200])
+        e1s = s1 if isinstance(s1, str) else dict(guard_fail=(s1.get('guard') or {}).get('fail_reasons'),
+                                                  summary={k: v for k, v in (s1.get('summary') or {}).items()
+                                                           if k in ('events', 'ok', 'status', 'pie_end_settle_frames', 't50', 'strict')})
+        print(json.dumps(dict(label=lab, vc_exit=vc.returncode, vc=[l for l in vlines if l.startswith('LABEL-RULE:') or 'pie_end_settle (PIE)' in l
+                                                                   or l.lstrip().startswith('FAIL')][:6],
+                              kit_exit=kt.returncode, kit=kit_sum[:12], e1=e1s), default=str)[:5000])
+
+
+def cmd_census(labels):
+    rd = _load('r910b2', R / '090-10b2-read.py')
+    rd.WORK = WORK
+    rd.cmd_census(labels)
+
+
+if __name__ == '__main__':
+    {'edges': cmd_edges, 'tools': cmd_tools, 'census': cmd_census}[sys.argv[1]](sys.argv[2:])

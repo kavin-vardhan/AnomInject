@@ -1,0 +1,72 @@
+import importlib.util,json,sys
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-22-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+B=c.B;E=c.E;E21=c.E21
+post21=json.loads((E21/'postflight.json').read_text());pre21=json.loads((E21/'preflight.json').read_text())
+man21=json.loads((E21/'evidence-manifest.json').read_text());bank21=json.loads((E21/'bank-manifest.json').read_text())
+assert post21['verdict'].startswith('PASS') and not post21['problems']
+EXTERNAL={'_reviews/081-17-codex-vs-code-comparison.md':'chat scorecard, modified 2026-09-24 04:33:09 IST after 081-21 postflight (04:26:34); expected external update by chat, re-baselined (081-18 and 081-21 declared the same file)'}
+if E.exists():
+    extra=[p.name for p in E.iterdir()]
+    assert set(extra)<= {'environment-events.json','preflight-attempt1-postflight-log-empty-hash.json'},extra
+else:E.mkdir()
+q=c.quiet()
+pre={'utc':c.now(),'round':'081-22','repos':{},'mismatches':[],'quiet_at_preflight':q['quiet'],'processes_at_preflight':dict(ours=q['ours'],foreign=q['foreign'])}
+assert not [p for p in q['ours'] if p['name'] not in ('UnrealTraceServer.exe',)],q['ours']
+for name,r in {'AnomalyInjector':c.RP,'Lyra':c.L,'CaptureBench':c.C}.items():
+    assert not c.git(r,'diff','--name-only') and not c.git(r,'diff','--cached','--name-only'),name
+    st=c.state(r);old=post21['repos'][name]
+    for k in ('head','branch','untracked'):
+        if st[k]!=old[k]:pre['mismatches'].append([name,k])
+    a=dict(l.split(' ',1) for l in old['refs'].splitlines());z=dict(l.split(' ',1) for l in st['refs'].splitlines())
+    delta={k:[a.get(k),z.get(k)] for k in a.keys()|z.keys() if a.get(k)!=z.get(k)}
+    if delta:pre['mismatches'].append([name,'ref delta since 081-21 postflight',delta])
+    pre['repos'][name]=st
+assert pre['repos']['AnomalyInjector']['head']==c.M51 and pre['repos']['AnomalyInjector']['branch']=='m51'
+assert pre['repos']['Lyra']['head']==c.LYRA and pre['repos']['Lyra']['branch']==''
+assert c.git(c.RP,'rev-parse',c.FEATURE)==c.FEATURE_HEAD
+lyra_bins=sorted(p.name for p in (c.L/'Binaries/Win64').iterdir() if p.is_file())
+pre['lyra_module_names']=lyra_bins
+if lyra_bins!=post21['lyra_module_names'] or len(lyra_bins)!=9:pre['mismatches'].append(['Lyra','module set'])
+bins={}
+for p,h in post21['verified_binaries'].items():
+    a=c.sha(p);bins[p]=a
+    if a!=h:pre['mismatches'].append(['binary',p])
+pre['verified_binaries']=bins
+b3=c.binary_v3()
+for key in ('built','staged','archive'):
+    if c.sha(b3[key])!=b3['sha256']:pre['mismatches'].append(['002805CF not built=staged=archive',key])
+if not b3['sha256'].upper().startswith('002805CF'):pre['mismatches'].append(['build 3 hash',b3['sha256']])
+for r in b3['containers']:
+    if c.sha(r['path'])!=r['sha256']:pre['mismatches'].append(['container',r['path']])
+for r in b3['lyra_modules']:
+    if c.sha(c.Path(b3['lyra_archive'])/r['name'])!=r['sha256']:pre['mismatches'].append(['build-3 Lyra archive',r['name']])
+pre_m55=c.sha(c.PRE_M55);pre['pre_m55_archive']=dict(path=str(c.PRE_M55),sha256=pre_m55)
+if not pre_m55.upper().startswith('0844220E'):pre['mismatches'].append(['pre-m55 archive hash',pre_m55])
+arts={}
+for p,h in pre21['prior_artifacts'].items():
+    a=c.sha(B/p);arts[p]=a
+    if a!=h and p.replace('\\','/') in EXTERNAL:pre.setdefault('external_updates',[]).append([p,h,a,EXTERNAL[p.replace('\\','/')]])
+    elif a!=h:pre['mismatches'].append(['artifact',p])
+for p,h in man21.items():
+    a=c.sha(B/p);arts[p]=a
+    if a!=h and p.endswith('postflight.log') and h=='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855':pre.setdefault('external_updates',[]).append([p,h,a,'081-21 close.py hashed its own stdout log while it was still empty (sha256 of zero bytes); proven: no non-empty prefix of the current file matches; re-baselined'])
+    elif a!=h:pre['mismatches'].append(['081-21 evidence',p])
+new_since=[]
+for q2 in (B/'_reviews').glob('081-*'):
+    if q2.is_file() and not q2.name.startswith('081-22-'):
+        k=str(q2.relative_to(B))
+        if k not in arts:new_since.append(k);arts[k]=c.sha(q2)
+pre['prior_artifacts']=arts;pre['new_since_081_21_baselined']=new_since
+bank={}
+for p,h in list(pre21['bank_files'].items())+list(bank21.items()):
+    a=c.sha(B/p);bank[p]=a
+    if a!=h:pre['mismatches'].append(['bank',p])
+pre['bank_files']=bank
+cur=c.sha(B/'ToCodex/CURRENT.md');pre['current_sha256']=cur
+if cur!=post21['current_sha256'] if 'current_sha256' in post21 else cur!=pre21['current_sha256']:pre['mismatches'].append(['ToCodex','CURRENT.md'])
+remote=c.git(c.RP,'ls-remote','origin','refs/heads/'+c.FEATURE,'refs/heads/master');pre['remote_refs']=remote
+if c.MASTER+'\trefs/heads/master' not in remote or c.FEATURE_HEAD+'\trefs/heads/'+c.FEATURE not in remote:pre['mismatches'].append(['remote',remote])
+pre['counts']={'binaries':len(bins),'prior_artifacts':len(arts),'bank_files':len(bank)}
+(E/'preflight.json').write_text(json.dumps(pre,indent=2))
+print(json.dumps({'mismatches':pre['mismatches'],'external':pre.get('external_updates'),'counts':pre['counts'],'new_since':new_since,'remote':remote,'quiet':q['quiet'],'blocking':q['blocking']},indent=1))
+sys.exit(1 if pre['mismatches'] else 0)

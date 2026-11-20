@@ -1,0 +1,134 @@
+import json,re
+from pathlib import Path
+import numpy as np
+from PIL import Image
+BANK=Path(r'D:\IntrusiveAnomalies\_bench_sessions_bank')
+TRAJ=Path(r'D:\IntrusiveAnomalies\_reviews\082-07-mw-trajectory.json')
+MW_FLOOR='RoomBuilderSquare_C_UAID_00155DE1D4771FCF00_1080865874'
+PFX=re.compile(r'^\[(\d{4}\.\d\d\.\d\d-\d\d\.\d\d\.\d\d:\d{3})\]\[\s*(\d+)\]')
+SLOT=re.compile(r"^(?P<head>LogAnomaly: TEXCORRUPT-CENSUS   slot (?P<owner>[^ .]+)\.(?P<comp>[^ \[]+)\[(?P<idx>\d+)\] disposition=\S+ )raw=(?P<raw>[^(\s]*)\(len (?P<len>\d+)\) asset=(?P<asset>\S+) resolved=(?P<res>\S+) effective=(?P<eff>\S+)(?P<tail> nanite_routed=.*)$")
+_T={}
+def template():
+    if 'block' not in _T:
+        lines=(BANK/'M53S1_G0_FMW'/'_leg'/'game.log').read_text(encoding='utf-8-sig',errors='replace').splitlines()
+        body=[];on=False
+        for l in lines:
+            m=PFX.match(l);t=l[m.end():] if m else None
+            if t is None:continue
+            if t.startswith('LogAnomaly: TEXCORRUPT-CENSUS BEGIN targets=1 '):on=True;body=[]
+            if on:body.append(t)
+            if on and t.startswith('LogAnomaly: TEXCORRUPT-CENSUS family=') and f"target='={MW_FLOOR}'" not in t:on=False;body=[]
+            if on and t.startswith('LogAnomaly: TEXCORRUPT-CENSUS END targets=1'):break
+        _T['block']=body
+        slots=[];seen=set()
+        for t in body:
+            m=SLOT.match(t)
+            if m and (m['comp'],int(m['idx'])) not in seen:seen.add((m['comp'],int(m['idx'])));slots.append(dict(comp=m['comp'],idx=int(m['idx']),asset=m['asset']))
+        _T['slots']=slots
+        fl=(BANK/'M53S1_FMW_ID_A1'/'_leg'/'game.log').read_text(encoding='utf-8-sig',errors='replace')
+        _T['idp']=[(m.group(1),int(m.group(2)),int(m.group(3))) for m in re.finditer(r"uv_corruption: revert '([^']*)' slot (\d+) -> restored-default \('[^']*'\); override_len_before_apply=0 before_revert=(\d+)",fl)][:12]
+        _T['traj']={int(k):v for k,v in json.loads(TRAJ.read_text())['trajectory'].items()}
+        a=np.asarray(Image.open(sorted((BANK/'M53S1_FMW_CTL_A_A1').glob('session_*'))[0]/'Actual_Frames'/'frame_00060.png').convert('RGB'),dtype=np.int16)
+        _T['kbase']=a[440:490,0:370].copy()
+    return _T
+def dry_model(leg):
+    present=leg['cache']=='ON' and leg['role'] in ('IDP','IDF','C','R')
+    return dict(present=present,tint=40,post_eff={},left=0,unres=0)
+def committed(leg,m):
+    T=template()
+    if leg['role']=='IDP':return [(c,s) for c,s,_ in T['idp']]
+    if leg['role']=='IDF':return [(x['comp'],x['idx']) for x in T['slots']]
+    return []
+def override_len(leg,comp):
+    T=template();n=[x['idx'] for x in T['slots'] if x['comp']==comp]
+    if leg['role']=='C':return len(n)
+    if leg['role']=='IDP':
+        for c,s,br in T['idp']:
+            if c==comp:return br
+        return 0
+    if leg['role']=='IDF':return max(n)+1 if n else 0
+    return 0
+def census(leg,m,post):
+    T=template();out=[]
+    for t in T['block']:
+        s=SLOT.match(t)
+        if s:
+            comp,idx=s['comp'],int(s['idx']);ln=override_len(leg,comp) if post else 0
+            eff=(m.get('post_eff') or {}).get(f"{s['owner']}.{comp}[{idx}]",s['asset']) if post else s['asset']
+            t=f"{s['head']}raw=None(len {ln}) asset={s['asset']} resolved={s['asset']} effective={eff}{s['tail']}"
+        out.append(t)
+    return out
+def build_log(leg,label,s,m,cmds):
+    T=template();L=[];F,Rv=s['F'],s['R'];role=leg['role'];aid=leg['anomaly'];tg='='+MW_FLOOR
+    P=lambda k,t:L.append([k,t])
+    L.append([None,'LogInit: Command Line:  /Game/StackOBot/Maps/MainWorld -windowed -ResX=1280 -ResY=720 -ExecCmds="'+', '.join(cmds)+'" -unattended -nosplash'])
+    P(0,'LogConfig: Set CVar [[r.Shadow.Virtual.Enable:1]]')
+    for c in cmds:
+        if c.startswith('r.') and ' ' in c:P(1,f'{c.split()[0]} = "{c.split()[1]}"')
+    P(1,'r.DefaultFeature.AutoExposure = "0"      LastSetBy: Console');P(1,'r.EyeAdaptationQuality = "0"      LastSetBy: Console')
+    P(1,'r.Shadow.Virtual.Cache = "0"      LastSetBy: Console' if leg['cache']=='OFF' else 'r.Shadow.Virtual.Cache = "1"      LastSetBy: Constructor')
+    P(1,f"LogAnomalyCapture: IAI.Capture.Config: K={s['settle']} pre={s['pre']} positive={s['pos']} post={s['post']} bursts=0.")
+    if not s['warm']:P(1,'LogAnomalyCapture: IAI.Capture.TexCorruptWarmDraw: off - m53. Takes effect BETWEEN RUNS. OFF is the G-COST control for the cold first fire.')
+    clause='an m53 id is targeted or enabled, so a 2-frame NON-CAPTURING phase runs before the lead-in' if aid!='corrupted_texture' else 'no m53 id is targeted or enabled, so no phase is added and the run is byte-identical to one without m53'
+    P(1,f"LogAnomalyCapture: === Capture(m53): TEXCORRUPT WARM DRAW {'ON' if s['warm'] else 'OFF'} FOR THIS RUN (from {'COMPILED DEFAULT (on)' if s['warm'] else 'IAI.Capture.TexCorruptWarmDraw (console)'}) - {clause} ===")
+    P(1,f'LogAnomalyCapture: === Capture run STARTED: {label}/session_20260928-000000 | mode=targeted[{aid} on {MW_FLOOR}] | delivery=off | clock=wall | seed=777 fmt=png capture=sve')
+    if s['warm']:P(1,'LogAnomaly: texcorrupt: WARM DRAW issued 6 draw(s) across 3 target format pass(es) (allocation update, clear, draw, and one per-mip copy each), outside any captured frame.');P(2,'LogAnomaly: texcorrupt: WARM DRAW released its scratch targets.')
+    def reattach(k):
+        P(k,'LogConsoleResponse: Display: Reattach.Components:')
+        for x in sorted({x['comp'] for x in T['slots']})+['NODE_AddInstancedStaticMeshComponent-1','InstancedFoliageComponent_3']:P(k,f'LogConsoleResponse: Display:    Component: {x}')
+        P(k,'LogConsoleResponse: Display: ')
+    for t in census(leg,m,False):P(s['census'][0],t)
+    if role=='R':reattach(F)
+    com=committed(leg,m)
+    if role!='C':P(F,f"LogAnomaly: TEXCORRUPT-DECIDE family=uv mode=identity target='{tg}' final=APPLY step=- slots=30 qualified={len(com) if role in ('IDP','IDF') else 12} required_bytes=12595192 distinct_textures=4 scratch_classes=2 cap=268435456(console) levers=[]")
+    if role=='N1':P(F,f'LogAnomaly: Warning: {aid}: IAI.Bench.TexCorruptNoApply 1 - the whole transaction ran (reserve, allocate, draw, host MIDs) and ONLY THE SLOT COMMIT (step 7) IS SKIPPED.')
+    if role in ('N2','R'):P(F,f'LogAnomaly: Warning: {aid}: IAI.Bench.TexCorruptNoApply 2 - the decision tree said APPLY and the reservation arithmetic reads 12595192 byte(s), but NOTHING IS RESERVED, ALLOCATED, DRAWN OR COMMITTED.')
+    if role in ('IDP','IDF','N1'):
+        n=len(com) if role!='N1' else 0
+        P(F,f"LogAnomaly: {aid}: APPLIED mode=identity tile=1 fault=none noapply={1 if role=='N1' else 0} on '{tg}' - 4 output chain(s), 2 scratch class(es), 2 host MID(s), slots {n}/30 committed, required=12595192 reserved=12595192 live=12595192 pending=0 peak=12595192 cap=268435456(console), condition read through the live predicate: held (first failing index -1).")
+    if role=='C':P(F,f"LogAnomaly: corrupted_texture: overrode 30 slot(s) across 12 component(s) for '{tg}' (pink).")
+    P(F,f"LogAnomaly: IAI.Apply '{aid}' -> applied.");P(F,f"LogAnomaly: Auto.FireSpecific: '{aid}' on '{MW_FLOOR}' -> applied.")
+    if role=='R':reattach(Rv)
+    left=int(m.get('left',0));unres=int(m.get('unres',0))
+    if role in ('IDP','IDF'):
+        ex=de=lf=un=0
+        for i,(comp,slot) in enumerate(com):
+            if i<left:P(Rv,f"LogAnomaly: {aid}: revert left '{comp}' slot {slot} to the game (left-to-game) - it now holds 'MI_GridObjects', not our MID.");lf+=1
+            elif i<left+unres:P(Rv,f"LogAnomaly: Warning: {aid}: revert could not resolve '{comp}' slot {slot} (unresolved); the owner sweep follows.");un+=1
+            else:
+                ln=override_len(leg,comp);P(Rv,f"LogAnomaly: {aid}: revert '{comp}' slot {slot} -> restored-default ('MI_GridObjects'); override_len_before_apply=0 before_revert={ln} after={ln}.");de+=1
+        P(Rv,f'LogAnomaly: {aid}: REVERT restored-exact={ex} restored-default={de} left-to-game={lf} unresolved={un} swept=0; every render target (scratch included) released, originals let go after their slots were restored; live=0 pending=12595192.')
+    elif role=='C':P(Rv,f"LogAnomaly: corrupted_texture: revert of 30 captured slot(s) \u2014 restored=0 default-reset={30-left-unres} left-to-game={left} unresolved={unres} swept=0 (re-found=0).")
+    else:P(Rv,f'LogAnomaly: {aid}: REVERT restored-exact=0 restored-default=0 left-to-game=0 unresolved=0 swept=0; every render target (scratch included) released, originals let go after their slots were restored; live=0 pending=12595192.')
+    P(Rv,f"LogAnomaly: IAI.Revert '{aid}' -> reverted.")
+    for t in census(leg,m,True):P(s['census'][1],t)
+    P(s['fi'][-1]+12,f"LogAnomalyCapture: === Capture run FINISHED: {label}/session_20260928-000000 | {s['frames']} frame(s) (positive={s['pos']}) | 1 burst(s), 0 zero-match ===")
+    L.sort(key=lambda x:(-1 if x[0] is None else x[0]))
+    return L
+def render(L):return '\n'.join(t if k is None else f'[2026.09.28-00.00.00:000][{k%1000:3d}]{t}' for k,t in L)+'\n'
+def rows(leg,s,m,fi=None):
+    T=template();fi=fi or s['fi'];out=[];ev0,ev1=s['event']
+    for si in range(s['frames']):
+        f=fi[si];v=T['traj'].get(f) or T['traj'].get(f-1);e=ev0<=si<=ev1
+        out.append(dict(frame_index=f,session_index=si,t=round(f/30.0,6),t_wall=1000.0+si/30.0,image=f'Actual_Frames/frame_{si:05d}.png',width=1280,height=720,anomaly_present=e,visible_positive=e,mask_file=None,mask_state='unmeasured',
+                        view=dict(origin=v[0],rot=v[1],fovDeg=90,aspect=1.7777777910232544,valid=True),anomalies=[dict(id=leg['anomaly'],start_frame=s['F'])] if e else []))
+    return out
+def image(leg,s,m,si):
+    T=template();img=np.full((720,1280,3),100,np.int16);k=T['kbase'].copy()
+    yy,xx=np.mgrid[0:50,0:370]
+    if leg['role']=='N2':k=k+((yy+xx)%2)[...,None]
+    elif leg['role']!='N1':k=k+((yy*3+xx)%3==0)[...,None]
+    if m.get('present') and si>=s['event'][0]:k[15:35,100:140]+=int(m.get('tint',40))
+    img[440:490,0:370]=np.clip(k,0,255);return img.astype(np.uint8)
+def write_leg(leg,label,s,m,log_path,out_dir,cmds,edit=None,rowfix=None):
+    L=build_log(leg,label,s,m,cmds)
+    if edit:L=edit(L)
+    Path(log_path).parent.mkdir(parents=True,exist_ok=True);Path(log_path).write_text(render(L),encoding='utf-8')
+    out=Path(out_dir);(out/'Actual_Frames').mkdir(parents=True,exist_ok=True)
+    R=rows(leg,s,m)
+    if rowfix:R=rowfix(R)
+    (out/'labels.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in R),encoding='utf-8')
+    (out/'run_summary.json').write_text(json.dumps(dict(total_frames=len(R),positive_frames=s['pos'],speed_ratio=1.0,sustained_wall_fps=30.0,synthetic=True)),encoding='utf-8')
+    (out/'run.json').write_text(json.dumps(dict(start_frame=1,synthetic=True)),encoding='utf-8');(out/'annotation.json').write_text('{}',encoding='utf-8')
+    for r in R:Image.fromarray(image(leg,s,m,r['session_index'])).save(out/r['image'],compress_level=1)
+    return R

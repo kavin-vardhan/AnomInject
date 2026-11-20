@@ -1,0 +1,13 @@
+param([Parameter(Mandatory=$true)][string]$Tag,[string]$Mode='render',[string]$Maps='/Game/CaptureBenchGate/CB_GateLevel,/Game/AnomalyFixtures/CB_LodFixture',[string]$Sources='ldr',[string]$Script='D:\IntrusiveAnomalies\_reviews\089-03-lodfix-ue.py',[int]$Captures=4,[switch]$NoRender)
+$ErrorActionPreference='Stop'
+$ev='D:\IntrusiveAnomalies\_reviews\089-03-evidence\lodfix'
+New-Item -ItemType Directory -Force $ev | Out-Null
+$env:IAI_LODFIX_MODE=$Mode;$env:IAI_LODFIX_OUT_DIR=$ev;$env:IAI_LODFIX_TAG=$Tag;$env:IAI_LODFIX_MAPS=$Maps;$env:IAI_LODFIX_SOURCES=$Sources;$env:IAI_LODFIX_CAPTURES="$Captures"
+$env:IAI_LODFIX_OUT=(Join-Path $ev "scan-$Tag.json")
+$a=@('E:\IA_BuildCache\_r84_host\StackOBot\StackOBot.uproject','-run=pythonscript',"-script=$Script",'-unattended','-nosplash','-nopause','-stdout','-FullStdOutLogOutput')
+if(-not $NoRender){$a+='-AllowCommandletRendering';$a+='-RenderOffScreen'}
+$t0=Get-Date
+$p=Start-Process -FilePath 'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealEditor-Cmd.exe' -ArgumentList $a -RedirectStandardOutput "$ev\$Tag.log" -RedirectStandardError "$ev\$Tag.err" -WindowStyle Hidden -PassThru
+$p.WaitForExit()
+"tag=$Tag exit=$($p.ExitCode) s=$([int]((Get-Date)-$t0).TotalSeconds)"
+Select-String -Path "$ev\$Tag.log" -Pattern 'IAI-LODFIX-DONE|Success - |Failure - ' | ForEach-Object { $_.Line.Substring(0,[Math]::Min(200,$_.Line.Length)) }

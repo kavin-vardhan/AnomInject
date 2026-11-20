@@ -1,0 +1,41 @@
+from pathlib import Path
+import hashlib,importlib.util,json,re,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-11-evidence'
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+m=json.loads((E/'binary-v1.json').read_text());results=[]
+assert json.loads((E/'validation-summary.json').read_text())['ON_pass']==5
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+for case,order in [('null',0),('null',1),('solid',0),('solid',1)]:
+ accepted=False
+ for attempt in range(1,4):
+  for key in ('built','staged','archive'):assert sha(m[key])==m['sha256']
+  label=f'{case.upper()}_{"S" if order else "N"}_A{attempt}';d=E/label;log=E/f'runner-{label}.log';assert not log.exists()
+  args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-11-measure.ps1'),'-Label',label,'-Anomaly','null_effect' if case=='null' else 'solid_swap','-Order',str(order)]
+  with log.open('w') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+  launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace');errors=[]
+  if r.returncode:errors.append('runner: '+launch.get('error',str(r.returncode)))
+  focus=launch.get('capture_focus',[]);hits=sum(x['foreground_pid']==launch['pid'] for x in focus)
+  if not focus or hits!=len(focus):errors.append('whole-leg foreground failed')
+  if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure')
+  on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+  if len(on)!=1 or len(off)!=1 or len(place)!=1:errors.append('lock/placement/release count')
+  elif re.search(r'priorLook=(\d) priorMove=(\d)',on[0]).groups()!=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0]).groups():errors.append('unlock restoration')
+  if launch.get('session'):
+   session=Path(launch['session'])
+   pose=subprocess.run([sys.executable,str(B/'StackOBot/Plugins/CaptureBench/tools/check_pose.py'),str(session)],capture_output=True,text=True)
+   (d/'capture-pose.txt').write_text(pose.stdout+pose.stderr)
+   if pose.returncode:errors.append('captured-label B1 failed')
+  row=dict(label=label,case=case,order=order,attempt=attempt,fixture_errors=errors,foreground_hits=hits,foreground_samples=len(focus),session=launch.get('session'))
+  (d/'fixture-result.json').write_text(json.dumps(row,indent=2));results.append(row);(E/'static-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps(row),flush=True)
+  if errors:continue
+  result=a.audit(session,d/'game.log',{});(d/'measurement-audit.json').write_text(json.dumps(result,indent=2));row['measurement_errors']=result['errors'];row['accepted']=not result['errors']
+  (E/'static-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps({k:result[k] for k in ('events','pairs','measured','errors')}),flush=True)
+  if result['errors']:sys.exit(1)
+  accepted=True;break
+ if not accepted:
+  print('INVALID-FIXTURE-EXHAUSTED: '+label,flush=True);sys.exit(2)
+print('Static twin reruns accepted',flush=True)

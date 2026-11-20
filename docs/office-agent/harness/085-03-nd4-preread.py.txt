@@ -1,0 +1,24 @@
+"""085-03 offline ND-4 pre-read (no launch): the S1 bank's MainWorld census (M53S1_G0_FMW, S1 build, frame 1, compiled 128 MiB cap)
+re-read under the DC rules. Under all-or-nothing (DC plan section 7) a decision with 0 < qualified < slots is partial_footprint, so
+an S1 APPLY on a partial slot set is a DC refusal. This is a PREDICTION for tonight's P-HOST, not a measurement of the DC build."""
+import collections,json,re
+from pathlib import Path
+LOG=Path(r'D:\IntrusiveAnomalies\_bench_sessions_bank\M53S1_G0_FMW_A1\_leg\game.log')
+OUT=Path(r'D:\IntrusiveAnomalies\_reviews\085-03-evidence\nd4-s1-preread.json')
+RX=re.compile(r"TEXCORRUPT-CENSUS family=(?P<fam>\S+) mode=\S* target='=?(?P<t>[^']+)' final=(?P<final>\S+) step=(?P<step>\S+) slots=(?P<slots>\d+) qualified=(?P<q>\d+) required_bytes=(?P<req>\d+)")
+seen={}
+for ln in LOG.read_text(encoding='utf-8',errors='replace').splitlines():
+    m=RX.search(ln)
+    if m:seen[(m['t'],m['fam'])]=dict(s1_final=m['final'],step=m['step'],slots=int(m['slots']),qualified=int(m['q']),required=int(m['req']))
+rows=[]
+for (t,f),v in sorted(seen.items()):
+    dc=v['s1_final']
+    if dc=='APPLY' and 0<v['qualified']<v['slots']:dc=f"partial_footprint:{v['qualified']}/{v['slots']}"
+    elif dc=='APPLY' and v['required']>134217728:dc='over_budget'
+    rows.append(dict(target=t,family=f,dc_final=dc,**v))
+yield_={f:dict(eligible=sum(1 for r in rows if r['family']==f and r['dc_final']=='APPLY'),refused=sum(1 for r in rows if r['family']==f and r['dc_final']!='APPLY'),
+               reasons=dict(collections.Counter(r['dc_final'].split(':')[0] for r in rows if r['family']==f and r['dc_final']!='APPLY'))) for f in ('uv','normal')}
+doc=dict(source=str(LOG),note=__doc__,actors=len({r['target'] for r in rows}),yield_at_128_dc_rules=yield_,rows=rows,
+         floor_later_decisions='S1/S2-0 record (DC plan section 7): the floor reaches 30/30 uv qualified later and refuses over_budget, needing 219,541,488 B; its normal family is bound on 18 of 30 slots (082-07i) so all-or-nothing refuses it partial_footprint at any cap')
+OUT.write_text(json.dumps(doc,indent=1),encoding='utf-8')
+print(json.dumps(yield_,indent=1));print('actors',doc['actors'])

@@ -1,0 +1,126 @@
+param(
+ [Parameter(Mandatory=$true)][string]$Label,
+ [Parameter(Mandatory=$true)][string]$EvDir,
+ [Parameter(Mandatory=$true)][string]$Map,
+ [Parameter(Mandatory=$true)][string]$ExecCmds,
+ [Parameter(Mandatory=$true)][string]$OutLabel,
+ [int]$Seed=4242,
+ [int]$MaxFrames=300,
+ [string]$Anomaly='',
+ [string]$Target='',
+ [int]$WaitSec=900,
+ [int]$SettleSec=45,
+ [int]$ResX=1920,
+ [int]$ResY=1080,
+ [string]$ExtraArgs='',
+ [string]$Url='ws://127.0.0.1:8077',
+ [switch]$Stub
+)
+$ErrorActionPreference='Stop'
+$editor='D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealEditor.exe'
+$project='E:\UEProjects\LyraStarterGame\LyraStarterGame.uproject'
+$outRoot='E:\UEProjects\_lyra_legs'
+if(Test-Path -LiteralPath $EvDir){throw "evidence dir exists: $EvDir"}
+New-Item -ItemType Directory -Path $EvDir | Out-Null
+$log=Join-Path $EvDir 'game.log'
+$outDir=Join-Path $outRoot $OutLabel
+$argsList=@($project,$Map,'-game','-windowed',"-ResX=$ResX","-ResY=$ResY","-ExecCmds=`"$ExecCmds, IAI.Server.Start`"",'-unattended','-nosplash',"-abslog=$log")
+if($ExtraArgs){$argsList+=@($ExtraArgs -split ' '|Where-Object{$_})}
+$record=[ordered]@{label=$Label;kind='lyra';map=$Map;out_label=$OutLabel;out_dir=$outDir;exec_cmds=$ExecCmds;anomaly=$Anomaly;target=$Target;seed=$Seed;max_frames=$MaxFrames;args=$argsList;stub=[bool]$Stub;started_utc=[DateTime]::UtcNow.ToString('o');focus=@();capture_focus=@();errors=@()}
+function Save-Record{$record|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $EvDir 'launch.json') -Encoding utf8}
+if($Stub){$record.status='STUB';$record.editor_exists=(Test-Path -LiteralPath $editor);$record.cmd_chars=$ExecCmds.Length;Save-Record;Write-Output "STUB $Label kind=lyra chars=$($ExecCmds.Length)";exit 0}
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class L56Fg {
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int cmd);
+ [DllImport("user32.dll")] public static extern void keybd_event(byte k,byte s,uint f,UIntPtr e);
+ public static uint FgPid(){uint p;GetWindowThreadProcessId(GetForegroundWindow(),out p);return p;}
+ public static void Force(IntPtr h){ShowWindow(h,9);keybd_event(0x12,0,0,UIntPtr.Zero);keybd_event(0x12,0,2,UIntPtr.Zero);SetForegroundWindow(h);BringWindowToTop(h);}
+}
+"@
+$busy=@(Get-Process -Name StackOBot,UnrealEditor,UnrealEditor-Cmd,LyraGame,LyraEditor -ErrorAction SilentlyContinue)
+if($busy.Count){$record.status='REFUSED-NOT-IDLE';$record.busy=@($busy|ForEach-Object{@{pid=$_.Id;name=$_.ProcessName}});Save-Record;throw 'bench not idle - refused (nothing is killed)'}
+if(Test-Path -LiteralPath $outDir){throw "lyra output exists: $outDir"}
+New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
+Save-Record
+$p=$null
+function Log-Text{if(Test-Path -LiteralPath $log){return [string](Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue)}return ''}
+function Check-Foreign($where){$fe=@(Get-Process -Name UnrealEditor,UnrealEditor-Cmd,LyraEditor,StackOBot -ErrorAction SilentlyContinue|Where-Object{$_.Id -ne $p.Id});if($fe.Count){$record.foreign_editor=@($fe|ForEach-Object{@{pid=$_.Id;path=$_.Path}});$record.foreign_where=$where;throw "FOREIGN-EDITOR-APPEARED $where"}}
+function Hold-Focus{try{$p.Refresh();if($p.MainWindowHandle -ne 0 -and [L56Fg]::FgPid() -ne $p.Id){[L56Fg]::Force($p.MainWindowHandle)}}catch{}}
+$ws=$null
+try{
+ $p=Start-Process -FilePath $editor -ArgumentList $argsList -PassThru
+ $record.pid=$p.Id;Save-Record
+ $deadline=(Get-Date).AddSeconds($WaitSec);$token=$null;$sw=[Diagnostics.Stopwatch]::StartNew();$focusAt=-1.0
+ while((Get-Date) -lt $deadline){
+  if($p.HasExited){throw 'game exited during startup'}
+  Check-Foreign 'startup'
+  $m=[regex]::Match((Log-Text),'Control server token:\s*(\S+)\s*\(')
+  if($m.Success){$token=$m.Groups[1].Value;break}
+  Hold-Focus;Start-Sleep -Milliseconds 700
+ }
+ if(-not $token){throw 'control server never announced a token'}
+ while((Get-Date) -lt $deadline){
+  if($p.HasExited){throw 'game exited before world up'}
+  if((Log-Text) -match 'Bringing World .*up for play'){$record.world_up=$true;break}
+  Start-Sleep -Milliseconds 700
+ }
+ $settleEnd=(Get-Date).AddSeconds($SettleSec)
+ while((Get-Date) -lt $settleEnd){
+  if($p.HasExited){throw 'game exited during settle'}
+  Check-Foreign 'settle'
+  Hold-Focus
+  $fg=[L56Fg]::FgPid();$record.focus+=@{utc=[DateTime]::UtcNow.ToString('o');foreground_pid=$fg}
+  if($fg -eq $p.Id -and $focusAt -lt 0){$focusAt=[math]::Round($sw.Elapsed.TotalSeconds,1)}
+  Start-Sleep -Milliseconds 800
+ }
+ $record.focus_at_s=if($focusAt -ge 0){[math]::Min($focusAt,19.0)}else{-1.0};$record.focus_at_s_raw=$focusAt
+ $ct=[System.Threading.CancellationToken]::None
+ $ws=[System.Net.WebSockets.ClientWebSocket]::new()
+ $ws.ConnectAsync([Uri]$Url,$ct).GetAwaiter().GetResult()
+ function Send($o){$b=[System.Text.Encoding]::UTF8.GetBytes(($o|ConvertTo-Json -Compress -Depth 10));[void]$ws.SendAsync([System.ArraySegment[byte]]::new($b),[System.Net.WebSockets.WebSocketMessageType]::Text,$true,$ct).GetAwaiter().GetResult()}
+ function Recv([int]$ms=4000){$buf=[byte[]]::new(262144);$mem=[System.IO.MemoryStream]::new();try{do{$cts=[System.Threading.CancellationTokenSource]::new($ms);$r=$ws.ReceiveAsync([System.ArraySegment[byte]]::new($buf),$cts.Token).GetAwaiter().GetResult();$mem.Write($buf,0,$r.Count)}while(-not $r.EndOfMessage)}catch{return $null};$by=$mem.ToArray();if($by.Length -ge 4 -and $by[0] -eq 0x41 -and $by[1] -eq 0x49 -and $by[2] -eq 0x46 -and $by[3] -eq 0x31){return '<AIF1>'};return [System.Text.Encoding]::UTF8.GetString($by)}
+ Send @{type='hello';token=$token}
+ for($i=0;$i -lt 8;$i++){$m=Recv;if($m -and $m -ne '<AIF1>'){$record.auth=$m.Substring(0,[math]::Min(200,$m.Length));break}}
+ $record.sampling_started_utc=[DateTime]::UtcNow.ToString('o')
+ $record.anchor_start=@{utc=[DateTime]::UtcNow.ToString('o')}
+ if($Anomaly -ne '' -and $Target -ne ''){Send @{type='capture_start';dir=$outDir;format='png';seed=$Seed;maxFrames=$MaxFrames;anomaly=$Anomaly;target=$Target}}
+ else{Send @{type='capture_start';dir=$outDir;format='png';seed=$Seed;maxFrames=$MaxFrames}}
+ $session=$null;$run=[Diagnostics.Stopwatch]::StartNew();$nextForeign=0.0
+ while((Get-Date) -lt $deadline){
+  if($p.HasExited){throw 'game exited during capture'}
+  $t=$run.Elapsed.TotalSeconds
+  if($t -ge $nextForeign){$nextForeign+=1.0;Check-Foreign ('capture t='+[math]::Round($t,1))}
+  $fg=[L56Fg]::FgPid();$record.capture_focus+=@{seconds=$t;foreground_pid=$fg}
+  if($fg -ne $p.Id){Hold-Focus}
+  $session=Get-ChildItem -LiteralPath $outDir -Directory -ErrorAction SilentlyContinue|Where-Object{Test-Path -LiteralPath (Join-Path $_.FullName 'run_summary.json')}|Select-Object -First 1
+  if($session){break}
+  Start-Sleep -Milliseconds 200
+ }
+ $record.anchor_end=@{utc=[DateTime]::UtcNow.ToString('o')}
+ if(-not $session){throw 'NO-RUN-SUMMARY within the wait'}
+ $prevN=-1;$prevZ=-1;$st=0
+ for($w=0;$w -lt 60;$w++){
+  $ff=@(Get-ChildItem -LiteralPath (Join-Path $session.FullName 'Actual_Frames') -File -ErrorAction SilentlyContinue)
+  $n=$ff.Count;$z=@($ff|Where-Object{$_.Length -eq 0}).Count
+  if($n -eq $prevN -and $z -eq $prevZ){$st++}else{$st=0}
+  if($st -ge 4 -and $z -eq 0){break}
+  $prevN=$n;$prevZ=$z;Start-Sleep -Milliseconds 250
+ }
+ Start-Sleep -Milliseconds 2500
+ $record.session=$session.FullName
+ $record.status='COMPLETE'
+}catch{
+ $record.status='PROTOCOL-FAIL';$record.error=$_.Exception.Message
+}finally{
+ if($ws){try{[void]$ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure,'done',[System.Threading.CancellationToken]::None).GetAwaiter().GetResult()}catch{}}
+ if($p -and -not $p.HasExited){Stop-Process -Id $p.Id -Force;$p.WaitForExit();$record.killed_by_pid=$p.Id}
+ $record.finished_utc=[DateTime]::UtcNow.ToString('o');Save-Record
+}
+Write-Output "$Label kind=lyra status=$($record.status) session=$($record.session) error=$($record.error)"
+if($record.status -ne 'COMPLETE'){exit 1}
+exit 0

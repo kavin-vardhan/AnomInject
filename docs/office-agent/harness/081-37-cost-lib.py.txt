@@ -1,0 +1,489 @@
+import importlib.util,json,math,os,re,statistics as st,subprocess,sys,time,datetime,collections
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
+L=_load('lib23',R/'081-23-lib.py');c=L.c;S=_load('s37',R/'081-37-cost-sampler.py')
+ROOT=None
+def set_root(p):
+    global ROOT
+    ROOT=Path(p);ROOT.mkdir(parents=True,exist_ok=True);c.E=ROOT;os.environ['IAI_R23_ROOT']=str(ROOT);(ROOT/'legs').mkdir(exist_ok=True);return ROOT
+set_root(os.environ.get('IAI_C37_ROOT',str(R/'081-37-evidence'/'cost')))
+MEASURE=R/'081-23-measure.ps1'
+UE_WALL_OFFSET=16777216.0
+F_TSC=float(S.registry_mhz() or 0)*1e6
+RES={'720':dict(w=1280,h=720,frames=600,est_s=45.0),'1080':dict(w=1920,h=1080,frames=300,est_s=45.0),'DIAG':dict(w=1280,h=720,frames=600,est_s=45.0),
+     'P_720':dict(w=1280,h=720,frames=600,est_s=55.0,paced=True),'P_1080':dict(w=1920,h=1080,frames=600,est_s=55.0,paced=True)}
+ANOMALY='solid_swap';CONFIG='2 4 16 4 0';ORDER=0
+COMMON='IAI.Capture.Pace 0, IAI.Bench.ChangeGate 0'
+PACED_EXTRA='IAI.Bench.ChangeGate 0, IAI.Capture.RunLog 0';PACED_FPS=30
+def extra_for(res,cond):
+    if RES[res].get('paced'):e=PACED_EXTRA
+    else:e=COMMON+('' if res=='DIAG' else ', IAI.Capture.RunLog 0')
+    return e+(', IAI.Capture.ChangeEvidence 0' if cond=='A' else '')
+W0=60;BENCH_BUDGET_S=2520.0;FIXTURE_ATTEMPTS=3;ENV_CAP=5
+LOAD={'foreign_cpu_mean_cores':2.0,'foreign_cpu_max_interval_cores':3.5,'foreign_gpu3d_mean_pct':5.0,'foreign_io_mean_mbps':20.0}
+PRELAUNCH_LOAD_S=5.0;LOAD_POLL_S=15.0
+INDUCED=('system','registry','memory compression','dwm.exe','csrss.exe','msmpeng.exe','mpdefendercoreservice.exe','searchindexer.exe','searchprotocolhost.exe','searchfilterhost.exe','audiodg.exe','secure system','idle')
+GT_MS_GATE=1.0;WRITER_RES_FRAC=0.05;FPS_PRIOR_FRAC=0.75;STALL_MS=150.0;VACUITY_MEASURED=20;P_YIELD_NUM=9;P_YIELD_DEN=10
+T95={1:6.314,2:2.920,3:2.353,4:2.132,5:2.015,6:1.943,7:1.895,8:1.860,9:1.833,10:1.812,11:1.796,12:1.782,13:1.771,14:1.761}
+BLOCKS=[('720',1,['A1','B1','B2','A2']),('720',2,['A3','B3','B4','A4']),('1080',1,['A1','B1','B2','A2']),('1080',2,['A3','B3','B4','A4'])]
+STRESS_BLOCKS=BLOCKS;STRESS_RES=('720','1080')
+P_BLOCKS=[('P_720',1,['A1','B1','B2','A2']),('P_720',2,['A3','B3','B4','A4']),('P_1080',1,['A1','B1','B2','A2']),('P_1080',2,['A3','B3','B4','A4'])];P_RES=('P_720','P_1080')
+DIAG_BLOCK=('DIAG',1,['A','B'])
+def cond_of(name):return 'A' if name=='DISC' else name[0]
+def leg_id(res,name):return f'S3_{res}_{name}'
+def _legs_of(blocks,res_list):return {leg_id(r,n) for r,bi,ns in blocks for n in ns}|{leg_id(r,'DISC') for r in res_list}
+RETIRED=_legs_of(STRESS_BLOCKS,STRESS_RES)
+ACTIVE=_legs_of(P_BLOCKS,P_RES)|{leg_id(DIAG_BLOCK[0],n) for n in DIAG_BLOCK[2]}
+RULING_STRESS='ruling 081-39 (_reviews/081-39-chat-ruling-cost-paced-block.md) ruling 1'
+GAME_GPU_NOTE='the per-process PDH GPU-engine counter read 0.0 % for the game on every 081-38 leg: an instrument limitation for this process, cause not established; INVALID-LOAD reads the FOREIGN GPU only'
+PACER_NOTE='under pacing the game-thread cycles include the m11 pacer busy-wait (whole-ms sleep to within 1.5 ms of the deadline, then SwitchToThread on the game thread); see AMENDMENT 1 A1.7 and 081-39 proof-pacer.json'
+COUNTED_OK='VALID';ENV_INVALID=('INVALID-FOREIGN','INVALID-LOAD','INVALID-PERSON','ENV-INTERRUPTED');FIXTURE_INVALID=('INVALID-FIXTURE','INVALID-PRECAPTURE')
+HALTING={'LEG-FAILURE':1,'NOT-RUN':2,'HARNESS-FAIL':3}
+class Stop(Exception):
+    def __init__(self,code,msg):super().__init__(msg);self.code=code;self.msg=msg
+def jload(p,default=None):
+    p=Path(p);return json.loads(p.read_text(encoding='utf-8-sig')) if p.exists() else default
+def jsave(p,v):Path(p).write_text(json.dumps(v,indent=1,default=str))
+def read_jsonl(p):return [json.loads(x) for x in Path(p).read_text(encoding='utf-8-sig').splitlines() if x.strip()]
+def ledger():return jload(ROOT/'cost-results.json',[])
+def ledger_add(row):
+    v=ledger();v.append(row);jsave(ROOT/'cost-results.json',v)
+def pct(v,p):
+    if not v:return None
+    v=sorted(v);k=max(0,min(len(v)-1,math.ceil(len(v)*p/100.0)-1));return v[k]
+def dist(v,nd=2):return None if not v else dict(n=len(v),p50=round(pct(v,50),nd),p95=round(pct(v,95),nd),p99=round(pct(v,99),nd),max=round(max(v),nd))
+def _epoch(s):return datetime.datetime.fromisoformat(str(s).replace('Z','+00:00')).timestamp()
+def load_context(load,game_pid,harness_root,lo,hi):
+    ss=[x for x in load.get('samples',[]) if lo-0.6<=x['t']<=hi+0.6]
+    names={int(k):v for k,v in (load.get('names') or {}).items()}
+    if len(ss)<2:return dict(ok=False,samples=len(ss),reasons=['load sampler has fewer than 2 samples in the window: load cannot be established'],foreign_cpu_mean_cores=None)
+    def tree(parents):
+        kids=collections.defaultdict(list)
+        for p,pp in parents.items():kids[int(pp)].append(int(p))
+        seen=set();stack=[harness_root]
+        while stack:
+            x=stack.pop()
+            if x in seen:continue
+            seen.add(x);stack+=kids.get(x,[])
+        return seen
+    cls_cpu=collections.Counter();per=collections.Counter();intervals=[];gpu_f=[];gpu_g=[];gpu_i=[];io_f=0.0;io_g=0.0;span=0.0;busy=[]
+    for a,b in zip(ss,ss[1:]):
+        dt=b['t']-a['t']
+        if dt<=0:continue
+        span+=dt;harness=tree(b['parents'])-{game_pid};fi=0.0
+        for k,v in b['procs'].items():
+            pid=int(k);u=a['procs'].get(k)
+            if not u or v[0] is None or u[0] is None:continue
+            cores=(v[0]-u[0])/1e7/dt;io=((v[1] or 0)+(v[2] or 0)-(u[1] or 0)-(u[2] or 0))/1e6
+            nm=(names.get(pid) or '').lower()
+            if pid==game_pid:k2='game';io_g+=io
+            elif pid in harness:k2='harness'
+            elif nm in INDUCED or pid==4:k2='induced'
+            else:k2='foreign';fi+=cores;io_f+=io;per[f'{names.get(pid)}:{pid}']+=cores*dt
+            cls_cpu[k2]+=cores*dt
+        intervals.append(fi)
+        g=b.get('gpu3d') or {}
+        gpu_g.append(sum(v for k,v in g.items() if int(k)==game_pid));gpu_i.append(sum(v for k,v in g.items() if (names.get(int(k)) or '').lower() in INDUCED))
+        gpu_f.append(sum(v for k,v in g.items() if int(k)!=game_pid and int(k) not in harness and (names.get(int(k)) or '').lower() not in INDUCED))
+        i0,k0,u0=a['sys'];i1,k1,u1=b['sys'];tot=(k1-k0)+(u1-u0)
+        if tot>0:busy.append(100.0*(1-(i1-i0)/tot))
+    if span<=0:return dict(ok=False,samples=len(ss),reasons=['zero load span'],foreign_cpu_mean_cores=None)
+    out=dict(samples=len(ss),span_s=round(span,2),cores={k:round(v/span,3) for k,v in cls_cpu.items()},foreign_cpu_mean_cores=round(cls_cpu['foreign']/span,3),
+             foreign_cpu_max_interval_cores=round(max(intervals),3) if intervals else None,top_foreign=[(k,round(v/span,3)) for k,v in per.most_common(6)],
+             foreign_gpu3d_mean_pct=round(st.fmean(gpu_f),2) if gpu_f else None,game_gpu3d_mean_pct=round(st.fmean(gpu_g),2) if gpu_g else None,induced_gpu3d_mean_pct=round(st.fmean(gpu_i),2) if gpu_i else None,
+             foreign_io_mean_mbps=round(io_f/span,2),game_io_mean_mbps=round(io_g/span,2),system_busy_pct_mean=round(st.fmean(busy),1) if busy else None,
+             disk_idle_pct_min=min([x['disk'].get('% Idle Time') for x in ss if x.get('disk') and x['disk'].get('% Idle Time') is not None],default=None),
+             disk_sec_per_write_max=max([x['disk'].get('Avg. Disk sec/Write') for x in ss if x.get('disk') and x['disk'].get('Avg. Disk sec/Write') is not None],default=None),
+             pdh_errors=load.get('pdh_errors'))
+    reasons=[]
+    for k,lim in LOAD.items():
+        v=out.get(k)
+        if v is None:reasons.append(f'{k} unavailable: load cannot be established')
+        elif v>lim:reasons.append(f'{k} {v} > {lim}')
+    out['ok']=not reasons;out['reasons']=reasons;return out
+def game_threads_gt(threads):
+    d=threads.get('desc') or {}
+    g=[k for k,v in d.items() if v=='GameThread']
+    if g:return g[0],'description GameThread'
+    cr=[(v,k) for k,v in (threads.get('created') or {}).items() if v]
+    return (min(cr)[1],'earliest-created thread (no GameThread description)') if cr else (None,'no thread')
+def tclass(desc):
+    d=(desc or '')
+    for p,n in (('GameThread','game'),('RenderThread','render'),('RHIThread','rhi'),('RHISubmission','rhi'),('Background Worker','bg_worker'),('Foreground Worker','fg_worker'),('PoolThread','pool'),('TaskGraph','taskgraph')):
+        if d.startswith(p):return n
+    return 'other' if d else 'unnamed'
+def interp_series(xs,ys,x):
+    if not xs or x<xs[0] or x>xs[-1]:return None
+    import bisect
+    i=bisect.bisect_left(xs,x)
+    if xs[i]==x:return ys[i]
+    x0,x1,y0,y1=xs[i-1],xs[i],ys[i-1],ys[i];return y0+(y1-y0)*(x-x0)/(x1-x0)
+def thread_metrics(threads,T0,T1,fq_t,fq_f):
+    gt,how=game_threads_gt(threads)
+    ss=[x for x in threads.get('samples',[]) if gt and gt in x['cyc']]
+    a=next((i for i,x in enumerate(ss) if x['t']>=T0),None);b=max((i for i,x in enumerate(ss) if x['t']<=T1),default=None)
+    if a is None or b is None or b-a<10:return dict(ok=False,why=f'fewer than 10 sampler intervals inside the steady window (a={a}, b={b}, samples={len(ss)})',gt_tid=gt,gt_how=how)
+    sa,sb=ss[a],ss[b];Fa=interp_series(fq_t,fq_f,sa['t']);Fb=interp_series(fq_t,fq_f,sb['t'])
+    if Fa is None or Fb is None or Fb<=Fa:return dict(ok=False,why='engine-frame interpolation failed',gt_tid=gt,gt_how=how)
+    dt=sb['t']-sa['t'];secs=(sb['cyc'][gt]-sa['cyc'][gt])/F_TSC
+    cls=collections.Counter()
+    for tid,v in sb['cyc'].items():
+        if tid in sa['cyc']:cls[tclass(threads['desc'].get(tid))]+=(v-sa['cyc'][tid])/F_TSC
+    osr=None
+    if sa.get('gt_times') and sb.get('gt_times'):
+        o=((sb['gt_times'][1]-sa['gt_times'][1])+(sb['gt_times'][2]-sa['gt_times'][2]))/1e7;osr=round(secs/o,4) if o>0 else None
+    return dict(ok=True,gt_tid=gt,gt_how=how,sampler_intervals=b-a,window_s=round(dt,3),engine_frames=round(Fb-Fa,2),gt_ms_per_engine_frame=round(secs*1000/(Fb-Fa),4),
+                gt_busy_fraction=round(secs/dt,4),cores_by_class={k:round(v/dt,3) for k,v in sorted(cls.items())},gt_cycles_over_os_accounting=osr,conversion_hz=F_TSC)
+LOG_BAD=(('writer flush timed out','writer_flush_timeout'),('failed to encode/write','writer_encode_write_failed'),('did not resolve by run end','frames_unresolved_at_run_end'),
+         ('TARGET MASK WRITE FAILED','mask_write_failed'),('BENCH-GATE-REFUSED','bench_gate_refused'),('STAGE-DISCARDED','stage_discarded'),('=== Handled ensure: ===','handled_ensure'))
+def mode_check(res,cond,session,text,summ,ann):
+    p=[]
+    def need(ok,m):
+        if not ok:p.append(m)
+    w,h=RES[res]['w'],RES[res]['h']
+    pace=re.findall(r'IAI\.Capture\.Pace: (ON|OFF) ',text)
+    if RES[res].get('paced'):
+        need(summ.get('paced') is True,f'run_summary paced={summ.get("paced")} (pacing must be ON for block P)')
+        need(bool(pace) and pace[-1]=='ON',f'last IAI.Capture.Pace echo {pace[-1:]} (must be ON for block P)')
+        fps=re.findall(r'IAI\.Capture\.Fps: (\d+) ',text);need(bool(fps) and fps[-1]==str(PACED_FPS),f'last IAI.Capture.Fps echo {fps[-1:]} (must be {PACED_FPS})')
+        need(summ.get('target_fps')==PACED_FPS,f'run_summary target_fps={summ.get("target_fps")} (must be {PACED_FPS})')
+    else:
+        need(summ.get('paced') is False,f'run_summary paced={summ.get("paced")} (pacing must be OFF)')
+        need(bool(pace) and pace[-1]=='OFF',f'last IAI.Capture.Pace echo {pace[-1:] }')
+    gate=re.findall(r'IAI\.Bench\.ChangeGate = "(\d+)"',text);need(bool(gate) and gate[-1]=='0',f'IAI.Bench.ChangeGate echo {gate[-1:]}')
+    rl=re.findall(r'Capture\(runlog\): EFFECTIVE FOR THIS RUN - run log (ON|OFF) \(([^)]*)\)',text)
+    want=('ON','auto, from delivery=off') if res=='DIAG' else ('OFF','forced OFF, from IAI.Capture.RunLog')
+    need(rl==[want],f'run log EFFECTIVE {rl} != {[want]}')
+    need(summ.get('delivery_mode') is False,f'delivery_mode {summ.get("delivery_mode")}')
+    need((ann.get('video') or {}).get('resolution')==[w,h],f'resolution {(ann.get("video") or {}).get("resolution")} != {[w,h]}')
+    eff=re.findall(r'Capture\(m55\): EFFECTIVE enabled=1\(from (\w+)\) maxBytes=(\d+)\(from (\w+)\) gate=(\d+)\(from (\w+)\)',text)
+    echo=re.findall(r'IAI\.Capture\.ChangeEvidence = "(\d+)"',text);side=(Path(session)/'change_evidence.jsonl').exists();keys=any(k.startswith('change_') for k in summ)
+    if cond=='B':need(eff==[('compiled','268435456','compiled','0','console')] and not echo and side and keys,f'evidence ON not effective: eff={eff} echo={echo} sidecar={side} keys={keys}')
+    else:need(not eff and echo==['0'] and not side and not keys,f'evidence OFF not effective: eff={eff} echo={echo} sidecar={side} keys={keys}')
+    return p
+def integrity(session,text,summ,labels,pngs,frames,cond):
+    p=[]
+    def need(ok,m):
+        if not ok:p.append(m)
+    sis=[x['session_index'] for x in labels]
+    need(summ.get('total_frames')==frames,f'total_frames {summ.get("total_frames")} != {frames}')
+    need(sis==list(range(frames)),f'labels rows not 0..{frames-1} ({len(sis)} rows)')
+    need(len(pngs)==frames and set(pngs)==set(range(frames)),f'PNG files {len(pngs)} != {frames} or not 0..{frames-1}')
+    need(not [k for k,(t,z) in pngs.items() if z==0],'zero-byte PNG')
+    for pat,name in LOG_BAD:need(pat not in text,f'log: {name}')
+    need(summ.get('key_ring_missed',0)==0,f'key_ring_missed {summ.get("key_ring_missed")}')
+    if cond=='B':
+        for k in ('change_rows_dropped','change_persist_failed','change_late_record_mutations','change_denominator_mismatch','change_histogram_mismatch'):need(summ.get(k,0)==0,f'{k} {summ.get(k)}')
+    return p
+def drop_counts(text,summ,labels,pngs,frames,cond):
+    sis={x['session_index'] for x in labels};want=set(range(frames))
+    d=dict(frames_short=max(0,frames-int(summ.get('total_frames') or 0)),label_rows_missing=len(want-sis),png_missing=len(want-set(pngs)),png_zero_byte=sum(1 for t,z in pngs.values() if z==0),key_ring_missed=int(summ.get('key_ring_missed',0) or 0))
+    for pat,name in LOG_BAD:d[name]=text.count(pat)
+    if cond=='B':
+        for k in ('change_rows_dropped','change_persist_failed','change_late_record_mutations','change_denominator_mismatch','change_histogram_mismatch'):d[k]=int(summ.get(k,0) or 0)
+    return d
+def p_vacuity(y):
+    req=int(y.get('required') or 0);mea=int(y.get('measured') or 0);p=[]
+    if req<=0:p.append('no required pairs: the measured-pair yield is undefined, evidence ON did not exercise the measurement (G146)')
+    elif mea*P_YIELD_DEN<req*P_YIELD_NUM:p.append(f'measured-pair yield {mea}/{req} = {round(mea/req,4)} < 0.9 (AMENDMENT 1 B vacuity: a stop and a finding, never a retry)')
+    if mea<VACUITY_MEASURED:p.append(f'measured pairs {mea} < {VACUITY_MEASURED} (the 081-37 floor, kept)')
+    return p
+def _slope(xs,ys):
+    if len(xs)<3:return None
+    mx,my=st.fmean(xs),st.fmean(ys);sxx=sum((x-mx)**2 for x in xs)
+    return round(sum((x-mx)*(y-my) for x,y in zip(xs,ys))/sxx,4) if sxx>0 else None
+def trend_of(q,arm_u,done,w0,w1):
+    import bisect
+    ds=sorted(done.values());pts=[]
+    for i in range(w0,w1+1):
+        t=arm_u[i];pts.append((q[i],(done[i]-t)*1000 if i in done else None,(i+1)-bisect.bisect_right(ds,t)))
+    k=len(pts);qs=[]
+    for j in range(4):
+        seg=pts[j*k//4:(j+1)*k//4];lats=[x[1] for x in seg if x[1] is not None]
+        qs.append(dict(si=[w0+j*k//4,w0+(j+1)*k//4-1],writer_latency_p50_ms=round(pct(lats,50),1) if lats else None,backlog_mean_frames=round(st.fmean(x[2] for x in seg),2) if seg else None,backlog_max_frames=max((x[2] for x in seg),default=None)))
+    lp=[(a,b) for a,b,_ in pts if b is not None]
+    return dict(quarters=qs,writer_latency_slope_ms_per_s=_slope([a for a,_ in lp],[b for _,b in lp]),backlog_slope_frames_per_s=_slope([a for a,_,_ in pts],[c for _,_,c in pts]))
+def yield_of(recs):
+    ev=[x for x in recs if x.get('kind')=='event'];pairs=[x for x in recs if x.get('kind')=='pair']
+    req=sum(p.get('pairs_required',0) for e in ev for p in e.get('phases',[]));mea=sum(p.get('pairs_measured',0) for e in ev for p in e.get('phases',[]))
+    win=[x for x in pairs if x.get('window_index') is not None]
+    reasons=collections.Counter(x.get('reason') for x in win if not x.get('chg_measured'))
+    lat=[x['colour_completion_latency_ms'] for x in pairs if isinstance(x.get('colour_completion_latency_ms'),(int,float)) and x['colour_completion_latency_ms']>=0]
+    latf=[x['colour_completion_latency_frames'] for x in pairs if isinstance(x.get('colour_completion_latency_frames'),(int,float)) and x['colour_completion_latency_frames']>=0]
+    return dict(events=len(ev),required=req,measured=mea,yield_=round(mea/req,4) if req else None,unmeasured_window_reasons=dict(reasons),
+                colour_completion_latency_ms=dist(lat,1),colour_completion_latency_frames=dist(latf,1),measured_pair_rows=sum(1 for x in pairs if x.get('chg_measured')))
+def leg_readings(res,cond,session,launch,threads,load,text,harness_root,w0=None,min_window=100):
+    s=Path(session);summ=jload(s/'run_summary.json',{});ann=jload(s/'annotation.json',{})
+    labels=sorted(read_jsonl(s/'labels.jsonl'),key=lambda x:x['session_index'])
+    pngs={int(p.stem.split('_')[1]):(p.stat().st_mtime,p.stat().st_size) for p in (s/'Actual_Frames').glob('frame_*.png')}
+    recs=read_jsonl(s/'change_evidence.jsonl') if (s/'change_evidence.jsonl').exists() else []
+    frames=RES[res]['frames'];out=dict(mode_problems=mode_check(res,cond,s,text,summ,ann),integrity_problems=integrity(s,text,summ,labels,pngs,frames,cond))
+    out['drops']=drop_counts(text,summ,labels,pngs,frames,cond);out['drops_total']=sum(out['drops'].values());out['paced_block']=bool(RES[res].get('paced'))
+    W=W0 if w0 is None else w0
+    if out['integrity_problems'] or len(labels)<W+min_window:return out
+    q=[x['t_wall']-UE_WALL_OFFSET for x in labels];fi=[x['frame_index'] for x in labels]
+    a=launch.get('anchor_start') or {};aq=a.get('qpc',0)/a.get('freq',1) if a else None;au=_epoch(a['utc']) if a.get('utc') else None
+    out['clock']=dict(first_arm_minus_capture_start_s=round(q[0]-aq,3) if aq else None,ok=bool(aq) and -0.5<=q[0]-aq<=30.0)
+    if not out['clock']['ok']:out['mode_problems'].append(f'clock join failed: first arm is {out["clock"]["first_arm_minus_capture_start_s"]} s after capture_start (UE t_wall - 2^24 is not the harness QPC clock)');return out
+    toutc=lambda x:au+(x-aq)
+    w0,w1=W,len(labels)-1;T0,T1=q[w0],q[w1]
+    eng=[(q[i]-q[i-1])*1000/(fi[i]-fi[i-1]) for i in range(1,len(q)) if fi[i]>fi[i-1]]
+    tails=[(q[i]-q[i-1])*1000 for i in range(w0+1,w1+1) if fi[i]-fi[i-1]==1]
+    stalls=[dict(si=labels[i]['session_index'],ms_per_engine_frame=round((q[i]-q[i-1])*1000/(fi[i]-fi[i-1]),1)) for i in range(1,len(q)) if fi[i]>fi[i-1] and (q[i]-q[i-1])*1000/(fi[i]-fi[i-1])>max(STALL_MS,3*st.median(eng))]
+    arm_u=[toutc(x) for x in q];done={i:pngs[i][0] for i in pngs}
+    lat=[(done[i]-arm_u[i])*1000 for i in range(w0,w1+1) if i in done]
+    wins=[t for t in done.values() if toutc(T0)<=t<=toutc(T1)]
+    ev=sorted([(t,1) for t in arm_u]+[(t,-1) for t in done.values()]);cur=hw=0
+    for _,d in ev:cur+=d;hw=max(hw,cur)
+    out.update(frames=len(labels),window_si=[w0,w1],window_s=round(T1-T0,3),engine_frames=fi[w1]-fi[w0],engine_ms_mean=round((T1-T0)*1000/(fi[w1]-fi[w0]),4),
+               arm_rate_fps=round((w1-w0)/(T1-T0),3),engine_frame_ms=dist(tails,2),stall_census=stalls[:20],stalls_in_window=[x for x in stalls if w0<=x['si']<=w1],
+               writer_throughput_pngps=round(len(wins)/(T1-T0),3),writer_latency_ms=dist(lat,1),writer_backlog_high_water_frames=hw,
+               tail_last_arm_to_last_png_s=round(max(done.values())-arm_u[-1],3),png_mb_mean=round(st.fmean(z for _,z in pngs.values())/1e6,3),
+               census_cycles=summ.get('census_cycles'),speed_ratio=summ.get('speed_ratio'),sustained_wall_fps=summ.get('sustained_wall_fps'),ticks_per_captured_frame=summ.get('ticks_per_captured_frame'))
+    out['trend']=trend_of(q,arm_u,done,w0,w1)
+    out['pacing']=dict(paced=summ.get('paced'),target_fps=summ.get('target_fps'),speed_ratio=summ.get('speed_ratio'),engine_ms_mean=out['engine_ms_mean'],
+                       engine_ms_target=round(1000.0/summ['target_fps'],4) if summ.get('paced') and summ.get('target_fps') else None,note=PACER_NOTE if summ.get('paced') else None)
+    out['threads']=thread_metrics(threads,T0,T1,q,fi)
+    out['load']=load_context(load,launch.get('pid'),harness_root,T0,T1)
+    samples=launch.get('capture_samples') or []
+    pv=[x.get('priv') for x in samples if x.get('priv')];out['process']=dict(private_gb_max=round(max(pv)/1e9,3) if pv else None,private_gb_first=round(pv[0]/1e9,3) if pv else None,threads_max=max([x.get('threads',0) for x in samples],default=None))
+    if cond=='B':
+        y=yield_of(recs);peak=summ.get('change_bytes_peak_census') or {}
+        out['m55']=dict(worker_ms_total=summ.get('change_worker_ms_total'),worker_ms_per_captured_frame=round(summ.get('change_worker_ms_total',0)/len(labels),4),
+                       worker_ms_per_measured_pair=round(summ.get('change_worker_ms_total',0)/summ['change_pairs_measured'],3) if summ.get('change_pairs_measured') else None,
+                       pairs_measured=summ.get('change_pairs_measured'),issued=summ.get('change_issued'),yield_=y,
+                       reasons_nonzero={k[len('change_reason_'):]:v for k,v in summ.items() if k.startswith('change_reason_') and v},
+                       latency_summary={k[len('change_colour_completion_latency_'):]:v for k,v in summ.items() if k.startswith('change_colour_completion_latency_')},
+                       bytes_high_water=summ.get('change_bytes_high_water'),max_bytes=summ.get('change_max_bytes'),high_water_mb=round((summ.get('change_bytes_high_water') or 0)/1e6,2),
+                       high_water_pct_of_cap=round(100.0*(summ.get('change_bytes_high_water') or 0)/summ['change_max_bytes'],2) if summ.get('change_max_bytes') else None,
+                       peak_census={k:peak.get(k) for k in ('trigger','kind','si','bytes_held','colours','colours_pending','colours_previous','colours_phase_ref','masks')},
+                       late_results=summ.get('change_late_results'),rows_dropped=summ.get('change_rows_dropped'),budget_exceeded=summ.get('change_reason_budget_exceeded'),closure_timeout=summ.get('change_reason_closure_timeout'))
+        out['m55_log_lines']=len(re.findall(r'Capture\(m55\)',text))
+        if RES[res].get('paced'):
+            vp=p_vacuity(y);out['m55']['yield_ok']=not vp
+            if vp:out['vacuity_problems']=vp
+        elif y['measured']<VACUITY_MEASURED:out['vacuity_problems']=[f'measured pairs {y["measured"]} < {VACUITY_MEASURED}: evidence ON did not exercise the measurement (G146)']
+    if res=='DIAG':
+        al=s/'anomaly_log.txt';out['run_log_lines']=sum(1 for _ in al.open(encoding='utf-8',errors='replace')) if al.exists() else 0
+    return out
+def gate_stat(a,b):
+    nA,nB=len(a),len(b)
+    if nA<2 or nB<2:return None
+    mA,mB=st.fmean(a),st.fmean(b);df=nA+nB-2;ss=sum((x-mA)**2 for x in a)+sum((x-mB)**2 for x in b);sp=math.sqrt(ss/df);se=sp*math.sqrt(1/nA+1/nB);t=T95[df]
+    return dict(nA=nA,nB=nB,meanA=round(mA,4),meanB=round(mB,4),delta=round(mB-mA,4),pooled_sd=round(sp,4),se=round(se,4),df=df,t95_one_sided=t,
+                upper=round(mB-mA+t*se,4),lower=round(mB-mA-t*se,4),spread_AA=round(max(a)-min(a),4),spread_BB=round(max(b)-min(b),4))
+def verdict_for(res,legs):
+    A=[x for x in legs if x['cond']=='A'];B=[x for x in legs if x['cond']=='B'];why=[]
+    if len(A)!=4 or len(B)!=4:return dict(resolution=res,verdict='UNRESOLVED',why=[f'incomplete: {len(A)} A and {len(B)} B counted legs, 4 and 4 required (two complete ABBA blocks)'])
+    held=[]
+    for grp in (A,B):
+        med=st.median(x['arm_rate_fps'] for x in grp)
+        for x in grp:
+            if x['arm_rate_fps']<FPS_PRIOR_FRAC*med:held.append(dict(label=x['label'],arm_rate_fps=x['arm_rate_fps'],condition_median=med,stalls_in_window=x.get('stalls_in_window'),load=x.get('load_summary')))
+    gA=[x['gt_ms'] for x in A];gB=[x['gt_ms'] for x in B];wA=[x['writer'] for x in A];wB=[x['writer'] for x in B]
+    g=gate_stat(gA,gB);w=gate_stat(wA,wB)
+    gt_pass=g['upper']<=GT_MS_GATE
+    if not gt_pass:why.append(f'game thread: upper bound {g["upper"]} ms > +{GT_MS_GATE} ms (delta {g["delta"]}, se {g["se"]}, t {g["t95_one_sided"]})')
+    drop=w['upper']<0;hw=w['t95_one_sided']*w['se'];res_ok=hw<=WRITER_RES_FRAC*w['meanA']
+    if drop:why.append(f'writer throughput dropped beyond uncertainty: upper bound of the change {w["upper"]} PNG/s < 0 (delta {w["delta"]})')
+    if not res_ok:why.append(f'writer throughput under-resolved: one-sided 95% half-width {round(hw,3)} PNG/s > {WRITER_RES_FRAC:.0%} of the A mean {w["meanA"]} (a drop that size could not be seen)')
+    if held:v='HELD-FPS-PRIOR';why.append(f'{len(held)} counted leg(s) below {FPS_PRIOR_FRAC} x their condition median arm rate: the gate is not read until each is explained (081-05 carry-forward)')
+    else:v='PASS' if (gt_pass and not drop and res_ok) else 'UNRESOLVED'
+    return dict(resolution=res,verdict=v,why=why,game_thread_ms=g,writer_throughput_pngps=w,writer_half_width=round(hw,4),writer_resolution_limit=round(WRITER_RES_FRAC*w['meanA'],4),held=held,
+                legs=[{k:x[k] for k in ('label','cond','block','gt_ms','writer','arm_rate_fps')} for x in legs])
+def verdict_P(res,legs):
+    A=[x for x in legs if x['cond']=='A'];B=[x for x in legs if x['cond']=='B'];why=[];base=dict(resolution=res,mode='paced block P (AMENDMENT 1, headline)',pacer_note=PACER_NOTE)
+    if len(A)!=4 or len(B)!=4:return dict(base,verdict='UNRESOLVED',why=[f'incomplete: {len(A)} A and {len(B)} B counted legs, 4 and 4 required (two complete ABBA blocks)'])
+    held=[]
+    for grp in (A,B):
+        med=st.median(x['arm_rate_fps'] for x in grp)
+        for x in grp:
+            if x['arm_rate_fps']<FPS_PRIOR_FRAC*med:held.append(dict(label=x['label'],arm_rate_fps=x['arm_rate_fps'],condition_median=med,stalls_in_window=x.get('stalls_in_window'),load=x.get('load_summary')))
+    g=gate_stat([x['gt_ms'] for x in A],[x['gt_ms'] for x in B]);w=gate_stat([x['writer'] for x in A],[x['writer'] for x in B]);r=gate_stat([x['arm_rate_fps'] for x in A],[x['arm_rate_fps'] for x in B])
+    gt_pass=g['upper']<=GT_MS_GATE
+    if not gt_pass:why.append(f'game thread: upper bound {g["upper"]} ms > +{GT_MS_GATE} ms (delta {g["delta"]}, se {g["se"]}, t {g["t95_one_sided"]})')
+    drop=w['upper']<0;hw=w['t95_one_sided']*w['se'];res_ok=hw<=WRITER_RES_FRAC*w['meanA']
+    if drop:why.append(f'writer throughput dropped beyond uncertainty: upper bound of the change {w["upper"]} PNG/s < 0 (delta {w["delta"]})')
+    if not res_ok:why.append(f'writer throughput under-resolved: one-sided 95% half-width {round(hw,3)} PNG/s > {WRITER_RES_FRAC:.0%} of the A mean {w["meanA"]} (a drop that size could not be seen)')
+    pace_drop=r['upper']<0
+    if pace_drop:why.append(f'pacing not held: B arm rate below A beyond uncertainty, upper bound of the change {r["upper"]} fps < 0 (delta {r["delta"]})')
+    drops=[(x['label'],x.get('drops_total')) for x in legs if x.get('drops_total')!=0]
+    if drops:why.append(f'drops: every counted leg must carry 0 drops (the 081-37 integrity set); not 0 or not read on {drops}')
+    vac=[(x['label'],x.get('pairs_measured'),x.get('pairs_required')) for x in B if not x.get('yield_ok')]
+    if vac:why.append(f'B vacuity: measured-pair yield below 0.9 of required, or not read, on {vac}')
+    if held:v='HELD-FPS-PRIOR';why.append(f'{len(held)} counted leg(s) below {FPS_PRIOR_FRAC} x their condition median arm rate: the gate is not read until each is explained (081-05 carry-forward)')
+    else:v='PASS' if (gt_pass and not drop and res_ok and not pace_drop and not drops and not vac) else 'UNRESOLVED'
+    return dict(base,verdict=v,why=why,game_thread_ms=g,writer_throughput_pngps=w,writer_half_width=round(hw,4),writer_resolution_limit=round(WRITER_RES_FRAC*w['meanA'],4),
+                arm_rate_fps=r,arm_rate_half_width=round(r['t95_one_sided']*r['se'],4),held=held,
+                legs=[{k:x.get(k) for k in ('label','cond','block','gt_ms','writer','arm_rate_fps','drops_total','pairs_measured','pairs_required','yield_ok')} for x in legs])
+def overall(vs):
+    if all(v['verdict']=='PASS' for v in vs):return 'PASS'
+    if any(v['verdict']=='HELD-FPS-PRIOR' for v in vs):return 'HELD-FPS-PRIOR'
+    return 'UNRESOLVED'
+def rows_for(leg):return [x for x in ledger() if x.get('leg')==leg]
+def counted_valid(leg,invocation=None):
+    return [x for x in rows_for(leg) if x['status']==COUNTED_OK and not x.get('voided') and (invocation is None or x.get('invocation')==invocation)]
+def void_rows(labels,why):
+    v=ledger()
+    for x in v:
+        if x.get('label') in labels and x['status']==COUNTED_OK and not x.get('voided'):x['voided']=why;x['voided_utc']=c.now()
+    jsave(ROOT/'cost-results.json',v)
+def budget_file_state():return L.budget_state()
+def quiet_gate(where,leg=None):
+    waited=0.0
+    while True:
+        q=c.quiet()
+        if q['quiet']:
+            if waited:c.log_event('quiet-gate-cleared',where=where,leg=leg,waited_s=round(waited,1))
+            return q
+        b=L.budget_state()
+        if b['left_s']<=0:c.log_event('quiet-gate-budget-exhausted',where=where,leg=leg,blocking=q['blocking']);raise Stop(4,f'NOT-QUIET before {leg or where}: {q["blocking"]} and the wait budget (tag {b["tag"]}) is spent')
+        dt=max(1.0,min(30.0,b['left_s']));c.log_event('quiet-gate-wait',where=where,leg=leg,blocking=q['blocking'],next_poll_s=dt)
+        print(json.dumps(dict(event='quiet-gate-wait',leg=leg,blocking=[x[1] for x in q['blocking']],budget_left_s=b['left_s'])),flush=True)
+        time.sleep(dt);waited+=dt;L.budget_add('quiet-gate-wait',dt,where=where,leg=leg)
+def load_gate(where,leg=None,sampler_factory=None):
+    waited=0.0
+    while True:
+        ls=(sampler_factory or (lambda:S.LoadSampler(1.0,os.getpid())))().start();time.sleep(PRELAUNCH_LOAD_S);ls.stop();d=ls.data()
+        ss=d['samples'];ctx=load_context(d,-1,os.getpid(),ss[0]['t'],ss[-1]['t']) if len(ss)>=2 else dict(ok=False,reasons=['no samples'])
+        if ctx['ok']:
+            c.log_event('load-gate',where=where,leg=leg,waited_s=round(waited,1),foreign_cpu=ctx.get('foreign_cpu_mean_cores'),top=ctx.get('top_foreign'));return ctx
+        b=L.budget_state()
+        if b['left_s']<=0:c.log_event('load-gate-budget-exhausted',where=where,leg=leg,ctx=ctx);raise Stop(4,f'NOT-QUIET (foreign load) before {leg or where}: {ctx["reasons"]}; the wait budget (tag {b["tag"]}) is spent')
+        dt=max(1.0,min(LOAD_POLL_S,b['left_s']));c.log_event('load-gate-wait',where=where,leg=leg,reasons=ctx['reasons'],top=ctx.get('top_foreign'),next_poll_s=dt)
+        print(json.dumps(dict(event='load-gate-wait',leg=leg,reasons=ctx['reasons'],budget_left_s=b['left_s'])),flush=True)
+        time.sleep(dt);waited+=dt+PRELAUNCH_LOAD_S;L.budget_add('load-gate-wait',dt+PRELAUNCH_LOAD_S,where=where,leg=leg)
+def launch_leg(label,res,cond):
+    args=[c.PWSH,'-NoProfile','-File',str(MEASURE),'-Label',label,'-Anomaly',ANOMALY,'-Order',str(ORDER),'-MaxFrames',str(RES[res]['frames']),'-Config',CONFIG,
+          '-ResX',str(RES[res]['w']),'-ResY',str(RES[res]['h']),'-ExtraExecCmds',extra_for(res,cond)]
+    (ROOT/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+    ts=S.ThreadSampler(0.1).start();ls=S.LoadSampler(1.0,os.getpid()).start();time.sleep(1.0)
+    with (ROOT/f'runner-{label}.log').open('w') as f:p=subprocess.Popen(args,stdout=f,stderr=subprocess.STDOUT)
+    gp=None
+    while p.poll() is None:
+        if gp is None:
+            gp=S.find_child(p.pid,'StackOBot.exe',0.0)
+            if gp:ts.set_pid(gp)
+        time.sleep(0.2)
+    time.sleep(1.0);ts.stop();ls.stop()
+    td=ts.data();ld=ls.data();jsave(ROOT/'legs'/f'threads-{label}.json',td);jsave(ROOT/'legs'/f'load-{label}.json',ld)
+    return p.returncode,td,ld,gp
+LAUNCH=launch_leg
+def run_attempt(res,name,invocation,t_inv0,discard=False):
+    leg=leg_id(res,name);cond=cond_of(name) if res!='DIAG' else name
+    if leg in RETIRED:raise Stop(3,f'HARNESS: {leg} is a pacing-off stress leg retired by AMENDMENT 1 ({RULING_STRESS}); it is never launched again')
+    b3=L.binary_v3()
+    while True:
+        rows=rows_for(leg);inv_rows=[x for x in rows if x.get('invocation')==invocation]
+        if not discard and any(x['status']==COUNTED_OK and not x.get('voided') for x in rows):return 'done'
+        hit=[x for x in rows if x['status'] in HALTING]
+        if hit:raise Stop(HALTING[hit[-1]['status']],f'{leg} already recorded {hit[-1]["status"]} ({hit[-1].get("label")}); never re-run without a ruling')
+        fx=[x for x in rows if x['status'] in FIXTURE_INVALID and not x.get('voided')];env=[x for x in rows if x['status'] in ENV_INVALID and not x.get('voided')]
+        if len(env)>=ENV_CAP:raise Stop(4,f'NOT-QUIET: {leg} has {len(env)} environment-invalid attempts (cap {ENV_CAP}); leave the PC alone and re-invoke')
+        if len(fx)>=FIXTURE_ATTEMPTS:
+            ledger_add(dict(leg=leg,status='NOT-RUN',invocation=invocation,reason=f'{FIXTURE_ATTEMPTS} fixture-invalid attempts: '+', '.join(x['label'] for x in fx)));raise Stop(2,f'{leg} INVALID-FIXTURE-EXHAUSTED')
+        used=time.time()-t_inv0
+        if used+RES[res]['est_s']>BENCH_BUDGET_S:raise Stop(6,f'BENCH-BUDGET: {round(used)} s used of {int(BENCH_BUDGET_S)} s; {leg} (est {RES[res]["est_s"]} s) would exceed it; resume in a new window')
+        L.pp_gate('before-attempt',leg=leg);quiet_gate('before-attempt',leg);pre=load_gate('before-attempt',leg)
+        for key in ('built','staged','archive'):
+            if c.sha(b3[key])!=b3['sha256']:raise Stop(3,f'HARNESS: build 3 {key} hash changed')
+        n=len([x for x in rows if x.get('label')])+1;label=f'{leg}_T{n}';d=ROOT/label
+        if d.exists() or (ROOT/f'runner-{label}.log').exists():raise Stop(3,f'HARNESS: {label} evidence already exists')
+        t0=c.now();tt0=time.time()
+        with L.PersonMonitor(label) as mon:rc,td,ld,gp=LAUNCH(label,res,cond)
+        launch=jload(d/'launch.json',{}) or {};text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace') if (d/'game.log').exists() else ''
+        row=dict(leg=leg,res=res,cond=cond,name=name,label=label,invocation=invocation,started=t0,finished=c.now(),duration_s=round(time.time()-tt0,1),runner_exit=rc,
+                 game_pid_sampled=gp,launch_pid=launch.get('pid'),session=launch.get('session'),capture_start_sent=launch.get('capture_start_sent'),prelaunch_load=pre)
+        pe=L.pp_evidence_attempt('stack',label,mon,launch=launch,started=t0);row.update(person_evidence=pe['person_evidence'],person_reasons=pe['reasons']);L.pp_record(label,leg,'stack',mon,pe)
+        if gp and launch.get('pid') and gp!=launch.get('pid'):row['sampler_pid_mismatch']=True
+        if 'FOREIGN-EDITOR-APPEARED' in (launch.get('error') or ''):
+            row.update(status='INVALID-FOREIGN',foreign=launch.get('foreign_editor'));ledger_add(row);c.log_event('cost-leg-invalid-foreign',leg=leg,label=label);continue
+        errors,fg=L.fixture_errors_measure(d,launch,text,rc)
+        row.update(fixture_errors=errors,foreground=fg)
+        if discard:
+            row['status']='DISCARD';row['note']='declared discard (warm-up), never counted';ledger_add(row);return 'discard'
+        if errors:
+            st0='INVALID-PRECAPTURE' if not launch.get('capture_start_sent') else 'INVALID-FIXTURE';row['status']='INVALID-PERSON' if pe['person_evidence'] else st0
+            if row['status']!=st0:row['original_status']=st0
+            ledger_add(row);print(json.dumps({k:row.get(k) for k in ('label','status','fixture_errors','person_evidence')}),flush=True);continue
+        if pe['person_evidence']:
+            row['status']='INVALID-PERSON';ledger_add(row);c.log_event('cost-leg-invalid-person',leg=leg,label=label,reasons=pe['reasons']);print(json.dumps({k:row.get(k) for k in ('label','status','person_reasons')}),flush=True);continue
+        rd=leg_readings(res,cond,launch['session'],launch,td,ld,text,os.getpid())
+        jsave(ROOT/'legs'/f'readings-{label}.json',rd)
+        row['load_summary']={k:(rd.get('load') or {}).get(k) for k in ('ok','reasons','foreign_cpu_mean_cores','foreign_cpu_max_interval_cores','foreign_gpu3d_mean_pct','foreign_io_mean_mbps','top_foreign','system_busy_pct_mean')}
+        if rd.get('mode_problems'):
+            row.update(status='HARNESS-FAIL',problems=rd['mode_problems']);ledger_add(row);raise Stop(3,f'HARNESS-FAIL {label}: {rd["mode_problems"]}')
+        if rd.get('integrity_problems'):
+            row.update(status='LEG-FAILURE',problems=rd['integrity_problems']);ledger_add(row);raise Stop(1,f'LEG-FAILURE {label}: {rd["integrity_problems"]}')
+        if not (rd.get('load') or {}).get('ok'):
+            row.update(status='INVALID-LOAD',problems=(rd.get('load') or {}).get('reasons'));ledger_add(row);c.log_event('cost-leg-invalid-load',leg=leg,label=label,reasons=row['problems']);print(json.dumps({k:row.get(k) for k in ('label','status','problems')}),flush=True);continue
+        if not (rd.get('threads') or {}).get('ok'):
+            row.update(status='HARNESS-FAIL',problems=[(rd.get('threads') or {}).get('why')]);ledger_add(row);raise Stop(3,f'HARNESS-FAIL {label}: game-thread sampler {row["problems"]}')
+        if rd.get('vacuity_problems'):
+            row.update(status='LEG-FAILURE',problems=rd['vacuity_problems']);ledger_add(row);raise Stop(1,f'LEG-FAILURE {label}: {rd["vacuity_problems"]}')
+        row.update(status=COUNTED_OK,gt_ms=rd['threads']['gt_ms_per_engine_frame'],writer=rd['writer_throughput_pngps'],arm_rate_fps=rd['arm_rate_fps'],stalls_in_window=rd['stalls_in_window'],
+                   drops_total=rd.get('drops_total'),speed_ratio=rd.get('speed_ratio'),paced_block=rd.get('paced_block'))
+        if cond=='B' and rd.get('m55'):
+            y=rd['m55'].get('yield_') or {};row.update(pairs_required=y.get('required'),pairs_measured=y.get('measured'),yield_ok=rd['m55'].get('yield_ok',not rd.get('vacuity_problems')))
+        ledger_add(row);print(json.dumps({k:row.get(k) for k in ('label','status','gt_ms','writer','arm_rate_fps','pairs_measured','pairs_required')}),flush=True);return 'valid'
+def run_block(res,bi,names,invocation,t_inv0):
+    legs=[leg_id(res,n) for n in names]
+    have=[counted_valid(l) for l in legs]
+    if all(have):return 'complete'
+    prev=[x['label'] for h in have for x in h]
+    if prev:void_rows(set(prev),f'VOID-RESUME: block {res}/{bi} was incomplete when invocation {invocation} began; its legs re-run together so drift cancels inside one contiguous ABBA block');c.log_event('block-voided',res=res,block=bi,labels=prev)
+    for n in names:run_attempt(res,n,invocation,t_inv0)
+    return 'ran'
+def run_campaign(invocation):
+    hit=[x for x in ledger() if x['status'] in HALTING and not x.get('voided') and x.get('leg') in ACTIVE]
+    if hit:raise Stop(HALTING[hit[-1]['status']],f'{hit[-1]["leg"]} already recorded {hit[-1]["status"]} ({hit[-1].get("label")}); the campaign stays stopped until a ruling')
+    ruled=[x['label'] for x in ledger() if x['status'] in HALTING and not x.get('voided') and x.get('leg') in RETIRED]
+    t0=time.time();state=dict(invocation=invocation,started=c.now(),blocks=[],retired_stress_legs=len(RETIRED),retired_halting_rows_ruled=ruled)
+    for res in P_RES:
+        todo=[(r,bi,ns) for r,bi,ns in P_BLOCKS if r==res and not all(counted_valid(leg_id(r,n)) for n in ns)]
+        if not todo:continue
+        run_attempt(res,'DISC',invocation,t0,discard=True)
+        for r,bi,ns in todo:state['blocks'].append((r,bi,run_block(r,bi,ns,invocation,t0)))
+    r,bi,ns=DIAG_BLOCK
+    if not all(counted_valid(leg_id(r,n)) for n in ns):state['blocks'].append((r,bi,run_block(r,bi,ns,invocation,t0)))
+    state['finished']=c.now();state['bench_s']=round(time.time()-t0,1);return state
+def _block_legs(rows,blocks,res):
+    legs=[]
+    for r,bi,ns in blocks:
+        if r!=res:continue
+        for n in ns:
+            v=[x for x in rows if x['leg']==leg_id(r,n)]
+            if v:legs.append(dict(label=v[-1]['label'],cond=cond_of(n),block=bi,gt_ms=v[-1]['gt_ms'],writer=v[-1]['writer'],arm_rate_fps=v[-1]['arm_rate_fps'],stalls_in_window=v[-1].get('stalls_in_window'),load_summary=v[-1].get('load_summary'),
+                                  drops_total=v[-1].get('drops_total'),pairs_measured=v[-1].get('pairs_measured'),pairs_required=v[-1].get('pairs_required'),yield_ok=v[-1].get('yield_ok')))
+    return legs
+def stress_readings(res,legs,halts):
+    ys=[];reasons=collections.Counter()
+    for x in legs:
+        if x['cond']!='B':continue
+        y=((jload(ROOT/'legs'/f'readings-{x["label"]}.json',{}) or {}).get('m55') or {}).get('yield_') or {}
+        if y.get('required'):ys.append(round(y['measured']/y['required'],4));reasons.update(y.get('unmeasured_window_reasons') or {})
+    v=verdict_for(res,legs);h=[dict(label=x.get('label'),status=x['status'],problems=x.get('problems')) for x in halts if x.get('res')==res]
+    lab=f'pacing-off stress (081-38), measured-pair yield {min(ys):.2f}-{max(ys):.2f}' if ys else 'pacing-off stress (081-38), measured-pair yield not read'
+    cause=None
+    if h:cause='writer saturation -> m55 payload at the 256 MiB cap -> honest budget_exceeded refusals -> B vacuity LEG-FAILURE; not re-run and not reshaped'
+    return dict(v,mode='pacing OFF (081-37 blocks, retired by AMENDMENT 1)',label=lab,ruling=RULING_STRESS,headline=False,b_yields=ys,b_unmeasured_reasons=dict(reasons),halting_rows=h,cause=cause)
+def analyze():
+    rows=[x for x in ledger() if x['status']==COUNTED_OK and not x.get('voided')]
+    out=dict(utc=c.now(),root=str(ROOT),verdicts=[],stress=[],legs={},diag=None,game_gpu_note=GAME_GPU_NOTE)
+    for x in rows:
+        rd=jload(ROOT/'legs'/f'readings-{x["label"]}.json',{});out['legs'][x['label']]=dict(res=x['res'],cond=x['cond'],leg=x['leg'],**{k:rd.get(k) for k in ('arm_rate_fps','engine_ms_mean','engine_frame_ms','writer_throughput_pngps','writer_latency_ms','writer_backlog_high_water_frames','tail_last_arm_to_last_png_s','stall_census','census_cycles','threads','load','process','m55','m55_log_lines','run_log_lines','trend','pacing','drops','drops_total')})
+    for res in P_RES:out['verdicts'].append(verdict_P(res,_block_legs(rows,P_BLOCKS,res)))
+    out['overall']=overall(out['verdicts'])
+    halts=[x for x in ledger() if x['status'] in HALTING and not x.get('voided') and x.get('leg') in RETIRED]
+    for res in STRESS_RES:out['stress'].append(stress_readings(res,_block_legs(rows,STRESS_BLOCKS,res),halts))
+    dg=[x for x in rows if x['res']=='DIAG']
+    if dg:
+        a720=[x['gt_ms'] for x in rows if x['res']=='720' and x['cond']=='A'];b720=[x['gt_ms'] for x in rows if x['res']=='720' and x['cond']=='B']
+        dA=next((x for x in dg if x['cond']=='A'),None);dB=next((x for x in dg if x['cond']=='B'),None)
+        out['diag']=dict(note='diagnostic pair (pacing OFF, run log ON, 720p) - does not feed any gate; compared with the pacing-off 720p stress legs of the same condition (only the run log differs)',DIAG_A_gt_ms=dA and dA['gt_ms'],DIAG_B_gt_ms=dB and dB['gt_ms'],
+                         run_log_cost_A_ms=round(dA['gt_ms']-st.fmean(a720),4) if dA and a720 else None,run_log_cost_B_ms=round(dB['gt_ms']-st.fmean(b720),4) if dB and b720 else None,
+                         diag_B_minus_A_ms=round(dB['gt_ms']-dA['gt_ms'],4) if dA and dB else None,stalls=[x.get('stalls_in_window') for x in dg])
+    jsave(ROOT/'cost-verdict.json',out);return out

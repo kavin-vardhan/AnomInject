@@ -1,0 +1,119 @@
+"""Stage 1 artifact/identity audit only; no change arithmetic or event verdict."""
+from pathlib import Path
+import collections, hashlib, json, re, sys, zlib
+from PIL import Image
+
+REASONS = set('first_frame predecessor_missing predecessor_undelivered out_of_order_timeout epoch_reset view_mismatch extent_mismatch mask_payload_missing unsupported_delivery budget_exceeded empty_region no_labelled_frames current_undelivered closure_timeout'.split())
+
+def audit(session, log=None):
+    s = json.loads((session/'run_summary.json').read_text(encoding='utf-8-sig'))
+    path = session/'change_evidence.jsonl'
+    records = [json.loads(l) for l in path.read_text(encoding='utf-8-sig').splitlines()] if path.exists() else []
+    labels = [json.loads(l) for l in (session/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines()] if (session/'labels.jsonl').exists() else []
+    errors = []
+    def require(ok, why):
+        if not ok: errors.append(why)
+    indices = [r['session_index'] for r in records]
+    require(indices == sorted(set(indices)), 'rows not strictly ordered/unique')
+    crc_checked = 0
+    for r in records:
+        require(r['reason'] is None or r['reason'] in REASONS, f"unknown reason at {r['session_index']}")
+        require(r['pair_valid'] == (r['reason'] is None), f"validity/reason mismatch at {r['session_index']}")
+        if r['reason'] == 'current_undelivered': require(r.get('stage') in ('colour','mask','writer'), 'failure stage missing')
+        if r['pair_valid']:
+            c, m, p = r['receipt'], r['mask_receipt'], r['prev_receipt']
+            require(r['prev_session_index'] == r['session_index']-1, 'valid pair bridged indices')
+            require(c['capture_token'] == c['serving_token'] == m['capture_token'] == m['serving_token'], 'valid pair token mismatch')
+            require(c['view_family_id'] == m['view_family_id'] and c['view_family_id'] > 0, 'valid pair family mismatch')
+            require(c['view_index'] == m['view_index'] == 0, 'valid pair wrong view')
+            require(c['run_epoch'] == m['run_epoch'] == p['run_epoch'] and c['cut_counter'] == m['cut_counter'] == p['cut_counter'], 'valid pair crossed generation')
+            require(c['rect'] == m['rect'] == p['rect'] and c['extent'] == m['extent'] == p['extent'], 'valid pair geometry mismatch')
+            require((session/r['frame_file']).is_file(), 'valid pair current file absent')
+            require((session/f"Actual_Frames/frame_{r['prev_session_index']:05}.png").is_file(), 'valid pair predecessor absent')
+            require(c['t_drain_ms'] >= c['t_submit_ms'] > 0, 'non-monotonic current times')
+    if records:
+        require(len(records)+s.get('change_rows_dropped',0)==s.get('change_issued',-1),'issued indices not fully finalized or explicitly counted as dropped')
+        require(s['change_bytes_high_water'] <= s['change_max_bytes'], 'byte cap exceeded')
+        require(s['change_bytes_retained'] == 0, 'buffers retained after closure')
+        require(s.get('change_persist_failed',0) == 0, 'persistence failure')
+    t = log.read_text(encoding='utf-8-sig',errors='replace') if log and log.exists() else ''
+    require('=== Handled ensure: ===' not in t, 'runtime handled ensure in gate fixture')
+    for si, count, crc in re.findall(r'FROZEN-MASK si=(\d+) bytes=(\d+) crc32=([0-9a-fA-F]+)',t):
+        png = session/f'target_mask/frame_{int(si):05}.png'
+        require(png.exists(),f'frozen mask {si} absent')
+        if png.exists():
+            raw = Image.open(png).convert('L').tobytes()
+            require(len(raw) == int(count) and zlib.crc32(raw) == int(crc,16),f'frozen/PNG mismatch {si}')
+            crc_checked += 1
+    ties = re.findall(r'MASK-TIE .*?tableCount=(\d+) pngCount=(\d+) drawnCount=(-?\d+)', t)
+    require(all(a == b for a,b,_ in ties), 'MASK-TIE mismatch')
+    by_si = {r['session_index']:r for r in records}
+    g = s.get('change_bench_gate',0)
+    if g and g != 11:
+        annotation=json.loads((session/'annotation.json').read_text(encoding='utf-8-sig'))
+        require(len(annotation['anomalies'])>=3,'fewer than three events in ordinary leg')
+    if g == 1:
+        require(s.get('change_colour_multi_ready_drain',0)>0, 'two-ready device did not fire')
+        require(s.get('change_reason_out_of_order_timeout',0)==0,'out-of-order timeout in ordering gate')
+        held=by_si.get(8,{}).get('receipt',{}); following=by_si.get(9,{}).get('receipt',{})
+        # The RT guard cannot release SI 8 before 1 s unless both actual readbacks
+        # are ready. The reverse drain must publish SI 9 before SI 8.
+        require(0 <= held.get('t_drain_ms',-1)-held.get('t_submit_ms',0) < 1000,'two-ready guard escaped on its safety timeout')
+        require(0 < following.get('t_drain_ms',-1) <= held.get('t_drain_ms',-1),'two-ready receipts do not show reverse drain order')
+    if g == 2:
+        require(s.get('change_capture_arm_dropped',0)==1,'actual arm drop missing')
+        require(s.get('change_reason_predecessor_missing',0)>0,'skip did not refuse dependent pair')
+    if g in (3,4,5):
+        r=by_si.get(8,{})
+        require(r.get('reason')=='current_undelivered' and r.get('stage')=={3:'writer',4:'colour',5:'mask'}[g], 'forced delivery failure not reached at SI 8')
+        if g in (3,4): require(by_si.get(9,{}).get('reason')=='predecessor_undelivered','failed predecessor silently used or wrong refusal')
+    if g == 6:
+        require(s.get('change_mask_capture_served_ge2',0)>0,'no pass served two capture-mask requests')
+        nonowners=[r for r in records if r.get('mask_receipt',{}).get('mask_request_id') != r.get('mask_receipt',{}).get('payload_owner_request_id') and r.get('mask_receipt')]
+        require(any(r['reason']=='mask_payload_missing' for r in nonowners),'non-owner payload loss not refused')
+    if g == 7:
+        require(s.get('change_epoch_rejected_colour_drain',0)>0,'no old colour drain rejected')
+        require(s.get('change_epoch_rejected_mask_drain',0)>0,'no old mask drain rejected')
+        require(by_si.get(8,{}).get('receipt',{}).get('t_drain_ms') == -1,'old colour receipt admitted')
+        require(by_si.get(9,{}).get('reason')=='epoch_reset','reset boundary not reported')
+    if g == 8:
+        for k in ('view_rejected','duplicate_callback','throwaway_family_constructed'): require(s.get('change_'+k,0)>0,k+' device did not fire')
+    if g == 9: require(by_si.get(8,{}).get('reason')=='extent_mismatch','geometry fault not refused')
+    if g == 10: require(by_si.get(8,{}).get('reason')=='budget_exceeded','capacity fault not refused')
+    if g == 11:
+        require(s.get('change_late_results',0)>0,'actual late result not rejected')
+        require(s.get('change_reason_closure_timeout',0)>0,'closure deadline did not fire')
+        require(s.get('change_late_record_mutations',-1)==0,'final rows changed')
+        require(bool(re.search(r'LATE-FROZEN beforeChars=[1-9]\d* afterChars=[1-9]\d* mutations=0',t)),'no positive frozen-row equality evidence')
+    if g == 12:
+        r=by_si.get(8,{})
+        require(r.get('prev_session_index')==6 and r.get('reason')=='predecessor_missing','actual stale buffer not refused')
+    if g == 13:
+        r=by_si.get(9,{})
+        require(8 not in by_si and len(records)==89,'registration-gap device did not leave exactly one unissued index')
+        require(r.get('prev_session_index')==7 and r.get('reason')=='predecessor_missing','registration gap silently bridged')
+        require(s.get('change_unissued_indices_skipped',0)==1,'unissued index not counted')
+        require(s.get('change_bench_unregistered_capture',0)==1,'registration-gap device did not fire')
+        require(len(list((session/'Actual_Frames').glob('*.png')))==90,'registration-gap device lost legacy delivery')
+    if g == 15:
+        for key in ('pending_colour_cancelled','pending_mask_cancelled','pending_family_deferred'):
+            require(s.get('change_'+key,0)>0,key+' not exercised')
+        require(by_si.get(8,{}).get('reason')=='closure_timeout','pending old arm did not close')
+        require(by_si.get(8,{}).get('receipt',{}).get('t_drain_ms')==-1,'pending old colour receipt admitted')
+        require(by_si.get(9,{}).get('reason')=='epoch_reset','new generation boundary absent')
+        require(any(r['pair_valid'] for r in records if r['session_index']>9),'new generation failed to recover')
+        require(len(records)==90 and len(list((session/'Actual_Frames').glob('*.png')))==89,'unexpected pending-arm delivery count')
+    if g == 14:
+        require(crc_checked>0,'frozen-mask transport audit vacuous')
+        require(s.get('change_reason_first_frame',0)==1,'healthy control lacks its first-frame refusal')
+        require(s.get('change_reason_out_of_order_timeout',0)==0,'natural pipeline expired in healthy control')
+    result=dict(session=str(session), gate=g, rows=len(records), labels=len(labels), images=len(list((session/'Actual_Frames').glob('*.png'))),
+                reasons=dict(collections.Counter(r['reason'] or 'identity_valid' for r in records)), mask_ties=len(ties), frozen_masks_verified=crc_checked,
+                summary={k:v for k,v in s.items() if k.startswith('change_')}, errors=errors)
+    return result
+
+if __name__ == '__main__':
+    session=Path(sys.argv[1]); log=Path(sys.argv[2]) if len(sys.argv)>2 else None
+    r=audit(session,log)
+    print(json.dumps(r,indent=2))
+    sys.exit(bool(r['errors']))

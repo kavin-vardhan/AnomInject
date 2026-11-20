@@ -1,0 +1,348 @@
+import hashlib
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+src=(R/'085-04-eval.py').read_text(encoding='utf-8')
+def rep(old,new,count=1):
+    global src
+    n=src.count(old)
+    if n!=count:raise SystemExit(f'anchor occurs {n} times (want {count}): {old[:90]!r}')
+    src=src.replace(old,new)
+rep("c=_load('c854e',R/'085-04-common.py')\nE9=_load('e59_for_854',R/'084-09-eval.py')\nM53R=_load('m53rows854',R/'085-04-m53rows.py')\nORC=_load('oracle854',R/'085-04-oracle.py')",
+    "c=_load('c894e',R/'089-04-common.py')\n_pin=c.e1_pin_problems()\nif _pin:raise SystemExit('E1 pin refused (089-03 frozen evaluator): '+'; '.join(_pin))\n"
+    "E9=_load('e1_893_for_894',c.E1_PATH)\nE9.c.CACHE=c.CACHE/'e1'\nM53R=_load('m53rows894',c.M53ROWS_PATH)\nORC=_load('oracle894',c.ORACLE_PATH)")
+rep("EVALUATOR='085-04'","EVALUATOR='089-04'")
+tail=r'''
+# ---------------------------------------------------------------------------------------------- 089-02b overrides
+import bisect,math,shutil,time
+from concurrent.futures import ThreadPoolExecutor
+E1_NOTE='E1 = the frozen 089-03 evaluator (089-03-eval.py sha256 8e48e883..., G395 / G405 / G406 fixes on), pinned by hash with its dependencies'
+def _hist_parse(h):
+    if isinstance(h,dict):return {int(k):int(v) for k,v in h.items()}
+    return {int(a):int(b) for a,b in re.findall(r'([+-]?\d+):(\d+)',str(h or ''))}
+def _mode(d):return max(sorted(d),key=lambda k:(d[k],-abs(k))) if d else None
+ARM_RX=re.compile(r'(start|end)\+(\d+)')
+ARM_MIN=4
+def arm_canfail(Lg,res):
+    """089-01 ruling 4: CD3 / RD3 are +1 arms and CD5 / RD5 +3 arms, in CAPTURED frames. Proven = the leg FAILs at t50 AND the
+    expected edge's modal offset is the declared k on >= 4 judged events AND the opposite edge's modal offset is 0. (085-04's
+    classifier read a histogram STRING as a dict and could never report proven.)"""
+    exp=Lg.get('expect');e=res.get('e1') or {};t=e.get('t50') or {}
+    if exp=='holes':
+        nm=(res.get('not_measurable') or {}).get('count',0)
+        ok=e.get('leg_verdict')=='FAIL' or nm>0 or bool(res.get('fail_reasons'))
+        return dict(expect=exp,verdict=e.get('leg_verdict'),not_measurable=nm,fail_reasons=res.get('fail_reasons'),proven=ok)
+    m=ARM_RX.fullmatch(str(exp or ''))
+    if not m:return dict(expect=exp,proven=None)
+    edge,k=m.group(1),int(m.group(2));other='end' if edge=='start' else 'start'
+    h=_hist_parse(t.get(edge));ho=_hist_parse(t.get(other))
+    ok=e.get('leg_verdict')=='FAIL' and _mode(h)==k and h.get(k,0)>=ARM_MIN and _mode(ho)==0
+    return dict(expect=exp,edge=edge,edge_hist=t.get(edge),other_hist=t.get(other),modal=_mode(h),n_at_expected=h.get(k,0),other_modal=_mode(ho),
+                verdict=e.get('leg_verdict'),proven=ok,rule=f'FAIL at t50, {edge} modal +{k} on >= {ARM_MIN} judged, {other} modal 0')
+DIS_RX=re.compile(r'IAI bench levers: DISABLED \((\d+) masked\) where=(\S+) newly=(\d+) preset=(\d+)')
+LIST_RX=re.compile(r'--- IAI\.ListAnomalies \((\d+)\) ---')
+TWIN_RX=re.compile(r'LogAnomaly:\s+(null_effect|solid_swap) - ')
+LEVER_SPOT={'IAI.Bench.SynthTickOrder':(r'IAI\.Bench\.SynthTickOrder ->',r'SYNTH TICK ORDER = (?!off)'),
+            'IAI.Bench.TexCorruptIdentity':(r'IAI\.Bench\.TexCorruptIdentity ->',r'mode_source=bench_lever lever=identity',r'APPLIED mode=identity'),
+            'IAI.Bench.DestroyTarget':(r'IAI\.Bench\.DestroyTarget ->',r'IAI\.Bench\.DestroyTarget: ',r'Usage: IAI\.Bench\.DestroyTarget')}
+def lever_off_gate(log,cmds=()):
+    """G-LEVER-OFF re-expressed (night ruling item 10): a packaged log never prints "Command not recognized", so the gate is
+    (1) the DISABLED echo (every where=, preset 0) and no ENABLED line; (2) NONE of the three spot levers echoed or acted
+    (its own "-> " set line / usage line, SYNTH TICK ORDER leaving off, an identity mode_source or APPLIED mode=identity, any
+    DestroyTarget line); (3) IAI.ListAnomalies printed (the batch reached the post commands) and lists no twin; (4) the
+    spot commands were really in the launched batch and the fire read mode_source=argument."""
+    lines=(log or '').splitlines();P=parse_log(log)
+    dis=[m.groups() for m in DIS_RX.finditer(log or '')]
+    effects={k:[l[-200:] for l in lines if any(re.search(p,l) for p in pats)] for k,pats in LEVER_SPOT.items()}
+    lst=LIST_RX.findall(log or '');twins=[l[-120:] for l in lines if TWIN_RX.search(l)]
+    issued={k:any(k in str(x) for x in (cmds or ())) for k in LEVER_SPOT}
+    src=[(x['src'],x['lever']) for x in P['msrc'] if x['id'] in M53]
+    checks=dict(disabled_echo=bool(dis) and all(p=='0' for *_,p in dis),no_enabled=not P['bench_on'],no_lever_effect=all(not v for v in effects.values()),
+                listed=bool(lst),no_twins=not twins,spot_commands_issued=all(issued.values()),fire_argument=bool(src) and all(s=='argument' for s,_ in src))
+    return dict(checks=checks,disabled=dis[:3],effects=effects,listanomalies=lst,twins=twins[:4],issued=issued,mode_source=src[:4],pass_=all(checks.values()),
+                rule='G-LEVER-OFF = DISABLED echo (preset 0) + no ENABLED + no lever effect or echo + ListAnomalies printed with no twin + the spot commands issued')
+_lever_gate_085=lever_gate
+def lever_gate(Lg,log,cmds=()):
+    if Lg['leg']=='LEVER_OFF':return lever_off_gate(log,cmds)
+    return _lever_gate_085(Lg,log)
+FINAL_RX=re.compile(r'^(?P<head>[a-z_]+)(?::(?P<detail>.*))?$')
+NEED_RX=re.compile(r'need_(\d+)_available_(\d+)_cap_(\d+)')
+def parse_final(final):
+    """G403: a decision's final is head[:detail]; over_budget carries need_<n>_available_<n>_cap_<n>. 085-04 compared the whole
+    string with 'over_budget' and so never saw a budget-only host."""
+    m=FINAL_RX.match(final or '');head=m.group('head') if m else (final or '');detail=m.group('detail') if m else None
+    out=dict(head=head,detail=detail);n=NEED_RX.search(detail or '')
+    if head=='over_budget' and n:out.update(need=int(n.group(1)),available=int(n.group(2)),cap=int(n.group(3)))
+    return out
+def census_bench(log):
+    P=parse_log(log);rows=[x for x in P['tree'] if x['kind']=='CENSUS']
+    per=collections.defaultdict(dict)
+    for x in rows:
+        pf=parse_final(x['final'])
+        per[x['target'].lstrip('=')][x['family']]=dict(final=x['final'],head=pf['head'],detail=pf['detail'],need=pf.get('need'),required=int(x['req']),slots=int(x['slots']),qual=int(x['qual']))
+    return dict(actors=len(per),per_actor=per)
+L2_FILE='Source/AnomalyBench/Private/AnomalyBenchModule.cpp'
+L2_ANCHORS=('return TEXT("map_not_allowed")','const FVector Desired = bStack ? FVector(-1500, 0, 260) : FVector(-443.9807434082031, -70.0, 212.00010681152344);')
+def l2_capability(feat_root=None,commit=None):
+    """Can the bench placement lever L2 (IAI.Bench.PlaceView) frame a MainWorld actor on the build under test? Read from the
+    source the exe was built from: FixtureFailure refuses any map but CB_GateLevel / L_ShooterGym (and needs -IAIBenchFixture),
+    and the placement pose is a fixed constant per map. Both anchors present => L2 cannot frame MainWorld."""
+    root=Path(feat_root or c.FEAT);commit=commit or c.FEAT_SOURCE_COMMIT
+    try:txt=subprocess.check_output(['git','-C',str(root),'show',f'{commit}:{L2_FILE}'],stderr=subprocess.DEVNULL).decode('utf-8','replace')
+    except Exception as ex:return dict(framable_on_mainworld=None,error=f'{type(ex).__name__}: {ex}')
+    lines=txt.splitlines();where={a:[i+1 for i,l in enumerate(lines) if a in l] for a in L2_ANCHORS}
+    fixed=all(where[a] for a in L2_ANCHORS)
+    return dict(framable_on_mainworld=False if fixed else None,commit=commit,file=L2_FILE,anchors={a[:60]:v for a,v in where.items()},
+                reason=('IAI.Bench.PlaceView refuses map_not_allowed outside CB_GateLevel / L_ShooterGym and requires -IAIBenchFixture; its pose is a fixed constant' if fixed
+                        else 'the L2 anchors changed: re-read the lever before choosing hosts'))
+CAP_LIMIT=1<<30
+def g403_candidates(per,prod_blocks,l2):
+    """Host tiers per family, best first (night ruling item 2, 089-01 next-steps): (1) view_128 - an actor the settled
+    MainWorld view already frames that decides APPLY at the delivered 128 MiB; (2) world_128 - the whole-world 128 MiB
+    eligible actors, usable only if the placement lever L2 can frame them (it cannot on this build: l2_capability);
+    (3) raise - a view actor refused ONLY over_budget, under a bench-only cap = the next power of two >= its need
+    (<= 1 GiB). Two candidates per family from the best non-empty tier, required bytes ascending for the raise tier."""
+    fams={'U':'uv','N':'normal'};pid={'uv':'uv_corruption','normal':'normal_corruption'}
+    allb=[b for b in prod_blocks if str(b.get('head','')).startswith('scope=all')]
+    both={a for a,v in per.items() if all((v.get(f) or {}).get('head')=='APPLY' for f in fams.values())}
+    out=dict(l2=l2,tiers={},_why={})
+    for k,f in fams.items():
+        view=sorted([a for a,v in per.items() if (v.get(f) or {}).get('head')=='APPLY'],key=lambda a:(a not in both,a))
+        rz=sorted([(v[f]['need'],a) for a,v in per.items() if (v.get(f) or {}).get('head')=='over_budget' and v[f].get('need') and 0<v[f]['need']<=CAP_LIMIT])
+        world=((allb[0]['ids'].get(pid[f]) or {}).get('eligible') if allb else None)
+        refusals=collections.Counter((v.get(f) or {}).get('head') for v in per.values() if (v.get(f) or {}).get('head') not in (None,'APPLY'))
+        out['tiers'][f]=dict(view_128=view,world_128_eligible=world,world_128_framable=bool((l2 or {}).get('framable_on_mainworld')),
+                             raise_=[dict(actor=a,need=n) for n,a in rz],view_refusals=dict(refusals))
+        if view:cands=[dict(actor=a,tier='view_128',cap_bytes=None) for a in view[:2]];why=f'{f}: view hosts at 128 MiB'
+        elif world and (l2 or {}).get('framable_on_mainworld'):cands=[];why=f'{f}: {world} whole-world hosts at 128 MiB and L2 could frame them, but no framing leg is wired (re-plan)'
+        elif rz:
+            cands=[dict(actor=a,tier='raise',need=n,cap_bytes=1<<max(20,math.ceil(math.log2(n)))) for n,a in rz[:2]]
+            why=(f'{f}: no view host at 128 MiB; {world if world is not None else "?"} whole-world hosts at 128 MiB are NOT framable (L2: {(l2 or {}).get("reason")}); '
+                 f'budget-only view hosts under the declared raise: '+', '.join(f'{x["actor"]} need {x["need"]} -> cap {x["cap_bytes"]}' for x in cands))
+        else:cands=[];why=f'{f}: NO host - no view actor at 128 MiB, the {world if world is not None else "?"} whole-world hosts cannot be framed (L2), and no view refusal is budget-only ({dict(refusals)}): {f} MainWorld legs NOT-RUN-PREMISE'
+        for i in (1,2):out[f'C{i}{k}']=cands[i-1] if len(cands)>=i else None
+        out['_why'][k]=why
+    return out
+def probe_reading(log):
+    P=parse_log(log);d=[x for x in P['tree'] if x['kind'] in ('DECIDE','REFUSED')]
+    heads=collections.Counter(parse_final(x['final'])['head'] for x in d)
+    caps=sorted({int(m.group(1)) for m in re.finditer(r'TEXCORRUPT-(?:DECIDE|REFUSED) family=\S+ .*? cap=(\d+)\(',log or '')})
+    clean=bool(d) and set(heads)=={'APPLY'} and bool(P['applied'])
+    last=parse_final(d[-1]['final'])['head'] if d else None
+    return dict(decisions=len(d),heads=dict(heads),finals=dict(collections.Counter(x['final'] for x in d)),applied=len(P['applied']),caps=caps,
+                clean=clean,last=last,usable=bool(P['applied']) and last=='APPLY')
+def hosts_from_probes(cands,probes):
+    """H1 / H2 per family = the candidates whose identity probe APPLIED and whose last decision is APPLY; a probe that
+    applied on every decision ('clean') ranks before one that refused early (e.g. not_fully_resident while streaming),
+    then C1 before C2. A family's cap is the largest raise among its chosen hosts, else the delivered 128 MiB."""
+    out={};disp={}
+    for k in ('U','N'):
+        ok=[]
+        for i in (1,2):
+            cd=cands.get(f'C{i}{k}');pr=probes.get(f'P_HOST_FIRE_{i}{k}')
+            if cd and pr and pr.get('usable'):ok.append((0 if pr.get('clean') else 1,i,cd))
+        ok=[x[2] for x in sorted(ok,key=lambda x:(x[0],x[1]))]
+        out[f'H1{k}']=ok[0]['actor'] if ok else None;out[f'H2{k}']=ok[1]['actor'] if len(ok)>1 else None
+        rz=[x['cap_bytes'] for x in ok if x.get('tier')=='raise']
+        out[f'cap_{k}']=max(rz) if rz else None
+        disp[k]=dict(hosts=[(x['actor'],x['tier'],x.get('cap_bytes')) for x in ok],probes={f'C{i}{k}':(probes.get(f'P_HOST_FIRE_{i}{k}') or {}).get('heads') for i in (1,2)})
+    out['cap_declared']=bool(out.get('cap_U') or out.get('cap_N'));out['_disp']=disp
+    return out
+_reason_gate_085=reason_gate
+def reason_gate(Lg,log):
+    """MIXED re-declared before any run (089-02b): the colour-only slot keeps its colour texture and no normal map, and slot 0
+    now resolves to M_TC_MixedN (the night's component override BasicShapeMaterial removed). N: every decision
+    partial_footprint:1/2:no_normal_map and 0 APPLIED. UV: APPLIED and no partial_footprint decision."""
+    if Lg['leg'] not in ('REASON_MIXED_N','REASON_MIXED_UV'):return _reason_gate_085(Lg,log)
+    P=parse_log(log);tr=[x for x in P['tree'] if x['kind'] in ('DECIDE','REFUSED')]
+    slots=[l.strip()[-230:] for l in (log or '').splitlines() if 'TEXCORRUPT-' in l and ' slot ' in l][:6]
+    out=dict(decisions=len(tr),finals=dict(collections.Counter(x['final'] for x in tr)),applied=len(P['applied']),slot_lines=slots)
+    if Lg['leg']=='REASON_MIXED_N':
+        out['want']='partial_footprint:1/2:no_normal_map on every decision, 0 APPLIED'
+        out['pass_']=bool(tr) and all(x['final']=='partial_footprint:1/2:no_normal_map' for x in tr) and out['applied']==0
+    else:
+        out['want']='APPLIED >= 1, no partial_footprint decision, every decision APPLY'
+        out['pass_']=out['applied']>0 and bool(tr) and all(parse_final(x['final'])['head']=='APPLY' for x in tr)
+    return out
+_leg_m53_085=leg_m53
+def leg_m53(Lg,sd,log,null_sd,label_rule,fixture=True):
+    r=_leg_m53_085(Lg,sd,log,null_sd,label_rule,fixture)
+    r['evaluator_note']=E1_NOTE
+    if Lg.get('group')=='REASON' and not parse_log(log)['applied']:
+        drop=[f for f in r['fail_reasons'] if f.startswith('mask rows NOT-EXERCISED')]
+        if drop:
+            r['fail_reasons']=[f for f in r['fail_reasons'] if f not in drop];r['refusal_leg']=dict(dropped=drop,why='a refusal leg applies nothing, so its mask rows cannot be exercised; its verdict is the REASON row')
+            r['m53_verdict']='FAIL' if r['fail_reasons'] else (r['e1'].get('leg_verdict') or 'NO-JUDGEABLE-EVENT')
+    return r
+ARBITER={'r.AntiAliasingMethod':'0','r.Lumen.DiffuseIndirect.Allow':'0','r.DynamicGlobalIlluminationMethod':'0','r.ReflectionMethod':'0'}
+ARB_RX=re.compile(r'\]\s*(r\.[A-Za-z.]+) = "([^"]*)"')
+def recipe_check_log(log):
+    got={}
+    for m in ARB_RX.finditer(log or ''):
+        if m.group(1) in ARBITER:got[m.group(1)]=m.group(2)
+    miss=[k for k in ARBITER if k not in got];bad={k:v for k,v in got.items() if v!=ARBITER[k]}
+    return dict(verdict='OK' if not miss and not bad else ('UNREADABLE' if miss and not bad else 'INVALID-RECIPE'),echo=got,missing=miss,not_arbiter=bad)
+_bind_gate_085=bind_gate
+def bind_gate(g_sess,g_logs=None):
+    """G-BIND (089-02b): the four BIND legs must have run at the AA-off arbiter (S1's recipe, 082-07-lib:458); the DC legs
+    dropped it and the halves could not be located (TSR edge blending, y_high range 17 > 16). A leg read at any other
+    recipe is INVALID-RECIPE, never a fixture verdict."""
+    rc={k:recipe_check_log((g_logs or {}).get(k,'')) for k in ('BIND_TILE','BIND_TILENULL','BIND_ID','BIND_IDNULL') if (g_logs or {}).get(k)}
+    base=_bind_gate_085(g_sess);base['recipe']=rc
+    bad=[k for k,v in rc.items() if v['verdict']!='OK']
+    if bad:base['verdict_before_recipe']=base.get('verdict');base['verdict']='INVALID-RECIPE';base['why_recipe']=f'not at the AA-off arbiter: {bad}'
+    return base
+GT_EXACT_S=0.5/30.0;GT_TAIL_S=2.0;GT_PRE_W=12
+GT_RULE=('G406 for m53 (089-02b): each MainWorld ON leg is read against its identity null AT THE SAME GAME TIME t (labels t is capture-relative, '
+         'so equal schedules align exactly; a null frame more than half a frame away is a GAP); the null must cover t(first label - 12) .. t(last label) + 2 s '
+         'or the null rows read UNJUDGEABLE-NULL-COVERAGE (E1 does not use the null for m53, so its verdict stands on its own).')
+def _m53_labelled(s,anoms=M53):
+    out=[]
+    for a in anoms:
+        for e in M53R.events(s,a):out+=M53R.labelled_sis(e)
+    return sorted(set(out))
+def gt_map(on,nu):
+    nt=sorted((float(r['t']),r['session_index']) for r in nu.rows if r.get('t') is not None);ts=[x[0] for x in nt]
+    m={};dt={};gap=[]
+    for r in on.rows:
+        si=r['session_index']
+        if r.get('t') is None or not ts:gap.append(si);continue
+        t=float(r['t']);i=bisect.bisect_left(ts,t);best=None
+        for j in (i-1,i):
+            if 0<=j<len(ts):
+                d=abs(ts[j]-t)
+                if best is None or d<best[0]:best=(d,nt[j][1])
+        if best and best[0]<=GT_EXACT_S+1e-9:m[si]=best[1];dt[si]=round(best[0]*30.0,3)
+        else:gap.append(si)
+    return dict(map=m,dt_frames=dt,gap=gap,null_t=[round(ts[0],3),round(ts[-1],3)] if ts else None)
+def gt_coverage(on,nu,anoms=M53):
+    lab=_m53_labelled(on,anoms)
+    if not lab:return dict(covered=None,reason='no labelled m53 frame')
+    first,last=lab[0],lab[-1];lo=[si for si in range(first-GT_PRE_W,first+1) if si in on.by_si]
+    t_first=float(on.by_si[lo[0]]['t']);t_last=float(on.by_si[last]['t'])
+    nts=[float(r['t']) for r in nu.rows if r.get('t') is not None]
+    if not nts:return dict(covered=False,reason='null has no game time')
+    n0,n1=min(nts),max(nts)
+    return dict(covered=bool(n0<=t_first+1e-9 and n1>=t_last+GT_TAIL_S-1e-9),leg_t_first_window=round(t_first,3),leg_t_last_label=round(t_last,3),
+                need_until=round(t_last+GT_TAIL_S,3),null_t=[round(n0,3),round(n1,3)],rule=GT_RULE)
+def _link(p,q):
+    q.parent.mkdir(parents=True,exist_ok=True)
+    try:os.link(p,q)
+    except OSError:shutil.copy2(p,q)
+def gt_null_session(on_sd,null_sd,root):
+    """A virtual session: the ON leg's labels, masks and annotation with each frame's image replaced by the null frame at the
+    same game time (hardlinked). Rows without an aligned null frame are dropped. Nothing under the bank is written."""
+    on_sd=Path(on_sd);null_sd=Path(null_sd);on=M53R.Sess(on_sd);nu=M53R.Sess(null_sd);g=gt_map(on,nu)
+    dst=Path(root)/f'{on_sd.parent.name}__gtnull'/on_sd.name
+    if dst.parent.exists():shutil.rmtree(dst.parent)
+    dst.mkdir(parents=True)
+    for leg_meta in (on_sd.parent/'_leg'/'command.json',on_sd.parent/'_leg_geometry.json'):
+        if leg_meta.exists():_link(leg_meta,dst.parent/leg_meta.relative_to(on_sd.parent))
+    rows=[]
+    for r in on.rows:
+        si=r['session_index']
+        if si not in g['map']:continue
+        nr=nu.by_si[g['map'][si]];r2=dict(r);_link(null_sd/nr['image'],dst/r['image'])
+        if r.get('mask_file') and (on_sd/r['mask_file']).exists():_link(on_sd/r['mask_file'],dst/r['mask_file'])
+        r2['gt_null_source']=dict(session_index=nr['session_index'],t=nr.get('t'));rows.append(r2)
+    (dst/'labels.jsonl').write_text(''.join(json.dumps(x)+'\n' for x in rows),encoding='utf-8')
+    for f in ('annotation.json','run_summary.json','run.json'):
+        if (on_sd/f).exists():shutil.copy2(on_sd/f,dst/f)
+    return dst,g
+def ls086_raw(sd,types):
+    orig=E9.ls086.Session
+    try:
+        E9.ls086.Session=lambda d:E9.DSession(d,True,False)
+        return E9.ls086.analyse_session(str(sd),types=types,want_ce=False)
+    finally:E9.ls086.Session=orig
+def wrong_object_gt(on_sd,vsd,types):
+    """The declared MainWorld wrong-object rule (DC plan 5 rule 6), at the same game time: an E2 (086-01) outside-blob frame
+    inside an ON event's label that is NOT also an outside-blob frame of the same event read on the game-time-aligned null
+    is a FAIL (the blob is on ON only). A blob the null shows too is the scene."""
+    a={(r.get('type'),r.get('start_frame')):r for r in ls086_raw(on_sd,types)};b={(r.get('type'),r.get('start_frame')):r for r in ls086_raw(vsd,types)}
+    rows=[];fails=[]
+    for k,ra in a.items():
+        oa=set((ra.get('outside') or {}).get('frames_in_label') or []);rb=b.get(k) or {}
+        ob=set((rb.get('outside') or {}).get('frames_in_label') or []);only=sorted(oa-ob)
+        rows.append(dict(type=k[0],start_frame=k[1],on_status=ra.get('status'),null_status=rb.get('status'),on_blob_frames=sorted(oa),null_blob_frames=sorted(ob),on_only=only))
+        if only:fails.append(dict(start_frame=k[1],frames=only))
+    return dict(verdict='FAIL' if fails else 'PASS',events=len(rows),on_blob_events=sum(1 for r in rows if r['on_blob_frames']),fails=fails[:10],rows=rows[:40],
+                rule='a labelled ON outside-blob frame absent from the null at the same game time FAILS')
+def arbiter_gt(on_sd,vsd,anomaly,thr=16):
+    """G1-NAT arbiter at the same game time (AA-off legs): every labelled frame reads max |d| >= 16 inside the event mask
+    against the null frame at the same t; the minimum per event is reported."""
+    on=M53R.Sess(on_sd);vn=M53R.Sess(vsd);per=[];lows=[];miss=0
+    for e in M53R.events(on,anomaly):
+        vals=[]
+        for si in M53R.labelled_sis(e):
+            if si not in vn.by_si:miss+=1;continue
+            reg=M53R.region([(on,si,e['mv'][si])])
+            if reg is None or not reg.any():continue
+            v=int(M53R.absdiff(on.img(si),vn.img(si))[reg].max());vals.append(v)
+            if v<thr:lows.append(dict(start_frame=e['start_frame'],si=si,max=v))
+        per.append(dict(start_frame=e['start_frame'],measured=len(vals),min_frame_max=min(vals) if vals else None))
+    me=sum(1 for p in per if p['measured']>0)
+    return dict(verdict='READS-WRONG' if me>0 and not lows else ('BELOW-16' if lows else 'NO-MEASURED-EVENT'),events=per,measured_events=me,below=lows[:10],unaligned_labelled=miss)
+def gt_adjudicate(on_sd,vsd,e1_events,anomaly):
+    """A reading for any E1 FAIL: on each frame E1 calls wrong (an unlabelled frame judged visible without a transition, or a
+    labelled frame judged invisible), ON vs the null at the same game time inside the event mask."""
+    on=M53R.Sess(on_sd);vn=M53R.Sess(vsd);evs={e['start_frame']:e for e in M53R.events(on,anomaly)};out=[]
+    for r in e1_events or []:
+        p=((r.get('per') or {}).get(RELEASE) or {})
+        if p.get('verdict')!='FAIL':continue
+        e=evs.get(r.get('start_frame'))
+        if not e:continue
+        lab=set(M53R.labelled_sis(e));vis=set(p.get('visible') or []);tg=p.get('transition_gate') or {}
+        frames=sorted(set(tg.get('unlabelled_visible_without_transition') or [])|(lab-vis))
+        rd=[]
+        for si in frames:
+            mv=e['mv'].get(si) or next((e['mv'][x] for x in e['si'] if e['mv'].get(x)),None)
+            if si not in on.by_si or si not in vn.by_si or not mv:rd.append(dict(si=si,max=None));continue
+            reg=M53R.region([(on,x,mv) for x in e['si'] if e['mv'].get(x)][:1])
+            rd.append(dict(si=si,labelled=si in lab,max=int(M53R.absdiff(on.img(si),vn.img(si))[reg].max()) if reg is not None and reg.any() else None))
+        out.append(dict(start_frame=r.get('start_frame'),frames=rd))
+    return out
+def gt_null_rows(Lg,on_sd,null_sd,log,root,e1_events=None):
+    if not (on_sd and null_sd):return dict(verdict='NO-NULL')
+    on=M53R.Sess(on_sd);nu=M53R.Sess(null_sd);cov=gt_coverage(on,nu,{Lg['anomaly']})
+    vsd,g=gt_null_session(on_sd,null_sd,root)
+    out=dict(rule=GT_RULE,coverage=cov,aligned_frames=len(g['map']),gap_frames=len(g['gap']),max_dt_frames=max(g['dt_frames'].values()) if g['dt_frames'] else None,null_t=g['null_t'])
+    if cov.get('covered') is False:out['verdict']='UNJUDGEABLE-NULL-COVERAGE';return out
+    try:out['wrong_object']=wrong_object_gt(on_sd,vsd,[Lg['anomaly']])
+    except Exception as ex:out['wrong_object']=dict(verdict='ERROR',error=f'{type(ex).__name__}: {ex}')
+    if Lg.get('cond')=='NAT_AAOFF':
+        try:out['arbiter']=arbiter_gt(on_sd,vsd,Lg['anomaly'])
+        except Exception as ex:out['arbiter']=dict(verdict='ERROR',error=f'{type(ex).__name__}: {ex}')
+    try:out['adjudication']=gt_adjudicate(on_sd,vsd,e1_events,Lg['anomaly'])
+    except Exception as ex:out['adjudication']=dict(error=f'{type(ex).__name__}: {ex}')
+    fails=[]
+    if (out.get('wrong_object') or {}).get('verdict')=='FAIL':fails.append('wrong object at the same game time: '+json.dumps(out['wrong_object']['fails'][:3]))
+    if (out.get('arbiter') or {}).get('verdict')=='BELOW-16':fails.append('GT arbiter: labelled frames below 16: '+json.dumps(out['arbiter']['below'][:3]))
+    out['fails']=fails;out['verdict']='FAIL' if fails else 'PASS'
+    return out
+GRAMMAR=re.compile(r'^(scope=(view|all) candidates=\d+ cap_bytes=\d+ uv_modes=[a-z_+!]+ normal_modes=[a-z_+!]+|id=(uv_corruption|normal_corruption) eligible=\d+ refused=\d+ reasons=(-|[a-z_]+:\d+(,[a-z_]+:\d+)*)|end stats_unchanged=[01])\s*$')
+def census_consistency(prod):
+    """089-02b: the product writes reasons=- when a family has no refusal (TexCorruptTree.cpp:1142-1144); 085-04's grammar
+    rejected it. Each id line's reason counts must sum to its refused count, and reasons=- only with refused=0."""
+    bad=[]
+    for b in prod.get('blocks') or []:
+        for pid,v in b['ids'].items():
+            if sum(v['reasons'].values())!=v['refused']:bad.append(dict(head=b['head'][:40],id=pid,refused=v['refused'],reasons=v['reasons']))
+    return dict(pass_=bool(prod.get('blocks')) and not bad,bad=bad[:5])
+KIT_WRAPPER=R/'089-03-kit.py'
+def kit_office(sd,out_json,timeout=1800):
+    p=subprocess.run([c.PYTHON,str(KIT_WRAPPER),'office',str(sd),str(out_json)],capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=timeout)
+    js=json.loads(Path(out_json).read_text(encoding='utf-8')) if Path(out_json).exists() else None
+    return dict(exit=p.returncode,summary=(js or {}).get('summary'),tail=((p.stdout or '')+(p.stderr or '')).strip().splitlines()[-3:],out=str(out_json))
+def kit_pool(items,outdir,workers=6):
+    Path(outdir).mkdir(parents=True,exist_ok=True)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        fut={k:ex.submit(kit_office,sd,Path(outdir)/f'{k}.kit.json') for k,sd in items}
+        res={}
+        for k,f in fut.items():
+            try:res[k]=f.result()
+            except Exception as e:res[k]=dict(error=f'{type(e).__name__}: {e}')
+    return res
+'''
+src+=tail
+out=R/'089-04-eval.py';out.write_text(src,encoding='utf-8',newline='\n')
+print('wrote',out,hashlib.sha256(out.read_bytes()).hexdigest()[:16],len(out.read_bytes()))

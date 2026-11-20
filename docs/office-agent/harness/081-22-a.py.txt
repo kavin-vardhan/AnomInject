@@ -1,0 +1,101 @@
+import importlib.util,json,re,subprocess,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-22-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+spec=importlib.util.spec_from_file_location('audit',c.R/'081-08-audit.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+B,E,R=c.B,c.E,c.R
+CAP=268435456
+ORACLE=Path(r'D:\IntrusiveAnomalies\_scratch_081_22\feat\tools\verify_capture.py')
+b3=c.binary_v3()
+ledger_p=E/'part1-a-results.json';ledger=json.loads(ledger_p.read_text()) if ledger_p.exists() else []
+def save():ledger_p.write_text(json.dumps(ledger,indent=2))
+def census_check(s,text):
+    errs=[];peak=s.get('change_bytes_peak_census');hw=s.get('change_bytes_high_water')
+    if not isinstance(peak,dict):return ['peak census absent'],None
+    if peak.get('high_water')!=hw:errs.append('peak.high_water != change_bytes_high_water')
+    if peak.get('bytes_held')!=peak.get('high_water'):errs.append('peak.bytes_held != peak.high_water')
+    if peak.get('unaccounted_bytes')!=0:errs.append('unaccounted_bytes nonzero')
+    if peak.get('colours_unowned')!=0:errs.append('colours_unowned nonzero')
+    if peak.get('colours')!=sum(peak.get(k,0) for k in ('colours_pending','colours_previous','colours_phase_ref','colours_in_hand','colours_unowned')):errs.append('colour split does not sum')
+    if peak.get('colour_bytes',0)+peak.get('mask_bytes',0)+peak.get('unaccounted_bytes',0)!=peak.get('bytes_held'):errs.append('bytes do not sum')
+    lines=re.findall(r'HIGH-WATER-PEAK bytes=(\d+) max=(\d+) census=(\{.*\})',text)
+    if len(lines)!=1:errs.append(f'HIGH-WATER-PEAK lines={len(lines)}')
+    elif int(lines[0][0])!=hw or json.loads(lines[0][2])!=peak:errs.append('HIGH-WATER-PEAK line disagrees with summary')
+    return errs,peak
+if any(x.get('accepted') or x['status'] in ('FIXTURE-VALID-FAILURE',) for x in ledger):print('leg (a) already decided');sys.exit(0)
+while True:
+    used=len(ledger)
+    if used>=3:print('INVALID-FIXTURE-EXHAUSTED: leg (a) NOT-RUN after 3 attempts',flush=True);sys.exit(2)
+    q=c.quiet()
+    if not q['quiet']:c.log_event('leg-refused-not-quiet',leg='a',blocking=q['blocking']);print(json.dumps(dict(result='NOT-QUIET',blocking=q['blocking'])),flush=True);sys.exit(4)
+    for key in ('built','staged','archive'):assert c.sha(b3[key])==b3['sha256'],key
+    attempt=used+1;label=f'A_SOLID1080_N_A{attempt}';d=E/label;log=E/f'runner-{label}.log'
+    assert not d.exists() and not log.exists(),label
+    args=[c.PWSH,'-NoProfile','-File',str(R/'081-22-measure.ps1'),'-Label',label,'-Anomaly','solid_swap','-Order','0','-MaxFrames','90','-Config','2 4 16 4 0','-ResX','1920','-ResY','1080']
+    (E/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+    t0=c.now()
+    with log.open('w') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+    launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace') if (d/'game.log').exists() else '';errors=[]
+    row=dict(label=label,attempt=attempt,started=t0,finished=c.now(),runner_exit=r.returncode,capture_start_sent=launch.get('capture_start_sent'),error=launch.get('error'),session=launch.get('session'))
+    if 'FOREIGN-EDITOR-APPEARED' in (launch.get('error') or ''):
+        row['status']='INVALID-FOREIGN';row['foreign']=launch.get('foreign_editor');ledger.append(row);save()
+        c.log_event('leg-invalid-foreign',leg='a',label=label,where=launch.get('foreign_where'),foreign=launch.get('foreign_editor'))
+        print(json.dumps(row),flush=True);sys.exit(5)
+    if r.returncode:errors.append('runner: '+str(launch.get('error',r.returncode)))
+    focus=launch.get('capture_focus',[]);hits=sum(x['foreground_pid']==launch.get('pid') for x in focus)
+    if not focus or hits!=len(focus):errors.append('whole-leg foreground failed')
+    if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure')
+    on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+    if len(on)!=1 or len(off)!=1 or len(place)!=1:errors.append('lock/placement/release count')
+    elif re.search(r'priorLook=(\d) priorMove=(\d)',on[0]).groups()!=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0]).groups():errors.append('unlock restoration')
+    if launch.get('session'):
+        session=Path(launch['session'])
+        pose=subprocess.run([sys.executable,str(R/'081-15-capture-pose.py'),str(session)],capture_output=True,text=True)
+        (d/'capture-pose.txt').write_text(pose.stdout+pose.stderr)
+        if pose.returncode:errors.append('captured-label B1 failed')
+    row.update(fixture_errors=errors,foreground=[hits,len(focus)])
+    if errors:
+        row['status']='INVALID-PRECAPTURE' if not launch.get('capture_start_sent') or 'B1' in ' '.join(errors) or 'foreground' in ' '.join(errors) or 'lock' in ' '.join(errors) else 'INVALID-FIXTURE'
+        ledger.append(row);save();print(json.dumps(row),flush=True);continue
+    case=dict(anomaly='solid_swap',res=(1920,1080),all_pairs=True)
+    result=a.audit(session,d/'game.log',case)
+    records=list(map(json.loads,(session/'change_evidence.jsonl').read_text(encoding='utf-8-sig').splitlines()));pairs=[x for x in records if x['kind']=='pair'];events=[x for x in records if x['kind']=='event']
+    s=result['summary'];summ=json.loads((session/'run_summary.json').read_text(encoding='utf-8-sig'))
+    def need(ok,msg):
+        if not ok:result['errors'].append(msg)
+    onset=[x for x in pairs if x['window_index']==0 and x['chg_measured']]
+    need(len(onset)>=3,'onset floor')
+    need(all(x['chg_gt8']/x['chg_n']>.9 for x in onset),'solid separation')
+    need(len(pairs)==20 and sum(x['chg_measured'] for x in pairs)==20,'required pairs not 20/20')
+    need(len(events)==5,'final events != 5')
+    need(s.get('change_max_bytes')==CAP and s.get('change_max_bytes_source')=='compiled','256 MiB compiled cap not effective')
+    need(f'maxBytes={CAP}(from compiled)' in text,'EFFECTIVE maxBytes line absent')
+    budget_lines=re.findall(r'Capture\(m55\): BUDGET-EXCEEDED si=(\d+) kind=(\w+)',text)
+    census_rows=[x['session_index'] for x in records if 'budget_census' in x]
+    need(s.get('change_reason_budget_exceeded')==0,'change_reason_budget_exceeded nonzero')
+    need(not budget_lines,'BUDGET-EXCEEDED log lines present');need(not census_rows,'budget_census rows present')
+    selfcheck,peak=census_check(s,text)
+    for e_ in selfcheck:result['errors'].append('census: '+e_)
+    need(s.get('change_multi_view_families')==0,'change_multi_view_families != 0')
+    need(s.get('change_unsupported_completion')==0,'change_unsupported_completion != 0')
+    need(s.get('change_view_rejected')==0,'change_view_rejected != 0')
+    need('BENCH-GATE-REFUSED' not in text,'BENCH-GATE-REFUSED present')
+    need('STAGE-DISCARDED' not in text,'STAGE-DISCARDED present')
+    eff=re.findall(r'Capture\(m55\): EFFECTIVE enabled=1\(from (\w+)\) maxBytes=(\d+)\(from (\w+)\) gate=(\d+)\(from (\w+)\)',text)
+    need(len(eff)==1 and eff[0][3]=='14','EFFECTIVE gate=14 line absent')
+    need(not any('late_results' in e_ for e_ in events),'event record carries late_results')
+    oj=d/'oracle.json'
+    orc=subprocess.run([sys.executable,str(ORACLE),'--change-oracle',str(session),'--quiet','--oracle-json',str(oj)],capture_output=True,text=True,cwd=ORACLE.parent)
+    (d/'oracle.txt').write_text(orc.stdout+orc.stderr)
+    osum=json.loads(oj.read_text()).get('summary') if oj.exists() else None
+    need(orc.returncode==0,f'oracle exit {orc.returncode}')
+    need(isinstance(osum,dict) and osum.get('claimed')==20 and osum.get('compared')==20 and osum.get('matched')==20 and osum.get('mismatched')==0,'oracle summary not 20/20/20/0')
+    lat={k[len('change_colour_completion_latency_'):]:v for k,v in s.items() if k.startswith('change_colour_completion_latency_')}
+    result.update(census_selfcheck_errors=selfcheck,peak_census=peak,effective=eff,oracle_exit=orc.returncode,oracle_summary=osum,latency=lat,
+                  high_water=s.get('change_bytes_high_water'),reasons={k[len('change_reason_'):]:v for k,v in s.items() if k.startswith('change_reason_') and v},
+                  speed_ratio=summ.get('speed_ratio'),total_frames=summ.get('total_frames'),pngs=len(list((session/'Actual_Frames').glob('*.png'))),
+                  onset_readings=[dict(si=x['session_index'],frac=round(x['chg_gt8']/x['chg_n'],6),mean=x['chg_mean'],ctl_frac=round(x['ctl_gt8']/x['ctl_n'],6) if x['ctl_n'] else None) for x in onset])
+    (d/'measurement-audit.json').write_text(json.dumps(result,indent=2,default=str))
+    row.update(measurement_errors=result['errors'],accepted=not result['errors'],status='PASS' if not result['errors'] else 'FIXTURE-VALID-FAILURE',
+               oracle_exit=orc.returncode,oracle_summary=osum,high_water=result['high_water'],latency=lat,speed_ratio=result['speed_ratio'],pngs=result['pngs'])
+    ledger.append(row);save();print(json.dumps({k:row.get(k) for k in ('label','status','measurement_errors','oracle_exit','oracle_summary','high_water','latency','speed_ratio','pngs')},default=str),flush=True)
+    sys.exit(0 if row['accepted'] else 1)

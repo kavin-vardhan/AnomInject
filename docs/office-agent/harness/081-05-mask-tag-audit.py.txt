@@ -1,0 +1,24 @@
+from pathlib import Path
+from PIL import Image
+import json, hashlib, itertools, sys
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'
+suffix='-diagnostic' if 'diagnostic' in sys.argv else ''
+cmp=json.loads((ev/f'legacy-comparison-bench{suffix}-v6.json').read_text())
+readings={}
+for name,old in cmp['readings'].items():
+    d=Path(old['session']); rows={r['session_index']:r for r in (json.loads(l) for l in (d/'labels.jsonl').read_text().splitlines())}
+    readings[name]={}
+    for p in (d/'target_mask').glob('*.png'):
+        si=int(p.stem.split('_')[-1]); raw=Image.open(p).convert('L').tobytes()
+        tag=rows[si]['anomalies'][0]['mask_value']
+        values=sorted(set(raw)); assert set(values)<={0,tag},(name,si,values,tag)
+        occupancy=raw.translate(bytes([0]+[1]*255))
+        readings[name][si]=dict(tag=tag,values=values,raw_sha256=hashlib.sha256(raw).hexdigest(),
+            occupancy_sha256=hashlib.sha256(occupancy).hexdigest(),pixels=sum(occupancy))
+out=[]
+for a,b in itertools.combinations(readings,2):
+    shared=set(readings[a])&set(readings[b]); pairs=[(readings[a][i],readings[b][i]) for i in shared]
+    out.append(dict(a=a,b=b,common=len(shared),equal_occupancy=sum(x['occupancy_sha256']==y['occupancy_sha256'] for x,y in pairs),
+         equal_raw=sum(x['raw_sha256']==y['raw_sha256'] for x,y in pairs),different_tag=sum(x['tag']!=y['tag'] for x,y in pairs)))
+(ev/f'mask-tag-audit{suffix}-v6.json').write_text(json.dumps(dict(readings=readings,comparisons=out),indent=2))
+for r in out: print(json.dumps(r))

@@ -1,0 +1,203 @@
+import importlib.util,json,os,shutil,subprocess,sys,tempfile,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+os.environ.setdefault('IAI_R59_ROOT',str(R/'084-09-evidence'/'gateselftest'))
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c59',R/'084-09-common.py');L=load('lib59',R/'084-09-lib.py');E=load('e59',R/'084-09-eval.py')
+BANK=c.REAL_BANK
+RES=[]
+def check(ok,name,detail=''):
+    RES.append(dict(ok=bool(ok),name=name,detail=str(detail)[:300]));print(('OK   ' if ok else 'FAIL ')+name+('  | '+str(detail)[:200] if detail else ''),flush=True)
+def one(n):
+    d=BANK/n;s=[x for x in d.iterdir() if x.is_dir() and x.name.startswith('session_')];return s[0]
+class FakeS:
+    def __init__(self,rows):self.by_si=rows
+SF=500
+def mk_entry(labelled=True,reasons=None,levels=None,transition=None):
+    a=dict(id='stuck_low_mip',start_frame=SF,labelled=labelled)
+    if reasons is not None:a['transition']=1;a['transition_reason']=list(reasons)
+    elif transition:a['transition']=1
+    if levels is not None:a['stuck_mip.render_textures']=[dict(name=f't{i}',level=l) for i,l in enumerate(levels)]
+    return a
+def run_guard(entries,Lw,vis,span,drop,thr=0.1,temporal_aa=False):
+    rows={si:dict(session_index=si,anomalies=[entries[si]] if si in entries else []) for si in span}
+    Tex,pg,tg=E.m52_transition_gate(FakeS(rows),dict(start_frame=SF),Lw,set(),vis,span,drop,{si:thr for si in span},0.01,temporal_aa)
+    fails=list(tg['fail_reasons'])+list(pg['fail_reasons'])
+    return ('FAIL' if fails else 'PASS'),fails,pg,tg
+def guard_cases():
+    span=list(range(90,131));Lw=list(range(100,110))
+    drop={si:0.0 for si in span}
+    for si in range(102,110):drop[si]=1.0
+    drop[100]=0.05;drop[101]=0.30
+    vis={si for si in span if drop[si]>=0.5}
+    held2=['held','baseline','held']
+    base={si:mk_entry() for si in Lw}
+    e=dict(base);e[100]=mk_entry(reasons=['partial'],levels=held2);e[101]=mk_entry(reasons=['partial'],levels=held2)
+    v,f,pg,_=run_guard(e,Lw,vis,span,drop)
+    check(v=='PASS' and pg['flagged_invisible_counted']==[100] and pg['confirmed_partial']==[101],
+          'partial guard: record-backed partial onset (one frame inside the null band, one above it) is COUNTED, not failed',(v,f,pg['flagged_invisible_counted'],pg['confirmed_partial']))
+    e=dict(base);e[100]=mk_entry(reasons=['partial'],levels=['baseline','baseline','baseline']);e[101]=mk_entry(reasons=['partial'],levels=['baseline','between','baseline'])
+    v,f,pg,_=run_guard(e,Lw,vis,span,drop)
+    check(v=='FAIL' and pg['partial_without_held_texture']==[100,101],'CAN-FAIL: a partial flag on a frame whose record shows NO texture at the held level FAILS',(v,f))
+    drop2=dict(drop)
+    for si in (98,99):drop2[si]=0.9
+    vis2={si for si in span if drop2[si]>=0.5}
+    e=dict(base);e[100]=mk_entry(reasons=['partial'],levels=held2);e[101]=mk_entry(reasons=['partial'],levels=held2)
+    e[98]=mk_entry(labelled=False,reasons=['partial'],levels=['held','held','held']);e[99]=mk_entry(labelled=False,reasons=['partial'],levels=['held','held','held'])
+    v,f,pg,tg=run_guard(e,Lw,vis2,span,drop2)
+    check(v=='FAIL' and pg['partial_on_unlabelled']==[98,99] and tg['unlabelled_visible_without_transition']==[98,99],
+          'CAN-FAIL: a partial flag spread over a real LATE label (pixels change 2 frames before the label) FAILS even with held textures',(v,f))
+    v,f,pg,tg=run_guard(dict(base),Lw,vis,span,drop)
+    check(v=='FAIL' and tg['labelled_not_visible_outside_transition']==[100,101],'CAN-FAIL: unflagged off frames FAIL',(v,f))
+    e=dict(base);e[100]=mk_entry(reasons=['unresolved'],levels=['unknown','held']);e[101]=mk_entry(reasons=['partial'],levels=held2)
+    v,f,pg,_=run_guard(e,Lw,vis,span,drop)
+    check(v=='FAIL' and pg['unresolved_only_off']==[100],'CAN-FAIL: an off frame backed only by unresolved FAILS (to investigate)',(v,f))
+    e=dict(base);e[100]=mk_entry(transition=True);e[101]=mk_entry(transition=True)
+    v,f,pg,_=run_guard(e,Lw,vis,span,drop,temporal_aa=True)
+    check(v=='PASS' and pg['legacy_transition']==[100,101],'legacy bank: transition=1 without transition_reason reads as temporal (the 084-06 meaning) and excuses under TAA',(v,f))
+    v,f,pg,_=run_guard(e,Lw,vis,span,drop,temporal_aa=False)
+    check(v=='FAIL','legacy temporal flag on a leg WITHOUT temporal AA still FAILS (the build emits none there)',(v,f))
+    Lw3=list(range(100,126));drop3={si:0.0 for si in span+list(range(131,140))};span3=list(range(90,140))
+    for si in range(100,126):drop3[si]=1.0 if si>=110 else 0.3
+    vis3={si for si in span3 if drop3[si]>=0.5}
+    e={si:mk_entry() for si in Lw3}
+    for si in range(100,110):e[si]=mk_entry(reasons=['partial'],levels=held2)
+    v,f,pg,_=run_guard(e,Lw3,vis3,span3,drop3)
+    check(v=='PASS' and pg['edges']['onset']==10 and pg['edges_over_investigate']==['onset'],'an edge with 10 (> 8) record-backed partial frames is LISTED for investigation, not failed',(v,pg['edges']))
+def write_session(d,rows,anno):
+    d.mkdir(parents=True,exist_ok=True)
+    (d/'labels.jsonl').write_text('\n'.join(json.dumps(r) for r in rows)+'\n',encoding='utf-8')
+    (d/'annotation.json').write_text(json.dumps(anno),encoding='utf-8');(d/'run_summary.json').write_text('{}',encoding='utf-8')
+def membership_cases(tmp):
+    def rows_for(labelled_key=True,ff41=False,defect=False):
+        rows=[]
+        for si in range(0,40):
+            ents=[]
+            if 8<=si<=13:
+                a=dict(id='blinking',target_name='Cube1',start_frame=700)
+                if labelled_key:a['labelled']=si in (10,11)
+                ents.append(a)
+            if 20<=si<=25:
+                a=dict(id='missing_texture',target_name='Cube2',start_frame=900)
+                if labelled_key:a['labelled']=not ff41
+                ents.append(a)
+            if defect and si==30:ents.append(dict(id='missing_texture',target_name='Cube3',start_frame=990,labelled=True))
+            rows.append(dict(session_index=si,frame_index=1000+si,anomaly_present=bool(ents),anomalies=ents))
+        return rows
+    anno=dict(anomalies=[dict(anomaly_type='blink',injected_frames=dict(frame_indices=[10,11]),affected_objects=dict(nodes=[dict(name='Cube1')])),
+                         dict(anomaly_type='missing_texture',injected_frames=dict(frame_indices=list(range(20,26))),affected_objects=dict(nodes=[dict(name='Cube2')]))])
+    cases={'new':rows_for(),'old':rows_for(labelled_key=False),'ff41':rows_for(ff41=True),'defect':rows_for(defect=True)}
+    out={}
+    for k,rows in cases.items():
+        d=tmp/f'sess_{k}';write_session(d,rows,anno);out[k]=(E.labelled_membership(d),E.presence_contract_v2(d))
+    m,p=out['new'];check(m['rule']=='new' and m['pass_'] and p['defect_n']==0 and p['families'].get('blinking:unlabelled')==4,'labelled rule NEW: membership consistent, the 4 blinking visible-phase rows are an allowed family',(m['mismatch_n'],p['families']))
+    m,p=out['old'];check(m['rule']=='old' and m['pass_'] and 'OLD rule' in m['note'] and p['rule']=='old','labelled rule OLD bank: read under the old rule and SAYS so',m['note'][:80])
+    m,p=out['ff41'];check(m['rule']=='new' and not m['pass_'] and m['mismatch_n']==6,'CAN-FAIL: the FF41BFF3 shape (texture frames in the annotation written labelled:false) FAILS membership',m['mismatch_n'])
+    m,p=out['defect'];check(p['defect_n']==1,'CAN-FAIL: a labelled:true entry outside every annotation list is a presence DEFECT',p['defect_rows'])
+def g355_cases(tmp):
+    src=tmp/'src.bin';dst=tmp/'dst.bin';src.write_bytes(b'a'*4096);dst.write_bytes(b'b'*4096)
+    info,done=L.hold_exclusive(dst,2.0);log=[]
+    n=L.copy_retry(src,dst,tries=6,backoff=(0.5,1,1,1,1),log=log);done.wait(5)
+    check(info.get('handle_ok') and n>=2 and dst.read_bytes()==src.read_bytes() and 'PermissionError' in ' '.join(log[-1]['errors']),
+          'G355: a locked destination (sharing violation, WinError 32) is RETRIED with backoff and the copy completes',dict(attempts=n,errors=log[-1]['errors'][:2]))
+    dst.write_bytes(b'c'*4096);info,done=L.hold_exclusive(dst,4.0)
+    try:L.copy_retry(src,dst,tries=2,backoff=(0.2,),log=[]);raised=False
+    except L.Stop as ex:raised=True;msg=ex.msg
+    done.wait(6)
+    check(raised,'G355 both ways: a lock held longer than every retry raises Stop (never a silent pass)',msg if raised else 'no raise')
+def amendment_cases():
+    clean=lambda si:True
+    ra=E.reference_amendment(None,None,set(range(173,180))|set(range(193,199)),183,188,set(),clean)
+    check(ra['status']=='CONFOUNDED' and ra['pre']==[] and ra['post']==[191,192],'amendment R1: the StaticMeshActor_85 geometry (prev tail 179, label 183-188, next 193) is CONFOUNDED',ra)
+    ra=E.reference_amendment(None,None,set(range(150,161))|set(range(210,215)),183,188,set(),clean)
+    check(ra['status']=='OK' and ra['basis']=='pre' and len(ra['pre'])==12,'amendment R1: with a wide gap the pre window alone is used (no change from 084-06)',ra['basis'])
+    ra=E.reference_amendment(None,None,set(range(173,180))|set(range(203,210)),183,188,set(),clean)
+    check(ra['status']=='OK' and ra['basis']=='pre+post' and len(ra['frames'])>=4,'amendment R1: a short pre window is completed from the post-event clean frames',ra['frames'])
+def bank_cases():
+    mlog=L.log_text(BANK/'M52SYNC_MASK55_A1'/'_leg'/'game.log');msd=one('M52SYNC_MASK55_A1')
+    g=E.mask_gate(msd,mlog,min_events=90)
+    check(g['verdict']=='INVALID' and any('peak_live 1' in x for x in g['invalid']),'MASK v2 on the 084-06 bank: peak live 1 is INVALID for the concurrent path (known answer), not a pass',g['invalid'][:1])
+    g1=E.mask_gate(msd,mlog,min_events=90,require_peak_live=1)
+    check(g1['tag_owner_lines']>=1200 and not g1['tag_owner_shared_frames'],'MASK v2: TAG-OWNERS read on every frame of the 084-06 bank, 0 shared',(g1['tag_owner_lines'],g1['verdict']))
+    bad=mlog+'\n[x][  0]LogAnomalyCapture: Capture(mask): TAG-OWNERS si=600 tick=123 values=3 shared=1 [210=A|B]\n'
+    g2=E.mask_gate(msd,bad,min_events=90,require_peak_live=1)
+    check(g2['verdict']=='FAIL' and g2['tag_owner_shared_frames']==[600],'CAN-FAIL: one mask value on two holders in a frame (TAG-OWNERS shared>0) FAILS',g2['fail_reasons'][-1:])
+    on=one('M52SYNC_CCMW_ON_A1');na=one('M52SYNC_CCMW_NULL_A_A1');nb=one('M52SYNC_CCMW_NULL_B_A1')
+    g=E.cc_mw_gate(on,na,nb,200)
+    check(g['gate']=='FAIL' and g['over_label_confirmed_n']>=150,'CAN-FAIL: B-CC-MW per-frame floor on the 084-06 E9FF019A bank reads the hollow-mesh OVER-LABEL',(g['over_label_confirmed_n'],g['labelled_confirmed']))
+    cl=L.log_text(BANK/'M52SYNC_CC_ON_NAT_A1'/'_leg'/'game.log');nl=L.log_text(BANK/'M52SYNC_CC_NULL_A_NAT_A1'/'_leg'/'game.log')
+    g=E.cc_gate(one('M52SYNC_CC_ON_NAT_A1'),one('M52SYNC_CC_NULL_A_NAT_A1'),cl,nl,None,None,200)
+    check(g['gate']=='INVALID','B-CC on the 084-06 bank (schedule never armed, G354) is INVALID, never a pass',(g.get('errors') or [])[:1])
+    b0=one('M52SYNC_B0_A1');b5=one('M52SYNC_B5_A1')
+    nc=E.null_check_v2(b5,b0,'StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803');old=E.L3.null_check(E.L3.Sess(b5))
+    check(nc['pass_'] and nc['events']==0 and not old['pass'],'G356 both ways: the event-less G350 null PASSES the own-series calibration and FAILED the 084-06 event-based null gate',(nc['noise'],old['events']))
+def mk_lod_event(sf,a,b,levels=None,unl=(),lnv=(),verdict='PASS'):
+    lv={si:0.0 for si in range(a-8,b+12)}
+    for si in range(a,b+1):lv[si]=1.0
+    lv.update(levels or {})
+    tg=dict(unlabelled_visible_without_transition=list(unl),labelled_not_visible_outside_transition=list(lnv))
+    per={E.RELEASE:dict(verdict=verdict,fail_reasons=['x'] if verdict=='FAIL' else [],transition_gate=tg,edges=[dict(start=0,end=0,cs=False,ce=False)])}
+    return dict(status='OK',start_frame=sf,levels=lv,runs=[dict(a=a,b=b,lo=a-8,hi=b+11)],per=per)
+def lod_cases():
+    e=E.lod_edges(mk_lod_event(10,100,107))
+    check(len(e)==2 and not any(x['multi_frame_fade'] for x in e) and all(x['n_intermediate']==0 for x in e),'LOD fade: a clean step pop reads 0 intermediate frames on both edges',[x['n_intermediate'] for x in e])
+    e=E.lod_edges(mk_lod_event(10,100,107,{100:0.3,101:0.7}))
+    check(e[0]['kind']=='onset' and e[0]['multi_frame_fade'] and e[0]['intermediate']==[100,101],'CAN-FAIL: a 2-frame onset ramp (0.3, 0.7) is a MULTI-FRAME FADE',e[0]['levels'][:6])
+    e=E.lod_edges(mk_lod_event(10,100,107,{100:0.5}))
+    check(e[0]['n_intermediate']==1 and not e[0]['multi_frame_fade'],'LOD fade: one partial frame is counted, not a multi-frame fade',e[0]['intermediate'])
+    e=E.lod_edges(mk_lod_event(10,100,107,{108:0.6,109:0.3}))
+    check(e[1]['kind']=='offset' and e[1]['multi_frame_fade'] and e[1]['intermediate']==[108,109],'CAN-FAIL: a 2-frame offset tail (0.6, 0.3) is a MULTI-FRAME FADE',e[1]['levels'][-12:])
+    ev=[mk_lod_event(100+30*i,110+30*i,117+30*i) for i in range(16)]
+    ev[3]=mk_lod_event(190,200,207,{200:0.3,201:0.7})
+    gD=E.lod_gate(ev,variant='D');gN=E.lod_gate(ev,variant='N')
+    check(gD['verdict']=='PASS' and gD['fade_finding'] and gD['fade_edges']==1,'LOD gate: a D fade is a FINDING reported beside the gate verdict, never folded into it',(gD['verdict'],gD['fade_finding']))
+    check(gN['fade_finding'] is False and gN['fade_control'] is True,'LOD gate: the same fade on N is the control reading, not a D finding',(gN['fade_finding'],gN['fade_control']))
+    cp=E.lod_fade_compare(gD,E.lod_gate([mk_lod_event(100+30*i,110+30*i,117+30*i) for i in range(16)],variant='N'))
+    check(cp['D_exceeds_N'] is True and cp['N_fade_edges']==0,'LOD compare: D fades with a clean N at the same condition reads D_exceeds_N',cp)
+    g=E.lod_gate(ev[:15],variant='N')
+    check(g['verdict']=='INSUFFICIENT','CAN-FAIL: 15 judged events is INSUFFICIENT, never PASS (>= 16 per condition)',(g['verdict'],g['judged']))
+    ev2=list(ev);ev2[5]=mk_lod_event(250,260,267,lnv=[260],verdict='FAIL')
+    g=E.lod_gate(ev2,variant='N')
+    check(g['verdict']=='FAIL' and g['off_frames_t50_outside_transition']==1,'CAN-FAIL: one labelled frame off at t50 outside transition frames FAILS the LOD gate',(g['verdict'],g['off']))
+    ev3=list(ev)+[dict(status='WARMUP',start_frame=5),dict(status='OK',start_frame=6,per={E.RELEASE:dict(verdict='NOT-MEASURABLE')})]
+    g=E.lod_gate(ev3,variant='N')
+    check(g['judged']==16 and g['status'].get('WARMUP')==1 and g['status'].get('OK:NOT-MEASURABLE')==1,'LOD gate: warm-up and not-measurable events are counted apart, not judged',g['status'])
+def lod_bank_cases():
+    sd=one('M52SYNC_LOD_NAT_AAOFF_A1');d=E.diff_leg(sd,log='')
+    has=[r for r in d['events'] if r.get('status')=='OK']
+    check(has and all('levels' in r for r in has),'diff_event exposes the per-frame effect level (levels) on every judged event',len(has))
+    g=E.lod_gate(d['events'],variant='N')
+    check(g['verdict']=='INSUFFICIENT','the 084-06 rock AA-off LOD leg (2 of 7 measurable) reads INSUFFICIENT on the LOD gate, never PASS',(g['verdict'],g['judged'],g['status']))
+def pin_cases():
+    LG=L.LG;fx=[x for x in LG.LEGS if x['group']=='BLODF']
+    gates=[x for x in fx if x['role']!='PREMISE']
+    check(len(fx)==10 and all(x['required'] for x in fx) and all(x['map']==LG.FLOD for x in fx),'leg table: 2 fixture premises + 8 fixture gate legs, required, on CB_LodFixture',[x['leg'] for x in fx])
+    check(all(x['frames']==720 and x['premise']==f"LODP_F{x['variant']}" for x in gates) and sorted({(x['variant'],x['cond']) for x in gates})==sorted((v,cd) for v in 'DN' for cd in ('NAT','SYN','NAT_AAOFF','SYN_AAOFF')),
+          'fixture gate legs: 720 frames, both variants x {NAT, SYN} x {AA on, AA off}, each gated on its own premise',[(x['leg'],x['frames'],x['premise']) for x in gates])
+    scan=json.loads((R/'084-08b-evidence'/'lodfix-scan.json').read_text(encoding='utf-8'))
+    names={x['actor'] for x in scan['components']}
+    check({x['target'] for x in fx}<=names and {'CB_LodFix_N','CB_LodFix_D'}=={x['target'] for x in fx},'fixture legs target the runtime actor names read back from the saved level',sorted({x['target'] for x in fx}))
+    sel=json.loads((R/'084-08b-evidence'/'lodfix-selection.json').read_text(encoding='utf-8'))
+    check(sorted(sel['selected'])==['CB_LodFix_D','CB_LodFix_N'] and sel['shortfall']==0 and sel['rule_unchanged'],'the declared LOD selection rule, unchanged, selects both fixture targets',sel['selected'])
+    st=c.fix_set();cm=c.fix_cooked_maps()
+    check(st['Content/Paks/StackOBot-Windows.utoc'].startswith('bf06ae61') and st['Binaries/Win64/StackOBot.exe'].startswith('8a6074aa') and all(cm.values()),'pins: FIX = exe 8A6074AA + utoc BF06AE61, and CB_LodFixture (with the four earlier maps) read out of the archived container',cm)
+    tmp=Path(tempfile.mkdtemp(prefix='r59_force_',dir=r'E:\IA_BuildCache'))
+    try:
+        env=dict(os.environ,IAI_R59_DRY_FORCE_PREMISE='1',IAI_R59_ROOT=str(tmp));env.pop('IAI_R59_STUB_LAUNCH',None)
+        p=subprocess.run([c.PYTHON,str(R/'084-09-window.py'),'live'],capture_output=True,text=True,env=env,timeout=300)
+        check(p.returncode==10 and 'DRY-ONLY' in p.stdout and not (tmp/'receipt-01-fix.json').exists(),'CAN-FAIL: the dry-only premise force is REFUSED on a live run (preflight exit 10, nothing staged)',(p.returncode,p.stdout[-200:]))
+    finally:shutil.rmtree(tmp,ignore_errors=True)
+def verify_selftest():
+    p=subprocess.run([c.PYTHON,str(c.VERIFY_CAPTURE),'--label-rule','--selftest'],capture_output=True,text=True,encoding='utf-8',errors='replace')
+    last=[l for l in p.stdout.splitlines() if 'LABEL-RULE SELFTEST:' in l]
+    check(p.returncode==0 and last and 'OK' in last[-1],'pinned verify_capture.py --label-rule --selftest',last[-1][:120] if last else p.stdout[-200:])
+def main():
+    tmp=Path(tempfile.mkdtemp(prefix='r59_gst_',dir=r'E:\IA_BuildCache'))
+    try:
+        guard_cases();membership_cases(tmp);g355_cases(tmp);amendment_cases();bank_cases();lod_cases();lod_bank_cases();pin_cases();verify_selftest()
+    finally:shutil.rmtree(tmp,ignore_errors=True)
+    ok=sum(r['ok'] for r in RES);out=dict(utc=c.now(),checks=len(RES),ok=ok,failed=[r for r in RES if not r['ok']],results=RES)
+    L.jsave(R/'084-09-evidence'/'gateselftest.json',out);print(f'084-09 GATE SELFTEST: {ok}/{len(RES)} OK',flush=True);sys.exit(0 if ok==len(RES) else 1)
+if __name__=='__main__':main()

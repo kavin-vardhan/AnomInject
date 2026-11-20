@@ -1,0 +1,108 @@
+"""090-10b2 bench harness. Reuses 090-10b-common (quiet gate, staging, pixel reader); own work dir, own PIE driver
+(090-10b2-pie.py: per-tick frame-time recorder and PYSTEP hooks), own editor-DLL swap without a backup step (the host's
+plugin binaries are rebuilt in this round). Nothing here kills a process it did not start; the launcher kills only its own PID."""
+from pathlib import Path
+import importlib.util, json, shutil, subprocess, sys, time
+sys.dont_write_bytecode = True
+_s = importlib.util.spec_from_file_location('c910b', str(Path(__file__).with_name('090-10b-common.py')))
+c = importlib.util.module_from_spec(_s); _s.loader.exec_module(c)
+R = c.R
+WORK = Path(r'E:\IA_BuildCache\_r910b2'); OUT = WORK / 'out'; EV = WORK / 'ev'; PY = WORK / 'py'
+c.WORK = WORK; c.OUT = OUT; c.EV = EV
+DRIVER = R / '090-10b2-pie.py'
+BUILDS = dict(c.BUILDS)
+
+
+def add_build(sha, folder):
+    BUILDS[sha] = Path(folder)
+    c.BUILDS[sha] = Path(folder)
+
+
+for _p in sorted((WORK / 'builds').glob('*')):
+    _e = _p / 'StackOBot.exe'
+    if _e.exists():
+        add_build(c.sha8(_e), _p)
+
+
+def swap_editor(build):
+    src = BUILDS[build] / 'editor'
+    for n in c.DLLS:
+        shutil.copyfile(src / n, c.HOST_PLUGIN_BIN / n)
+        assert c.sha8(c.HOST_PLUGIN_BIN / n) == c.sha8(src / n)
+    return c.host_dlls()
+
+
+def run_leg(label, spec):
+    ev = EV / label; out = OUT / label
+    if ev.exists() or out.exists():
+        raise SystemExit(f'leg dirs exist: {label}')
+    mode = spec['mode']
+    cmds = c.leg_cmds(spec, str(out))
+    if mode == 'staged':
+        exe = c.STAGED_EXE
+        args = [spec['map'], '-windowed', '-ResX=1280', '-ResY=720', '-ExecCmds="' + ', '.join(cmds) + '"', '-unattended', '-nosplash']
+    elif mode == 'pie':
+        exe = c.EDITOR_EXE
+        plan = dict(cmds=cmds, out_dir=str(out) if (spec.get('anomaly') or spec.get('auto')) else None, settle_s=spec.get('settle_s', 10.0),
+                    gap_ticks=2, done_timeout_s=spec.get('wait', 600), hold_s=spec.get('hold_s', 20.0))
+        if spec.get('record_dt'):
+            plan['dt_out'] = str(WORK / 'runs' / f'{label}.dt.json')
+        plan.update(spec.get('plan_extra', {}))
+        c.jsave(WORK / 'plans' / f'{label}.json', plan)
+        args = [str(c.HOST_UPROJECT), spec['map'], '-pie', f'-ExecCmds="py {DRIVER}"',
+                f'-IAIPiePlan="{WORK / "plans" / (label + ".json")}"', '-nosplash', '-NoLiveCoding', '-unattended']
+    else:
+        raise SystemExit(mode)
+    args += spec.get('extra', [])
+    kind = spec.get('kind') or ('exit' if mode == 'pie' else ('capture' if (spec.get('anomaly') or spec.get('auto')) else 'log'))
+    af = WORK / 'args' / f'{label}.json'
+    c.jsave(af, args)
+    a = [c.PWSH, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(R / '090-10b-run.ps1'), '-Label', label, '-EvDir', str(ev),
+         '-Exe', str(exe), '-ArgsFile', str(af), '-Kind', kind, '-WaitSec', str(spec.get('wait', 600))]
+    if kind == 'capture':
+        a += ['-OutDir', str(out)]
+    if spec.get('nofocus') or mode == 'pie':
+        a += ['-NoFocus']
+    if kind == 'log':
+        a += ['-WaitPattern', spec.get('pattern', 'IAI-TEXCORRUPT-CENSUS v1 end'), '-WaitCount', str(spec.get('count', 1))]
+    t0 = time.time()
+    rc = subprocess.run(a, capture_output=True, text=True)
+    res = dict(label=label, spec=spec, rc=rc.returncode, stdout=rc.stdout.strip()[-800:], stderr=rc.stderr.strip()[-800:],
+               wall_s=round(time.time() - t0, 1), out=str(out))
+    c.jsave(ev / 'result.json', res)
+    return res
+
+
+def run(label, spec):
+    g = c.wait_quiet()
+    rec = dict(label=label, gate=g)
+    if not g['clear']:
+        rec['status'] = 'NOT-QUIET'
+        c.jsave(WORK / 'runs' / f'{label}.json', rec)
+        return rec
+    if spec['mode'] == 'staged':
+        rec['stage'] = c.stage(spec['build'])
+    else:
+        rec['dlls'] = swap_editor(spec['build'])
+    t_start = time.time()
+    rec['run'] = run_leg(label, spec)
+    if any('csvprofile' in x for x in spec.get('pre', [])):
+        csv_dir = c.STAGED / 'Saved' / 'Profiling' / 'CSV' if spec['mode'] == 'staged' else c.HOST / 'Saved' / 'Profiling' / 'CSV'
+        got = []
+        for p in sorted(csv_dir.glob('*.csv')) if csv_dir.exists() else []:
+            if p.stat().st_mtime >= t_start - 1:
+                shutil.copyfile(p, EV / label / p.name)
+                got.append(p.name)
+        rec['csv'] = got
+    rec['reading'] = c.read_leg(label)
+    c.jsave(WORK / 'runs' / f'{label}.json', rec)
+    return rec
+
+
+def brief(rec):
+    r = rec.get('reading') or {}
+    px = [(e.get('type'), e.get('target'), e.get('verdict'), e.get('median'), e.get('null')) for e in r.get('pixels', [])]
+    s = r.get('summary') or {}
+    keep = {k: v for k, v in s.items() if v not in (0, None, [], {}, False, '')}
+    return dict(label=rec['label'], status=rec.get('status') or (rec.get('run') or {}).get('stdout', '')[-200:],
+                events=r.get('events'), pixels=px, summary=keep)

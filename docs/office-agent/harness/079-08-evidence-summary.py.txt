@@ -1,0 +1,38 @@
+"""Condense the stored independent review evidence without rerunning any tests."""
+import collections
+import json
+import pathlib
+
+root = pathlib.Path(__file__).resolve().parent
+read = lambda name: json.loads((root / name).read_text(encoding="utf-8"))
+p = read("079-08-validation-probes.json")
+o = read("079-08-validation-ordering.json")
+c = read("079-08-validation-cohort.json")
+b = read("079-08-validation-bank.json")
+
+def compact(rec):
+    return {"exit": rec["code"], "summary": [s for s in rec["lines"]
+        if s.startswith("idx=") or s.strip().startswith(("run[", "VERDICT "))],
+        "edges": [{k: v for k, v in e.items() if k != "session"} for e in rec["detail"]]}
+
+out = {"candidate": p["candidate"], "sha256": p["sha256"],
+    "probes": {n: compact(v) for n, v in p["probes"].items()},
+    "ordering": {n: compact(v) for n, v in o["probes"].items()},
+    "mixed_run_score": p["mixed_score"], "zero_wrong_derivation": p["zero_cap"],
+    "zero_no_wrong_derivation": p["zero_no_wrong"], "no_envelope": compact(p["no_envelope"]),
+    "tiny_cohort": {k: p["tiny_cohort"][k] for k in ("planned", "scored", "counts")},
+    "batch": {"exit": p["batch"]["code"], "files": sorted(p["batch"]["files"]),
+        "summary": p["batch"]["files"]["SUMMARY.txt"], "forced_collision": p["forced_collision"]},
+    "cohort_audit": c["audit"], "rerun_groups": len(c["reruns"]),
+    "rerun_cells": sum(len(r["cells"]) for r in c["reruns"]),
+    "rerun_differences": [d for r in c["reruns"] for d in r["differences"]],
+    "all_rerun_wrong_and_no_signal": [cell for r in c["reruns"] if r["guard"] == "guard_off"
+        for cell in r["cells"] if cell["outcome"] in ("wrong", "no-signal")],
+    "bank": [{"name": r["name"], "exit": r["code"], "edges": len(r["detail"]),
+        "attributed": sum(e["attributed"] for e in r["detail"]),
+        "summary": [s for s in r["lines"] if s.startswith(("  PASS ", "  VERDICT "))]}
+        for r in b["bank"]]}
+path = root / "079-08-evidence-summary.json"
+path.write_text(json.dumps(out, indent=2)+"\n", encoding="utf-8")
+print(path, path.stat().st_size, "bytes;", out["rerun_cells"], "rerun cells;",
+      len(out["rerun_differences"]), "differences")

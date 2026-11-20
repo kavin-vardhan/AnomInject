@@ -1,0 +1,42 @@
+from pathlib import Path
+import hashlib,json,shutil,subprocess,sys
+base=Path(r'D:\IntrusiveAnomalies');ev=base/'_reviews/081-17-evidence'
+R=base/'StackOBot/Plugins/AnomalyInjector';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(r,*a):return subprocess.check_output(['git','-C',str(r),*a]).decode().strip()
+idle=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue) | Select-Object -ExpandProperty Id']).decode().strip();assert not idle,idle
+output=ev/'binary-v2.json';assert not output.exists()
+prior=json.loads((base/'_reviews/081-15-evidence/binary-v1.json').read_text())
+assert sha(prior['archive'])==prior['sha256'] and sha(prior['staged'])==prior['sha256']
+for r in prior['containers']:assert sha(r['path'])==r['sha256'],r['path']
+source=git(R,'rev-parse','HEAD');assert source==git(L,'rev-parse','HEAD'),'Lyra worktree not at build source'
+assert not git(R,'diff','--name-only','HEAD','--','Source','Shaders','Config','AnomalyInjector.uplugin')
+built=Path(prior['built']);h=sha(built);assert h!=prior['sha256'],'Game exe unchanged'
+archive=base/f'_binary_baselines/StackOBot.exe.m55-stage2-{h[:8].upper()}';assert not archive.exists()
+shutil.copy2(built,archive);assert sha(archive)==h
+lbin=L/'Binaries/Win64';ldst=base/f'_binary_baselines/m55-stage2-r17-lyra-{sha(lbin/"UnrealEditor-AnomalyCapture.dll")[:8]}'
+ldst.mkdir();mods=[]
+for p in sorted(lbin.iterdir()):
+    if p.is_file():
+        shutil.copy2(p,ldst/p.name);assert sha(p)==sha(ldst/p.name)
+        mods.append(dict(name=p.name,size=p.stat().st_size,sha256=sha(p)))
+assert len(mods)==11 and {m['name'] for m in mods}>={'UnrealEditor-AnomalyBench.dll','UnrealEditor-AnomalyCapture.dll'}
+mbin=R/'Binaries/Win64';mdst=base/f'_binary_baselines/m55-stage2-r17-main-editor-{source[:7]}';mdst.mkdir();main=[]
+for p in sorted(mbin.iterdir()):
+    if p.is_file():
+        shutil.copy2(p,mdst/p.name);assert sha(p)==sha(mdst/p.name)
+        main.append(dict(path=str(p),archive=str(mdst/p.name),sha256=sha(p)))
+(ev/'main-editor-binary.json').write_text(json.dumps(main,indent=2))
+shutil.copy2(built,prior['staged']);assert sha(prior['staged'])==h
+tokens=['BUDGET-EXCEEDED','HIGH-WATER-PEAK','change_bytes_peak_census','budget_census','IAI-INPUT-LOCK ON','IAI.Bench.PlaceView','chg_gt8_max_sofar','no_labelled_frames','ChangeCase:','M55_R17_INVENTED_NOT_A_REAL_SYMBOL']
+binary=Path(prior['staged']).read_bytes()
+scan={t:dict(ascii=binary.count(t.encode()),utf16=binary.count(t.encode('utf-16le'))) for t in tokens}
+assert all(scan[t]['utf16']>0 for t in tokens[:-1]) and scan[tokens[-1]]['utf16']==0 and scan[tokens[-1]]['ascii']==0,scan
+lscan=(ldst/'UnrealEditor-AnomalyCapture.dll').read_bytes();lyra_scan={t:lscan.count(t.encode('utf-16le')) for t in tokens}
+assert all(lyra_scan[t]>0 for t in tokens[:4]) and lyra_scan[tokens[-1]]==0,lyra_scan
+result=dict(source_commit=source,built=str(built),staged=prior['staged'],archive=str(archive),size=built.stat().st_size,
+    sha256=h,previous=dict(sha256=prior['sha256'],archive=prior['archive']),containers=prior['containers'],
+    lyra_archive=str(ldst),lyra_modules=mods,main_editor_archive=str(mdst),a44=scan,a44_lyra_capture_dll=lyra_scan)
+output.write_text(json.dumps(result,indent=2))
+print(json.dumps({k:v for k,v in result.items() if k not in ('containers','lyra_modules')},indent=2))

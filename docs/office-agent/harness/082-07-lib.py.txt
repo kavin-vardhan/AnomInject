@@ -1,0 +1,1252 @@
+import collections,ctypes,ctypes.wintypes,datetime,importlib.util,json,os,re,shutil,subprocess,sys,threading,time
+from pathlib import Path
+import numpy as np
+from PIL import Image
+from scipy import ndimage
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=_load('c53',R/'082-07-common.py');LG=_load('legs53',R/'082-07-legs.py')
+IDS=('uv_corruption','normal_corruption');IDR='(?P<id>uv_corruption|normal_corruption)'
+TOL=2;WRONG=16;MIN_EVENTS=3;RD_MIN_FRAMES=90;ATTEMPTS=3;PP_CAP=5
+HALO_R=42;RING_LT=32;DITHER_PERIOD=8;LAYER_UNIFORM_LT=WRONG
+MASKED_LABEL='TC_Masked';MASKED_CLIPPED_PX=2048;MASKED_TEX='T_TC_UC2';MASKED_CELLS=8;SKY=((12,36),(27,46),(47,69));SKY_TOL=2
+class Stop(Exception):
+    def __init__(self,code,msg):super().__init__(msg);self.code=code;self.msg=msg
+def jload(p,default=None):
+    p=Path(p);return json.loads(p.read_text(encoding='utf-8-sig')) if p.exists() else default
+def jsave(p,v):Path(p).write_text(json.dumps(v,indent=1,default=str),encoding='utf-8')
+def read_jsonl(p):return [json.loads(l) for l in Path(p).read_text(encoding='utf-8-sig').splitlines() if l.strip()]
+def find_session(root):
+    root=Path(root)
+    if not root.exists():return None
+    s=[d for d in root.iterdir() if d.is_dir() and d.name.startswith('session_') and (d/'run_summary.json').exists()]
+    return s[0] if len(s)==1 else None
+class Sess:
+    def __init__(self,d):
+        self.dir=Path(d);self.rows=sorted(read_jsonl(self.dir/'labels.jsonl'),key=lambda r:r['session_index'])
+        self.by_si={r['session_index']:r for r in self.rows};self.summary=jload(self.dir/'run_summary.json',{});self.anno=jload(self.dir/'annotation.json',{});self.runj=jload(self.dir/'run.json',{})
+        self._img={};self._msk={}
+    def img(self,si):
+        if si not in self._img:
+            r=self.by_si[si];self._img[si]=np.asarray(Image.open(self.dir/r['image']).convert('RGB'),dtype=np.int16)
+        return self._img[si]
+    def mask(self,si):
+        if si not in self._msk:
+            r=self.by_si.get(si);mf=r.get('mask_file') if r else None
+            self._msk[si]=np.asarray(Image.open(self.dir/mf).convert('L'),dtype=np.uint8) if mf and (self.dir/mf).exists() else None
+        return self._msk[si]
+def entries(row,anomaly):return [a for a in (row.get('anomalies') or []) if a.get('id')==anomaly]
+def events(s,anomaly):
+    ev=collections.OrderedDict()
+    for r in s.rows:
+        for a in entries(r,anomaly):
+            e=ev.setdefault(a.get('start_frame'),dict(start_frame=a.get('start_frame'),si=[],mv={},held={},detail={},mode={}))
+            e['si'].append(r['session_index']);e['mv'][r['session_index']]=a.get('mask_value')
+            e['held'][r['session_index']]=a.get('texcorrupt.condition_held');e['detail'][r['session_index']]=a.get('texcorrupt.condition_detail');e['mode'][r['session_index']]=a.get('texcorrupt.mode')
+    return list(ev.values())
+def region(parts):
+    reg=None
+    for s,si,mv in parts:
+        m=s.mask(si)
+        if m is None or not mv:continue
+        x=(m==mv);reg=x if reg is None else (reg|x)
+    return reg
+def absdiff(a,b):return np.abs(a-b).max(axis=2)
+BINS=((0,0),(1,1),(2,2),(3,7),(8,15),(16,255))
+def hist(d):return [int(((d>=lo)&(d<=hi)).sum()) for lo,hi in BINS]
+def dist_from(reg):return ndimage.distance_transform_edt(~reg)
+def halo_extent(d,reg,thr=TOL):
+    out=~reg;h=out&(d>thr)
+    if not h.any():return 0.0
+    return float(dist_from(reg)[h].max())
+def halo_split(d,reg,R=None,dist=None,within=None):
+    R=HALO_R if R is None else R;dist=dist_from(reg) if dist is None else dist
+    out=~reg if within is None else (within&~reg);ring=out&(dist<=R);far=out&(dist>R)
+    rv=d[ring];fv=d[far];h=out&(d>TOL)
+    return dict(ring_px=int(ring.sum()),ring_max=int(rv.max()) if rv.size else 0,ring_px_gt2=int((rv>TOL).sum()),far_px=int(far.sum()),far_max=int(fv.max()) if fv.size else 0,far_px_gt2=int((fv>TOL).sum()),
+                extent_gt2=round(float(dist[h].max()),2) if h.any() else 0.0)
+def halo_ok(h):return h['ring_max']<RING_LT and h['far_max']<=TOL
+_RECTS=[None]
+def tile_rects():
+    if _RECTS[0] is None:
+        out={}
+        for label,a in c.fixture_actors().items():
+            s=a.get('screen_px')
+            if s and len(s)==3:cx,cy,sz=float(s[0]),float(s[1]),float(s[2]);out[label]=(int(round(cx-sz/2)),int(round(cy-sz/2)),int(round(cx+sz/2)),int(round(cy+sz/2)))
+        _RECTS[0]=out
+    return _RECTS[0]
+def tile_leaks(d,reg,exclude=()):
+    H,W=d.shape;out={}
+    for label,(x0,y0,x1,y1) in tile_rects().items():
+        if label in exclude:continue
+        xa,xb,ya,yb=max(0,x0),min(W,x1),max(0,y0),min(H,y1)
+        if xa>=xb or ya>=yb:continue
+        sub=d[ya:yb,xa:xb][~reg[ya:yb,xa:xb]]
+        out[label]=(int((sub>TOL).sum()),int(sub.max()) if sub.size else 0)
+    return out
+def merge_leaks(acc,new):
+    for k,(n,m) in new.items():
+        a=acc.get(k,(0,0));acc[k]=(max(a[0],n),max(a[1],m))
+    return acc
+def pairing(ea,eb):return [e['si'] for e in ea]==[e['si'] for e in eb]
+class EvView:
+    def __init__(self,s,anomaly,keep):
+        keep=set(keep);self._s=s;self.dir=s.dir;self.by_si=s.by_si;self.summary=s.summary;self.anno=s.anno;self.runj=s.runj
+        self.rows=[dict(r,anomalies=[a for a in (r.get('anomalies') or []) if a.get('id')!=anomaly or a.get('start_frame') in keep]) for r in s.rows]
+    def img(self,si):return self._s.img(si)
+    def mask(self,si):return self._s.mask(si)
+FMW_PARTIAL_RULE='AMENDMENT 3 (G328): on F-MW an event the live tree refused in any compared leg is excluded; only events applied in every compared leg are compared, and each leg must account for every event it lacks with its own REFUSED lines'
+def fmw_partial(parts,anomaly):
+    ref={n:len(g.all('refused',anomaly)) for n,s,g in parts}
+    if not any(ref.values()):return None
+    ev={n:{e['si'][0]:e for e in events(s,anomaly) if e['si']} for n,s,g in parts}
+    U=sorted(set().union(*[set(v) for v in ev.values()]))
+    bad=[]
+    for k in U:
+        if len({tuple(ev[n][k]['si']) for n in ev if k in ev[n]})>1:bad.append(f'the event starting at session_index {k} is labelled differently in the legs that applied it')
+    miss={n:[k for k in U if k not in ev[n]] for n in ev}
+    for n in ev:
+        if len(miss[n])>ref[n]:bad.append(f'{n} lacks {len(miss[n])} event(s) at session_index {miss[n]} but logged only {ref[n]} REFUSED line(s)')
+    com=[k for k in U if all(k in ev[n] for n in ev)]
+    return dict(rule=FMW_PARTIAL_RULE,refusals=ref,finals={n:sorted({m['final'] for m in g.all('refused',anomaly)}) for n,s,g in parts},
+                union=U,missing=miss,common=com,unexplained=bad,keep={n:sorted(ev[n][k]['start_frame'] for k in com) for n in ev})
+def pair_compare(app,null,anomaly,tol=TOL,min_events=MIN_EVENTS):
+    ea=events(app,anomaly);en=events(null,anomaly)
+    if not pairing(ea,en):return dict(verdict='INVALID-PAIR',why='labelled session_index lists differ',applied=[e['si'] for e in ea],null=[e['si'] for e in en])
+    H=[0]*len(BINS);mx=0;evs=[];frames=0;unmeasured=0
+    for a,n in zip(ea,en):
+        emx=None;meas=0
+        for si in a['si']:
+            reg=region([(app,si,a['mv'][si]),(null,si,n['mv'][si])])
+            if reg is None or not reg.any():unmeasured+=1;continue
+            d=absdiff(app.img(si),null.img(si))[reg];h=hist(d);H=[x+y for x,y in zip(H,h)];v=int(d.max());emx=v if emx is None else max(emx,v);meas+=1
+        frames+=meas;evs.append(dict(start_frame=a['start_frame'],frames=len(a['si']),measured=meas,max=emx))
+        if emx is not None:mx=max(mx,emx)
+    measured_events=sum(1 for e in evs if e['measured']>0)
+    ok=measured_events>=min_events and all(e['max'] is None or e['max']<=tol for e in evs)
+    return dict(verdict='PASS' if ok else 'FAIL',exact=ok and mx==0,max=mx,hist=dict(zip(['0','1','2','3-7','8-15','>=16'],H)),events=evs,measured_events=measured_events,frames_measured=frames,frames_unmeasured=unmeasured,
+                why=None if ok else (f'measured events {measured_events} < {min_events}' if measured_events<min_events else f'max |d| {mx} > {tol}'))
+def fault_compare(fault,null,anomaly,thr=WRONG,min_events=MIN_EVENTS,last_only=False):
+    ea=events(fault,anomaly);en=events(null,anomaly)
+    if not pairing(ea,en):return dict(verdict='INVALID-PAIR',why='labelled session_index lists differ',applied=[e['si'] for e in ea],null=[e['si'] for e in en])
+    per=[];lows=[]
+    for a,n in zip(ea,en):
+        sis=a['si'][-1:] if last_only else a['si'];fmins=[]
+        for si in sis:
+            reg=region([(fault,si,a['mv'][si]),(null,si,n['mv'][si])])
+            if reg is None or not reg.any():continue
+            v=int(absdiff(fault.img(si),null.img(si))[reg].max());fmins.append(v)
+            if v<thr:lows.append(dict(start_frame=a['start_frame'],si=si,max=v))
+        per.append(dict(start_frame=a['start_frame'],measured=len(fmins),min_frame_max=min(fmins) if fmins else None))
+    me=sum(1 for p in per if p['measured']>0)
+    ok=me>=(1 if last_only else min_events) and not lows
+    return dict(verdict='READS-WRONG' if ok else 'BELOW-16',events=per,measured_events=me,below=lows[:10],min_frame_max=min([p['min_frame_max'] for p in per if p['min_frame_max'] is not None],default=None),
+                why=None if ok else ('too few measured events' if not lows else f'{len(lows)} measured frame(s) read max |d| < {thr}'))
+def band(sa,sb,anomaly):
+    if sorted(sa.by_si)!=sorted(sb.by_si):return dict(verdict='INVALID-PAIR',why='frame sets differ')
+    ea=events(sa,anomaly);eb=events(sb,anomaly)
+    if not pairing(ea,eb):return dict(verdict='INVALID-PAIR',why='labelled session_index lists differ')
+    wmax=0;wcnt=0;rmax=0;rmeas=0
+    for si in sorted(sa.by_si):
+        d=absdiff(sa.img(si),sb.img(si));wmax=max(wmax,int(d.max()));wcnt=max(wcnt,int((d>0).sum()))
+    for a,b in zip(ea,eb):
+        for si in a['si']:
+            reg=region([(sa,si,a['mv'][si]),(sb,si,b['mv'][si])])
+            if reg is None or not reg.any():continue
+            rmeas+=1;rmax=max(rmax,int(absdiff(sa.img(si),sb.img(si))[reg].max()))
+    valid=rmeas>0 and rmax<=TOL
+    return dict(verdict='VALID' if valid else 'INVALID-ARBITER',whole_frame_max=wmax,whole_frame_differing_px_max=wcnt,region_max=rmax,region_frames=rmeas,whole_frame_zero=(wmax==0))
+PFX=re.compile(r'^\[(\d{4}\.\d\d\.\d\d-\d\d\.\d\d\.\d\d:\d{3})\]\[\s*(\d+)\]')
+RX=dict(
+ applied=re.compile(IDR+r': APPLIED mode=(?P<mode>\S+) tile=(?P<tile>\d+) fault=(?P<fault>\S+) noapply=(?P<noapply>\d) on .*? slots (?P<committed>\d+)/(?P<total>\d+) committed, required=(?P<required>-?\d+) reserved=(?P<reserved>-?\d+) live=(?P<live>-?\d+) pending=(?P<pending>-?\d+) peak=(?P<peak>-?\d+) cap=\S+, condition read through the live predicate: (?P<cond>\w+)'),
+ noapply2=re.compile(IDR+r': IAI\.Bench\.TexCorruptNoApply 2 - .*?condition read through the live predicate at apply: (?P<cond>\w+)'),
+ revert=re.compile(IDR+r': REVERT restored-exact=(?P<exact>\d+) restored-default=(?P<default>\d+) left-to-game=(?P<left>\d+) unresolved=(?P<unresolved>\d+) swept=(?P<swept>\d+);.*? live=(?P<live>-?\d+) pending=(?P<pending>-?\d+)'),
+ slotrev=re.compile(IDR+r": revert '(?P<comp>[^']*)' slot (?P<slot>\d+) -> (?P<how>restored-exact|restored-default) \('(?P<mat>[^']*)'\); override_len_before_apply=(?P<lb>\d+) before_revert=(?P<br>\d+) after=(?P<la>\d+)"),
+ left=re.compile(IDR+r": revert left '(?P<comp>[^']*)' slot (?P<slot>\d+) to the game \(left-to-game\)"),
+ ledger=re.compile(r'TEXCORRUPT-LEDGER id=(?P<id>\S+) kind=(?P<kind>\S+) (?P<tk>rollback|revert)_frame=(?P<tf>\d+) frame=(?P<f>\d+) offset=(?P<off>\d+) endpoint=(?P<ep>\S+) live=(?P<live>-?\d+) pending=(?P<pending>-?\d+) peak=(?P<peak>-?\d+) balance=(?P<bal>\w+)'),
+ refused=re.compile(IDR+r": REFUSED (?P<final>\S+) \(step (?P<step>[^)]+)\) for '(?P<target>[^']*)'"),
+ rollback=re.compile(IDR+r': REFUSED (?P<reason>\S+) at transaction step (?P<step>\d+) \((?P<detail>.*?)\) - ROLLED BACK: .*?live=(?P<live>-?\d+) pending=(?P<pending>-?\d+) frame=(?P<f>\d+)\.'),
+ tree=re.compile(r"TEXCORRUPT-(?P<tag>DECIDE|REFUSED|CENSUS) family=(?P<fam>\w+) mode=(?P<mode>\S+) target='(?P<target>[^']*)' final=(?P<final>\S+) step=(?P<step>\S+) slots=(?P<slots>\d+) qualified=(?P<q>\d+) required_bytes=(?P<req>-?\d+)"),
+ treeslot=re.compile(r"TEXCORRUPT-(?P<tag>DECIDE|REFUSED|CENSUS)   slot (?P<owner>[^ ]+?)\.(?P<comp>[^.\[ ]+)\[(?P<idx>\d+)\] disposition=(?P<disp>\S+) raw=(?P<raw>.*?)\(len (?P<len>\d+)\)"),
+ treebind=re.compile(r"TEXCORRUPT-(?P<tag>DECIDE|REFUSED|CENSUS)     binding type=(?P<type>\S+) idx=(?P<idx>\d+) param='(?P<param>[^']*)' assoc=(?P<assoc>\S+) layer=(?P<layer>-?\d+) texture='(?P<tex>[^']*)' class=(?P<cls>\S+) fmt=(?P<fmt>\S+) .*? disposition=(?P<disp>\S+)"),
+ census_begin=re.compile(r'TEXCORRUPT-CENSUS BEGIN targets=(?P<n>\d+)'),census_end=re.compile(r'TEXCORRUPT-CENSUS END targets=(?P<n>\d+)'),
+ coll=re.compile(r'TEXCORRUPT-COLL id=(?P<id>\S+) kind=(?P<kind>\S+) apply_frame=(?P<af>\d+) offset=(?P<off>\d+) noapply=(?P<na>\d) count=(?P<count>\d+) truncated=(?P<tr>\d) dropped_by_cap=(?P<cap>\d+) unmeasured_materials=(?P<um>\d+) unresolved=(?P<unres>\d+) null_slots=(?P<ns>\d+) unknown_now=(?P<unk>\d+) incomplete=(?P<inc>\d+) drops=(?P<drops>\d+) levels=(?P<levels>.*)$'),
+ assets=re.compile(r'TEXCORRUPT-ASSETS M_CorruptTex_UV resolved=(?P<uv>\d) \((?P<uvp>[^)]*)\); M_CorruptTex_Normal resolved=(?P<nm>\d) \((?P<nmp>[^)]*)\); T_CorruptTex_NoiseN resolved=(?P<nz>\d) \((?P<nzp>[^)]*)\)'),
+ lost=re.compile(IDR+r": TARGET LOST - '(?P<actor>[^']*)' ended play \((?P<why>[^)]*)\)"),
+ foreign=re.compile(IDR+r': IAI\.Bench\.TexCorruptForeignReplace - set a FOREIGN material'),
+ destroy=re.compile(r"IAI\.Bench\.DestroyTarget: DESTROYING '(?P<actor>[^']*)'"),
+ gc=re.compile(r'LogGarbage: Collecting garbage'),cancel=re.compile(r'Capture run CANCELLED before focus'),
+ gcverb=re.compile(r'^\[[^\]]*\]\[\s*\d+\]LogGarbage\s+Log\s*$'),
+ finished=re.compile(r'=== Capture run FINISHED: (?P<label>[^/ ]+)/(?P<sess>\S+) \| (?P<frames>\d+) frame\(s\) \(positive=(?P<pos>\d+)\) \| (?P<bursts>\d+) burst\(s\)'),
+ slotmid_armed=re.compile(r'IAI\.Bench\.TexCorruptAssetSlotMid -> ARMED on .*?: (?P<n>\d+) slot\(s\) of mesh ASSET'),
+ slotmid_restored=re.compile(r'IAI\.Bench\.TexCorruptAssetSlotMid: RESTORED mesh asset .*? - (?P<put>\d+) slot\(s\) put back, (?P<alone>\d+) left alone'),
+ nomatch=re.compile(r"Auto\.FireSpecific: '(?P<id>[^']*)' on '(?P<actor>[^']*)' -> 0 matched"),
+ listactor=re.compile(r'\b(?P<cls>[A-Za-z0-9_]+) \| (?P<name>[A-Za-z0-9_]+) \| '))
+class Log:
+    def __init__(self,text):
+        self.lines=text.splitlines();self.hits={}
+    def all(self,key,anomaly=None):
+        k=(key,anomaly)
+        if k not in self.hits:
+            out=[]
+            for i,l in enumerate(self.lines):
+                m=RX[key].search(l)
+                if m and (anomaly is None or m.groupdict().get('id') in (None,anomaly)):
+                    p=PFX.match(l);out.append(dict(m.groupdict(),line=i,frame1000=int(p.group(2)) if p else None))
+            self.hits[k]=out
+        return self.hits[k]
+def read_log(p):
+    p=Path(p);return Log(p.read_text(encoding='utf-8-sig',errors='replace') if p.exists() else '')
+def _ang(x):return round(((float(x)+180.0)%360.0)-180.0,2)+0.0
+def pose_of(r):return (tuple(round(float(x),1)+0.0 for x in (r.get('view') or {}).get('origin',[0,0,0])),tuple(_ang(x) for x in (r.get('view') or {}).get('rot',[0,0,0])))
+def modal_pose(s):
+    poses=[pose_of(r) for r in s.rows]
+    if not poses:return None,0.0
+    m,n=collections.Counter(poses).most_common(1)[0];return m,n/len(poses)
+ROT_REQUIRED={'F-SYN':(0.0,0.0,0.0)}
+PIXEL_ROLES=('ID','NULL','CTL','FAULT','TILE','TILENULL')
+MIN_MODAL=0.5
+POSE_ATTEMPTS=6
+MW_TRAJ_PATH=R/'082-07-mw-trajectory.json'
+POSE_RULE='AMENDMENT 4 (082-07k): the settled-camera (modal view) clauses hold on F-SYN only (156 of 156 real F-SYN sessions at one pose); the MainWorld camera eases for ~85+ captured frames, so an F-MW pixel-role leg must instead equal the pinned MainWorld trajectory (082-07-mw-trajectory.json) at every row frame_index, and non-pixel F-MW / F-GATE legs carry no pose clause (their rows read logs only)'
+_MWT=[None]
+def mw_trajectory():
+    if _MWT[0] is None:_MWT[0]={int(k):[list(v[0]),list(v[1])] for k,v in jload(MW_TRAJ_PATH,{}).get('trajectory',{}).items()}
+    return _MWT[0]
+def pose_scope(L):
+    if L['fixture']=='F-SYN':return 'modal'
+    if L['fixture']=='F-MW' and L['role'] in PIXEL_ROLES:return 'trajectory'
+    return 'none'
+def trajectory_errors(sess,ref=None):
+    ref=mw_trajectory() if ref is None else ref;bad=[];gap=[]
+    if not ref:return ['pose: the pinned MainWorld trajectory is missing']
+    for r in sess.rows:
+        fi=r.get('frame_index');p=[list(x) for x in pose_of(r)];want=ref.get(fi)
+        if not isinstance(fi,int):gap.append(fi);continue
+        if want is None:
+            a,b=ref.get(fi-1),ref.get(fi+1)
+            if a is not None and a==b:want=a
+            else:gap.append(fi);continue
+        if p!=want:bad.append((r['session_index'],fi))
+    errs=[]
+    if gap:errs.append(f'pose: {len(gap)} row(s) at frame_index outside the pinned MainWorld trajectory (first {gap[0]})')
+    if bad:errs.append(f'pose: {len(bad)} row(s) off the pinned MainWorld trajectory (first si {bad[0][0]} frame_index {bad[0][1]})')
+    return errs
+def poses_path():return c.RUN/'poses.json'
+def validity(L,launch,sess,log,pose_ref,sdir=None):
+    errs=[];fg=None
+    if launch.get('status')!='COMPLETE':errs.append('protocol: '+str(launch.get('error')))
+    if 'FOREIGN-EDITOR-APPEARED' in str(launch.get('error') or ''):return ['foreign editor appeared'],fg
+    pid=launch.get('pid');cf=launch.get('capture_focus') or []
+    if isinstance(cf,dict):cf=[cf]
+    if L['kind'] in ('capture','close_after','close_mid','stop_before_fire'):
+        if cf:
+            fg=all(x.get('foreground_pid')==pid for x in cf)
+            if not fg:errs.append('whole-leg foreground failed')
+        fa=launch.get('focus_at_s')
+        if fa is None or fa<0 or fa>=20.0:errs.append(f'A63: focus not held within 20 s (focus_at_s={fa})')
+        cut=min([m['line'] for m in log.all('destroy')],default=None)
+        nm=[m for m in log.all('nomatch') if cut is None or m['line']<cut]
+        if nm:errs.append('fixture: targeted fire matched no actor ('+nm[0]['actor']+')')
+    if L['kind'] in ('capture','close_after'):
+        if sess is None:errs.append('artifact: no session with run_summary');return errs,fg
+        n=len(sess.rows);pngs=list((sess.dir/'Actual_Frames').glob('*.png'))
+        if n!=L['frames']:errs.append(f'artifact: {n} label rows != {L["frames"]} frames')
+        if len(pngs)!=n:errs.append(f'artifact: {len(pngs)} PNGs != {n} rows')
+        if any(p.stat().st_size==0 for p in pngs):errs.append('artifact: zero-byte PNG')
+        sf=sess.runj.get('start_frame');fps=sess.summary.get('sustained_wall_fps')
+        if sf and fps and sf/float(fps)>=20.0:errs.append(f'A63: run rode the focus timeout ({sf/float(fps):.1f} s before start)')
+        sc=pose_scope(L)
+        if sc=='modal':
+            mp,cov=modal_pose(sess)
+            if cov<MIN_MODAL:errs.append(f'pose: modal view covers {cov:.2f} < {MIN_MODAL:.2f} of rows')
+            lab=[r for r in sess.rows if entries(r,L['anomaly'])]
+            off=[r['session_index'] for r in lab if pose_of(r)!=mp]
+            if off:errs.append(f'pose: {len(off)} labelled row(s) off the modal view (first si {off[0]})')
+            if L['role'] in PIXEL_ROLES:
+                rr=ROT_REQUIRED.get(L['fixture'])
+                if rr is not None and mp is not None and tuple(mp[1])!=rr:errs.append(f'pose: A47 modal rotation {mp[1]} != the PlayerStart rotation {rr}')
+                if pose_ref is not None and mp is not None and [list(x) for x in mp]!=pose_ref:errs.append(f'pose: modal view {mp} != campaign reference {pose_ref} for {L["map"]}')
+        elif sc=='trajectory':errs+=trajectory_errors(sess)
+    if L['kind']=='stop_before_fire':
+        if log.all('cancel'):errs.append('focus: the run was CANCELLED before focus; STOP-BEFORE-FIRE needs the synchronous focused start the runner forces (G332)')
+        if sdir is None:errs.append('artifact: no session with run_summary')
+    if L['kind']=='census':
+        n=len(log.all('census_end'))
+        if n<len(L['census']):errs.append(f'census: {n} END lines < {len(L["census"])}')
+    if L['kind']=='cancel' and not log.all('cancel'):errs.append('cancel line absent')
+    return errs,fg
+def manifest(root,exclude=('_leg',)):
+    root=Path(root);out={}
+    for p in sorted(root.rglob('*')):
+        if p.is_file() and not any(part in exclude for part in p.relative_to(root).parts):out[str(p.relative_to(root)).replace('\\','/')]=[p.stat().st_size,c.sha(p)]
+    return out
+class BankError(Exception):pass
+def bank_attempt(label,ev_dir,exe_side=None,bank=None,fault_hook=None):
+    exe_side=Path(exe_side or c.EXE_SIDE);bank=Path(bank or c.BANK);src=exe_side/label;dst=bank/label;ev_dir=Path(ev_dir)
+    rec=dict(label=label,src=str(src),dst=str(dst),utc=c.now())
+    if dst.exists():
+        prev=jload(ev_dir/'bank-manifest.json')
+        if prev and prev.get('verified') and manifest(dst)==prev['manifest'] and not src.exists():return dict(prev,resumed=True)
+        raise BankError(f'bank destination exists without a verified record: {dst}')
+    dst.mkdir(parents=True)
+    if src.exists():shutil.copytree(src,dst,dirs_exist_ok=True)
+    legd=dst/'_leg';legd.mkdir()
+    for f in ('game.log','launch.json','runner.log','command.json'):
+        if (ev_dir/f).exists():shutil.copy2(ev_dir/f,legd/f)
+    if fault_hook:fault_hook(dst)
+    ms=manifest(src) if src.exists() else {};md=manifest(dst)
+    rec.update(manifest=md,src_files=len(ms),dst_files=len(md),verified=(ms==md))
+    if not rec['verified']:
+        rec['mismatch']=sorted(k for k in set(ms)|set(md) if ms.get(k)!=md.get(k))[:20]
+        jsave(ev_dir/'bank-manifest.json',rec);raise BankError(f'bank manifest mismatch for {label}: exe-side copy KEPT')
+    if src.exists():
+        shutil.rmtree(src)
+        if src.exists():raise BankError(f'exe-side copy not deleted: {src}')
+        rec['exe_side_deleted']=True
+    else:rec['exe_side_deleted']=None
+    jsave(ev_dir/'bank-manifest.json',rec);jsave(legd/'bank-manifest.json',dict(rec,manifest=None));return rec
+def alias_hardlinks(accepted,alias,bank=None):
+    bank=Path(bank or c.BANK);src=bank/accepted;dst=bank/alias
+    if not src.exists():raise BankError(f'accepted attempt not banked: {src}')
+    files=[p for p in src.rglob('*') if p.is_file()]
+    if dst.exists():
+        ok=all((dst/p.relative_to(src)).exists() and os.stat(dst/p.relative_to(src)).st_ino==os.stat(p).st_ino for p in files) and len([p for p in dst.rglob('*') if p.is_file()])==len(files)
+        if ok:return dict(alias=str(dst),files=len(files),resumed=True)
+        raise BankError(f'alias exists and is not a hardlink set of {accepted}: {dst}')
+    dst.mkdir(parents=True)
+    for p in files:
+        q=dst/p.relative_to(src);q.parent.mkdir(parents=True,exist_ok=True);os.link(p,q)
+    bad=[str(p.relative_to(src)) for p in files if not (os.stat(p).st_ino==os.stat(dst/p.relative_to(src)).st_ino and os.stat(p).st_dev==os.stat(dst/p.relative_to(src)).st_dev and os.stat(p).st_nlink>=2)]
+    if bad:raise BankError(f'alias files are not hardlinks: {bad[:5]}')
+    return dict(alias=str(dst),files=len(files),hardlinks=True,same_manifest=(manifest(src,())==manifest(dst,())))
+PP_IDLE_S=60.0;PP_POLL_S=15.0;PP_BUDGET_S=2700.0;PP_SAMPLE_S=0.25;PP_MARGIN_S=1.0;PP_FORCE_S=0.75;PP_FORCE_SAMPLES=15
+SHELL_PROCS=('searchhost.exe','startmenuexperiencehost.exe','shellexperiencehost.exe','explorer.exe')
+FG_ERRORS=('whole-leg foreground failed',)
+_W=ctypes.wintypes
+class _LII(ctypes.Structure):_fields_=[('cbSize',_W.UINT),('dwTime',_W.DWORD)]
+_U32=ctypes.WinDLL('user32',use_last_error=True);_K32=ctypes.WinDLL('kernel32',use_last_error=True)
+_U32.GetLastInputInfo.argtypes=(ctypes.POINTER(_LII),);_U32.GetLastInputInfo.restype=_W.BOOL
+_U32.GetCursorPos.argtypes=(ctypes.POINTER(_W.POINT),);_U32.GetCursorPos.restype=_W.BOOL
+_U32.GetForegroundWindow.restype=_W.HWND
+_U32.GetWindowThreadProcessId.argtypes=(_W.HWND,ctypes.POINTER(_W.DWORD));_U32.GetWindowThreadProcessId.restype=_W.DWORD
+_K32.GetTickCount.restype=_W.DWORD
+_K32.OpenProcess.argtypes=(_W.DWORD,_W.BOOL,_W.DWORD);_K32.OpenProcess.restype=_W.HANDLE
+_K32.QueryFullProcessImageNameW.argtypes=(_W.HANDLE,_W.DWORD,_W.LPWSTR,ctypes.POINTER(_W.DWORD));_K32.QueryFullProcessImageNameW.restype=_W.BOOL
+_K32.CloseHandle.argtypes=(_W.HANDLE,);_K32.CloseHandle.restype=_W.BOOL
+def _epoch(s):return datetime.datetime.fromisoformat(str(s).replace('Z','+00:00')).timestamp()
+def _iso(t):return datetime.datetime.fromtimestamp(t,datetime.timezone.utc).isoformat()
+def _proc_name(pid):
+    if not pid:return None
+    h=_K32.OpenProcess(0x1000,False,int(pid))
+    if not h:return None
+    try:
+        buf=ctypes.create_unicode_buffer(1024);n=_W.DWORD(1024)
+        return os.path.basename(buf.value) if _K32.QueryFullProcessImageNameW(h,0,buf,ctypes.byref(n)) else None
+    finally:_K32.CloseHandle(h)
+def _input_reading():
+    x=_LII();x.cbSize=ctypes.sizeof(_LII);ok=_U32.GetLastInputInfo(ctypes.byref(x));now=_K32.GetTickCount()
+    return dict(t=time.time(),input_tick=int(x.dwTime) if ok else None,idle_ms=((now-x.dwTime)&0xFFFFFFFF) if ok else None)
+def _desktop_sample():
+    s=_input_reading();p=_W.POINT();s['cursor']=f'{p.x},{p.y}' if _U32.GetCursorPos(ctypes.byref(p)) else None
+    h=_U32.GetForegroundWindow();pid=_W.DWORD(0)
+    if h:_U32.GetWindowThreadProcessId(h,ctypes.byref(pid))
+    s['fg_pid']=int(pid.value) or None;return s
+class PersonMonitor:
+    def __init__(self,label,interval=PP_SAMPLE_S):
+        self.label=label;self.interval=interval;self.samples=[];self.names={};self.errors=[];self._stop=threading.Event();self._th=None;self.start=self.end=None
+    def _loop(self):
+        while True:
+            try:
+                s=_desktop_sample();pid=s['fg_pid']
+                if pid and pid not in self.names:self.names[pid]=_proc_name(pid)
+                s['fg_name']=self.names.get(pid) if pid else None;self.samples.append(s)
+            except Exception as ex:
+                if len(self.errors)<5:self.errors.append(repr(ex)[:200])
+            if self._stop.wait(self.interval):return
+    def __enter__(self):
+        self.start=time.time();self._th=threading.Thread(target=self._loop,name='pp-monitor',daemon=True);self._th.start();return self
+    def __exit__(self,*a):
+        self._stop.set()
+        if self._th:self._th.join(5)
+        self.end=time.time();return False
+    def data(self):return dict(label=self.label,start=self.start,end=self.end,samples=list(self.samples),pid_names={str(k):v for k,v in self.names.items()},errors=list(self.errors))
+def _pp_prongs(span,streams,monitor,game,names):
+    lo,hi=span;force=[]
+    inside=lambda x:x is None or lo<=x<=hi
+    nongame=lambda s:'fg' in s and s.get('fg') not in game
+    name=lambda s:s.get('fg_name') or names.get(str(s.get('fg'))) or ''
+    streams=[[s for s in st if inside(s.get('x'))] for st in streams]
+    for st in streams:force+=[(s['x']-PP_FORCE_S,s['x']+PP_FORCE_S) for s in st if s.get('x') is not None and nongame(s)]
+    near=lambda a,b:any(f0<=b and a<=f1 for f0,f1 in force)
+    shell=collections.Counter();moves=[];inputs=[];h_moves=0;h_inputs=0
+    for st in streams:
+        for s in st:
+            if nongame(s) and name(s).lower() in SHELL_PROCS:shell[name(s)]+=1
+        prev=None
+        for i,s in enumerate(st):
+            if not s.get('cursor'):continue
+            if prev is not None and st[prev]['cursor']!=s['cursor']:
+                if s.get('x') is None:h=any(nongame(t) for t in st[max(0,i-PP_FORCE_SAMPLES):i+PP_FORCE_SAMPLES+1])
+                else:h=near(st[prev]['x'] if st[prev].get('x') is not None else s['x'],s['x'])
+                if h:h_moves+=1
+                else:moves.append([st[prev]['cursor'],s['cursor']])
+            prev=i
+    tick=sorted((s for s in monitor if s.get('input_tick') is not None and s.get('x') is not None),key=lambda s:s['x'])
+    for a,b in zip(tick,tick[1:]):
+        if a['input_tick']==b['input_tick']:continue
+        x=b['x']-b['idle_ms']/1000.0
+        if not lo<=x<=hi:continue
+        if near(x,x):h_inputs+=1
+        else:inputs.append(round(x,3))
+    reasons=[]
+    if shell:reasons.append('foreground taken by a shell process: '+', '.join(f'{k} x{v}' for k,v in shell.items()))
+    if moves:reasons.append(f'cursor moved while the harness was not moving it: {len(moves)} move(s)')
+    if inputs:reasons.append(f'non-harness input registered: {len(inputs)} input event(s)')
+    return dict(person_evidence=bool(reasons),reasons=reasons,prongs=dict(shell=dict(shell),cursor_moves=len(moves),cursor_moves_near_focus_action=h_moves,input_events=len(inputs),input_events_near_focus_action=h_inputs))
+def pp_evidence(launch,mon):
+    game={launch.get('pid')};d=mon.data() if hasattr(mon,'data') else dict(mon or {})
+    if not launch.get('sampling_started_utc'):return dict(person_evidence=False,reasons=[],note='no steady-state span')
+    lo=_epoch(launch['sampling_started_utc']);hi=_epoch((launch.get('anchor_end') or {}).get('utc') or launch.get('finished_utc') or launch['sampling_started_utc'])
+    ms=[dict(x=s.get('t'),fg=s.get('fg_pid'),fg_name=s.get('fg_name'),cursor=s.get('cursor'),input_tick=s.get('input_tick'),idle_ms=s.get('idle_ms')) for s in d.get('samples') or []]
+    foc=launch.get('focus') or [];foc=[foc] if isinstance(foc,dict) else foc
+    fs=[dict(x=_epoch(f['utc']) if f.get('utc') else None,fg=f.get('foreground_pid'),cursor=f.get('cursor')) for f in foc]
+    base=_epoch((launch.get('anchor_start') or {}).get('utc')) if (launch.get('anchor_start') or {}).get('utc') else None
+    cf=launch.get('capture_focus') or [];cf=[cf] if isinstance(cf,dict) else cf
+    cs=[dict(x=(base+float(f.get('seconds') or 0)) if base is not None else None,fg=f.get('foreground_pid')) for f in cf]
+    r=_pp_prongs((lo,hi),[fs,cs,ms],ms,game,d.get('pid_names') or {});r['span']=dict(lo=_iso(lo),hi=_iso(hi));return r
+def pp_record(label,leg,mon,ev):
+    d=mon.data() if hasattr(mon,'data') else dict(mon or {})
+    p=c.RUN/'harness-input-windows.json';v=jload(p,[])
+    v.append(dict(label=label,leg=leg,start=d.get('start'),end=d.get('end'),person_evidence=bool(ev.get('person_evidence'))));jsave(p,v)
+def person_idle():
+    r=_input_reading()
+    if r['idle_ms'] is None:return dict(clear=False,idle_s=None,basis='GetLastInputInfo failed')
+    idle=r['idle_ms']/1000.0;last=r['t']-idle
+    w=[x for x in jload(c.RUN/'harness-input-windows.json',[]) if x.get('start') and x.get('end') and x['start']-PP_MARGIN_S<=last<=x['end']+PP_MARGIN_S]
+    clean=[x for x in w if not x['person_evidence']];dirty=[x for x in w if x['person_evidence']]
+    if idle>=PP_IDLE_S:return dict(clear=True,idle_s=round(idle,2),basis=f'no input for >= {int(PP_IDLE_S)} s')
+    if clean and not dirty:return dict(clear=True,idle_s=round(idle,2),excused_by=clean[-1]['label'],basis='the last input lies inside a clean harness window')
+    return dict(clear=False,idle_s=round(idle,2),basis=f'input within the last {int(PP_IDLE_S)} s')
+def budget_tag():return os.environ.get('IAI_R53_BUDGET_TAG','default')
+def budget_state():
+    v=jload(c.RUN/'wait-budget.json',dict(budget_s=PP_BUDGET_S,entries=[]));spent=sum(e['seconds'] for e in v['entries'] if e.get('tag')==budget_tag())
+    return dict(tag=budget_tag(),budget_s=PP_BUDGET_S,spent_s=round(spent,1),left_s=round(max(0.0,PP_BUDGET_S-spent),1))
+def budget_add(kind,seconds,**kw):
+    p=c.RUN/'wait-budget.json';v=jload(p,dict(budget_s=PP_BUDGET_S,entries=[]));v['entries'].append(dict(utc=c.now(),tag=budget_tag(),kind=kind,seconds=round(float(seconds),2),**kw));jsave(p,v)
+def pp_gate(where,leg=None,sleep=time.sleep):
+    waited=0.0
+    while True:
+        st=person_idle()
+        if st['clear']:c.log_event('person-present-gate',where=where,leg=leg,waited_s=round(waited,1),**st);return st
+        b=budget_state()
+        if b['left_s']<=0:c.log_event('person-present-budget-exhausted',where=where,leg=leg,**st);raise Stop(4,f'NOT-QUIET: a person is at the PC before {leg or where} and the wait budget (tag {b["tag"]}) is spent')
+        dt=max(1.0,min(PP_POLL_S,b['left_s'],PP_IDLE_S-(st['idle_s'] or 0.0)));c.log_event('person-present-wait',where=where,leg=leg,idle_s=st['idle_s'],budget_left_s=b['left_s'])
+        sleep(dt);waited+=dt;budget_add('person-present-wait',dt,where=where,leg=leg)
+def wait_quiet(purpose,limit=540.0,interval=60.0,need=2,sleep=time.sleep,quiet=None):
+    quiet=quiet or c.quiet;t0=time.time();streak=0;checks=0
+    while True:
+        try:q=quiet()
+        except Exception as ex:q=dict(quiet=False,blocking=[('check-failed',type(ex).__name__)],foreign=[],ours=[])
+        checks+=1;c.log_event('quiet-check',purpose=purpose,quiet=q['quiet'],blocking=q['blocking'])
+        streak=streak+1 if q['quiet'] else 0
+        if streak>=need:return dict(result='QUIET',checks=checks,waited_s=round(time.time()-t0))
+        if time.time()-t0+interval>limit:return dict(result='NOT-QUIET',checks=checks,waited_s=round(time.time()-t0),blocking=q['blocking'])
+        sleep(30 if q['quiet'] else interval)
+BASE=['r.DefaultFeature.AutoExposure 0','r.EyeAdaptationQuality 0','r.DefaultFeature.AutoExposure','r.EyeAdaptationQuality','CaptureBench.Marker 0','CaptureBench.Stall.GameMs 0',
+      'IAI.Capture.SVE 1','IAI.Capture.Delivery 0','IAI.Capture.Pace 1','IAI.Capture.Fps 30','r.AntiAliasingMethod 0','r.Lumen.DiffuseIndirect.Allow 0',
+      'r.DynamicGlobalIlluminationMethod 0','r.ReflectionMethod 0','IAI.Bench.SynthTickOrder 0','IAI.Capture.Mask 1','IAI.Capture.TargetMask 1']
+def resolve_target(L):
+    t=L['target']
+    if t!='@BOT':return t,None
+    rows=[x for x in ledger_live() if x['leg']=='G0_FMW' and x['status']=='ACCEPTED']
+    if rows:
+        log=read_log(c.RUN/rows[-1]['label']/'game.log');names=sorted({m['name'] for m in log.all('listactor') if m['name'].startswith('BP_Bot_C_')})
+        if len(names)==1:return names[0],'resolved from G0_FMW IAI.ListActors'
+    return LG.MW_BOT,'fallback: the banked name (G0_FMW listing did not give exactly one BP_Bot_C_)'
+def build_cmds(L,label):
+    if L['kind']=='census':
+        cmds=BASE+(['IAI.ListActors'] if L.get('list_actors') else [])+L['levers']+[('IAI.Bench.TexCorruptCensus '+t).strip() for t in L['census']];return cmds,None
+    tgt,why=resolve_target(L)
+    cmds=BASE+[f'IAI.Capture.Config {L["cfg"]}']+L['levers']+[f'IAI.Capture.Start {label} png 777 {L["frames"]} {L["anomaly"]} {tgt}']
+    if L['kind'] in ('cancel','stop_before_fire'):cmds.append('IAI.Capture.Stop')
+    cmds+=L.get('after_start',[]);return cmds,dict(target=tgt,why=why)
+RUNNER_KIND={'stop_before_fire':'capture'}
+def runner_args(L,label,ev_dir,cmds,stub=False):
+    a=[c.PWSH,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(R/'082-07-run.ps1'),'-Label',label,'-EvDir',str(ev_dir),'-Map',L['map'],'-ExecCmds',', '.join(cmds),'-Kind',RUNNER_KIND.get(L['kind'],L['kind'])]
+    if L['kind']!='census':a+=['-OutLabel',label]
+    if L['kind']=='census':a+=['-CensusCount',str(len(L['census'])),'-WaitSec','180']
+    if L['kind']=='close_mid':a+=['-ClosePattern',L['close_pattern'],'-CloseDelayMs',str(L.get('close_delay_ms',1000))]
+    if L['frames']>=200:a+=['-WaitSec','420']
+    if stub:a.append('-Stub')
+    return a
+def ledger():return jload(c.RUN/'ledger.json',[])
+def ledger_add(row):v=ledger();v.append(row);jsave(c.RUN/'ledger.json',v)
+def gates_done():return jload(c.RUN/'gates.json',[])
+def gate_add(row):v=gates_done();v.append(row);jsave(c.RUN/'gates.json',v)
+def sup_path():return c.RUN/'supersede.json'
+def sup():return jload(sup_path(),dict(entries=[]))
+def sup_labels():return {l for e in sup()['entries'] for l in e.get('labels',[])}
+def sup_gates():return {(g['gate'],g['row'],g['utc']) for e in sup()['entries'] for g in e.get('gates',[])}
+def sup_records():return {(r['leg'],r['status'],r['recorded']) for e in sup()['entries'] for r in e.get('records',[])}
+def ledger_live():
+    s=sup_labels();rs=sup_records();return [x for x in ledger() if not (x.get('label') and x['label'] in s) and not (not x.get('label') and (x.get('leg'),x.get('status'),x.get('recorded')) in rs)]
+def gates_live():
+    s=sup_gates();return [g for g in gates_done() if (g['gate'],g['row'],g.get('utc')) not in s]
+def staged_check():
+    bad={k:v[:8] for k,v in c.staged_state().items() if v!=c.STAGED[k]}
+    if bad:raise Stop(10,f'staged build changed: {bad}')
+def stub_fill(args):
+    kind=args[args.index('-Kind')+1];ev=Path(args[args.index('-EvDir')+1]);src=os.environ.get('IAI_R53_STUB_CENSUS_LOG')
+    if kind!='census' or not src:return
+    shutil.copy2(src,ev/'game.log');la=jload(ev/'launch.json',{});la.update(status='COMPLETE',stub_census_log=src);jsave(ev/'launch.json',la)
+def real_runner(args,runlog):
+    if c.STUB and '-Stub' not in args:args=list(args)+['-Stub']
+    with open(runlog,'w',encoding='utf-8') as f:rc=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT).returncode
+    if c.STUB:stub_fill(args)
+    return rc
+def run_leg(L,runner=real_runner,gates=None,quiet=None,pp=None,stage_check=None):
+    rows=[x for x in ledger_live() if x['leg']==L['leg']]
+    if any(x['status']=='ACCEPTED' for x in rows):return 'done'
+    if any(x['status']=='NOT-RUN' for x in rows):raise Stop(2,f'{L["leg"]} already recorded NOT-RUN; never re-run without a ruling')
+    while True:
+        rows=[x for x in ledger_live() if x['leg']==L['leg']];every=[x for x in ledger() if x['leg']==L['leg']]
+        env=[x for x in rows if x['status']=='ENV-INTERRUPTED'];counted=[x for x in rows if x['status']=='INVALID'];posed=[x for x in rows if x['status']=='INVALID-POSE']
+        if len(env)>=PP_CAP:raise Stop(4,f'NOT-QUIET: {L["leg"]} has {len(env)} ENV-INTERRUPTED attempts')
+        if len(counted)>=ATTEMPTS or len(posed)>=POSE_ATTEMPTS:
+            ledger_add(dict(leg=L['leg'],status='NOT-RUN',recorded=c.now(),reason=f'{len(counted)} invalid + {len(posed)} pose-invalid attempts (budgets {ATTEMPTS}/{POSE_ATTEMPTS}): '+'; '.join(x['status']+' '+'|'.join(x.get('errors') or []) for x in counted+posed)))
+            raise Stop(2,f'{L["leg"]} NOT-RUN ({len(counted)} invalid, {len(posed)} pose-invalid)')
+        (pp or pp_gate)('before-attempt',leg=L['leg'])
+        q=(quiet or c.quiet)()
+        if not q['quiet']:c.log_event('leg-refused-not-quiet',leg=L['leg'],blocking=q['blocking']);raise Stop(4,f'NOT-QUIET before {L["leg"]}: {q["blocking"]}')
+        (stage_check or staged_check)()
+        n=len([x for x in every if x.get('label')])+1;label=f'{c.BANK_PREFIX}{L["leg"]}_A{n}';ev=c.RUN/label
+        if ev.exists():raise Stop(10,f'evidence dir exists for a new attempt: {ev}')
+        cmds,tinfo=build_cmds(L,label);args=runner_args(L,label,ev,cmds)
+        t0=c.now()
+        with PersonMonitor(label) as mon:rc=runner(args,c.RUN/f'runner-{label}.log')
+        ev.mkdir(parents=True,exist_ok=True)
+        if ev.exists():
+            jsave(ev/'command.json',dict(args=args,cmds=cmds,target=tinfo))
+            if (c.RUN/f'runner-{label}.log').exists():shutil.copy2(c.RUN/f'runner-{label}.log',ev/'runner.log')
+        launch=jload(ev/'launch.json',{}) or {}
+        log=read_log(ev/'game.log')
+        row=dict(leg=L['leg'],label=label,attempt=n,started=t0,finished=c.now(),runner_exit=rc,target=tinfo)
+        if 'FOREIGN-EDITOR-APPEARED' in str(launch.get('error') or ''):
+            row.update(status='INVALID-FOREIGN',errors=['foreign editor appeared'],foreign=launch.get('foreign_editor'));ledger_add(row);raise Stop(5,f'INVALID-FOREIGN {label}')
+        if launch.get('status')=='REFUSED-NOT-IDLE':row.update(status='INVALID-NOT-IDLE',errors=['runner refused: bench not idle']);ledger_add(row);raise Stop(4,f'NOT-QUIET at launch of {label}')
+        sd=find_session(c.EXE_SIDE/label)
+        try:bk=bank_attempt(label,ev)
+        except BankError as ex:row.update(status='INVALID-BANK',errors=[str(ex)]);ledger_add(row);raise Stop(6,str(ex))
+        sess=None
+        bsd=find_session(c.BANK/label)
+        if bsd is not None:
+            try:sess=Sess(bsd)
+            except Exception as ex:sess=None;row['session_error']=repr(ex)[:200]
+        pref=jload(poses_path(),{}).get(L['map'])
+        errs,fg=validity(L,launch,sess,log,pref,sdir=bsd)
+        pe=pp_evidence(launch,mon);pp_record(label,L['leg'],mon,pe);row.update(person_evidence=pe.get('person_evidence'),person_reasons=pe.get('reasons'),bank=dict(files=bk.get('dst_files'),exe_side_deleted=bk.get('exe_side_deleted')))
+        if errs:
+            st='INVALID-POSE' if all(e.startswith('pose:') for e in errs) else 'INVALID'
+            if all(e in FG_ERRORS for e in errs) and pe.get('person_evidence'):st='ENV-INTERRUPTED'
+            row.update(status=st,errors=errs);ledger_add(row);print(json.dumps(dict(label=label,status=st,errors=errs)),flush=True);continue
+        try:al=alias_hardlinks(label,c.BANK_PREFIX+L['leg'])
+        except BankError as ex:row.update(status='INVALID-BANK',errors=['alias: '+str(ex)]);ledger_add(row);raise Stop(6,'alias: '+str(ex))
+        if sess is not None and L['kind'] in ('capture','close_after') and pref is None and L['role'] in PIXEL_ROLES and pose_scope(L)=='modal':
+            mp,_=modal_pose(sess);p=jload(poses_path(),{});p[L['map']]=[list(x) for x in mp];jsave(poses_path(),p)
+        row.update(status='ACCEPTED',alias=al.get('alias'),session=str(bsd) if bsd else None);ledger_add(row);print(json.dumps(dict(label=label,status='ACCEPTED')),flush=True)
+        return 'accepted'
+def accepted(leg):
+    rows=[x for x in ledger_live() if x['leg']==leg and x['status']=='ACCEPTED'];return rows[-1] if rows else None
+def leg_dir(leg):
+    a=accepted(leg);return c.bank_read(a['label']) if a else None
+def leg_sess(leg):
+    d=leg_dir(leg);s=find_session(d) if d else None;return Sess(s) if s else None
+def leg_log(leg):
+    a=accepted(leg)
+    if not a:return Log('')
+    p=c.RUN/a['label']/'game.log'
+    if c.STUB and not p.exists():p=c.LIVE_RUN/a['label']/'game.log'
+    return read_log(p)
+def per_event_log(log,anomaly):
+    ap=log.all('applied',anomaly);rv=log.all('revert',anomaly);lg=[x for x in log.all('ledger',anomaly) if x['kind']=='post_revert']
+    return ap,rv,lg
+def g3_log_clause(log,anomaly,events_n=None,expect_exact=True):
+    ap,rv,lg=per_event_log(log,anomaly);bad=[]
+    if len(rv)!=len(ap):bad.append(f'{len(ap)} APPLIED vs {len(rv)} REVERT lines')
+    if len(lg)<len(rv):bad.append(f'{len(rv)} REVERT vs {len(lg)} post_revert ledger lines')
+    for i,(a,r) in enumerate(zip(ap,rv)):
+        com=int(a['committed']);ex=int(r['exact']);de=int(r['default'])
+        if ex+de!=com:bad.append(f'event {i}: restored {ex}+{de} != committed {com}')
+        for k in ('left','unresolved','swept'):
+            if int(r[k]):bad.append(f'event {i}: {k}={r[k]}')
+        if expect_exact and de:bad.append(f'event {i}: restored-default={de} where the fixture slot has an override')
+    for i,x in enumerate(lg[:len(rv)]):
+        if x['bal']!='balanced' or x['ep']!='on_frame' or int(x['live']) or int(x['pending']):bad.append(f'ledger {i}: live={x["live"]} pending={x["pending"]} endpoint={x["ep"]} balance={x["bal"]}')
+    dec={};slots=[]
+    for m in log.all('treeslot'):
+        if m['tag']=='DECIDE' and m['disp']=='qualified':dec[(m['comp'],m['idx'])]=m['raw']
+    for s in log.all('slotrev',anomaly):
+        if s['how']=='restored-exact':
+            want=dec.get((s['comp'],s['slot']))
+            if want is not None and want!=s['mat']:bad.append(f"slot {s['comp']}[{s['slot']}] restored '{s['mat']}' but the tree's raw was '{want}'")
+            if s['lb']!=s['la']:bad.append(f"slot {s['comp']}[{s['slot']}] override length {s['lb']} before apply -> {s['la']} after revert")
+            slots.append(s['mat'])
+    return dict(ok=not bad,problems=bad[:12],events_applied=len(ap),reverts=len(rv),ledger_lines=len(lg),restored_exact_names=sorted(set(slots)))
+def g3_temporal(s,evs):
+    out=[]
+    for e in evs:
+        a=e['si'][0]-1;b=e['si'][-1]+1
+        if a in s.by_si and b in s.by_si:d=absdiff(s.img(b),s.img(a));out.append(dict(px=int((d>0).sum()),max=int(d.max())))
+        else:out.append(None)
+    return out
+def g3_pixel_clause(app,null,anomaly,tol=TOL):
+    ea=events(app,anomaly);en=events(null,anomaly)
+    if not pairing(ea,en):return dict(ok=False,verdict='INVALID-PAIR',events=0)
+    evs=[];bad=[]
+    for a,n in zip(ea,en):
+        b=a['si'][-1]+1;rec=dict(start_frame=a['start_frame'],post_si=b)
+        if b not in app.by_si or b not in null.by_si:rec.update(judged=False,why='no post-revert frame (the frame cap ends the event)');evs.append(rec);continue
+        reg=region([(app,si,a['mv'][si]) for si in a['si']]+[(null,si,n['mv'][si]) for si in n['si']])
+        if reg is None or not reg.any():rec.update(judged=False,why='no mask on any labelled frame of the event');evs.append(rec);continue
+        d=absdiff(app.img(b),null.img(b));rmax=int(d[reg].max());wmax=int(d.max())
+        rec.update(judged=True,region_px=int(reg.sum()),region_max=rmax,whole_frame_max=wmax,whole_frame_differing_px=int((d>0).sum()))
+        if rmax>tol or wmax>tol:bad.append(rec)
+        evs.append(rec)
+    judged=[e for e in evs if e['judged']]
+    ok=bool(judged) and not bad
+    why=None if ok else ('no judged event' if not judged else f'{len(bad)} event(s) read max |d| > {tol} at the post-revert frame against the null at the same index')
+    diag=dict(rule='pre-onset (start-1) vs post-revert (end+1) within each leg - reported, never judged',applied=g3_temporal(app,ea),null=g3_temporal(null,en))
+    return dict(ok=ok,verdict='PASS' if ok else 'FAIL',rule='post-revert frame (end+1): applied vs null at the same session_index, max |d| <= 2 inside the union of both legs\' event masks and over the whole frame',
+                events=len(judged),region_max=max([e['region_max'] for e in judged],default=None),whole_frame_max=max([e['whole_frame_max'] for e in judged],default=None),per_event=evs,failing=bad[:4],why=why,diagnostic=diag)
+def ev_luma(legs):
+    s=leg_sess(legs[0])
+    if s is None or 0 not in s.by_si:return dict(verdict='FAIL',why='no first frame')
+    a=s.img(0).astype(np.float64);lum=0.2126*a[...,0]+0.7152*a[...,1]+0.0722*a[...,2]
+    mean=float(lum.mean());nz=int((a.max(axis=2)>0).sum())
+    return dict(verdict='PASS' if mean>0 and nz>0 else 'FAIL',mean_luma=round(mean,4),nonzero_px=nz,frame='si 0 of '+legs[0])
+def ev_g11_log(log):
+    m=log.all('assets')
+    if not m:return dict(verdict='FAIL',why='TEXCORRUPT-ASSETS line absent')
+    x=m[0];ok=x['uv']=='1' and x['nm']=='1' and x['nz']=='1' and 'M_CorruptTex_UV' in x['uvp'] and 'M_CorruptTex_Normal' in x['nmp'] and 'T_CorruptTex_NoiseN' in x['nzp']
+    return dict(verdict='PASS' if ok else 'FAIL',line=dict((k,x[k]) for k in ('uv','uvp','nm','nmp','nz','nzp')))
+def ev_g11(legs):return ev_g11_log(leg_log(legs[0]))
+def ev_band(legs):
+    a=leg_sess(legs[0]);b=leg_sess(legs[1]);an=LG.by_id()[legs[0]]['anomaly']
+    if LG.by_id()[legs[0]]['fixture']=='F-MW':
+        pr=fmw_partial([(legs[0],a,leg_log(legs[0])),(legs[1],b,leg_log(legs[1]))],an)
+        if pr is not None:
+            if pr['unexplained']:return dict(verdict='INVALID-PAIR',why=pr['unexplained'],partial=pr)
+            r=band(EvView(a,an,pr['keep'][legs[0]]),EvView(b,an,pr['keep'][legs[1]]),an);r['partial']=pr;return r
+    return band(a,b,an)
+def ev_gid(legs,fixture='F-SYN',faults_cls='Q'):
+    L=LG.by_id();idl=legs[0];nl=legs[1];an=L[idl]['anomaly'];app=leg_sess(idl);null=leg_sess(nl)
+    r=dict(identity=pair_compare(app,null,an),faults={})
+    for fl in legs[2:]:r['faults'][L[fl]['fault']]=dict(fault_compare(leg_sess(fl),null,an),cls=L[fl].get('fault_class','Q'),leg=fl)
+    bad=[]
+    if r['identity']['verdict']=='INVALID-PAIR' or any(f['verdict']=='INVALID-PAIR' for f in r['faults'].values()):r['verdict']='INVALID-PAIR';return r
+    if r['identity']['verdict']!='PASS':bad.append('identity: '+str(r['identity'].get('why')))
+    for k,f in r['faults'].items():
+        if f['cls']=='Q' and f['verdict']!='READS-WRONG':bad.append(f'wrong copy {k}: '+str(f.get('why')))
+    r['verdict']='PASS' if not bad else 'FAIL';r['why']=bad;return r
+_MCELLS=[None]
+def masked_cell_alpha():
+    if _MCELLS[0] is None:
+        t=np.asarray(Image.open(c.FIXTURE_SRC/(MASKED_TEX+'.png')).convert('RGBA'))[...,3];h,w=t.shape;n=MASKED_CELLS
+        a=t.reshape(n,h//n,n,w//n).transpose(0,2,1,3).reshape(n,n,-1)
+        if not (a==a[...,:1]).all():raise ValueError(f'{MASKED_TEX} alpha is not uniform per cell')
+        _MCELLS[0]=a[...,0][:,::-1].copy()
+    return _MCELLS[0]
+def pre_clip(s,anomaly,label=MASKED_LABEL,clipped_px=MASKED_CLIPPED_PX):
+    if s is None:return dict(verdict='FIXTURE-CANNOT-EXERCISE',why=['no session'])
+    x0,y0,x1,y1=tile_rects()[label];n=MASKED_CELLS;cs=(x1-x0)//n;amap=masked_cell_alpha()
+    lo=np.array([a-SKY_TOL for a,b in SKY]);hi=np.array([b+SKY_TOL for a,b in SKY])
+    mask_bad=[];counts=collections.Counter();meas_ev=0
+    for e in events(s,anomaly):
+        m_=0
+        for si in e['si']:
+            m=s.mask(si);mv=e['mv'][si]
+            if m is None or not mv:continue
+            k=int((m==mv).sum());counts[k]+=1;m_+=1
+            if k!=clipped_px:mask_bad.append(dict(si=si,mask_px=k))
+        meas_ev+=1 if m_ else 0
+    cells=[(r,cc) for r in range(n) for cc in range(n) if amap[r,cc]<128];sky_bad=[];frames=0;worst=0
+    for si in sorted(s.by_si):
+        img=s.img(si);frames+=1;nb=0
+        for r,cc in cells:
+            px=img[y0+r*cs+1:y0+r*cs+cs-1,x0+cc*cs+1:x0+cc*cs+cs-1].reshape(-1,3);nb+=int((~np.all((px>=lo)&(px<=hi),axis=1)).sum())
+        worst=max(worst,nb)
+        if nb:sky_bad.append(dict(si=si,px_outside_sky=nb))
+    bad=[]
+    if meas_ev<MIN_EVENTS:bad.append(f'{meas_ev} events with a measured mask < {MIN_EVENTS}')
+    if mask_bad:bad.append(f'{len(mask_bad)} measured frame(s) whose target mask count != {clipped_px} (the probe-measured clipped count): {mask_bad[:3]}')
+    if sky_bad:bad.append(f'{len(sky_bad)} frame(s) with an alpha < 0.5 cell outside the measured sky range: {sky_bad[:3]}')
+    return dict(verdict='PASS' if not bad else 'FIXTURE-CANNOT-EXERCISE',why=bad,rule=f'AMENDMENT 2 MASKED PRE: target mask count == {clipped_px} on every measured frame, and every alpha < 0.5 cell interior (1-px inset) of {label} within the sky range {SKY} +/-{SKY_TOL} on every frame',
+                tile=[x0,y0,x1,y1],clipped_cells=len(cells),events_measured=meas_ev,mask_counts=dict(counts),frames=frames,cell_px_outside_sky_max=worst)
+def ev_pre_clip(legs):
+    L=LG.by_id()[legs[0]];return pre_clip(leg_sess(legs[0]),L['anomaly'])
+def ev_gid_mw(legs):
+    L=LG.by_id();idl,na,nb=legs;an=L[idl]['anomaly'];app=leg_sess(idl);a=leg_sess(na);b=leg_sess(nb)
+    if not events(app,an):return dict(verdict='NOT-ADMITTED',why='the identity fire produced no applied event (a G0 finding against R14.1, not a gate failure)',refusals=[m['final'] for m in leg_log(idl).all('refused',an)][:3])
+    pr=fmw_partial([(idl,app,leg_log(idl)),(na,a,leg_log(na)),(nb,b,leg_log(nb))],an)
+    if pr is not None:
+        if pr['unexplained']:return dict(verdict='INVALID-PAIR',why=pr['unexplained'],partial=pr)
+        if len(pr['common'])<MIN_EVENTS:return dict(verdict='NOT-ADMITTED-PARTIAL',why=f"{len(pr['common'])} event(s) applied in all three F-MW legs < {MIN_EVENTS}; the live tree refused the rest (G328). A reading, not a judged row",partial=pr)
+        app,a,b=(EvView(s,an,pr['keep'][n]) for n,s in ((idl,app),(na,a),(nb,b)))
+    bd=band(a,b,an)
+    if bd['verdict']!='VALID':
+        r=dict(verdict='INVALID-ARBITER',band=bd,why='the F-MW NoApply control pair itself exceeds 2 levels on the target region')
+        if pr is not None:r['partial']=pr
+        return r
+    r=pair_compare(app,a,an);r['band']=bd
+    if pr is not None:r['partial']=pr
+    return r
+def ev_g3(legs,fixture='F-SYN'):
+    L=LG.by_id();idl=legs[0];nl=legs[1];an=L[idl]['anomaly'];app=leg_sess(idl);null=leg_sess(nl)
+    lc=g3_log_clause(leg_log(idl),an,expect_exact=(fixture=='F-SYN'))
+    pr=fmw_partial([(idl,app,leg_log(idl)),(nl,null,leg_log(nl))],an) if fixture=='F-MW' else None
+    if pr is not None and not pr['unexplained']:
+        pc=g3_pixel_clause(EvView(app,an,pr['keep'][idl]),EvView(null,an,pr['keep'][nl]),an)
+        if not pr['common']:pc=dict(pc,verdict='NOT-ADMITTED-PARTIAL',ok=None,why='no event applied in both F-MW legs (G328); the pixel clause is not judgeable')
+        pc['partial']=pr
+    else:
+        pc=g3_pixel_clause(app,null,an)
+        if pr is not None:pc['partial']=pr
+    if fixture=='F-MW':
+        bd=jload(c.RUN/'band-fmw.json')
+        if not (bd and bd.get('whole_frame_max') is not None and bd['whole_frame_max']<=TOL):pc=dict(pc,verdict='INVALID-ARBITER',ok=None,why='F-MW whole-frame control band exceeds 2 (the NoApply pair itself differs at the same index); the pixel clause is not judgeable there')
+    ok=lc['ok'] and (pc['ok'] is True or (fixture=='F-MW' and pc['verdict'] in ('INVALID-ARBITER','NOT-ADMITTED-PARTIAL')))
+    if fixture=='F-MW' and lc['events_applied']==0:return dict(verdict='NOT-ADMITTED',log=lc,pixel=pc)
+    judged=pc.get('events') if pc.get('ok') is True else lc['reverts']
+    return dict(verdict='PASS' if ok else 'FAIL',anomaly=an,log=lc,pixel=pc,events=min(lc['reverts'],judged or 0))
+def ev_gid_d(legs):
+    L=LG.by_id();an=L[legs[0]]['anomaly'];r=fault_compare(leg_sess(legs[2]),leg_sess(legs[1]),an)
+    return dict(verdict='READING',fault=L[legs[2]]['fault'],reading=r['verdict'],detail=r)
+def ev_g3_count(legs):
+    per={a:0 for a in IDS}
+    for g in gates_live():
+        if g['gate']=='G3' and g['verdict']=='PASS' and g['row']!='COUNT':per[g['readings']['anomaly']]+=g['readings'].get('events') or 0
+    ok=all(v>=MIN_EVENTS for v in per.values());return dict(verdict='PASS' if ok else 'FAIL',events_per_id=per)
+def ev_grd(legs):
+    L=LG.by_id();ap=leg_sess(legs[0]);nu=leg_sess(legs[1]);fa=leg_sess(legs[2]);an=L[legs[0]]['anomaly']
+    ea=events(ap,an);en=events(nu,an)
+    if not pairing(ea,en):return dict(verdict='INVALID-PAIR')
+    idr=pair_compare(ap,nu,an,min_events=1)
+    long=[e for e in ea if len(e['si'])>=RD_MIN_FRAMES]
+    dr=rd_drift(ap,long)
+    nc=fault_compare(fa,nu,an,last_only=True,min_events=1)
+    bad=[]
+    if idr['verdict']!='PASS':bad.append('redraw frame outside G-ID PASS: '+str(idr.get('why')))
+    if not long:bad.append(f'no event with >= {RD_MIN_FRAMES} labelled frames')
+    if dr['drift']:bad.append(f'frame N differs from the first frame of its dither phase: {dr["drift"][:2]}')
+    if dr['short']:bad.append(f'phase-matched comparison did not cover the event: {dr["short"][:2]}')
+    if nc['verdict']!='READS-WRONG':bad.append('noclear did not read >= 16: '+str(nc.get('why')))
+    return dict(verdict='PASS' if not bad else 'FAIL',why=bad,identity=idr,long_events=[len(e['si']) for e in long],drift=dr['drift'][:3],drift_rule=dr['rule'],drift_compared=dr['compared'],drift_diagnostic=dr['diagnostic'],noclear=nc)
+def rd_drift(ap,evs,period=DITHER_PERIOD):
+    drift=[];short=[];compared=[];diag=[]
+    for e in evs:
+        f0=e['si'][0];reg=region([(ap,f0,e['mv'][f0])])
+        if reg is None or not reg.any():drift.append(dict(start_frame=e['start_frame'],why='no mask on the first frame'));continue
+        ref={};n_cmp=0;first=None
+        for si in e['si']:
+            if first is None and si!=f0:
+                k=int((absdiff(ap.img(si),ap.img(f0))[reg]>0).sum())
+                if k:first=dict(si=si,differing_px=k,frame_index_delta=ap.by_si[si]['frame_index']-ap.by_si[f0]['frame_index'])
+            ph=ap.by_si[si]['frame_index']%period
+            if ph not in ref:ref[ph]=si;continue
+            k=int((absdiff(ap.img(si),ap.img(ref[ph]))[reg]>0).sum());n_cmp+=1
+            if k:drift.append(dict(start_frame=e['start_frame'],si=si,ref_si=ref[ph],differing_px=k));break
+        compared.append(n_cmp);diag.append(dict(start_frame=e['start_frame'],first_frame_n_vs_1_differing=first))
+        if not drift and n_cmp<len(e['si'])-period:short.append(dict(start_frame=e['start_frame'],compared=n_cmp,frames=len(e['si'])))
+    return dict(rule=f'AMENDMENT 2 (G318): each labelled frame against the first frame of the event with the same engine frame_index mod {period}, 0 differing pixels in the frame-1 mask',
+                drift=drift,short=short,compared=compared,diagnostic=dict(rule='frame N against frame 1 (082-07a) - reported, never judged; it reads the tonemapper dither',events=diag))
+def reason_check(log,summary,anomaly,exp):
+    ap=log.all('applied',anomaly);rf=log.all('refused',anomaly);bad=[]
+    fin=exp['final'];pre=exp.get('prefix')
+    if fin=='APPLY':
+        disp=(summary.get('texcorrupt_binding_dispositions') or {}).get(exp['disposition'],0)
+        if not ap:bad.append('no APPLIED event')
+        if rf:bad.append(f'{len(rf)} refusal(s): {rf[0]["final"]}')
+        if disp<1:bad.append(f'binding disposition {exp["disposition"]} not counted')
+        return dict(verdict='PASS' if not bad else 'FAIL',why=bad,applied=len(ap),binding_disposition=disp)
+    if not rf:bad.append('no REFUSED line')
+    finals=sorted({m['final'] for m in rf})
+    if any(not (f==fin or f.startswith(fin+':')) for f in finals):bad.append(f'final reason(s) {finals} != {fin}')
+    steps=sorted({m['step'] for m in rf})
+    if exp.get('step') and exp['step']!='-' and steps!=[exp['step']]:bad.append(f'step(s) {steps} != {exp["step"]}')
+    if ap:bad.append(f'{len(ap)} APPLIED line(s) on a refusal row')
+    key='texcorrupt_refused_'+fin.split(':')[0]
+    if summary:
+        if summary.get(key)!=len(rf):bad.append(f'run_summary {key}={summary.get(key)} != {len(rf)} refusals')
+        others={k:v for k,v in summary.items() if k.startswith('texcorrupt_refused_') and k!=key and v}
+        if others:bad.append(f'other refusal counters non-zero: {others}')
+        if summary.get('texcorrupt_fires_applied'):bad.append('texcorrupt_fires_applied != 0')
+        if exp.get('disposition'):
+            sd=summary.get('texcorrupt_slot_dispositions') or {};bd=summary.get('texcorrupt_binding_dispositions') or {}
+            if not (sd.get(exp['disposition']) or bd.get(exp['disposition'])):bad.append(f'disposition {exp["disposition"]} not counted')
+    return dict(verdict='PASS' if not bad else 'FAIL',why=bad,refusals=len(rf),finals=finals,steps=steps)
+def ev_reason(legs):
+    L=LG.by_id()[legs[0]];s=leg_sess(legs[0]);return reason_check(leg_log(legs[0]),s.summary if s else {},L['anomaly'],L['expect'])
+def ev_g6(legs):
+    log=leg_log(legs[0]);r=ev_reason(legs);arm=log.all('slotmid_armed');rs=log.all('slotmid_restored');bad=list(r.get('why') or [])
+    if not arm or int(arm[0]['n'])<1:bad.append('AssetSlotMid lever not ARMED')
+    if not rs or int(rs[-1]['put'])<1 or int(rs[-1]['alone'])!=0:bad.append(f'AssetSlotMid RESTORED line wrong: {rs[-1] if rs else None}')
+    return dict(verdict='PASS' if not bad else 'FAIL',why=bad,reason=r,armed=arm[:1],restored=rs[-1:])
+def bind_link_check(buildcs_text,status_text,logs):
+    def block(name):
+        m=re.search(name+r'\.AddRange\(new string\[\]\s*\{(.*?)\}\);',buildcs_text,re.S);return sorted(re.findall(r'"([^"]+)"',m.group(1))) if m else None
+    pub=block('PublicDependencyModuleNames');pri=block('PrivateDependencyModuleNames');bad=[]
+    if pub!=sorted(['Core','CoreUObject','Engine','InputCore']):bad.append(f'public deps {pub}')
+    if pri!=sorted(['Foliage','RenderCore','RHI']):bad.append(f'private deps {pri}')
+    ex=re.findall(r'g10 (\S+) exit=(\d+)',status_text)
+    if sorted(ex)!=sorted([('StackOBotEditor','0'),('StackOBot','0')]):bad.append(f'G10 status {ex}')
+    for name,t in logs.items():
+        w=len(re.findall(r'\bwarning [A-Z]+\d+|: warning\b',t))
+        if w:bad.append(f'{name}: {w} warning line(s)')
+    return dict(verdict='PASS' if not bad else 'FAIL',why=bad,public=pub,private=pri,g10=ex)
+def ev_bind_link(legs):
+    head=c.git(c.SRC,'rev-parse',c.FEATURE);cs=c.git(c.SRC,'show',f'{head}:Source/AnomalyInjector/AnomalyInjector.Build.cs')
+    r=bind_link_check(cs,c.G10_STATUS.read_text(),{p.name:p.read_text(encoding='utf-8',errors='replace') for p in c.G10_LOGS})
+    st=c.sha(c.EXE);g10=c.sha(c.G10_ARCHIVE) if c.G10_ARCHIVE.exists() else None
+    if st!=g10:r['verdict']='FAIL';r['why']=list(r['why'])+[f'staged exe {st[:8]} != G10 archive {str(g10)[:8]}']
+    r['staged_exe']=st[:8];return r
+def layer_split(null,ev,anomaly):
+    for si in ev['si']:
+        reg=region([(null,si,ev['mv'][si])])
+        if reg is None or not reg.any():continue
+        ys,xs=np.nonzero(reg);x0,x1,y0,y1=xs.min(),xs.max(),ys.min(),ys.max();cx=(x0+x1)/2.0;cy=(y0+y1)/2.0;img=null.img(si)
+        H,W=reg.shape;Y,X=np.mgrid[0:H,0:W]
+        halves={'x_low':reg&(X<cx-2),'x_high':reg&(X>cx+2),'y_low':reg&(Y<cy-2),'y_high':reg&(Y>cy+2)}
+        opp={'x_low':'x_high','x_high':'x_low','y_low':'y_high','y_high':'y_low'}
+        def rng(m):
+            p=img[m];return int((p.max(axis=0)-p.min(axis=0)).max()) if p.size else None
+        ranges={k:rng(m) for k,m in halves.items()}
+        def uniform(k):return ranges[k] is not None and ranges[k]<LAYER_UNIFORM_LT
+        u=[k for k in halves if uniform(k) and not uniform(opp[k])]
+        if len(u)!=1:return None,dict(si=si,uniform_halves=u,ranges=ranges,uniform_lt=LAYER_UNIFORM_LT)
+        return (halves[u[0]],halves[opp[u[0]]]),dict(si=si,global_half=u[0],ranges=ranges,uniform_lt=LAYER_UNIFORM_LT)
+    return None,dict(why='no measured frame')
+def ev_bind_layer(legs):
+    L=LG.by_id();tile,tnull,idl,inull=legs;an=L[tile]['anomaly'];T=leg_sess(tile);TN=leg_sess(tnull)
+    idr=pair_compare(leg_sess(idl),leg_sess(inull),an)
+    et=events(T,an);en=events(TN,an)
+    if not pairing(et,en):return dict(verdict='INVALID-PAIR',identity=idr)
+    if not en:return dict(verdict='FAIL',why=['no tile-probe events'],identity=idr)
+    sp,info=layer_split(TN,en[0],an)
+    if sp is None:return dict(verdict='INVALID-FIXTURE',why=['the global/layer halves could not be located from the NoApply picture',info],identity=idr)
+    g,l=sp;bad=[];evs=[];gdist=dist_from(l);leaks={}
+    gring=g&(gdist<=HALO_R);gfar=g&(gdist>HALO_R)
+    for a,n in zip(et,en):
+        gmax=0;grmax=0;gfmax=0;lchg=0;outside=0;meas=0;ring=dict(ring_max=0,ring_px_gt2=0,far_max=0,far_px_gt2=0,extent_gt2=0.0)
+        for si in a['si']:
+            reg=region([(T,si,a['mv'][si]),(TN,si,n['mv'][si])])
+            if reg is None or not reg.any():continue
+            d=absdiff(T.img(si),TN.img(si));meas+=1;gmax=max(gmax,int(d[g].max()) if g.any() else 0);lchg=max(lchg,int((d[l]>=WRONG).sum()));outside=max(outside,int(d[~reg].max()))
+            grmax=max(grmax,int(d[gring].max()) if gring.any() else 0);gfmax=max(gfmax,int(d[gfar].max()) if gfar.any() else 0)
+            h=halo_split(d,reg);ring=dict(ring_max=max(ring['ring_max'],h['ring_max']),ring_px_gt2=max(ring['ring_px_gt2'],h['ring_px_gt2']),far_max=max(ring['far_max'],h['far_max']),far_px_gt2=max(ring['far_px_gt2'],h['far_px_gt2']),extent_gt2=max(ring['extent_gt2'],h['extent_gt2']))
+            merge_leaks(leaks,tile_leaks(d,reg,exclude=('TC_Layer',)))
+        evs.append(dict(start_frame=a['start_frame'],measured=meas,global_max=gmax,global_ring_max=grmax,global_far_max=gfmax,layer_changed_px=lchg,outside_max=outside,halo=ring))
+    me=[e for e in evs if e['measured']]
+    if len(me)<MIN_EVENTS:bad.append(f'{len(me)} measured tile-probe events < {MIN_EVENTS}')
+    for e in me:
+        if e['global_ring_max']>=RING_LT:bad.append(f'global half within {HALO_R} px of the layer half reads >= {RING_LT}: {e}')
+        if e['global_far_max']>TOL:bad.append(f'global half beyond {HALO_R} px of the layer half changed: {e}')
+        if e['layer_changed_px']<1:bad.append(f'layer region unchanged under the tile probe: {e}')
+        if e['halo']['ring_max']>=RING_LT:bad.append(f'outside the target, within the {HALO_R} px ring, reads >= {RING_LT}: {e}')
+        if e['halo']['far_max']>TOL:bad.append(f'outside the target, beyond the {HALO_R} px ring, changed: {e}')
+    if idr['verdict']!='PASS':bad.append('identity on the layer target: '+str(idr.get('why')))
+    rule=f'AMENDMENT 2: outside the event region, pixels within R={HALO_R} px read max |d| < {RING_LT} (the halo, published) and pixels beyond R read <= {TOL}; the global half: its pixels within R of the layer half read < {RING_LT}, beyond R <= {TOL}'
+    return dict(verdict='PASS' if not bad else 'FAIL',why=bad[:8],rule=rule,split=info,global_half_px=dict(ring=int(gring.sum()),far=int(gfar.sum())),events=evs,
+                halo_reading=dict(ring_max=max([e['halo']['ring_max'] for e in me],default=None),ring_px_gt2_max=max([e['halo']['ring_px_gt2'] for e in me],default=None),extent_gt2=max([e['halo']['extent_gt2'] for e in me],default=None),global_ring_max=max([e['global_ring_max'] for e in me],default=None)),
+                tile_leaks={k:dict(px_gt2=v[0],max=v[1]) for k,v in sorted(leaks.items())},identity=idr)
+def ev_bind_dead(legs):
+    log=leg_log(legs[0]);an=LG.by_id()[legs[0]]['anomaly']
+    b=[dict(param=m['param'],tex=m['tex'],disp=m['disp']) for m in log.all('treebind') if 'Dead' in m['tex']][:4]
+    return dict(verdict='READING',bindings=b,applied=len(log.all('applied',an)),refused=[m['final'] for m in log.all('refused',an)][:2])
+SBF_RULE='AMENDMENT 4 (082-07k, ruling 1 of _reviews/082-07j-chat-ruling-can-premise.md): STOP-BEFORE-FIRE. IAI.Capture.Start and IAI.Capture.Stop in one ExecCmds batch, under the runner that forces focus, must FINISH with 0 frames (one FINISHED line, run_summary total_frames 0, annotation.json no anomaly, no PNG), texcorrupt_fires_applied 0, and no m53 line of either id (no APPLIED, REFUSED, ROLLED BACK, NoApply 2, LEDGER, COLL or live-tree DECIDE / REFUSED block). The cancel-before-focus branch itself is owed in S2 with a bench-only unfocused lever'
+def sbf_check(log,sdir):
+    bad=[];out=dict(rule=SBF_RULE)
+    fin=log.all('finished');out['finished']=[dict(frames=int(m['frames']),positive=int(m['pos']),bursts=int(m['bursts'])) for m in fin]
+    if len(fin)!=1:bad.append(f'{len(fin)} FINISHED line(s), expected 1')
+    elif int(fin[0]['frames'])!=0:bad.append(f"the run finished with {fin[0]['frames']} frame(s), expected 0")
+    if log.all('cancel'):bad.append('a CANCELLED-before-focus line was logged')
+    m53={k:len(log.all(k)) for k in ('applied','refused','rollback','noapply2','ledger','coll')}
+    m53['tree_decide_or_refused']=len([m for m in log.all('tree') if m['tag']!='CENSUS'])
+    out['m53_lines']=m53
+    if any(m53.values()):bad.append('an m53 line was logged on a stop-before-fire run: '+', '.join(f'{k}={v}' for k,v in m53.items() if v))
+    if sdir is None:bad.append('no session folder with run_summary.json')
+    else:
+        sm=jload(Path(sdir)/'run_summary.json',{});an=jload(Path(sdir)/'annotation.json',{});pngs=list((Path(sdir)/'Actual_Frames').glob('*.png'))
+        out.update(total_frames=sm.get('total_frames'),fires_applied=sm.get('texcorrupt_fires_applied'),annotation_events=len(an.get('anomalies') or []),pngs=len(pngs))
+        if sm.get('total_frames')!=0:bad.append(f"run_summary total_frames {sm.get('total_frames')} != 0")
+        if sm.get('texcorrupt_fires_applied')!=0:bad.append(f"run_summary texcorrupt_fires_applied {sm.get('texcorrupt_fires_applied')} != 0")
+        if an.get('anomalies'):bad.append(f"annotation.json carries {len(an['anomalies'])} event(s)")
+        if pngs:bad.append(f'{len(pngs)} frame PNG(s) written')
+    return dict(out,verdict='PASS' if not bad else 'FAIL',why=bad[:10])
+GC_RULE='AMENDMENT 4 (082-07k): LogGarbage is declared Warning (GarbageCollection.h:49) and "Collecting garbage" is logged at Log (GarbageCollection.cpp:2293), so the GC detector is blind unless the leg raises it; the GC legs carry Log LogGarbage Log, whose echo line proves the lever took. With no LogGarbage line anywhere in the leg the row reads UNEXERCISED with the blind reason, never a pass'
+def ev_g4(legs):
+    L=LG.by_id();l0=L[legs[0]];an=l0['anomaly'];kind=l0['row'].split('-')[0];log=leg_log(legs[0]);bad=[];out=dict(exit=kind,anomaly=an)
+    if kind=='CAN':
+        d=leg_dir(legs[0]);r=sbf_check(log,find_session(d) if d else None);return dict(out,**r)
+    s=leg_sess(legs[0])
+    ap,rv,lg=per_event_log(log,an)
+    if kind=='FIN':
+        e=events(s,an) if s else []
+        last=max(s.by_si) if s else None
+        if not e or e[-1]['si'][-1]!=last:bad.append('the last event was not live at the frame cap')
+        lc=g3_log_clause(log,an);out['log']=lc
+        if not lc['ok']:bad+=lc['problems']
+        if s and s.summary.get('texcorrupt_restored_exact')!=sum(int(a['committed']) for a in ap):bad.append('run_summary restored_exact != committed')
+    elif kind in ('DES','DES2'):
+        ds=log.all('destroy');lost=log.all('lost',an);out.update(destroyed=len(ds),lost=[m['why'] for m in lost])
+        if not ds:bad.append('DestroyTarget did not fire')
+        if not lost:bad.append('no TARGET LOST line (the watch did not end the event)')
+        for r in rv[:1]:
+            if int(r['left']) or int(r['swept']):bad.append(f'revert after destroy: {r}')
+        if not lg or lg[0]['bal']!='balanced':bad.append(f'post-revert ledger after destroy: {lg[:1]}')
+        if kind=='DES2':
+            if not log.all('noapply2',an):bad.append('no NoApply 2 line')
+            o=leg_log(legs[1]);a2=log.all('noapply2',an);l2=log.all('lost',an);a1=o.all('applied',an);l1=o.all('lost',an)
+            if a2 and l2 and a1 and l1:
+                d2=(l2[0]['frame1000']-a2[0]['frame1000'])%1000;d1=(l1[0]['frame1000']-a1[0]['frame1000'])%1000;out.update(apply_to_lost_noapply2=d2,apply_to_lost_applied=d1)
+                if d1!=d2:bad.append(f'NoApply 2 ended {d2} frames after apply, the applied leg {d1}')
+            else:bad.append('frame offsets unreadable')
+    elif kind=='END':
+        la=jload(leg_dir(legs[0])/'_leg'/'launch.json',{});out.update(exited_after_close=la.get('exited_after_close'),exit_code=la.get('exit_code'))
+        td=[x for x in log.all('ledger',an) if x['kind']=='world_teardown']
+        if not rv:bad.append('no REVERT after the close request')
+        else:
+            r=rv[-1];com=int(ap[-1]['committed']) if ap else -1
+            if int(r['exact'])+int(r['default'])!=com or int(r['left']) or int(r['unresolved']) or int(r['swept']):bad.append(f'world-end revert {r}')
+        live=[int(x['live']) for x in td]+[int(x['live']) for x in lg[-1:]]
+        if not live or any(v!=0 for v in live):bad.append(f'live bytes after world end {live}')
+        if not la.get('exited_after_close'):bad.append('process did not exit within 30 s of the close request')
+    elif kind=='GC':
+        gall=log.all('gc');out.update(rule=GC_RULE,gc_verbosity_echo=len(log.all('gcverb')),gc_passes_in_leg=len(gall))
+        if not ap or not rv:bad.append('no applied/reverted event')
+        else:
+            g=[x for x in gall if ap[0]['line']<x['line']<rv[0]['line']];out['gc_passes_in_event']=len(g)
+            if not g:out['unexercised']='detector blind: no LogGarbage line anywhere in the leg (the Log LogGarbage Log lever did not take)' if not gall else 'no LogGarbage pass fell inside the first event'
+            e=events(s,an) if s else []
+            if e and not all(v is True for v in e[0]['held'].values()):bad.append('condition_held false on a labelled frame of the GC event')
+            lc=g3_log_clause(log,an);out['log']=lc
+            if not lc['ok']:bad+=lc['problems']
+    elif kind=='FR':
+        fr=log.all('foreign',an);lt=log.all('left',an);out.update(foreign=len(fr),left_lines=len(lt))
+        if not fr:bad.append('ForeignReplace did not fire')
+        if not rv or int(rv[0]['left'])!=1:bad.append(f'first revert left-to-game != 1: {rv[:1]}')
+        elif int(rv[0]['exact'])+int(rv[0]['default'])+1!=int(ap[0]['committed']):bad.append('first revert touched the foreign slot or missed another')
+        if not lg or lg[0]['bal']!='balanced':bad.append('ledger after the foreign replace not balanced')
+    elif kind.startswith('FS'):
+        ex=l0['expect'];rb=log.all('rollback',an);rl=[x for x in log.all('ledger',an) if x['kind']=='rollback']
+        out.update(rollbacks=len(rb),rollback_ledger=rl[:1])
+        if len(rb)!=1:bad.append(f'{len(rb)} rollback lines')
+        else:
+            if int(rb[0]['step'])!=ex['step'] or rb[0]['reason']!=ex['reason']:bad.append(f'rollback step/reason {rb[0]["step"]}/{rb[0]["reason"]}')
+            if ex.get('ordinal') and 'resource_created=1' not in rb[0]['detail']:bad.append('ordinal rollback did not create the resource first')
+        if len(rl)!=1 or rl[0]['bal']!='balanced' or int(rl[0]['off'])!=2 or int(rl[0]['live']) or int(rl[0]['pending']):bad.append(f'rollback ledger reading at F+2: {rl[:1]}')
+        if s:
+            if s.summary.get(f'texcorrupt_rollback_{ex["step"]}')!=1:bad.append('run_summary rollback counter')
+            if len(events(s,an))!=len(ap):bad.append('labelled events != APPLIED lines (the rolled-back fire left a label)')
+        if len(rv)!=len(ap):bad.append('REVERT count != APPLIED count')
+    elif kind=='TWO':
+        la=jload(leg_dir(legs[0])/'_leg'/'launch.json',{});nm=log.all('applied','normal_corruption');uv=log.all('applied','uv_corruption')
+        nr=log.all('revert','normal_corruption');ulg=[x for x in log.all('ledger','uv_corruption') if x['kind']=='post_revert']
+        if not nm:
+            rf=[m['final'] for m in log.all('refused','normal_corruption')]+[m['reason'] for m in log.all('rollback','normal_corruption')]
+            if rf:return dict(out,verdict='FIXTURE-CANNOT-EXERCISE',why=[f'the second id was refused at engine frame 1 ({rf[0]}); TWO needs it applied (AMENDMENT 4: the frame-1 tree reads APPLY in the census, the frame-1 transaction was never run on the bench)'],refusals=rf[:4])
+            bad.append('the second id was not applied');return dict(out,verdict='FAIL',why=bad)
+        res=int(nm[0]['live']);out.update(normal_live=res,normal_reserved=int(nm[0]['reserved']),uv_events=len(uv))
+        if not uv or nm[0]['line']>uv[0]['line']:bad.append('the second id was not live before the first uv fire')
+        early=[r for r in nr if uv and r['line']<ulg[-1]['line']] if ulg else []
+        if early:bad.append('a uv event reverted the normal event')
+        for x in ulg:
+            if int(x['live'])!=res or int(x['pending'])!=0:bad.append(f'uv post-revert live {x["live"]} pending {x["pending"]} != other event {res}/0');break
+        if not nr:bad.append('the normal event was never reverted (world end)')
+        else:
+            r=nr[-1]
+            if int(r['exact'])+int(r['default'])!=int(nm[0]['committed']) or int(r['left']) or int(r['unresolved']) or int(r['swept']):bad.append(f'normal revert {r}')
+        fin=[int(x['live']) for x in log.all('ledger','normal_corruption')]
+        if not fin or fin[-1]!=0:bad.append(f'live bytes after the last revert {fin[-1:]}')
+        if not la.get('exited_after_close'):bad.append('process did not exit within 30 s of the close request')
+    if kind=='GC' and out.get('unexercised') and not bad:return dict(out,verdict='UNEXERCISED')
+    return dict(out,verdict='PASS' if not bad else 'FAIL',why=bad[:10])
+def parse_levels(s):
+    out={}
+    for part in s.split(';'):
+        if not part:continue
+        p,a,n=part.rsplit(':',2);out[p]=(int(a),int(n))
+    return out
+def coll_samples(log,anomaly):
+    out=[];ev=-1
+    for m in log.all('coll',anomaly):
+        if m['kind']=='apply':ev+=1
+        out.append(dict(event=ev,kind=m['kind'],offset=int(m['off']),incomplete=int(m['inc']),truncated=int(m['tr']),null_slots=int(m['ns']),levels=parse_levels(m['levels'])))
+    return out
+def gcoll(app_log,null_log,anomaly):
+    A=coll_samples(app_log,anomaly);N=coll_samples(null_log,anomaly);ni={(x['event'],x['kind'],x['offset']):x for x in N}
+    drops=[];unpaired=set();incomplete=0;paired=0
+    for a in A:
+        n=ni.get((a['event'],a['kind'],a['offset']))
+        if a['incomplete'] or a['truncated']:incomplete+=1
+        if n is None:unpaired.add((a['event'],a['kind'],a['offset']));continue
+        if n['incomplete'] or n['truncated']:incomplete+=1
+        paired+=1
+        for p in set(a['levels'])|set(n['levels']):
+            if p not in a['levels'] or p not in n['levels']:unpaired.add(p);continue
+            an=a['levels'][p][1];nn=n['levels'][p][1]
+            if an>=0 and nn>=0 and nn>an:drops.append(dict(texture=p,event=a['event'],kind=a['kind'],offset=a['offset'],null=nn,applied=an,deficit=nn-an))
+    return dict(verdict='READING',paired_samples=paired,samples_applied=len(A),samples_null=len(N),incomplete_samples=incomplete,clean=(incomplete==0 and not unpaired),
+                deficit_sum=sum(d['deficit'] for d in drops),drops=drops[:40],unpaired=sorted(map(str,unpaired))[:20])
+def p22_proof(app_log,anomaly,other_tex,own_tex):
+    A=[x for x in coll_samples(app_log,anomaly) if x['kind']=='apply']
+    if not A:return dict(verdict='NOT-CONFIRMED',why='no apply sample')
+    a=A[0];bad=[];paths=set(a['levels'])
+    if not any(other_tex in p for p in paths):bad.append(f'{other_tex} (a tile far below every selection filter) not in the set')
+    if any(own_tex in p for p in paths):bad.append(f'the target texture {own_tex} is in its own collateral set')
+    if a['null_slots']<1:bad.append('null_slots < 1 (the empty-slot mesh was not measured through the default material)')
+    return dict(verdict='CONFIRMED' if not bad else 'NOT-CONFIRMED',why=bad,set_size=len(paths),null_slots=a['null_slots'])
+def ev_gcoll(legs):
+    L=LG.by_id();an=L[legs[0]]['anomaly'];al=leg_log(legs[0]);r=gcoll(al,leg_log(legs[1]),an)
+    if L[legs[0]]['fixture']=='F-SYN':r['p2_2']=p22_proof(al,an,'T_TC_UC2','T_TC_UC1')
+    elif not al.all('applied',an):r['verdict']='NOT-ADMITTED'
+    return r
+MWF_BIND=re.compile(r'TEXCORRUPT-(?:DECIDE|REFUSED|CENSUS)     binding .*? resident=(?P<r>-?\d+) max=(?P<m>-?\d+) ')
+def floor_decisions(log,target):
+    out=[];cur=None
+    for l in log.lines:
+        m=RX['tree'].search(l)
+        if m:
+            cur=None
+            if m.group('target')=='='+target:
+                p=PFX.match(l);cur=dict(tag=m.group('tag'),family=m.group('fam'),final=m.group('final'),step=m.group('step'),slots=int(m.group('slots')),qualified=int(m.group('q')),
+                                        frame1000=int(p.group(2)) if p else None,bindings=0,nonresident=0,resident=collections.Counter());out.append(cur)
+            continue
+        if cur is not None:
+            b=MWF_BIND.search(l)
+            if b:
+                cur['bindings']+=1;cur['resident'][f"{b.group('r')}/{b.group('m')}"]+=1
+                if b.group('r')!=b.group('m'):cur['nonresident']+=1
+    for x in out:x['resident']=dict(x['resident'])
+    return out
+MWF_RULE='AMENDMENT 3 (082-07h ruling 4): READ-ONLY, never a gate. For every F-MW leg that decides on the MainWorld floor, each decision block the live tree logged for it (tag, family, engine frame mod 1000, final, slots, qualified, binding residency), with the leg APPLIED / REFUSED counts, beside the frame-1 G0 F-MW census'
+def ev_mw_floor(legs):
+    try:
+        B=LG.by_id();out={}
+        for lg in legs:
+            log=leg_log(lg);an=B[lg]['anomaly'] or None;d=floor_decisions(log,LG.MW_FLOOR)
+            fam=sorted({x['family'] for x in d})
+            out[lg]=dict(role=B[lg]['role'],anomaly=an,decisions=len(d),families=fam,first=[x for x in d if x['tag']!='CENSUS'][:1] or d[:2],
+                         finals={f:collections.Counter(x['final'] for x in d if x['family']==f and x['tag']!='CENSUS').most_common() for f in fam},
+                         nonresident_decisions=sum(1 for x in d if x['tag']!='CENSUS' and x['nonresident']),
+                         applied=len(log.all('applied',an)) if an else None,refused=[m['final'] for m in log.all('refused',an)][:8] if an else None)
+        return dict(verdict='READING',rule=MWF_RULE,floor=LG.MW_FLOOR,legs=out)
+    except Exception as ex:
+        return dict(verdict='READING',rule=MWF_RULE,error=repr(ex)[:300])
+def census_blocks(log):
+    out={}
+    for m in log.all('tree'):
+        if m['tag']=='CENSUS':out.setdefault(m['target'],{})[m['fam']]=m['final']
+    return out
+def g0_fsyn_expected():
+    A=c.fixture_actors();uv={}
+    for r,label,anom,lev,final,step,disp in LG.REASONS:
+        if not lev:uv[LG.N(label)]=final
+    for row,label,anom,f in LG.ENC:uv.setdefault(LG.N(label),'APPLY')
+    exp={}
+    for label,a in A.items():
+        e={'normal':LG.normal_expected(label)}
+        if a['name'] in uv:e['uv']=uv[a['name']]
+        exp['='+a['name']]=e
+    return exp
+def ev_g0(legs):
+    L=LG.by_id()[legs[0]];log=leg_log(legs[0]);cb=census_blocks(log);A=c.fixture_actors()
+    if L['fixture']=='F-MW':
+        exp={'='+LG.MW_FLOOR:{'uv':'APPLY','normal':'no_normal_map'}}
+        for n in LG.MW_NAMED[2:4]:exp['='+n]={'uv':'not_fully_resident','normal':'not_fully_resident'}
+        exp['='+LG.MW_NAMED[4]]={'uv':'no_eligible_slot','normal':'no_eligible_slot'}
+    else:exp=g0_fsyn_expected()
+    find=[];compared=collections.Counter()
+    for t,fams in sorted(cb.items()):
+        e=exp.get(t)
+        if not e:continue
+        for fam,want in e.items():
+            got=fams.get(fam);compared[fam]+=1
+            if got is None or not (got==want or got.startswith(want+':')):find.append(dict(target=t,family=fam,predicted=want,read=got))
+    names={m['name'] for m in log.all('listactor')};missing=[a['name'] for a in A.values() if a['name'] not in names] if L['fixture']=='F-SYN' else []
+    return dict(verdict='READING',targets=len(cb),compared=dict(compared),findings=find[:80],findings_by_family=dict(collections.Counter(f['family'] for f in find)),census=cb if len(cb)<=100 else None,fixture_names_missing=missing,listed_actors=len(names))
+def ev_fixture_names(legs):
+    r=ev_g0(legs);return dict(verdict='PASS' if (r['listed_actors']>0 and not r['fixture_names_missing']) else 'FAIL',missing=r['fixture_names_missing'][:20],listed=r['listed_actors'])
+def ev_trip(legs):
+    d=leg_dir(legs[0]);sd=find_session(d) if d else None
+    if sd is None:return dict(verdict='PASS',note='no run_summary on this leg kind')
+    v=jload(sd/'run_summary.json',{}).get('texcorrupt_rt_mip_mismatch');return dict(verdict='PASS' if v in (0,None) else 'FAIL',texcorrupt_rt_mip_mismatch=v)
+def expected_mode(L):
+    lev=' '.join(L['levers'])
+    if 'TexCorruptTileProbe 2' in lev:return 'tile_probe'
+    if 'IdentityRedraw 1' in lev:return 'identity_redraw'
+    return 'identity'
+def ev_p21(legs):
+    L=LG.by_id();bad=[];n=0
+    for lg in legs:
+        l=L[lg];log=leg_log(lg);s=leg_sess(lg)
+        for m in log.all('applied',l['anomaly']):
+            n+=1;want='slot_not_installed' if m['noapply']=='1' else 'installed'
+            if m['cond']!=want:bad.append(f'{lg}: APPLIED noapply={m["noapply"]} read {m["cond"]}')
+        for m in log.all('noapply2',l['anomaly']):
+            n+=1
+            if m['cond']!='no_expected_set':bad.append(f'{lg}: NoApply 2 read {m["cond"]}')
+        lev=' '.join(l['levers']);na=1 if 'TexCorruptNoApply 1' in lev else (2 if 'TexCorruptNoApply 2' in lev else 0)
+        want={0:'installed',1:'slot_not_installed',2:'no_expected_set'}[na]
+        if s and 'ForeignReplace' not in lev:
+            for e in events(s,l['anomaly']):
+                for si,d in e['detail'].items():
+                    held=e['held'][si];n+=1
+                    if d!=want or held!=(d=='installed'):bad.append(f'{lg} si {si}: detail {d} held {held}, expected {want}');break
+    return dict(verdict='CONFIRMED' if n and not bad else 'NOT-CONFIRMED',readings=n,problems=bad[:12])
+def ev_p23(legs):
+    L=LG.by_id();bad=[];n=0
+    for lg in legs:
+        l=L[lg];s=leg_sess(lg)
+        if not s:continue
+        want=expected_mode(l)
+        for a in s.anno.get('anomalies') or []:
+            if a.get('anomaly_type')==l['anomaly']:
+                n+=1
+                if a.get('anomaly_subtype')!=want:bad.append(f'{lg}: event {a.get("affected_frames",{}).get("start_frame")} subtype {a.get("anomaly_subtype")} != {want}')
+        for e in events(s,l['anomaly']):
+            if any(v!=want for v in e['mode'].values()):bad.append(f'{lg}: labels texcorrupt.mode {set(e["mode"].values())} != {want}')
+    return dict(verdict='CONFIRMED' if n and not bad else 'NOT-CONFIRMED',events=n,problems=bad[:12])
+def ev_static(verdict,why):return lambda legs:dict(verdict=verdict,why=why)
+EVAL={'LUMA':ev_luma,'G11':ev_g11,'BAND':ev_band,'G-ID':ev_gid,'G-ID-M':ev_gid,'G-ID-M-D':ev_gid_d,'G-ID-FMW':ev_gid_mw,'G3':ev_g3,'G3-COUNT':ev_g3_count,'G-RD':ev_grd,
+      'G-BIND-LINK':ev_bind_link,'G-BIND-LAYER':ev_bind_layer,'G-BIND-DEAD':ev_bind_dead,'G-REASON':ev_reason,'G6':ev_g6,'G4':ev_g4,'G-COLL':ev_gcoll,'G0':ev_g0,
+      'FIXTURE-NAMES':ev_fixture_names,'TRIP':ev_trip,'P2-1':ev_p21,'P2-3':ev_p23,'PRE-CLIP':ev_pre_clip,'MW-FLOOR':ev_mw_floor}
+def gate_rows():
+    L=LG.legs();B=LG.by_id();rows=[];add=lambda gate,row,cls,legs,stop,fn=None,**kw:rows.append(dict(gate=gate,row=row,cls=cls,legs=legs,stop=stop,fn=fn or gate,**kw))
+    add('G0','F-SYN','D',['G0_FSYN'],None);add('FIXTURE-NAMES','F-SYN','PRE',['G0_FSYN'],'pre')
+    add('LUMA','F-SYN','Q',['CTL_A'],13);add('G11','read-back','Q',['CTL_A'],10);add('BAND','F-SYN','PRE',['CTL_A','CTL_B'],'pre')
+    add('G0','F-MW','D',['G0_FMW'],None)
+    for row,label,anom,faults in LG.ENC:
+        k=row.replace('-','');idl=f'ID_{k}';nl='CTL_A' if row=='U-C1' else f'NULL_{k}'
+        if row=='MASKED':add('PRE-CLIP',row,'PRE',[nl],'pre')
+        add('G-ID',row,'Q',[idl,nl]+[f'WC_{k}_{f.upper()}' for f in faults],3);add('G3',row,'Q',[idl,nl],7)
+    add('G-ID-M','SHARED','Q',['ID_SHARED','NULL_SHARED','WC_SHARED_CHANSWAP'],4);add('G3','SHARED','Q',['ID_SHARED','NULL_SHARED'],7)
+    for x in L:
+        if x['role']=='ID' and x['row'].startswith('M-'):
+            sfx=x['leg'][3:];nl='NULL_'+sfx;fl=[y['leg'] for y in L if y['leg'].startswith('WC_'+sfx+'_') and y.get('fault_class')=='Q' and y['row']==x['row']]
+            add('G-ID-M',x['row'],'Q',[x['leg'],nl]+fl,4);add('G3',x['row'],'Q',[x['leg'],nl],7)
+            for y in L:
+                if y.get('fault_class')=='D' and y['row']==x['row']:add('G-ID-M-D',x['row']+'-'+y['fault'],'D',[x['leg'],nl,y['leg']],None)
+    for key in ('OPAQUE','ALPHA'):add('G-RD','RD-'+key,'Q',[f'RD_{key}',f'RDNULL_{key}',f'RDNOCLEAR_{key}'],6)
+    add('G-BIND-LINK','(1) link','Q',[],2);add('G-REASON','T4','Q',['REASON_T4'],2,bind='(2) alias');add('G-BIND-LAYER','(3) layer','Q',['BIND_TILE','BIND_TILENULL','BIND_ID','BIND_IDNULL'],2)
+    add('G-BIND-DEAD','(4) dead','D',['BIND_DEAD'],None)
+    for r,label,anom,lev,final,step,disp in LG.REASONS:
+        if r=='T4':continue
+        if r in LG.NOT_RUN:add('G-REASON',r,'D',[],None,fn='DECLARED-NOT-RUN',declared=LG.NOT_RUN[r]);continue
+        add('G6' if r=='S3A' else 'G-REASON',r,'Q',[f'REASON_{r}'],9)
+    for x in L:
+        if x['role']=='G4' and x['leg']!='G4_DES2_UV':add('G4',x['row'],'Q',[x['leg']],8)
+    add('G4','DES2-UV','Q',['G4_DES2_UV','G4_DES_UV'],8,note='P2-6: NoApply 2 registers the watches; EndPlay while valid ends both legs at the same frame')
+    add('G4','LEVEL-CHANGE','Q',[],8,fn='STATIC',static=('UNEXERCISED','IAI.Bench.ChangeTeardownAt refuses off CB_GateLevel and a packaged unattended leg has no mid-run console channel; the m53 world-end callback is exercised by END-UV/END-NM'))
+    add('G4','RECREATED-COMPONENT','Q',[],8,fn='STATIC',static=('UNEXERCISED','no S1 bench lever re-creates a component mid-event (plan R12.2 lists none)'))
+    add('G-COLL','F-SYN','D',['COLL_A_FSYN','COLL_N_FSYN'],None)
+    add('BAND','F-MW','D',['FMW_CTL_A','FMW_CTL_B'],None,save='band-fmw.json');add('G-ID-FMW','FMW','Q',['FMW_ID','FMW_CTL_A','FMW_CTL_B'],3);add('G3','FMW','Q',['FMW_ID','FMW_CTL_A'],7,fixture='F-MW')
+    for r,tgt,anom,final,step,disp in LG.MW_REASONS:
+        if r in LG.DECLARED_CANNOT:add('G-REASON',r,'D',[f'REASON_{r}'],None,fn='DECLARED-CANNOT',declared=LG.DECLARED_CANNOT[r])
+        else:add('G-REASON',r,'Q',[f'REASON_{r}'],9)
+    add('G-COLL','F-MW','D',['COLL_A_FMW','COLL_N_FMW'],None)
+    add('MW-FLOOR','decision-frame','D',['G0_FMW','FMW_CTL_A','FMW_CTL_B','FMW_ID','REASON_A2','COLL_A_FMW','COLL_N_FMW'],None)
+    add('G-REASON','S8','Q',['REASON_S8'],9)
+    add('G3-COUNT','COUNT','Q',[x['leg'] for x in L if x['role'] in ('ID','NULL') and x['leg'].startswith(('ID_','NULL_','CTL_A'))],7)
+    for x in L:add('TRIP',x['leg'],'Q',[x['leg']],5)
+    for x in L:
+        if x['leg']!='CTL_A':add('G11',x['leg'],'Q',[x['leg']],10)
+    m53=[x['leg'] for x in L if x['kind'] in ('capture','close_after','close_mid') and x['anomaly']]
+    add('P2-1','in-engine','PROOF',m53,None);add('P2-3','in-engine','PROOF',m53,None)
+    return rows
+def run_gate(g):
+    if g['fn']=='STATIC':v,why=g['static'];return dict(verdict=v,why=why)
+    if g['fn']=='DECLARED-CANNOT':return dict(verdict='FIXTURE-CANNOT-EXERCISE',declared=g['declared'],reading=ev_reason(g['legs']))
+    if g['fn']=='DECLARED-NOT-RUN':return dict(verdict='FIXTURE-CANNOT-EXERCISE',declared=g['declared'],leg_run=False)
+    fn=EVAL[g['fn']]
+    if g['gate']=='G3':return fn(g['legs'],fixture=g.get('fixture','F-SYN'))
+    return fn(g['legs'])
+HALT={'FAIL':1,'INVALID-PAIR':3,'INVALID-FIXTURE':3}
+ADMIT_CODE={'FIXTURE-CANNOT-EXERCISE':12,'NO-CENSUS':3}
+FAMKEY={'uv_corruption':'uv','normal_corruption':'normal'}
+ADMIT_GATES=('G-ID','G-ID-M','G3','G-RD','G-BIND-LAYER','G4')
+def admission_needs(g,B=None):
+    B=B or LG.by_id()
+    if g.get('cls')!='Q' or g.get('fn') in ('STATIC','DECLARED-CANNOT'):return []
+    legs=[B[l] for l in g['legs'] if l in B]
+    if not legs or any(l['fixture']!='F-SYN' for l in legs):return []
+    if g['gate'] in ADMIT_GATES:pass
+    elif g['gate']=='G-REASON' and all((l.get('expect') or {}).get('final')=='APPLY' for l in legs):pass
+    else:return []
+    need={(l['target'],FAMKEY[l['anomaly']]) for l in legs if l['anomaly'] in FAMKEY}
+    for l in legs:
+        for x in l.get('after_start') or []:
+            m=re.match(r'IAI\.Apply (\S+) =(\S+)$',x)
+            if m and m.group(1) in FAMKEY:need.add((m.group(2),FAMKEY[m.group(1)]))
+    return sorted(need)
+def admission_check(g,B=None):
+    need=admission_needs(g,B)
+    a=accepted('G0_FSYN')
+    if a is None:return dict(verdict='NO-CENSUS',why='no accepted G0_FSYN census on this build; admission cannot be read',needs=need)
+    cb=census_blocks(leg_log('G0_FSYN'));rows=[];cannot=[]
+    for t,fam in need:
+        got=(cb.get('='+t) or {}).get(fam);ok=(got=='APPLY');r=dict(target=t,family=fam,census_final=got,admitted=ok);rows.append(r)
+        if not ok:cannot.append(r)
+    v='ADMITTED' if not cannot else 'FIXTURE-CANNOT-EXERCISE'
+    return dict(verdict=v,census=a['label'],needs=rows,why=None if not cannot else 'G0 census does not admit: '+'; '.join(f"{x['target']} {x['family']} read {x['census_final']}" for x in cannot))
+def admit_key(g):return f"{g['gate']} {g['row']}"
+def precheck_before(L,rows=None):
+    done={x['row'] for x in gates_live() if x['gate']=='ADMIT'};B=LG.by_id();out=[]
+    for g in (rows or gate_rows()):
+        if L['leg'] not in g['legs'] or not admission_needs(g,B) or admit_key(g) in done:continue
+        r=admission_check(g,B);row=dict(gate='ADMIT',row=admit_key(g),cls='ADMIT',stop=g['stop'],legs=g['legs'],verdict=r['verdict'],readings=r,utc=c.now(),before_leg=L['leg'])
+        gate_add(row);done.add(admit_key(g));out.append(row);print(json.dumps(dict(gate='ADMIT',row=admit_key(g),verdict=r['verdict']),default=str),flush=True)
+        if r['verdict']!='ADMITTED':
+            c.log_event('admission-precheck-stop',row=admit_key(g),leg=L['leg'],verdict=r['verdict'],why=r.get('why'))
+            raise Stop(ADMIT_CODE[r['verdict']],f"{r['verdict']} before {L['leg']}: {admit_key(g)} (stop row {g['stop']}) - {r.get('why')}; a harness stop, not a feature FAIL; the census reason is reported so the cause can be ruled")
+    return out
+def evaluate_ready(final=False,stop=True):
+    done={(x['gate'],x['row']) for x in gates_live()};acc={x['leg'] for x in ledger_live() if x['status']=='ACCEPTED'};out=[]
+    for g in gate_rows():
+        if (g['gate'],g['row']) in done:continue
+        if g['gate'] in ('P2-1','P2-3','G3-COUNT') and not final:continue
+        if not all(l in acc for l in g['legs']):continue
+        try:r=run_gate(g)
+        except Exception as ex:r=dict(verdict='EVALUATOR-ERROR',why=repr(ex)[:300])
+        row=dict(gate=g['gate'],row=g['row'],cls=g['cls'],stop=g['stop'],legs=g['legs'],verdict=r['verdict'],readings=r,utc=c.now());gate_add(row);out.append(row)
+        if g.get('save'):jsave(c.RUN/g['save'],r)
+        print(json.dumps(dict(gate=g['gate'],row=g['row'],verdict=r['verdict']),default=str),flush=True)
+        if stop:
+            if r['verdict']=='EVALUATOR-ERROR':raise Stop(7,f'{g["gate"]} {g["row"]}: evaluator error {r["why"]}')
+            if g['cls']=='Q' and r['verdict'] in HALT:raise Stop(HALT[r['verdict']],f'{g["gate"]} {g["row"]} {r["verdict"]} (stop row {g["stop"]}): {str(r.get("why"))[:400]}')
+            if g['cls']=='PRE' and r['verdict']=='FIXTURE-CANNOT-EXERCISE':raise Stop(ADMIT_CODE['FIXTURE-CANNOT-EXERCISE'],f'{g["gate"]} {g["row"]} FIXTURE-CANNOT-EXERCISE: {str(r.get("why"))[:400]}; a harness stop, not a feature FAIL')
+            if g['cls']=='PRE' and r['verdict'] not in ('PASS','VALID'):raise Stop(3,f'{g["gate"]} {g["row"]} {r["verdict"]}: the instrument cannot judge; NEEDS-DECISION')
+    return out
+def recorded_halt():
+    for x in gates_live():
+        if (x['cls']=='Q' and x['verdict'] in HALT) or (x['cls']=='PRE' and x['verdict'] not in ('PASS','VALID')) or (x['cls']=='ADMIT' and x['verdict']!='ADMITTED') or x['verdict']=='EVALUATOR-ERROR':return x
+    return None
+def run_sequence(runner=real_runner,**kw):
+    c.RUN.mkdir(parents=True,exist_ok=True)
+    h=recorded_halt()
+    if h:raise Stop(ADMIT_CODE.get(h['verdict'],1) if (h['cls']=='ADMIT' or h['verdict']=='FIXTURE-CANNOT-EXERCISE') else 1,f'already recorded {h["gate"]} {h["row"]} {h["verdict"]}; stays stopped until a ruling')
+    for x in ledger_live():
+        if x['status']=='NOT-RUN':raise Stop(2,f'{x["leg"]} already recorded NOT-RUN')
+    evaluate_ready()
+    for L in LG.legs():
+        if accepted(L['leg']) is None:precheck_before(L)
+        run_leg(L,runner=runner,**kw);evaluate_ready()
+    evaluate_ready(final=True)
+    return summary()
+def summary():
+    G=gates_live();led=ledger_live();s=dict(utc=c.now(),legs_accepted=len({x['leg'] for x in led if x['status']=='ACCEPTED'}),legs_total=len(LG.legs()),
+         attempts=len([x for x in led if x.get('label')]),invalid=len([x for x in led if str(x.get('status','')).startswith('INVALID')]),
+         gates=collections.Counter(f"{x['gate']}:{x['verdict']}" for x in G),halt=recorded_halt(),
+         superseded=dict(attempts=len(sup_labels()),gate_rows=len(sup_gates()),entries=len(sup()['entries'])))
+    jsave(c.RUN/'summary.json',s);return s

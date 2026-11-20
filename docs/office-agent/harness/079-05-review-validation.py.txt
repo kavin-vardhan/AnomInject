@@ -1,0 +1,180 @@
+"""Independent offline review probes. Loads frozen git blobs; writes only beside this file."""
+import contextlib
+import hashlib
+import io
+import json
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import types
+
+sys.dont_write_bytecode = True
+ROOT = pathlib.Path(__file__).resolve().parent
+REPO = pathlib.Path(r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector")
+BANK = pathlib.Path(r"D:\IntrusiveAnomalies\_bench_sessions_bank")
+REF = "57e91cd8c9f5d3e46a455b7de0b94964f036c0ec"
+
+
+def load(name, path):
+    raw = subprocess.check_output(["git", "-C", str(REPO), "show", REF + ":" + path])
+    mod = types.ModuleType(name)
+    mod.__file__ = str(REPO / path)
+    sys.modules[name] = mod
+    exec(compile(raw, mod.__file__, "exec"), mod.__dict__)
+    return mod, hashlib.sha256(raw).hexdigest()
+
+
+mlo, mlo_sha = load("measure_label_offset", "tools/measure_label_offset.py")
+vc, vc_sha = load("review_vc", "tools/verify_capture.py")
+RESULT = {"ref": REF, "verify_sha256": vc_sha, "measure_sha256": mlo_sha}
+
+
+def read_gate(path, **kwargs):
+    code, lines = vc.label_pixel_gate(str(path), 8, 4, 1, quiet=False, **kwargs)
+    result = {"path": str(path), "code": code, "lines": lines}
+    print(str(path), flush=True)
+    for line in lines:
+        if line.startswith("idx=") or line.strip().startswith(("camera motion", "PASS ", "VERDICT")):
+            print(line, flush=True)
+    return result
+
+
+def clean_pool(path):
+    paths = vc._frame_paths(str(path), mlo)
+    events = vc._load_gate_events(str(path), mlo)
+    windows = [(min(e["indices"]), max(e["indices"])) for e in events if e["indices"]]
+    for guard in range(vc.BASELINE_GUARD_FRAMES, -1, -1):
+        blocked = {k for lo, hi in windows for k in range(lo - guard, hi + guard + 1)}
+        base = [k for k in sorted(paths) if k not in blocked and k - 1 not in blocked and k - 1 in paths]
+        if len(base) >= vc.MIN_BASELINE_FRAMES:
+            break
+    hot = vc._HotCache(mlo.FrameCache(paths, 0, limit=64), 8)
+    values = {k: hot.whole_frame(k) for k in base}
+    return base, values
+
+
+def custom_motion_fixture(root, name, local_only=False, alternating=False):
+    from PIL import Image, ImageDraw
+    path = root / name
+    frames = path / "Actual_Frames"
+    frames.mkdir(parents=True)
+    width, height = (320, 240) if local_only else (160, 120)
+    total, onset, end = 100, 60, 67
+    x, y, rw, rh = 40, 30, 50, 50
+    bg = vc._synth_backdrop(width, height, total, 10, 16, 0)
+    offset = 0
+    rows = []
+    for k in range(total):
+        if alternating:
+            offset += 1 if k % 2 == 0 else 3
+        elif local_only or k >= 36:
+            offset += 10 if k == onset + 1 else 2
+        if local_only:
+            im = Image.new("RGB", (width, height), (90, 90, 90))
+            im.paste(bg.crop((offset, 0, offset + rw, rh)).convert("RGB"), (x, y))
+        elif k < 36:
+            im = Image.new("RGB", (width, height), (90, 90, 90))
+        else:
+            im = bg.crop((offset, 0, offset + width, height)).convert("RGB")
+        if onset <= k <= end:
+            side = 10 if alternating else 20
+            ImageDraw.Draw(im).rectangle((x + 12, y + 12, x + 11 + side, y + 11 + side), fill=(255, 255, 255))
+        im.save(frames / ("frame_%05d.png" % k))
+        entry = {"id": "missing_texture", "target_name": "SynthTarget", "start_frame": 1000 + onset,
+                 "bbox_valid": True, "bbox_px": [x, y, rw, rh]}
+        rows.append({"frame_index": 1000 + k, "session_index": k,
+                     "image": "Actual_Frames/frame_%05d.png" % k, "width": width, "height": height,
+                     "anomalies": [entry] if onset <= k <= end else []})
+    (path / "labels.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    ann = {"anomalies": [{"anomaly_type": "missing_texture", "manifested": True,
+                          "affected_frames": {"start_frame": onset, "end_frame": end,
+                                              "frame_indices": list(range(onset, end + 1))},
+                          "affected_objects": {"primary_index": 0, "nodes": [{"name": "SynthTarget"}]}}]}
+    (path / "annotation.json").write_text(json.dumps(ann), encoding="utf-8")
+    result = read_gate(path)
+    base, values = clean_pool(path)
+    near = vc._nearest_baseline(base, onset, end, 24)
+    result.update(expected="Aligned labels: PASS if measurable, otherwise NOT-MEASURABLE; never SHIFT/NOT-VISIBLE",
+                  exact_first24_motion=mlo.median_or_none([values[k] for k in base[:24]]),
+                  exact_near24_motion=mlo.median_or_none([values[k] for k in near]),
+                  first24_indices=base[:24], near24_indices=near)
+    print("MOTION", result["exact_first24_motion"], result["exact_near24_motion"], flush=True)
+    return result
+
+
+mode = sys.argv[1] if len(sys.argv) > 1 else "probes"
+scratch = pathlib.Path(tempfile.mkdtemp(prefix="079-05-scratch-", dir=ROOT)).resolve()
+assert scratch.is_relative_to(ROOT) and scratch.name.startswith("079-05-scratch-")
+try:
+    if mode == "probes":
+        RESULT["probes"] = [custom_motion_fixture(scratch, "quiet_prefix_then_motion"),
+                            custom_motion_fixture(scratch, "small_moving_region", local_only=True),
+                            custom_motion_fixture(scratch, "small_region_variable_motion", local_only=True, alternating=True)]
+        batch = scratch / "batch"
+        vc._synth_session(str(batch), "a/session_same")
+        vc._synth_session(str(batch), "b/session_same", blank_region=True)
+        missing = batch / "c" / "session_missing" / "Actual_Frames"
+        missing.mkdir(parents=True)
+        out = scratch / "batch_output"
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream):
+            rc = vc.label_pixel_batch(str(batch), str(out), 8, 4, 1, True, True)
+        RESULT["batch"] = {"rc_report_only": rc, "stdout": stream.getvalue(),
+                           "files": {p.name: p.read_text(encoding="utf-8") for p in out.iterdir() if p.is_file()}}
+        print("BATCH_RC", rc, "FILES", list(RESULT["batch"]["files"]), flush=True)
+        print(RESULT["batch"]["files"]["SUMMARY.txt"], flush=True)
+    elif mode == "bank":
+        names = ["M49_GEDGE_BL_NAT", "M49_GEDGE_CT_NAT", "M49_GEDGE_MO_NAT", "M49_GEDGE_MT_NAT",
+                 "M49_GEDGE_BL_SYN", "M49_GEDGE_MT_SYN", "A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA", "M50L_LG9"]
+        RESULT["bank"] = []
+        for name in names:
+            candidates = sorted((BANK / name).glob("session_*"))
+            assert len(candidates) == 1, (name, candidates)
+            record = read_gate(candidates[0])
+            record["name"] = name
+            RESULT["bank"].append(record)
+    elif mode == "recovery":
+        srcs = sorted((BANK / "A2L_LEGA").glob("session_*"))
+        assert len(srcs) == 1
+        RESULT["recovery"] = []
+        original = vc._dominant_edge
+        for delta in (0, 1, -1):
+            dst = scratch / ("A2L_delta_%+d" % delta)
+            vc._shifted_copy_of(str(srcs[0]), str(dst), delta)
+            calls = []
+
+            def observe(*args, **kwargs):
+                value = original(*args, **kwargs)
+                calls.append({"lo": args[1], "hi": args[2], "tau": args[5], "found": value})
+                return value
+
+            vc._dominant_edge = observe
+            try:
+                record = read_gate(dst, motion_cap=1.0)
+            finally:
+                vc._dominant_edge = original
+            run_details = [line for line in record["lines"] if re.match(r"\s+run\[\d+\.\.\d+\]  d\(", line)]
+            assert len(calls) == 2 * len(run_details), (len(calls), len(run_details))
+            edges = []
+            for n, line in enumerate(run_details):
+                start, end = map(int, re.search(r"run\[(\d+)\.\.(\d+)\]", line).groups())
+                on, off = calls[2*n]["found"][0], calls[2*n+1]["found"][0]
+                edges.append({"run": [start, end], "onset_offset": None if on is None else on-start,
+                              "end_offset": None if off is None else off-(end+1)})
+            record.update(delta=delta, edge_calls=calls, per_run_edges=edges)
+            RESULT["recovery"].append(record)
+            print("ALL_EDGES", json.dumps(edges), flush=True)
+    else:
+        raise ValueError(mode)
+finally:
+    for path in scratch.rglob("*"):
+        if path.is_symlink():
+            path.unlink()
+    assert scratch.resolve().is_relative_to(ROOT)
+    shutil.rmtree(scratch)
+    outfile = ROOT / ("079-05-validation-" + mode + ".json")
+    outfile.write_text(json.dumps(RESULT, indent=2) + "\n", encoding="utf-8")
+    print("SAVED", outfile, flush=True)

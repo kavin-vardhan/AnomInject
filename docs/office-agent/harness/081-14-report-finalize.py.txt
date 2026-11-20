@@ -1,0 +1,376 @@
+from pathlib import Path
+import datetime, hashlib, json
+
+B=Path(r'D:\IntrusiveAnomalies'); E=B/'_reviews/081-14-evidence'; R=B/'StackOBot/Plugins/AnomalyInjector'
+def read(p): return json.loads(p.read_text(encoding='utf-8'))
+def write(p,x): p.write_text(json.dumps(x,indent=2),encoding='utf-8')
+def sha(p):
+ with p.open('rb') as f: return hashlib.file_digest(f,'sha256').hexdigest()
+natural=read(E/'natural-requalification.json'); synth=read(E/'nohold-results.json'); lyra=read(E/'lyra-results.json')
+assert [x['status'] for x in natural]==['PASS-REQUALIFIED']*2
+assert len(synth)==1 and synth[0]['status']=='PASS'
+assert [x['status'] for x in lyra]==['INVALID-FIXTURE','INVALID-FIXTURE','PASS','PASS','INVALID-FIXTURE','FAIL']
+g=lyra[-1]; session=Path(g['session']); audit=read(E/g['label']/'measurement-audit.json'); summary=read(session/'run_summary.json')
+assert audit['events']==2 and audit['pairs']==8 and audit['measured']==0 and audit['reasons']=={'closure_timeout':8}
+assert g['_l2_pre.json']['status']==g['_l2_post.json']['status']=='PASS-L2'
+assert (E/'lyra-restored.json').exists()
+log=E/g['label']/'game.log'; lines=log.read_text(encoding='utf-8',errors='replace').splitlines()
+source_refs={
+ 'Source/AnomalyCapture/Private/AnomalyChangeStage.cpp': {'reservation':[155,161],'terminal_and_gap_rules':[252,281]},
+ 'Source/AnomalyCapture/Private/AnomalyChangeMeasurement.cpp': {'phase_close_deadline':[66,70],'final_indeterminate':[135,154]}}
+cause={
+ 'date':'2026-09-23','status':'FIXTURE-VALID / MEASUREMENT-FAIL','session':str(session),
+ 'measurement_audit':audit,'run_summary':summary,
+ 'log_sha256':sha(log),
+ 'selected_log_lines':[{'line':n,'text':line} for n,line in enumerate(lines,1) if any(s in line for s in ('RESTORE VERIFIED','REFUSED not_restored','REFUSED not_streamable','HOLD VERIFIED','IAI.Auto.Fire:'))],
+ 'source_commit':'cb14f3109d56d9b6b25ab4ccb72472b5c0f2eae8',
+ 'source_evidence':{name:{'sha256':sha(R/name),'ranges':ranges} for name,ranges in source_refs.items()},
+ 'observed':[
+  'Two applied fires, Cube4 and Cube3; seven held/labelled frames per event; eight required window pairs all closure_timeout.',
+  'Eight not_restored refusals and two not_streamable refusals; first texture restoration verified after 41 engine frames.',
+  'FinishRun summary has three textures awaiting restore, restore_frames_max 83; main-log tail verifies all three after 84 frames.',
+  '19 late results and zero late-record mutations; 87 budget_exceeded identity refusals; high-water 39398400 of 67108864 bytes.'
+ ],
+ 'source_interpretation':[
+  'Phase close bounds pending work by two seconds OR eight additional issued capture indices. Work emits closure_timeout when an unresolved item reaches that bound.',
+  'ReserveLocked checks both total retained bytes and a cap of three colour buffers. Therefore budget_exceeded can coexist with byte high-water below MaxBytes.'
+ ],
+ 'not_established':[
+  'Exact missing completion at each timeout and whether wall-time or frame deadline fired are not exported by these artifacts.',
+  'No claim that all budget refusals were caused by bytes or that changing the budget would resolve the phase timeouts.',
+  'No numeric change observation exists for either event; indeterminate is not measured zero or NO-TRACE.'
+ ],
+ 'action':'No retry, code change, timeout change or gate waiver. Chat disposition required; Stage 3 held.'
+}
+write(E/'g3-cause-read.json',cause)
+ledger={
+ 'date':'2026-09-23','verdict':'NEEDS-DECISION','chat_review':'REQUIRED: valid G270 measurement failure and further-work disposition',
+ 'authority':'081-13-chat-ruling-nohold-requalify-g2.md, including pre-dispatch Ruling 2 clarification',
+ 'prior_accepted_measurement_legs':24,'prior_legacy_comparison_legs':12,
+ 'natural_requalification':natural,'post_hoc_precondition_amendments':1,
+ 'synthetic':synth,'lyra':lyra,'lyra_auto_dropped':False,
+ 'new_physical_launches':7,'new_capture_starts':5,'no_capture_launches':2,
+ 'new_fixture_invalid_attempts':3,'new_valid_measurement_passes':3,'new_valid_measurement_failures':1,
+ 'new_natural_launches':0,'natural_attempts_remaining':0,'synthetic_attempts_remaining':2,
+ 'g3_attempts_used':2,'g3_nominal_attempts_unused':1,'g3_retry_authorized_after_valid_failure':False,
+ 'stage_2':'INCOMPLETE: scoped R5 G270 observation unresolved','stage_3':'HELD',
+ 'implementation_changes':0,'builds':0,'harness_fault_repairs':0,
+ 'restoration':read(E/'lyra-restored.json'),
+ 'next_action':'Chat rules on G270 observation failure; do not broaden the first-leg auto-drop rule or waive event/measurement gates.'
+}
+write(E/'final-ledger.json',ledger)
+
+report='''# 081-14 — NoHold qualified; scoped Lyra G270 observation unresolved
+
+2026-09-23. **NEEDS-DECISION.** NoHold passes in both orders, and both Lyra
+twins pass. The fixture-valid G270 attempt produced only two events and no
+measured evidence pair. Scoped R5 is incomplete, so the conditional release
+to Stage 3 has not been met.
+
+**Chat review REQUIRED** for the G270 failure disposition and further work.
+**Chat review NOT REQUIRED** for the completed, authorized requalification,
+captures, bounded cause read, documentation and restoration. The next mandatory
+checkpoint is Chat's ruling on the questions below. No Code brief was dispatched.
+
+Authority: `081-13-chat-ruling-nohold-requalify-g2.md`, read in full, including
+the pre-dispatch tick-order-only clarification; inherited 081-03 and 081-07.
+No implementation change or build. StackOBot used A699E9EE; Lyra used the
+qualified eleven-file 6ef55ade archive. All earlier accepted 24 measurement
+legs and both six-leg legacy comparisons remain accepted.
+
+## 1. NoHold natural: dated post-hoc precondition amendment
+
+**2026-09-23 amendment: exactly ONE in pilot metrics, affecting two artifacts.**
+Requalified the same 081-13 A2/A3 captures against independent m52
+`M52E_M52E_G2_CANFAIL/session_20260920-214247`, joined on saved `session_index`.
+Both match **90/90 rows at 0 cm / 0 degrees**, within the unchanged 1 cm / 0.1-degree
+tolerance. No new natural launch; the natural allowance remains exhausted.
+
+Original G3 audits and failed-pose-precondition classifications remain untouched
+in 081-13 (`INVALID-FIXTURE` in the original ledger). The new ledger embeds those
+original dispositions alongside `PASS-REQUALIFIED`. The original CB Cube A1
+remains `FAILED-PRECONDITION(recipe)`. No claim that the old precondition passed.
+
+The prior diagnostics now become the qualified gate readings for each artifact:
+three applied fires; `held:false` throughout deferred telemetry; three final
+events with `phase_count:0` and `no_labelled_frames`; zero pairs and zero legacy
+injected frames; three legacy events + zero vetoes = three finals. Applied-fire
+identities are engine frames 20/58/96. Two events end by removal/timeout, the last
+by run end; NoHold bias suppression is logged. Chat accepted the earlier audit
+correction to count actual applied-fire lines instead of M23 first-arm lines.
+
+Evidence: `081-14-evidence/natural-requalification.json` and
+`pilot-metrics-delta.json`, including reference hashes and the old dispositions.
+
+## 2. NoHold synthetic: PASS on attempt 1
+
+The local M52E inventory agrees with Chat's bank lookup: G2 is NoHold natural;
+G10 is HOLD synthetic; no NoHold synthetic twin exists. No contradictory bank
+was found (`m52-bank-lookup.json`).
+
+Declared before launch: use only the tick-order exception, reference G2 on engine
+`frame_index`, every counterpart within 1 cm / 0.1 degrees and at least 80/90
+matched. Map, target, NoHold, config, seed and flags stayed the same; only tick
+order and the unique output label changed. No placement, lock, AA/timeout
+override or build was introduced.
+
+`M55S2R14_NOHOLD_S_A1` passed **90/90 counterpart rows at 0 cm / 0 degrees** and
+53/53 foreground samples. Three actual applied fires with matching identities,
+all `held:false`, three zero-phase `no_labelled_frames` finals, zero pairs,
+three legacy events, zero vetoes and zero legacy injected frames. Synthetic
+used one of three attempts. High-water 7,372,800 bytes; retained bytes and
+arithmetic/persistence/late-mutation/drop invariant counters were zero.
+
+**Counter caveat carried to Stage 3:** each NoHold capture has 67 deferred legacy
+telemetry rows and `positive_frames:67`, while injected frames are zero. Those
+rows have `target_pixels:-1`, `observable:null`, `held:false`. Raw anomaly rows
+and this counter do not prove labelled positive windows. The field reference
+must explain deferred-onset counting, and Code must review client-reader
+assumptions. No m55 counter code change is requested.
+
+## 3. Scoped R5 Lyra
+
+Only natural null/solid twins and the G270 observation were attempted. Source
+cb14f31 and all eleven archived modules were verified before launches. Host AA
+and exposure defaults were retained. The sequence was world-ready input lock,
+45-second settle, one compiled L2 placement, independent fresh L1 within
+150 cm / 10 degrees, then capture. The full log audit checks the
+placement-to-capture interval for respawn/possession, including buffered lines.
+Foreground is required throughout capture. Owned processes were joined after
+exit. Original Lyra source and nine modules have been restored.
+
+### Attempt ledger
+
+| Leg | Attempt | Fixture | Measurement / disposition |
+|---|---:|---|---|
+| null_effect | 1 | INVALID: post-capture L2 audit | Captured, preserved, uncredited |
+| null_effect | 2 | INVALID: pre-capture L2 audit | No capture |
+| null_effect | 3 | PASS | PASS: 5 events, 8/20 pairs measured |
+| solid_swap | 1 | PASS | PASS: 5 events, 8/20 pairs measured |
+| G270 stuck_low_mip | 1 | INVALID: L1 | No capture |
+| G270 stuck_low_mip | 2 | PASS | FAIL: 2 events, 0/8 pairs measured |
+
+Null A1 passed L1 at 0.115287 cm / 0 degrees and foreground 82/82, but the
+post-capture audit found death/respawn messages in the protected interval.
+Null A2 passed L1 at 0.009000 cm / 0.082568 degrees, but pre-capture L2 found
+restart/avatar messages after placement. Both remain invalid. Null A3 passed,
+so the first-leg three-invalid auto-drop condition **did not occur**.
+
+G270 A1 failed L1 at 1,057.457297 cm / 0.082568 degrees after a respawn following
+placement. The runner correctly stopped before capture. G270 A2 passed L1 at
+0.115287 cm / 0 degrees, L2 before and after capture, and foreground 138/138.
+It is a valid measurement failure, not a fixture retry opportunity. No A3 ran.
+
+### Qualified twins
+
+| Gate | Onset gt8/n | Onset control gt8/n | Foreground |
+|---|---|---|---:|
+| null_effect A3 | .002807–.009017, all 5 measured | .012235–.080889 | 86/86 |
+| solid_swap A1 | 1.0, all 5 measured | .003823–.050936 | 83/83 |
+
+Controls are reported without subtraction. Each twin has eight `budget_exceeded`
+and four `predecessor_missing` window refusals; 71 frozen mask CRCs verified;
+high-water 19,353,600 bytes, retained bytes zero and invariant counters zero.
+This establishes separation of the measured onsets, not full window coverage
+or a saved-colour oracle. Full readings: `lyra-twin-readings.json`.
+
+### G270 A2: bounded cause read
+
+Recipe: 1920x1080, 150 frames, seed 4242, Config 2/4/8/4/0, natural order,
+auto pool restricted to stuck_low_mip, MaxCoAffected 8. No content threshold was
+predicted; the inherited ordinary-event floor and measured-observation gate
+remain in force. The unchanged auditor reports:
+
+- Fewer than three final events.
+- Fewer than three legacy events.
+- No measured window pair.
+
+The two applied events are `stuck_low_mip@2822` on Cube4 and `stuck_low_mip@2903`
+on Cube3. Each has seven held/labelled frames (saved indices 21–27 and 82–88),
+one indeterminate phase and four required pairs. **All eight pairs are
+`closure_timeout`; there is no numeric change observation.** Values of -1 are
+unmeasured sentinels, not measured zero or NO-TRACE. Fourteen frozen mask CRCs
+verified. Legacy and sidecar both have two events, with zero vetoes.
+
+**Event yield:** the log and summary record eight `not_restored` refusals and
+two `not_streamable` refusals. Both applied holds used three paint textures.
+The first restoration was verified after 41 engine frames. At FinishRun the
+summary still had three textures awaiting restoration and a maximum of 83
+restore frames; the main-log tail later verifies all three at 84 frames.
+The summary was not rewritten. These refusals explain lost firing opportunities;
+they do not make the two-event run satisfy the three-event gate.
+
+**Evidence refusal:** all 150 identity pairs were refused: first_frame 1,
+predecessor_missing 7, predecessor_undelivered 2, mask_payload_missing 34,
+budget_exceeded 87, closure_timeout 19. The summary reports 19 late results,
+23 multi-ready colour drains, zero late-record mutations and zero arithmetic,
+persistence or row-drop invariant counters. High-water is **39,398,400 bytes**,
+below the 67,108,864-byte setting; retained bytes are zero.
+
+The source gives the relevant mechanisms: `AnomalyChangeMeasurement.cpp:66`
+closes a phase with a two-second deadline; `AnomalyChangeStage.cpp:256–279`
+also makes eight subsequent issued capture indices terminal and refuses pending
+work with `closure_timeout`. `ReserveLocked` at line 155 checks both bytes and
+a **three-colour-buffer cap**, so a budget refusal need not hit the byte ceiling.
+These mechanisms are consistent with the observed refusal pattern. The artifacts
+do not identify which completion was missing at each timeout or which deadline
+won. They do not establish that increasing the byte budget would fix it. No
+timeout, capacity, recipe or source change was made to seek a better result.
+
+Evidence: `g3-cause-read.json`, the full raw main log, `run_summary.json`,
+`change_evidence.jsonl`, `annotation.json`, `labels.jsonl`, and the unchanged
+`LYRA_G3_N_A2/measurement-audit.json`. Sustained FPS was 29.4936 with pacing on;
+this is not a Stage 3 cost gate and does not clear the earlier MAIN4 concern.
+
+## 4. Accounting and disposition
+
+Seven new physical launches: one NoHold synthetic and six Lyra attempts.
+Five captures started; two launches stopped before capture. Three attempts were
+fixture-invalid, three new captures passed measurement, and one fixture-valid
+capture failed measurement. The two natural requalifications are old artifacts,
+not new launches. Exactly one post-hoc precondition amendment is counted.
+
+Natural has zero attempts remaining. Synthetic has two unused. G270 used two
+attempts, but its unused third slot does not authorize retrying a valid failed
+result. No harness fault repair, build or implementation change occurred.
+
+NoHold both orders and both Lyra twins are qualified. R5 G270 is unresolved and
+has not been auto-dropped. **Stage 3 HELD; Chat review REQUIRED** to dispose of
+this valid failed observation. The recommended next step is a bounded diagnosis
+of closure latency/completion readiness and a separately declared qualification
+recipe, if Chat retains this gate. No event-floor waiver or widened auto-drop
+rule has been applied privately.
+
+## 5. Coverage limits — historical block preserved verbatim
+
+'''
+report+=(B/'_reviews/081-08-evidence/coverage-limits-verbatim.md').read_text(encoding='utf-8').strip()+'\n\n'
+report+='''### Dated amendments carried forward, 2026-09-23
+
+- Stage 1 closed on 36 accepted legs: StackOBot 30, Lyra 6. The other 24 Lyra
+  G1–G12 legs are **DROPPED-BY-OWNER-DECISION** per 081-07, because the host
+  chooses the spawn per launch and the accepted Stage 1 candidate had no
+  placement lever. Their history remains; this is not a drop of current R5.
+- The prior 24 Stage 2 measurement legs and 12 legacy comparison legs remain
+  accepted. Actual OpenLevel teardown has passed in both orders. Separate-run
+  stale-work transition and real owner viewport/world replacement remain
+  unexercised. This does not turn the synthetic G15 case into real replacement.
+- Delay=3 end-to-end passed: first three adjacent differences below .1, index 3
+  above .9, near-null onset. This is the accepted gradual-arrival counterexample;
+  the retained pre-onset reference exposes accumulated change. The Stage 3 client
+  paragraph and 0,3,6,9,12 verifier selftest remain due; producer ramp unexercised.
+- NoHold is now qualified in both orders; current Lyra twins pass. G270 remains
+  a valid failed measurement with no numeric evidence. No saved-colour oracle
+  or complete pair coverage is claimed.
+- Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4** into Stage 3 and explain it
+  before reading any cost gate. Preserve high-water priors **17.5 / 19.4 MB**;
+  add this round's G270 observation **39.3984 MB**, without rewriting the priors.
+- Stage 3 oracle, selftests, StackOBot-only pacing-off 720p/1080p A/B/B/A cost
+  gates, complete field/client docs and independent Code review remain UNRUN.
+  Cost requires game-thread increase <=1 ms AND writer throughput unchanged
+  within uncertainty; otherwise UNRESOLVED. Peak machinery stays untouched.
+- Carry the deferred-row `positive_frames` caveat into the field reference and
+  Code review. No m55 counter semantics change was made.
+
+## 6. Boundary, evidence and ownership
+
+Source remains cb14f3109d56d9b6b25ab4ccb72472b5c0f2eae8; the feature commit for
+this round contains documentation only and is recorded in `postflight.json`.
+Feature branch changes are committed and pushed; no merge or tag. Main checkout
+is restored to m51 53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67. Candidate main
+Editor/Game binaries remain in place despite the m51 source checkout, as at entry.
+Game built/staged/archive SHA-256 remains
+`a699e9ee46d43a860912977cc8ed721cf8233958398f9cab9b0f2b43bf36a46d`.
+
+Lyra is restored to detached caa68c6799db023f7a24c0d6cfc56124ce27b542 and its
+original nine modules; the two candidate-only Bench files were removed by exact
+verified paths. Master, m51 refs, CaptureBench, archives, containers and existing
+untracked files are preserved. CURRENT retains every prior byte, including
+unrelated Blender/video history. No game/build/capture remains in flight.
+`restoration.json` and `postflight.json` verify this boundary; their absence or
+failure would invalidate this boundary claim.
+
+Read in order: this report in full; 081-13 ruling in full; frozen round journal;
+`final-ledger.json`; natural requalification and synthetic audits; Lyra results
+and G270 cause read; raw captures/logs; manifests and postflight. The frozen
+source/docs bundle is `081-14-frozen`, with source and feature commits recorded.
+Original 081-11/12/13 banks and prior evidence/report hashes are checked again.
+
+Codex remains implementer, Chat orchestrator, Code independent reviewer after
+Stage 3. This remains the same workstream; no session switch is recommended.
+The next mandatory checkpoint is Chat's G270 ruling. Stage 3 can continue only
+after R5 is resolved under the governing ruling and the report is GREEN.
+
+## Questions for chat
+
+1. Rule on the fixture-valid G270 failure: two applied events and zero measured
+   pairs, all eight required pairs `closure_timeout`. May Codex diagnose and
+   correct completion/closure behavior if needed, then requalify under a newly
+   declared G270 recipe? The existing three-event floor and refusal semantics
+   remain intact unless Chat explicitly changes the qualification scope.
+2. Confirm the disposition if Lyra cannot supply this observation under its
+   scoped recipe. The 081-07 automatic drop applied only to three invalid first
+   legs; null A3 passed, so it does not authorize dropping G270 here.
+
+VERDICT: NEEDS-DECISION
+'''
+(B/'_reviews/081-14-codex-nohold-requalification-lyra.md').write_text(report,encoding='utf-8')
+
+outcome='''
+## Results and disposition, 2026-09-23
+
+Natural A2/A3 PASS-REQUALIFIED: same artifacts, G2 saved-index join, 90/90 exact
+pose rows each. One dated post-hoc amendment in pilot metrics; originals kept.
+Synthetic A1 PASS: G2 engine-index join, 90/90 exact; foreground 53/53; three
+applied fires, three zero-phase no_labelled_frames finals, zero pairs. No natural
+launch; synthetic used one of three. Deferred positive_frames=67 is not a
+labelled-frame count and must be documented in Stage 3, per Chat.
+
+Lyra null A1 invalid by post-capture L2; A2 invalid by pre-capture L2; A3 PASS.
+Solid A1 PASS. Both accepted twins have five events, eight of twenty pairs
+measured, all five onsets measured. Null onset .002807-.009017; solid 1.0.
+Each high-water 19,353,600 bytes; retained bytes zero. First-leg auto-drop did
+not trigger. G270 A1 failed L1 at 1057.457 cm after respawn, before capture.
+G270 A2 passed L1/L2/foreground 138/138 but FAILED measurement: two final/legacy
+events, eight required pairs all closure_timeout, none measured. No A3/retry.
+
+G270 event yield includes eight not_restored and two not_streamable refusals.
+First textures restored at 41 frames; second still pending at FinishRun (max83),
+then verified in main-log tail at 84 frames. No summary rewrite. High-water
+39,398,400 bytes, retained zero, 87 budget refusals, 19 late results, zero late
+mutations. Source limits both bytes and three colour buffers; phase closure
+uses two seconds OR eight subsequent capture indices. Exact missing completion
+and winning deadline are not established. No capacity/timeout/code change.
+
+Seven new physical launches; five captures, two pre-capture stops. Three fixture
+invalids, three new measurement passes, one valid measurement failure. Natural
+requalifications are two old artifacts. No build or implementation change.
+Lyra original detached source/nine modules restored. Main entry m51 restored
+after docs commit/push; candidate main binaries remain as at entry. Exact hashes
+and state verification: 081-14-evidence/postflight.json and restoration.json.
+
+Chat review REQUIRED for the G270 failure disposition; Stage 3 HELD, R5 not
+resolved or auto-dropped. Chat review NOT REQUIRED for completed authorized work
+and safe restoration. Next mandatory checkpoint is Chat's G270 ruling; no Code
+brief. Report 081-14 ends NEEDS-DECISION. Preserve all prior accepted gates and
+the verbatim limits with dated amendments. Stage 3 carries FPS21.5vs30 MAIN4,
+17.5/19.4MB priors plus new39.3984MB observation, delay3 paragraph/selftest,
+deferred-counter docs/client review. No fresh-session recommendation.
+'''
+journal=R/'docs/sessions/2026-09-23-081-14-codex-nohold-requalification-lyra.md'
+with journal.open('a',encoding='utf-8') as f:f.write(outcome)
+plan=R/'docs/predictions/2026-09-20-m55-change-evidence.md'
+with plan.open('a',encoding='utf-8') as f:f.write('''
+### 081-14 outcome, 2026-09-23 (predictions above preserved)
+
+Natural A2/A3 requalified at 90/90 exact G2 saved-index rows; one post-hoc
+amendment, old dispositions preserved. NoHold synthetic A1 passed with 90/90
+exact G2 engine-index counterparts. Lyra null A3 and solid A1 passed; null A1/A2
+fixture-invalid. G270 A1 fixture-invalid; A2 fixture-valid but measurement FAIL:
+two events, zero measured pairs, eight closure_timeout refusals. No result retry
+or first-leg auto-drop extension. R5 unresolved; Stage 3 HELD. Chat review
+REQUIRED for G270 disposition; next mandatory checkpoint is that ruling.
+High-water G270 39,398,400 bytes supplements preserved 17.5/19.4MB priors.
+Full report/journal and raw evidence in 081-14; source/binaries unchanged.
+''')
+print('Wrote report, cause read, final ledger and journal/plan outcome.')

@@ -1,0 +1,121 @@
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location('c21', r'D:\IntrusiveAnomalies\_reviews\081-21-common.py')
+c = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(c)
+B = c.B
+E = c.E
+R = c.R
+L = c.L
+pre = json.loads((E / 'preflight.json').read_text())
+problems = []
+ours, foreign = c.classify()
+if ours:
+    problems.append(['processes of our engine/folders present at close', ours])
+feature = c.git(R, 'rev-parse', c.FEATURE)
+if feature != c.git(R, 'rev-parse', 'origin/' + c.FEATURE):
+    problems.append(['feature not pushed', feature])
+repos = {}
+for name, r in {'AnomalyInjector': R, 'Lyra': L, 'CaptureBench': c.C}.items():
+    if c.git(r, 'diff', '--name-only') or c.git(r, 'diff', '--cached', '--name-only'):
+        problems.append([name, 'tracked modifications'])
+    st = c.state(r)
+    old = pre['repos'][name]
+    for k in ('head', 'branch', 'untracked'):
+        if st[k] != old[k]:
+            problems.append([name, k, old[k] if k != 'untracked' else None,
+                             st[k] if k != 'untracked' else sorted(set(st[k]) ^ set(old[k]))])
+    a = dict(l.split(' ', 1) for l in old['refs'].splitlines())
+    z = dict(l.split(' ', 1) for l in st['refs'].splitlines())
+    delta = {k: [a.get(k), z.get(k)] for k in a.keys() | z.keys() if a.get(k) != z.get(k)}
+    allowed = {'refs/heads/' + c.FEATURE, 'refs/remotes/origin/' + c.FEATURE} if name in ('AnomalyInjector', 'Lyra') else set()
+    if set(delta) - allowed:
+        problems.append([name, 'unexpected ref delta', delta])
+    st['ref_delta'] = delta
+    repos[name] = st
+b3 = json.loads((E / 'binary-v3.json').read_text()) if (E / 'binary-v3.json').exists() else None
+if not b3:
+    problems.append(['binary-v3.json absent'])
+expected_changed = {}
+if b3:
+    expected_changed[b3['built']] = b3['sha256']
+    expected_changed[b3['staged']] = b3['sha256']
+    for m in json.loads((E / 'main-editor-binary.json').read_text()):
+        expected_changed[m['path']] = m['sha256']
+bins = {}
+changed = []
+for path, h in pre['verified_binaries'].items():
+    a = c.sha(path) if Path(path).exists() else None
+    bins[path] = a
+    if path in expected_changed:
+        if a != expected_changed[path]:
+            problems.append(['binary not the build-3 artifact', path])
+        elif a != h:
+            changed.append(path)
+    elif a != h:
+        problems.append(['binary changed unexpectedly', path])
+for path, h in expected_changed.items():
+    if path not in bins:
+        a = c.sha(path) if Path(path).exists() else None
+        bins[path] = a
+        if a != h:
+            problems.append(['new build-3 binary mismatch', path])
+if b3:
+    if c.sha(b3['archive']) != b3['sha256']:
+        problems.append(['build-3 archive hash'])
+    for r in b3['lyra_modules']:
+        if c.sha(Path(b3['lyra_archive']) / r['name']) != r['sha256']:
+            problems.append(['build-3 Lyra archive', r['name']])
+    for r in b3['containers']:
+        if c.sha(r['path']) != r['sha256']:
+            problems.append(['container changed', r['path']])
+lyra_names = sorted(q.name for q in (L / 'Binaries/Win64').iterdir() if q.is_file())
+if lyra_names != pre['lyra_module_names']:
+    problems.append(['Lyra module set', lyra_names])
+restored = json.loads((E / 'lyra-restored.json').read_text()) if (E / 'lyra-restored.json').exists() else None
+if not restored:
+    problems.append(['Lyra restore record absent'])
+else:
+    for r in restored['restored_modules']:
+        if c.sha(L / 'Binaries/Win64' / r['name']) != r['sha256']:
+            problems.append(['Lyra module hash', r['name']])
+for path, h in pre['prior_artifacts'].items():
+    if c.sha(B / path) != h:
+        problems.append(['artifact', path])
+for path, h in pre['bank_files'].items():
+    if c.sha(B / path) != h:
+        problems.append(['bank', path])
+cur = c.sha(B / 'ToCodex/CURRENT.md')
+if cur != pre['current_sha256']:
+    problems.append(['ToCodex CURRENT.md changed'])
+remote = c.git(R, 'ls-remote', 'origin', 'refs/heads/' + c.FEATURE, 'refs/heads/master')
+if feature + '\trefs/heads/' + c.FEATURE not in remote or c.MASTER + '\trefs/heads/master' not in remote:
+    problems.append(['remote', remote])
+if repos['AnomalyInjector']['head'] != c.M51 or repos['AnomalyInjector']['branch'] != 'm51':
+    problems.append(['main checkout not m51'])
+if repos['Lyra']['head'] != c.LYRA:
+    problems.append(['Lyra head'])
+tags = c.git(R, 'tag', '--points-at', feature)
+if tags:
+    problems.append(['tag on feature', tags])
+bank = {str(q.relative_to(B)): c.sha(q) for d in (B / '_bench_sessions_bank').glob('M55B3_*') for q in d.rglob('*') if q.is_file()}
+(E / 'bank-manifest.json').write_text(json.dumps(bank, indent=2))
+out = dict(utc=c.now(), feature_commit=feature, repos=repos, verified_binaries=bins, binaries_changed_as_build3=changed,
+           lyra_module_names=lyra_names, prior_artifacts_verified=len(pre['prior_artifacts']),
+           prior_bank_files_verified=len(pre['bank_files']), new_bank_files_hashed=len(bank),
+           current_sha256_unchanged=cur == pre['current_sha256'], remote_refs=remote, our_processes=ours,
+           foreign_processes_present=foreign, problems=problems,
+           verdict=('PASS: boundary restored (main m51 53bf725, Lyra caa68c6 with original 9 modules; main Game/Editor and '
+                    'staged exe are build 3 by design; every other binary, artifact and bank file byte-identical to preflight)')
+           if not problems else 'FAIL: see problems')
+(E / 'postflight.json').write_text(json.dumps(out, indent=2))
+man = {str(q.relative_to(B)): c.sha(q) for q in E.rglob('*') if q.is_file() and q.name != 'evidence-manifest.json'}
+for q in sorted((B / '_reviews').glob('081-21-*')):
+    if q.is_file():
+        man[str(q.relative_to(B))] = c.sha(q)
+(E / 'evidence-manifest.json').write_text(json.dumps(man, indent=2))
+print(json.dumps({k: v for k, v in out.items() if k not in ('repos', 'verified_binaries')}, indent=2))
+sys.exit(1 if problems else 0)

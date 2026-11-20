@@ -1,0 +1,76 @@
+from pathlib import Path
+import hashlib, json, subprocess
+
+base = Path(r'D:\IntrusiveAnomalies')
+repo = base / 'StackOBot/Plugins/AnomalyInjector'
+ev = base / '_reviews/081-07-evidence'
+frozen = base / '_reviews/081-07-frozen'
+head = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD']).decode().strip()
+assert head == '92a52ab0928f02c54627619cb789d8733d4d0d88'
+paths = ['CLAUDE.md', 'docs/gotchas.md', 'docs/predictions/2026-09-20-m55-change-evidence.md',
+         'docs/sessions/2026-09-21-081-07-codex-m55-lyra-placement.md']
+records = []
+for rel in paths:
+    data = subprocess.check_output(['git', '-C', str(repo), 'show', head + ':' + rel])
+    p = frozen / 'AnomalyInjector' / rel
+    assert not p.exists()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(data)
+    records.append({'path': str(p.relative_to(frozen)), 'sha256': hashlib.sha256(data).hexdigest()})
+(frozen / 'docs-manifest.json').write_text(json.dumps({'commit': head, 'files': records}, indent=2))
+prefix = '''# 081-07 m55 Stage 1 Lyra L2 preflight boundary — 2026-09-21
+
+Owner supplied `_reviews/081-06-chat-ruling-lyra-placement.md`.
+Disposition: NEEDS-DECISION. L2 placement is authorized, but neither the accepted control server
+nor existing bench console commands can place the pawn/view. A new compiled lever requires a
+rebuild; the ruling expressly requires unchanged candidate binaries and no rebuild. No host
+source changes are technically required. No placement, launch or L2 attempt was made.
+Codex implements; Chat orchestrates; Code independently reviews after Stage 3. No mailbox brief.
+
+Read in order:
+1. D:/IntrusiveAnomalies/_reviews/081-07-codex-m55-stage-1-lyra-matrix.md (full).
+2. D:/IntrusiveAnomalies/_reviews/081-06-chat-ruling-lyra-placement.md.
+3. D:/IntrusiveAnomalies/_reviews/081-07-frozen/AnomalyInjector/docs/sessions/2026-09-21-081-07-codex-m55-lyra-placement.md.
+4. D:/IntrusiveAnomalies/_reviews/081-07-evidence/mechanism-inspection.json and 081-07-frozen/manifest.json.
+5. D:/IntrusiveAnomalies/_reviews/081-07-evidence/final-ledger.json, prior-final-ledger.json,
+   prior-qualification-attempts.json, preflight.json and postflight.json.
+6. Previous 081-06 report/evidence and active predictions (linked in history below).
+
+36/60 accepted: StackOBot 30; Lyra G13–G15 both orders 6. Remaining G1–G12 both orders 24 UNRUN.
+All 24 fresh L2 allowances remain 3/3. Prior three G1-native L1-invalid attempts stay retained;
+old G14-synthetic failed-precondition-undefined remains retained/uncredited. L2 is recorded as
+G275, not implemented or exercised. Unknown control-server message types ACK without handling;
+never invent a set_view request and treat ACK as placement. Engine BugItGo changes ghost movement;
+it was not used as a fixture substitute. Next action needs Chat's mechanism/build resolution.
+
+Feature local/origin 92a52ab0928f02c54627619cb789d8733d4d0d88 (four docs only).
+Accepted implementation source 3dc1ddaa355093f05610c8eac94d7cf15c48c7f0 unchanged.
+Main restored m51 53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67, clean tracked, 11 handoffs preserved.
+Lyra detached caa68c6799db023f7a24c0d6cfc56124ce27b542 and nine entry modules unchanged.
+CaptureBench b2ca7646e094b61d423f879dbad47af116f0ae10 unchanged, eight untracked files preserved.
+Master local/origin 031a103b18b90b2ce9dd626b22e9498717c60815 unchanged.
+Game built/staged/archive AEBD09EA, candidate Lyra archive m55-stage1-lyra-74598de2, original
+predecessor 0844220E and five containers verified unchanged. No swap/build/cook/merge/tag.
+112 accepted source files and four final docs frozen with hashes. Prior reports/evidence/frozen
+trees unchanged; all earlier CURRENT bytes preserved. No owned work or engine/build process in flight.
+
+Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4** into Stage 3; cost readings there need explanation.
+High-water priors 17.5 MB StackOBot / 19.4 MB Lyra; prior coverage-limit block preserved verbatim.
+Stage 2 phase/event/teardown and Stage 3 oracle/cost remain unrun; no coverage expanded this round.
+
+**Chat review REQUIRED** for the mechanism/build resolution before the 24 legs or Stage 2.
+**Chat review NOT REQUIRED** for the completed authorized preflight/documentation. Next mandatory
+checkpoint is Chat's ruling; after a future GREEN matrix, Stage 2 is automatically released and its
+report is the next mandatory checkpoint absent new findings. No fresh session/context change
+recommended. Recheck live state before any authorized continuation.
+
+Earlier CURRENT content is preserved byte-for-byte below as history.
+
+---
+
+'''
+current = base / 'ToCodex/CURRENT.md'
+old = (ev / 'CURRENT.before.md').read_bytes()
+assert current.read_bytes() == old
+current.write_bytes(prefix.replace('\n', '\r\n').encode('utf-8') + old)
+print(json.dumps({'docs_frozen': len(records), 'current_updated': True, 'feature': head}))

@@ -1,0 +1,51 @@
+from pathlib import Path
+import hashlib, json, re, subprocess
+
+base = Path(r'D:\IntrusiveAnomalies')
+repo = base / 'StackOBot/Plugins/AnomalyInjector'
+bench = base / 'StackOBot/Plugins/CaptureBench'
+out = base / '_reviews/081-07-frozen'
+ev = base / '_reviews/081-07-evidence'
+source = '3dc1ddaa355093f05610c8eac94d7cf15c48c7f0'
+feature = '4662e6ffd498b0ec789330789dbf8dde242a8a65'
+
+def git(p, *a):
+    return subprocess.check_output(['git', '-C', str(p), *a])
+
+assert not git(repo, 'diff', source, feature, '--', 'Source', 'Shaders')
+assert not out.exists()
+out.mkdir()
+manifest = []
+commands = []
+hits = []
+pattern = re.compile(r'SetActorLocation|SetControlRotation|SetViewTarget|TeleportTo|BugItGo|SetLocation|SetCamera|SetPawn')
+for name, path, ref in [('AnomalyInjector', repo, source), ('CaptureBench', bench, 'HEAD')]:
+    files = git(path, 'ls-tree', '-r', '--name-only', ref, 'Source').decode().splitlines()
+    for rel in files:
+        data = git(path, 'show', ref + ':' + rel)
+        text = data.decode('utf-8-sig')
+        lines = text.splitlines()
+        for i, line in enumerate(lines, 1):
+            if re.search(r'TEXT\("(?:IAI\.|CaptureBench\.)', line):
+                commands.append({'repo': name, 'file': rel, 'line': i, 'text': line.strip()})
+            if pattern.search(line):
+                hits.append({'repo': name, 'file': rel, 'line': i, 'text': line.strip()})
+        # Freeze whole authoritative source scopes, so a negative finding is reviewable.
+        dest = out / name / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        manifest.append({'path': str(dest.relative_to(out)), 'sha256': hashlib.sha256(data).hexdigest()})
+engine = Path(r'D:\UESource\UnrealEngine\Engine\Source\Runtime\Engine\Private\CheatManager.cpp')
+lines = engine.read_text().splitlines()
+(ev / 'engine-BugItGo-excerpt.txt').write_text('\n'.join(f'{n+1}: {lines[n]}' for n in range(1035, 1093)) + '\n')
+(ev / 'mechanism-inspection.json').write_text(json.dumps({
+    'accepted_source': source, 'feature_at_inspection': feature,
+    'source_and_shaders_identical': True,
+    'capturebench_commit': git(bench, 'rev-parse', 'HEAD').decode().strip(),
+    'engine_source_path': str(engine), 'engine_source_sha256': hashlib.sha256(engine.read_bytes()).hexdigest(),
+    'setter_search_regex': pattern.pattern, 'setter_search_hits': hits,
+    'console_text_inventory': commands,
+    'result': 'No existing plugin/control-server/CaptureBench pawn/view placement mechanism found. No runtime claim.'
+}, indent=2))
+(out / 'manifest.json').write_text(json.dumps({'source_commit': source, 'files': manifest}, indent=2))
+print(json.dumps({'frozen_source_files': len(manifest), 'setter_search_hits': len(hits), 'console_text_lines': len(commands)}))

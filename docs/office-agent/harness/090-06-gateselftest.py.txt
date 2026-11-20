@@ -1,0 +1,342 @@
+import concurrent.futures,copy,importlib.util,json,os,re,shutil,subprocess,sys,time,traceback
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews');EVD=R/'090-06-evidence';OUT=EVD/'selftest'
+os.environ.pop('IAI_R906_DRY',None)
+os.environ['IAI_R906_ROOT']=str(OUT/'_root');os.environ['IAI_R906_CACHE']=str(OUT/'_cache')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=_load('c906s',R/'090-06-common.py')
+LG=_load('legs906s',R/'090-06-legs.py')
+EVM=_load('ev906s',R/'090-06-eval.py')
+LIB=_load('lib906s',R/'090-06-lib.py')
+BANKS=Path(r'D:\IA_BankOverflow')
+SRC_LEG='M52S09_REAL_MT_NAT'
+SRC=next(d for d in (BANKS/SRC_LEG).iterdir() if d.is_dir() and d.name.startswith('session_'))
+TRUNC=299
+SI=LG.F1_SI;W0,W1=LG.F1_FIRST,LG.F1_LAST
+CLEAN_SRC={s:s+8 for s in range(SI,W1+1)}
+ROCK=LG.ROCK
+TXT=[];CASES=[]
+def say(s):
+    TXT.append(s);print(s,flush=True)
+def case(name,ok,detail=None):
+    CASES.append(dict(name=name,pass_=bool(ok),detail=detail));say(('OK   ' if ok else 'FAIL ')+name+('' if ok else '  :: '+json.dumps(detail,default=str)[:900]))
+def rmtree_own(p):
+    p=Path(p)
+    if not p.exists():return
+    if not str(p.resolve()).lower().startswith(str(OUT.resolve()).lower()):raise SystemExit(f'refusing to delete {p} outside {OUT}')
+    shutil.rmtree(p)
+def rows_src():
+    rows=[json.loads(l) for l in (SRC/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines() if l.strip()]
+    return {r['session_index']:r for r in rows}
+def log_lines(lever=None,lever_nothing=False,f1_line=True,f1_count=None,aa='0'):
+    ln=[f'[2026.09.30-20.00.00:000][  0]r.AntiAliasingMethod = "{aa}"','[2026.09.30-20.00.00:001][  0]LogAnomalyCapture: IAI bench levers: ENABLED (synthetic selftest log)']
+    if lever:
+        kind,si=lever
+        if lever_nothing:ln.append(f'[2026.09.30-20.00.05:000][150]LogAnomalyCapture: Warning: Capture(bench): {kind} session_index={si} reverted NOTHING - no auto live fire on that frame')
+        elif kind=='RAW-REVERT':ln.append(f'[2026.09.30-20.00.05:000][150]LogAnomalyCapture: Warning: Capture(bench): RAW-REVERT session_index={si} actor={ROCK} id=missing_texture - RevertAnomaly now; the auto live-fire entry stays until its scheduled end (synthetic)')
+        else:ln.append(f'[2026.09.30-20.00.05:000][150]LogAnomalyCapture: Warning: Capture(bench): RETAKE-MATERIAL session_index={si} actor={ROCK} id=missing_texture - every mesh slot override cleared to the mesh built-in default. For missing_texture / corrupted_texture this makes IsVisualConditionHeld read FALSE from this frame on.')
+    if f1_line:ln.append(f'[2026.09.30-20.00.09:000][210]LogAnomalyCapture: Capture(F1): EFFECT-INSTALLED CHECK calls=200 total=40.0 us mean=0.200 us max=2.000 us; effect_interrupted entries={f1_count}. A FireWindow entry is labelled only on a frame its effect is installed (synthetic)')
+    ln.append('[2026.09.30-20.00.09:001][210]LogAnomalyCapture: Capture(090-05): NANITE TARGETS REFUSED = 0 distinct actor(s) (0 refusal(s)) as nanite_unmaskable this run, setting refused(compiled). (synthetic)' if f1_line else '')
+    return '\n'.join(x for x in ln if x)+'\n'
+def make(name,lab_end,int_range,replace=True,rule=None,count='auto',fcl=None,lever=('RAW-REVERT',SI),lever_nothing=False,f1_line=True,keep_mask=(),labelled_extra=(),temporal_aa=False):
+    """A doctored copy of the banked 084-09 REAL_MT_NAT (real MainWorld frames of the rock, missing_texture fires every 22 frames),
+    all 300 frames kept: fire 7 (si 135..142) gets the requested labels, frames si..142 can be replaced by settled clean frames of the
+    same leg (si+8, the post-gap after fire 7's revert). Untouched files are HARDLINKS to the bank; every changed file is a NEW file."""
+    d=OUT/'sessions'/name;rmtree_own(d);sd=d/SRC.name;(sd/'Actual_Frames').mkdir(parents=True);(sd/'target_mask').mkdir()
+    rule=rule or LG.V2_RULE;by=rows_src();lab=set(range(W0,lab_end+1))|set(labelled_extra);inter=set(int_range)
+    out=[]
+    for si in sorted(k for k in by if k<=TRUNC):
+        r=copy.deepcopy(by[si])
+        if W0<=si<=W1:
+            e=[a for a in r['anomalies'] if a.get('id')=='missing_texture' and a.get('target_name')==ROCK][0]
+            for k in ('transition','transition_reason'):e.pop(k,None)
+            if si in inter:
+                e['transition']=1;e['transition_reason']=['effect_interrupted']
+            if si in lab:
+                e['labelled']=True;r['anomaly_present']=True;r['visible_positive']=bool(e.get('bbox_valid'))
+            else:
+                e['labelled']=False;r['anomaly_present']=False;r['visible_positive']=False
+            if si in inter:r['transition_present']=True
+            if si not in lab and si not in keep_mask:r['mask_file']=None;r['mask_state']='unmeasured'
+        out.append(r)
+    (sd/'labels.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in out),encoding='utf-8')
+    an=json.loads((SRC/'annotation.json').read_text(encoding='utf-8-sig'));keep=[]
+    for e in an['anomalies']:
+        fr=e['injected_frames']['frame_indices']
+        if min(fr)>TRUNC:continue
+        if min(fr)==W0:
+            nf=sorted(lab);e['injected_frames']['frame_indices']=nf;e['affected_frames']['frame_indices']=nf
+        keep.append(e)
+    an['anomalies']=keep;(sd/'annotation.json').write_text(json.dumps(an),encoding='utf-8')
+    rs=json.loads((SRC/'run_summary.json').read_text(encoding='utf-8-sig'))
+    rs.update(total_frames=TRUNC+1,label_temporal_aa=temporal_aa,label_aa_method='none' if not temporal_aa else 'tsr',label_aa_method_cvar=0 if not temporal_aa else 4,label_labelled_rule=rule)
+    if count=='auto':rs['label_transition_effect_interrupted_entries']=len(inter)
+    elif count=='absent':rs.pop('label_transition_effect_interrupted_entries',None)
+    else:rs['label_transition_effect_interrupted_entries']=count
+    if fcl is not None:rs['frames_condition_lost']=fcl
+    (sd/'run_summary.json').write_text(json.dumps(rs),encoding='utf-8')
+    for f in ('run.json','mask_map.json','selection_provenance.json','change_evidence.jsonl'):
+        if (SRC/f).exists():os.link(SRC/f,sd/f)
+    for r in out:
+        si=r['session_index'];dst=sd/'Actual_Frames'/f'frame_{si:05d}.png'
+        if replace and si in CLEAN_SRC:shutil.copyfile(SRC/'Actual_Frames'/f'frame_{CLEAN_SRC[si]:05d}.png',dst)
+        else:os.link(SRC/'Actual_Frames'/f'frame_{si:05d}.png',dst)
+        if r.get('mask_file'):
+            m=SRC/r['mask_file']
+            if m.exists():os.link(m,sd/r['mask_file'])
+    fc=len(inter) if count=='auto' else (count if isinstance(count,int) else 0)
+    (d/'game.log').write_text(log_lines(lever,lever_nothing,f1_line,fc),encoding='utf-8')
+    return sd,(d/'game.log').read_text(encoding='utf-8')
+def f1_cases():
+    Lraw=LG.by_id('F1_RAWREV_AAOFF');Lret=LG.by_id('F1_RETAKE_AAOFF');Lold=LG.by_id('F1_RETAKE_OLD_CANFAIL')
+    I=range(SI,W1+1)
+    specs=[
+     ('rawrev_ok',dict(lab_end=SI-1,int_range=I),Lraw,'new','PASS'),
+     ('retake_ok',dict(lab_end=SI-1,int_range=I,fcl=0,lever=('RETAKE-MATERIAL',SI)),Lret,'new','PASS'),
+     ('canfail_old',dict(lab_end=W1,int_range=(),rule=LG.V1_RULE,count='absent',f1_line=False,fcl=W1-SI+1,lever=('RETAKE-MATERIAL',SI)),Lold,'old','CANFAIL-PROVEN'),
+     ('a_labels_to_scheduled_end',dict(lab_end=W1,int_range=(),count=0,f1_count=0,fcl=0,lever=('RETAKE-MATERIAL',SI)),Lret,'new','FAIL'),
+     ('b_labels_end_one_early',dict(lab_end=SI-2,int_range=range(SI-1,W1+1)),Lraw,'new','FAIL'),
+     ('b_labels_end_one_late',dict(lab_end=SI,int_range=range(SI+1,W1+1)),Lraw,'new','FAIL'),
+     ('c_effect_interrupted_on_a_labelled_entry',dict(lab_end=SI-1,int_range=I,labelled_extra=(SI+1,)),Lraw,'new','FAIL'),
+     ('d_interrupted_frames_still_show_the_effect',dict(lab_end=SI-1,int_range=I,replace=False),Lraw,'new','FAIL'),
+     ('e_run_summary_count_mismatch',dict(lab_end=SI-1,int_range=I,count=3),Lraw,'new','FAIL'),
+     ('f_no_lever_line',dict(lab_end=SI-1,int_range=I,lever=None),Lraw,'new','INVALID'),
+     ('f_lever_did_nothing',dict(lab_end=SI-1,int_range=I,lever_nothing=True),Lraw,'new','INVALID'),
+     ('g_rule_string_v1',dict(lab_end=SI-1,int_range=I,rule=LG.V1_RULE),Lraw,'new','FAIL'),
+     ('h_target_mask_on_an_interrupted_frame',dict(lab_end=SI-1,int_range=I,keep_mask=(SI+1,)),Lraw,'new','FAIL'),
+     ('old_classifier_on_a_correct_F1_session',dict(lab_end=SI-1,int_range=I,fcl=0,lever=('RETAKE-MATERIAL',SI)),Lold,'old','CANFAIL-NOT-PROVEN'),
+     ('old_classifier_when_the_picture_kept_the_effect',dict(lab_end=W1,int_range=(),rule=LG.V1_RULE,count='absent',f1_line=False,fcl=W1-SI+1,replace=False,lever=('RETAKE-MATERIAL',SI)),Lold,'old','CANFAIL-NOT-PROVEN'),
+    ]
+    def run(spec):
+        name,kw,L,exp,want=spec;kw=dict(kw);fc=kw.pop('f1_count',None)
+        t0=time.time();sd,log=make(name,**kw)
+        if fc is not None:
+            log=log_lines(kw.get('lever',('RAW-REVERT',SI)),kw.get('lever_nothing',False),kw.get('f1_line',True),fc);(sd.parent/'game.log').write_text(log,encoding='utf-8')
+        r=EVM.f1_check(sd,log,L,exp);return name,want,r,round(time.time()-t0,1)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        res=list(ex.map(run,specs))
+    out={}
+    for name,want,r,sec in res:
+        brief=dict(verdict=r.get('verdict'),fail_reasons=r.get('fail_reasons'),why=r.get('why'),pixels=(r.get('pixels') or {}).get('fire'),
+                   label_rule=(r.get('label_rule') or {}).get('verdict'),seconds=sec)
+        case(f'F1 {name}: expect {want}',r.get('verdict')==want,brief);out[name]=r
+    lr=out.get('c_effect_interrupted_on_a_labelled_entry',{}).get('label_rule') or {}
+    case('F1 c: verify_capture --label-rule (pinned 10C5939D) FAILS REASON-ON-LABELLED on the same session',lr.get('exit')==1 and 'REASON-ON-LABELLED' in (lr.get('fails') or {}),lr)
+    lr=out.get('rawrev_ok',{}).get('label_rule') or {}
+    case('F1 rawrev_ok: verify_capture --label-rule NO MISMATCH under the NEW rule and counts missing_texture/effect_interrupted 4',
+         lr.get('exit')==0 and 'missing_texture/effect_interrupted %d'%(W1-SI+1) in (lr.get('reasons_line') or ''),lr)
+    px=(out.get('rawrev_ok',{}).get('pixels') or {}).get('fire') or {}
+    case('F1 rawrev_ok: the frozen E1 raised exactly the temporal-AA-only reason on fire 7 and the declared adjudication dropped it (and only it)',
+         px.get('raw_fails')==[EVM.F1_T_REASON] and px.get('adjusted_fails')==[] and px.get('excused_temporal_aa_flag') is True and px.get('end')==0 and px.get('start')==0,px)
+    pxo=out.get('canfail_old',{}).get('pixels') or {};pc=pxo.get('fire') or {}
+    case(f'F1 canfail_old: E1 FAILs "{EVM.LNV_REASON}" on exactly si {SI}..{W1} and the label-window offset edge is {-(W1-SI+1)} (E1 run-window end reported apart)',
+         pxo.get('labelled_window_edge')==-(W1-SI+1) and pc.get('labelled_not_visible')==list(range(SI,W1+1)) and EVM.LNV_REASON in (pc.get('raw_fails') or []),
+         dict(edge=pxo.get('labelled_window_edge'),e1_run_window_end=pxo.get('e1_run_window_end'),lnv=pc.get('labelled_not_visible'),raw=pc.get('raw_fails')))
+    lr=out.get('canfail_old',{}).get('label_rule') or {}
+    case('F1 canfail_old: the label-rule reads the consistent old-binary session as NO MISMATCH (only the pixels see the can-fail)',lr.get('exit')==0,lr)
+    return out
+def nanite_session(name,rows,rs,log,events=()):
+    d=OUT/'sessions'/('nanite_'+name);rmtree_own(d);sd=d/'session_synthetic';sd.mkdir(parents=True)
+    (sd/'labels.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows),encoding='utf-8')
+    (sd/'annotation.json').write_text(json.dumps(dict(label_schema=2,anomalies=list(events))),encoding='utf-8')
+    (sd/'run_summary.json').write_text(json.dumps(rs),encoding='utf-8');return sd,log
+RAMP='SM_Ramp2_UAID_B42E9936F5429ADA00_2086822137';ROOM='RoomBuilderSquare_C_UAID_00155DE1D4771FCF00_1080865874';PAD='BP_SpawnPad_C_UAID_B42E9936F54253D500_1492231360'
+def nrow(si,target,ms,labelled=True):
+    return dict(session_index=si,anomaly_present=labelled,visible_positive=labelled,mask_state=ms,mask_file=f'target_mask/frame_{si:05d}.png' if ms=='present' else None,
+                anomalies=[dict(id='missing_texture',target_name=target,labelled=labelled,bbox_valid=True,target_pixels=100 if ms=='present' else -1)])
+def skip_log(actors=(RAMP,ROOM,PAD),refusals=7,setting='refused(compiled)',extra=''):
+    ln=[f"[t][{10+i}]LogAnomaly: Warning: REFUSED-NANITE actor='{a}' class=StaticMeshActor site=auto_pool nanite=1/1 reason=nanite_unmaskable setting={setting} - ..." for i,a in enumerate(actors)]
+    ln.append(f'[t][900]LogAnomalyCapture: Capture(090-05): NANITE TARGETS REFUSED = {len(actors)} distinct actor(s) ({refusals} refusal(s)) as nanite_unmaskable this run, setting {setting}. A refused target ...')
+    ln.append('[t][900]LogAnomalyCapture: Capture(F1): EFFECT-INSTALLED CHECK calls=10 total=1.0 us mean=0.100 us max=0.500 us; effect_interrupted entries=0.')
+    return '\n'.join(ln)+'\n'+extra
+def nanite_cases():
+    good_rows=[nrow(20,ROCK,'present'),nrow(21,ROCK,'present'),nrow(40,ROCK,'empty'),nrow(41,ROCK,'present')]
+    base=dict(refused_nanite=3,nanite_target_policy='refused(compiled)',unmeasurable_targets_admitted=0,census_unmeasurable_nanite=29)
+    U=f"[t][300]LogAnomalyCapture: Warning: Capture(m50): UNMEASURABLE TARGET '{RAMP}' (StaticMeshComponent) reason=nanite - admitted\n"
+    specs=[
+     ('skip_ok','skip',good_rows,base,skip_log(),None,(),'PASS'),
+     ('skip_a_reason_nanite_line','skip',good_rows,base,skip_log(extra=U),None,(),'FAIL'),
+     ('skip_a_labelled_frame_unmeasured','skip',good_rows+[nrow(60,ROCK,'unmeasured')],base,skip_log(),None,(),'FAIL'),
+     ('skip_a_G295_frame_counted_apart','skip',good_rows+[nrow(60,ROCK,'unmeasured')],base,skip_log(extra='[t][70]LogAnomalyCapture: Warning: TARGET MASK UNAVAILABLE for session_index 60 - ...\n'),None,(),'PASS-WITH-G295'),
+     ('skip_policy_from_ini','skip',good_rows,dict(base,nanite_target_policy='refused(ini)'),skip_log(setting='refused(ini)'),None,(),'FAIL'),
+     ('skip_zero_refused_blind','skip',good_rows,dict(base,refused_nanite=0,census_unmeasurable_nanite=0),skip_log(actors=(),refusals=0),0,(),'UNJUDGEABLE'),
+     ('skip_zero_refused_with_nanite_on_screen','skip',good_rows,dict(base,refused_nanite=0),skip_log(actors=(),refusals=0),0,(),'FAIL'),
+     ('skip_zero_refused_allow_leg_proves_nanite','skip',good_rows,dict(base,refused_nanite=0,census_unmeasurable_nanite=0),skip_log(actors=(),refusals=0),12,(),'FAIL'),
+     ('skip_run_summary_count_disagrees_with_the_log','skip',good_rows,base,skip_log(actors=(RAMP,ROOM),refusals=4),None,(),'FAIL'),
+     ('skip_admitted_nonzero','skip',good_rows,dict(base,unmeasurable_targets_admitted=2),skip_log(),None,(),'FAIL'),
+     ('skip_label_on_a_refused_actor','skip',good_rows+[nrow(80,RAMP,'present')],base,skip_log(),None,(),'FAIL'),
+     ('skip_pre_090_05_artifact','skip',good_rows,dict(unmeasurable_targets_admitted=57,census_unmeasurable_nanite=29),'',None,(),'INVALID'),
+    ]
+    ev_ok=[dict(anomaly_type='missing_texture',observability_measured=False,affected_objects=dict(nodes=[dict(name=RAMP)]),injected_frames=dict(frame_indices=[90,91]))]
+    arows=good_rows+[nrow(90,RAMP,'unmeasured'),nrow(91,RAMP,'unmeasured')]
+    abase=dict(refused_nanite=0,nanite_target_policy='allowed(console)',unmeasurable_targets_admitted=2,census_unmeasurable_nanite=29)
+    alog=('[t][0]LogAnomaly: IAI.Targets.AllowNanite: EFFECTIVE READ-BACK = allowed(console).\n'+U+U+
+          '[t][900]LogAnomalyCapture: Capture(090-05): NANITE TARGETS REFUSED = 0 distinct actor(s) (0 refusal(s)) as nanite_unmaskable this run, setting allowed(console). ...\n')
+    specs+=[
+     ('allow_ok','allow',arows,abase,alog,None,ev_ok,'PASS'),
+     ('allow_but_refused','allow',arows,dict(abase,refused_nanite=1),alog+f"[t][5]LogAnomaly: Warning: REFUSED-NANITE actor='{ROOM}' class=X site=auto_pool nanite=1/1 reason=nanite_unmaskable setting=allowed(console)\n",None,ev_ok,'FAIL'),
+     ('allow_no_reason_nanite_line','allow',good_rows,dict(abase,unmeasurable_targets_admitted=0),'[t][0]LogAnomaly: IAI.Targets.AllowNanite: EFFECTIVE READ-BACK = allowed(console).\n',None,(),'FAIL'),
+     ('allow_setting_did_not_take','allow',arows,dict(abase,nanite_target_policy='refused(compiled)'),U,None,ev_ok,'FAIL'),
+     ('allow_admitted_event_measured','allow',arows,abase,alog,None,[dict(ev_ok[0],observability_measured=True)],'FAIL'),
+    ]
+    for name,mode,rows,rs,log,al,events,want in specs:
+        sd,lg=nanite_session(name,rows,rs,log,events)
+        r=EVM.nanite_check(sd,lg,mode,allow_reason_lines=al)
+        case(f'NANITE {name}: expect {want}',r.get('verdict')==want,dict(verdict=r.get('verdict'),fail_reasons=r.get('fail_reasons'),why=r.get('why') or r.get('why_zero')))
+    b=BANKS/'M52S09_MASK55V2';sd=next(d for d in b.iterdir() if d.is_dir() and d.name.startswith('session_'))
+    lg=(b/'_leg'/'game.log').read_text(encoding='utf-8',errors='replace')
+    r=EVM.nanite_check(sd,lg,'allow');case('NANITE real 084-09 MASK55V2 (the chosen seed/pool, old contract): refused as a pre-090-05 artifact, not read as a pass',r.get('verdict')=='INVALID',dict(verdict=r.get('verdict'),why=r.get('why')))
+    case('NANITE real MASK55V2: 57 reason=nanite lines on SM_Ramp2 / RoomBuilderSquare_C / BP_SpawnPad_C (the pool reaches Nanite)',
+         len(EVM.UNMEAS_NANITE_RX.findall(lg))==57 and set(EVM.UNMEAS_NANITE_RX.findall(lg))=={RAMP,ROOM,PAD},sorted(set(EVM.UNMEAS_NANITE_RX.findall(lg))))
+def reference_cases():
+    an=json.loads((SRC/'annotation.json').read_text(encoding='utf-8-sig'))
+    got=[(min(e['injected_frames']['frame_indices']),max(e['injected_frames']['frame_indices'])) for e in an['anomalies']]
+    want=[LG.labelled_window(k) for k in range(1,len(got)+1)]
+    case(f'schedule: labelled_window(k) for cfg {LG.CFG_EDGE} equals all {len(got)} fires of the banked {SRC_LEG}',got==want,dict(got=got[:4],want=want[:4]))
+    b=BANKS/'M53DC2_F_TILE_NAT';fs=next(d for d in b.iterdir() if d.is_dir() and d.name.startswith('session_'))
+    an2=json.loads((fs/'annotation.json').read_text(encoding='utf-8-sig'))
+    g2=[(min(e['injected_frames']['frame_indices']),max(e['injected_frames']['frame_indices'])) for e in an2['anomalies'] if e['injected_frames']['frame_indices']]
+    w2=[LG.labelled_window(k) for k in range(1,len(g2)+1)]
+    case('schedule: the same arithmetic on the 089-04 fixture leg M53DC2_F_TILE_NAT (the last fire cut by the 400-frame cap)',g2[:-1]==w2[:-1] and g2[-1][0]==w2[-1][0],dict(got=g2[-3:],want=w2[-3:]))
+    case(f'F1 si: fire {LG.F1_FIRE_K} labels {W0}..{W1}, si {SI}, {LG.F1_INTERRUPTED} interrupted frames',(W0,W1,SI,LG.F1_INTERRUPTED)==(135,142,139,4),(W0,W1,SI))
+    evs,_taa,_src=EVM.e1_run(SRC,'',{'missing_texture'})
+    ev=[r for r in evs if r.get('L') and min(r['L'])==W0]
+    st=[(r.get('ord'),r.get('status'),r.get('release')) for r in evs]
+    case(f'the frozen E1 JUDGES fire {LG.F1_FIRE_K} of the banked {SRC_LEG} (status OK, PASS +0/+0) while fires 1-4 are WARMUP / CAMERA-MOVED',
+         bool(ev) and ev[0].get('status')=='OK' and ev[0].get('release')=='PASS' and [s[1] for s in st[:4]]==['WARMUP','WARMUP','CAMERA-MOVED','CAMERA-MOVED'],st)
+def pin_cases():
+    real=c.pin();pend=copy.deepcopy(real);ph=pend.get('placeholder','PENDING-090-05-M53-EXE')
+    for k in ('sha256','path','size'):pend['binaries']['NEW'][k]=ph
+    pp=OUT/'_pin_pending.json';pp.write_text(json.dumps(pend,indent=1),encoding='utf-8');keep=(c.PIN_PATH,LIB.c.PIN_PATH)
+    try:
+        c.PIN_PATH=pp;LIB.c.PIN_PATH=pp
+        php=c.pin_placeholders()
+        case('pin (a copy with NEW = PENDING-090-05-M53-EXE): the placeholder is seen on sha256 / path / size',php==['NEW.sha256','NEW.path','NEW.size'],php)
+        bp=c.binary_problems('NEW');case('pin (pending copy): binary_problems(NEW) says the pin is a placeholder (a clear refusal, not an obscure failure)',bool(bp) and 'placeholder' in bp[0],bp)
+        ok,why=LIB.leg_runnable(LG.by_id('REAL_MT_NAT'));case('pin (pending copy): a NEW leg is REFUSED-PENDING-PIN',(not ok) and why.startswith('REFUSED-PENDING-PIN'),why)
+        ok2,why2=LIB.leg_runnable(LG.by_id('F1_RETAKE_OLD_CANFAIL'));case('pin (pending copy): the OLD leg stays runnable on its own pin (live still refuses the window while ANY pin is pending)',ok2,why2)
+        bs=LIB.c.binary_set('NEW');case('pin (pending copy): the NEW staging set has no exe hash, so stage() refuses it (checked without calling stage: the selftest never touches a bench path)',
+                                        bs[c.EXE_KEY] is None and all(bs[k] for k in c.CONTAINER_KEYS),{k:(v or '')[:8] for k,v in bs.items()})
+    finally:
+        c.PIN_PATH,LIB.c.PIN_PATH=keep
+    phr=c.pin_placeholders();case('pin (the real file): no placeholder left',phr==[],phr)
+    nb=c.binary_problems('NEW');case('pin (the real file): the NEW exe 97D292F8 exists with the pinned size and SHA-256',nb==[],nb)
+    an=c.a44('NEW');case('A44 NEW: every F1 / RawRevert / RetakeMaterialAfter / AllowNanite / REFUSED-NANITE token is in the exe (both encodings scanned)',an['problems']==[],an['problems'])
+    ok3,why3=LIB.leg_runnable(LG.by_id('REAL_MT_NAT'));case('pin (the real file): a NEW leg is runnable',ok3,why3)
+    ob=c.binary_problems('OLD');case('pin: the OLD exe 45FD344C exists with the pinned size and SHA-256',ob==[],ob)
+    a=c.a44('OLD');case('A44 OLD: the pre-F1 exe has RetakeMaterialAfter / RETAKE-MATERIAL and no F1 / RawRevert / AllowNanite token',a['problems']==[],a['problems'])
+    cp=c.container_problems();case('pin: the DC2 container archive holds the five pinned files (size + SHA-256)',cp==[],cp)
+    cm=c.cooked_maps();case('pin: the DC2 container lists the five required maps',all(cm.values()),cm)
+    fz=LIB.jload(LIB.FREEZE)
+    if fz:
+        bad=copy.deepcopy(fz);k=next(iter(bad['files']));bad['files'][k]='0'*64
+        case('freeze: a changed byte is reported',any('changed since the freeze' in x for x in LIB.freeze_problems(bad)),LIB.freeze_problems(bad)[:2])
+    else:case('freeze: a changed byte is reported',False,'no freeze.json yet (run 090-06-lib.py freeze before the selftest)')
+def cmd_cases():
+    bad=[]
+    for L in LG.LEGS:
+        if L['kind']!='capture':continue
+        cmds=LIB.build_cmds(L,LIB.label_for(L));s=', '.join(cmds);start=[i for i,x in enumerate(cmds) if x.startswith('IAI.Capture.Start')]
+        if len(start)!=1 or start[0]!=len(cmds)-1:bad.append((L['leg'],'Start is not the one last command'))
+        if not all(b in cmds for b in LIB.BASE):bad.append((L['leg'],'base missing'))
+        if f'IAI.Capture.Config {L["cfg"]}' not in cmds:bad.append((L['leg'],'config'))
+        if L.get('aa_off') and 'r.AntiAliasingMethod 0' not in cmds:bad.append((L['leg'],'aa'))
+        for lv in L['levers']:
+            if lv not in cmds or cmds.index(lv)>start[0]:bad.append((L['leg'],f'lever {lv} not before Start'))
+        if L['group'] in ('C_F1','C_F1_OLD'):
+            want='IAI.Bench.RawRevertAt' if L['lever'][0]=='RAW-REVERT' else 'IAI.Bench.RetakeMaterialAfter'
+            if f'{want} {SI}' not in cmds:bad.append((L['leg'],'F1 lever si'))
+        if L['leg']=='NANITE_SKIP_DEFAULT' and any(x.startswith('IAI.Targets.AllowNanite ') for x in cmds):bad.append((L['leg'],'the default leg passes a Nanite setting'))
+        if L['leg']=='NANITE_ALLOW1' and 'IAI.Targets.AllowNanite 1' not in cmds:bad.append((L['leg'],'no allow'))
+        if L['extra']!='-IAIBench':bad.append((L['leg'],'no -IAIBench'))
+        if len(s)>8000:bad.append((L['leg'],f'ExecCmds {len(s)} chars'))
+    case('ExecCmds: every capture leg = base + config + levers + echo + ONE final Start; levers before Start; AA-off / F1 si / Nanite settings as declared; -IAIBench',not bad,bad)
+    mp=LIB.minutes_plan();case(f'minutes: {mp["leg_minutes"]} min of legs + {mp["overhead_minutes"]} overhead = {mp["total_minutes"]} <= 75',mp['within_budget'],mp)
+    order=[L['leg'] for L in LIB.selected()]
+    case('order: cheapest-first within groups; B5 right after B9/B0; the OLD leg after every NEW leg; Part 0 last',
+         order.index('B5')==order.index('B0')+1 and order.index('F1_RETAKE_OLD_CANFAIL')>max(order.index(L['leg']) for L in LG.LEGS if L['binary']=='NEW' and L['kind']=='capture') and order[-1]=='P0',order)
+def tool_cases():
+    p=subprocess.run([c.PYTHON,'-B',str(c.VERIFY_CAPTURE),'--label-rule','--selftest'],capture_output=True,text=True,encoding='utf-8',errors='replace',env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1'))
+    tail=((p.stdout or '')+(p.stderr or '')).strip().splitlines()
+    f1=[l for l in tail if 'F1_' in l]
+    case('tool: verify_capture --label-rule --selftest (pinned copy of the 090-05 tool) exits 0, including its three F1 cases',p.returncode==0 and len(f1)>=3 and all('ok' in l for l in f1),dict(exit=p.returncode,f1=f1,tail=tail[-2:]))
+    case('tool: the pinned kit copy has the office kit blob 165d55f6 (python blob hash, no git)',c.blob(c.KIT)=='165d55f6a722382f894e0f429be302e5b9fdfc6c',c.blob(c.KIT))
+    tp=LIB.tools_problems();case('tool: the three tool copies match their pinned SHA-256 (verify_capture 10C5939D, measure_label_offset F422DFA7, label_sync_check 340F7433)',tp==[],tp)
+def guard_cases():
+    keep=dict(os.environ)
+    try:
+        os.environ['IAI_R906_DRY']='1';os.environ['IAI_R906_ROOT']=str(OUT/'_dryguard')
+        cd=_load('c906guard',R/'090-06-common.py')
+        def refused(p):
+            try:cd.guard_write(p);return False
+            except SystemExit:return True
+        case('guard: a DRY run refuses to write the real bench exe',refused(cd.REAL_EXE))
+        case('guard: a DRY run refuses to write anywhere under StackOBot\\Builds',refused(cd.REAL_BUILDS/'x.txt'))
+        case('guard: a DRY run refuses to write outside 090-06-evidence and the E: sandbox',refused(Path(r'D:\IntrusiveAnomalies\_reviews\089-04-evidence\x.json')) and refused(Path(r'E:\IA_BuildCache\_r53_host\x')))
+        case('guard: a DRY run may write the sandbox and the evidence folder',not refused(cd.SANDBOX/'staged'/'x') and not refused(EVD/'x'))
+        case('guard: a DRY run stages into the sandbox, not the bench',str(cd.STAGED_ROOT).lower().startswith(str(cd.SANDBOX).lower()) and cd.EXE!=cd.REAL_EXE,str(cd.STAGED_ROOT))
+    finally:
+        os.environ.clear();os.environ.update(keep)
+    def refused_live(p):
+        try:c.guard_write(p);return False
+        except SystemExit:return True
+    case('guard: every mode refuses the protected main checkout, ToCodex and E:\\<personal-folder>',all(refused_live(p/'x') for p in c.PROTECTED))
+def validity_cases(f1out):
+    Lraw=LG.by_id('F1_RAWREV_AAOFF');Lold=LG.by_id('F1_RETAKE_OLD_CANFAIL');Lal=LG.by_id('NANITE_ALLOW1')
+    sd=OUT/'sessions'/'rawrev_ok';sd=next(d for d in sd.iterdir() if d.is_dir() and d.name.startswith('session_'))
+    good=(sd.parent/'game.log').read_text(encoding='utf-8')
+    e=LIB.readback_errors(Lraw,good,sd);case('validity: the correct raw-revert session and log pass every read-back (lever at si 139, AA 0, the NEW-code lines)',e==[],e)
+    e=LIB.readback_errors(Lraw,good.replace('RAW-REVERT','RAW-REVERSE'),sd);case('validity: no RAW-REVERT line at si 139 -> INVALID (a clean reading would be blindness)',any(x.startswith('lever') for x in e),e)
+    e=LIB.readback_errors(Lraw,good.replace('r.AntiAliasingMethod = "0"','r.AntiAliasingMethod = "4"'),sd);case('validity: an AA-off leg whose echo reads 4 -> INVALID',any('AntiAliasingMethod' in x for x in e),e)
+    e=LIB.readback_errors(Lraw,good.replace('Capture(F1): EFFECT-INSTALLED CHECK','Capture(F1): X'),sd);case('validity: a NEW leg without the F1 log line -> INVALID (the wrong exe ran)',any(x.startswith('binary identity') for x in e),e)
+    so=OUT/'sessions'/'canfail_old';so=next(d for d in so.iterdir() if d.is_dir() and d.name.startswith('session_'))
+    olog=(so.parent/'game.log').read_text(encoding='utf-8')
+    e=LIB.readback_errors(Lold,olog,so);case('validity: the old-binary can-fail session passes its read-backs',e==[],e)
+    e=LIB.readback_errors(Lold,olog+good,so);case('validity: the OLD leg logging the 090-05 lines -> INVALID (the NEW exe ran)',any(x.startswith('binary identity') for x in e),e)
+    ns=OUT/'sessions'/'nanite_allow_ok'/'session_synthetic';nlog='[t][0]LogAnomaly: IAI.Targets.AllowNanite: EFFECTIVE READ-BACK = allowed(console).\nCapture(F1): EFFECT-INSTALLED CHECK\nCapture(090-05): NANITE TARGETS REFUSED\n'
+    e=LIB.readback_errors(Lal,nlog,ns);case('validity: ALLOW1 with the read-back line and policy allowed(console) passes',e==[],e)
+    e=LIB.readback_errors(Lal,nlog.replace('allowed(console)','refused(compiled)'),ns);case('validity: ALLOW1 whose setting did not reach the run -> INVALID',any('AllowNanite 1 did not reach' in x for x in e),e)
+def idle_cases():
+    P=lambda pid,name,path,cmd='':dict(pid=pid,name=name,path=path,cmd=cmd)
+    ps=[P(1,'UnrealEditor.exe',r'E:\EpicGames\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe'),P(2,'UnrealEditor-Cmd.exe',r'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealEditor-Cmd.exe','-run=cook'),
+        P(3,'UnrealBuildTool.exe',r'D:\UESource\UnrealEngine\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.exe'),P(4,'cl.exe',r'C:\VS\bin\cl.exe'),
+        P(5,'ShaderCompileWorker.exe',r'D:\UESource\UnrealEngine\Engine\Binaries\Win64\ShaderCompileWorker.exe'),P(6,'Foo-Win64-Shipping.exe',r'C:\Games\Foo\Foo-Win64-Shipping.exe'),
+        P(7,'claude.exe',r'C:\Users\x\claude.exe'),P(8,'dwm.exe',r'C:\Windows\System32\dwm.exe'),P(9,'blender.exe',r'C:\Blender\blender.exe'),P(10,'StackOBot.exe',r'D:\x\StackOBot.exe')]
+    gp=dict(rows=[dict(pid=6,type='G',sm=60,samples=[70,60],name='Foo-Win64-Shipp'),dict(pid=7,type='G',sm=40,samples=[40,45],name='claude.exe'),
+                  dict(pid=8,type='G',sm=50,samples=[50,55],name='dwm.exe'),dict(pid=9,type='G',sm=0,samples=[90,0],name='blender.exe'),dict(pid=1,type='G',sm=30,samples=[30,30],name='UnrealEditor.e')])
+    r=c.classify(ps,gp);bl=sorted(x['pid'] for x in r['blocking']);al=sorted(x['pid'] for x in r['allowed_builds'])
+    case('idle gate: editors of any engine (5.7 editor, a cook commandlet), a running StackOBot and a sustained 60 % SM foreign game block; UBT / cl / SCW are allowed builds; '
+         'dwm and the agent host are not blocking; a one-sample GPU spike (90 then 0) is not sustained; each pid listed once',
+         bl==[1,2,6,10] and al==[3,4,5] and [x['pid'] for x in r['harness_host_gpu']]==[7] and not r['idle'],dict(blocking=bl,allowed=al,host=r['harness_host_gpu']))
+    r2=c.classify([P(3,'UnrealBuildTool.exe',r'D:\UESource\UnrealEngine\Engine\Binaries\DotNET\UnrealBuildTool\UnrealBuildTool.exe')],dict(rows=[]))
+    case('idle gate: a box with only a build running is idle',r2['idle'] is True,r2)
+def unit_cases():
+    T=EVM.F1_T_REASON
+    ev=dict(ord=6,start_frame=1,status='OK',L=[135,136,137,138],transition=[139,140,141,142],measurable=True,confounded=False,
+            per={'t50':dict(verdict='FAIL',fail_reasons=[T],visible=[135,136,137,138],edges=[dict(a=135,b=138,start=0,end=0,cs=False,ce=False)])})
+    a=EVM.e1_adjusted([ev],{139,140,141,142},False)[0];case('unit: the adjudication drops the temporal-AA-only reason for an all-effect_interrupted fire',a['verdict']=='PASS',a)
+    ev2=copy.deepcopy(ev);ev2['per']['t50']['visible']=[135,136,137,138,139]
+    a=EVM.e1_adjusted([ev2],{139,140,141,142},False)[0];case('unit: an effect_interrupted frame that is pixel-visible FAILS even though E1 excuses it',a['verdict']=='FAIL',a)
+    a=EVM.e1_adjusted([ev],{140,141,142},False)[0];case('unit: a transition frame that is not effect_interrupted keeps the reason (no excuse)',a['verdict']=='FAIL',a)
+    a=EVM.e1_adjusted([ev],{139,140,141,142},True)[0];case('unit: with temporal AA the reason is never dropped by the adjudication (E1 does not raise it there)',a['verdict']=='FAIL' and not a['excused_temporal_aa_flag'],a)
+def main():
+    t0=time.time();OUT.mkdir(parents=True,exist_ok=True)
+    say(f'090-06 gate selftest {c.now()} (source bank {SRC})')
+    f1out={}
+    for fn in (pin_cases,cmd_cases,tool_cases,guard_cases,idle_cases,unit_cases,reference_cases,nanite_cases,f1_cases):
+        try:
+            r=fn()
+            if fn is f1_cases:f1out=r or {}
+        except Exception:
+            case(f'{fn.__name__} raised',False,traceback.format_exc()[-1500:])
+    try:validity_cases(f1out)
+    except Exception:case('validity_cases raised',False,traceback.format_exc()[-1500:])
+    n=sum(x['pass_'] for x in CASES);res=dict(utc=c.now(),passed=n,total=len(CASES),all_pass=n==len(CASES),seconds=round(time.time()-t0,1),cases=CASES,
+                                              self_sha16=c.sha(__file__)[:16],eval_sha16=c.sha(R/'090-06-eval.py')[:16],legs_sha16=c.sha(R/'090-06-legs.py')[:16])
+    say(f'SELFTEST {n}/{len(CASES)} {"ALL PASS" if n==len(CASES) else "NOT ALL PASS"} in {res["seconds"]} s')
+    (EVD/'selftest.json').write_text(json.dumps(res,indent=1,default=str),encoding='utf-8')
+    (EVD/'selftest.txt').write_text('\n'.join(TXT)+'\n',encoding='utf-8')
+    return 0 if res['all_pass'] else 1
+if __name__=='__main__':sys.exit(main())

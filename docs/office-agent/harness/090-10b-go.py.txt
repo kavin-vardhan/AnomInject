@@ -1,0 +1,151 @@
+"""090-10b driver. Usage: 090-10b-go.py <leg-label> [<leg-label> ...]   |   restore   |   gate
+Each leg: wait for the quiet gate, stage the exe (staged mode) or swap the host's editor DLLs (game / pie mode), run, read."""
+import importlib.util, json, subprocess, sys, time
+from pathlib import Path
+sys.dont_write_bytecode = True
+_s = importlib.util.spec_from_file_location('c910b', str(Path(__file__).with_name('090-10b-common.py')))
+c = importlib.util.module_from_spec(_s); _s.loader.exec_module(c)
+MANIFEST = c.R / '085-03-content-manifest.py'
+
+
+def T(mode, build, anomaly=None, target=None, mp=None, **kw):
+    d = dict(mode=mode, build=build, map=mp or c.MAP_FIX, census=True)
+    if anomaly:
+        d.update(anomaly=anomaly, target=target)
+    d.update(kw)
+    return d
+
+
+UV, NM, SM = 'uv_corruption', 'normal_corruption', 'stuck_low_mip'
+AUTO3 = [SM, UV, NM]
+LEGS = {}
+for b in ('8131479A', 'A3EC29D8', '45FD344C', '85395644', '01DBA661', '2F924FB3', '07A65316', '65607703', '97D292F8'):
+    for m, tag in (('staged', 'S'), ('game', 'G'), ('pie', 'P')):
+        LEGS[f'{tag}_{b}_UV'] = T(m, b, UV, c.FIX)
+        LEGS[f'{tag}_{b}_NM'] = T(m, b, NM, c.FIX_N)
+        LEGS[f'{tag}_{b}_SM'] = T(m, b, SM, c.FIX_M52)
+        LEGS[f'{tag}_{b}_AUTO'] = T(m, b, auto=AUTO3, frames=600, wait=900)
+        LEGS[f'{tag}_{b}_MWAUTO'] = T(m, b, auto=AUTO3, mp=c.MAP_MW, frames=600, wait=900, pre=['IAI.Targets.AllowNanite 0'])
+        LEGS[f'{tag}_{b}_MWCEN'] = T(m, b, mp=c.MAP_MW, census=False, kind='log', pattern='IAI-TEXCORRUPT-CENSUS v1 end', count=1,
+                                     pre=['IAI.Targets.AllowNanite 0', 'IAI.TexCorrupt.Census'], wait=300)
+
+
+for b in ('8131479A', '85395644'):
+    LEGS[f'S_{b}_MWBEN'] = T('staged', b, mp=c.MAP_MW, census=False, kind='log', pattern='TEXCORRUPT-CENSUS END', count=1, extra=['-IAIBench'],
+                             pre=['IAI.Targets.AllowNanite 0', 'DEFER ' * 120 + 'IAI.TexCorrupt.Census', 'DEFER ' * 121 + 'IAI.Bench.TexCorruptCensus'], wait=300)
+    LEGS[f'S_{b}_MMBEN'] = T('staged', b, mp='/Game/StackOBot/Maps/MainMenu', census=False, kind='log', pattern='TEXCORRUPT-CENSUS END', count=1,
+                             extra=['-IAIBench'], pre=['IAI.Targets.AllowNanite 0', 'DEFER ' * 120 + 'IAI.TexCorrupt.Census', 'DEFER ' * 121 + 'IAI.Bench.TexCorruptCensus'], wait=300)
+
+
+for k in [k for k in LEGS if k.startswith('P_')]:
+    v = dict(LEGS[k]); v['nofocus'] = True; v['pre'] = ['IAI.Capture.FocusGate 0'] + v.get('pre', []); LEGS['Q' + k[1:]] = v
+
+
+LEGS['R_8131479A_UV'] = dict(LEGS['Q_8131479A_UV'], attended=True)
+for _b in ('8131479A', 'A3EC29D8', '45FD344C', '85395644', '01DBA661', '2F924FB3', '07A65316', '65607703', '97D292F8'):
+    for _s in ('UV', 'NM', 'SM', 'AUTO', 'MWAUTO'):
+        LEGS[f'P_{_b}_{_s}'] = dict(LEGS[f'Q_{_b}_{_s}'])
+LEGS['R_8131479A_MMHOLD'] = dict(mode='pie', build='8131479A', map='/Game/StackOBot/Maps/MainMenu', census=False, nofocus=True, attended=True, kind='exit', hold_s=15.0, pre=['stat unit'])
+
+
+def _census_legs(b):
+    for tag, m in (('S', 'staged'), ('P', 'pie')):
+        for nm, mp in (('MW', c.MAP_MW), ('FX', c.MAP_FIX)):
+            d = T(m, b, mp=mp, census=False, kind='log' if m == 'staged' else 'exit', pattern='IAI-TEXCORRUPT-CENSUS v1 end', count=1,
+                  pre=['IAI.Targets.AllowNanite 0', 'DEFER ' * 150 + 'IAI.TexCorrupt.Census all'], wait=900, hold_s=150.0)
+            if m == 'pie':
+                d.update(nofocus=True)
+            LEGS[f'{tag}_{b}_CENALL_{nm}'] = d
+
+
+for _b in ('8131479A', '01DBA661', '2F924FB3', '07A65316', '65607703'):
+    _census_legs(_b)
+
+
+ROCK = 'StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+for _b in ('8131479A', '2F924FB3', 'A3EC29D8', '45FD344C', '85395644', '07A65316', '65607703'):
+    for _tag, _m in (('S', 'staged'), ('P', 'pie')):
+        _d = T(_m, _b, SM, ROCK, mp=c.MAP_MW, pre=['IAI.Targets.AllowNanite 1'], frames=150, wait=900)
+        if _m == 'pie':
+            _d.update(nofocus=True, pre=['IAI.Capture.FocusGate 0', 'IAI.Targets.AllowNanite 1'])
+        LEGS[f'{_tag}_{_b}_SMROCK'] = _d
+
+
+LEGS['P_2F924FB3_VISDIAG'] = dict(mode='pie', build='2F924FB3', map=c.MAP_FIX, census=False, nofocus=True, kind='exit', hold_s=12.0,
+                                  pre=['IAI.DumpCoverage', 'IAI.DumpVisible', 'IAI.SetMinScreenCoverage 0', 'IAI.DumpVisible', 'IAI.SetMinScreenCoverage 6', 'IAI.SetPollRadius 0', 'IAI.DumpVisible'])
+LEGS['S_2F924FB3_VISDIAG'] = dict(LEGS['P_2F924FB3_VISDIAG'], mode='staged', kind='log', pattern='IAI.DumpVisible', count=1, wait=120, pre=['DEFER ' * 60 + x for x in LEGS['P_2F924FB3_VISDIAG']['pre']])
+
+
+def _autocov0(b):
+    for _tag, _m in (('S', 'staged'), ('P', 'pie')):
+        _d = T(_m, b, auto=[UV, NM], frames=600, wait=900, pre=['IAI.SetMinScreenCoverage 0'])
+        if _m == 'pie':
+            _d.update(nofocus=True, pre=['IAI.Capture.FocusGate 0', 'IAI.SetMinScreenCoverage 0'])
+        LEGS[f'{_tag}_{b}_AUTOCOV0'] = _d
+
+
+for _b in ('8131479A', '2F924FB3', '07A65316', '65607703'):
+    _autocov0(_b)
+
+
+for _b in ('07A65316', '65607703'):
+    for _tag, _m in (('S', 'staged'), ('P', 'pie')):
+        _d = T(_m, _b, auto=AUTO3, frames=600, wait=900, pre=['IAI.SetMinScreenCoverage 0'])
+        if _m == 'pie':
+            _d.update(nofocus=True, pre=['IAI.Capture.FocusGate 0', 'IAI.SetMinScreenCoverage 0'])
+        LEGS[f'{_tag}_{_b}_AUTO3COV0'] = _d
+
+
+LEGS['P_65607703_CEN2_MW'] = T('pie', '65607703', mp=c.MAP_MW, census=False, kind='exit', nofocus=True, hold_s=150.0, wait=900,
+                               pre=['IAI.Targets.AllowNanite 0', 'DEFER ' * 150 + 'IAI.TexCorrupt.Census all',
+                                    'DEFER ' * 3000 + 'IAI.TexCorrupt.Census all', 'DEFER ' * 3100 + 'stat unit'])
+
+
+def manifest(tag):
+    p = c.WORK / f'content-{tag}-{int(time.time())}.json'
+    r = subprocess.run([sys.executable, str(MANIFEST), 'hash', str(p)], capture_output=True, text=True)
+    return p if r.returncode == 0 else None
+
+
+def run(label):
+    spec = LEGS[label] if label in LEGS else LEGS[label.split('__')[0]]
+    g = c.wait_quiet()
+    rec = dict(label=label, gate=g)
+    if not g['clear']:
+        rec['status'] = 'NOT-QUIET'
+        c.jsave(c.WORK / 'runs' / f'{label}.json', rec)
+        return rec
+    if spec['mode'] == 'staged':
+        rec['stage'] = c.stage(spec['build'])
+    else:
+        rec['dlls'] = c.swap_editor(spec['build'])
+        rec['manifest_before'] = str(manifest('pre'))
+    rec['run'] = c.run_leg(label, spec)
+    if spec['mode'] != 'staged':
+        after = manifest('post')
+        d = subprocess.run([sys.executable, str(MANIFEST), 'diff', rec['manifest_before'], str(after), '--rule', 'none'],
+                           capture_output=True, text=True)
+        rec['content_diff_rc'] = d.returncode
+        rec['content_diff'] = (d.stdout + d.stderr)[-600:]
+    rec['reading'] = c.read_leg(label)
+    c.jsave(c.WORK / 'runs' / f'{label}.json', rec)
+    return rec
+
+
+def brief(rec):
+    r = rec.get('reading') or {}
+    px = [(e.get('type'), e.get('mode'), e.get('verdict'), e.get('median'), e.get('null')) for e in r.get('pixels', [])]
+    s = r.get('summary') or {}
+    keep = {k: v for k, v in s.items() if v not in (0, None, [], {}, False, '') }
+    return dict(label=rec['label'], status=rec.get('status') or (rec.get('run') or {}).get('stdout', '')[-200:],
+                events=r.get('events'), pixels=px, summary=keep, content_diff_rc=rec.get('content_diff_rc'))
+
+
+if __name__ == '__main__':
+    if sys.argv[1] == 'restore':
+        print(json.dumps(dict(staged=c.restore_s1(), editor=c.restore_editor()), indent=1))
+    elif sys.argv[1] == 'gate':
+        print(json.dumps(dict(blocking=c.idle_read(), person_idle_s=c.person_idle_s()), indent=1))
+    else:
+        for lab in sys.argv[1:]:
+            print(json.dumps(brief(run(lab)), default=str), flush=True)

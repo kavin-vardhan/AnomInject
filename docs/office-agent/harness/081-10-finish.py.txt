@@ -1,0 +1,127 @@
+from pathlib import Path
+import datetime,hashlib,json,shutil,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-10-evidence';R=B/'StackOBot/Plugins/AnomalyInjector';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector');F=B/'_reviews/081-10-frozen';FEATURE='feat/m55-change-evidence'
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(r,*args):return subprocess.check_output(['git','-C',str(r),*args]).decode().strip()
+def write(p,x):p.write_text(json.dumps(x,indent=2),encoding='utf-8')
+def idle():
+    s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue | Select-Object Id,ProcessName) | ConvertTo-Json -Compress"]).decode().strip();assert not s or s=='[]',s
+def clean(r):assert not git(r,'diff','--name-only') and not git(r,'diff','--cached','--name-only'),str(r)
+before=json.loads((E/'preflight.json').read_text());m=json.loads((E/'binary-v1.json').read_text());entry=json.loads((B/'_reviews/081-06-evidence/lyra-binary-before.json').read_text())
+idle();clean(R);clean(L);head=git(R,'rev-parse','HEAD');assert git(R,'branch','--show-current')==FEATURE and head==git(R,'rev-parse','origin/'+FEATURE)
+assert git(L,'rev-parse','HEAD')==m['source_commit']
+assert not git(R,'diff','--name-only',m['source_commit'],head,'--','Source','Shaders','Config','AnomalyInjector.uplugin')
+changed=git(R,'diff','--name-only','39a71d8',m['source_commit'],'--','Source','AnomalyInjector.uplugin').splitlines()
+assert set(changed)=={'AnomalyInjector.uplugin','Source/AnomalyBench/Private/AnomalyBenchModule.cpp','Source/AnomalyControlServer/Private/AnomalyControlServerSubsystem.cpp'}
+assert not F.exists();F.mkdir();files=[p for p in git(R,'ls-files').splitlines() if p.startswith(('Source/','Shaders/','Config/')) or p=='AnomalyInjector.uplugin']
+files+=['CLAUDE.md','docs/PRE-DELIVERY-CHECKLIST.md','docs/architecture.md','docs/gotchas.md','docs/change-evidence-fields.md','docs/predictions/2026-09-20-m55-change-evidence.md','docs/sessions/2026-09-22-081-10-codex-m55-fixture-fix.md']
+frozen={'source_commit':m['source_commit'],'feature_commit':head,'files':{}}
+for name in files:
+    p=F/'AnomalyInjector'/name;p.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(R/name,p)
+    assert git(R,'hash-object','--path='+name,str(R/name))==git(R,'rev-parse',head+':'+name),name
+    frozen['files'][str(p.relative_to(F))]=sha(p)
+write(F/'manifest.json',frozen)
+mods={str(p):sha(p) for p in (R/'Binaries/Win64').glob('*') if p.is_file() and (p.name.startswith('UnrealEditor-Anomaly') or p.name=='UnrealEditor.modules')}
+orig=B/'_binary_baselines/m55-stage1-lyra-entry-caa68c6';target=(L/'Binaries/Win64').resolve()
+for row in entry:assert sha(orig/row['name'])==row['sha256']
+for row in m['lyra_modules']:
+    assert sha(target/row['name'])==row['sha256'];assert sha(Path(m['lyra_archive'])/row['name'])==row['sha256']
+git(L,'checkout','--detach',before['repos']['Lyra']['head'])
+for row in entry:shutil.copy2(orig/row['name'],target/row['name'])
+removed=[]
+for name in ('UnrealEditor-AnomalyBench.dll','UnrealEditor-AnomalyBench.pdb'):
+    p=(target/name).resolve();assert p.parent==target and p.name==name;p.unlink();removed.append(str(p))
+for row in entry:assert sha(target/row['name'])==row['sha256']
+git(R,'checkout','m51')
+write(E/'restoration.json',{'feature_commit':head,'main_editor_candidate_modules_left_in_place':mods,'lyra_restored_entry_modules':entry,'removed_exact_new_module_files':removed,'main_head':git(R,'rev-parse','HEAD'),'lyra_head':git(L,'rev-parse','HEAD')})
+header=f'''# 081-10 m55 fixture fix — first enabled preflight refused, 2026-09-22
+
+Owner supplied `_reviews/081-09-chat-ruling-fixture-fix.md`. Chat explicitly accepts the shared
+focus-transition signature and applies R1 step3; no more old-binary diagnosis repeats.
+Disposition NEEDS-DECISION under the ruled <5/5 stop. Fix built, first ON preflight refused at
+input-lock readiness before settle/placement/snapshots.0 qualified of5,1 ON attempted,4 ON and
+3 OFF UNRUN. No retry or measurement allowance renewed. No capture or injection.
+Own implementation unnecessarily requires PC->GetPawn() for controller input locking; placement
+also assumes GetPawn. Map logs No Spawnpad found. Combined refusal does not identify the absent
+pointer; exact controller/pawn/spectator/view-target readiness remains to inspect in a correction.
+Codex implements; Chat orchestrates; Code reviews after Stage3. No mailbox brief.
+
+Read in order:
+1. D:/IntrusiveAnomalies/_reviews/081-10-codex-m55-fixture-fix.md (full, Questions for chat).
+2. D:/IntrusiveAnomalies/_reviews/081-09-chat-ruling-fixture-fix.md.
+3. D:/IntrusiveAnomalies/_reviews/081-10-frozen/AnomalyInjector/docs/sessions/2026-09-22-081-10-codex-m55-fixture-fix.md.
+4. 081-10-evidence/final-ledger.json, bounded-cause-read.json, validation-results.json,
+   runner-F12_ON1.log, F12_ON1/game.log and F12_ON1/launch.json (no snapshots exist).
+5. binary-v1.json, all three build-v1 logs, restoration.json, postflight.json and frozen manifest.
+6. Prior081-08 accepted twins and081-09 diagnosis, preserved as linked below.
+
+Feature local/origin {head}; built implementation4a1475670bca25d3e6735a137547637bb986482a.
+Game built/staged/archive b283e34c13a8229680848e6b87ac5e448b457a2e0f0e5ae8a15759742d0384da,
+archive _binary_baselines/StackOBot.exe.m55-stage2-B283E34C. Lyra candidate archive eleven files:
+_binary_baselines/m55-stage2-fixture-lyra-23258325. All three Development builds exit0, no cook.
+Pre-fix2C21EDE5 and AEBD09EA/0844220E, five cooked containers and prior artifacts unchanged.
+Source change scope: fixture module, descriptor, typed control bridge. Arithmetic/labels unchanged.
+
+Game/Editor non-Shipping fixture module, Client/Server excluded. Explicit typed bench commands
+load its linked initializer with old containers. Input locks use balanced owned increments,
+release on run end/cleanup or explicit off; repeated enable does not stack. Those behaviours
+are implemented but runtime UNEXERCISED because enable refused. No placement attempt occurred.
+CB reference camera(-1500,0,260), rotation0/0/0; independent B1 still required. Lyra pose unchanged.
+First ON command refusal at14:39:15.528 UTC, GFrameCounter43; observer failed closed and joined
+owned PID35828. Do not treat executed receipt as lock success or invent a B1/foreground reading.
+
+Main restored m51 53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67, clean tracked,11 handoffs retained.
+Lyra detached caa68c6799db023f7a24c0d6cfc56124ce27b542, nine original module files restored;
+only two new AnomalyBench DLL/PDB files removed. Main StackOBotEditor modules and built/staged
+Game remain rebuilt candidate binaries despite restored m51 source. CaptureBench b2ca764 unchanged,
+eight untracked files preserved. Master local/origin031a103b18b90b2ce9dd626b22e9498717c60815 and
+m51 untouched. Source/docs frozen. No owned process/build/watcher remains in flight.
+All CURRENT bytes, including separate Blender/video workstream entries, preserved below.
+
+Stage1 accepted36 and24 Lyra DROPPED-BY-OWNER-DECISION remain. Older static twins accepted but
+must rerun on a qualified fixed binary; old DELAY_N three invalids stay uncredited/exhausted.
+No new allowance.081-11 R2–R4, actual teardown, six-leg AEBD09EA invariance remain open.
+F3 requires whole-measurement-leg foreground with PID/sample audit; runner integration remains
+part of081-11 (no measurement run here). For THIS no-capture preflight, zero foreground can pass
+pose per new ruling; do not carry that exemption to measurement.081-12 Lyra runs last, exactly
+natural twins +G3/G270, zero runtime attempts used; first-leg3-attempt auto-drop unchanged.
+Stage3 requires GREEN R2–R4 plus R5 resolved. Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4**,
+the previous verbatim coverage limits and open teardown gate. No release/shipping claim.
+
+**Chat review REQUIRED** for failed081-10 disposition and readiness correction/revalidation
+before081-11. **Chat review NOT REQUIRED** for completed authorized implementation/build and
+safe boundary documentation. Next mandatory checkpoint is Chat's081-10 ruling. No further work
+or allowance renewal inferred from prepared helpers. No fresh-session/context switch advised.
+
+Earlier CURRENT content is preserved byte-for-byte below as history.
+
+---
+
+'''
+previous=(E/'CURRENT.before.md').read_bytes();current=B/'ToCodex/CURRENT.md';assert current.read_bytes()==previous
+current.write_bytes(header.replace('\n','\r\n').encode()+previous)
+after={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'feature_commit':head,'source_commit':m['source_commit'],'repos':{}}
+for name,r in {'AnomalyInjector':R,'Lyra':L,'CaptureBench':B/'StackOBot/Plugins/CaptureBench'}.items():
+    clean(r);old=before['repos'][name]
+    new={'head':git(r,'rev-parse','HEAD'),'branch':git(r,'branch','--show-current'),'refs':git(r,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes'),'untracked':{p:sha(r/p) for p in git(r,'ls-files','--others','--exclude-standard').splitlines()}}
+    assert all(old[k]==new[k] for k in ('head','branch','untracked')),name
+    a=dict(l.split(' ',1) for l in old['refs'].splitlines());z=dict(l.split(' ',1) for l in new['refs'].splitlines())
+    delta={k:[a.get(k),z.get(k)] for k in a.keys()|z.keys() if a.get(k)!=z.get(k)};assert set(delta)<={'refs/heads/'+FEATURE,'refs/remotes/origin/'+FEATURE};new['ref_delta']=delta;after['repos'][name]=new
+expected=dict(before['verified_binaries']);expected.update(mods)
+for k in ('built','staged','archive'):expected[m[k]]=m['sha256']
+for row in m['containers']:expected[row['path']]=row['sha256']
+for row in m['lyra_modules']:expected[str(Path(m['lyra_archive'])/row['name'])]=row['sha256']
+for p,h in expected.items():assert sha(p)==h,p
+after['verified_binaries']=expected
+for p,h in before['prior_artifacts'].items():assert sha(B/p)==h,p
+after['prior_artifacts_preserved']=len(before['prior_artifacts'])
+remote=git(R,'ls-remote','origin','refs/heads/'+FEATURE,'refs/heads/master');assert head+'\trefs/heads/'+FEATURE in remote and '031a103b18b90b2ce9dd626b22e9498717c60815\trefs/heads/master' in remote;after['remote_refs']=remote
+for p,h in frozen['files'].items():assert sha(F/p)==h,p
+after['frozen_files_verified']=len(frozen['files']);after['current_history_preserved']=current.read_bytes().endswith(previous);assert after['current_history_preserved']
+after['current_sha256']=sha(current);after['report_sha256']=sha(B/'_reviews/081-10-codex-m55-fixture-fix.md')
+assert (B/'_reviews/081-10-codex-m55-fixture-fix.md').read_text(encoding='utf-8').rstrip().endswith('VERDICT: NEEDS-DECISION')
+evidence={str(p.relative_to(B)):sha(p) for p in E.rglob('*') if p.is_file() and p.name not in ('postflight.json','evidence-manifest.json')}
+evidence.update({str(p.relative_to(B)):sha(p) for p in (B/'_reviews').glob('081-10-*.py')});evidence.update({str(p.relative_to(B)):sha(p) for p in (B/'_reviews').glob('081-10-*.ps1')});write(E/'evidence-manifest.json',evidence)
+after['evidence_files_hashed']=len(evidence);after['bench_processes']=[];idle();after['verdict']='PASS: boundary restored; fixture validation NEEDS-DECISION, no allowance renewed'
+write(E/'postflight.json',after);print(json.dumps({k:v for k,v in after.items() if k not in ('repos','verified_binaries')},indent=2))

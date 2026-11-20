@@ -1,0 +1,101 @@
+"""090-10f2 Item 2 reader: B's component scope on the two-part bench actor.
+Usage: 090-10f2-twopart.py <session dir> <twopart json> [game.log]
+Per event: target-mask pixels of the event's value inside the eligible part's projected box, inside the ineligible part's box
+and elsewhere; bbox_px against the eligible box; picture change (labelled frame vs the clean frame before the event) inside each
+box against a clean-to-clean null; m26 maxCount. A box is the part's projected bounds, so it contains the part's pixels and some
+background around them; the two boxes are disjoint by construction (a gap between the parts)."""
+import json, re, sys
+from pathlib import Path
+from PIL import Image, ImageChops
+
+THR = 12
+
+
+def box_scaled(b, sx, sy, pad=0):
+    return (int(b['x0'] * sx) - pad, int(b['y0'] * sy) - pad, int(b['x1'] * sx + 0.999) + pad, int(b['y1'] * sy + 0.999) + pad)
+
+
+def count_in(img_bytes, w, h, pred, box):
+    x0, y0, x1, y1 = max(0, box[0]), max(0, box[1]), min(w, box[2]), min(h, box[3])
+    n = 0
+    for y in range(y0, y1):
+        row = img_bytes[y * w:(y + 1) * w]
+        for x in range(x0, x1):
+            if pred(row[x]):
+                n += 1
+    return n
+
+
+def changed(a, b, box):
+    d = ImageChops.difference(a.convert('RGB'), b.convert('RGB')).crop(box)
+    px = d.getdata()
+    tot = d.size[0] * d.size[1]
+    return (sum(1 for p in px if max(p) > THR) / tot) if tot else 0.0
+
+
+def read(sess, tpj, log=None):
+    sess = Path(sess)
+    tp = json.loads(Path(tpj).read_text(encoding='utf-8'))
+    rows = {r['session_index']: r for r in (json.loads(l) for l in (sess / 'labels.jsonl').read_text(encoding='utf-8').splitlines() if l.strip())}
+    w, h = next(iter(rows.values()))['width'], next(iter(rows.values()))['height']
+    vp = tp.get('viewport') if isinstance(tp.get('viewport'), list) else [w, h]
+    sx, sy = w / float(vp[0]), h / float(vp[1])
+    E, I = box_scaled(tp['eligible_screen'], sx, sy), box_scaled(tp['ineligible_screen'], sx, sy)
+    m26 = {}
+    if log and Path(log).exists():
+        for m in re.finditer(r'M26 VETO-READ id=(\S+) target=(\S+) startFrame=(\d+) .*?state=(\S+) .*?maxCount=(-?\d+)', Path(log).read_text(encoding='utf-8', errors='replace')):
+            m26[int(m.group(3))] = dict(state=m.group(4), maxCount=int(m.group(5)))
+    events = {}
+    for si in sorted(rows):
+        for a in rows[si].get('anomalies') or []:
+            if a.get('target_name') != tp['actor']:
+                continue
+            ev = events.setdefault(a['start_frame'], dict(id=a['id'], mask_value=a.get('mask_value'), labelled=[], entries=[], meta=a))
+            ev['entries'].append(si)
+            if a.get('labelled') is True:
+                ev['labelled'].append(si)
+    out = []
+    for sf, ev in sorted(events.items()):
+        L = ev['labelled']
+        if not L:
+            out.append(dict(start_frame=sf, id=ev['id'], labelled=0))
+            continue
+        first = min(L)
+        ref = next((s for s in range(first - 1, -1, -1) if s in rows and s not in ev['entries']), None)
+        ref2 = next((s for s in range(ref - 1, -1, -1) if s in rows and s not in ev['entries']), None) if ref is not None else None
+        mv = ev['mask_value']
+        mE = mI = mT = 0
+        bbox_ok = 0
+        for si in L:
+            r = rows[si]
+            a = next(x for x in r['anomalies'] if x.get('target_name') == tp['actor'] and x['start_frame'] == sf)
+            b = a.get('bbox_px')
+            if b and b[0] >= E[0] - 2 and b[1] >= E[1] - 2 and b[0] + b[2] <= E[2] + 2 and b[1] + b[3] <= E[3] + 2:
+                bbox_ok += 1
+            if r.get('mask_file'):
+                im = Image.open(sess / r['mask_file']).convert('L')
+                data = im.tobytes()
+                pred = (lambda v, mv=mv: v == mv)
+                mT += sum(1 for v in data if v == mv)
+                mE += count_in(data, w, h, pred, E)
+                mI += count_in(data, w, h, pred, I)
+        pE = pI = nE = nI = None
+        if ref is not None:
+            fr = Image.open(sess / rows[ref]['image'])
+            ch = [(changed(Image.open(sess / rows[s]['image']), fr, E), changed(Image.open(sess / rows[s]['image']), fr, I)) for s in L]
+            pE = sorted(c[0] for c in ch)[len(ch) // 2]
+            pI = sorted(c[1] for c in ch)[len(ch) // 2]
+            if ref2 is not None:
+                f2 = Image.open(sess / rows[ref2]['image'])
+                nE, nI = changed(fr, f2, E), changed(fr, f2, I)
+        meta = ev['meta']
+        out.append(dict(start_frame=sf, id=ev['id'], labelled=len(L), mask_value=mv, mask_in_eligible=mE, mask_in_ineligible=mI,
+                        mask_elsewhere=mT - mE - mI, bbox_within_eligible=f'{bbox_ok}/{len(L)}', change_eligible_median=pE,
+                        change_ineligible_median=pI, null_eligible=nE, null_ineligible=nI,
+                        components_corrupted=meta.get('texcorrupt.components_corrupted'),
+                        components_skipped=meta.get('texcorrupt.components_skipped'), m26=m26.get(sf)))
+    return dict(actor=tp['actor'], eligible_box=E, ineligible_box=I, frame=[w, h], events=out)
+
+
+if __name__ == '__main__':
+    print(json.dumps(read(*sys.argv[1:4]), indent=1, default=str))

@@ -1,0 +1,104 @@
+import importlib.util,json,os,shutil,sys,tempfile
+from pathlib import Path
+import numpy as np
+from PIL import Image
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+E=load('e56',R/'084-06-eval.py')
+RES=[]
+def check(name,cond,detail=''):
+    RES.append(dict(name=name,ok=bool(cond),detail=str(detail)[:300]))
+def rng(a,b):return list(range(a,b+1))
+def rule(L,kon,koff):L=sorted(L);return set(L[:kon])|set(range(L[-1]+1,L[-1]+koff+1))
+def t_gate():
+    sp=rng(0,40)
+    g=E.gate_transition(rng(10,17),set(),rng(10,17),sp,temporal_aa=True);check('T1 exact label, no flags: PASS and strict 0/0',g['pass'] and g['strict_0_0'],g)
+    g=E.gate_transition(rng(10,17),rule(rng(10,17),2,8),rng(12,21),sp,temporal_aa=True);check('T2 TAA smear +2/+4 inside the rule flags 2/8: PASS, not strict 0/0',g['pass'] and not g['strict_0_0'],g)
+    g=E.gate_transition(rng(10,17),set(),rng(12,21),sp,temporal_aa=True);check('T3 the same smear with no flags: FAIL',not g['pass'],g['fail_reasons'])
+    g=E.gate_transition(rng(10,17),rule(rng(10,17),2,1),rng(12,21),sp,temporal_aa=True);check('T4 K_off too short (1) for a +4 tail: FAIL',not g['pass'],g['fail_reasons'])
+    g=E.gate_transition(rng(10,17),rule(rng(10,17),2,8),rng(13,21),sp,temporal_aa=True);check('T5 onset +3 against K_on 2: FAIL',not g['pass'],g['fail_reasons'])
+    g=E.gate_transition(rng(10,17),set(),rng(10,13)+rng(15,17),sp,temporal_aa=True);check('T6 a hole inside the label: FAIL',not g['pass'],g['fail_reasons'])
+    g=E.gate_transition(rng(10,17),{18},rng(10,18),sp,temporal_aa=False);check('T7 a transition flag on a leg without temporal AA: FAIL',not g['pass'] and any('without temporal AA' in x for x in g['fail_reasons']),g['fail_reasons'])
+    drop={si:(0.4 if si<=20 else (0.3 if si==21 else (0.2 if si==22 else 0.0))) for si in sp}
+    g=E.gate_transition(rng(10,17),rule(rng(10,17),2,8),rng(10,22),sp,drop,0.01,temporal_aa=True);check('T8 label ends 3 frames early inside the hold; flags cover it; decay rule: FAIL',not g['pass'] and g['offset_decay_checks'] and not g['offset_decay_checks'][0]['ok'],g['offset_decay_checks'])
+    drop2=dict(drop);drop2.update({18:0.25,19:0.15,20:0.1,21:0.05,22:0.03})
+    g=E.gate_transition(rng(10,17),rule(rng(10,17),2,8),rng(10,22),sp,drop2,0.01,temporal_aa=True);check('T9 a real decaying smear after the label: PASS',g['pass'],g)
+    g=E.gate_transition(rng(10,17),rule(rng(10,17),2,8),rng(10,17)+[30],sp,temporal_aa=True);check('T10 a later visible frame outside every flag: FAIL',not g['pass'],g['fail_reasons'])
+    g=E.gate_transition([10,11,15,16],rule([10,11],0,1)|rule([15,16],0,1),[10,11,12,15,16,17],sp,temporal_aa=True);check('T11 blinking: each return frame flagged (K_hide 1): PASS',g['pass'],g)
+    g=E.gate_transition([10,11,15,16],{12},[10,11,12,15,16,17],sp,temporal_aa=True);check('T12 blinking: second return frame unflagged: FAIL',not g['pass'],g['fail_reasons'])
+class FakeS:
+    def __init__(self,n,jumps=()):
+        self.by_si={}
+        f=1000
+        for si in range(n):
+            if si in jumps:f+=3
+            self.by_si[si]={'session_index':si,'frame_index':f};f+=1
+def w_gate():
+    s=FakeS(60);sp=rng(0,59)
+    fv,lv,conf,oc,fc=E.window_084(s,set(rng(20,27)),sp);check('W1 window [20..27] found, confirmed, no censoring',(fv,lv,oc,fc)==(20,27,None,None),(fv,lv,conf,oc,fc))
+    two=E.gate_two_sided(rng(20,27),set(rng(20,27)),fv,lv,oc,fc,conf,sp);check('W2 exact two-sided PASS',two['verdict']=='PASS',two)
+    two=E.gate_two_sided(rng(21,27),set(rng(20,27)),fv,lv,oc,fc,conf,sp);check('W3 onset +1: FAIL',two['verdict']=='FAIL',two['fail_reasons'])
+    two=E.gate_two_sided(rng(20,29),set(rng(20,27)),fv,lv,oc,fc,conf,sp);check('W4 offset over-label +2: FAIL',two['verdict']=='FAIL',two['fail_reasons'])
+    s2=FakeS(60,jumps=(28,));fv,lv,conf,oc,fc=E.window_084(s2,set(rng(20,27)),sp);check('W5 engine-frame jump right after the offset: CENSORED, never PASS',fc is not None,fc)
+    vis=set(rng(20,27))|{35};fv,lv,conf,oc,fc=E.window_084(s,vis,sp);two=E.gate_two_sided(rng(20,27),vis,fv,lv,oc,fc,conf,sp);check('W6 isolated visible frame after the window: FAIL (084-04a rule b)',two['verdict']=='FAIL' and 35 in two['visible_outside_window'],two)
+SEGS=[('control_start',0,29,lambda k:0),('wall_far',30,39,lambda k:0),('wall_in',40,59,lambda k:1 if k>=50 else 0),('wall_near',60,69,lambda k:1),('wall_out',70,89,lambda k:1 if k<=79 else 0),
+      ('wall_far_2',90,99,lambda k:0),('behind',100,119,lambda k:0),('beside',120,139,lambda k:0),('prop_noncolliding',140,159,lambda k:1),('pawn_mesh',160,179,lambda k:0),('control_end',180,199,lambda k:0)]
+def seg_of(k):
+    for n,a,b,f in SEGS:
+        if a<=k<=b:return n,f(k)
+def write_cc(d,kind,rngs,label_shift=0,proxy='predicted',same_as_null=False):
+    if d.exists():shutil.rmtree(d)
+    (d/'Actual_Frames').mkdir(parents=True);rows=[];H,W=24,40;base=np.full((H,W,3),100,np.int16);base[:,:W//2]=140
+    lines=['IAI-CC-SCHEDULE ARMED version=cc_v1 frames=200 wall_face_x=-1400.0 eye_z=260.0 pawn=None pawn_mesh=0 view_owner=x local_offset=0 gfc=1']
+    for k in range(200):
+        n,des=seg_of(k);img=base+rngs.integers(-3,4,size=base.shape)
+        if kind=='on' and not same_as_null:
+            if des:img[4:14,5:25]+=60
+            elif n in ('control_start','wall_far','wall_far_2','control_end'):img[20:22,0:6]+=20
+        Image.fromarray(np.clip(img,0,255).astype(np.uint8),'RGB').save(d/'Actual_Frames'/f'frame_{k:05d}.png')
+        lab=seg_of(k-label_shift)[1] if 0<=k-label_shift<200 else des
+        r=dict(session_index=k,frame_index=5000+k,image=f'Actual_Frames/frame_{k:05d}.png',anomalies=[])
+        if kind=='on':
+            px=(1 if (n in ('behind','beside')) else (0 if n=='prop_noncolliding' else des)) if proxy=='predicted' else des
+            r['camera_clipping.slab']=bool(lab);r['camera_clipping.sphere_proxy']=bool(px);r['camera_clipping.eye_inside_box']=0
+            if lab:r['anomalies']=[dict(id='camera_clipping',target_name='StaticMeshActor_49',start_frame=4999)]
+        rows.append(r)
+        lines.append(f'IAI-CC-SCHEDULE FRAME k={k} seg={n} designed={des} pawn_mesh=0 want=(0,0,0,yaw 0) got=(0,0,0,yaw 0) err_cm=0.0100 err_deg=0.0000 exhausted=0 gfc={5000+k}')
+    (d/'labels.jsonl').write_text('\n'.join(json.dumps(x) for x in rows)+'\n',encoding='utf-8')
+    (d/'run_summary.json').write_text(json.dumps({'camera_clipping_label_rule':'view_slab_render_bounds_v1'}),encoding='utf-8')
+    E._SC.pop(str(d.resolve()),None)
+    return d,'\n'.join(lines)
+def cc_gate():
+    t=Path(tempfile.gettempdir())/'r56_cc_selftest';rg=np.random.default_rng(7)
+    on,lon=write_cc(t/'on',"on",rg);na,lna=write_cc(t/'na',"null",rg);nb,lnb=write_cc(t/'nb',"null",rg)
+    r=E.cc_pair(on,na,lon,lna,nb,lnb);check('C1 exact slab label: valid, judgeable, gate 1 PASS',r.get('valid') and not r['unjudgeable'] and r['gate1_label_equals_clipped'],{k:r.get(k) for k in ('valid','F','P','theta','unjudgeable','gate1_label_equals_clipped','errors')})
+    check('C2 sphere proxy wrong on behind/beside/prop: can-fail proven',r.get('gate2_canfail_proven'),r.get('proxy_can_fail'))
+    check('C3 designed verdicts and the oracle agree on every frame',r.get('designed_vs_oracle_disagree')==[],r.get('designed_vs_oracle_disagree'))
+    on2,lon2=write_cc(t/'on_shift',"on",np.random.default_rng(7),label_shift=1)
+    r2=E.cc_pair(on2,na,lon2,lna,nb,lnb);check('C4 label one frame late at every edge (a stale camera, G41 shape): gate 1 FAIL',r2.get('valid') and not r2['gate1_label_equals_clipped'],r2.get('rules',{}).get('t50'))
+    on3,lon3=write_cc(t/'on_proxyok',"on",np.random.default_rng(7),proxy='designed')
+    r3=E.cc_pair(on3,na,lon3,lna,nb,lnb);check('C5 proxy equal to the oracle everywhere: can-fail NOT proven (the gate refuses to call it evidence)',r3.get('valid') and not r3['gate2_canfail_proven'],r3.get('proxy_can_fail'))
+    on4,lon4=write_cc(t/'on_same',"on",np.random.default_rng(7),same_as_null=True)
+    r4=E.cc_pair(on4,na,lon4,lna,nb,lnb);check('C6 ON identical to its null (the push did nothing): UNJUDGEABLE, not PASS',r4.get('valid') and r4['unjudgeable'] and not r4['gate1_label_equals_clipped'],{k:r4.get(k) for k in ('F','P','unjudgeable')})
+    lbad=lon.replace('err_cm=0.0100','err_cm=0.9000',3)
+    r5=E.cc_pair(on,na,lbad,lna,nb,lnb);check('C7 schedule pose error over tolerance: INVALID',r5.get('valid') is False,r5.get('errors'))
+    shutil.rmtree(t,ignore_errors=True)
+def ls_wrap():
+    t=Path(tempfile.gettempdir())/'r56_ls_selftest';shutil.rmtree(t,ignore_errors=True);t.mkdir(parents=True)
+    rows=[dict(session_index=i,frame_index=i,image='x.png',anomaly_present=False,anomalies=[]) for i in range(10)]
+    rows[5]['transition_present']=True;rows[5]['anomalies']=[dict(id='stuck_low_mip',start_frame=1,transition=1)]
+    (t/'labels.jsonl').write_text('\n'.join(json.dumps(x) for x in rows),encoding='utf-8')
+    s=E.DSession(t,True,False);check('L1 086-01 wrapper: a transition_present row is excluded from reference selection',s.rows[5]['anomaly_present'] is True and s.rows[4]['anomaly_present'] is False,[s.rows[i]['anomaly_present'] for i in range(10)])
+    shutil.rmtree(t,ignore_errors=True)
+def main():
+    t_gate();w_gate();cc_gate();ls_wrap()
+    bad=[r for r in RES if not r['ok']]
+    out=dict(checks=len(RES),failures=len(bad),failed=bad,results=RES)
+    p=Path(r'D:\IntrusiveAnomalies\_reviews\084-06-evidence');p.mkdir(parents=True,exist_ok=True)
+    (p/'gateselftest.json').write_text(json.dumps(out,indent=1),encoding='utf-8')
+    for r in RES:print(('OK  ' if r['ok'] else 'FAIL')+' '+r['name']+('' if r['ok'] else '  :: '+r['detail']))
+    print(json.dumps(dict(checks=len(RES),failures=len(bad))))
+    sys.exit(1 if bad else 0)
+if __name__=='__main__':main()

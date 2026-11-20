@@ -1,0 +1,17 @@
+import importlib.util,json,subprocess,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-22-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+E=c.E;ORACLE=Path(r'D:\IntrusiveAnomalies\_scratch_081_22\feat\tools\verify_capture.py')
+res=[]
+for f in ('lyra-results.json','stack-results.json'):
+    p=E/f
+    if not p.exists():continue
+    for r in json.loads(p.read_text()):
+        if r.get('status')!='READING' or r.get('evidence')!='ON':continue
+        oj=E/r['label']/'oracle.json'
+        o=subprocess.run([sys.executable,str(ORACLE),'--change-oracle',r['session'],'--quiet','--oracle-json',str(oj)],capture_output=True,text=True,cwd=ORACLE.parent)
+        (E/r['label']/'oracle.txt').write_text(o.stdout+o.stderr)
+        s=json.loads(oj.read_text()).get('summary') if oj.exists() else None
+        res.append(dict(label=r['label'],leg=r['leg'],exit=o.returncode,summary=s,unavailable=json.loads(oj.read_text()).get('unavailable') if oj.exists() else None))
+        print(json.dumps(res[-1],default=str)[:600],flush=True)
+(E/'oracle-part2.json').write_text(json.dumps(res,indent=2,default=str))

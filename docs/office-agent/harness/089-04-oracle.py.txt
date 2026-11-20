@@ -1,0 +1,2039 @@
+"""085-04 texture-corruption mode oracle (m53 DC plan section 6, S2 plan R2.1).
+
+Judges uv_corruption modes tile / scramble and normal_corruption modes invert / green_flip against the three DC
+oracle tiles (TC_OracleUV16, TC_OracleUV64, TC_OracleN). Everything is derived from the NULL frame: cell positions
+(unique colours, then an affine screen->uv fit) and each cell's displayed colour (the null's own median). The texel
+colour is used only to locate a cell.
+
+Usage:
+  python 089-04-oracle.py selftest            -> 089-04-evidence/oracle/selftest.json, exit 0 iff all cases pass
+  python 085-04-oracle.py porc --frames a.png [b.png ...] [--actors dc_actors.json]
+  python 085-04-oracle.py judge --session S --log game.log [--null N] [--null-log L] [--actors J] [--seed N] [--out O]
+
+Constants and the scramble-pair recomputation are COPIED from CaptureBench/tools/texcorrupt_fixture_images.py
+(085-03); the shader semantics from AnomalyInjector/tools/create_texcorrupt_assets.py (UV_FN, NORMAL_ENCODE); the
+log formats from Anomaly_TexCorrupt.cpp (APPLIED line) and TexCorruptState.cpp (FAttemptInfo::Describe, run-start
+knobs).
+"""
+
+import json
+import math
+import os
+import re
+import shutil
+import struct
+import sys
+import time
+import zlib
+
+import numpy as np
+from PIL import Image
+
+try:
+    from scipy import ndimage as _ndi
+except Exception:
+    _ndi = None
+
+TEX = 128
+ORACLE_LEVELS = [40, 100, 160, 220]
+ORACLE_N_SET = [(0.55, 0.20), (-0.55, 0.20), (0.55, -0.20), (-0.55, -0.20),
+                (0.20, 0.55), (-0.20, 0.55), (0.20, -0.55), (-0.20, -0.55), (0.0, 0.0)]
+ORACLE_N_CELLS = [0, 5, 2, 7, 4, 1, 6, 3, 8, 3, 0, 5, 6, 7, 2, 4]
+DC_TILE_N = 8
+DC_SCRAMBLE_K = 8
+SCRAMBLE_TAG = 0x53434D52
+NCELL = {"uv16": 4, "uv64": 8, "n": 4}
+KIND_LABEL = {"uv16": "TC_OracleUV16", "uv64": "TC_OracleUV64", "n": "TC_OracleN"}
+DEFAULT_DC_LAYOUT = {"TC_OracleUV16": (76, 478, 128), "TC_OracleUV64": (228, 478, 128), "TC_OracleN": (1052, 478, 128)}
+WINDOW_PAD = 24
+
+LOCATE_TOL = 24
+SEP_MIN = 32
+INTERIOR_MAX = 2
+RESIDUAL_MAX = 0.5
+TPP_MAX = 1.0
+TPP_TOL = 0.02
+SAME_MAX = 2
+MATCH_TOL = 16
+OTHER_MIN = 32
+EDGE_PX = 1.5
+INSET_PX = 3.0
+MIN_KEPT = 512
+NEG_FAIL_BELOW = 0.5
+NOOP_IDENTITY_FRAC = 0.75
+MIN_EVENTS = 4
+MIN_COMP_PX = 12
+GEO_MIN_DIRECT_FRAC = 0.75
+
+
+# ---------------------------------------------------------------------------------------------- fixture copies
+
+
+def uv16_colour(cx, cy):
+    return (ORACLE_LEVELS[cx], ORACLE_LEVELS[cy], ORACLE_LEVELS[(cx + 2 * cy) % 4])
+
+
+def uv64_colour(k):
+    return (ORACLE_LEVELS[k % 4], ORACLE_LEVELS[(k // 4) % 4], ORACLE_LEVELS[k // 16])
+
+
+def enc_normal(x, y):
+    z = math.sqrt(max(0.0, 1.0 - x * x - y * y))
+    return tuple(int(math.floor((v * 0.5 + 0.5) * 255.0 + 0.5)) for v in (x, y, z))
+
+
+def cell_texel_colours(kind):
+    if kind == "uv16":
+        return [uv16_colour(k % 4, k // 4) for k in range(16)]
+    if kind == "uv64":
+        return [uv64_colour(k) for k in range(64)]
+    if kind == "n":
+        return [enc_normal(*ORACLE_N_SET[ORACLE_N_CELLS[k]]) for k in range(16)]
+    raise ValueError(kind)
+
+
+def source_image(kind):
+    n = NCELL[kind]
+    cols = np.array(cell_texel_colours(kind), np.uint8)
+    cell = TEX // n
+    idx = (np.arange(TEX) // cell)
+    k = idx[:, None] * n + idx[None, :]
+    return cols[k]
+
+
+def tile_src_cell(u, v, ncell, n=DC_TILE_N):
+    su, sv = (u * n) % 1.0, (v * n) % 1.0
+    return min(int(su * ncell), ncell - 1), min(int(sv * ncell), ncell - 1)
+
+
+def scramble_src_cell(cx, cy, a_inv, b, k=DC_SCRAMBLE_K):
+    n = k * k
+    j = cy * k + cx
+    i = (a_inv * ((j - b) % n)) % n
+    return i % k, i // k
+
+
+def scramble_pair_full(seed, ordinal, k=DC_SCRAMBLE_K):
+    n = k * k
+    raw = struct.pack("<III", seed & 0xFFFFFFFF, ordinal & 0xFFFFFFFF, SCRAMBLE_TAG)
+    h = zlib.crc32(raw) & 0xFFFFFFFF
+    units = [a for a in range(1, n) if math.gcd(a, n) == 1]
+    a = units[(h >> 16) % len(units)]
+    b = h % n
+    if a == 1 and b == 0:
+        b = 1
+    return dict(a=a, b=b, a_inv=pow(a, -1, n), h=h, k=k)
+
+
+def scramble_pair_py(seed, ordinal, k=DC_SCRAMBLE_K):
+    p = scramble_pair_full(seed, ordinal, k)
+    return p["a"], p["b"], p["a_inv"]
+
+
+# ---------------------------------------------------------------------------------------------- image helpers
+
+
+def _as_rgb(x):
+    if isinstance(x, np.ndarray):
+        arr = x
+    else:
+        with Image.open(x) as im:
+            arr = np.asarray(im.convert("RGB"))
+    if arr.ndim == 3 and arr.shape[2] == 4:
+        arr = arr[:, :, :3]
+    return arr
+
+
+def _label(mask):
+    if _ndi is not None:
+        lab, n = _ndi.label(mask)
+        return lab, int(n)
+    h, w = mask.shape
+    lab = np.zeros((h, w), np.int32)
+    n = 0
+    ys, xs = np.nonzero(mask)
+    for y0, x0 in zip(ys, xs):
+        if lab[y0, x0]:
+            continue
+        n += 1
+        stack = [(y0, x0)]
+        lab[y0, x0] = n
+        while stack:
+            y, x = stack.pop()
+            for yy, xx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+                if 0 <= yy < h and 0 <= xx < w and mask[yy, xx] and not lab[yy, xx]:
+                    lab[yy, xx] = n
+                    stack.append((yy, xx))
+    return lab, n
+
+
+def _erode(mask, r):
+    if r <= 0:
+        return mask
+    if _ndi is not None:
+        return _ndi.binary_erosion(mask, structure=np.ones((3, 3), bool), iterations=r)
+    m = mask.copy()
+    for _ in range(r):
+        p = np.pad(m, 1, constant_values=False)
+        out = np.ones_like(m)
+        for dy in (0, 1, 2):
+            for dx in (0, 1, 2):
+                out &= p[dy:dy + m.shape[0], dx:dx + m.shape[1]]
+        m = out
+    return m
+
+
+def _maxabs(a, b):
+    return np.abs(np.asarray(a, float) - np.asarray(b, float)).max(axis=-1)
+
+
+def _dilate(mask, r):
+    if r <= 0:
+        return mask
+    if _ndi is not None:
+        return _ndi.binary_dilation(mask, structure=np.ones((3, 3), bool), iterations=r)
+    m = mask.copy()
+    for _ in range(r):
+        p = np.pad(m, 1, constant_values=False)
+        out = np.zeros_like(m)
+        for dy in (0, 1, 2):
+            for dx in (0, 1, 2):
+                out |= p[dy:dy + m.shape[0], dx:dx + m.shape[1]]
+        m = out
+    return m
+
+
+def _soft_centroid(sub, core, k, refs, x0, y0, pure_tol=6.0, line_tol=8.0, dil=2):
+    """Sub-pixel centroid of cell k: pure-k pixels weigh 1, pure-neighbour pixels 0, and a boundary pixel weighs its
+    blend fraction t on the segment between colour k and the neighbour colour (present in the region) that explains it
+    best. refs: displayed colours, row k is this cell; rows may be None."""
+    region = _dilate(core, dil)
+    ys, xs = np.nonzero(region)
+    if len(ys) == 0:
+        return None
+    X = sub[ys, xs].astype(float)
+    idx = [i for i, r in enumerate(refs) if r is not None]
+    Rf = np.array([refs[i] for i in idx], float)
+    kk = idx.index(k)
+    D = np.abs(X[:, None, :] - Rf[None, :, :]).max(axis=2)
+    w = np.full(len(ys), np.nan)
+    w[D[:, kk] <= pure_tol] = 1.0
+    Do = D.copy()
+    Do[:, kk] = np.inf
+    near = Do.argmin(axis=1)
+    pure_o = (Do.min(axis=1) <= pure_tol) & np.isnan(w)
+    w[pure_o] = 0.0
+    present = sorted(set(int(i) for i in near[pure_o]))
+    blend = np.isnan(w)
+    if blend.any() and present:
+        ck = Rf[kk]
+        O = Rf[present]
+        dv = ck[None, :] - O
+        den = np.maximum((dv ** 2).sum(axis=1), 1e-9)
+        Xb = X[blend]
+        t = np.clip(((Xb[:, None, :] - O[None, :, :]) * dv[None, :, :]).sum(axis=2) / den[None, :], 0.0, 1.0)
+        fit = O[None, :, :] + t[:, :, None] * dv[None, :, :]
+        res = np.abs(Xb[:, None, :] - fit).max(axis=2)
+        for jj, j in enumerate(present):
+            pm = np.zeros(region.shape, bool)
+            sel = pure_o & (near == j)
+            pm[ys[sel], xs[sel]] = True
+            adj = _dilate(pm, 2)[ys[blend], xs[blend]]
+            res[~adj, jj] = np.inf
+        b = res.argmin(axis=1)
+        ar = np.arange(len(Xb))
+        tb, rb = t[ar, b], res[ar, b]
+        cm = core[ys[blend], xs[blend]].astype(float)
+        w[blend] = np.where(rb <= line_tol, tb, cm)
+    still = np.isnan(w)
+    w[still] = core[ys[still], xs[still]].astype(float)
+    s = w.sum()
+    if s <= 0:
+        return None
+    return float((w * (xs + x0 + 0.5)).sum() / s), float((w * (ys + y0 + 0.5)).sum() / s)
+
+
+def _half_range(vals):
+    vals = np.asarray(vals, float)
+    return float(((vals.max(axis=0) - vals.min(axis=0)) / 2.0).max())
+
+
+def _clip_window(window, shape):
+    x0, y0, x1, y1 = [int(round(v)) for v in window]
+    return max(0, x0), max(0, y0), min(shape[1], x1), min(shape[0], y1)
+
+
+def load_dc_layout(dc_actors_json=None):
+    if dc_actors_json is None:
+        return dict(DEFAULT_DC_LAYOUT)
+    doc = dc_actors_json
+    if isinstance(doc, str):
+        with open(doc, "r", encoding="utf-8") as fh:
+            doc = json.load(fh)
+    out = {}
+    for a in doc.get("actors", []):
+        if "label" in a and "screen_px" in a:
+            out[a["label"]] = tuple(a["screen_px"])
+    for k, v in DEFAULT_DC_LAYOUT.items():
+        out.setdefault(k, None)
+    return out
+
+
+def window_from_screen_px(screen_px, pad=WINDOW_PAD, shape=(720, 1280)):
+    if len(screen_px) >= 4:
+        cx, cy, w, h = screen_px[:4]
+    else:
+        cx, cy, w = screen_px[:3]
+        h = w
+    return _clip_window((cx - w / 2.0 - pad, cy - h / 2.0 - pad, cx + w / 2.0 + pad, cy + h / 2.0 + pad), shape)
+
+
+# ---------------------------------------------------------------------------------------------- affine helpers
+
+
+def _fit_affine(screen_pts, uv_pts):
+    X = np.column_stack([np.asarray(screen_pts, float), np.ones(len(screen_pts))])
+    U = np.asarray(uv_pts, float)
+    sol, _, rank, _ = np.linalg.lstsq(X, U, rcond=None)
+    if rank < 3:
+        return None
+    return sol.T
+
+
+def _uv_to_screen(A, uv):
+    A = np.asarray(A, float)
+    Li = np.linalg.inv(A[:, :2])
+    return (np.asarray(uv, float) - A[:, 2]) @ Li.T
+
+
+def _tile_rect_f(A):
+    c = _uv_to_screen(A, [(0, 0), (1, 0), (0, 1), (1, 1)])
+    return float(c[:, 0].min()), float(c[:, 1].min()), float(c[:, 0].max()), float(c[:, 1].max())
+
+
+_DIHEDRAL = [np.array(m, float) for m in ([[1, 0], [0, 1]], [[-1, 0], [0, 1]], [[1, 0], [0, -1]], [[-1, 0], [0, -1]],
+                                          [[0, 1], [1, 0]], [[0, -1], [1, 0]], [[0, 1], [-1, 0]], [[0, -1], [-1, 0]])]
+
+
+def _orientation_name(D):
+    parts = []
+    for r, ax in ((0, "u"), (1, "v")):
+        if D[r, 0] != 0:
+            parts.append("%s=%sx" % (ax, "+" if D[r, 0] > 0 else "-"))
+        else:
+            parts.append("%s=%sy" % (ax, "+" if D[r, 1] > 0 else "-"))
+    return ",".join(parts)
+
+
+def _affine_report(A):
+    A = np.asarray(A, float)
+    L = A[:, :2]
+    sv = np.linalg.svd(L, compute_uv=False)
+    Ln = L / sv.mean()
+    best = min(_DIHEDRAL, key=lambda D: float(np.abs(Ln - D).sum()))
+    return dict(texels_per_px=float(TEX * sv.max()), texels_per_px_min=float(TEX * sv.min()),
+                orientation=_orientation_name(best), orientation_err=float(np.abs(Ln - best).max()),
+                mirrored=bool(np.linalg.det(L) < 0), rotation_deg=float(math.degrees(math.atan2(L[1, 0], L[0, 0]))))
+
+
+def _uv_grid(A, shape):
+    A = np.asarray(A, float)
+    xmin, ymin, xmax, ymax = _tile_rect_f(A)
+    c0 = max(0, int(math.ceil(xmin - 0.5)))
+    c1 = min(shape[1], int(math.floor(xmax - 0.5)) + 1)
+    r0 = max(0, int(math.ceil(ymin - 0.5)))
+    r1 = min(shape[0], int(math.floor(ymax - 0.5)) + 1)
+    C, R = np.meshgrid(np.arange(c0, c1), np.arange(r0, r1))
+    X, Y = C + 0.5, R + 0.5
+    u = A[0, 0] * X + A[0, 1] * Y + A[0, 2]
+    v = A[1, 0] * X + A[1, 1] * Y + A[1, 2]
+    return R.ravel(), C.ravel(), u.ravel(), v.ravel()
+
+
+def _grads(A):
+    A = np.asarray(A, float)
+    return math.hypot(A[0, 0], A[0, 1]), math.hypot(A[1, 0], A[1, 1])
+
+
+# ---------------------------------------------------------------------------------------------- tile finding
+
+
+def find_tile_bbox(rgb, window, thr=24, ring=3):
+    rgb = _as_rgb(rgb)
+    x0, y0, x1, y1 = _clip_window(window, rgb.shape)
+    sub = rgb[y0:y1, x0:x1].astype(np.int16)
+    h, w = sub.shape[:2]
+    if h <= 2 * ring or w <= 2 * ring:
+        return None
+    rm = np.zeros((h, w), bool)
+    rm[:ring, :] = rm[-ring:, :] = True
+    rm[:, :ring] = rm[:, -ring:] = True
+    bg = np.median(sub[rm], axis=0)
+    mask = _maxabs(sub, bg) > thr
+    lab, n = _label(mask)
+    if n == 0:
+        return None
+    cnt = np.bincount(lab.ravel())
+    cnt[0] = 0
+    big = int(cnt.argmax())
+    ys, xs = np.nonzero(lab == big)
+    return dict(x0=int(x0 + xs.min()), y0=int(y0 + ys.min()), x1=int(x0 + xs.max() + 1), y1=int(y0 + ys.max() + 1),
+                px=int(cnt[big]), background=[float(c) for c in bg])
+
+
+def _kmeans1d(vals, k=4, iters=30):
+    vals = np.asarray(vals, float)
+    c = np.percentile(vals, [100.0 * (i + 0.5) / k for i in range(k)])
+    for _ in range(iters):
+        lab = np.abs(vals[:, None] - c[None, :]).argmin(axis=1)
+        nc = np.array([vals[lab == i].mean() if np.any(lab == i) else c[i] for i in range(k)])
+        if np.allclose(nc, c):
+            break
+        c = nc
+    return np.sort(c)
+
+
+def _level_colours(rgb, bb, kind):
+    sh = 2
+    sub = rgb[bb["y0"] + sh:bb["y1"] - sh, bb["x0"] + sh:bb["x1"] - sh].reshape(-1, 3).astype(float)
+    if len(sub) < 64:
+        return None, None
+    levels = [_kmeans1d(sub[:, ch]) for ch in range(3)]
+    tex = cell_texel_colours(kind)
+    pred = np.array([[levels[ch][ORACLE_LEVELS.index(c[ch])] for ch in range(3)] for c in tex])
+    return pred, [[float(x) for x in l] for l in levels]
+
+
+def _ring_background(sub, ring=3):
+    h, w = sub.shape[:2]
+    if h <= 2 * ring or w <= 2 * ring:
+        return None
+    rm = np.zeros((h, w), bool)
+    rm[:ring, :] = rm[-ring:, :] = True
+    rm[:, :ring] = rm[:, -ring:] = True
+    return np.median(sub[rm].astype(float), axis=0)
+
+
+def _classify(sub, cols, bg, tol):
+    refs = np.asarray(cols, np.float32)
+    if bg is not None:
+        refs = np.vstack([refs, np.asarray(bg, np.float32)[None, :]])
+    d = np.abs(sub.astype(np.float32)[:, :, None, :] - refs[None, None, :, :]).max(axis=3)
+    cls = d.argmin(axis=2)
+    dm = d.min(axis=2)
+    cls[(dm > tol) | (cls >= len(cols))] = -1
+    return cls
+
+
+def _component_shapes(lab, nl):
+    if _ndi is not None:
+        sl = _ndi.find_objects(lab)
+        return {i + 1: (s[0].stop - s[0].start, s[1].stop - s[1].start) for i, s in enumerate(sl) if s is not None}
+    out = {}
+    for lid in range(1, nl + 1):
+        ys, xs = np.nonzero(lab == lid)
+        if len(ys):
+            out[lid] = (ys.max() - ys.min() + 1, xs.max() - xs.min() + 1)
+    return out
+
+
+def _locate_cells(sub, cols, tol, x0, y0, n, bg):
+    cls = _classify(sub, cols, bg, tol)
+    cands, labs = [], []
+    for k in range(n * n):
+        mask = cls == k
+        cl = []
+        lab = None
+        if mask.any():
+            lab, nl = _label(mask)
+            if nl:
+                ys, xs = np.nonzero(lab)
+                ids = lab[ys, xs]
+                cnt = np.bincount(ids, minlength=nl + 1)
+                sx = np.bincount(ids, weights=xs, minlength=nl + 1)
+                sy = np.bincount(ids, weights=ys, minlength=nl + 1)
+                shp = _component_shapes(lab, nl)
+                for lid in (np.argsort(-cnt[1:])[:4] + 1):
+                    if cnt[lid] < MIN_COMP_PX:
+                        break
+                    hh, ww = shp[int(lid)]
+                    cl.append(dict(lid=int(lid), px=int(cnt[lid]), x=float(x0 + sx[lid] / cnt[lid] + 0.5),
+                                   y=float(y0 + sy[lid] / cnt[lid] + 0.5), fill=float(cnt[lid]) / (hh * ww),
+                                   aspect=float(max(hh, ww)) / min(hh, ww)))
+        cands.append(cl)
+        labs.append(lab)
+    sizes = [c[0]["px"] for c in cands if c]
+    med = float(np.median(sizes)) if sizes else 0.0
+    for cl in cands:
+        for c in cl:
+            c["good"] = bool(0.4 * med <= c["px"] <= 2.0 * med and c["fill"] >= 0.5 and c["aspect"] <= 2.0)
+    return cands, labs
+
+
+def _cell_uv(k, n):
+    return ((k % n) + 0.5) / n, ((k // n) + 0.5) / n
+
+
+def oracle_map(null_rgb, window, kind, match_tol=LOCATE_TOL, allow_level_fallback=True):
+    """Locate the n x n cells of an oracle UV tile in the null frame, fit screen->uv, read the displayed colours."""
+    rgb = _as_rgb(null_rgb)
+    n = NCELL[kind]
+    x0, y0, x1, y1 = _clip_window(window, rgb.shape)
+    sub = rgb[y0:y1, x0:x1].astype(np.int16)
+    bg = _ring_background(sub)
+    tex = np.array(cell_texel_colours(kind), float)
+    res = _oracle_fit(sub, tex, match_tol, x0, y0, n, bg, geo=allow_level_fallback)
+    method, levels = "texel", None
+    if res["found"] < n * n and allow_level_fallback:
+        bb = find_tile_bbox(rgb, window)
+        if bb is not None:
+            pred, levels = _level_colours(rgb, bb, kind)
+            if pred is not None:
+                r2 = _oracle_fit(sub, pred, match_tol, x0, y0, n, bg, geo=True)
+                if r2["found"] > res["found"]:
+                    res, method = r2, "levels"
+    out = dict(kind=kind, ncell=n, window=[x0, y0, x1, y1], frame_shape=[int(rgb.shape[0]), int(rgb.shape[1])],
+               method=method, levels=levels, background=[float(v) for v in bg] if bg is not None else None, A=None,
+               residual_px=None, cells_found=res["found"], cells_direct=res["direct"], cells_fit_located=res["fit_located"],
+               cell_colour=res["colour"], cell_centroid=res["centroid"], cell_px=res["px"], sep_min=None,
+               interior_max_dev=None, match_dev_max=None, texels_per_px=None, orientation=None, tile_rect=None,
+               reselected=res["reselected"], cells_geo_located=res.get("geo_located", 0), geo_cells=res.get("geo_cells", []))
+    A = res["A"]
+    if A is None:
+        return out
+    cols = [c for c in res["colour"] if c is not None]
+    seps = [float(_maxabs(cols[i], cols[j])) for i in range(len(cols)) for j in range(i + 1, len(cols))]
+    mdev = [float(np.abs(np.array(c) - tex[k]).max()) for k, c in enumerate(res["colour"]) if c is not None]
+    out.update(A=[[float(v) for v in row] for row in A], residual_px=res["residual"], sep_min=min(seps) if seps else None,
+               interior_max_dev=max(res["devs"]) if res["devs"] else None,
+               interior_spread=max(res["spreads"]) if res["spreads"] else None, match_dev_max=max(mdev) if mdev else None,
+               tile_rect=list(_tile_rect_f(A)))
+    out.update(_affine_report(A))
+    return out
+
+
+def _oracle_fit(sub, locate_cols, tol, x0, y0, n, bg, geo=False):
+    cands, labs = _locate_cells(sub, locate_cols, tol, x0, y0, n, bg)
+    nn = n * n
+    choice = [next((i for i, c in enumerate(cl) if c["good"]), None) for cl in cands]
+    reselected = 0
+    A = None
+    for it in range(5):
+        ks = [k for k in range(nn) if choice[k] is not None]
+        if len(ks) < 3:
+            A = None
+            break
+        A = _fit_affine([(cands[k][choice[k]]["x"], cands[k][choice[k]]["y"]) for k in ks], [_cell_uv(k, n) for k in ks])
+        if A is None or it == 4:
+            break
+        gu, gv = _grads(A)
+        spacing = (1.0 / n) / max(gu, gv)
+        changed = False
+        for k in range(nn):
+            good = [i for i, c in enumerate(cands[k]) if c["good"]]
+            if not good:
+                continue
+            p = _uv_to_screen(A, [_cell_uv(k, n)])[0]
+            j = min(good, key=lambda i: (cands[k][i]["x"] - p[0]) ** 2 + (cands[k][i]["y"] - p[1]) ** 2)
+            dj = math.hypot(cands[k][j]["x"] - p[0], cands[k][j]["y"] - p[1])
+            new = j if dj <= 0.35 * spacing else None
+            if new != choice[k]:
+                choice[k] = new
+                changed = True
+                reselected += 1
+        if not changed:
+            break
+    out = dict(A=A, found=0, direct=0, fit_located=0, colour=[None] * nn, centroid=[None] * nn, px=[0] * nn, devs=[],
+               spreads=[], residual=None, reselected=reselected)
+    if A is None:
+        out["found"] = sum(1 for c in choice if c is not None)
+        return out
+    h, w = sub.shape[:2]
+    C, R = np.meshgrid(np.arange(w), np.arange(h))
+    X, Y = C + x0 + 0.5, R + y0 + 0.5
+    U = A[0, 0] * X + A[0, 1] * Y + A[0, 2]
+    V = A[1, 0] * X + A[1, 1] * Y + A[1, 2]
+    gu, gv = _grads(A)
+    res2 = []
+    geo_pending = []
+    for k in range(nn):
+        if choice[k] is not None:
+            c = cands[k][choice[k]]
+            m = labs[k] == c["lid"]
+            ys, xs = np.nonzero(m)
+            side = min(ys.max() - ys.min() + 1, xs.max() - xs.min() + 1)
+            er = _erode(m, 3 if side >= 12 else 1)
+            if not er.any():
+                er = m
+            vals = sub[er].astype(float)
+            out["centroid"][k] = [c["x"], c["y"]]
+            out["px"][k] = c["px"]
+            out["direct"] += 1
+        else:
+            cx, cy = k % n, k // n
+            mu = max(2.0, 0.2 * (1.0 / n) / gu)
+            mv = max(2.0, 0.2 * (1.0 / n) / gv)
+            reg = (U >= cx / n + mu * gu) & (U <= (cx + 1) / n - mu * gu) & (V >= cy / n + mv * gv) & (V <= (cy + 1) / n - mv * gv)
+            if reg.sum() < MIN_COMP_PX:
+                continue
+            match = reg & (_maxabs(sub, locate_cols[k]) <= tol)
+            if match.sum() < 0.6 * reg.sum():
+                if geo:
+                    geo_pending.append((k, reg))
+                continue
+            vals = sub[reg].astype(float)
+            out["px"][k] = int(match.sum())
+            out["fit_located"] += 1
+        med = np.median(vals, axis=0)
+        out["colour"][k] = [float(v) for v in med]
+        out["devs"].append(float(_maxabs(vals, med).max()))
+        out["spreads"].append(_half_range(vals))
+    out["geo_located"] = 0
+    out["geo_cells"] = []
+    if geo_pending and out["direct"] >= math.ceil(GEO_MIN_DIRECT_FRAC * nn):
+        for k, reg in geo_pending:
+            vals = sub[reg].astype(float)
+            gm = np.median(vals, axis=0)
+            uni = _maxabs(vals, gm) <= tol
+            if uni.sum() < 0.6 * len(vals):
+                continue
+            others = [c for c in out["colour"] if c is not None]
+            if others and min(float(_maxabs(gm, c)) for c in others) < SEP_MIN:
+                continue
+            out["colour"][k] = [float(v) for v in gm]
+            out["px"][k] = int(uni.sum())
+            out["devs"].append(float(_maxabs(vals, gm).max()))
+            out["spreads"].append(_half_range(vals))
+            out["fit_located"] += 1
+            out["geo_located"] += 1
+            out["geo_cells"].append(k)
+    out["found"] = out["direct"] + out["fit_located"]
+    refs = list(out["colour"]) + ([[float(v) for v in bg]] if bg is not None else [])
+    pts = {}
+    for k in range(nn):
+        if choice[k] is None or out["colour"][k] is None:
+            continue
+        sc = _soft_centroid(sub, labs[k] == cands[k][choice[k]]["lid"], k, refs, x0, y0)
+        pts[k] = sc if sc is not None else tuple(out["centroid"][k])
+        out["centroid"][k] = list(pts[k])
+    if len(pts) >= 3:
+        A2 = _fit_affine([pts[k] for k in pts], [_cell_uv(k, n) for k in pts])
+        if A2 is not None:
+            A = A2
+            out["A"] = A
+    for k, (x, y) in pts.items():
+        p = _uv_to_screen(A, [_cell_uv(k, n)])[0]
+        res2.append((p[0] - x) ** 2 + (p[1] - y) ** 2)
+    out["residual"] = float(math.sqrt(sum(res2) / len(res2))) if res2 else None
+    return out
+
+
+def _n_cell_masks(A, shape, n=4):
+    R, C, u, v = _uv_grid(A, shape)
+    gu, gv = _grads(A)
+    inside = (u >= 0) & (u < 1) & (v >= 0) & (v < 1)
+    cx = np.clip(np.floor(u * n), 0, n - 1).astype(int)
+    cy = np.clip(np.floor(v * n), 0, n - 1).astype(int)
+    lu, lv = u * n - cx, v * n - cy
+    du = np.minimum(lu, 1 - lu) / n / gu
+    dv = np.minimum(lv, 1 - lv) / n / gv
+    side = (1.0 / n) / max(gu, gv)
+    margin = max(3.0, 0.15 * side)
+    interior = inside & (du >= margin) & (dv >= margin)
+    k = cy * n + cx
+    return R, C, u, v, inside, interior, k, margin
+
+
+def oracle_map_n(null_rgb, window, ref_map):
+    """Locate TC_OracleN by its bbox, take the uv orientation (linear part) from the UV16 fit, read the 16 cells."""
+    rgb = _as_rgb(null_rgb)
+    n = 4
+    out = dict(kind="n", ncell=n, window=list(_clip_window(window, rgb.shape)),
+               frame_shape=[int(rgb.shape[0]), int(rgb.shape[1])], A=None, residual_px=None, cells_found=0,
+               cell_colour=[None] * 16, cell_centroid=[None] * 16, value_colour=[None] * 9, sep_min=None,
+               interior_max_dev=None, texels_per_px=None, orientation=None, tile_rect=None, pattern_ok=False,
+               pattern_worst_same=None, pattern_worst_diff=None, bbox=None, size_err_px=None)
+    if not ref_map or ref_map.get("A") is None:
+        out["error"] = "no_ref_map"
+        return out
+    bb = find_tile_bbox(rgb, window)
+    if bb is None:
+        out["error"] = "tile_not_found"
+        return out
+    out["bbox"] = bb
+    L = np.asarray(ref_map["A"], float)[:, :2]
+    Li = np.linalg.inv(L)
+    q = np.array([[0, 0], [1, 0], [0, 1], [1, 1]], float) @ Li.T
+    qmin, qmax = q.min(axis=0), q.max(axis=0)
+    cdet = np.array([(bb["x0"] + bb["x1"]) / 2.0, (bb["y0"] + bb["y1"]) / 2.0])
+    shift = cdet - (qmin + qmax) / 2.0
+    A = np.column_stack([L, -L @ shift])
+    out["size_err_px"] = [float((bb["x1"] - bb["x0"]) - (qmax - qmin)[0]), float((bb["y1"] - bb["y0"]) - (qmax - qmin)[1])]
+    img = rgb.astype(float)
+    cents = []
+    for rnd in range(2):
+        R, C, u, v, inside, interior, k, margin = _n_cell_masks(A, rgb.shape)
+        meds = []
+        for c in range(16):
+            sel = interior & (k == c)
+            meds.append(np.median(img[R[sel], C[sel]], axis=0) if sel.sum() >= 20 else None)
+        if rnd == 1:
+            break
+        cents = []
+        xmin, ymin, xmax, ymax = _tile_rect_f(A)
+        c0, c1 = max(0, int(math.floor(xmin)) - 4), min(rgb.shape[1], int(math.ceil(xmax)) + 4)
+        r0, r1 = max(0, int(math.floor(ymin)) - 4), min(rgb.shape[0], int(math.ceil(ymax)) + 4)
+        sub = rgb[r0:r1, c0:c1]
+        Cc, Rc = np.meshgrid(np.arange(c0, c1) + 0.5, np.arange(r0, r1) + 0.5)
+        Uc = A[0, 0] * Cc + A[0, 1] * Rc + A[0, 2]
+        Vc = A[1, 0] * Cc + A[1, 1] * Rc + A[1, 2]
+        refs = [list(m) if m is not None else None for m in meds] + [bb["background"]]
+        for c in range(16):
+            if meds[c] is None:
+                continue
+            cx, cy = c % n, c // n
+            reg = (Uc >= (cx - 0.25) / n) & (Uc <= (cx + 1.25) / n) & (Vc >= (cy - 0.25) / n) & (Vc <= (cy + 1.25) / n)
+            ok = reg & (_maxabs(sub, meds[c]) <= 12)
+            if ok.sum() < MIN_COMP_PX:
+                continue
+            sc = _soft_centroid(sub, ok, c, refs, c0, r0)
+            if sc is not None:
+                cents.append((c, sc[0], sc[1]))
+        if len(cents) >= 3:
+            t = np.mean([np.array(_cell_uv(c, n)) - L @ np.array([x, y]) for c, x, y in cents], axis=0)
+            A = np.column_stack([L, t])
+    res2 = []
+    for c, x, y in cents:
+        p = _uv_to_screen(A, [_cell_uv(c, n)])[0]
+        res2.append((p[0] - x) ** 2 + (p[1] - y) ** 2)
+        out["cell_centroid"][c] = [x, y]
+    devs, spreads = [], []
+    for c in range(16):
+        if meds[c] is None:
+            continue
+        sel = interior & (k == c)
+        vals = img[R[sel], C[sel]]
+        out["cell_colour"][c] = [float(x) for x in meds[c]]
+        devs.append(float(_maxabs(vals, meds[c]).max()))
+        spreads.append(_half_range(vals))
+    found = [c for c in range(16) if out["cell_colour"][c] is not None]
+    worst_same, worst_diff = 0.0, 1e9
+    for i in range(len(found)):
+        for j in range(i + 1, len(found)):
+            a, b = found[i], found[j]
+            d = float(_maxabs(out["cell_colour"][a], out["cell_colour"][b]))
+            if ORACLE_N_CELLS[a] == ORACLE_N_CELLS[b]:
+                worst_same = max(worst_same, d)
+            else:
+                worst_diff = min(worst_diff, d)
+    for vi in range(9):
+        cs = [c for c in found if ORACLE_N_CELLS[c] == vi]
+        if cs:
+            pool = np.concatenate([img[R[interior & (k == c)], C[interior & (k == c)]] for c in cs])
+            out["value_colour"][vi] = [float(x) for x in np.median(pool, axis=0)]
+    vcs = [x for x in out["value_colour"] if x is not None]
+    vseps = [float(_maxabs(vcs[i], vcs[j])) for i in range(len(vcs)) for j in range(i + 1, len(vcs))]
+    out.update(A=[[float(x) for x in row] for row in A], residual_px=float(math.sqrt(sum(res2) / len(res2))) if res2 else None,
+               cells_found=len(found), interior_max_dev=max(devs) if devs else None,
+               interior_spread=max(spreads) if spreads else None, sep_min=min(vseps) if vseps else None,
+               tile_rect=list(_tile_rect_f(A)), margin_px=float(margin), pattern_worst_same=worst_same,
+               pattern_worst_diff=worst_diff if worst_diff < 1e9 else None,
+               pattern_ok=bool(len(found) == 16 and worst_same <= SAME_MAX and worst_diff >= SEP_MIN))
+    out.update(_affine_report(A))
+    return out
+
+
+def _porc_reading(m, kind):
+    n2 = NCELL[kind] ** 2
+    checks = dict(cells_found=m.get("cells_found") == n2,
+                  separation=m.get("sep_min") is not None and m["sep_min"] >= SEP_MIN,
+                  interior=m.get("interior_spread") is not None and m["interior_spread"] <= INTERIOR_MAX,
+                  residual=m.get("residual_px") is not None and m["residual_px"] <= RESIDUAL_MAX,
+                  scale_1to1=m.get("texels_per_px") is not None and m["texels_per_px"] <= TPP_MAX + TPP_TOL)
+    if kind == "n":
+        checks["pattern"] = bool(m.get("pattern_ok"))
+    return dict(kind=kind, pass_=all(checks.values()), failing=[k for k, v in checks.items() if not v], checks=checks,
+                cells_found=m.get("cells_found"), cells_direct=m.get("cells_direct"), cells_fit_located=m.get("cells_fit_located"),
+                sep_min=m.get("sep_min"), interior_spread=m.get("interior_spread"), interior_max_dev=m.get("interior_max_dev"),
+                residual_px=m.get("residual_px"), texels_per_px=m.get("texels_per_px"), orientation=m.get("orientation"),
+                method=m.get("method"), match_dev_max=m.get("match_dev_max"), pattern_worst_same=m.get("pattern_worst_same"),
+                pattern_worst_diff=m.get("pattern_worst_diff"), error=m.get("error"),
+                cells_geo_located=m.get("cells_geo_located"), geo_cells=m.get("geo_cells"))
+
+
+def build_maps(rgb, dc_actors_json=None, allow_level_fallback=True):
+    rgb = _as_rgb(rgb)
+    lay = load_dc_layout(dc_actors_json)
+    maps = {}
+    for kind in ("uv16", "uv64"):
+        sp = lay.get(KIND_LABEL[kind]) or DEFAULT_DC_LAYOUT[KIND_LABEL[kind]]
+        maps[kind] = oracle_map(rgb, window_from_screen_px(sp, shape=rgb.shape), kind, allow_level_fallback=allow_level_fallback)
+    sp = lay.get(KIND_LABEL["n"]) or DEFAULT_DC_LAYOUT[KIND_LABEL["n"]]
+    maps["n"] = oracle_map_n(rgb, window_from_screen_px(sp, shape=rgb.shape), maps["uv16"])
+    return maps
+
+
+def p_orc(null_rgb_list, dc_actors_json=None, allow_level_fallback=True):
+    """P-ORC over one or more null frames: every tile's cells >= 32 apart, interiors <= 2, fit residual <= 0.5 px,
+    displayed at >= 1:1 (texels_per_px <= 1.0 + TPP_TOL). Maps are built from the per-pixel median of the frames."""
+    frames = [_as_rgb(x) for x in null_rgb_list]
+    per_frame = []
+    fmaps = []
+    for i, rgb in enumerate(frames):
+        mp = build_maps(rgb, dc_actors_json, allow_level_fallback)
+        fmaps.append(mp)
+        per_frame.append({kind: _porc_reading(mp[kind], kind) for kind in ("uv16", "uv64", "n")})
+    base = frames[0] if len(frames) == 1 else np.median(np.stack(frames), axis=0).round().astype(np.uint8)
+    maps = build_maps(base, dc_actors_json, allow_level_fallback) if len(frames) > 1 else fmaps[0]
+    readings = {kind: _porc_reading(maps[kind], kind) for kind in ("uv16", "uv64", "n")}
+    drift = {}
+    for kind in ("uv16", "uv64", "n"):
+        d = 0.0
+        for mp in fmaps:
+            for a, b in zip(mp[kind]["cell_colour"], maps[kind]["cell_colour"]):
+                if a is not None and b is not None:
+                    d = max(d, float(_maxabs(a, b)))
+        drift[kind] = d
+    ok = all(r["pass_"] for r in readings.values()) and all(r["pass_"] for pf in per_frame for r in pf.values())
+    return {"pass": bool(ok), "frames": len(frames), "readings": readings, "per_frame": per_frame,
+            "cell_colour_drift_max": drift, "maps": maps,
+            "thresholds": dict(sep_min=SEP_MIN, interior_max=INTERIOR_MAX, residual_max_px=RESIDUAL_MAX,
+                               texels_per_px_max=TPP_MAX, texels_per_px_tol=TPP_TOL, locate_tol=LOCATE_TOL)}
+
+
+# ---------------------------------------------------------------------------------------------- expectations
+
+
+def _expected_src(mode, u, v, params):
+    u = np.asarray(u, float)
+    v = np.asarray(v, float)
+    params = params or {}
+    if mode == "identity":
+        return u, v, 1.0, None
+    if mode == "tile":
+        n = float(params.get("n", DC_TILE_N))
+        su, sv = u * n, v * n
+        return su - np.floor(su), sv - np.floor(sv), n, None
+    if mode in ("scramble", "scramble_forward"):
+        K = int(params.get("k", DC_SCRAMBLE_K))
+        N = K * K
+        mult = int(params["a_inv"] if mode == "scramble" else params["a"])
+        b = int(params["b"])
+        cx = np.clip(np.floor(u * K), 0, K - 1).astype(np.int64)
+        cy = np.clip(np.floor(v * K), 0, K - 1).astype(np.int64)
+        lx, ly = u * K - cx, v * K - cy
+        j = cy * K + cx
+        i = (mult * ((j - b) % N)) % N
+        return (i % K + lx) / K, (i // K + ly) / K, 1.0, K
+    raise ValueError("unknown uv mode %r" % mode)
+
+
+def expected_uv_cell(mode, u, v, params, ncell):
+    su, sv, _, _ = _expected_src(mode, u, v, params)
+    cx = np.clip(np.floor(su * ncell), 0, ncell - 1).astype(int)
+    cy = np.clip(np.floor(sv * ncell), 0, ncell - 1).astype(int)
+    if np.ndim(cx) == 0:
+        return int(cx), int(cy)
+    return cx, cy
+
+
+def edge_distance_px(mode, u, v, params, ncell, A):
+    """Display-px distance from p to the nearest place where p's expected source cell changes (source-cell edges in
+    source uv, divided by the source-uv rate per display px; plus the scramble K-grid discontinuities)."""
+    su, sv, scale, kgrid = _expected_src(mode, u, v, params)
+    gu, gv = _grads(A)
+    fx, fy = su * ncell, sv * ncell
+    fx, fy = fx - np.floor(fx), fy - np.floor(fy)
+    d = np.minimum(np.minimum(fx, 1 - fx) / ncell / (scale * gu), np.minimum(fy, 1 - fy) / ncell / (scale * gv))
+    if kgrid:
+        gx, gy = np.asarray(u, float) * kgrid, np.asarray(v, float) * kgrid
+        gx, gy = gx - np.floor(gx), gy - np.floor(gy)
+        d = np.minimum(d, np.minimum(np.minimum(gx, 1 - gx) / kgrid / gu, np.minimum(gy, 1 - gy) / kgrid / gv))
+    return d
+
+
+def _kept(A, u, v, mode, params, ncell, inset_px, edge_px):
+    gu, gv = _grads(A)
+    inside = (u >= 0) & (u <= 1) & (v >= 0) & (v <= 1)
+    d_in = np.minimum(np.minimum(u, 1 - u) / gu, np.minimum(v, 1 - v) / gv)
+    return inside & (d_in >= inset_px - 1e-9) & (edge_distance_px(mode, u, v, params, ncell, A) >= edge_px - 1e-9)
+
+
+def _cell_index(mode, u, v, params, ncell):
+    cx, cy = expected_uv_cell(mode, u, v, params, ncell)
+    return np.asarray(cy) * ncell + np.asarray(cx)
+
+
+def predicted_agreement_uv(null_map, mode_a, params_a, mode_b, params_b, keep_mode=None, keep_params=None,
+                           inset_px=INSET_PX, edge_px=EDGE_PX):
+    A = np.asarray(null_map["A"], float)
+    n = null_map["ncell"]
+    R, C, u, v = _uv_grid(A, null_map["frame_shape"])
+    km = _kept(A, u, v, keep_mode or mode_a, keep_params if keep_mode else params_a, n, inset_px, edge_px)
+    if not km.any():
+        return None
+    ea = _cell_index(mode_a, u[km], v[km], params_a, n)
+    eb = _cell_index(mode_b, u[km], v[km], params_b, n)
+    return float((ea == eb).mean())
+
+
+def ev_mode_uv(frames, null_map, mode, params, ncell=None, keep_mode=None, keep_params=None, edge_px=EDGE_PX,
+               inset_px=INSET_PX):
+    """frames = [(si, rgb)]. Kept pixels: >= inset_px inside the tile edge and expected source position >= edge_px
+    display px from a source-cell edge (both under keep_mode, default = mode). MATCH iff max-channel |obs - expected|
+    <= 16 AND obs >= 32 from every other cell's displayed colour."""
+    A = np.asarray(null_map["A"], float)
+    n = ncell or null_map["ncell"]
+    pal = np.array(null_map["cell_colour"], np.float32)
+    R, C, u, v = _uv_grid(A, null_map["frame_shape"])
+    km = _kept(A, u, v, keep_mode or mode, keep_params if keep_mode else params, n, inset_px, edge_px)
+    R, C, u, v = R[km], C[km], u[km], v[km]
+    e = _cell_index(mode, u, v, params, n)
+    ar = np.arange(len(e))
+    rows, tk, tm = [], 0, 0
+    for si, rgb in frames:
+        rgb = _as_rgb(rgb)
+        if len(e):
+            obs = rgb[R, C].astype(np.float32)
+            d = np.abs(obs[:, None, :] - pal[None, :, :]).max(axis=2)
+            de = d[ar, e].copy()
+            d[ar, e] = np.inf
+            match = (de <= MATCH_TOL) & (d.min(axis=1) >= OTHER_MIN)
+            m = int(match.sum())
+        else:
+            m = 0
+        k = int(len(e))
+        rows.append(dict(si=si, kept=k, matched=m, frac=(m / k) if k else None))
+        tk += k
+        tm += m
+    return dict(mode=mode, params=dict(params or {}), frames=rows, kept=tk, matched=tm, frac=(tm / tk) if tk else None,
+                kept_per_frame=int(len(e)), frames_below_512_kept=[r["si"] for r in rows if r["kept"] < MIN_KEPT])
+
+
+def _n_transform(mode, x, y):
+    if mode == "identity":
+        return x, y
+    if mode == "invert":
+        return -x, -y
+    if mode == "green_flip":
+        return x, -y
+    raise ValueError("unknown normal mode %r" % mode)
+
+
+def n_expected_index(mode, idx):
+    x, y = ORACLE_N_SET[idx]
+    tx, ty = _n_transform(mode, x, y)
+    for j, (a, b) in enumerate(ORACLE_N_SET):
+        if abs(a - tx) < 1e-9 and abs(b - ty) < 1e-9:
+            return j
+    raise ValueError("normal set not closed under %s" % mode)
+
+
+def ev_mode_n(frames, n_map, mode):
+    A = np.asarray(n_map["A"], float)
+    vc = np.array(n_map["value_colour"], float)
+    R, C, u, v, inside, interior, k, margin = _n_cell_masks(A, n_map["frame_shape"])
+    sels = [(R[interior & (k == c)], C[interior & (k == c)]) for c in range(16)]
+    exp = [n_expected_index(mode, ORACLE_N_CELLS[c]) for c in range(16)]
+    rows, tm, tc = [], 0, 0
+    for si, rgb in frames:
+        rgb = _as_rgb(rgb)
+        matched = 0
+        cells = []
+        for c in range(16):
+            rr, cc = sels[c]
+            if len(rr) == 0:
+                cells.append(False)
+                continue
+            med = np.median(rgb[rr, cc].astype(float), axis=0)
+            d = _maxabs(vc, med)
+            de = float(d[exp[c]])
+            other = float(np.min(np.delete(d, exp[c])))
+            ok = de <= MATCH_TOL and other >= OTHER_MIN
+            cells.append(bool(ok))
+            matched += int(ok)
+        rows.append(dict(si=si, cells=16, matched=matched, frac=matched / 16.0, cell_match=cells))
+        tm += matched
+        tc += 16
+    return dict(mode=mode, frames=rows, cells=tc, matched=tm, frac=(tm / tc) if tc else None)
+
+
+# ---------------------------------------------------------------------------------------------- judging
+
+
+def _load_or_none(x, shape=None):
+    if x is None:
+        return None
+    if isinstance(x, np.ndarray):
+        arr = _as_rgb(x)
+    else:
+        if not os.path.isfile(x):
+            return None
+        try:
+            arr = _as_rgb(x)
+        except Exception:
+            return None
+    if shape is not None and tuple(arr.shape[:2]) != tuple(shape):
+        return None
+    return arr
+
+
+def _frame_source(frames, shape=None):
+    if callable(frames):
+        return lambda si: _load_or_none(frames(si), shape)
+    if isinstance(frames, dict):
+        return lambda si: _load_or_none(frames.get(si), shape)
+    d = {si: x for si, x in frames}
+    return lambda si: _load_or_none(d.get(si), shape)
+
+
+def _verdict(fail, insufficient):
+    if fail:
+        return "FAIL"
+    if insufficient:
+        return "INSUFFICIENT"
+    return "PASS"
+
+
+def _uv_event_params(ev, mode, seed, tile_n):
+    ap = ev.get("applied") or {}
+    if mode == "tile":
+        n = ap.get("tile") if ap.get("tile") and ap.get("tile") > 0 else (ev.get("params") or {}).get("n") or tile_n or DC_TILE_N
+        return dict(n=int(n)), None, None
+    if ap.get("ordinal") is None:
+        return None, "no_applied_record", None
+    if seed is None:
+        return None, "no_seed", None
+    k = int(ap.get("scramble_k") or DC_SCRAMBLE_K)
+    p = scramble_pair_full(seed, int(ap["ordinal"]), k)
+    logged = (ap.get("a"), ap.get("b"), ap.get("a_inv"))
+    check = dict(ordinal=int(ap["ordinal"]), k=k, recomputed=[p["a"], p["b"], p["a_inv"]], logged=list(logged),
+                 h_recomputed=p["h"], h_logged=ap.get("scramble_h"),
+                 equal=bool(logged == (p["a"], p["b"], p["a_inv"])))
+    return dict(a=p["a"], b=p["b"], a_inv=p["a_inv"], k=k, ordinal=int(ap["ordinal"])), None, check
+
+
+def _uv_negatives(mode, params, seed):
+    if mode == "tile":
+        n = params["n"]
+        return [("tile_n%d" % max(1, n // 2), "tile", dict(n=max(1, n // 2)), None),
+                ("tile_n%d" % (n * 2), "tile", dict(n=n * 2), None),
+                ("identity", "identity", {}, None)]
+    out = []
+    o, k = params["ordinal"], params["k"]
+    for name, oo in (("ordinal_minus_1", o - 1), ("ordinal_plus_1", o + 1)):
+        if oo < 0:
+            out.append((name, None, None, "no_ordinal_%d" % oo))
+            continue
+        p = scramble_pair_full(seed, oo, k)
+        if (p["a"], p["b"]) == (params["a"], params["b"]):
+            out.append((name, None, None, "neighbour_pair_equals_this_pair"))
+            continue
+        out.append((name, "scramble", dict(a=p["a"], b=p["b"], a_inv=p["a_inv"], k=k), None))
+    out.append(("forward", "scramble_forward", dict(a=params["a"], b=params["b"], k=k), None))
+    out.append(("identity", "identity", {}, None))
+    return out
+
+
+def _accumulate_negative(negs, name, r_kept, r_matched, si_list, start_frame):
+    t = negs.setdefault(name, dict(kept=0, matched=0, events=[], frames=0))
+    t["kept"] += r_kept
+    t["matched"] += r_matched
+    t["frames"] += len(si_list)
+    t["events"].append(start_frame)
+
+
+def _finish_negatives(negs):
+    out = {}
+    for name, t in negs.items():
+        frac = (t["matched"] / t["kept"]) if t["kept"] else None
+        out[name] = dict(frac=frac, kept=t["kept"], matched=t["matched"], frames=t["frames"], events=t["events"],
+                         failed_as_required=bool(frac is not None and frac < NEG_FAIL_BELOW))
+    return out
+
+
+def judge_uv(frames, events, null_map, mode, seed=None, tile_n=None, min_events=MIN_EVENTS):
+    """One uv_corruption production leg (mode 'tile' on the UV16 map or 'scramble' on the UV64 map).
+    events: [{start_frame, frames:[si], mode?, applied?}], frames: {si: path|rgb} | [(si, rgb)] | callable."""
+    getf = _frame_source(frames, null_map.get("frame_shape"))
+    n = null_map["ncell"]
+    fail, insuff = [], []
+    evreps, exclusions, pair_checks = [], [], []
+    negs = {}
+    tk = tm = 0
+    frames_detail = []
+    counted = 0
+    if null_map.get("A") is None or any(c is None for c in null_map.get("cell_colour", [None])):
+        return dict(verdict="INSUFFICIENT", reasons=["null_map_incomplete"], events_counted=0, frames=0, match_frac=None,
+                    negatives={}, exclusions=[], events=[])
+    for ev in sorted(events, key=lambda e: e["start_frame"]):
+        rep = dict(start_frame=ev["start_frame"], frames=list(ev["frames"]), counted=False, why=None)
+        evreps.append(rep)
+        if ev.get("mode") not in (None, mode):
+            rep["why"] = "label_mode_%s" % ev.get("mode")
+            continue
+        params, why, check = _uv_event_params(ev, mode, seed, tile_n)
+        if check is not None:
+            pair_checks.append(check)
+            rep["pair_check"] = check
+            if not check["equal"]:
+                fail.append("scramble_pair_mismatch")
+        if params is None:
+            rep["why"] = why
+            continue
+        rep["params"] = params
+        if mode == "scramble":
+            ida = predicted_agreement_uv(null_map, mode, params, "identity", {})
+            rep["identity_agreement"] = ida
+            if ida is not None and ida >= NOOP_IDENTITY_FRAC:
+                rep["why"] = "scramble_pair_predicted_noop"
+                exclusions.append(dict(event=ev["start_frame"], name="scramble_pair_predicted_noop", agreement=ida))
+                continue
+        rgbs = [(si, getf(si)) for si in ev["frames"]]
+        missing = [si for si, x in rgbs if x is None]
+        if not ev["frames"] or missing:
+            rep["why"] = "frame_missing" if missing else "no_frames"
+            rep["missing"] = missing
+            continue
+        prod = ev_mode_uv(rgbs, null_map, mode, params, n)
+        rep["kept_per_frame"] = prod["kept_per_frame"]
+        rep["matched"], rep["kept"] = prod["matched"], prod["kept"]
+        if prod["frames_below_512_kept"]:
+            rep["why"] = "frames_below_512_kept"
+            continue
+        rep["counted"] = True
+        counted += 1
+        tk += prod["kept"]
+        tm += prod["matched"]
+        for r in prod["frames"]:
+            frames_detail.append(dict(si=r["si"], event=ev["start_frame"], kept=r["kept"], matched=r["matched"], frac=r["frac"]))
+        rep["negatives"] = {}
+        for name, nmode, nparams, skip in _uv_negatives(mode, params, seed):
+            if skip:
+                exclusions.append(dict(event=ev["start_frame"], name=name, reason=skip))
+                rep["negatives"][name] = dict(excluded=skip)
+                continue
+            agr = predicted_agreement_uv(null_map, nmode, nparams, mode, params, keep_mode=mode, keep_params=params)
+            if agr is not None and agr >= NEG_FAIL_BELOW:
+                exclusions.append(dict(event=ev["start_frame"], name=name, reason="predicted_indistinct", agreement=agr))
+                rep["negatives"][name] = dict(excluded="predicted_indistinct", agreement=agr)
+                continue
+            r = ev_mode_uv(rgbs, null_map, nmode, nparams, n, keep_mode=mode, keep_params=params)
+            rep["negatives"][name] = dict(frac=r["frac"], predicted_agreement=agr)
+            _accumulate_negative(negs, name, r["kept"], r["matched"], ev["frames"], ev["start_frame"])
+    negatives = _finish_negatives(negs)
+    if tk and tm < tk:
+        fail.append("pixel_mismatch")
+    for name, r in negatives.items():
+        if not r["failed_as_required"]:
+            fail.append("negative_did_not_fail:%s" % name)
+    if counted < min_events:
+        insuff.append("events_counted_%d_below_%d" % (counted, min_events))
+    if counted and not negatives:
+        insuff.append("no_evaluable_negative")
+    return dict(verdict=_verdict(fail, insuff), reasons=sorted(set(fail)) + insuff, mode=mode, events_counted=counted,
+                events_total=len(evreps), frames=len(frames_detail), match_frac=(tm / tk) if tk else None,
+                kept=tk, matched=tm, negatives=negatives, exclusions=exclusions, pair_checks=pair_checks,
+                frames_detail=frames_detail, events=evreps)
+
+
+def _n_negatives(mode):
+    return {"invert": ["green_flip", "identity"], "green_flip": ["invert", "identity"],
+            "identity": ["invert", "green_flip"]}[mode]
+
+
+def judge_n(frames, events, n_map, mode, min_events=MIN_EVENTS):
+    """One normal_corruption production leg (mode 'invert' | 'green_flip'; 'identity' allowed for negatives)."""
+    getf = _frame_source(frames, n_map.get("frame_shape"))
+    fail, insuff, evreps, exclusions = [], [], [], []
+    negs = {}
+    tc = tm = counted = 0
+    frames_detail = []
+    if n_map.get("A") is None or any(c is None for c in n_map.get("value_colour", [None])) or n_map.get("cells_found") != 16:
+        return dict(verdict="INSUFFICIENT", reasons=["n_map_incomplete"], events_counted=0, frames=0, match_frac=None,
+                    negatives={}, exclusions=[], events=[])
+    exp_prod = [n_expected_index(mode, ORACLE_N_CELLS[c]) for c in range(16)]
+    for ev in sorted(events, key=lambda e: e["start_frame"]):
+        rep = dict(start_frame=ev["start_frame"], frames=list(ev["frames"]), counted=False, why=None)
+        evreps.append(rep)
+        if ev.get("mode") not in (None, mode):
+            rep["why"] = "label_mode_%s" % ev.get("mode")
+            continue
+        rgbs = [(si, getf(si)) for si in ev["frames"]]
+        missing = [si for si, x in rgbs if x is None]
+        if not ev["frames"] or missing:
+            rep["why"] = "frame_missing" if missing else "no_frames"
+            rep["missing"] = missing
+            continue
+        prod = ev_mode_n(rgbs, n_map, mode)
+        rep["counted"] = True
+        counted += 1
+        tc += prod["cells"]
+        tm += prod["matched"]
+        rep["matched"], rep["cells"] = prod["matched"], prod["cells"]
+        for r in prod["frames"]:
+            frames_detail.append(dict(si=r["si"], event=ev["start_frame"], cells=16, matched=r["matched"], frac=r["frac"]))
+        rep["negatives"] = {}
+        for name in _n_negatives(mode):
+            exp_neg = [n_expected_index(name, ORACLE_N_CELLS[c]) for c in range(16)]
+            agr = sum(1 for a, b in zip(exp_prod, exp_neg) if a == b) / 16.0
+            if agr >= NEG_FAIL_BELOW:
+                exclusions.append(dict(event=ev["start_frame"], name=name, reason="predicted_indistinct", agreement=agr))
+                continue
+            r = ev_mode_n(rgbs, n_map, name)
+            rep["negatives"][name] = dict(frac=r["frac"], predicted_agreement=agr)
+            _accumulate_negative(negs, name, r["cells"], r["matched"], ev["frames"], ev["start_frame"])
+    negatives = _finish_negatives(negs)
+    if tc and tm < tc:
+        fail.append("cell_mismatch")
+    for name, r in negatives.items():
+        if not r["failed_as_required"]:
+            fail.append("negative_did_not_fail:%s" % name)
+    if counted < min_events:
+        insuff.append("events_counted_%d_below_%d" % (counted, min_events))
+    if counted and not negatives:
+        insuff.append("no_evaluable_negative")
+    return dict(verdict=_verdict(fail, insuff), reasons=sorted(set(fail)) + insuff, mode=mode, events_counted=counted,
+                events_total=len(evreps), frames=len(frames_detail), match_frac=(tm / tc) if tc else None,
+                cells=tc, matched=tm, negatives=negatives, exclusions=exclusions, frames_detail=frames_detail, events=evreps)
+
+
+def judge_null_as_modes(null_frames_with_labels, maps, params=None):
+    """The null leg's labelled frames evaluated as each production mode; each must read < 50 % (FAIL as required).
+    null_frames_with_labels: [(si, rgb)] (all taken as labelled) or [(si, rgb, labelled)].
+    params: {'tile_n': 8, 'scramble': [{'a','b','a_inv','k'}] | None, 'seed': s, 'ordinals': [..]}."""
+    params = dict(params or {})
+    frames = []
+    for item in null_frames_with_labels:
+        if len(item) >= 3 and not item[2]:
+            continue
+        frames.append((item[0], _as_rgb(item[1])))
+    out = dict(frames=len(frames), modes={}, exclusions=[])
+    if not frames:
+        out.update(pass_=False, reasons=["no_labelled_null_frames"])
+        return out
+    reasons = []
+    tile_n = int(params.get("tile_n") or DC_TILE_N)
+    r = ev_mode_uv(frames, maps["uv16"], "tile", dict(n=tile_n))
+    out["modes"]["tile_n%d" % tile_n] = dict(frac=r["frac"], kept=r["kept"], failed_as_required=bool(r["frac"] is not None and r["frac"] < NEG_FAIL_BELOW))
+    pairs = params.get("scramble")
+    if pairs is None and params.get("seed") is not None:
+        pairs = [dict(scramble_pair_full(params["seed"], o, int(params.get("scramble_k") or DC_SCRAMBLE_K)), ordinal=o)
+                 for o in params.get("ordinals", [0])]
+    if isinstance(pairs, dict):
+        pairs = [pairs]
+    if not pairs:
+        reasons.append("scramble_not_evaluated_no_pair")
+    for p in pairs or []:
+        pp = dict(a=p.get("a"), b=p["b"], a_inv=p["a_inv"], k=int(p.get("k") or DC_SCRAMBLE_K))
+        name = "scramble_a%s_b%d" % (p.get("a"), p["b"])
+        ida = predicted_agreement_uv(maps["uv64"], "scramble", pp, "identity", {})
+        if ida is not None and ida >= NOOP_IDENTITY_FRAC:
+            out["exclusions"].append(dict(name=name, reason="scramble_pair_predicted_noop", agreement=ida))
+            continue
+        r = ev_mode_uv(frames, maps["uv64"], "scramble", pp)
+        out["modes"][name] = dict(frac=r["frac"], kept=r["kept"], identity_agreement=ida,
+                                  failed_as_required=bool(r["frac"] is not None and r["frac"] < NEG_FAIL_BELOW))
+    for m in ("invert", "green_flip"):
+        r = ev_mode_n(frames, maps["n"], m)
+        out["modes"][m] = dict(frac=r["frac"], cells=r["cells"], failed_as_required=bool(r["frac"] is not None and r["frac"] < NEG_FAIL_BELOW))
+    for name, r in out["modes"].items():
+        if not r["failed_as_required"]:
+            reasons.append("null_did_not_fail_as:%s" % name)
+    out.update(pass_=not reasons, reasons=reasons)
+    return out
+
+
+# ---------------------------------------------------------------------------------------------- logs and sessions
+
+_PREFIX_RE = re.compile(r"^\s*\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]\[\s*(\d+)\]")
+_APPLIED_RE = re.compile(r"(uv_corruption|normal_corruption):\s+APPLIED\s+mode=(\S+)\s+tile=(-?\d+)\s+fault=(\S+)\s+"
+                         r"noapply=(-?\d+)\s+on\s+'([^']*)'")
+_FIELD_RES = dict(ordinal=re.compile(r"(?<![\w.])ordinal=(-?\d+)"), scramble_k=re.compile(r"(?<![\w.])scramble_k=(-?\d+)"),
+                  scramble_h=re.compile(r"(?<![\w.])scramble_h=(\d+)"), a=re.compile(r"(?<![\w.])a=(-?\d+)"),
+                  b=re.compile(r"(?<![\w.])b=(-?\d+)"), a_inv=re.compile(r"(?<![\w.])a_inv=(-?\d+)"))
+_KNOB_RE = re.compile(r"run-start knobs uv_modes=(\S+)\s+normal_modes=(\S+)\s+tile_n=(-?\d+)(?:\(([^)]*)\))?\s+"
+                      r"scramble_k=(-?\d+)(?:\(([^)]*)\))?")
+_STARTED_SEED_RE = re.compile(r"Capture run STARTED:.*?\bseed=(\d+)")
+_CMD_SEED_RE = re.compile(r"IAI\.Capture\.Start\s+(\S+)\s+(\S+)\s+(\d+)")
+
+
+def parse_applied(log_text, seed=None):
+    """Returns {'applied': [per APPLIED line of uv/normal_corruption: id, mode, tile, fault, noapply, target, ordinal,
+    scramble_k, scramble_h, a, b, a_inv, frame (the [fff] prefix), timestamp, line_no], 'tile_n', 'scramble_k',
+    'uv_modes', 'normal_modes', 'seed' (argument > STARTED line > IAI.Capture.Start command), ...}."""
+    recs = []
+    knob = None
+    seed_started = seed_cmd = None
+    for ln, line in enumerate(log_text.splitlines(), 1):
+        if "APPLIED" in line:
+            m = _APPLIED_RE.search(line)
+            if m:
+                pm = _PREFIX_RE.match(line)
+                r = dict(id=m.group(1), mode=m.group(2), tile=int(m.group(3)), fault=m.group(4), noapply=int(m.group(5)),
+                         target=m.group(6), frame=int(pm.group(2)) if pm else None, timestamp=pm.group(1) if pm else None,
+                         line_no=ln)
+                tail = line[m.end():]
+                for key, rx in _FIELD_RES.items():
+                    fm = rx.search(tail)
+                    r[key] = int(fm.group(1)) if fm else None
+                recs.append(r)
+                continue
+        if "run-start knobs" in line:
+            km = _KNOB_RE.search(line)
+            if km:
+                knob = dict(uv_modes=km.group(1), normal_modes=km.group(2), tile_n=int(km.group(3)),
+                            tile_n_source=km.group(4), scramble_k=int(km.group(5)), scramble_k_source=km.group(6))
+        if seed_started is None and "Capture run STARTED" in line:
+            sm = _STARTED_SEED_RE.search(line)
+            if sm:
+                seed_started = int(sm.group(1))
+        if seed_cmd is None and "IAI.Capture.Start" in line:
+            cm = _CMD_SEED_RE.search(line)
+            if cm:
+                seed_cmd = int(cm.group(3))
+    eff, src = seed, "argument"
+    if eff is None:
+        eff, src = (seed_started, "started_line") if seed_started is not None else (seed_cmd, "command_line")
+    if eff is None:
+        src = None
+    out = dict(applied=recs, tile_n=knob["tile_n"] if knob else None, scramble_k=knob["scramble_k"] if knob else None,
+               knobs=knob, seed=eff, seed_source=src, seed_started=seed_started, seed_command=seed_cmd)
+    if seed_started is not None and seed_cmd is not None and seed_started != seed_cmd:
+        out["seed_disagreement"] = [seed_started, seed_cmd]
+    return out
+
+
+def load_labels(session_dir):
+    rows = []
+    with open(os.path.join(session_dir, "labels.jsonl"), "r", encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                rows.append(json.loads(line))
+    rows.sort(key=lambda r: r.get("session_index", 0))
+    return rows
+
+
+def _entry_mode(e):
+    if "texcorrupt.mode" in e:
+        return e["texcorrupt.mode"]
+    tc = e.get("texcorrupt")
+    return tc.get("mode") if isinstance(tc, dict) else None
+
+
+def session_events(session_dir, anomaly_id):
+    """Events = groups of labelled frames of anomaly_id by start_frame. Label source: the per-entry 'labelled' flag if
+    any entry carries it, else annotation.json injected_frames, else presence in anomalies[]."""
+    rows = load_labels(session_dir)
+    ann_set = None
+    ap = os.path.join(session_dir, "annotation.json")
+    if os.path.isfile(ap):
+        with open(ap, "r", encoding="utf-8") as fh:
+            ann = json.load(fh)
+        ann_set = set()
+        for a in ann.get("anomalies", []):
+            if a.get("anomaly_type") == anomaly_id:
+                ann_set.update((a.get("injected_frames") or {}).get("frame_indices", []))
+    ents = [(r, e) for r in rows for e in r.get("anomalies", []) if e.get("id") == anomaly_id]
+    has_flag = any("labelled" in e for _, e in ents)
+    source = "labelled_flag" if has_flag else ("annotation" if ann_set else "presence")
+    groups = {}
+    for r, e in ents:
+        si = r.get("session_index")
+        if has_flag:
+            lab = bool(e.get("labelled"))
+        elif ann_set:
+            lab = si in ann_set
+        else:
+            lab = True
+        if not lab:
+            continue
+        sfk = e.get("start_frame") if e.get("start_frame") is not None else -1
+        g = groups.setdefault(sfk, dict(start_frame=sfk, frames=[], images={}, modes=set()))
+        g["frames"].append(si)
+        g["images"][si] = os.path.join(session_dir, r.get("image", ""))
+        g["modes"].add(_entry_mode(e))
+    events = []
+    for sf in sorted(groups):
+        g = groups[sf]
+        modes = sorted(m for m in g["modes"] if m is not None)
+        events.append(dict(start_frame=sf, frames=sorted(g["frames"]), images=g["images"],
+                           mode=modes[0] if len(modes) == 1 else ("mixed:" + "+".join(modes) if modes else None)))
+    label_set = set(si for ev in events for si in ev["frames"])
+    info = dict(label_source=source, events=len(events), labelled_frames=len(label_set),
+                annotation_agrees=(label_set == ann_set) if ann_set is not None else None)
+    return events, info
+
+
+def attach_applied(events, parsed, anomaly_id, max_frame_delta=2):
+    recs = [r for r in parsed.get("applied", []) if r["id"] == anomaly_id]
+    used = set()
+    for ev in events:
+        best = None
+        for i, r in enumerate(recs):
+            if i in used or r["frame"] is None or (ev.get("mode") and r["mode"] != ev["mode"]):
+                continue
+            d = (r["frame"] - ev["start_frame"]) % 1000
+            d = min(d, 1000 - d)
+            if d <= max_frame_delta and (best is None or d < best[1]):
+                best = (i, d)
+        if best is not None:
+            used.add(best[0])
+            ev["applied"] = recs[best[0]]
+            ev["applied_match"] = "frame_delta_%d" % best[1]
+    rest = [i for i in range(len(recs)) if i not in used]
+    for ev in events:
+        if "applied" in ev:
+            continue
+        cand = [i for i in rest if not ev.get("mode") or recs[i]["mode"] == ev["mode"]]
+        if cand:
+            ev["applied"] = recs[cand[0]]
+            ev["applied_match"] = "order"
+            rest.remove(cand[0])
+        else:
+            ev["applied_match"] = "none"
+    return events
+
+
+def _labelled_null_frames(null_session_dir, limit=None):
+    rows = load_labels(null_session_dir)
+    lab = []
+    for r in rows:
+        flags = [e.get("labelled", True) for e in r.get("anomalies", [])]
+        if flags and any(flags):
+            lab.append(r)
+    if not lab:
+        lab = rows
+    if limit:
+        lab = lab[:limit]
+    return [(r["session_index"], os.path.join(null_session_dir, r["image"])) for r in lab]
+
+
+def _clean_frames(session_dir, limit=None):
+    rows = load_labels(session_dir)
+    clean = [r for r in rows if not any(e.get("labelled", True) for e in r.get("anomalies", []))]
+    if limit:
+        clean = clean[:limit]
+    return [(r["session_index"], os.path.join(session_dir, r["image"])) for r in clean]
+
+
+def judge_session(session_dir, log_text=None, log_path=None, null_session_dir=None, null_log_text=None,
+                  dc_actors=None, seed=None, min_events=MIN_EVENTS, porc_frames=8):
+    if log_text is None and log_path:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as fh:
+            log_text = fh.read()
+    parsed = parse_applied(log_text or "", seed=seed)
+    seed_eff = parsed["seed"]
+    if null_session_dir:
+        nulls = _labelled_null_frames(null_session_dir, None)
+        map_src = "null_session_labelled_frames"
+    else:
+        nulls = _clean_frames(session_dir, None)
+        map_src = "production_session_unlabelled_frames"
+    if not nulls:
+        return dict(session=session_dir, null_session=null_session_dir, error="no_null_frames_for_maps", legs={})
+    porc = p_orc([p for _, p in nulls[:porc_frames]], dc_actors)
+    maps = porc["maps"]
+    out = dict(session=session_dir, null_session=null_session_dir, seed=seed_eff, seed_source=parsed["seed_source"],
+               tile_n=parsed["tile_n"], map_source=map_src, map_frames=[si for si, _ in nulls[:porc_frames]],
+               porc=dict(pass_=porc["pass"], readings=porc["readings"], drift=porc["cell_colour_drift_max"]), legs={})
+    for aid in ("uv_corruption", "normal_corruption"):
+        events, info = session_events(session_dir, aid)
+        if not events:
+            continue
+        attach_applied(events, parsed, aid)
+        for mode in sorted(set(ev["mode"] for ev in events if ev["mode"])):
+            evs = [ev for ev in events if ev["mode"] == mode]
+            imgs = {si: p for ev in evs for si, p in ev["images"].items()}
+            key = "%s/%s" % (aid, mode)
+            if not porc["pass"]:
+                out["legs"][key] = dict(verdict="INSUFFICIENT", reasons=["porc_failed"], label_info=info)
+                continue
+            if mode == "tile":
+                r = judge_uv(imgs, evs, maps["uv16"], "tile", seed_eff, parsed["tile_n"], min_events)
+            elif mode == "scramble":
+                r = judge_uv(imgs, evs, maps["uv64"], "scramble", seed_eff, None, min_events)
+            elif mode in ("invert", "green_flip"):
+                r = judge_n(imgs, evs, maps["n"], mode, min_events)
+            else:
+                r = dict(verdict="NOT_JUDGED", reasons=["mode_has_no_oracle:%s" % mode])
+            r["label_info"] = info
+            r["applied_match"] = [ev.get("applied_match") for ev in evs]
+            out["legs"][key] = r
+    if null_session_dir and not porc["pass"]:
+        out["null_as_modes"] = dict(pass_=False, reasons=["porc_failed"])
+    elif null_session_dir:
+        pnull = parse_applied(null_log_text or "", seed=seed_eff)
+        pairs = []
+        for leg in out["legs"].values():
+            for pc in leg.get("pair_checks", []):
+                a, b, ai = pc["recomputed"]
+                pairs.append(dict(a=a, b=b, a_inv=ai, k=pc["k"]))
+        if not pairs:
+            for r in pnull["applied"]:
+                if r["mode"] == "scramble" and r.get("ordinal") is not None and seed_eff is not None:
+                    pairs.append(scramble_pair_full(seed_eff, r["ordinal"], r.get("scramble_k") or DC_SCRAMBLE_K))
+        if not pairs and seed_eff is not None:
+            pairs = [scramble_pair_full(seed_eff, 0)]
+        nframes = [(si, p) for si, p in nulls]
+        out["null_as_modes"] = judge_null_as_modes(nframes, maps, dict(tile_n=parsed["tile_n"] or DC_TILE_N, scramble=pairs))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------- synthetic frames
+
+
+class _Curve:
+    def __init__(self, gammas=(1.0, 1.0, 1.0), offsets=(0.0, 0.0, 0.0)):
+        self.g = np.array(gammas, float)
+        self.o = np.array(offsets, float)
+
+    def __call__(self, c):
+        c = np.asarray(c, float)
+        return np.clip(255.0 * (c / 255.0) ** self.g + self.o, 0, 255)
+
+
+CURVE_A = _Curve((0.9, 0.93, 0.87), (4.0, -2.0, 3.0))
+CURVE_NONE = _Curve()
+CURVE_STRONG = _Curve((0.55, 0.9, 1.25), (0.0, 3.0, 0.0))
+_N_ENC = np.array([enc_normal(*n) for n in ORACLE_N_SET], float)
+_SRC = {}
+
+
+def _src(kind, override=None):
+    if override is not None:
+        return override
+    if kind not in _SRC:
+        _SRC[kind] = source_image(kind)
+    return _SRC[kind]
+
+
+def _synth_A(cx, cy, size, orient):
+    s = 1.0 / size
+    left, top = cx - size / 2.0, cy - size / 2.0
+    if orient == "identity":
+        return np.array([[s, 0, -left * s], [0, s, -top * s]])
+    if orient == "mirror_x":
+        return np.array([[-s, 0, (left + size) * s], [0, s, -top * s]])
+    if orient == "rot180":
+        return np.array([[-s, 0, (left + size) * s], [0, -s, (top + size) * s]])
+    if orient == "transpose":
+        return np.array([[0, s, -top * s], [s, 0, -left * s]])
+    raise ValueError(orient)
+
+
+def _render_tile(img, A, kind, mode, params, curve, sampling, bg, src=None):
+    xmin, ymin, xmax, ymax = _tile_rect_f(A)
+    c0, c1 = max(0, int(math.floor(xmin)) - 2), min(img.shape[1], int(math.ceil(xmax)) + 2)
+    r0, r1 = max(0, int(math.floor(ymin)) - 2), min(img.shape[0], int(math.ceil(ymax)) + 2)
+    C, R = np.meshgrid(np.arange(c0, c1), np.arange(r0, r1))
+    if sampling == "nearest":
+        offs = [(0.0, 0.0, 1.0)]
+    else:
+        o1 = [(-0.9375 + 0.125 * i, 1.0 - abs(-0.9375 + 0.125 * i)) for i in range(16)]
+        tw = sum(w for _, w in o1)
+        offs = [(dx, dy, wx * wy / (tw * tw)) for dx, wx in o1 for dy, wy in o1]
+    acc = np.zeros(R.shape + (3,), float)
+    bgv = np.array(bg, float)
+    if kind == "n":
+        tr = np.array([n_expected_index(mode, i) for i in range(9)])
+        ncol = curve(_N_ENC)[tr]
+        cells_idx = np.array(ORACLE_N_CELLS)
+    else:
+        scol = curve(_src(kind, src))
+    for dx, dy, w in offs:
+        X, Y = C + 0.5 + dx, R + 0.5 + dy
+        u = A[0, 0] * X + A[0, 1] * Y + A[0, 2]
+        v = A[1, 0] * X + A[1, 1] * Y + A[1, 2]
+        inside = (u >= 0) & (u < 1) & (v >= 0) & (v < 1)
+        col = np.empty(R.shape + (3,), float)
+        col[:] = bgv
+        if inside.any():
+            ui, vi = u[inside], v[inside]
+            if kind == "n":
+                cx = np.clip(np.floor(ui * 4), 0, 3).astype(int)
+                cy = np.clip(np.floor(vi * 4), 0, 3).astype(int)
+                col[inside] = ncol[cells_idx[cy * 4 + cx]]
+            else:
+                su, sv, _, _ = _expected_src(mode, ui, vi, params)
+                tx = np.clip(np.floor(su * TEX), 0, TEX - 1).astype(int)
+                ty = np.clip(np.floor(sv * TEX), 0, TEX - 1).astype(int)
+                col[inside] = scol[ty, tx]
+        acc += w * col
+    img[r0:r1, c0:c1] = acc
+
+
+def _synth_frame(rng, orient="identity", sampling="nearest", offset=(0.0, 0.0), scale=1.0, curve=CURVE_A,
+                 uv16=("identity", {}), uv64=("identity", {}), nmode="identity", src16=None, bg=(20, 30, 40), noise=2):
+    img = np.empty((720, 1280, 3), float)
+    img[:] = np.array(bg, float)
+    for kind, (mode, params), src in (("uv16", uv16, src16), ("uv64", uv64, None), ("n", (nmode, {}), None)):
+        cx, cy, size = DEFAULT_DC_LAYOUT[KIND_LABEL[kind]]
+        A = _synth_A(cx + offset[0], cy + offset[1], size * scale, orient)
+        _render_tile(img, A, kind, mode, params, curve, sampling, bg, src)
+    img += rng.integers(-noise, noise + 1, size=img.shape)
+    return np.clip(np.round(img), 0, 255).astype(np.uint8)
+
+
+def _true_A(kind, orient="identity", offset=(0.0, 0.0), scale=1.0):
+    cx, cy, size = DEFAULT_DC_LAYOUT[KIND_LABEL[kind]]
+    return _synth_A(cx + offset[0], cy + offset[1], size * scale, orient)
+
+
+def _A_err_px(A_fit, A_true):
+    c = [(0, 0), (1, 0), (0, 1), (1, 1), (0.5, 0.5)]
+    return float(np.abs(_uv_to_screen(A_fit, c) - _uv_to_screen(A_true, c)).max())
+
+
+# ---------------------------------------------------------------------------------------------- selftest
+
+
+SYN_ACTORS = {"actors": [{"label": k, "screen_px": list(v)} for k, v in DEFAULT_DC_LAYOUT.items()]}
+
+
+def _jsonable(x):
+    if isinstance(x, dict):
+        return {str(k): _jsonable(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple, set)):
+        return [_jsonable(v) for v in x]
+    if isinstance(x, (np.integer,)):
+        return int(x)
+    if isinstance(x, (np.floating,)):
+        return float(x)
+    if isinstance(x, np.bool_):
+        return bool(x)
+    if isinstance(x, np.ndarray):
+        return _jsonable(x.tolist())
+    if isinstance(x, float) and (math.isinf(x) or math.isnan(x)):
+        return str(x)
+    return x
+
+
+def _events(nev, per, base_si=10, gap=20, applied=None):
+    evs, si = [], base_si
+    for e in range(nev):
+        ev = dict(start_frame=1000 + e * gap, frames=list(range(si, si + per)))
+        if applied is not None:
+            ev["applied"] = applied[e]
+        evs.append(ev)
+        si += per + 2
+    return evs
+
+
+def _neg_summary(neg):
+    return {k: (round(v["frac"], 4) if v["frac"] is not None else None, v["failed_as_required"]) for k, v in neg.items()}
+
+
+def selftest(out_dir=None, keep_session=False):
+    t0 = time.time()
+    rng = np.random.default_rng(8504)
+    cases = []
+
+    def case(name, expected, got, ok, detail=None):
+        cases.append(dict(name=name, expected=expected, got=_jsonable(got), pass_=bool(ok), detail=_jsonable(detail)))
+
+    kat = [(777, 0, 29, 13, 53), (777, 1, 9, 19, 57), (4242, 0, 47, 21, 15), (4242, 7, 37, 12, 45), (0, 0, 11, 29, 35),
+           (0xFFFFFFFF, 3, 1, 46, 1), (123456789, 42, 1, 46, 1)]
+    for s, o, a, b, ai in kat:
+        got = scramble_pair_py(s, o, 8)
+        case("scramble_pair_kat seed=%d ordinal=%d" % (s, o), [a, b, ai], list(got), got == (a, b, ai))
+
+    grid = [((x + 0.37) / 29.0, (y + 0.61) / 31.0) for y in range(31) for x in range(29)]
+    bad = 0
+    for u, v in grid:
+        if expected_uv_cell("tile", u, v, dict(n=8), 4) != tile_src_cell(u, v, 4, 8):
+            bad += 1
+        pr = scramble_pair_full(777, 3)
+        cx, cy = min(int(u * 8), 7), min(int(v * 8), 7)
+        if expected_uv_cell("scramble", u, v, dict(a_inv=pr["a_inv"], b=pr["b"], k=8), 8) != scramble_src_cell(cx, cy, pr["a_inv"], pr["b"]):
+            bad += 1
+    case("expected_uv_cell agrees with the copied fixture functions (tile n=8, scramble 777/3) on %d points" % len(grid),
+         0, bad, bad == 0)
+
+    fmt = ("%s: APPLIED mode=%s tile=%d fault=%s noapply=%d on '%s' - %d output chain(s), %d scratch class(es), %d host MID(s), "
+           "slots %d/%d committed, required=%d reserved=%d live=%d pending=%d peak=%d cap=%s, condition read through "
+           "the live predicate: %s (first failing index %d). Every level of every output was drawn from the source's own mip "
+           "and copied, enqueued before any scene draw of this frame (plan R7.4).%s apply_ms=%.3f")
+    pr3 = scramble_pair_full(777, 3)
+    desc = " ordinal=%d scramble_k=%d scramble_h=%u a=%d b=%d a_inv=%d" % (3, 8, pr3["h"], pr3["a"], pr3["b"], pr3["a_inv"])
+    l1 = "[2026.09.29-10.11.12:345][123]LogAnomaly: " + fmt % ("uv_corruption", "scramble", 8, "none", 0, "=StaticMeshActor_12", 2, 1, 1, 1, 1,
+                                                              196604, 174760, 174760, 21844, 196604, "268435456(console)", "installed", -1, desc, 1.25)
+    l2 = "[2026.09.29-10.11.13:001][ 47]LogAnomaly: " + fmt % ("uv_corruption", "tile", 8, "none", 0, "=StaticMeshActor_11", 2, 1, 1, 1, 1,
+                                                              196604, 174760, 174760, 21844, 196604, "134217728(compiled)", "installed", -1, " ordinal=2", 0.5)
+    l3 = "LogAnomaly: " + fmt % ("normal_corruption", "invert", 0, "none", 1, "=StaticMeshActor_13", 1, 1, 1, 0, 1, 10, 10, 10, 0, 10,
+                                 "134217728(compiled)", "slot_not_installed", 0, " ordinal=0", 0.1)
+    l4 = ("[2026.09.29-10.11.10:000][  3]LogAnomaly: texcorrupt: run-start knobs uv_modes=tile+scramble(compiled) "
+          "normal_modes=invert+green_flip(compiled) tile_n=8(compiled) scramble_k=8(console) cap=134217728(compiled) "
+          "min_px=64(compiled) max_textures=8(compiled) (console > DefaultGame.ini [AnomalyInjector] > compiled; the mode "
+          "sets drive the auto-pool draw only).")
+    l5 = ("[2026.09.29-10.11.09:000][  1]LogAnomalyCapture: === Capture run STARTED: X/session_1 | mode=targeted | delivery=off "
+          "| clock=wall | seed=777 fmt=png capture=sve/scene-colour ===")
+    l6 = 'LogInit: Command Line: /Game/X -ExecCmds="IAI.Capture.Start M53S2_T png 777 129 uv_corruption =StaticMeshActor_12, DEFER"'
+    l7 = "[2026.09.29-10.11.14:001][ 48]LogAnomaly: uv_corruption: APPLIED mode=tile_probe tile=2 fault=none noapply=0 on '=X' - old build"
+    p = parse_applied("\n".join([l6, l5, l4, l1, l2, l3, l7]))
+    ap = p["applied"]
+    exp = [dict(id="uv_corruption", mode="scramble", tile=8, noapply=0, target="=StaticMeshActor_12", ordinal=3, scramble_k=8,
+                scramble_h=pr3["h"], a=pr3["a"], b=pr3["b"], a_inv=pr3["a_inv"], frame=123),
+           dict(id="uv_corruption", mode="tile", tile=8, ordinal=2, a=None, b=None, a_inv=None, scramble_k=None, frame=47),
+           dict(id="normal_corruption", mode="invert", tile=0, noapply=1, ordinal=0, frame=None),
+           dict(id="uv_corruption", mode="tile_probe", tile=2, ordinal=None, frame=48)]
+    okp = len(ap) == 4 and all(all(ap[i].get(k) == v for k, v in e.items()) for i, e in enumerate(exp))
+    okp = okp and p["tile_n"] == 8 and p["scramble_k"] == 8 and p["seed"] == 777 and p["seed_source"] == "started_line" \
+        and p["seed_command"] == 777
+    case("parse_applied on lines built from the real format strings", dict(records=exp, tile_n=8, scramble_k=8, seed=777),
+         dict(records=[{k: r.get(k) for k in e} for r, e in zip(ap, exp)], n=len(ap), tile_n=p["tile_n"],
+              scramble_k=p["scramble_k"], seed=p["seed"], seed_source=p["seed_source"]), okp)
+    p2 = parse_applied(l1, seed=4242)
+    case("parse_applied seed argument overrides the log", 4242, p2["seed"], p2["seed"] == 4242 and p2["seed_source"] == "argument")
+
+    exp_orient = {"identity": "u=+x,v=+y", "mirror_x": "u=-x,v=+y", "rot180": "u=-x,v=-y", "transpose": "u=+y,v=+x"}
+    null_by = {}
+    for orient in ("identity", "mirror_x", "rot180", "transpose"):
+        nf = [_synth_frame(rng, orient=orient) for _ in range(2)]
+        null_by[orient] = nf
+        po = p_orc(nf, SYN_ACTORS)
+        errs = {k: _A_err_px(po["maps"][k]["A"], _true_A(k, orient)) for k in ("uv16", "uv64", "n")}
+        res = {k: po["readings"][k]["residual_px"] for k in ("uv16", "uv64", "n")}
+        ori = {k: po["maps"][k]["orientation"] for k in ("uv16", "uv64", "n")}
+        ok = po["pass"] and max(errs.values()) <= 0.5 and all(o == exp_orient[orient] for o in ori.values())
+        case("oracle_map recovers the affine, orientation %s (nearest, curve A, +-2 noise); p_orc PASS" % orient,
+             dict(porc="PASS", A_err_px_max="<=0.5", residual_px="<=0.5", orientation=exp_orient[orient]),
+             dict(porc="PASS" if po["pass"] else "FAIL", A_err_px=errs, residual_px=res, orientation=ori,
+                  sep_min={k: po["readings"][k]["sep_min"] for k in res},
+                  interior_spread={k: po["readings"][k]["interior_spread"] for k in res},
+                  interior_max_dev={k: po["readings"][k]["interior_max_dev"] for k in res},
+                  texels_per_px={k: po["readings"][k]["texels_per_px"] for k in res}), ok)
+
+    off = (0.3, 0.6)
+    tent_null = [_synth_frame(rng, sampling="tent", offset=off) for _ in range(2)]
+    po_t = p_orc(tent_null, SYN_ACTORS)
+    errs = {k: _A_err_px(po_t["maps"][k]["A"], _true_A(k, "identity", off)) for k in ("uv16", "uv64", "n")}
+    case("bilinear/tent sampling at sub-pixel offset (0.3, 0.6): affine recovered, p_orc PASS",
+         dict(porc="PASS", A_err_px_max="<=0.5"),
+         dict(porc="PASS" if po_t["pass"] else "FAIL", A_err_px=errs,
+              residual_px={k: po_t["readings"][k]["residual_px"] for k in errs},
+              interior_spread={k: po_t["readings"][k]["interior_spread"] for k in errs},
+              interior_max_dev={k: po_t["readings"][k]["interior_max_dev"] for k in errs}),
+         po_t["pass"] and max(errs.values()) <= 0.5)
+
+    s16 = source_image("uv16").copy()
+    s16[96:128, 96:128] = s16[0:32, 0:32]
+    po_e = p_orc([_synth_frame(rng, src16=s16)], SYN_ACTORS)
+    r16 = po_e["readings"]["uv16"]
+    case("p_orc FAILs when two UV16 cells are made identical (cell 15 := cell 0)", dict(porc="FAIL", uv16_failing="cells_found"),
+         dict(porc="PASS" if po_e["pass"] else "FAIL", uv16_failing=r16["failing"], cells_found=r16["cells_found"]),
+         (not po_e["pass"]) and "cells_found" in r16["failing"])
+    s16b = source_image("uv16").copy()
+    s16b[0:32, 0:32] = (60, 40, 60)
+    s16b[0:32, 32:64] = (80, 40, 80)
+    po_e2 = p_orc([_synth_frame(rng, src16=s16b, curve=CURVE_NONE)], SYN_ACTORS)
+    r16b = po_e2["readings"]["uv16"]
+    case("p_orc FAILs when two UV16 cells display 20 apart (both still located)", dict(porc="FAIL", uv16_failing=["separation"], sep_min="<32"),
+         dict(porc="PASS" if po_e2["pass"] else "FAIL", uv16_failing=r16b["failing"], sep_min=r16b["sep_min"],
+              cells_found=r16b["cells_found"]),
+         (not po_e2["pass"]) and r16b["failing"] == ["separation"] and r16b["sep_min"] < SEP_MIN)
+    po_s = p_orc([_synth_frame(rng, scale=0.5)], SYN_ACTORS)
+    fl = {k: po_s["readings"][k]["failing"] for k in ("uv16", "uv64", "n")}
+    tpp = {k: po_s["readings"][k]["texels_per_px"] for k in ("uv16", "uv64", "n")}
+    case("p_orc FAILs the >=1:1 clause when the tiles are displayed at 0.5 scale (2 texels/px)",
+         dict(porc="FAIL", failing_each_tile=["scale_1to1"], texels_per_px=2.0),
+         dict(porc="PASS" if po_s["pass"] else "FAIL", failing=fl, texels_per_px=tpp),
+         (not po_s["pass"]) and all(v == ["scale_1to1"] for v in fl.values()) and all(abs(t - 2.0) < 0.05 for t in tpp.values()))
+    sf = [_synth_frame(rng, curve=CURVE_STRONG) for _ in range(2)]
+    po_g = p_orc(sf, SYN_ACTORS)
+    po_g0 = p_orc(sf, SYN_ACTORS, allow_level_fallback=False)
+    case("strong display curve (R gamma 0.55): texel locate fails, level fallback recovers and p_orc PASSes; with the fallback off p_orc FAILs",
+         dict(with_fallback="PASS", method="levels", without_fallback="FAIL"),
+         dict(with_fallback="PASS" if po_g["pass"] else "FAIL",
+              method={k: po_g["readings"][k]["method"] for k in ("uv16", "uv64")},
+              match_dev_max={k: po_g["readings"][k]["match_dev_max"] for k in ("uv16", "uv64")},
+              without_fallback="PASS" if po_g0["pass"] else "FAIL",
+              without_cells_found={k: po_g0["readings"][k]["cells_found"] for k in ("uv16", "uv64")}),
+         po_g["pass"] and po_g["readings"]["uv16"]["method"] == "levels" and po_g["readings"]["uv64"]["method"] == "levels" and not po_g0["pass"])
+
+    maps_id = p_orc(null_by["identity"], SYN_ACTORS)["maps"]
+    idr = ev_mode_uv([(0, null_by["identity"][0])], maps_id["uv16"], "identity", {})
+    case("sanity: null frame evaluated as identity on UV16 matches every kept pixel", 1.0, idr["frac"], idr["frac"] == 1.0,
+         dict(kept=idr["kept"]))
+
+    def tile_frames(nev, per, n_render, orient="identity", sampling="nearest", offset=(0.0, 0.0)):
+        evs = _events(nev, per)
+        fr = {si: _synth_frame(rng, orient=orient, sampling=sampling, offset=offset, uv16=("tile", dict(n=n_render)))
+              for ev in evs for si in ev["frames"]}
+        return evs, fr
+
+    evs, fr = tile_frames(4, 2, 8)
+    j = judge_uv(fr, evs, maps_id["uv16"], "tile", tile_n=8)
+    case("tile n=8 rendered correctly -> PASS; negatives n=4, n=16, identity each < 50%",
+         dict(verdict="PASS", negatives="all failed_as_required"),
+         dict(verdict=j["verdict"], reasons=j["reasons"], events_counted=j["events_counted"], match_frac=j["match_frac"],
+              kept_per_frame=j["events"][0].get("kept_per_frame"), negatives=_neg_summary(j["negatives"])),
+         j["verdict"] == "PASS" and len(j["negatives"]) == 3 and all(v["failed_as_required"] for v in j["negatives"].values()))
+    evs4, fr4 = tile_frames(4, 2, 4)
+    j4 = judge_uv(fr4, evs4, maps_id["uv16"], "tile", tile_n=8)
+    case("tile rendered with n=4, judged as n=8 -> FAIL", "FAIL",
+         dict(verdict=j4["verdict"], reasons=j4["reasons"], match_frac=j4["match_frac"], negatives=_neg_summary(j4["negatives"])),
+         j4["verdict"] == "FAIL")
+    j3 = judge_uv({si: fr[si] for ev in evs[:3] for si in ev["frames"]}, evs[:3], maps_id["uv16"], "tile", tile_n=8)
+    case("tile n=8 with only 3 events -> INSUFFICIENT (never PASS)", "INSUFFICIENT",
+         dict(verdict=j3["verdict"], reasons=j3["reasons"], events_counted=j3["events_counted"]), j3["verdict"] == "INSUFFICIENT")
+    evm = [dict(e) for e in evs]
+    evm[0]["frames"] = evm[0]["frames"] + [999]
+    jm = judge_uv(fr, evm, maps_id["uv16"], "tile", tile_n=8)
+    case("tile n=8 with one event missing a labelled frame -> that event not counted -> INSUFFICIENT", "INSUFFICIENT",
+         dict(verdict=jm["verdict"], reasons=jm["reasons"], events_counted=jm["events_counted"]), jm["verdict"] == "INSUFFICIENT")
+
+    maps_t = po_t["maps"]
+    evt, frt = tile_frames(4, 2, 8, sampling="tent", offset=off)
+    jt = judge_uv(frt, evt, maps_t["uv16"], "tile", tile_n=8)
+    all_fr = [(si, frt[si]) for ev in evt for si in ev["frames"]]
+    e0 = ev_mode_uv(all_fr, maps_t["uv16"], "tile", dict(n=8), edge_px=0.0)
+    e15 = ev_mode_uv(all_fr, maps_t["uv16"], "tile", dict(n=8))
+    case("tile n=8, tent sampling at sub-pixel offset: PASS with the 1.5-px exclusion; without it (edge_px=0) some kept pixels mismatch",
+         dict(verdict="PASS", frac_edge_1_5=1.0, frac_edge_0="<1.0"),
+         dict(verdict=jt["verdict"], reasons=jt["reasons"], negatives=_neg_summary(jt["negatives"]), frac_edge_1_5=e15["frac"],
+              kept_edge_1_5=e15["kept_per_frame"], frac_edge_0=e0["frac"], kept_edge_0=e0["kept_per_frame"]),
+         jt["verdict"] == "PASS" and e15["frac"] == 1.0 and e0["frac"] < 1.0)
+    maps_mx = p_orc(null_by["mirror_x"], SYN_ACTORS)["maps"]
+    evx, frx = tile_frames(4, 2, 8, orient="mirror_x")
+    jx = judge_uv(frx, evx, maps_mx["uv16"], "tile", tile_n=8)
+    case("tile n=8 on a horizontally mirrored mesh -> PASS", "PASS",
+         dict(verdict=jx["verdict"], reasons=jx["reasons"], negatives=_neg_summary(jx["negatives"])), jx["verdict"] == "PASS")
+
+    seed = 777
+    ords = [3, 4, 5, 6]
+    applied = []
+    for o in ords:
+        pp = scramble_pair_full(seed, o)
+        applied.append(dict(id="uv_corruption", mode="scramble", tile=8, ordinal=o, scramble_k=8, scramble_h=pp["h"],
+                            a=pp["a"], b=pp["b"], a_inv=pp["a_inv"]))
+
+    def scr_frames(render, orient="identity"):
+        evs_ = _events(4, 2, applied=applied)
+        fr_ = {}
+        for ev in evs_:
+            o = ev["applied"]["ordinal"]
+            if render == "correct":
+                pp = scramble_pair_full(seed, o)
+                spec = ("scramble", dict(a_inv=pp["a_inv"], b=pp["b"], k=8))
+            elif render == "next":
+                pp = scramble_pair_full(seed, o + 1)
+                spec = ("scramble", dict(a_inv=pp["a_inv"], b=pp["b"], k=8))
+            else:
+                pp = scramble_pair_full(seed, o)
+                spec = ("scramble_forward", dict(a=pp["a"], b=pp["b"], k=8))
+            for si in ev["frames"]:
+                fr_[si] = _synth_frame(rng, orient=orient, uv64=spec)
+        return evs_, fr_
+
+    evs_s, fr_s = scr_frames("correct")
+    js = judge_uv(fr_s, evs_s, maps_id["uv64"], "scramble", seed=seed)
+    case("scramble with the pairs for (seed 777, ordinals 3..6) -> PASS; negatives ordinal-1, ordinal+1, forward, identity each < 50%",
+         dict(verdict="PASS", pair_for_ordinal_3=list(scramble_pair_py(777, 3))),
+         dict(verdict=js["verdict"], reasons=js["reasons"], match_frac=js["match_frac"], events_counted=js["events_counted"],
+              kept_per_frame=js["events"][0].get("kept_per_frame"), negatives=_neg_summary(js["negatives"]),
+              pairs=[pc["recomputed"] for pc in js["pair_checks"]], exclusions=js["exclusions"]),
+         js["verdict"] == "PASS" and set(js["negatives"]) == {"ordinal_minus_1", "ordinal_plus_1", "forward", "identity"}
+         and all(v["failed_as_required"] for v in js["negatives"].values()))
+    evs_n, fr_n = scr_frames("next")
+    jsn = judge_uv(fr_n, evs_n, maps_id["uv64"], "scramble", seed=seed)
+    case("scramble rendered with ordinal+1's pair (ordinal 4's pair on the ordinal-3 event) -> FAIL", "FAIL",
+         dict(verdict=jsn["verdict"], reasons=jsn["reasons"], match_frac=jsn["match_frac"], negatives=_neg_summary(jsn["negatives"])),
+         jsn["verdict"] == "FAIL" and "pixel_mismatch" in jsn["reasons"])
+    evs_f, fr_f = scr_frames("forward")
+    jsf = judge_uv(fr_f, evs_f, maps_id["uv64"], "scramble", seed=seed)
+    case("scramble rendered with the forward map (a where a_inv belongs) -> FAIL", "FAIL",
+         dict(verdict=jsf["verdict"], reasons=jsf["reasons"], match_frac=jsf["match_frac"], negatives=_neg_summary(jsf["negatives"])),
+         jsf["verdict"] == "FAIL" and "pixel_mismatch" in jsf["reasons"])
+    evs_m = [dict(ev) for ev in evs_s]
+    bad_ap = dict(evs_m[0]["applied"])
+    bad_ap["a"], bad_ap["a_inv"] = 5, pow(5, -1, 64)
+    evs_m[0]["applied"] = bad_ap
+    jsm = judge_uv(fr_s, evs_m, maps_id["uv64"], "scramble", seed=seed)
+    case("scramble whose logged pair differs from the recomputed one -> FAIL scramble_pair_mismatch",
+         dict(verdict="FAIL", reason="scramble_pair_mismatch"),
+         dict(verdict=jsm["verdict"], reasons=jsm["reasons"], pair_check=jsm["pair_checks"][0]),
+         jsm["verdict"] == "FAIL" and "scramble_pair_mismatch" in jsm["reasons"])
+    maps_r = p_orc(null_by["rot180"], SYN_ACTORS)["maps"]
+    evs_r, fr_r = scr_frames("correct", orient="rot180")
+    jsr = judge_uv(fr_r, evs_r, maps_r["uv64"], "scramble", seed=seed)
+    case("scramble on a 180-degree-rotated mesh -> PASS", "PASS",
+         dict(verdict=jsr["verdict"], reasons=jsr["reasons"], negatives=_neg_summary(jsr["negatives"])), jsr["verdict"] == "PASS")
+    jsx = judge_uv(fr_s, [dict(ev, applied=None) for ev in evs_s], maps_id["uv64"], "scramble", seed=seed)
+    case("scramble events without an APPLIED record are not counted -> INSUFFICIENT", "INSUFFICIENT",
+         dict(verdict=jsx["verdict"], reasons=jsx["reasons"]), jsx["verdict"] == "INSUFFICIENT")
+    seed2 = 0xFFFFFFFF
+    ap2, fr2 = [], {}
+    ev2 = _events(4, 2, base_si=300)
+    for ev, o in zip(ev2, [3, 4, 5, 6]):
+        pp = scramble_pair_full(seed2, o)
+        ev["applied"] = dict(id="uv_corruption", mode="scramble", tile=8, ordinal=o, scramble_k=8, scramble_h=pp["h"],
+                             a=pp["a"], b=pp["b"], a_inv=pp["a_inv"])
+        for si in ev["frames"]:
+            fr2[si] = _synth_frame(rng, uv64=("scramble", dict(a_inv=pp["a_inv"], b=pp["b"], k=8)))
+    js2 = judge_uv(fr2, ev2, maps_id["uv64"], "scramble", seed=seed2)
+    fwd_ex = sorted(x["event"] for x in js2["exclusions"] if x["name"] == "forward" and x.get("reason") == "predicted_indistinct")
+    case("scramble seed 0xFFFFFFFF ordinals 3..6 (a == a_inv on ordinals 3, 5, 6): forward negative is a named exclusion "
+         "(predicted_indistinct) on those events and evaluated on ordinal 4; verdict PASS",
+         dict(verdict="PASS", forward_excluded_events=[ev2[0]["start_frame"], ev2[2]["start_frame"], ev2[3]["start_frame"]]),
+         dict(verdict=js2["verdict"], reasons=js2["reasons"], forward_excluded_events=fwd_ex,
+              pairs=[pc["recomputed"] for pc in js2["pair_checks"]], negatives=_neg_summary(js2["negatives"])),
+         js2["verdict"] == "PASS" and fwd_ex == [ev2[0]["start_frame"], ev2[2]["start_frame"], ev2[3]["start_frame"]]
+         and js2["negatives"].get("forward", {}).get("events") == [ev2[1]["start_frame"]])
+
+    for render in ("invert", "green_flip"):
+        evn = _events(4, 2)
+        frn = {si: _synth_frame(rng, nmode=render) for ev in evn for si in ev["frames"]}
+        got = {}
+        for judge_as in ("invert", "green_flip", "identity"):
+            r = judge_n(frn, evn, maps_id["n"], judge_as)
+            got[judge_as] = dict(verdict=r["verdict"], reasons=r["reasons"], match_frac=r["match_frac"],
+                                 negatives=_neg_summary(r["negatives"]))
+        expv = {m: ("PASS" if m == render else "FAIL") for m in ("invert", "green_flip", "identity")}
+        case("normal rendered %s: PASS as %s, FAIL as the other mode and as identity" % (render, render), expv, got,
+             all(got[m]["verdict"] == expv[m] for m in expv))
+
+    nfl = [(100 + i, f) for i, f in enumerate(null_by["identity"])]
+    pairs = [scramble_pair_full(seed, o) for o in ords]
+    jn = judge_null_as_modes(nfl, maps_id, dict(tile_n=8, scramble=pairs))
+    case("null leg frames as each production mode (tile n=8, scramble 777/3..6, invert, green_flip) -> each < 50%",
+         dict(pass_=True), dict(pass_=jn["pass_"], reasons=jn["reasons"], modes={k: (v["frac"], v["failed_as_required"]) for k, v in jn["modes"].items()}),
+         jn["pass_"] and len(jn["modes"]) == 7)
+    jn2 = judge_null_as_modes([(1, fr_s[evs_s[0]["frames"][0]])], maps_id,
+                              dict(tile_n=8, scramble=[scramble_pair_full(seed, 3)]))
+    case("control: a scramble-3 production frame fed as a 'null' reads >= 50% as scramble 777/3 (null check can fail)",
+         dict(pass_=False), dict(pass_=jn2["pass_"], reasons=jn2["reasons"]),
+         (not jn2["pass_"]) and any(r.startswith("null_did_not_fail_as:scramble") for r in jn2["reasons"]))
+
+    base = out_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "089-04-evidence", "oracle")
+    tmp = os.path.join(base, "_synth_session_tmp")
+    try:
+        if os.path.isdir(tmp):
+            shutil.rmtree(tmp)
+        sess = os.path.join(tmp, "prod", "session_20260929-000001")
+        nulls = os.path.join(tmp, "null", "session_20260929-000000")
+        for d in (sess, nulls):
+            os.makedirs(os.path.join(d, "Actual_Frames"))
+        rows, ann_idx, loglines = [], [], [l6, l5, l4]
+        si = 0
+        for e, o in enumerate(ords):
+            pp = scramble_pair_full(seed, o)
+            sf_ = 200 + e * 12
+            loglines.append("[2026.09.29-10.12.00:%03d][%3d]LogAnomaly: " % (e, sf_ % 1000) + fmt % (
+                "uv_corruption", "scramble", 8, "none", 0, "=StaticMeshActor_12", 2, 1, 1, 1, 1, 1, 1, 1, 0, 1, "1(compiled)",
+                "installed", -1, " ordinal=%d scramble_k=8 scramble_h=%u a=%d b=%d a_inv=%d" % (o, pp["h"], pp["a"], pp["b"], pp["a_inv"]), 0.3))
+            for f in range(3):
+                labelled = f < 2
+                img = _synth_frame(rng, uv64=("scramble", dict(a_inv=pp["a_inv"], b=pp["b"], k=8)) if labelled else ("identity", {}))
+                name = "Actual_Frames/frame_%05d.png" % si
+                Image.fromarray(img).save(os.path.join(sess, name), compress_level=1)
+                rows.append(dict(session_index=si, frame_index=sf_ + f, image=name, anomaly_present=labelled,
+                                 anomalies=[{"id": "uv_corruption", "start_frame": sf_, "labelled": labelled, "texcorrupt.mode": "scramble"}]))
+                if labelled:
+                    ann_idx.append(si)
+                si += 1
+        with open(os.path.join(sess, "labels.jsonl"), "w", encoding="utf-8", newline="\n") as fh:
+            for r in rows:
+                fh.write(json.dumps(r) + "\n")
+        with open(os.path.join(sess, "annotation.json"), "w", encoding="utf-8") as fh:
+            json.dump(dict(anomalies=[dict(anomaly_type="uv_corruption", anomaly_subtype="scramble",
+                                           injected_frames=dict(frame_indices=ann_idx))]), fh)
+        nrows = []
+        for i in range(3):
+            name = "Actual_Frames/frame_%05d.png" % i
+            Image.fromarray(_synth_frame(rng)).save(os.path.join(nulls, name), compress_level=1)
+            nrows.append(dict(session_index=i, frame_index=50 + i, image=name, anomaly_present=True,
+                              anomalies=[{"id": "uv_corruption", "start_frame": 50, "labelled": True, "texcorrupt.mode": "scramble"}]))
+        with open(os.path.join(nulls, "labels.jsonl"), "w", encoding="utf-8", newline="\n") as fh:
+            for r in nrows:
+                fh.write(json.dumps(r) + "\n")
+        js_s = judge_session(sess, log_text="\n".join(loglines), null_session_dir=nulls, dc_actors=SYN_ACTORS)
+        leg = js_s["legs"].get("uv_corruption/scramble", {})
+        case("end-to-end judge_session on a synthetic on-disk session (scramble 777/3..6, 2 labelled frames per event) + null session + log",
+             dict(porc=True, verdict="PASS", applied_match="frame", null_pass=True, label_source="labelled_flag", annotation_agrees=True),
+             dict(porc=js_s["porc"]["pass_"], verdict=leg.get("verdict"), reasons=leg.get("reasons"),
+                  applied_match=leg.get("applied_match"), seed=js_s["seed"], null_pass=js_s.get("null_as_modes", {}).get("pass_"),
+                  label_info=leg.get("label_info")),
+             js_s["porc"]["pass_"] and leg.get("verdict") == "PASS" and js_s["null_as_modes"]["pass_"]
+             and all(str(m).startswith("frame_delta") for m in leg.get("applied_match", []))
+             and leg["label_info"]["label_source"] == "labelled_flag" and leg["label_info"]["annotation_agrees"] is True)
+        js_s2 = judge_session(sess, log_text="\n".join(loglines), dc_actors=SYN_ACTORS)
+        leg2 = js_s2["legs"].get("uv_corruption/scramble", {})
+        case("judge_session without a null session builds its maps from the production session's unlabelled frames",
+             dict(map_source="production_session_unlabelled_frames", porc=True, verdict="PASS"),
+             dict(map_source=js_s2.get("map_source"), map_frames=js_s2.get("map_frames"), porc=js_s2["porc"]["pass_"],
+                  verdict=leg2.get("verdict"), reasons=leg2.get("reasons")),
+             js_s2.get("map_source") == "production_session_unlabelled_frames" and js_s2["porc"]["pass_"] and leg2.get("verdict") == "PASS")
+    finally:
+        if not keep_session and os.path.isdir(tmp):
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    npass = sum(1 for c in cases if c["pass_"])
+    doc = dict(tool="085-04-oracle.py", python=sys.version.split()[0], numpy=np.__version__,
+               scipy=(__import__("scipy").__version__ if _ndi is not None else None),
+               elapsed_s=round(time.time() - t0, 2), cases_total=len(cases), cases_passed=npass,
+               all_pass=npass == len(cases),
+               thresholds=dict(locate_tol=LOCATE_TOL, sep_min=SEP_MIN, interior_max=INTERIOR_MAX, residual_max_px=RESIDUAL_MAX,
+                               texels_per_px_max=TPP_MAX, texels_per_px_tol=TPP_TOL, match_tol=MATCH_TOL, other_min=OTHER_MIN,
+                               edge_px=EDGE_PX, inset_px=INSET_PX, min_kept=MIN_KEPT, neg_fail_below=NEG_FAIL_BELOW,
+                               noop_identity_frac=NOOP_IDENTITY_FRAC, min_events=MIN_EVENTS),
+               cases=cases)
+    os.makedirs(base, exist_ok=True)
+    with open(os.path.join(base, "selftest.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(_jsonable(doc), fh, indent=1)
+    return doc
+
+
+# ---------------------------------------------------------------------------------------------- CLI
+
+
+def _arg(argv, name, default=None):
+    return argv[argv.index(name) + 1] if name in argv else default
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__)
+        return 2
+    cmd = argv[0]
+    if cmd == "selftest":
+        doc = selftest(keep_session="--keep-session" in argv)
+        for c in doc["cases"]:
+            print("%-4s %s" % ("OK" if c["pass_"] else "FAIL", c["name"]))
+        print("SELFTEST %d/%d passed in %.1f s -> %s" % (doc["cases_passed"], doc["cases_total"], doc["elapsed_s"],
+                                                         "ALL PASS" if doc["all_pass"] else "FAILURES"))
+        return 0 if doc["all_pass"] else 1
+    if cmd == "porc":
+        fr = []
+        i = argv.index("--frames") + 1 if "--frames" in argv else len(argv)
+        while i < len(argv) and not argv[i].startswith("--"):
+            fr.append(argv[i])
+            i += 1
+        r = p_orc(fr, _arg(argv, "--actors"))
+        r.pop("maps", None)
+        print(json.dumps(_jsonable(r), indent=1))
+        return 0 if r["pass"] else 1
+    if cmd == "judge":
+        seed = _arg(argv, "--seed")
+        nl = _arg(argv, "--null-log")
+        null_log = None
+        if nl:
+            with open(nl, "r", encoding="utf-8", errors="replace") as fh:
+                null_log = fh.read()
+        r = judge_session(_arg(argv, "--session"), log_path=_arg(argv, "--log"), null_session_dir=_arg(argv, "--null"),
+                          null_log_text=null_log, dc_actors=_arg(argv, "--actors"), seed=int(seed) if seed else None)
+        txt = json.dumps(_jsonable(r), indent=1)
+        out = _arg(argv, "--out")
+        if out:
+            with open(out, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(txt)
+        else:
+            print(txt)
+        verdicts = [leg.get("verdict") for leg in r["legs"].values()]
+        return 0 if verdicts and all(v == "PASS" for v in verdicts) else 1
+    print("unknown command %r" % cmd)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

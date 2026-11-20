@@ -1,0 +1,36 @@
+from pathlib import Path
+import hashlib,json,re,subprocess
+B=Path(r'D:\IntrusiveAnomalies'); E=B/'_reviews/081-08-evidence'; R=B/'StackOBot/Plugins/AnomalyInjector'
+def sha(p):
+    with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(*args):return subprocess.check_output(['git','-C',str(R),*args]).decode().strip()
+out={}; ledger={'stage1':json.loads((E/'stage1-ledger.json').read_text()),'stage2':{'status':'NEEDS-DECISION','accepted_static_twins':[],'blocked':{'leg':'solid_swap delay=3 natural','status':'INVALID-FIXTURE','attempts_used':3,'attempts_remaining':0,'measurement_verdict':None},'unrun':['solid_swap delay=3 synthetic','moving-camera twins both orders','hide both orders','depth-silencing hide both orders','already-occluded onset both orders (recipe withdrawn; replacement required)','blink both orders','short event both orders','target drop both orders','dedicated run-end both orders','actual teardown both orders','StuckMipNoHold both orders','Lyra null_effect natural','Lyra solid_swap natural','Lyra G3 G270 recipe','six-leg AEBD09EA legacy invariance'],'lyra_attempts_used':0,'lyra_first_leg_allowance_remaining':3},'stage3':'HELD'}
+for order in ('n','s'):
+    aa={name:json.loads((E/f'audit-m55s2v3_{name}_{order}.json').read_text()) for name in ('null','solid')}
+    onsets={name:[r for r in a['readings'] if r['window_index']==0] for name,a in aa.items()}
+    assert all(not a['errors'] for a in aa.values())
+    frac=lambda r:r['chg_gt8']/r['chg_n']
+    nf=[frac(r) for r in onsets['null']]; sf=[frac(r) for r in onsets['solid']]
+    ctl=[r['ctl_gt8']/r['ctl_n'] for r in onsets['solid']]
+    assert len(nf)>=3 and len(sf)>=3 and min(sf)>max(nf) and all(frac(r)>r['ctl_gt8']/r['ctl_n'] for r in onsets['solid'])
+    out[order]={'null_onsets':len(nf),'solid_onsets':len(sf),'null_target_fraction_range':[min(nf),max(nf)],'solid_target_fraction_range':[min(sf),max(sf)],'solid_control_fraction_range':[min(ctl),max(ctl)],'ordering':'PASS on measurable onsets only; refused onsets not repaired'}
+    for name,a in aa.items():
+        row={k:a[k] for k in ('label','session','events','pairs','measured','reasons','frozen_masks_verified')}
+        row['phase_states']=[p['state'] for e in a['final_events'] for p in e['phases']]
+        row['high_water_bytes']=a['summary']['change_bytes_high_water']
+        row['attempt_banks']=[str(p) for p in (B/'_bench_sessions_bank').glob('M55S2_'+a['label']+'_try*')]
+        ledger['stage2']['accepted_static_twins'].append(row)
+(E/'twins-ordering.json').write_text(json.dumps(out,indent=2))
+(E/'final-ledger.json').write_text(json.dumps(ledger,indent=2))
+changed=git('diff','--name-only','92a52ab','989da8b').splitlines()
+unchanged=['Shaders','Content','tools','Source/AnomalyInjector/Private/AnomalyAutoInjectorSubsystem.cpp']
+for p in unchanged:assert not git('diff','--name-only','92a52ab','989da8b','--',p),p
+checks={'changed':changed,'unchanged_scopes':unchanged,'runtime_legacy_invariance':'UNRUN; source inspection is not a substitute','build_logs':{p.name:sha(p) for p in E.glob('build-v*.log')}}
+(E/'source-checks.json').write_text(json.dumps(checks,indent=2))
+# Retire an unused invalid recipe and its private B1 exception; original runner is untouched.
+p=B/'_reviews/081-08-suite.py'; t=p.read_text(); t='\n'.join(l for l in t.splitlines() if "'empty':dict" not in l and "case.get('geometry_fault')" not in l)+'\n';p.write_text(t)
+p=E/'run_leg_owned.ps1';t=p.read_text();t=t.replace('  [switch]$TargetGeometryFault,\n','').replace(' -and (-not $TargetGeometryFault)','');t='\n'.join(l for l in t.splitlines() if not l.startswith('if ($TargetGeometryFault'))+'\n';p.write_text(t)
+# Pin the bank now; do not compute measurement verdicts for invalid delay attempts.
+bank_files={str(p.relative_to(B)):sha(p) for d in (B/'_bench_sessions_bank').glob('M55S2_M55S2V3_*') for p in d.rglob('*') if p.is_file()}
+(E/'bank-manifest.json').write_text(json.dumps(bank_files,indent=2))
+print(json.dumps({'ordering':out,'accepted':ledger['stage2']['accepted_static_twins'],'bank_files':len(bank_files)},indent=2))

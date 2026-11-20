@@ -1,0 +1,19 @@
+import importlib.util,json,shutil,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-23-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+B,E,L=c.B,c.E,c.L
+ours,foreign=c.classify();assert not [p for p in ours if p['name']!='UnrealTraceServer.exe'],ours
+out=E/'lyra-staged.json';assert not out.exists()
+m=c.binary_v3();entry=json.loads((B/'_reviews/081-15-evidence/lyra-staged.json').read_text())['entry_modules']
+target=L/'Binaries/Win64'
+assert c.git(L,'rev-parse','HEAD')==c.LYRA and not c.git(L,'diff','--name-only') and not c.git(L,'diff','--cached','--name-only') and not c.git(L,'ls-files','--others','--exclude-standard')
+names=sorted(p.name for p in target.iterdir() if p.is_file());assert names==sorted(r['name'] for r in entry),names
+for r in entry:assert c.sha(target/r['name'])==r['sha256'],r['name']
+for r in m['lyra_modules']:assert c.sha(Path(m['lyra_archive'])/r['name'])==r['sha256'],r['name']
+c.git(L,'checkout','--detach',m['source_commit'])
+for r in m['lyra_modules']:
+    shutil.copy2(Path(m['lyra_archive'])/r['name'],target/r['name']);assert c.sha(target/r['name'])==r['sha256']
+names=sorted(p.name for p in target.iterdir() if p.is_file());assert names==sorted(r['name'] for r in m['lyra_modules']),names
+assert c.git(L,'rev-parse','HEAD')==m['source_commit'] and not c.git(L,'diff','--name-only') and not c.git(L,'ls-files','--others','--exclude-standard')
+out.write_text(json.dumps(dict(utc=c.now(),source_commit=c.git(L,'rev-parse','HEAD'),archive=m['lyra_archive'],modules=m['lyra_modules'],entry_source=c.LYRA,entry_modules=entry,foreign_at_stage=[f['pid'] for f in foreign]),indent=2))
+print('Lyra staged: detached',m['source_commit'][:7],'with',len(names),'build-3 modules from',m['lyra_archive'])

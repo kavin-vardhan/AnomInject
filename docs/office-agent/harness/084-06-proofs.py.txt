@@ -1,0 +1,190 @@
+import collections,importlib.util,json,os,shutil,sys
+from pathlib import Path
+import numpy as np
+from PIL import Image
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c56',R/'084-06-common.py');E=load('e56',R/'084-06-eval.py');L3=E.L3
+BANK=Path(r'D:\IntrusiveAnomalies\_bench_sessions_bank')
+OUT=c.EV/'proofs';OUT.mkdir(parents=True,exist_ok=True)
+LED={x['leg']:x for x in json.loads((R/'084-03-evidence/run/ledger.json').read_text()) if x.get('status')=='ACCEPTED'}
+def sd(leg):return next(p for p in (BANK/LED[leg]['label']).iterdir() if p.is_dir() and p.name.startswith('session_'))
+def lg(leg):
+    p=BANK/LED[leg]['label']/'_leg'/'game.log';return p.read_text(encoding='utf-8-sig',errors='replace') if p.exists() else ''
+def judged(rows,verdict='PASS'):
+    return [r for r in rows if r.get('status')=='OK' and r.get('measurable') and not r.get('camera_moved') and r['per']['t50']['verdict']==verdict]
+def run_variant(leg,null,sf,label,T,aa):
+    a=E.m52_leg(sd(leg),sd(null),lg(leg),temporal_aa=aa,
+                label_override=(lambda e,sf=sf,label=label:(sorted(label) if e['start_frame']==sf else None)),
+                transition_override=(lambda e,lw,sf=sf,T=T:(set(T) if e['start_frame']==sf else set())))
+    r=next(x for x in a['rows'] if x.get('start_frame')==sf)
+    return r
+def m52_proofs(kon,koff,max_cases=3):
+    out=dict(aa_off=[],aa_on=[],null_control={},notes=[])
+    base=E.m52_leg(sd('B9_FIX'),sd('B5_FIX'),lg('B9_FIX'),temporal_aa=False)
+    cases=[r for r in judged(base['rows']) if r['per']['t50']['two_sided']['start']==0 and r['per']['t50']['two_sided']['end']==0][:max_cases]
+    for r in cases:
+        sf=r['start_frame'];a,b=r['label'];fv=r['per']['t50']['two_sided']['first_visible'];lv=r['per']['t50']['two_sided']['last_visible']
+        V=[('exact',list(range(a,b+1)),set(),'PASS'),('onset_plus2',list(range(fv+2,lv+1)),set(),'FAIL'),('offset_minus5',list(range(fv,lv-4)),set(),'FAIL'),
+           ('early_onset_overlabel_minus2',list(range(fv-2,lv+1)),set(),'FAIL'),('late_offset_overlabel_plus4',list(range(fv,lv+5)),set(),'FAIL'),
+           ('transition_flag_on_aa_off',list(range(fv,lv-1)),{lv,lv+1},'FAIL')]
+        case=dict(leg='B9_FIX',aa='off',start_frame=sf,label=[a,b],pixel_window=[fv,lv],variants={})
+        for name,lab,T,expect in V:
+            x=run_variant('B9_FIX','B5_FIX',sf,lab,T,False);v=x['per']['t50']['verdict']
+            case['variants'][name]=dict(expect=expect,got=v,ok=(v==expect),reasons=x['per']['t50']['fail_reasons'],oracle_label=x.get('oracle_label'))
+        out['aa_off'].append(case)
+    rule=lambda lw,kn,kf:set(sorted(lw)[:kn])|set(range(max(lw)+1,max(lw)+kf+1))
+    base_on=E.m52_leg(sd('B0_FIX'),sd('B5_FIX'),lg('B0_FIX'),temporal_aa=True,transition_override=lambda e,lw:rule(lw,kon,koff))
+    cands=[r for r in judged(base_on['rows'])][:max_cases]
+    if not cands:out['notes'].append(f'no B0_FIX event passes with the rule flags {kon}/{koff}; the AA-on cases are built on judged events regardless')
+    if not cands:cands=[r for r in base_on['rows'] if r.get('status')=='OK' and r.get('measurable') and not r.get('camera_moved')][:max_cases]
+    for r in cands:
+        sf=r['start_frame'];a,b=r['label'];tw=r['per']['t50']['two_sided'];fv=tw['first_visible'];lv=tw['last_visible']
+        lab=list(range(a,b+1));pix=list(range(fv,lv+1))
+        V=[('exact_build_label_with_rule_flags',lab,rule(lab,kon,koff),'PASS'),
+           ('pixel_window_label_with_rule_flags',pix,rule(pix,kon,koff),'PASS'),
+           ('transition_flags_removed',lab,set(),'FAIL'),
+           ('transition_flags_misplaced_before_onset',lab,set(range(a-koff,a))|set(lab[-kon:]),'FAIL'),
+           ('transition_off_window_too_short_1',lab,rule(lab,kon,1),'FAIL' if lv-b>1 else 'PASS'),
+           ('onset_plus2_vs_pixels_with_rule_flags',list(range(fv+2,lv+1)),rule(list(range(fv+2,lv+1)),kon,koff),'FAIL'),
+           ('offset_minus5_vs_build_label_with_rule_flags',list(range(a,b-4)),rule(list(range(a,b-4)),kon,koff),'FAIL'),
+           ('offset_minus5_vs_pixels_with_rule_flags',list(range(fv,lv-4)),rule(list(range(fv,lv-4)),kon,koff),'FAIL' if lv-5<b else 'PASS (coincides with the build label end when the TAA tail is >= 5 frames)'),
+           ('late_offset_overlabel_plus4_with_rule_flags',list(range(fv,lv+5)),rule(list(range(fv,lv+5)),kon,koff),'FAIL'),
+           ('early_onset_overlabel_minus2_with_rule_flags',list(range(fv-2,lv+1)),rule(list(range(fv-2,lv+1)),kon,koff),'PASS (blind spot by design: indistinguishable from the TAA onset lag the flag exists for)')]
+        case=dict(leg='B0_FIX',aa='delivered',start_frame=sf,label=[a,b],pixel_window=[fv,lv],K=[kon,koff],variants={})
+        for name,labv,T,expect in V:
+            x=run_variant('B0_FIX','B5_FIX',sf,labv,T,True);v=x['per']['t50']['verdict']
+            case['variants'][name]=dict(expect=expect,got=v,ok=(v==expect.split(' ')[0]),reasons=x['per']['t50']['fail_reasons'],decay=x['per']['t50']['transition_gate']['offset_decay_checks'])
+        out['aa_on'].append(case)
+    null_s=L3.Sess(sd('B5_BASE'));pseudo={}
+    for e in L3.events(null_s):pseudo[e['start_frame']]=list(range(e['rows'][0]+14,e['rows'][0]+22))
+    nl=E.m52_leg(sd('B5_BASE'),sd('B5_FIX'),lg('B5_BASE'),temporal_aa=True,label_override=lambda e:pseudo.get(e['start_frame']),freeze_oracle=False)
+    ok=[r for r in nl['rows'] if r.get('status')=='OK' and not r.get('camera_moved')]
+    vis_t50=sum(len(r['per']['t50']['visible']) for r in ok);vis_strict=sum(len(r['per']['strict']['visible']) for r in ok)
+    flat=[];ref=L3.null_ref(null_s,L3.ROCK);ref0=dict(ref,drop_rel=0.0)
+    evs=L3.events(null_s);firsts=[e['rows'][0] for e in evs]
+    for i,e in enumerate(evs):
+        m=L3.measure_event(null_s,e,firsts[i+1] if i+1<len(firsts) else None,ref0)
+        if m.get('status')=='OK':flat.append(dict(start_frame=e['start_frame'],visible=len(m['vis']),measurable=m['measurable']))
+    out['null_control']=dict(description='B5_BASE (a no-hold null on the baseline build) judged as if it held at the usual hold positions (first row + 14, 8 frames), against B5_FIX as the matched null; the scene cycle is the only change there',
+                             edge_local=dict(events=len(ok),measurable=sum(1 for r in ok if r['measurable']),visible_frames_t50=vis_t50,visible_frames_strict=vis_strict,
+                                             thr=sorted({(r['thr_on'],r['thr_off']) for r in ok})[:6],lag=nl['bases']),
+                             flat_reference_no_null_term=dict(events=len(flat),measurable=sum(1 for x in flat if x['measurable']),visible_frames=sum(x['visible'] for x in flat),
+                                                              note='the 084-03 declared residual variant: flat pre-level, threshold max(5 sigma, 2%), no null term'),
+                             whole_leg_null_threshold_084_04a=dict(thr_rel=round(ref['drop_rel'],4),note='the 084-04a threshold on this null is its own worst drop over the whole leg; on B0_FIX/B9_FIX it left 0 events measurable (see rebank legacy_whole_leg_threshold)'),
+                             expect='edge-local: 0 measurable and 0 visible at t50 (the gate does not call the scene cycle an anomaly); flat reference: visible frames > 0 (why a matched null or detrend is needed)')
+    nc=out['null_control']
+    nc['ok']=nc['edge_local']['measurable']==0 and nc['flat_reference_no_null_term']['measurable']>0
+    nc['expect']='edge-local: 0 pseudo-events measurable (nothing judged, so the scene cycle can neither pass nor fail an event); the flat reference without a null term makes >= 1 pseudo-event measurable (the scene cycle read as an anomaly); visible-frame counts are reported'
+    return out
+def _copy_session_subset(src,dst,n_events,keep_ords=None):
+    s=E.sess(src);evs=E.anno_events(s)[:n_events]
+    last=max(max(e['L']) for e in evs if e['L'])+10
+    if dst.exists():shutil.rmtree(dst)
+    (dst/'target_mask').mkdir(parents=True)
+    rows=[r for r in s.rows if r['session_index']<=last]
+    for r in rows:
+        mf=r.get('mask_file')
+        if mf and (s.dir/mf).exists():shutil.copy2(s.dir/mf,dst/mf)
+    (dst/'labels.jsonl').write_text('\n'.join(json.dumps(r) for r in rows)+'\n',encoding='utf-8')
+    keep=set(keep_ords) if keep_ords is not None else None
+    an=dict(s.anno);an['anomalies']=[a for k,a in enumerate((s.anno.get('anomalies') or [])[:n_events]) if keep is None or k in keep]
+    (dst/'annotation.json').write_text(json.dumps(an),encoding='utf-8')
+    sm=dict(s.summary);(dst/'run_summary.json').write_text(json.dumps(sm),encoding='utf-8')
+    return dst
+def _rewrite(dst,fn_rows=None,fn_sum=None):
+    rows=[json.loads(l) for l in (dst/'labels.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+    if fn_rows:rows=fn_rows(rows)
+    (dst/'labels.jsonl').write_text('\n'.join(json.dumps(r) for r in rows)+'\n',encoding='utf-8')
+    if fn_sum:
+        sm=json.loads((dst/'run_summary.json').read_text(encoding='utf-8'));sm=fn_sum(sm);(dst/'run_summary.json').write_text(json.dumps(sm),encoding='utf-8')
+def mask_proofs():
+    out=dict(real=None,doctored={})
+    src=BANK/'M55B3R23_S1_STACK_ON_A1/session_20260925-105557'
+    lgp=next((p for p in (src.parent/'_leg'/'game.log',src.parent/'_leg_game.log',src/'anomaly_log.txt') if p.exists()),None);log=lgp.read_text(encoding='utf-8-sig',errors='replace') if lgp else ''
+    m=E.mask_gate(src,log);s=E.sess(src);evs=E.anno_events(s)
+    unm=collections.Counter()
+    for e in evs:
+        for si in e['L']:
+            if not e['mv'].get(si):unm[e['ord']]+=1
+    out['real']=dict(session=str(src),expect='FAIL (pre-084-05a build: the 55-value pool is exhausted, later events get no mask; the recycling path does not exist)',got='PASS' if m['pass_'] else 'FAIL',
+                     ok=not m['pass_'],reasons=m['fail_reasons'],events=m['events'],labelled=m['labelled_frames'],masked=m['masked'],
+                     unmasked_events=len(unm),first_unmasked_event_ordinal=min(unm) if unm else None)
+    def fully_masked(e):
+        for si in e['L']:
+            mv=e['mv'].get(si);tp=e['tp'].get(si)
+            if not mv or tp is None or tp<0:return False
+            m=s.mask(si)
+            if tp>0 and (m is None or not (m==mv).any()):return False
+        return bool(e['L'])
+    base=OUT/'mask_doctored';good=[e for e in evs if fully_masked(e)]
+    i,j=good[2],good[10];vi=next(v for v in i['mv'].values() if v);vj=next(v for v in j['mv'].values() if v)
+    def remap_j(rows,value_to):
+        for r in rows:
+            for a in r.get('anomalies') or []:
+                if a.get('start_frame')==j['start_frame'] and a.get('mask_value')==vj:a['mask_value']=value_to
+        return rows
+    def remap_png(dst,frames,frm,to,paint_old=False):
+        for si in frames:
+            p=dst/'target_mask'/f'frame_{si:05d}.png'
+            if not p.exists():continue
+            a=np.asarray(Image.open(p).convert('L')).copy();a[a==frm]=to
+            if paint_old:
+                q=src/'target_mask'/f'frame_{max(i["L"]):05d}.png'
+                if q.exists():
+                    old=np.asarray(Image.open(q).convert('L'))==vi
+                    if i['node']==j['node']:
+                        ys,xs=np.nonzero(old);sh=(a.shape[1]//3) if xs.size and xs.mean()<a.shape[1]/2 else -(a.shape[1]//3)
+                        old=np.roll(old,sh,axis=1)
+                    a[old]=to
+            Image.fromarray(a,'L').save(p)
+    rec_sum=lambda sm:dict(sm,mask_tag_recycles=1,mask_tag_exhausted=0,mask_tag_peak_live=40)
+    rec_log='Capture(mask): TAG RECYCLED value=%d from event %s to event %s\n'%(vi,i['start_frame'],j['start_frame'])
+    n=max(e['ord'] for e in good[:40])+1
+    def build(name,paint_old=False,overlap=False,drop_png=False,recycle=True):
+        d=_copy_session_subset(src,base/name,n,[e['ord'] for e in good])
+        if recycle:
+            _rewrite(d,lambda rows:remap_j(rows,vi),rec_sum)
+            remap_png(d,[si for si in j['L']],vj,vi,paint_old)
+        if overlap:
+            def add(rows):
+                for r in rows:
+                    if r['session_index']==min(j['L']):
+                        r['anomalies']=(r.get('anomalies') or [])+[dict(id=i['entries'][max(i['L'])].get('id'),target_name=i['node'],start_frame=i['start_frame'],mask_value=vi,target_pixels=0)]
+                return rows
+            _rewrite(d,add)
+        if drop_png:
+            si=sorted(j['L'])[1];p=d/'target_mask'/f'frame_{si:05d}.png'
+            if p.exists():p.unlink()
+        E._SC.pop(str(d.resolve()),None)
+        g=E.mask_gate(d,rec_log if recycle else '',min_events=10)
+        return g
+    for name,kw,expect in (('legit_recycle',{},'PASS'),('alias_old_object_still_carries_value',dict(paint_old=True),'FAIL'),
+                           ('two_events_one_value_same_frame',dict(overlap=True),'FAIL'),('mask_png_missing_on_labelled_frame',dict(drop_png=True),'FAIL'),
+                           ('no_recycle_path_exercised',dict(recycle=False),'FAIL')):
+        g=build(name,**kw)
+        out['doctored'][name]=dict(expect=expect,got='PASS' if g['pass_'] else 'FAIL',ok=(('PASS' if g['pass_'] else 'FAIL')==expect),reasons=g['fail_reasons'])
+    out['doctored_note']=f'copies of the real session restricted to its first {n} events (fully masked ones kept); event ordinal {j["ord"]} (value {vj}) is re-pointed to event {i["ord"]}\'s value {vi}; masks are the real PNGs with values remapped; targets same={i["node"]==j["node"]} (if same, the alias case paints the value on a displaced copy of the silhouette, i.e. on another object location)'
+    return out
+def main():
+    import time
+    kon=int(sys.argv[1]) if len(sys.argv)>1 else 2;koff=int(sys.argv[2]) if len(sys.argv)>2 else 8
+    t0=time.time();res=dict(utc=c.now(),K=[kon,koff],m52=m52_proofs(kon,koff),mask=mask_proofs())
+    ok=[];bad=[]
+    for grp in ('aa_off','aa_on'):
+        for cs in res['m52'][grp]:
+            for n,v in cs['variants'].items():(ok if v['ok'] else bad).append(f"{grp}:{cs['start_frame']}:{n}")
+    (ok if res['m52']['null_control']['ok'] else bad).append('null_control')
+    (ok if res['mask']['real']['ok'] else bad).append('mask_real_prefix_fails')
+    for n,v in res['mask']['doctored'].items():(ok if v['ok'] else bad).append(f'mask:{n}')
+    res['summary']=dict(checks=len(ok)+len(bad),ok=len(ok),not_ok=bad,elapsed_s=round(time.time()-t0,1))
+    (OUT/'proofs.json').write_text(json.dumps(res,indent=1,default=str),encoding='utf-8')
+    print(json.dumps(res['summary'],default=str))
+    for grp in ('aa_off','aa_on'):
+        for cs in res['m52'][grp]:print(grp,cs['start_frame'],cs['label'],cs['pixel_window'],{n:(v['got'],v['ok']) for n,v in cs['variants'].items()})
+    print('null_control',json.dumps({k:v for k,v in res['m52']['null_control'].items() if k!='description'},default=str)[:900])
+    print('mask real',json.dumps(res['mask']['real'],default=str)[:600]);print('mask doctored',json.dumps(res['mask']['doctored'],default=str)[:1500])
+    sys.exit(0 if not bad else 1)
+if __name__=='__main__':main()

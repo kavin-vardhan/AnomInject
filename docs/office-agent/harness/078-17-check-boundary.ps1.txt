@@ -1,0 +1,65 @@
+param([string]$OutputName = '078-17-preflight.json', [string]$ExpectedHead = '560e28ac2b88f6c65f1683970ebb5ab6c69bb969', [switch]$After)
+$ErrorActionPreference = 'Stop'
+$root = 'D:\IntrusiveAnomalies'
+$plugin = Join-Path $root 'StackOBot\Plugins\AnomalyInjector'
+$previous = Get-Content -LiteralPath (Join-Path $root '_reviews\078-16-final-boundary.json') -Raw | ConvertFrom-Json
+$issues = [Collections.Generic.List[string]]::new()
+function CheckHash($p,$expected) {
+  $actual = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash
+  if ($actual -ne $expected) { $issues.Add("Hash changed: $p") }
+  [pscustomobject]@{Path=$p;Hash=$actual;Expected=$expected;Matches=($actual -eq $expected)}
+}
+$head = git -C $plugin rev-parse HEAD
+$branch = git -C $plugin branch --show-current
+if ($head -ne $ExpectedHead -or $branch -ne 'm51') { $issues.Add('Plugin HEAD/branch differs') }
+$master = git -C $plugin rev-parse master
+$origin = git -C $plugin rev-parse origin/master
+if ($master -ne $previous.master -or $origin -ne $previous.origin_master) { $issues.Add('Master pin differs') }
+$tracked = @(git -C $plugin status --porcelain --untracked-files=no)
+$untracked = @(git -C $plugin ls-files --others --exclude-standard)
+$untrackedDelta = @(Compare-Object @($previous.plugin_untracked) $untracked)
+$sourceDiff = @(git -C $plugin diff --name-only 6713f510166a0d9458387caaae711779b07fad64 -- Source Shaders)
+if ($tracked.Count -or $untrackedDelta.Count -or $sourceDiff.Count) { $issues.Add('Plugin tracked/untracked/source drift') }
+$old = @($previous.old_predictions | ForEach-Object { CheckHash $_.Path $_.Hash })
+$runtime = @($previous.runtime_hashes | ForEach-Object { CheckHash $_.Path $_.Hash })
+$docs = @()
+if (!$After) { $docs = @(Get-Content -LiteralPath (Join-Path $root '_reviews\078-16-final-document-metadata.json') -Raw | ConvertFrom-Json | ForEach-Object { CheckHash (Join-Path $plugin $_.path) $_.hash }) }
+$scripts = @(
+  CheckHash "$root\_mailbox\watcher.ps1" '79CDABE53E19F2F9D972502E18D5EDF845F90DCD9F170360DF7B56DBDF6030ED'
+  CheckHash 'E:\MailBox\watcher\watcher.ps1' '79CDABE53E19F2F9D972502E18D5EDF845F90DCD9F170360DF7B56DBDF6030ED'
+  CheckHash "$root\_mailbox\run_brief.ps1" '4B09E98F456C945BCE161434EEBD244A66FABD881813429A200A875C48C862CF'
+  CheckHash 'E:\MailBox\watcher\run_brief.ps1' '4B09E98F456C945BCE161434EEBD244A66FABD881813429A200A875C48C862CF'
+  CheckHash "$root\_mailbox\to_chat\078-16-revise-identity-lifecycle-design.report.md" '4B41C02C18838FBB51A86190CCCC0D58B59571FDCBFA6BD68CA770D7D6F60743'
+)
+$provenance = Get-Content -LiteralPath "$root\_reviews\078-15-offline-evidence\provenance.json" -Raw | ConvertFrom-Json
+$evidence = @($provenance.sources.PSObject.Properties | ForEach-Object { CheckHash $_.Name $_.Value })
+$checkers = @($provenance.tools.PSObject.Properties | ForEach-Object { CheckHash (Join-Path "$root\StackOBot\Plugins\CaptureBench" ('tools\' + $_.Name)) $_.Value })
+$cb = "$root\StackOBot\Plugins\CaptureBench"
+$cbHead = git -C $cb rev-parse HEAD
+$cbStatus = @(git -C $cb status --porcelain)
+if ($cbHead -ne $previous.capturebench_head -or @(Compare-Object @($previous.capturebench_status) $cbStatus).Count) { $issues.Add('CaptureBench drift') }
+$lyra = 'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector'
+$lyraHead = git -C $lyra rev-parse HEAD
+$lyraBranch = git -C $lyra branch --show-current
+$lyraStatus = @(git -C $lyra status --porcelain)
+if ($lyraHead -ne $previous.lyra_head -or $lyraBranch -or $lyraStatus.Count) { $issues.Add('Lyra drift') }
+$processes = @(Get-CimInstance Win32_Process)
+$watchers = @($processes | Where-Object { $_.CommandLine -match '(?i)-File\s+"?D:\\IntrusiveAnomalies\\_mailbox\\watcher\.ps1' } | Select-Object ProcessId,CreationDate,CommandLine)
+$code = @($processes | Where-Object { ($_.Name -match '^(claude|claude-code)(\.exe)?$' -and $_.ExecutablePath -notmatch '\\WindowsApps\\Claude_') -or ($_.Name -match '^node' -and $_.CommandLine -match 'claude-code|claude.*cli\.js') } | Select-Object ProcessId,CreationDate,CommandLine)
+$allBuild = @($processes | Where-Object { $_.Name -match '^(StackOBot|Lyra|UnrealEditor|UnrealEditor-Cmd|ShaderCompileWorker|UnrealBuildTool|AutomationTool|MSBuild)(\.exe)?$' -or ($_.Name -match '^dotnet' -and $_.CommandLine -match 'UnrealBuildTool|AutomationTool') })
+$benchRoots = @($allBuild | Where-Object { $_.Name -match '^(StackOBot|Lyra)(\.exe)?$' -or $_.CommandLine -match 'IntrusiveAnomalies|LyraStarterGame' } | ForEach-Object ProcessId)
+$bench = @($allBuild | Where-Object { $_.ProcessId -in $benchRoots -or $_.ParentProcessId -in $benchRoots } | Select-Object ProcessId,ParentProcessId,Name,CommandLine)
+$unrelatedBuild = @($allBuild | Where-Object { $_.ProcessId -notin @($bench.ProcessId) } | Select-Object ProcessId,ParentProcessId,Name,CommandLine)
+$queue = @(Get-ChildItem -LiteralPath "$root\_mailbox\to_code" -File | Select-Object Name,Length)
+$active = @(Get-ChildItem -LiteralPath "$root\_mailbox" -Filter '_active_*' -File | Select-Object Name,Length)
+$status = Get-Content -LiteralPath "$root\_mailbox\watcher_status.txt" -Raw
+if ($watchers.Count -ne 1 -or $watchers[0].ProcessId -ne 22072 -or $status -notmatch 'state=idle' -or $queue.Count -or $active.Count -or $code.Count -or $bench.Count) { $issues.Add('Mailbox/process boundary not idle and exclusive') }
+$chat = @(Get-ChildItem -LiteralPath "$root\_reviews" -File | Where-Object { $_.Name -match '^078-\d+-chat-' } | Select-Object Name,LastWriteTime,Length)
+$result = [ordered]@{time=(Get-Date).ToString('o');issues=@($issues);plugin_head=$head;branch=$branch;master=$master;origin_master=$origin;plugin_tracked_changes=$tracked;plugin_untracked=$untracked;untracked_delta=$untrackedDelta;source_shader_diff=$sourceDiff;old_predictions=$old;runtime_hashes=$runtime;previous_docs=$docs;scripts_reports=$scripts;evidence=$evidence;checkers=$checkers;capturebench_head=$cbHead;capturebench_status=$cbStatus;lyra_head=$lyraHead;lyra_branch=$lyraBranch;lyra_status=$lyraStatus;watchers=$watchers;code_cli=$code;bench_build=$bench;queue=$queue;active=$active;watcher_status=$status;verdict=(Get-Content -LiteralPath "$root\_mailbox\last_verdict.txt" -Raw);chat_responses=$chat}
+$result.unrelated_build_processes = $unrelatedBuild
+$result.supplemental_pins = @(Get-Content -LiteralPath "$root\_reviews\078-17-supplemental-pins.json" -Raw | ConvertFrom-Json | ForEach-Object { CheckHash $_.Path $_.Hash })
+$result.issues = @($issues)
+$json = $result | ConvertTo-Json -Depth 10
+[IO.File]::WriteAllText((Join-Path "$root\_reviews" $OutputName),$json,[Text.UTF8Encoding]::new($false))
+[pscustomobject]@{Output=$OutputName;Issues=@($issues);Head=$head;Watcher=$watchers;Status=$status;Chat=$chat} | ConvertTo-Json -Depth 6
+if ($issues.Count) { exit 1 }

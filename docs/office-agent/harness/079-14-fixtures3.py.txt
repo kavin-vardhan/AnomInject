@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""079-14 round 3 — the two coverage rules the README states explicitly:
+  * "Corrupt masks and invalid dimensions are errors, not permission to extrapolate."
+  * "An explicit absent ID is an error inside the span; outside it, a valid PNG
+     containing only other targets may trigger the bounded fallback."
+"""
+import os
+import sys
+
+from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import Session, paint, mask_img, W, H, ON, OFF, NODE, MASK_V
+
+
+def build(root):
+    os.makedirs(root, exist_ok=True)
+    made = []
+
+    # F33 - an in-span mask PNG with the WRONG DIMENSIONS. Nothing ever changes,
+    # so without the guard this would be NO-TRACE. Must be unassessable and must
+    # NOT fall back to extrapolation.
+    s = Session(root, "F33_mask_wrong_dimensions_in_span")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.mask(13, mask_img(box=(20, 20, 40, 35), size=(W // 2, H // 2)))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F34 - masks exist on EVERY frame, but the OUT-OF-SPAN ones carry only a
+    # FOREIGN id (201). The label wants 200. Per the README the out-of-span
+    # absent id may trigger the bounded boundary fallback; in-span ids are intact
+    # and nothing ever changes.
+    s = Session(root, "F34_foreign_id_outside_span_only")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+        if not (10 <= k <= 15):
+            s.mask(k, mask_img(value=201))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F35 - as F34, but the target genuinely changes on the labelled onset.
+    # The onset pair (9,10) mixes an extrapolated pre-span mask with the real
+    # frame-10 mask; the change must still be seen.
+    s = Session(root, "F35_foreign_id_outside_span_real_change")
+    for k in range(s.n):
+        s.frame(k, paint(OFF if 10 <= k <= 15 else ON))
+        if not (10 <= k <= 15):
+            s.mask(k, mask_img(value=201))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    return made
+
+
+if __name__ == "__main__":
+    root = sys.argv[1] if len(sys.argv) > 1 else r"C:\ClaudeTemp\079-14\fx3b"
+    for d in build(root):
+        print(d)

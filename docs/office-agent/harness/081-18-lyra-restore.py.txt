@@ -1,0 +1,31 @@
+from pathlib import Path
+import hashlib,json,shutil,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-18-evidence';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+ENTRY='caa68c6799db023f7a24c0d6cfc56124ce27b542'
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(*a):return subprocess.check_output(['git','-C',str(L),*a]).decode().strip()
+def classify():
+    s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'UnrealEditor.exe','StackOBot.exe','LyraGame.exe','UnrealBuildTool.exe','ShaderCompileWorker.exe' } | Select-Object ProcessId,Name,ExecutablePath,CommandLine) | ConvertTo-Json -Compress"]).decode().strip()
+    v=[] if not s or s=='[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+    ours=[];foreign=[]
+    for x in v:
+        t=((x.get('ExecutablePath') or '')+' '+(x.get('CommandLine') or '')).lower()
+        (ours if ('uesource' in t or 'intrusiveanomalies' in t or 'lyrastartergame' in t or 'stackobot' in t or x['Name'] in ('StackOBot.exe','LyraGame.exe','UnrealBuildTool.exe')) else foreign).append(dict(pid=x['ProcessId'],name=x['Name'],path=x.get('ExecutablePath'),cmd=(x.get('CommandLine') or '')[:200]))
+    return ours,foreign
+ours,foreign=classify();assert not ours,ours
+out=E/'lyra-restored.json';assert not out.exists()
+st=json.loads((E/'lyra-staged.json').read_text());entry=st['entry_modules']
+target=(L/'Binaries/Win64').resolve();original=B/'_binary_baselines/m55-stage1-lyra-entry-caa68c6'
+head_before=git('rev-parse','HEAD');assert head_before==st['source_commit'] and not git('diff','--name-only') and not git('diff','--cached','--name-only')
+for r in st['modules']:assert sha(target/r['name'])==r['sha256'] and sha(Path(st['archive'])/r['name'])==r['sha256'],r['name']
+for r in entry:assert sha(original/r['name'])==r['sha256'],r['name']
+git('checkout','--detach',ENTRY)
+for r in entry:shutil.copy2(original/r['name'],target/r['name']);assert sha(target/r['name'])==r['sha256']
+removed=[]
+for name in ('UnrealEditor-AnomalyBench.dll','UnrealEditor-AnomalyBench.pdb'):
+ p=(target/name).resolve();assert p.parent==target and p.name==name;p.unlink();removed.append(str(p))
+names=sorted(p.name for p in target.iterdir() if p.is_file());assert names==sorted(r['name'] for r in entry),names
+assert git('rev-parse','HEAD')==ENTRY and not git('diff','--name-only') and not git('ls-files','--others','--exclude-standard')
+out.write_text(json.dumps(dict(foreign_processes_present=foreign,head_before=head_before,source=git('rev-parse','HEAD'),restored_modules=entry,removed_exact_files=removed,module_names=names),indent=2))
+print('Lyra restored: detached',ENTRY[:7],'with original',len(names),'modules; removed',len(removed),'candidate-only files')

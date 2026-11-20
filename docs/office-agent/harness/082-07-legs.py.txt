@@ -1,0 +1,133 @@
+import importlib.util,json
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+spec=importlib.util.spec_from_file_location('c53',R/'082-07-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+FSYN='/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel';FMW='/Game/StackOBot/Maps/MainWorld';FGATE='/Game/CaptureBenchGate/CB_GateLevel'
+MAPS={'F-SYN':FSYN,'F-MW':FMW,'F-GATE':FGATE}
+UV='uv_corruption';NM='normal_corruption'
+CFG_STD='2 16 8 4 0';CFG_MW='2 40 8 4 0';CFG_RD='2 16 100 4 0';CFG_LONG='2 16 200 4 0'
+F_STD=100;F_MW=100;F_RD=120
+MW_FLOOR='RoomBuilderSquare_C_UAID_00155DE1D4771FCF00_1080865874'
+MW_BOT='BP_Bot_C_2147482434'
+MW_NAMED=[MW_FLOOR,MW_BOT,'StaticMeshActor_UAID_A036BC6AB247EBF902_2048592804','StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803',
+          'BP_SplineSpawn_C_UAID_A85E45CFE40412DE00_1511100424','StaticMeshActor_UAID_B42E9936F5425ADA00_1853259872','BP_MovingPlatform_C_UAID_B42E9936F542EBDB00_1649270448']
+GATE_TARGET='StaticMeshActor_49'
+ID='IAI.Bench.TexCorruptIdentity 1';NULL1='IAI.Bench.TexCorruptNoApply 1';NULL2='IAI.Bench.TexCorruptNoApply 2'
+RD='IAI.Bench.TexCorruptIdentityRedraw 1';TILE='IAI.Bench.TexCorruptTileProbe 2';COLL='IAI.Bench.TexCorruptCollateralDetail 1'
+GC_LOG='Log LogGarbage Log'
+def WC(f):return f'IAI.Bench.TexCorruptWrongCopy {f}'
+A=c.fixture_actors()
+def N(label):return A[label]['name']
+ENC=[('U-C1','TC_UC1',UV,['chanswap','srgbtwice']),('U-C2','TC_UC2',UV,['chanswap','srgbtwice','alpha']),('U-C3','TC_UC3',UV,['chanswap','srgbtwice','alpha']),
+     ('U-C4','TC_UC4',UV,['chanswap','srgbtwice']),('U-C5','TC_UC5',UV,['srgbtwice']),('U-D1','TC_UD1',UV,['chanswap']),('U-D2','TC_UD2',UV,['chanswap','alpha']),
+     ('U-D3','TC_UD3',UV,['chanswap','alpha']),('U-D4','TC_UD4',UV,['chanswap']),('U-D5','TC_UD5',UV,['chanswap']),('U-D6','TC_UD6',UV,['chanswap']),
+     ('U-N1','TC_UN1',UV,['normal','chanswap']),('N-N1','TC_NN1',NM,['normal','chanswap']),('MASKED','TC_Masked',UV,['alpha'])]
+GEOS=[('MAG','Mag'),('MIN','Far'),('GRAZE','Grazing'),('TRANS','Transition')]
+CHAINS=[('A','ChainA'),('B','ChainB'),('CSHARP','ChainCSharpen'),('CBLUR','ChainCBlur'),('CACOV','ChainCAlphaCov'),('D','ChainD')]
+GIDM_Q_FAULTS={('B','MAG'):['texelshift'],('D','MAG'):['texelshift'],('A','MIN'):['mipshift','mipgen'],('A','GRAZE'):['mipshift'],('A','TRANS'):['mipshift','mipgen']}
+GIDM_D_FAULTS={(ch,g):['mipgen'] for ch in ('CSHARP','CBLUR','CACOV') for g in ('MIN','TRANS')}
+REASONS=[
+ ('E1','TC_UC1',UV,['IAI.Bench.TexCorruptForceMissingAsset 1'],'assets_unavailable:bench_force_missing_asset','E1',None),
+ ('E4','TC_UC1',UV,['r.MipMapLODBias 1'],'runtime_lod_bias:global_sampler','E4',None),
+ ('E5','TC_UC1',UV,['r.Streaming.UsePerTextureBias 0','r.Streaming.MipBias 1'],'runtime_lod_bias:global_streaming','E5',None),
+ ('E7','TC_NoMesh',UV,[],'no_mesh','E7',None),
+ ('S1','TC_SlotEmpty',UV,[],'no_eligible_slot:all_untouched','V1','slot_empty'),
+ ('S2','TC_Translucent',UV,[],'no_eligible_slot:all_untouched','V1','slot_translucent'),
+ ('S3A','TC_AssetMid',UV,['IAI.Bench.TexCorruptAssetSlotMid {TC_AssetMid}'],'host_mid:asset_slot:mid','V1','host_mid:asset_slot:mid'),
+ ('T1','TC_VT',UV,[],'virtual_texture','V1',None),
+ ('T2','TC_Cube',UV,[],'unsupported_type','V1',None),
+ ('T3','TC_UIGroup',UV,[],'excluded_group','V1',None),
+ ('A1','TC_UI1x1',UV,[],'APPLY','-','non_spatial_exempt'),
+ ('T4','TC_Alias',UV,[],'texture_not_parameter','V1',None),
+ ('T5','TC_Half',UV,[],'unsupported_encoding','V1',None),
+ ('T9C','TC_Cine',UV,[],'runtime_lod_bias:cinematic','V1',None),
+ ('T9S','TC_Stream2k',UV,['r.Streaming.MipBias 1'],'runtime_lod_bias:streaming_budget','V1',None),
+ ('T10','TC_Stream2k',UV,[],'not_fully_resident','V1',None),
+ ('A5','TC_Small',UV,[],'below_size_policy','V1',None),
+ ('A6','TC_Nine',UV,[],'map_set_over_cap','V1',None),
+ ('V2','TC_Big',UV,[],'over_budget','V2',None)]
+MW_REASONS=[('S3O','@BOT',UV,'host_mid:override','V1',None),('A2',MW_FLOOR,NM,'no_normal_map','V1',None)]
+DECLARED_CANNOT={'A2':'082-07d, corrected by 082-07i (AMENDMENT 3, G328): the frame-1 G0 F-MW census reads the floor normal family not_fully_resident on 18 of 30 slots, so 18 slots carry a normal-map binding (TexCorruptTree.cpp:553, a residency-independent asset property; no_normal_map and normal_unconnected are decided at TexCorruptTree.cpp:566-574). While those bindings are not resident their failure ranks 20 and beats no_normal_map (A2, rank 31); once resident they either qualify (APPLY) or fail at A3/A5/A6 (32/35/36), when the 3 no-normal-map slots (31) win. So no_normal_map is NOT proven impossible at the decision frame; the row stays class D in S1 and the REASON_A2 decision-frame final is read by the MW-FLOOR reading (a finding if it reads no_normal_map)'}
+NOT_RUN={'T10':'082-07i ruling (082-07h ruling 1-2, G328): T_TC_Stream2k reads resident=7 max=12 at the frame-1 census but 12/12 at the leg decision frame 18, so the leg applied, correctly by TexCorruptTree.cpp:466; the row premise (partly resident at apply) is false on this bench. FIXTURE-CANNOT-EXERCISE (premise); the 082-07h attempt M53S1_REASON_T10_A1 and its rows are superseded (entry 4) and the leg is not re-run in S1. A full T10 row with a deterministic producer is owed in S2.'}
+NORMAL_APPLY=('TC_UN1','TC_NN1','TC_ChainD_Mag','TC_ChainD_Grazing','TC_ChainD_Far','TC_ChainD_Transition','TC_NormalEmis')
+NORMAL_SHARED={'TC_NoMesh':'no_mesh','TC_SlotEmpty':'no_eligible_slot','TC_Translucent':'no_eligible_slot','TC_Skeletal':'default_material_path','TC_Nanite':'nanite_override'}
+def normal_expected(label):return 'APPLY' if label in NORMAL_APPLY else NORMAL_SHARED.get(label,'no_normal_map')
+FAILSTEPS=[('FS2',['IAI.Bench.TexCorruptFailStep 2'],2,'rt_alloc_failed'),('FS2O',['IAI.Bench.TexCorruptFailStep 2 1'],2,'rt_alloc_failed'),
+           ('FS3',['IAI.Bench.TexCorruptFailStep 3'],3,'param_readback_mismatch'),('FS4',['IAI.Bench.TexCorruptFailStep 4'],4,'draw_precondition_failed'),
+           ('FS5',['IAI.Bench.TexCorruptFailStep 5'],5,'draw_precondition_failed'),('FS6',['IAI.Bench.TexCorruptFailStep 6'],6,'param_readback_mismatch')]
+G4_TARGETS={UV:'TC_UC1',NM:'TC_NN1'}
+def leg(leg_id,fixture,anomaly,target_label=None,levers=(),cfg=None,frames=None,kind='capture',role='',target=None,**kw):
+    t=target if target is not None else (N(target_label) if target_label else '')
+    d=dict(leg=leg_id,fixture=fixture,map=MAPS[fixture],anomaly=anomaly,target=t,target_label=target_label or target or '',levers=list(levers),
+           cfg=cfg or (CFG_MW if fixture=='F-MW' else CFG_STD),frames=frames or (F_MW if fixture=='F-MW' else F_STD),kind=kind,role=role)
+    d.update(kw);return d
+def legs():
+    L=[]
+    L.append(leg('G0_FSYN','F-SYN','',None,[],kind='census',role='CENSUS',list_actors=True,census=[N(k) for k in sorted(A,key=lambda k:A[k]['name'])]))
+    L.append(leg('CTL_A','F-SYN',UV,'TC_UC1',[ID,NULL1],role='NULL',row='U-C1'))
+    L.append(leg('CTL_B','F-SYN',UV,'TC_UC1',[ID,NULL1],role='CTL',row='U-C1'))
+    L.append(leg('G0_FMW','F-MW','',None,[],kind='census',role='CENSUS',list_actors=True,census=['']+MW_NAMED))
+    for row,label,anom,faults in ENC:
+        key=row.replace('-','')
+        L.append(leg(f'ID_{key}','F-SYN',anom,label,[ID],role='ID',row=row))
+        if row!='U-C1':L.append(leg(f'NULL_{key}','F-SYN',anom,label,[ID,NULL1],role='NULL',row=row))
+        for f in faults:L.append(leg(f'WC_{key}_{f.upper()}','F-SYN',anom,label,[ID,WC(f)],role='FAULT',row=row,fault=f,fault_class='Q'))
+    L.append(leg('ID_SHARED','F-SYN',UV,'TC_Shared',[ID],role='ID',row='SHARED'))
+    L.append(leg('NULL_SHARED','F-SYN',UV,'TC_Shared',[ID,NULL1],role='NULL',row='SHARED'))
+    L.append(leg('WC_SHARED_CHANSWAP','F-SYN',UV,'TC_Shared',[ID,WC('chanswap')],role='FAULT',row='SHARED',fault='chanswap',fault_class='Q'))
+    for ch,chl in CHAINS:
+        for g,gl in GEOS:
+            ids=[UV,NM] if ch=='D' else [UV]
+            for anom in ids:
+                sfx='' if anom==UV else '_NM';row=f'M-{ch}-{g}{sfx}';lab=f'TC_{chl}_{gl}'
+                L.append(leg(f'ID_M{ch}_{g}{sfx}','F-SYN',anom,lab,[ID],role='ID',row=row))
+                L.append(leg(f'NULL_M{ch}_{g}{sfx}','F-SYN',anom,lab,[ID,NULL1],role='NULL',row=row))
+                for f in GIDM_Q_FAULTS.get((ch,g),[]):
+                    if anom==NM and f!='texelshift':continue
+                    L.append(leg(f'WC_M{ch}_{g}{sfx}_{f.upper()}','F-SYN',anom,lab,[ID,WC(f)],role='FAULT',row=row,fault=f,fault_class='Q'))
+                if anom==UV:
+                    for f in GIDM_D_FAULTS.get((ch,g),[]):
+                        L.append(leg(f'WC_M{ch}_{g}_{f.upper()}_D','F-SYN',anom,lab,[ID,WC(f)],role='FAULT',row=row,fault=f,fault_class='D'))
+    for key,label in (('OPAQUE','TC_RedrawOpaque'),('ALPHA','TC_RedrawAlpha')):
+        L.append(leg(f'RD_{key}','F-SYN',UV,label,[RD],cfg=CFG_RD,frames=F_RD,role='ID',row=f'RD-{key}'))
+        L.append(leg(f'RDNULL_{key}','F-SYN',UV,label,[RD,NULL1],cfg=CFG_RD,frames=F_RD,role='NULL',row=f'RD-{key}'))
+        L.append(leg(f'RDNOCLEAR_{key}','F-SYN',UV,label,[RD,WC('noclear')],cfg=CFG_RD,frames=F_RD,role='FAULT',row=f'RD-{key}',fault='noclear',fault_class='Q'))
+    L.append(leg('BIND_TILE','F-SYN',UV,'TC_Layer',[TILE],role='TILE',row='BIND-LAYER'))
+    L.append(leg('BIND_TILENULL','F-SYN',UV,'TC_Layer',[TILE,NULL1],role='TILENULL',row='BIND-LAYER'))
+    L.append(leg('BIND_ID','F-SYN',UV,'TC_Layer',[ID],role='ID',row='BIND-LAYER'))
+    L.append(leg('BIND_IDNULL','F-SYN',UV,'TC_Layer',[ID,NULL1],role='NULL',row='BIND-LAYER'))
+    L.append(leg('BIND_DEAD','F-SYN',UV,'TC_Dead',[ID],role='DEAD',row='BIND-DEAD'))
+    for r,label,anom,lev,final,step,disp in REASONS:
+        if r in NOT_RUN:continue
+        lev=[x.replace('{TC_AssetMid}',N('TC_AssetMid')) for x in lev]
+        L.append(leg(f'REASON_{r}','F-SYN',anom,label,[ID]+lev,role='REASON',row=r,expect=dict(final=final,step=step,disposition=disp)))
+    for anom in (UV,NM):
+        k='UV' if anom==UV else 'NM';lab=G4_TARGETS[anom]
+        L.append(leg(f'G4_FIN_{k}','F-SYN',anom,lab,[ID],cfg=CFG_LONG,frames=40,role='G4',row=f'FIN-{k}'))
+        L.append(leg(f'G4_CAN_{k}','F-SYN',anom,lab,[ID],kind='stop_before_fire',role='G4',row=f'CAN-{k}'))
+        L.append(leg(f'G4_DES_{k}','F-SYN',anom,lab,[ID,f'IAI.Bench.DestroyTarget {N(lab)} 2'],role='G4',row=f'DES-{k}'))
+        L.append(leg(f'G4_END_{k}','F-SYN',anom,lab,[ID],cfg=CFG_LONG,frames=240,kind='close_mid',role='G4',row=f'END-{k}',close_pattern=f'{anom}: APPLIED ',close_delay_ms=1000))
+        L.append(leg(f'G4_GC_{k}','F-SYN',anom,lab,[ID,GC_LOG,'gc.TimeBetweenPurgingPendingKillObjects 1'],cfg=CFG_LONG,frames=240,role='G4',row=f'GC-{k}'))
+        L.append(leg(f'G4_FR_{k}','F-SYN',anom,lab,[ID,'IAI.Bench.TexCorruptForeignReplace 1'],role='G4',row=f'FR-{k}'))
+        for fs,lev,step,why in FAILSTEPS:
+            L.append(leg(f'G4_{fs}_{k}','F-SYN',anom,lab,[ID]+lev,role='G4',row=f'{fs}-{k}',expect=dict(step=step,reason=why,ordinal=('FS2O'==fs))))
+    L.append(leg('G4_DES2_UV','F-SYN',UV,'TC_UC1',[ID,NULL2,f'IAI.Bench.DestroyTarget {N("TC_UC1")} 2'],role='G4',row='DES2-UV'))
+    L.append(leg('G4_TWO','F-SYN',UV,'TC_UC1',[ID],kind='close_after',role='G4',row='TWO',after_start=[f'IAI.Apply {NM} ={N("TC_NN1")}']))
+    L.append(leg('COLL_A_FSYN','F-SYN',UV,'TC_UC1',[ID,COLL],role='COLLA',row='COLL-FSYN'))
+    L.append(leg('COLL_N_FSYN','F-SYN',UV,'TC_UC1',[ID,NULL2,COLL],role='COLLN',row='COLL-FSYN'))
+    L.append(leg('FMW_CTL_A','F-MW',UV,None,[ID,NULL1],role='NULL',row='FMW',target=MW_FLOOR))
+    L.append(leg('FMW_CTL_B','F-MW',UV,None,[ID,NULL1],role='CTL',row='FMW',target=MW_FLOOR))
+    L.append(leg('FMW_ID','F-MW',UV,None,[ID],role='ID',row='FMW',target=MW_FLOOR))
+    for r,tgt,anom,final,step,disp in MW_REASONS:
+        L.append(leg(f'REASON_{r}','F-MW',anom,None,[ID],role='REASON',row=r,target=tgt,expect=dict(final=final,step=step,disposition=disp,prefix=True)))
+    L.append(leg('COLL_A_FMW','F-MW',UV,None,[ID,COLL],role='COLLA',row='COLL-FMW',target=MW_FLOOR))
+    L.append(leg('COLL_N_FMW','F-MW',UV,None,[ID,NULL2,COLL],role='COLLN',row='COLL-FMW',target=MW_FLOOR))
+    L.append(leg('REASON_S8','F-GATE',UV,None,[ID],role='REASON',row='S8',target=GATE_TARGET,expect=dict(final='no_textures',step='V1',disposition=None)))
+    seen=set()
+    for x in L:
+        assert x['leg'] not in seen,x['leg'];seen.add(x['leg'])
+    return L
+def by_id():return {x['leg']:x for x in legs()}
+if __name__=='__main__':
+    L=legs();from collections import Counter
+    print(json.dumps(dict(legs=len(L),by_kind=Counter(x['kind'] for x in L),by_fixture=Counter(x['fixture'] for x in L),by_role=Counter(x['role'] for x in L)),indent=1))

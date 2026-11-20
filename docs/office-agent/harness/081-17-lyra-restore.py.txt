@@ -1,0 +1,23 @@
+from pathlib import Path
+import hashlib,json,shutil,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-17-evidence';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+ENTRY='caa68c6799db023f7a24c0d6cfc56124ce27b542'
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(*a):return subprocess.check_output(['git','-C',str(L),*a]).decode().strip()
+idle=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue) | Select-Object -ExpandProperty Id']).decode().strip();assert not idle,idle
+out=E/'lyra-restored.json';assert not out.exists()
+m=json.loads((E/'binary-v2.json').read_text());entry=json.loads((B/'_reviews/081-15-evidence/lyra-staged.json').read_text())['entry_modules']
+target=(L/'Binaries/Win64').resolve();original=B/'_binary_baselines/m55-stage1-lyra-entry-caa68c6'
+head_before=git('rev-parse','HEAD');assert not git('diff','--name-only') and not git('diff','--cached','--name-only')
+for r in m['lyra_modules']:assert sha(target/r['name'])==r['sha256'] and sha(Path(m['lyra_archive'])/r['name'])==r['sha256'],r['name']
+for r in entry:assert sha(original/r['name'])==r['sha256'],r['name']
+git('checkout','--detach',ENTRY)
+for r in entry:shutil.copy2(original/r['name'],target/r['name']);assert sha(target/r['name'])==r['sha256']
+removed=[]
+for name in ('UnrealEditor-AnomalyBench.dll','UnrealEditor-AnomalyBench.pdb'):
+ p=(target/name).resolve();assert p.parent==target and p.name==name;p.unlink();removed.append(str(p))
+names=sorted(p.name for p in target.iterdir() if p.is_file());assert names==sorted(r['name'] for r in entry),names
+assert git('rev-parse','HEAD')==ENTRY and not git('diff','--name-only') and not git('ls-files','--others','--exclude-standard')
+out.write_text(json.dumps(dict(head_before=head_before,source=git('rev-parse','HEAD'),restored_modules=entry,removed_exact_files=removed,module_names=names),indent=2))
+print('Lyra restored: detached',ENTRY[:7],'with original',len(names),'modules; removed',len(removed),'candidate-only files')

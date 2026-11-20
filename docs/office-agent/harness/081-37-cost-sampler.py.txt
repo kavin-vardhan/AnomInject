@@ -1,0 +1,198 @@
+import ctypes,ctypes.wintypes as W,json,os,threading,time,winreg
+K32=ctypes.WinDLL('kernel32',use_last_error=True);PDH=ctypes.WinDLL('pdh')
+TH32CS_SNAPPROCESS=0x2;TH32CS_SNAPTHREAD=0x4;INVALID_HANDLE=ctypes.c_void_p(-1).value
+THREAD_QUERY_LIMITED=0x0800;PROCESS_QUERY_LIMITED=0x1000
+class THREADENTRY32(ctypes.Structure):
+    _fields_=[('dwSize',W.DWORD),('cntUsage',W.DWORD),('th32ThreadID',W.DWORD),('th32OwnerProcessID',W.DWORD),('tpBasePri',W.LONG),('tpDeltaPri',W.LONG),('dwFlags',W.DWORD)]
+class PROCESSENTRY32W(ctypes.Structure):
+    _fields_=[('dwSize',W.DWORD),('cntUsage',W.DWORD),('th32ProcessID',W.DWORD),('th32DefaultHeapID',ctypes.c_size_t),('th32ModuleID',W.DWORD),
+              ('cntThreads',W.DWORD),('th32ParentProcessID',W.DWORD),('pcPriClassBase',W.LONG),('dwFlags',W.DWORD),('szExeFile',W.WCHAR*260)]
+class IO_COUNTERS(ctypes.Structure):
+    _fields_=[(n,ctypes.c_ulonglong) for n in ('ReadOperationCount','WriteOperationCount','OtherOperationCount','ReadTransferCount','WriteTransferCount','OtherTransferCount')]
+K32.CreateToolhelp32Snapshot.argtypes=(W.DWORD,W.DWORD);K32.CreateToolhelp32Snapshot.restype=W.HANDLE
+K32.Thread32First.argtypes=K32.Thread32Next.argtypes=(W.HANDLE,ctypes.POINTER(THREADENTRY32));K32.Thread32First.restype=K32.Thread32Next.restype=W.BOOL
+K32.Process32FirstW.argtypes=K32.Process32NextW.argtypes=(W.HANDLE,ctypes.POINTER(PROCESSENTRY32W));K32.Process32FirstW.restype=K32.Process32NextW.restype=W.BOOL
+K32.OpenThread.argtypes=(W.DWORD,W.BOOL,W.DWORD);K32.OpenThread.restype=W.HANDLE
+K32.OpenProcess.argtypes=(W.DWORD,W.BOOL,W.DWORD);K32.OpenProcess.restype=W.HANDLE
+K32.CloseHandle.argtypes=(W.HANDLE,);K32.CloseHandle.restype=W.BOOL
+K32.QueryThreadCycleTime.argtypes=(W.HANDLE,ctypes.POINTER(ctypes.c_ulonglong));K32.QueryThreadCycleTime.restype=W.BOOL
+K32.GetThreadTimes.argtypes=(W.HANDLE,)+(ctypes.POINTER(W.FILETIME),)*4;K32.GetThreadTimes.restype=W.BOOL
+K32.GetProcessTimes.argtypes=(W.HANDLE,)+(ctypes.POINTER(W.FILETIME),)*4;K32.GetProcessTimes.restype=W.BOOL
+K32.GetProcessIoCounters.argtypes=(W.HANDLE,ctypes.POINTER(IO_COUNTERS));K32.GetProcessIoCounters.restype=W.BOOL
+K32.GetSystemTimes.argtypes=(ctypes.POINTER(W.FILETIME),)*3;K32.GetSystemTimes.restype=W.BOOL
+K32.GetCurrentThread.restype=W.HANDLE
+K32.GetThreadDescription.argtypes=(W.HANDLE,ctypes.POINTER(ctypes.c_wchar_p));K32.GetThreadDescription.restype=ctypes.c_long
+K32.LocalFree.argtypes=(ctypes.c_void_p,);K32.LocalFree.restype=ctypes.c_void_p
+def _ft(f):return (f.dwHighDateTime<<32)|f.dwLowDateTime
+def snapshot_processes():
+    h=K32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);out={}
+    if not h or h==INVALID_HANDLE:return out
+    try:
+        e=PROCESSENTRY32W();e.dwSize=ctypes.sizeof(e);ok=K32.Process32FirstW(h,ctypes.byref(e))
+        while ok:
+            out[int(e.th32ProcessID)]=(e.szExeFile,int(e.th32ParentProcessID));ok=K32.Process32NextW(h,ctypes.byref(e))
+    finally:K32.CloseHandle(h)
+    return out
+def threads_of(pid):
+    h=K32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD,0);out=[]
+    if not h or h==INVALID_HANDLE:return out
+    try:
+        e=THREADENTRY32();e.dwSize=ctypes.sizeof(e);ok=K32.Thread32First(h,ctypes.byref(e))
+        while ok:
+            if e.th32OwnerProcessID==pid:out.append(int(e.th32ThreadID))
+            ok=K32.Thread32Next(h,ctypes.byref(e))
+    finally:K32.CloseHandle(h)
+    return out
+def thread_description(h):
+    p=ctypes.c_wchar_p()
+    if K32.GetThreadDescription(h,ctypes.byref(p))<0:return None
+    try:return p.value
+    finally:K32.LocalFree(ctypes.cast(p,ctypes.c_void_p))
+def thread_cycles(h):
+    c=ctypes.c_ulonglong(0);return int(c.value) if K32.QueryThreadCycleTime(h,ctypes.byref(c)) else None
+def thread_times(h):
+    f=[W.FILETIME() for _ in range(4)]
+    return (_ft(f[0]),_ft(f[2]),_ft(f[3])) if K32.GetThreadTimes(h,*[ctypes.byref(x) for x in f]) else None
+def process_sample(pid):
+    h=K32.OpenProcess(PROCESS_QUERY_LIMITED,False,pid)
+    if not h:return None
+    try:
+        f=[W.FILETIME() for _ in range(4)];io=IO_COUNTERS()
+        cpu=_ft(f[2])+_ft(f[3]) if K32.GetProcessTimes(h,*[ctypes.byref(x) for x in f]) else None
+        rw=(int(io.ReadTransferCount),int(io.WriteTransferCount)) if K32.GetProcessIoCounters(h,ctypes.byref(io)) else (None,None)
+        return [cpu,rw[0],rw[1],_ft(f[0])]
+    finally:K32.CloseHandle(h)
+def system_times():
+    f=[W.FILETIME() for _ in range(3)];K32.GetSystemTimes(*[ctypes.byref(x) for x in f]);return [_ft(x) for x in f]
+def registry_mhz():
+    try:
+        k=winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,r'HARDWARE\DESCRIPTION\System\CentralProcessor\0');v=winreg.QueryValueEx(k,'~MHz')[0];winreg.CloseKey(k);return int(v)
+    except OSError:return None
+def calibrate_cycles_per_s(trials=5,span=0.2):
+    h=K32.GetCurrentThread();rates=[]
+    for _ in range(trials):
+        c0=thread_cycles(h);t0=time.perf_counter()
+        while time.perf_counter()-t0<span:pass
+        c1=thread_cycles(h);t1=time.perf_counter();rates.append((c1-c0)/(t1-t0))
+    mhz=registry_mhz();best=max(rates)
+    return dict(cycles_per_s=best,trials=[round(r) for r in rates],registry_mhz=mhz,ratio_to_registry=round(best/(mhz*1e6),5) if mhz else None)
+class _PdhItem(ctypes.Structure):
+    class _V(ctypes.Structure):
+        class _U(ctypes.Union):_fields_=[('longValue',ctypes.c_long),('doubleValue',ctypes.c_double),('largeValue',ctypes.c_longlong)]
+        _fields_=[('CStatus',W.DWORD),('u',_U)]
+    _fields_=[('szName',ctypes.c_wchar_p),('FmtValue',_V)]
+PDH.PdhOpenQueryW.argtypes=(ctypes.c_wchar_p,ctypes.c_size_t,ctypes.POINTER(ctypes.c_void_p));PDH.PdhOpenQueryW.restype=ctypes.c_long
+PDH.PdhAddEnglishCounterW.argtypes=(ctypes.c_void_p,ctypes.c_wchar_p,ctypes.c_size_t,ctypes.POINTER(ctypes.c_void_p));PDH.PdhAddEnglishCounterW.restype=ctypes.c_long
+PDH.PdhCollectQueryData.argtypes=(ctypes.c_void_p,);PDH.PdhCollectQueryData.restype=ctypes.c_long
+PDH.PdhGetFormattedCounterArrayW.argtypes=(ctypes.c_void_p,W.DWORD,ctypes.POINTER(W.DWORD),ctypes.POINTER(W.DWORD),ctypes.c_void_p);PDH.PdhGetFormattedCounterArrayW.restype=ctypes.c_long
+PDH.PdhCloseQuery.argtypes=(ctypes.c_void_p,);PDH.PdhCloseQuery.restype=ctypes.c_long
+PDH_FMT_DOUBLE=0x200;PDH_FMT_NOCAP100=0x8000;PDH_MORE_DATA=ctypes.c_long(0x800007D2).value
+class Pdh:
+    PATHS=('\\GPU Engine(*)\\Utilization Percentage','\\PhysicalDisk(_Total)\\% Idle Time','\\PhysicalDisk(_Total)\\Avg. Disk sec/Write','\\PhysicalDisk(_Total)\\Current Disk Queue Length')
+    def __init__(self):
+        self.q=ctypes.c_void_p();self.c={};self.errors=[]
+        r=PDH.PdhOpenQueryW(None,0,ctypes.byref(self.q))
+        if r!=0:self.errors.append(f'PdhOpenQuery {r:#x}');self.q=None;return
+        for p in self.PATHS:
+            h=ctypes.c_void_p();r=PDH.PdhAddEnglishCounterW(self.q,p,0,ctypes.byref(h))
+            if r==0:self.c[p]=h
+            else:self.errors.append(f'{p} {r & 0xffffffff:#x}')
+        PDH.PdhCollectQueryData(self.q)
+    def read(self):
+        if not self.q:return {}
+        PDH.PdhCollectQueryData(self.q);out={}
+        for p,h in self.c.items():
+            size=W.DWORD(0);n=W.DWORD(0);r=PDH.PdhGetFormattedCounterArrayW(h,PDH_FMT_DOUBLE|PDH_FMT_NOCAP100,ctypes.byref(size),ctypes.byref(n),None)
+            if r!=PDH_MORE_DATA and r!=0:continue
+            buf=(ctypes.c_byte*max(1,size.value))();r=PDH.PdhGetFormattedCounterArrayW(h,PDH_FMT_DOUBLE|PDH_FMT_NOCAP100,ctypes.byref(size),ctypes.byref(n),buf)
+            if r!=0:continue
+            items=ctypes.cast(buf,ctypes.POINTER(_PdhItem));vals={}
+            for i in range(n.value):
+                it=items[i]
+                if it.FmtValue.CStatus in (0,1):vals[it.szName]=it.FmtValue.u.doubleValue
+            out[p]=vals
+        return out
+    def close(self):
+        if self.q:PDH.PdhCloseQuery(self.q);self.q=None
+def gpu_by_pid(vals):
+    out={}
+    for name,v in (vals or {}).items():
+        if not name.startswith('pid_') or 'engtype_3D' not in name:continue
+        try:pid=int(name.split('_')[1])
+        except ValueError:continue
+        out[pid]=out.get(pid,0.0)+v
+    return out
+class ThreadSampler:
+    def __init__(self,interval=0.1):
+        self.interval=interval;self.pid=None;self.samples=[];self.desc={};self.created={};self.errors=[];self._h={};self._stop=threading.Event();self._th=None;self._last_enum=0.0
+    def set_pid(self,pid):self.pid=pid
+    def _enum(self):
+        for tid in threads_of(self.pid):
+            if tid in self._h:
+                if not self.desc.get(tid):self.desc[tid]=thread_description(self._h[tid])
+                continue
+            h=K32.OpenThread(THREAD_QUERY_LIMITED,False,tid)
+            if not h:continue
+            self._h[tid]=h;self.desc[tid]=thread_description(h);tt=thread_times(h);self.created[tid]=tt[0] if tt else None
+    def _loop(self):
+        while not self._stop.is_set():
+            if self.pid:
+                try:
+                    now=time.perf_counter()
+                    if now-self._last_enum>=(0.25 if 'GameThread' not in self.desc.values() else 1.0) or not self._h:self._enum();self._last_enum=now
+                    cyc={};gt=None
+                    for tid,h in self._h.items():
+                        v=thread_cycles(h)
+                        if v is not None:cyc[tid]=v
+                        if self.desc.get(tid)=='GameThread':gt=thread_times(h)
+                    self.samples.append(dict(t=time.perf_counter(),cyc=cyc,gt_times=gt))
+                except Exception as ex:
+                    if len(self.errors)<5:self.errors.append(repr(ex)[:200])
+            self._stop.wait(self.interval)
+    def start(self):self._th=threading.Thread(target=self._loop,name='c37-threads',daemon=True);self._th.start();return self
+    def stop(self):
+        self._stop.set()
+        if self._th:self._th.join(5)
+        for h in self._h.values():K32.CloseHandle(h)
+        self._h={}
+    def data(self):
+        return dict(pid=self.pid,interval_s=self.interval,desc={str(k):v for k,v in self.desc.items()},created={str(k):v for k,v in self.created.items()},
+                    samples=[dict(t=s['t'],cyc={str(k):v for k,v in s['cyc'].items()},gt_times=s['gt_times']) for s in self.samples],errors=self.errors)
+class LoadSampler:
+    def __init__(self,interval=1.0,root_pid=None):
+        self.interval=interval;self.root=root_pid or os.getpid();self.samples=[];self.names={};self.errors=[];self._stop=threading.Event();self._th=None;self.pdh=None
+    def _one(self):
+        snap=snapshot_processes();procs={}
+        for pid,(name,ppid) in snap.items():
+            if pid in (0,):continue
+            self.names.setdefault(pid,(name,ppid))
+            v=process_sample(pid)
+            if v:procs[pid]=v
+        pd=self.pdh.read() if self.pdh else {}
+        gpu=gpu_by_pid(pd.get('\\GPU Engine(*)\\Utilization Percentage'))
+        disk={k.split('\\')[-1]:list(v.values())[0] if v else None for k,v in pd.items() if 'PhysicalDisk' in k}
+        return dict(t=time.perf_counter(),utc=time.time(),sys=system_times(),procs=procs,parents={p:v[1] for p,v in snap.items()},gpu3d=gpu,disk=disk)
+    def _loop(self):
+        try:self.pdh=Pdh()
+        except Exception as ex:self.errors.append('pdh: '+repr(ex)[:200])
+        while not self._stop.is_set():
+            try:self.samples.append(self._one())
+            except Exception as ex:
+                if len(self.errors)<5:self.errors.append(repr(ex)[:200])
+            self._stop.wait(self.interval)
+        if self.pdh:self.pdh.close()
+    def start(self):self._th=threading.Thread(target=self._loop,name='c37-load',daemon=True);self._th.start();return self
+    def stop(self):
+        self._stop.set()
+        if self._th:self._th.join(10)
+    def data(self):
+        return dict(root_pid=self.root,interval_s=self.interval,names={str(k):v[0] for k,v in self.names.items()},pdh_errors=(self.pdh.errors if self.pdh else ['pdh not opened']),
+                    samples=[dict(t=s['t'],utc=s['utc'],sys=s['sys'],procs={str(k):v for k,v in s['procs'].items()},parents={str(k):v for k,v in s['parents'].items()},
+                                  gpu3d={str(k):v for k,v in s['gpu3d'].items()},disk=s['disk']) for s in self.samples],errors=self.errors)
+def find_child(parent_pid,image,timeout_s=0.0):
+    t0=time.time()
+    while True:
+        for pid,(name,ppid) in snapshot_processes().items():
+            if ppid==parent_pid and name.lower()==image.lower():return pid
+        if time.time()-t0>=timeout_s:return None
+        time.sleep(0.2)

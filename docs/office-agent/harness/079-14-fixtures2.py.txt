@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""079-14 round 2 — probes aimed at R1 (extrapolated NO-TRACE), F5 (unresolved id),
+R7 (motion caveat, never a refusal), R2 (lighting caveat on a CONSISTENT run),
+R3 (thresholded absence) and one exact-arithmetic B2 check."""
+import os
+import sys
+
+from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import Session, paint, mask_img, _rect, W, H, BG, ON, OFF, NODE, MASK_V
+
+
+def build(root):
+    os.makedirs(root, exist_ok=True)
+    made = []
+
+    # F25 - lighting step on BOTH labelled edges, target really toggles too.
+    # Expect CONSISTENT with the lighting caveat on the RUN line (R2).
+    s = Session(root, "F25_lighting_caveat_consistent")
+    for k in range(s.n):
+        lit = 10 <= k <= 15
+        s.frame(k, paint(OFF if lit else ON, bg=(160, 160, 160) if lit else BG))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F26 - NO-TRACE whose edge pairs must use EXTRAPOLATED masks (R1):
+    # masks exist only on the labelled span, nothing ever changes.
+    s = Session(root, "F26_no_trace_with_extrapolated_edges")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(10, 16)))
+
+    # F27 - label carries mask_value 0 (unresolved); the mask has a sole value.
+    # Nothing ever changes. NO-TRACE must be REFUSED (079-08 F5 / spec 2).
+    s = Session(root, "F27_unresolved_mask_id_never_no_trace")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16), mask_value=0)
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F28 - 60% of the TARGET REGION churns on every pair, so m_edge = 0.6000
+    # > the 0.42 marker, while the labelled edges change the whole target.
+    # R7: a reading with a caveat, never a refusal.
+    s = Session(root, "F28_high_regional_motion_caveat")
+    for k in range(s.n):
+        base = OFF if 10 <= k <= 15 else ON
+        img = paint(base)
+        churn = (250, 250, 250) if k % 2 else (5, 5, 5)
+        _rect(img, (40, 40, 80, 58), churn)          # 40 x 18 = 720 of 1200 = 0.60
+        s.frame(k, img)
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F29 - exact arithmetic: 300 of the 1200 target pixels change => d must
+    # print 0.2500 exactly.
+    s = Session(root, "F29_exact_quarter_change")
+    for k in range(s.n):
+        extra = [((40, 40, 70, 50), OFF)] if 10 <= k <= 15 else []   # 30 x 10 = 300
+        s.frame(k, paint(ON, extra=extra))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F30 - the change is BELOW the RGB-channel threshold (delta 5 < 8) on every
+    # pixel of the target. R3 says this is thresholded absence and NO-TRACE is
+    # the known answer; it must be printed with its detection limit.
+    s = Session(root, "F30_below_rgb_threshold_no_trace")
+    faint = (ON[0] + 5, ON[1] + 5, ON[2] + 5)
+    for k in range(s.n):
+        s.frame(k, paint(faint if 10 <= k <= 15 else ON))
+    s.event(range(10, 16))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F31 - non-manifested event: the producer already says the hide never
+    # reached the pixels. Must NOT become NO-TRACE.
+    s = Session(root, "F31_non_manifested_event")
+    for k in range(s.n):
+        s.frame(k, paint(ON))
+    s.event(range(10, 16), manifested=False)
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    # F32 - masks only in-span AND the span sits at the very start of the
+    # session, so the onset window runs off the front.
+    s = Session(root, "F32_span_at_session_start")
+    for k in range(s.n):
+        s.frame(k, paint(OFF if k <= 3 else ON))
+    s.event(range(0, 4))
+    made.append(s.write(mask_frames=range(0, 40)))
+
+    return made
+
+
+if __name__ == "__main__":
+    root = sys.argv[1] if len(sys.argv) > 1 else r"C:\ClaudeTemp\079-14\fx2"
+    for d in build(root):
+        print(d)

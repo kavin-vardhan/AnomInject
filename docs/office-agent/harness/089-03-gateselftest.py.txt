@@ -1,0 +1,243 @@
+import copy,importlib.util,json,os,shutil,subprocess,sys,tempfile,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+os.environ.setdefault('IAI_R93_ROOT',str(R/'089-03-evidence'/'gateselftest'))
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+FAST='--fast' in sys.argv
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+sys.argv=[sys.argv[0],'gates']
+W=load('w93',R/'089-03-window.py');c=W.c;L=W.L;E=W.E;EO=W.EO;LG=L.LG
+OLD_BANK=Path(r'D:\IntrusiveAnomalies\_bench_sessions_bank');BK=c.STANDIN_BANK
+RES=[]
+def check(ok,name,detail=''):
+    RES.append(dict(ok=bool(ok),name=name,detail=str(detail)[:400]));print(('OK   ' if ok else 'FAIL ')+name+('  | '+str(detail)[:240] if detail else ''),flush=True)
+def one(root,n):
+    d=root/n;s=[x for x in d.iterdir() if x.is_dir() and x.name.startswith('session_')];return s[0]
+def lg(root,n):return L.log_text(root/n/'_leg'/'game.log')
+def night(n):return one(BK,n)
+def nlog(n):return lg(BK,n)
+def ev_by_sf(rows):return {r.get('start_frame'):r for r in rows}
+def rel(r):return r.get('release') if r.get('status')=='OK' else r.get('status')
+def m52(sd,null,log,gt,**kw):
+    E.set_fixes(gt=gt,g395=True,g405=True)
+    try:return E.m52_leg(sd,null,log,**kw)
+    finally:E.set_fixes()
+def diff_doctored(sd,log,doctor,types=None):
+    s=E.DSession(sd,True,False);sm=E.sess(sd);taa=E.detect_temporal_aa(sm,log)[0]
+    evs=copy.deepcopy(E.anno_events(sm));out=[]
+    for ev in evs:
+        if types and ev['type'] not in types:continue
+        doctor(ev)
+    for ev in evs:
+        if types and ev['type'] not in types:continue
+        out.append(E.diff_event(s,ev,evs,taa))
+    return out
+def with_fixes(fn,gt=True,g395=True,g405=True):
+    E.set_fixes(gt=gt,g395=g395,g405=g405)
+    try:return fn()
+    finally:E.set_fixes()
+def g406_cases():
+    b5=night('M52S09_B5')
+    b3=night('M52S09_B3');l3=nlog('M52S09_B3')
+    old=ev_by_sf(m52(b3,b5,l3,gt=False)['rows']);new=ev_by_sf(m52(b3,b5,l3,gt=True)['rows'])
+    check(rel(old[181])=='FAIL' and rel(new[181])=='PASS','G406 both ways: B3 si 181 reads FAIL on the 084-09 session-wide lag (lag 16) and PASS on the game-time-aligned null (089-01: an E1 artefact)',(rel(old[181]),rel(new[181]),(new[181].get('per') or {}).get('t50',{}).get('two_sided',{}).get('end')))
+    check(new[1232]['status']=='UNJUDGEABLE-NULL-RANGE' and 'per' not in new[1232],'G406: the B3 event beyond the null (t 41.3-42.7 s; null ends 41.33 s) is UNJUDGEABLE, never judged',new[1232].get('null_cover'))
+    check(all(rel(r) in ('PASS','UNJUDGEABLE-NULL-RANGE') for r in new.values()),'G406: every other B3 event reads PASS on the aligned null (0 FAIL, 0 CENSORED)',{k:rel(v) for k,v in new.items()})
+    b0=night('M52S09_B0');l0=nlog('M52S09_B0')
+    ao=m52(b0,b5,l0,gt=False);an=m52(b0,b5,l0,gt=True)
+    so=E.summarize_rows(ao['rows']);cov=E.gt_leg_coverage(b0,b5);sn=E.summarize_rows_v2(an['rows'],cov)
+    o=ev_by_sf(ao['rows']);n=ev_by_sf(an['rows'])
+    cens=[k for k,v in o.items() if rel(v)=='CENSORED'];res=[rel(n[k]) for k in cens]
+    check(so['t50']['verdicts'].get('CENSORED')==12 and so['t50']['verdicts'].get('PASS')==6,'G406 known answer: with the fixes off, B0 reproduces 084-09 (PASS 6, CENSORED 12; lag rejected, own-detrend)',so['t50']['verdicts'])
+    check(res.count('PASS')==10 and res.count('UNJUDGEABLE-NULL-RANGE')==2 and 'FAIL' not in res and 'CENSORED' not in res,'G406: of B0 12 censored offsets, 10 are judged PASS on the aligned null and 2 are UNJUDGEABLE (089-01 read 11 on a 30-frame tail; the declared +2 s window also puts label 903-913 3 frames past the null)',res)
+    un=[v for v in n.values() if rel(v)=='UNJUDGEABLE-NULL-RANGE'];nend=cov['null_t'][1]
+    check(len(un)==5 and all(v['null_cover']['t'][1]>nend for v in un) and all(v['null_cover']['t'][1]<=nend or v['null_cover']['out_of_range']>0 for v in un) and not [v for v in n.values() if rel(v) in ('FAIL','CENSORED')] and cov['covered'] is False and sn['leg_verdict']=='UNJUDGEABLE-NULL-COVERAGE',
+          'G406: B0 (started 8.5 s late, G401): every UNJUDGEABLE event window really ends past the null (41.33 s), every other event is judged PASS, and the leg reads UNJUDGEABLE-NULL-COVERAGE, not PASS',([(v['label'],v['null_cover']['t']) for v in un],sn['t50']['verdicts'],sn['leg_verdict']))
+    b9=night('M52S09_B9');l9=nlog('M52S09_B9');a9=m52(b9,b5,l9,gt=True);s9=E.summarize_rows_v2(a9['rows'],E.gt_leg_coverage(b9,b5))
+    j9=[rel(r) for r in a9['rows']]
+    check(j9.count('FAIL')==0 and j9.count('PASS')>=14 and s9['t50']['end'] in ('{+0:%d}'%j9.count('PASS'),),'G406: B9 (AA off) on the aligned null reads PASS with every end exactly +0',(s9['t50']['verdicts'],s9['t50']['end'],s9['unjudgeable']['n']))
+    l0l=nlog('M52S09_B0L');b0l=night('M52S09_B0L');al=m52(b0l,b5,l0l,gt=True);sl=E.summarize_rows_v2(al['rows'],E.gt_leg_coverage(b0l,b5))
+    check(sl['leg_verdict']=='FAIL','CAN-FAIL (G406 known answer): the legacy-timing lever leg B0L still FAILS on the aligned null',(sl['leg_verdict'],sl['t50']['verdicts']))
+    nu=E.sess(b5);import numpy as np
+    roi=an['bases'][LG.ROCK]['roi'];tab=nu.table([tuple(roi)])[tuple(roi)]
+    nt=copy.copy(nu);nt.rows=[r for r in nu.rows if r['t']<=20.0];nt.by_si={r['session_index']:r for r in nt.rows};nt._tables={tuple(roi):{si:v for si,v in tab.items() if si in nt.by_si}}
+    fake=str(b5)+'_TRUNCATED_20s';E._SC[str(Path(fake).resolve())]=nt
+    at=m52(b3,fake,l3,gt=True);st=[rel(r) for r in at['rows']]
+    check(at['bases'][LG.ROCK]['basis']=='null-gt' and 'FAIL' not in st and st.count('UNJUDGEABLE-NULL-RANGE')>=5,'CAN-FAIL (G406 rule): against a null cut at 20 s, every B3 event past it is UNJUDGEABLE and the basis stays null-gt (never own-detrend)',st)
+    a9d=m52(b9,b5,l9,gt=True,label_override=lambda e:(sorted(E.m52_label(e)) or [])[:-1] or None)
+    s9d=E.summarize_rows(a9d['rows'])
+    check(s9d['leg_verdict']=='FAIL' and '+1' in s9d['t50']['end'],'CAN-FAIL: B9 with every label ending one frame early FAILS on the aligned null (end +1)',(s9d['t50']['verdicts'],s9d['t50']['end']))
+def g405_cases():
+    sd=night('M52S09_REAL_BL_SYN');lo=nlog('M52S09_REAL_BL_SYN')
+    off=with_fixes(lambda:E.summarize_diff(E.diff_leg(sd,log=lo)['events']),gt=True,g395=False,g405=False)
+    old=EO.summarize_diff(EO.diff_leg(sd,log=lo)['events'])
+    check(off['t50']==old['t50'] and off['t50']['verdicts']=={'FAIL':10} and off['t50']['end']=='{+0:10, +1:5, +14:5}','G405 known answer: with the fixes off the 089-03 evaluator reproduces 084-09 on REAL_BL_SYN exactly (FAIL 10, ends +1 and +14)',off['t50'])
+    only=with_fixes(lambda:E.summarize_diff(E.diff_leg(sd,log=lo)['events']),gt=True,g395=False,g405=True)
+    check(only['t50']['verdicts']=={'PASS':10} and only['t50']['end']=='{+0:20}','G405 alone: scaling a one-frame run by its own depth_on reads REAL_BL_SYN PASS 10/10, ends +0',only['t50'])
+    allf=E.summarize_diff(E.diff_leg(sd,log=lo)['events'])
+    check(allf['t50']['verdicts']=={'PASS':10} and allf['t50']['end']=='{+0:20}' and allf['t50']['start']=='{+0:20}','G405 with every fix on: REAL_BL_SYN PASS 10/10, starts and ends +0 (089-01: an E1 artefact, the pixels agree)',allf['t50'])
+    def move(ev):
+        L_=sorted(ev['L'])
+        if len(L_)>=2 and L_[-1]-L_[-2]>1:ev['L']=L_[:-1]+[L_[-1]+1]
+    rs=diff_doctored(sd,lo,move,{'blinking'});sm=E.summarize_diff(rs)
+    check(sm['t50']['verdicts'].get('FAIL',0)==10,'CAN-FAIL: REAL_BL_SYN with the one-frame run labelled one frame late FAILS on every event with the fixes on',sm['t50'])
+    def drop(ev):
+        L_=sorted(ev['L'])
+        if len(L_)>=2 and L_[-1]-L_[-2]>1:ev['L']=L_[:-1]
+    rs=diff_doctored(sd,lo,drop,{'blinking'});sm=E.summarize_diff(rs)
+    check(sm['t50']['verdicts'].get('FAIL',0)==10,'CAN-FAIL: REAL_BL_SYN with the one-frame run left unlabelled FAILS on every event',sm['t50'])
+    nd=night('M52S09_REAL_BL_NAT');nl=nlog('M52S09_REAL_BL_NAT');s=E.summarize_diff(E.diff_leg(nd,log=nl)['events'])
+    check(s['t50']['verdicts']=={'PASS':10} and s['t50']['end']=='{+0:20}','G405 control: REAL_BL_NAT (two-frame runs) still PASS 10/10, +0',s['t50'])
+def g395_cases():
+    sd=night('M52S09_REAL_MT_NAT');lo=nlog('M52S09_REAL_MT_NAT')
+    def early(ev):ev['L']=sorted(ev['L'])[:-1]
+    def late(ev):ev['L']=sorted(ev['L'])[1:]
+    for name,doc,key,want_new in (('label ends one frame early',early,'end','+1'),('label starts one frame late',late,'start','-1')):
+        o=with_fixes(lambda:E.summarize_diff(diff_doctored(sd,lo,doc)),gt=True,g395=False,g405=False)
+        n=E.summarize_diff(diff_doctored(sd,lo,doc))
+        check(n['t50']['verdicts'].get('FAIL',0)==10 and n['t50'][key].startswith('{'+want_new),f'G395 both ways, {name} (REAL_MT_NAT): the 084-09 reference reads {key} {o["t50"][key]}, the fixed reference reads {key} {want_new} FAIL on every event',dict(old=o['t50'],new=n['t50']))
+    for leg in ('M52S09_REAL_MT_NAT','M52S09_REAL_MT_SYN','M52S09_REAL_MO_NAT','M52S09_REAL_MO_SYN','M52S09_REAL_CT_NAT','M52S09_REAL_CT_SYN','M52S09_MT85_NAT','M52S09_MT85_SYN'):
+        s=E.summarize_diff(E.diff_leg(night(leg),log=nlog(leg))['events'])
+        check(s['leg_verdict']=='PASS' and not s['t50']['verdicts'].get('FAIL'),f'G395 no-regression: {leg} still PASS with every fix on',(s['t50']['verdicts'],s['t50']['start'],s['t50']['end']))
+    rd=night('M53DC_ARM_RD3_AAOFF');rl=nlog('M53DC_ARM_RD3_AAOFF')
+    o=with_fixes(lambda:E.summarize_diff(E.diff_leg(rd,log=rl)['events']),gt=True,g395=False,g405=False);n=E.summarize_diff(E.diff_leg(rd,log=rl)['events'])
+    check(n['leg_verdict']=='FAIL' and n['t50']['end'].startswith('{+1:') and '-14' not in n['t50']['start'] and '-4' not in n['t50']['end'],'G395 both ways, RD3 AA off (085-04): the old reference reads start -14 / end -4; the fixed one reads the truth, end +1 FAIL, and no neighbour frame enters the span',dict(old=o['t50'],new=n['t50']))
+    cd=night('M53DC_ARM_CD3_AAOFF');cl=nlog('M53DC_ARM_CD3_AAOFF');n=E.summarize_diff(E.diff_leg(cd,log=cl)['events'])
+    check(n['leg_verdict']=='FAIL' and n['t50']['start'].startswith('{+1:'),'CAN-FAIL: CD3 AA off (085-04) still reads onset +1 FAIL with the fixes on',n['t50'])
+def regression_cases():
+    for leg in ('M52S09_REAL_MT_NAT','M52S09_REAL_CT_SYN'):
+        sd=night(leg);lo=nlog(leg)
+        a=with_fixes(lambda:[(r.get('start_frame'),rel(r)) for r in E.diff_leg(sd,log=lo)['events']],gt=False,g395=False,g405=False)
+        b=[(r.get('start_frame'),rel(r)) for r in EO.diff_leg(sd,log=lo)['events']]
+        check(a==b,f'regression: with every fix off, 089-03 E1 == 084-09 E1 event for event on {leg}',(a[:3],b[:3]))
+    b5=night('M52S09_B5');sd=night('M52S09_B9');lo=nlog('M52S09_B9')
+    a=[(r.get('start_frame'),rel(r)) for r in m52(sd,b5,lo,gt=False)['rows']];b=[(r.get('start_frame'),rel(r)) for r in EO.m52_leg(sd,b5,lo)['rows']]
+    check(a==b,'regression: with GT_ALIGN off, the stuck_low_mip basis equals 084-09 event for event (B9)',(a[:3],b[:3]))
+def harness_cases(tmp):
+    b0=night('M52S09_B0');m2=night('M52S09_MASK55V2')
+    e=L.readback_validity(dict(LG.by_id('B0')),b0)
+    check(e and 'label_transition_off_frames 8 != 16' in e[0],'CAN-FAIL: a leg declared OffFrames 16 whose run_summary reads 8 is INVALID (the lever did not reach the run)',e)
+    e=L.readback_validity(dict(LG.by_id('MASK55A')),m2)
+    check(any('peak_live 1' in x for x in e),'CAN-FAIL: MASK55A validity on the 084-09 MASK55 v2 bank (peak live 1) is INVALID',e)
+    e=L.readback_validity(dict(LG.by_id('MASK55A'),off_frames=None),b0)
+    check(any('recycles 0' in x for x in e) and not any('peak_live' in x for x in e),'CAN-FAIL: MASK55A validity on the 084-09 B0 bank (peak live 2, recycles 0) is INVALID on recycles',e)
+    d=tmp/'sess_mask';d.mkdir();(d/'run_summary.json').write_text(json.dumps(dict(mask_tag_peak_live=2,mask_tag_recycles=4,label_transition_off_frames=16)))
+    check(L.readback_validity(dict(LG.by_id('MASK55A')),d)==[],'MASK55A validity: peak live 2, recycles 4, OffFrames 16 read back -> valid')
+    for pkg,src in c.PART0_STANDIN.items():
+        r=W.part0_checks(src,pkg)
+        check(r['pass_'],f'Part 0 {pkg}: the 084-09 night logs PASS every check',{k:v['pass_'] for k,v in r['checks'].items()})
+    for name,mut in (('token altered',lambda t:t.replace('Control server token: ','Control server token: 0',1)),('an ENABLED lever line',lambda t:t+'\nLogAnomaly: IAI bench levers: ENABLED (-IAIBench) where=subsystem_init present=1\n'),
+                     ('a preset-lever warning',lambda t:t+"\nLogAnomaly: Warning: IAI bench lever 'IAI.Bench.X' was already SET (set-by 0x0) before the bench gate masked it.\n"),
+                     ('a missing pool line',lambda t:t.replace('enabled pool (4)','enabled pool (5)'))):
+        dd=tmp/('p0_'+name.replace(' ','_'));shutil.copytree(c.PART0_STANDIN['B'],dd)
+        (dd/'game.log').write_text(mut((dd/'game.log').read_text(encoding='utf-8-sig',errors='replace')),encoding='utf-8')
+        r=W.part0_checks(dd,'B')
+        check(not r['pass_'],f'CAN-FAIL: Part 0 with {name} FAILS',{k:v['pass_'] for k,v in r['checks'].items()})
+    lb=W.luma_check(night('M52S09_LODP_FN'));lw=W.luma_check(night('M52S09_REAL_BL_NAT'))
+    check(not lb['pass_'] and lb['median_frame_mean']<1.0,'CAN-FAIL (G402): the 084-09 black fixture premise leg FAILS the first premise check (luma)',lb)
+    check(lw['pass_'] and lw['median_frame_mean']>=20,'luma check: a MainWorld leg passes',{k:lw[k] for k in ('median_frame_mean','median_roi_std')})
+    on=night('M52S09_CC_ON_AAOFF');nu=night('M52S09_CC_NULL_AAOFF');ol=nlog('M52S09_CC_ON_AAOFF');nl=nlog('M52S09_CC_NULL_AAOFF')
+    g=E.cc_gate(on,nu,ol,nl);p=E.cc_gate_confirmed(on,nu,ol,nl)
+    check(g['gate']=='UNJUDGEABLE' and p['verdict']=='PASS' and p['P_confirmed']>0 and p['unconfirmed_frames']==20,'camera_clipping AA off: as-built UNJUDGEABLE (084-09), the PROPOSED confirmed-hold reading is judgeable and PASS on the same bank',(g['gate'],p['verdict'],p['P_confirmed'],p['edge_offsets']))
+    s=E.sess(on);k=next(k for k in range(200) if s.by_si[k].get('camera_clipping.slab') and not E._flag(s.by_si[k],'camera_clipping.unconfirmed'));bak=s.by_si[k].get('camera_clipping.slab')
+    s.by_si[k]['camera_clipping.slab']=False
+    try:pd=E.cc_gate_confirmed(on,nu,ol,nl)
+    finally:s.by_si[k]['camera_clipping.slab']=bak
+    check(pd['verdict']=='FAIL' and k in pd['confirmed_disagreeing'],'CAN-FAIL: one confirmed clipped frame left unlabelled FAILS the proposed reading',(k,pd['verdict']))
+    ff=tmp/'freeze.json';want=W.frozen_hashes();want['089-03-legs.py']='0'*64;L.jsave(ff,dict(files=want));keep=W.FREEZE;W.FREEZE=ff
+    try:fp=W.freeze_problems()
+    finally:W.FREEZE=keep
+    check(len(fp)==1 and '089-03-legs.py' in fp[0],'CAN-FAIL: a harness byte that differs from the freeze is reported (the run refuses)',fp)
+def kit_cases(tmp):
+    if FAST:check(True,'KIT-GT case skipped (--fast)');return
+    out=tmp/'kit_b3.json'
+    p=subprocess.run([c.PYTHON,str(R/'089-03-kit.py'),'aligned',str(night('M52S09_B3')),str(night('M52S09_B5')),str(out)],capture_output=True,text=True,timeout=3600)
+    d=json.loads(out.read_text()) if out.exists() else {}
+    ev={tuple(e['label']):e for e in d.get('events') or [] if e.get('label')}
+    s=(d.get('summary') or {})
+    check(p.returncode==0 and s.get('fail')==0 and ev.get((1167,1176),{}).get('status')=='UNJUDGEABLE-NULL-RANGE' and ev.get((189,198),{}).get('status')=='OK','KIT-GT on B3: the kit judge on the aligned null reads 0 FAIL, si-181 (label 189-198) judged, the event beyond the null UNJUDGEABLE',dict(summary=s,e181=ev.get((189,198)),seconds=d.get('seconds')))
+def guard_cases():
+    span=list(range(90,131));Lw=list(range(100,110));SF=500
+    class FakeS:
+        def __init__(self,rows):self.by_si=rows
+    def mk(labelled=True,reasons=None,levels=None,transition=None):
+        a=dict(id='stuck_low_mip',start_frame=SF,labelled=labelled)
+        if reasons is not None:a['transition']=1;a['transition_reason']=list(reasons)
+        elif transition:a['transition']=1
+        if levels is not None:a['stuck_mip.render_textures']=[dict(name=f't{i}',level=l) for i,l in enumerate(levels)]
+        return a
+    def run(entries,Lw,vis,span,drop,taa=False):
+        rows={si:dict(session_index=si,anomalies=[entries[si]] if si in entries else []) for si in span}
+        Tex,pg,tg=E.m52_transition_gate(FakeS(rows),dict(start_frame=SF),Lw,set(),vis,span,drop,{si:0.1 for si in span},0.01,taa)
+        f=list(tg['fail_reasons'])+list(pg['fail_reasons']);return ('FAIL' if f else 'PASS'),pg,tg
+    drop={si:0.0 for si in span}
+    for si in range(102,110):drop[si]=1.0
+    drop[100]=0.05;drop[101]=0.30;vis={si for si in span if drop[si]>=0.5};h2=['held','baseline','held'];base={si:mk() for si in Lw}
+    e=dict(base);e[100]=mk(reasons=['partial'],levels=h2);e[101]=mk(reasons=['partial'],levels=h2);v,pg,_=run(e,Lw,vis,span,drop)
+    check(v=='PASS' and pg['flagged_invisible_counted']==[100],'ported (084-09): record-backed partial onset is COUNTED, not failed',v)
+    e=dict(base);e[100]=mk(reasons=['partial'],levels=['baseline']*3);e[101]=mk(reasons=['partial'],levels=['baseline']*3);v,pg,_=run(e,Lw,vis,span,drop)
+    check(v=='FAIL' and pg['partial_without_held_texture']==[100,101],'ported CAN-FAIL: a partial flag without a held texture FAILS',v)
+    v,pg,tg=run(dict(base),Lw,vis,span,drop);check(v=='FAIL' and tg['labelled_not_visible_outside_transition']==[100,101],'ported CAN-FAIL: unflagged off frames FAIL',v)
+    e=dict(base);e[100]=mk(transition=True);e[101]=mk(transition=True);v,_,_=run(e,Lw,vis,span,drop,taa=False)
+    check(v=='FAIL','ported: a temporal flag on a leg without temporal AA FAILS',v)
+def amendment_cases():
+    cl=lambda si:True
+    ra=E.reference_amendment(None,None,set(range(173,180))|set(range(193,199)),183,188,set(),cl)
+    check(ra['status']=='CONFOUNDED' and ra['post']==[191,192],'ported: amendment R1 StaticMeshActor_85 geometry is CONFOUNDED',ra['status'])
+    ra=E.reference_amendment_v2(None,dict(entries={181:1,182:1}),set(range(150,161)),183,188,set(),cl,lambda si:si not in (181,182))
+    check(ra['status']=='OK' and 181 not in ra['pre'] and 182 not in ra['pre'] and len(ra['pre'])==10,'G395 (a): the onset reference excludes the event own unlabelled fire rows',ra['pre'])
+def old_bank_cases():
+    mlog=lg(OLD_BANK,'M52SYNC_MASK55_A1');msd=one(OLD_BANK,'M52SYNC_MASK55_A1')
+    g=E.mask_gate(msd,mlog,min_events=90);check(g['verdict']=='INVALID' and any('peak_live 1' in x for x in g['invalid']),'ported: MASK on the 084-06 bank, peak live 1, is INVALID',g['invalid'][:1])
+    bad=mlog+'\n[x][  0]LogAnomalyCapture: Capture(mask): TAG-OWNERS si=600 tick=123 values=3 shared=1 [210=A|B]\n'
+    g2=E.mask_gate(msd,bad,min_events=90,require_peak_live=1);check(g2['verdict']=='FAIL' and g2['tag_owner_shared_frames']==[600],'ported CAN-FAIL: TAG-OWNERS shared>0 FAILS',g2['verdict'])
+def lod_cases():
+    def mk(sf,a,b,levels=None,lnv=(),verdict='PASS'):
+        lv={si:0.0 for si in range(a-8,b+12)}
+        for si in range(a,b+1):lv[si]=1.0
+        lv.update(levels or {})
+        tg=dict(unlabelled_visible_without_transition=[],labelled_not_visible_outside_transition=list(lnv))
+        return dict(status='OK',start_frame=sf,levels=lv,runs=[dict(a=a,b=b,lo=a-8,hi=b+11)],per={E.RELEASE:dict(verdict=verdict,fail_reasons=['x'] if verdict=='FAIL' else [],transition_gate=tg,edges=[dict(start=0,end=0,cs=False,ce=False)])})
+    e=E.lod_edges(mk(10,100,107,{100:0.3,101:0.7}));check(e[0]['multi_frame_fade'],'ported CAN-FAIL: a 2-frame onset ramp is a MULTI-FRAME FADE',e[0]['intermediate'])
+    ev=[mk(100+30*i,110+30*i,117+30*i) for i in range(16)];check(E.lod_gate(ev[:15],variant='N')['verdict']=='INSUFFICIENT','ported CAN-FAIL: 15 judged is INSUFFICIENT')
+    ev2=list(ev);ev2[5]=mk(250,260,267,lnv=[260],verdict='FAIL');check(E.lod_gate(ev2,variant='N')['verdict']=='FAIL','ported CAN-FAIL: one off frame FAILS the LOD gate')
+def pin_cases():
+    fx=[x for x in LG.LEGS if x['group']=='BLODF'];gates=[x for x in fx if x['role']!='PREMISE']
+    check(len(fx)==10 and all(x['map']==LG.FLOD for x in fx) and sorted({(x['variant'],x['cond']) for x in gates})==sorted((v,cd) for v in 'DN' for cd in ('NAT','SYN','NAT_AAOFF','SYN_AAOFF')),'leg table: fixture premises + gate legs, both variants x both orders x AA on/off',[x['leg'] for x in fx])
+    scan=json.loads((R/'089-03-evidence'/'lodfix'/'scan-readback-scan.json').read_text(encoding='utf-8'))
+    names={x['actor'] for x in scan['components']};lights=[a for a in scan['actors'] if a['cls'] in ('PointLight','DirectionalLight')]
+    sun=[a for a in lights if a['cls']=='DirectionalLight'][0]
+    check({x['target'] for x in fx}<=names and len([a for a in lights if a['cls']=='PointLight'])==3 and abs(sun['rotation'][0]+40)<0.01,'the patched fixture read back in a fresh commandlet: targets unchanged, sun pitch -40, three point lights',(sorted(names),sun['rotation']))
+    st=c.fix_set();cm=c.fix_cooked_maps()
+    check(st['Content/Paks/StackOBot-Windows.utoc'].startswith('62633720') and st['Binaries/Win64/StackOBot.exe'].startswith('8a6074aa') and all(cm.values()) and not c.FIX_PIN.get('provisional'),'pins: FIX = exe 8A6074AA + utoc 62633720 (089-02a), CB_LodFixture and the four earlier maps read out of the archived container',cm)
+    m=[x for x in LG.LEGS if x['group']=='M52'];order=[x['leg'] for x in LG.legs_sorted()]
+    check(order[:6]==['B0','B3','B9','B0L','P1','B5'] and LG.by_id('B5')['frames']>=1500 and all(x.get('off_frames')==16 for x in m if x['leg'] in ('B0','B3','B0L','P1')) and LG.by_id('B9').get('off_frames') is None,
+          'leg order: the m52 legs, then the >= 1500-frame null immediately after them; OffFrames 16 on the AA-on m52 legs only',(order[:7],LG.by_id('B5')['frames']))
+    check(order[-2:]==['P0_A','P0_B'],'Part 0 is last in the table (and the driver runs it only after the restore)',order[-3:])
+    tmp=Path(tempfile.mkdtemp(prefix='r93_force_',dir=str(R/'089-03-evidence')))
+    try:
+        env=dict(os.environ,IAI_R93_DRY_FORCE_PREMISE='1',IAI_R93_ROOT=str(tmp));env.pop('IAI_R93_STUB_LAUNCH',None)
+        p=subprocess.run([c.PYTHON,str(R/'089-03-window.py'),'live'],capture_output=True,text=True,env=env,timeout=600)
+        check(p.returncode==10 and 'DRY-ONLY' in p.stdout and not (tmp/'receipt-01-fix.json').exists(),'CAN-FAIL: the dry-only premise force is REFUSED on a live run (preflight exit 10, nothing staged)',(p.returncode,p.stdout[-200:]))
+    finally:shutil.rmtree(tmp,ignore_errors=True)
+def g355_cases(tmp):
+    src=tmp/'src.bin';dst=tmp/'dst.bin';src.write_bytes(b'a'*4096);dst.write_bytes(b'b'*4096)
+    info,done=L.hold_exclusive(dst,2.0);log=[];n=L.copy_retry(src,dst,tries=6,backoff=(0.5,1,1,1,1),log=log);done.wait(5)
+    check(info.get('handle_ok') and n>=2 and dst.read_bytes()==src.read_bytes(),'ported G355: a locked destination is retried and the copy completes',n)
+def verify_selftest():
+    p=subprocess.run([c.PYTHON,str(c.VERIFY_CAPTURE),'--label-rule','--selftest'],capture_output=True,text=True,encoding='utf-8',errors='replace')
+    last=[l for l in p.stdout.splitlines() if 'LABEL-RULE SELFTEST:' in l];check(p.returncode==0 and last and 'OK' in last[-1],'pinned verify_capture.py --label-rule --selftest',last[-1][:120] if last else p.stdout[-200:])
+    p=subprocess.run([c.PYTHON,str(R/'089-03-kit.py'),'selftest'],capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=1800)
+    check(p.returncode==0,'pinned office kit --selftest (blob 165d55f6)',p.stdout.strip().splitlines()[-1][:160] if p.stdout.strip() else p.stderr[-200:])
+def main():
+    tmp=Path(tempfile.mkdtemp(prefix='r93_gst_',dir=str(R/'089-03-evidence')));t0=time.time()
+    try:
+        for f in (g406_cases,g405_cases,g395_cases,regression_cases,lambda:harness_cases(tmp),lambda:kit_cases(tmp),guard_cases,amendment_cases,old_bank_cases,lod_cases,pin_cases,lambda:g355_cases(tmp),verify_selftest):
+            try:f()
+            except Exception:
+                import traceback;check(False,f'EXCEPTION in {getattr(f,"__name__","case")}',traceback.format_exc()[-600:])
+    finally:shutil.rmtree(tmp,ignore_errors=True)
+    ok=sum(r['ok'] for r in RES);out=dict(utc=c.now(),seconds=round(time.time()-t0,1),checks=len(RES),ok=ok,failed=[r for r in RES if not r['ok']],results=RES,fixes=E.FIXES)
+    L.jsave(R/'089-03-evidence'/('gateselftest-fast.json' if FAST else 'gateselftest.json'),out);print(f'089-03 GATE SELFTEST: {ok}/{len(RES)} OK ({out["seconds"]} s)',flush=True);sys.exit(0 if ok==len(RES) else 1)
+if __name__=='__main__':main()

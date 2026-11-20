@@ -1,0 +1,48 @@
+from pathlib import Path
+import hashlib,json,subprocess
+R=Path(r'D:\IntrusiveAnomalies\_reviews');E=R/'081-23-evidence';F=R/'081-23-frozen'
+SCRATCH=Path(r'D:\IntrusiveAnomalies\_scratch_081_23')
+def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def derive(src,dst,pairs):
+    t=(R/src).read_text(encoding='utf-8');done=[]
+    for a,b in pairs:
+        n=t.count(a);assert n==1,(src,a,n);t=t.replace(a,b);done.append(dict(old=a,new=b))
+    assert not (R/dst).exists(),dst
+    (R/dst).write_bytes(t.encode('utf-8'))
+    return dict(src=src,src_sha256=sha(R/src),dst=dst,dst_sha256=sha(R/dst),replacements=done)
+E.mkdir(exist_ok=True);F.mkdir(exist_ok=True)
+ENVROOT="$root=$env:IAI_R23_ROOT;if(-not $root -or -not (Test-Path -LiteralPath $root)){throw 'IAI_R23_ROOT unset or missing'}"
+PYROOT="Path(os.environ['IAI_R23_ROOT'])"
+out=[]
+out.append(derive('081-22-common.py','081-23-common.py',[
+    ("E=R/'081-22-evidence'","E=R/'081-23-evidence'/os.environ.get('IAI_R23_WINDOW','prep');E23=R/'081-23-evidence';E22=R/'081-22-evidence'"),
+    ("FEATURE_HEAD='94a56a9f7f2d556afd253f8b9d353c1aaa2bb11a'","FEATURE_HEAD=json.loads((R/'081-23-evidence/prep-boundary.json').read_text())['feature_head'] if (R/'081-23-evidence/prep-boundary.json').exists() else None")]))
+out.append(derive('081-22-measure.ps1','081-23-measure.ps1',[
+    (r"$root='D:\IntrusiveAnomalies\_reviews\081-22-evidence'",ENVROOT),
+    (r"D:\IntrusiveAnomalies\_reviews\081-22-b1.py",r"D:\IntrusiveAnomalies\_reviews\081-23-b1.py"),
+    (r"_bench_sessions_bank\M55B3R22_$Label",r"_bench_sessions_bank\M55B3R23_$Label")]))
+out.append(derive('081-22-lyra-run.ps1','081-23-lyra-run.ps1',[
+    (r"$root='D:\IntrusiveAnomalies\_reviews\081-22-evidence'",ENVROOT),
+    (r"D:\IntrusiveAnomalies\_reviews\081-22-lyra-pre.py",r"D:\IntrusiveAnomalies\_reviews\081-23-lyra-pre.py"),
+    (r"_bench_sessions_bank\M55B3R22_$Label",r"_bench_sessions_bank\M55B3R23_$Label")]))
+out.append(derive('081-22-b1.py','081-23-b1.py',[("import importlib.util,json,sys","import importlib.util,json,sys,os"),("E=B/'_reviews/081-22-evidence'","E="+PYROOT)]))
+out.append(derive('081-22-lyra-pre.py','081-23-lyra-pre.py',[("import json,importlib.util,sys","import json,importlib.util,sys,os"),("d=B/'_reviews/081-22-evidence'/sys.argv[1]","d="+PYROOT+"/sys.argv[1]")]))
+for name in ('lyra-stage','lyra-restore','wait'):
+    out.append(derive(f'081-22-{name}.py',f'081-23-{name}.py',[(r"D:\IntrusiveAnomalies\_reviews\081-22-common.py",r"D:\IntrusiveAnomalies\_reviews\081-23-common.py")]))
+out.append(derive('081-13-nohold-run.ps1','081-23-nohold-run.ps1',[
+    ("if($session){break};if($p.HasExited){throw 'Owned legacy game exited'}",
+     "if($session){break};if($p.HasExited){throw 'Owned legacy game exited'};if(@(Get-Process -Name UnrealEditor -EA SilentlyContinue).Count){throw 'FOREIGN-EDITOR-APPEARED during legacy leg'}")]))
+out.append(derive('081-22-part2.py','081-23-c0-part2.py',[
+    (r"D:\IntrusiveAnomalies\_reviews\081-22-common.py",r"D:\IntrusiveAnomalies\_reviews\081-23-common.py"),
+    ("str(R/'081-22-lyra-run.ps1')","str(R/'081-23-lyra-run.ps1')"),
+    ("str(R/'081-22-measure.ps1')","str(R/'081-23-measure.ps1')")]))
+out.append(derive('081-22-analyze.py','081-23-c0-analyze.py',[("E=R/'081-22-evidence'","E=R/'081-23-evidence'/'c0'")]))
+out.append(derive('081-22-compare.py','081-23-c0-compare.py',[(r"E=Path(r'D:\IntrusiveAnomalies\_reviews\081-22-evidence')",r"E=Path(r'D:\IntrusiveAnomalies\_reviews\081-23-evidence\c0')")]))
+blob=subprocess.check_output(['git','-C',str(SCRATCH),'rev-parse','HEAD:tools/verify_capture.py']).decode().strip()
+head=subprocess.check_output(['git','-C',str(SCRATCH),'rev-parse','HEAD']).decode().strip()
+raw=subprocess.check_output(['git','-C',str(SCRATCH),'cat-file','blob',blob])
+dst=F/'verify_capture.py';assert not dst.exists();dst.write_bytes(raw)
+frozen=dict(file=str(dst),sha256=sha(dst),git_blob=blob,from_commit=head,note='oracle frozen from the feature branch so every bench window runs the same bytes without a scratch worktree')
+reuse={p:sha(R/p) for p in ('081-22-legacy-run.ps1','081-08-audit.py','081-15-capture-pose.py','081-15-b1-core.py','081-08-pose.py','081-08-l2.py','081-18-common.py','081-05-audit.py')}
+(E/'harness-derivation.json').write_text(json.dumps(dict(derived=out,frozen_oracle=frozen,reused_unchanged=reuse),indent=2))
+print(json.dumps(dict(derived=[(o['dst'],len(o['replacements'])) for o in out],oracle=frozen['sha256'][:8],reused=len(reuse))))

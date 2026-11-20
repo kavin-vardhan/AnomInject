@@ -1,0 +1,227 @@
+"""Assemble the completed 079-10 report from retained final evidence."""
+from collections import Counter
+import json
+from pathlib import Path
+import re
+
+ROOT = Path(r"D:\IntrusiveAnomalies\_reviews")
+E = ROOT / "079-10-evidence"
+F = ROOT / "079-10-frozen"
+boundary = json.loads((E / "final/boundary.json").read_text(encoding="utf-8"))
+bank = json.loads((E / "bank.json").read_text(encoding="utf-8"))["bank"]
+cohort = json.loads((E / "cohort_v3.json").read_text(encoding="utf-8"))
+fixtures = json.loads((E / "final/selftest_details.json").read_text(encoding="utf-8"))
+checks = json.loads((E / "final/complete_checks.json").read_text(encoding="utf-8"))
+scorer_text = (E / "scorer_v3.txt").read_text(encoding="utf-8-sig")
+
+
+def link(label, path, line=None):
+    target = str(path).replace("\\", "/") + (":" + str(line) if line else "")
+    return "[%s](%s)" % (label, target)
+
+
+def source(token):
+    path = F / "verify_capture.py"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    line = next(i for i, s in enumerate(lines, 1) if token in s)
+    return link("verify_capture.py:%d" % line, path, line)
+
+
+def fence(lines):
+    return "```text\n" + (lines if isinstance(lines, str) else "\n".join(lines)).rstrip() + "\n```\n"
+
+
+def summary(item):
+    return next(s.strip() for s in item["lines"] if s.startswith("  CONSISTENT"))
+
+
+def verdict(item):
+    return next(s.strip() for s in item["lines"] if s.startswith("  VERDICT"))
+
+
+def counts(cells):
+    got = Counter(c["outcome"] for c in cells)
+    return [got[k] for k in ("recovered", "wrong", "no-transition", "unassessable", "unsupported")]
+
+
+assert fixtures["exit"] == 0
+assert len(fixtures["fixtures"]) == 90
+assert cohort["planned"] == 572
+assert len(checks["identity_equivalence"]) == 39
+assert all(r["differences"] == 0 for r in checks["identity_equivalence"])
+assert boundary["feature_sha"] == boundary["remote_feature_sha"]
+assert boundary["checkout"] == "m51"
+
+out = ["# 079-10 — Codex delta implementation report\n",
+"**NEEDS-DECISION.** The authorized delta is implemented and pushed on "
+"`fix/verifier-field-validity`. The final self-test passes, but R1's pinned-bench "
+"prediction is missed: **32 of 64 edges observed**, with both blink legs still "
+"UNASSESSABLE under the retained inclusive-window and duplicate-claim rules. "
+"All 64 edges have tau=0.0040. No bounds or thresholds were tuned to make P2 pass.\n",
+"**Chat review NOT REQUIRED for the authorized implementation and feature push, now complete. "
+"Chat review REQUIRED for this evidence, the P2 miss and Claude Code's independent review before merge.** "
+"That is the next mandatory Chat checkpoint. Codex implemented; Code reviews next; Chat orchestrates. "
+"No review brief or mailbox message was issued. Client/Section G, m51 campaign and release gates remain held.\n",
+"## 1. Scope, commits and evidence\n",
+f"- Base: `{boundary['base']}`.\n"
+f"- Predictions-first commit (AMENDMENT 1): `{boundary['predictions_sha']}`.\n"
+f"- Implementation/local-and-remote feature: `{boundary['feature_sha']}`.\n"
+f"- Restored checkout: m51 `{boundary['m51_sha']}`.\n"
+f"- Master/origin-master unchanged: `{boundary['master_sha']}`.\n"
+f"- CaptureBench unchanged HEAD: `{boundary['capturebench_sha']}`; only its permitted, already-untracked "
+"`tools/m079_shift_recovery.py` changed. That repository has no remote; its scorer is retained locally "
+"and frozen for review, not included in the plugin branch push.\n",
+"Source/, Shaders/ and tools/measure_label_offset.py are unchanged from 7d5b6e9. "
+"The ten pre-existing plugin handoffs and every other CaptureBench untracked file retain their preflight hashes. "
+"No merge, tag, build, cook, capture, office-data transfer or owner-app change.\n",
+"Read the " + link("predictions and AMENDMENT 1", F / "2026-09-20-verifier-consistency-semantics.md") + ", "
++ link("session journal", F / "2026-09-20-079-10-codex-delta.md") + ", "
++ link("source/hash manifest", F / "manifest.json") + " and "
++ link("final boundary audit", E / "final/boundary.json") + ". "
+"The live checkout is m51 again; review the frozen tools or the pushed feature ref.\n",
+"## 2. Ruling-by-ruling implementation\n",
+"| Ruling | Implementation and proof |\n|---|---|\n"
++ "| R1 boundary masks | " + source("class _PairSignal") + ": actual masks first; missing out-of-span target masks use "
+"this run's onset/last-labelled mask within window+24, default 28. Pair union retained; no recursive fallback. "
+"Missing in-span masks, corrupt PNGs and dimension errors remain errors. Seven new permanent fixtures and five new contract tests cover the rule. |\n"
++ "| R1 identity | " + source("def _target_entry") + ": both event/run anchors and per-frame identity require the named target. "
+"A sole unrelated row entry cannot supply its ID. The new named-boundary regression failed before this fix and passes afterward. |\n"
++ "| R1 disclosure | " + source("def _edge_line") + ": source and maximum signed extrapolation distance on each affected edge, "
+"including baseline masks; complete source/delta lists in structured evidence; maximum distance on the run. "
+"NO-TRACE names extrapolated edge pairs. |\n"
++ "| R2 lighting | " + source('run["caveat"] =') + ": CONSISTENT retains the whole-region-change caveat on the RUN line; "
+"event summaries count consistent events with a caveat. Lighting fixtures pass. |\n"
++ "| R3 thresholded absence | " + source("def _run_outcome") + ": no change above tau across the span and both windows. "
+"The one-pixel fixture remains NO-TRACE; an above-tau interior change blocks it. Header and README explain tau as a pixel fraction. |\n"
++ "| R4 aggregation | " + source("def _event_token") + ": NO-TRACE > OFFSET-NOTE > PARTIAL > CONSISTENT from runs only. "
+"U/READING run counts stay visible; blank_missing_interior is U, consistent+U is C with U coverage, consistent+partial is P. |\n"
++ "| R5 retained contracts | Class allowlist remains a producer contract; inclusive labelled windows, duplicate refusal, RGB-channel "
+"difference, endpoint extent and batch exits retained. Scorer eligibility now reflects the partly masked run correction. |\n",
+"This is not 079-08 F2's boundary-mask reuse: there, real per-frame masks existed and were ignored; here, none exist. "
+"The exact distinction is in the module/output header and the appended G263/G264 correction. "
+"Boundary extrapolation still assumes that silhouette applies at another frame; the tag discloses the assumption.\n",
+"Predeclared interpretations: N_BASE=BASELINE_MAX_FRAMES=24; absent means missing reference/file, empty valid PNG or absent requested ID "
+"outside the span. Corruption is not absence. Partly masked runs stay in mask mode even with a missing boundary; "
+"a genuinely bbox-only run remains READING. Caveat totals count CONSISTENT events with at least one caveated consistent run. "
+"Console uses ASCII `delta`, `<=`, and `k-1..k+1` for the specification's typographic symbols.\n",
+"### Diff summary\n",
+fence(boundary["diff_stat"]),
+"README Step 6 and the prospective Section G note were updated; earlier readings and prediction bodies remain history. "
+"G263/G264 received a dated append. CLAUDE.md and the new session journal record current ownership and the P2 miss.\n",
+"## 3. Per-prediction readings\n",
+"### P1 — self-test and ruling regressions\n",
+"**90/90 permanent fixtures pass; 9/9 focused contract tests pass.** The prior 83 cases are retained with R1-R4's "
+"amended known answers, plus seven span-mask/aggregation cases. Semantic fixtures explicitly use cap 1.0; separate "
+"tests exercise numeric/zero/refuse-all caps. This prevents calibration from turning every semantic control into an unread run.\n",
+link("all self-test readings", E / "final/selftest_full.txt") + " · "
++ link("structured details", E / "final/selftest_details.json") + " · "
++ link("contract output", E / "final/contracts.txt") + " · "
++ link("named-target failure before fix", E / "named-target-before.txt") + "\n",
+fence((E / "final/selftest.txt").read_text(encoding="utf-8").splitlines()[-2:])]
+
+for name in ("lighting_late_onset", "blank_missing_interior", "c07_below_tau_masked", "interior_change",
+             "span_masks_blank", "consistent_with_unassessable_run", "mixed_run"):
+    item = next((v for v in fixtures["fixtures"] if v["name"] in (name, "c08_" + name)), None)
+    if item is None:
+        raise RuntimeError("fixture name missing: " + name)
+    out += [f"**{name}** (exit {item['code']}):\n", fence([s for s in item["lines"]
+        if s.startswith("idx=") or s.startswith("      run[") or s.startswith("  CONSISTENT") or s.startswith("  run coverage")])]
+
+out += ["P1's old ‘never CONSISTENT’ lighting expectation was wrong: a stronger lighting change can coincide with "
+        "the label and satisfy the observation rule. AMENDMENT 1 records the correction before measurements.\n",
+        "### P2 — six pinned legs: prediction missed\n",
+        "| Leg | Observed / total edges | Event reading | Exit |\n|---|---:|---|---:|\n"]
+for b in bank[:6]:
+    observed = sum(e["observation"] != "UNASSESSABLE" for e in b["detail"])
+    out.append(f"| {b['name']} | {observed}/{len(b['detail'])} | {summary(b)} | {b['code']} |\n")
+out += ["\nEach non-blink leg has four CONSISTENT events, all with the diagnostic ring caveat. "
+        "Both blink legs have four UNASSESSABLE events (eight unread runs each). Their short inclusive windows "
+        "select competing transitions or fail dominance. Missing edge regions are repaired; unique association is not. "
+        "All 64 tau readings are exactly 0.0040. The exact P2 readings are reproduced in Appendix A.\n",
+        "Example retained refusal (no threshold tuning):\n",
+        fence(bank[0]["lines"][next(i for i,s in enumerate(bank[0]["lines"]) if s.startswith("      run[")):][:3]),
+        "### P3 — masked gameplay and bbox-only control\n",
+        "No NO-TRACE in any of the three masked sessions. Final default cap is 0.42. "
+        "M50 remains six READING events and UNREAD-BBOX-ONLY. Appendix B prints every line for all four sessions.\n"]
+for b in bank[6:]:
+    out += [f"**{b['name']}**, exit {b['code']}:\n", fence([summary(b), verdict(b)] +
+        [s.strip() for s in b["lines"] if "UNREAD-BBOX-ONLY" in s])]
+out += ["### P4 — scorer v3 and rederived cap\n",
+        f"Immutable denominator: **{cohort['planned']} planned keys** (A2L 208, LYRA_SMOKE 208, A1L 156), "
+        "13 perturbation/variant combinations per original run-edge. Each guard's scored and unscored key sets reconcile "
+        "exactly, with no duplicates or omitted keys.\n",
+        "| State | Scored | Unscored | Recovered | Wrong | No-transition | Unassessable | Unsupported |\n"
+        "|---|---:|---:|---:|---:|---:|---:|---:|\n"]
+for key, label in (("guard_off", "OFF (cap 1.0)"), ("guard_on", "ON (cap 0.42)")):
+    out.append("| %s | %s |\n" % (label, " | ".join(map(str, [len(cohort[key]), len(cohort[key+"_unscored"])] + counts(cohort[key])))))
+out += ["\nExact table/cap/support lines:\n"]
+lines = scorer_text.splitlines()
+chosen = []
+for i,s in enumerate(lines):
+    if s in ("GUARD OFF", "GUARD ON"):
+        chosen.extend(lines[i:i+8])
+    elif s.startswith(("IMMUTABLE", "Per session:", "DERIVED CAP", "GUARD ON uses", "POSITIVE SUPPORT:")):
+        chosen.append(s)
+out += [fence(chosen),
+        f"Configured default: **{cohort['cap']}**, N={cohort['n']} perturbation cells with baseline readings. "
+        f"Derivation note: **{cohort['note']}**. "
+        "There is no observed wrong-cell boundary in this cohort; this provisional value is not a validated universal envelope. "
+        "The mechanism is unchanged, including the no-wrong-cell fallback. No cap was chosen to improve P2.\n",
+        link("full scorer stdout, including every refusal reason", E / "scorer_v3.txt") + " · "
+        + link("complete cells and unscored ledgers", E / "cohort_v3.json") + "\n",
+        "### Source provenance for the sweep\n",
+        "The full 78-group off/on sweep ran before the final named-target anchor correction and default-cap update. "
+        "Its exact source snapshot is retained in " + link("calibration-tools manifest", E / "calibration-tools/manifest.json") + ". "
+        "All 39 unique shadow inputs were rebuilt: event/run anchor selections and per-frame mask identities are identical "
+        "between that snapshot and the final code. The two sweeps pass cap 1.0 / the newly derived 0.42 explicitly, "
+        "so changing the configured default does not alter them. The remaining source differences are documentation/comments. "
+        "The exact " + link("snapshot-to-final diff", E / "final/calibration-to-final.diff") + " and "
+        + link("equivalence audit", E / "final/complete_checks.json") + " are retained. "
+        "All final fixtures, contracts, CLI checks, scorer self-tests and ten unperturbed bank readings ran afterward. "
+        "No second full sweep of the final source is claimed.\n",
+        "### P5 — batch and exit contracts\n",
+        "Flattened-path collisions retain separate reports; forced identifier collision returns 3 before report writes. "
+        "Execution error 3 survives report-only with other successful sessions. A previous-mask-only pixel remains in the union. "
+        "Direct CLI controls: NO-TRACE=2, report-only=0, execution failure with report-only=3. "
+        "Scorer controls exercise recovered, wrong, no-transition and unassessable cells; its 26-key tiny cohort retains "
+        "eight unsupported cells. Bbox-only gives zero scored/two unscored cells; the missing-boundary PARTIAL gives two scored cells.\n",
+        link("CLI/class/equivalence evidence", E / "final/complete_checks.json") + " · "
+        + link("scorer self-test", E / "final/scorer_selftest.txt") + "\n",
+        "### P6 — independent review and limits\n",
+        "Claude Code's independent review is pending. This implementation's checks are not that review. "
+        "The revised wrong-NO-TRACE falsifier is an above-tau pair on the selected target region in the span or either edge window. "
+        "The below-tau one-pixel fixture is an expected NO-TRACE; the above-tau interior fixture is unassessable and blocks NO-TRACE. "
+        "The class allowlist remains a documented producer contract, not independent proof that an injection must visibly change pixels. "
+        "Extrapolated silhouettes and incomplete coverage remain disclosed limits.\n",
+        "## 4. Reproduction\n",
+        "Use the frozen tools after restoration; these commands read banked captures. Output paths below are examples for a new review run.\n",
+        "```powershell\n"
+        f"python -B '{F / 'verify_capture.py'}' --label-pixel-gate --selftest\n"
+        f"Push-Location '{F}'\n"
+        "python -B -m unittest test_verify_capture_consistency -v\n"
+        "Pop-Location\n"
+        f"$env:IAI_VERIFIER_TOOLS = '{F}'\n"
+        f"python -B '{F / 'm079_shift_recovery.py'}' --selftest\n"
+        f"python -B '{F / 'm079_shift_recovery.py'}' --json 'D:\\IntrusiveAnomalies\\_reviews\\079-10-reviewer-sweep.json'\n"
+        f"python -B '{F / 'verify_capture.py'}' --label-pixel-gate --dir '{bank[0]['path']}'\n"
+        "Remove-Item Env:\\IAI_VERIFIER_TOOLS\n```\n",
+        "Every bank path is also recorded in bank.json. The report scripts and validation drivers are in _reviews; "
+        "their live-source paths intentionally refer to the feature checkout, so use the frozen commands above after restoration.\n",
+        "## 5. Time and completed boundary\n",
+        f"First recorded clock: **{boundary['first_clock_utc']}**. Final audited boundary: **{boundary['finished_utc']}**. "
+        f"Elapsed wall time: **{boundary['wall_time']}**. This includes reading, implementation, tests, calibration, "
+        "documentation, commits and push; it is not CPU time. Monetary/token billing is unavailable and no cost is inferred.\n",
+        "All owned test/sweep processes have finished and their scratch directories/links are cleaned. "
+        "No replacement watcher was started. CURRENT.md records this completed boundary and the next review owner. "
+        "The same coherent workstream can continue; no Codex session restart or context-setting change is recommended.\n",
+        "## Appendix A — exact final P2 readings\n"]
+for b in bank[:6]:
+    out += ["### " + b["name"] + "\n", fence(b["lines"])]
+out.append("## Appendix B — exact final P3 readings\n")
+for b in bank[6:]:
+    out += ["### " + b["name"] + "\n", fence(b["lines"])]
+out += ["**Chat review REQUIRED before merge**, after Claude Code's independent review and disposition of the P2 miss. "
+        "The authorized branch work is complete; no brief has been sent.\n", "VERDICT: NEEDS-DECISION\n"]
+report = re.sub(r"(?m)(\|)\n{2,}(?=\|)", r"\1\n", "\n".join(out))
+(ROOT / "079-10-codex-delta-report.md").write_text(report, encoding="utf-8")
+print("Wrote 079-10-codex-delta-report.md")

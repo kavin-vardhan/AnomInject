@@ -1,0 +1,500 @@
+<#
+S3b leg harness â€” A63 SELF-ENFORCING.
+
+A63 used to be checked after the fact: a leg that rode the 30 s focus-gate
+timeout was reported for a verdict. This harness enforces it instead.
+
+  - Detect the timeout condition per leg (run.json start_frame, ticks_msec).
+  - A leg that rode the timeout is INVALID -> DISCARDED AND RE-RUN, up to 3
+    attempts.
+  - EVERY attempt is reported, including the discarded ones, with its
+    start_frame. Discarded legs are recorded, never hidden.
+  - 3 consecutive invalid attempts on one leg => HALT, and NO VERDICT IS
+    OFFERED. The harness does NOT attribute a cause: G108 recorded an
+    "environmental" halt that was actually the harness itself, and S4-1 recorded
+    four pose-gate failures that were resolution scope rather than pose. A gate
+    that fails safe still misleads if its label names a cause it has not
+    established.
+
+THIS IS NOT A LAUNDERING ROUTE, and A63 already says why:
+
+    A leg is discarded for HOW IT RAN, never for WHAT IT SHOWED.
+
+Invalidity is declared by a PRE-FIXED rule, on a condition INDEPENDENT of the
+outcome, and decided BEFORE any result is read. Automating a decision that never
+depended on the result changes nothing about its soundness. The harness reads
+run.json's start_frame and nothing else before deciding.
+
+FOCUS CONTENTION. The operator runs a second UE editor on this box (G97) and
+works in it during long runs. Stray focus steals are EXPECTED and the operator
+is NOT asked to avoid the machine. Mitigations here:
+  - AppActivate is retried in a loop AND the result is VERIFIED against the real
+    foreground window (GetForegroundWindow -> owning PID), rather than assumed.
+  - Focus is re-asserted until it is actually held, or the attempt is abandoned
+    to the auto-retry above.
+â›” The focus gate is NEVER disabled (G93: focus-gate x fixed-timestep corrupts
+   the camera). Virtual-desktop isolation was considered and REJECTED - moving
+   the window to another desktop REMOVES foreground focus, which is the very
+   thing the gate waits for, so it would guarantee the timeout it is meant to
+   prevent.
+#>
+
+param(
+  [Parameter(Mandatory=$true)][string]$Label,
+  [int]$StallGameMs = 0,
+  [int]$Pace = 1,
+  [int]$Delivery = 0,
+  [int]$Sve = 1,
+  [int]$Marker = 1,
+  [int]$Seed = 777,
+  [int]$MaxFrames = 90,
+  [int]$MaxAttempts = 3,
+  [int]$WaitSec = 150,
+  [int]$ResX = 1280,
+  [int]$ResY = 720,
+  [switch]$Fullscreen,
+  [string]$ExtraExecCmds = "",
+  [string]$GeometryNote = "",
+  [string]$Map = "/Game/CaptureBenchGate/CB_GateLevel",
+  [string]$BankPrefix = "S3B_",
+  [string]$Anomaly = "blinking",
+  [string]$AnomalyArgs = "",
+  [string]$Target = "StaticMeshActor_49",
+  [switch]$RequireModalRotZero,
+  [switch]$LetterboxedFixture,
+  [switch]$VerboseAnomalyLog,
+  [int]$AutoExposure = 0
+)
+
+# -AutoExposure (m47b, session 069 brief 26). DEFAULT 0 = the historical behaviour, so every
+# existing leg recipe is BYTE-UNCHANGED and no banked leg becomes non-comparable.
+#
+# 0 -> issue "r.DefaultFeature.AutoExposure 0, r.EyeAdaptationQuality 0", as every leg since
+#      this harness existed has done.
+# 1 -> issue NEITHER, i.e. run the GAME'S OWN DEFAULTS. Read before it was added: StackOBot's
+#      Config/DefaultEngine.ini sets no exposure key and neither does BaseEngine.ini, so the
+#      game's defaults ARE the engine defaults, and the engine default is
+#      r.DefaultFeature.AutoExposure = 1 (SceneView.cpp:165-170) with Min 0.03 < Max 8.0
+#      (Scene.cpp:468-469), i.e. genuinely adaptive rather than the Min==Max fake-manual case.
+#
+# This is a BENCH parameter and is never in a client payload: all it decides is whether two
+# cvars are issued. The effective values are ECHOED either way (A48) - a diagnostic that can be
+# silently off is a clean null waiting to be misread.
+
+# AUTO-POOL LEGS HAVE NO B1, AND THAT IS NOT THE SAME AS HAVING NO POSE GATE.
+#
+# B1 compares the modal PIXEL bbox against CALIB_BBOX, which is StaticMeshActor_49's
+# bbox (G117), so on an auto-pool leg - where the labelled target differs per event -
+# the modal bbox is not _49's and the gate has no scope. Declaring "not applicable"
+# is honest, but it leaves the A47 camera bifurcation UNCONTROLLED on exactly the legs
+# whose candidate set is decided by where the camera settled.
+#
+# A47 as AMENDED measured the bifurcation in camera ROTATION, with eye position
+# invariant on 369/369 banked gate samples and modal rotation (0,0,0) on 278/369. That
+# is a TARGET-INDEPENDENT criterion, so it is available where B1 is not.
+#
+# -RequireModalRotZero accepts a leg only at modal_rot (0,0,0). Like B1 it reads the
+# CAMERA ONLY, is fixed before the run, and is decided before any result is read, so
+# A63's principle covers it: a leg is discarded for HOW IT RAN, never for WHAT IT
+# SHOWED. Every attempt is still banked.
+
+# H4: TARGETING IS A LEG VARIABLE (was hard-coded "blinking StaticMeshActor_49").
+#
+# B1's SCOPE, and why this parameter forces the point. CALIB_BBOX is
+# StaticMeshActor_49's PIXEL bbox and pose_match() is a CONJUNCT of a56_check, so
+# the pose gate is scoped to a TARGET as well as to a resolution (G117). Fired at
+# any other actor it fails for a reason that has nothing to do with pose - the
+# same shape S4-1 measured four times on the RESOLUTION axis.
+#
+# So the gate is APPLIED only on the calibration target and is declared NOT
+# APPLICABLE otherwise. It is NOT skipped to make a leg pass: an off-calibration
+# leg has NO pose gate available at all, and saying "not applicable" is the
+# honest label where "passed" would be a claim and "failed" would name a cause
+# the gate has not established.
+# -LetterboxedFixture: B1 IS NOT APPLICABLE ON A CONSTRAINED VIEW, AND THAT IS G117 ON A NEW AXIS.
+#
+# CALIB_BBOX is a PIXEL bbox frozen against an UNCONSTRAINED 1280x720 view. Constrain the
+# aspect ratio and the rendered picture becomes 1280x536, so the target's pixel bbox MOVES BY
+# CONSTRUCTION - measured on the fixture probe: (0.0, 361.2, 306.1, 174.8) against CALIB's
+# (0.0, 485.2, 306.1, 234.8), same WIDTH, different height and y. B1 then fails for a reason
+# that has nothing to do with camera pose, exactly as it does off-resolution and off-target.
+#
+# So the gate is DECLARED NOT APPLICABLE, never "passed" - and the switch is SELF-POLICING so it
+# cannot become a way to skip B1 on an ordinary leg: the run is INVALIDATED below unless the
+# artifact itself proves the view really was constrained (readback_layout origin non-zero). A
+# switch that asserts nothing would be a licence to launder a pose failure; this one has to show
+# its receipt (G190 - assert on a positive artifact of the run).
+#
+# The A47 ROTATION criterion is unaffected and stays available: it reads the camera only, and a
+# letterbox does not move the camera. -RequireModalRotZero is the gate to use here.
+$B1_CALIB_TARGET = "StaticMeshActor_49"
+$poseGateApplies = ($Target -eq $B1_CALIB_TARGET) -and (-not $Fullscreen) -and
+                   (($ResX -eq 1280 -and $ResY -eq 720) -or ($ResX -eq 1281 -and $ResY -eq 721)) -and
+                   (-not $LetterboxedFixture)
+
+$ErrorActionPreference = "Stop"
+$staged = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+$outRoot = Split-Path $staged
+$bank = "D:\IntrusiveAnomalies\_bench_sessions_bank"
+
+if (-not ([System.Management.Automation.PSTypeName]'Win32Fg').Type) {
+  Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32Fg {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static uint FgPid() {
+    uint pid = 0; GetWindowThreadProcessId(GetForegroundWindow(), out pid); return pid;
+  }
+  // A heavily game-thread-stalled window reads as unresponsive and Windows'
+  // foreground lock refuses AppActivate. A synthetic ALT tap releases the lock,
+  // which is a HARNESS mechanism - it does not touch the system under test.
+  public static void Force(IntPtr h) {
+    ShowWindow(h, 9);            // SW_RESTORE
+    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+    keybd_event(0x12, 0, 2, UIntPtr.Zero);
+    SetForegroundWindow(h);
+    BringWindowToTop(h);
+  }
+}
+"@
+}
+
+function Write-LegGeometry {
+  param([string]$Dest, [string]$Attempt)
+  $osDpi = 96
+  try { $osDpi = (Get-ItemProperty "HKCU:\Control Panel\Desktop\WindowMetrics" -Name AppliedDPI -EA Stop).AppliedDPI } catch {}
+  @{
+    label = $Label; attempt = $Attempt; map = $Map
+    res_x = $ResX; res_y = $ResY
+    window_mode = $(if ($Fullscreen) { "fullscreen" } else { "windowed" })
+    extra_execcmds = $ExtraExecCmds
+    os_applied_dpi = $osDpi
+    os_scale_pct = [math]::Round($osDpi / 96.0 * 100)
+    geometry_note = $GeometryNote
+    sve = $Sve; delivery = $Delivery; pace = $Pace
+    stall_game_ms = $StallGameMs; video_fps = 30
+    anomaly = $Anomaly; target = $Target
+    b1_calib_target = $B1_CALIB_TARGET
+    b1_pose_gate_applies = $poseGateApplies
+    letterboxed_fixture = [bool]$LetterboxedFixture
+    require_modal_rot_zero = [bool]$RequireModalRotZero
+    seed = $Seed; max_frames = $MaxFrames; bank_prefix = $BankPrefix
+  } | ConvertTo-Json | Out-File -FilePath "$Dest\_leg_geometry.json" -Encoding utf8
+}
+$attempts = @()
+$accepted = $null
+
+for ($try = 1; $try -le $MaxAttempts; $try++) {
+
+  # ---- Read-only idle assertion; kill only this launch PID ----------------
+  # Entry: read-only idle check follows.
+  Start-Sleep -Milliseconds 600
+  $live = (Get-Process -Name StackOBot,UnrealEditor,LyraGame,UnrealBuildTool -EA SilentlyContinue | Measure-Object).Count
+  if ($live -ne 0) { throw "A46: box not idle ($live StackOBot processes)" }
+
+  $dir = "$outRoot\$Label`_try$try"
+  if (Test-Path -LiteralPath $dir) { throw "Refusing to replace existing output $dir" }
+
+  $cmds = ""
+  if ($AutoExposure -eq 0) { $cmds = "r.DefaultFeature.AutoExposure 0, r.EyeAdaptationQuality 0, " }
+  # A48 ECHO: a bare cvar name prints its EFFECTIVE value, so the log states what the leg really
+  # ran with rather than what it was asked for. Emitted on BOTH sides, so an AE-OFF leg is just as
+  # readable as an AE-ON one and neither is trusted from the switch alone.
+  $cmds += "r.DefaultFeature.AutoExposure" +
+          ", r.EyeAdaptationQuality" +
+          ", r.DefaultFeature.AutoExposure.Method" +
+          ", r.DefaultFeature.AutoExposure.Bias" +
+          ", r.DefaultFeature.AutoExposure.ExtendDefaultLuminanceRange" +
+          ", r.EyeAdaptation.MethodOverride" +
+          ", CaptureBench.Marker $Marker" +
+          ", CaptureBench.Stall.GameMs $StallGameMs" +
+          ", IAI.Capture.SVE $Sve" +
+          ", IAI.Capture.Delivery $Delivery" +
+          ", IAI.Capture.Pace $Pace" +
+          ", IAI.Capture.Fps 30" +
+          ", IAI.Capture.Config 2 4 8 4 0"
+  # -VerboseAnomalyLog: the blinking toggle line is Verbose (Anomaly_Blinking.cpp:95), so it is
+  # ABSENT from any leg that did not ask for it. Default OFF so no existing leg's log changes shape.
+  if ($VerboseAnomalyLog) { $cmds += ", Log LogAnomaly Verbose" }
+  if ($ExtraExecCmds -ne "") { $cmds += ", $ExtraExecCmds" }
+  # SHIPPING DEFAULTS. IAI.SetViewportScoping is DELIBERATELY NOT ISSUED - OFF is
+  # the shipped default (bViewportScopingEnabled initialises false) and the point
+  # of this run is current shipping behaviour. A48 is satisfied by the EFFECTIVE
+  # READ-BACK, not by a command having been issued, and the read-backs are the
+  # packaged log's "blinking: matched N actor(s)" line (behavioural - matched 0 IS
+  # the scoping-ON signature) and WS ControlSnapshot.viewportScoping.
+  $cmds += ", IAI.Capture.Start $Label`_try$try png $Seed $MaxFrames $Anomaly $Target $AnomalyArgs"
+
+  # S4-0: launch geometry is a leg VARIABLE, not a constant. The resolution
+  # matrix needs DPI-scaled / aspect-mismatched / fullscreen / odd-dimension
+  # configurations, and G109's lesson is that a value measured in one regime is
+  # not an invariant - so the geometry each leg actually ran under is banked
+  # WITH the leg rather than remembered.
+  $mode = if ($Fullscreen) { "-fullscreen" } else { "-windowed" }
+  $launchArgs = @(
+    $Map, $mode, "-ResX=$ResX", "-ResY=$ResY",
+    "-ExecCmds=`"$cmds`"","-unattended","-nosplash")
+
+  $p = Start-Process -FilePath $staged -PassThru -ArgumentList $launchArgs
+
+  try {
+  $sw=[Diagnostics.Stopwatch]::StartNew();$focusAtSec=-1.0;$sh=New-Object -ComObject WScript.Shell
+  $focusSamples=@();$session=$null;$fgHeld=$false
+  while($sw.Elapsed.TotalSeconds -lt $WaitSec){
+    $fg=[Win32Fg]::FgPid()
+    $focusSamples+=@{wall_seconds=([Diagnostics.Stopwatch]::GetTimestamp()/[double][Diagnostics.Stopwatch]::Frequency+16777216.0);foreground_pid=$fg}
+    if($fg -eq $p.Id){if($focusAtSec -lt 0){$focusAtSec=$sw.Elapsed.TotalSeconds};$fgHeld=$true}
+    else{$fgHeld=$false;try{$sh.AppActivate($p.Id)|Out-Null}catch{};$p.Refresh();if($p.MainWindowHandle -ne 0){[Win32Fg]::Force($p.MainWindowHandle)}}
+    $session=Get-ChildItem -LiteralPath $dir -Directory -EA SilentlyContinue | Where-Object {Test-Path -LiteralPath (Join-Path $_.FullName 'run_summary.json')} | Select-Object -First 1
+    if($session){break};if($p.HasExited){throw 'Owned legacy game exited'}
+    Start-Sleep -Milliseconds 50
+  }
+  # ---- LET THE ASYNC WRITER FINISH ITS TAIL FLUSH BEFORE KILLING -------------
+  # run_summary.json is written at run FINISH, but the async frame writer is
+  # still flushing after that. Killing the moment the summary appears truncates
+  # the tail: measured on CM_SPLINE, 7 ZERO-BYTE PNGs at the HIGHEST indices
+  # (80,82-87) while key_ring read 121/121/0 and nothing was logged. The GPU side
+  # was clean; the WRITE side was cut off.
+  #
+  # A62 says wait for the artifact, not a log line. This is the same rule applied
+  # one level deeper: the artifact is not finished when its FIRST file appears.
+  # Wait for the frame COUNT and the zero-byte COUNT to stop changing.
+  if ($session) {
+    $prevN = -1; $prevZ = -1; $stable = 0
+    for ($w = 0; $w -lt 40; $w++) {
+      $ff = @(Get-ChildItem "$($session.FullName)\Actual_Frames" -EA SilentlyContinue)
+      $n = $ff.Count
+      $z = @($ff | Where-Object { $_.Length -eq 0 }).Count
+      if ($n -eq $prevN -and $z -eq $prevZ) { $stable++ } else { $stable = 0 }
+      if ($stable -ge 4 -and $z -eq 0) { break }
+      $prevN = $n; $prevZ = $z
+      Start-Sleep -Milliseconds 250
+    }
+    $ff = @(Get-ChildItem "$($session.FullName)\Actual_Frames" -EA SilentlyContinue)
+    $zLeft = @($ff | Where-Object { $_.Length -eq 0 }).Count
+    if ($zLeft -gt 0) {
+      Write-Output ("   WARNING: {0} ZERO-BYTE frame(s) remain of {1} after the flush wait." -f $zLeft, $ff.Count)
+      Write-Output "            The leg is UNUSABLE for pixel work. Treat as VOID and re-run."
+    }
+  }
+
+  if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+  $p.WaitForExit()
+  } finally {if(-not $p.HasExited){Stop-Process -Id $p.Id -Force;$p.WaitForExit()}}
+  Start-Sleep -Milliseconds 800
+
+  if (-not $session) {
+    $attempts += [pscustomobject]@{ try=$try; start_frame="(no artifact)"; ticks=""; focus=$fgHeld; verdict="INVALID (no run_summary)"; focusAt=$focusAtSec }
+    continue
+  }
+
+  $rsum = Get-Content "$($session.FullName)\run_summary.json" -Raw | ConvertFrom-Json
+  $hasRunJson = Test-Path "$($session.FullName)\run.json"
+  $sf = if ($hasRunJson) {
+    [int](Get-Content "$($session.FullName)\run.json" -Raw | ConvertFrom-Json).start_frame
+  } else { -1 }
+
+  # ---- -LetterboxedFixture SELF-POLICING ASSERTION ------------------------
+  # The switch turns B1 off. It must therefore PROVE, from the artifact, that the view really
+  # was constrained - otherwise it is just a way to make a pose failure disappear. Read the
+  # origin the capture actually used; a zero origin means the constraint never applied and the
+  # leg is INVALID, not merely unlettered.
+  if ($LetterboxedFixture) {
+    $rl = $rsum.readback_layout
+    if ($null -eq $rl) {
+      $attempts += [pscustomobject]@{ try=$try; start_frame=$sf; ticks=""; focus=$fgHeld; verdict="INVALID (-LetterboxedFixture but run_summary has NO readback_layout - cannot prove the constraint)"; focusAt=$focusAtSec }
+      continue
+    }
+    if (([int]$rl.rect_min_x -le 0) -and ([int]$rl.rect_min_y -le 0)) {
+      Write-Output ("   attempt {0} letterbox: rect=({1},{2})-({3},{4}) - ORIGIN IS ZERO" -f $try, $rl.rect_min_x, $rl.rect_min_y, $rl.rect_max_x, $rl.rect_max_y)
+      Write-Output "                     -LetterboxedFixture was declared but the view was NOT constrained."
+      Write-Output "                     B1 would have been skipped on an ordinary leg. INVALID."
+      $attempts += [pscustomobject]@{ try=$try; start_frame=$sf; ticks=""; focus=$fgHeld; verdict="INVALID (-LetterboxedFixture declared, view rect origin is ZERO)"; focusAt=$focusAtSec }
+      continue
+    }
+    Write-Output ("   attempt {0} letterbox: rect=({1},{2})-({3},{4}) picture={5}x{6} - constraint PROVEN from the artifact; B1 declared NOT APPLICABLE" -f `
+      $try, $rl.rect_min_x, $rl.rect_min_y, $rl.rect_max_x, $rl.rect_max_y, $rl.picture_w, $rl.picture_h)
+  }
+
+  $rows=@(Get-Content -LiteralPath (Join-Path $session.FullName 'labels.jsonl') | ForEach-Object {$_|ConvertFrom-Json})
+  $range=$rows|Measure-Object -Property t_wall -Minimum -Maximum
+  $during=@($focusSamples|Where-Object {$_.wall_seconds -ge ($range.Minimum-0.05) -and $_.wall_seconds -le ($range.Maximum+0.05)})
+  $before=@($focusSamples|Where-Object {$_.wall_seconds -le $range.Minimum}|Select-Object -Last 1)
+  $after=@($focusSamples|Where-Object {$_.wall_seconds -ge $range.Maximum}|Select-Object -First 1)
+  $covered=@($before)+@($during)+@($after)
+  $focusOk=$rows.Count -gt 0 -and $during.Count -gt 0 -and $before.Count -eq 1 -and $after.Count -eq 1 -and @($covered|Where-Object {$_.foreground_pid -ne $p.Id}).Count -eq 0
+  $focusAudit=@{pid=$p.Id;first_frame_wall=$range.Minimum;last_frame_wall=$range.Maximum;samples=$focusSamples;measurement_samples=$during.Count;valid=$focusOk}
+  $focusAudit|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $dir '_focus.json') -Encoding utf8
+  if(-not $focusOk){
+    $keep="$bank\$BankPrefix$Label`_try$try"
+    if(Test-Path -LiteralPath $keep){throw 'Existing legacy bank'}
+    New-Item -ItemType Directory -Path $keep|Out-Null
+    Copy-Item -LiteralPath $session.FullName -Destination $keep -Recurse
+    Copy-Item -LiteralPath (Join-Path $dir '_focus.json') -Destination $keep
+    Copy-Item -LiteralPath "$outRoot\..\..\Saved\Logs\StackOBot.log" -Destination (Join-Path $keep '_leg_game.log')
+    $attempts += [pscustomobject]@{try=$try;verdict='INVALID whole-leg foreground';focus=$focusOk}
+    continue
+  }
+  # ---- A63 DECISION -------------------------------------------------------
+  # Reads ONLY how long the run waited before starting. No capture result is
+  # read first, and nothing here depends on what the leg showed.
+  #
+  # The criterion is TIME, not frames. A fixed frame threshold does not
+  # generalise across stall regimes: the 30 s gate expires at ~900 frames on a
+  # nominal leg but at ~300 frames on a 99 ms-stall leg, so one constant is
+  # simultaneously too tight for one and too loose for the other. Elapsed
+  # seconds before the run began is the quantity the gate actually measures.
+  # Non-delivery legs: the artifact proxy (elapsed before the run began).
+  # Delivery legs: run.json does not exist, so the LIVE focus measurement is the
+  # evidence. Both are time, both are outcome-independent.
+  $tk = if ($hasRunJson) {
+    [math]::Round($sf / [double]$rsum.sustained_wall_fps, 1)
+  } else { $focusAtSec }
+  $rodeTimeout = if ($hasRunJson) { $tk -ge 20.0 } else { ($focusAtSec -lt 0) -or ($focusAtSec -ge 20.0) }
+  if ($rodeTimeout) {
+    $keep="$bank\$BankPrefix$Label`_try$try"
+    if(Test-Path -LiteralPath $keep){throw 'Existing legacy bank'}
+    New-Item -ItemType Directory -Path $keep|Out-Null
+    Copy-Item -LiteralPath $session.FullName -Destination $keep -Recurse
+    Copy-Item -LiteralPath (Join-Path $dir '_focus.json') -Destination $keep
+    Copy-Item -LiteralPath "$outRoot\..\..\Saved\Logs\StackOBot.log" -Destination (Join-Path $keep '_leg_game.log')
+    $attempts += [pscustomobject]@{ try=$try; start_frame=$sf; ticks=$tk; focus=$fgHeld; verdict="INVALID (rode focus timeout) - DISCARDED, re-running"; focusAt=$focusAtSec }
+    continue
+  }
+
+  # ---- B1 POSE GATE: reads camera pose ONLY, never a result ---------------
+  # A leg that fails B1 is NOT-CERTIFIABLE (P8), so it is discarded and re-run
+  # exactly as a focus timeout is. Pose is fixed at run start and is independent
+  # of the anomaly outcome, so A63's principle covers it.
+  # EVERY attempt is banked - a failing leg still carries valid,
+  # camera-INDEPENDENT annotation-shape and RESOLUTION evidence.
+  #
+  # The gate does NOT establish WHY it failed. B1 compares a PIXEL bbox against
+  # CALIB_BBOX, frozen at 1280x720, so an off-calibration RESOLUTION fails it
+  # for a reason unrelated to pose - measured four times in S4-1 (M1c, M2 x3,
+  # M3), three of them with the camera provably motionless. check_pose.py prints
+  # the per-component ratio; attribute from that, not from this label.
+  $poseOut = & "C:\Python313\python.exe" "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools\check_pose.py" $session.FullName 2>$null
+  $poseRaw = ($LASTEXITCODE -eq 0)
+  # G117: off the calibration target the gate has no scope, so it does not decide.
+  $poseOk = if ($poseGateApplies) { $poseRaw } else { $true }
+
+  # A47 rotation criterion - target-independent, so it is available where B1 is not.
+  $rotOk = $true
+  $rotSeen = "(not read)"
+  if ($RequireModalRotZero) {
+    $rotText = ($poseOut | Out-String)
+    if ($rotText -match 'modal_rot=\((-?[\d.]+),\s*(-?[\d.]+),\s*(-?[\d.]+)\)') {
+      $rotSeen = "($($Matches[1]), $($Matches[2]), $($Matches[3]))"
+      $rotOk = ([double]$Matches[1] -eq 0.0) -and ([double]$Matches[2] -eq 0.0) -and ([double]$Matches[3] -eq 0.0)
+    } else {
+      $rotOk = $false
+      $rotSeen = "(modal_rot ABSENT from check_pose output)"
+    }
+    Write-Output ("   attempt {0} rot : modal_rot {1} -> {2}" -f $try, $rotSeen, $(if ($rotOk) { "AT REST" } else { "DISPLACED - discarding" }))
+  }
+
+  $keep = "$bank\$BankPrefix$Label`_try$try"
+  if (Test-Path -LiteralPath $keep) { throw "Refusing to replace existing output $keep" }
+  New-Item -ItemType Directory -Force -Path $keep | Out-Null
+  Copy-Item $session.FullName -Destination $keep -Recurse -Force
+  Write-LegGeometry -Dest $keep -Attempt "try$try"
+  Copy-Item -LiteralPath (Join-Path $dir "_focus.json") -Destination $keep
+
+  # The packaged log carries the A48 behavioural echo ("blinking: matched N
+  # actor(s)") and is ROTATED on the next launch, so it is banked WITH the leg
+  # rather than read later. Every attempt gets its own copy.
+  $srcLog = "$outRoot\..\..\Saved\Logs\StackOBot.log"
+  if (Test-Path $srcLog) { Copy-Item $srcLog -Destination "$keep\_leg_game.log" -Force }
+
+  # ---- LogAnomaly EXCERPT, WRITTEN SYNCHRONOUSLY BEFORE ANYTHING CAN RELAUNCH ------------------
+  # The engine ROTATES its log on the next launch, so a LogAnomaly line survives only until the
+  # title starts again. The whole-log copy above already saves it, but a 600 KB log is not a thing
+  # anyone reads - this pulls the LogAnomaly category out whole, all lines, no cap, so the anomaly
+  # side of a leg is readable without grepping.
+  #
+  # It runs HERE, inside the per-attempt banking, so it happens before the next attempt's
+  # Stop-Process/launch can rotate anything. The header carries the SOURCE LOG'S MTIME so an
+  # excerpt can always be tied to the run it came from - a stale excerpt and a fresh one otherwise
+  # look identical (the A-6 lesson).
+  $excerpt = "$keep\anomaly_log_excerpt.txt"
+  if (Test-Path $srcLog) {
+    $mt = (Get-Item $srcLog).LastWriteTime
+    $lines = @(Select-String -Path $srcLog -Pattern 'LogAnomaly' -SimpleMatch | ForEach-Object { $_.Line })
+    $header = @(
+      "# LogAnomaly excerpt for $Label try$try",
+      "# source     : $srcLog",
+      "# source mtime: $mt",
+      "# lines       : $($lines.Count)",
+      "# verboseAnomalyLog: $([bool]$VerboseAnomalyLog)  (blinking toggle lines are Verbose-only)",
+      "#"
+    )
+    [System.IO.File]::WriteAllLines($excerpt, ($header + $lines), [System.Text.UTF8Encoding]::new($false))
+    Write-Output ("   attempt {0} log : LogAnomaly excerpt {1} line(s) -> anomaly_log_excerpt.txt" -f $try, $lines.Count)
+  }
+  else {
+    [System.IO.File]::WriteAllLines($excerpt,
+      @("# LogAnomaly excerpt UNAVAILABLE - source log not found at $srcLog",
+        "# This is an UNREAD surface, not an empty one."),
+      [System.Text.UTF8Encoding]::new($false))
+    Write-Output ("   attempt {0} log : SOURCE LOG NOT FOUND - excerpt records UNREAD, not empty" -f $try)
+  }
+
+  if (-not $poseGateApplies) {
+    Write-Output ("   attempt {0} pose: B1 NOT APPLICABLE - CALIB_BBOX is scoped to {1} " -f $try, $B1_CALIB_TARGET)
+    Write-Output ("                     (this leg targets {0}); G117. Gate did not decide." -f $Target)
+    Write-Output "                     check_pose.py reporting-only output follows:"
+    Write-Output "   $poseOut"
+  }
+
+  if (-not $poseOk) {
+    $attempts += [pscustomobject]@{ try=$try; start_frame=$sf; ticks=$tk; focus=$fgHeld; verdict="POSE GATE FAILED (B1) - CAUSE NOT ESTABLISHED - banked, re-running"; focusAt=$focusAtSec }
+    Write-Output "   attempt $try pose: $poseOut"
+    continue
+  }
+
+  if (-not $rotOk) {
+    $attempts += [pscustomobject]@{ try=$try; start_frame=$sf; ticks=$tk; focus=$fgHeld; verdict="A47 ROTATION GATE FAILED - modal_rot $rotSeen - CAUSE NOT ESTABLISHED - banked, re-running"; focusAt=$focusAtSec }
+    Write-Output "   attempt $try pose: $poseOut"
+    continue
+  }
+
+  $attempts += [pscustomobject]@{ try=$try; start_frame=$sf; ticks=$tk; focus=$fgHeld; verdict="VALID - accepted"; focusAt=$focusAtSec }
+  Write-Output "   attempt $try pose: $poseOut"
+  $accepted = $session.FullName
+  break
+}
+
+Write-Output "=== A63 ATTEMPT LOG for $Label (every attempt, discarded ones included) ==="
+$attempts | Format-Table -AutoSize | Out-String | Write-Output
+
+if (-not $accepted) {
+  Write-Output "HALT: $MaxAttempts consecutive invalid attempts on $Label. No verdict is offered."
+Write-Output "  POSE GATE FAILED (B1) - CAUSE NOT ESTABLISHED."
+Write-Output "  B1 compares a PIXEL bbox against CALIB_BBOX, frozen at 1280x720."
+Write-Output "  Off-calibration resolution AND genuine A47 bifurcation both fail it."
+Write-Output "  Check the ratio print above before attributing a cause."
+  
+  exit 2
+}
+
+$dst = "$bank\$BankPrefix$Label"
+  if (Test-Path -LiteralPath $dst) { throw "Refusing to replace existing output $dst" }
+New-Item -ItemType Directory -Force -Path $dst | Out-Null
+Copy-Item $accepted -Destination $dst -Recurse -Force
+
+Write-LegGeometry -Dest $dst -Attempt "accepted"
+
+Write-Output "ACCEPTED : $accepted"
+Write-Output "BANKED   : $dst"
+Write-Output "GEOMETRY : $ResX`x$ResY $(if ($Fullscreen) { 'fullscreen' } else { 'windowed' }), OS scale $([math]::Round((Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name AppliedDPI -EA SilentlyContinue).AppliedDPI / 96.0 * 100))%"
+exit 0
+
+
+

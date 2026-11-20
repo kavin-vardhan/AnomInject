@@ -1,0 +1,347 @@
+"""090-10c run script. Usage: 090-10c-go.py <phase> [label ...]
+Phases run legs through 090-10c-common (idle gate, editor-DLL swap, PIE driver, staged runner) and write runs/<label>.json.
+Scratch configuration (device profile, saved config) is placed only for the legs that need it and removed by receipt."""
+from pathlib import Path
+import importlib.util, json, shutil, subprocess, sys, time
+sys.dont_write_bytecode = True
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+_s = importlib.util.spec_from_file_location('c910c', str(R / '090-10c-common.py'))
+C = importlib.util.module_from_spec(_s); _s.loader.exec_module(C)
+c = C.c
+W = C.WORK; PY = W / 'py'
+HOST_DP = c.HOST / 'Config' / 'DefaultDeviceProfiles.ini'
+STAGED_DP = c.STAGED / 'Saved' / 'Config' / 'Windows' / 'DeviceProfiles.ini'
+GROUPS = ('TEXTUREGROUP_World', 'TEXTUREGROUP_WorldNormalMap', 'TEXTUREGROUP_WorldSpecular')
+STRESS = ['sg.TextureQuality 1', 'r.Streaming.PoolSize 300']
+DPCVARS = '-DPCVars=r.ShaderCompiler.JobCache=1,r.ShaderCompiler.JobCacheDDC=1'
+
+
+def dp_text(profile):
+    lines = ['[%s DeviceProfile]' % profile, 'DeviceType=Windows', 'BaseProfileName=%s' % ('Windows' if profile != 'Windows' else '')]
+    for g in GROUPS:
+        lines.append('+TextureLODGroups=(Group=%s,MinLODSize=1,MaxLODSize=16384,LODBias=1,MinMagFilter=aniso,MipFilter=point,'
+                     'MipGenSettings=TMGS_SimpleAverage)' % g)
+    return '\n'.join(lines) + '\n'
+
+
+def place(path, text, note):
+    path = Path(path)
+    if path.exists():
+        raise SystemExit(f'refusing to overwrite an existing {path}')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding='utf-8')
+    return C.receipt(path, 'PLACED ' + note)
+
+
+def remove(path, note):
+    path = Path(path)
+    if path.exists():
+        rec = C.receipt(path, 'REMOVING ' + note)
+        path.unlink()
+        C.receipt(path, 'REMOVED ' + note)
+        return rec
+    return None
+
+
+def manifest(tag):
+    out = W / f'manifest_{tag}.json'
+    r = subprocess.run([sys.executable, str(R / '085-03-content-manifest.py'), 'hash', str(out)], capture_output=True, text=True)
+    return dict(tag=tag, rc=r.returncode, out=str(out), tail=r.stdout.strip()[-300:])
+
+
+def census_spec(build, map_, stress=False, texmods=None, extra=None, inventory=None, first_only=False, pre=None):
+    cmds = []
+    if stress:
+        cmds += STRESS
+    if texmods:
+        cmds += [f'PYSTEP {PY / "texmods.py"}']
+    if inventory:
+        cmds += [f'PYSTEP {PY / "inventory.py"}']
+    cmds += pre or []
+    cmds += ['WAIT 10']
+    if first_only:
+        cmds += ['IAI.Bench.TexCorruptAllReasonsFirstOnly 1']
+    cmds += ['IAI.TexCorrupt.Census allreasons', 'WAIT 45']
+    pe = {}
+    if texmods:
+        pe['texmods'] = texmods
+        pe['texmods_wait_s'] = 12.0
+    return dict(mode='pie', build=build, map=map_, arbiter=False, pre=cmds, hold_s=5.0, wait=420,
+                extra=(extra or []) + ['-IAIBench'], plan_extra=pe)
+
+
+def run(label, spec, inventory=False, texmods=False):
+    if inventory:
+        spec.setdefault('plan_extra', {})['inventory_out'] = str(W / 'inv' / f'{label}.json')
+        (W / 'inv').mkdir(parents=True, exist_ok=True)
+    if texmods:
+        spec.setdefault('plan_extra', {})['texmods_out'] = str(W / 'inv' / f'{label}.texmods.json')
+        (W / 'inv').mkdir(parents=True, exist_ok=True)
+    rec = C.run(label, spec)
+    print(json.dumps(dict(label=label, status=rec.get('status'), rc=(rec.get('run') or {}).get('rc'),
+                          census=C.grep(label, r'IAI-TEXCORRUPT-CENSUS v1 (id=|subs|allreasons id=\S+ objects)', 12)), indent=1), flush=True)
+    return rec
+
+
+OL_TEXMODS = [dict(every=3, offset=0, lod_bias=1), dict(every=3, offset=1, cinematic=2)]
+
+
+def phase_before(build):
+    W.mkdir(parents=True, exist_ok=True)
+    print(json.dumps(manifest('M0_before'), indent=1), flush=True)
+    run('P_B_FIX', census_spec(build, c.MAP_FIX, inventory=True), inventory=True)
+    run('P_B_MW', census_spec(build, c.MAP_MW, inventory=True), inventory=True)
+    place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 for the office-like PIE legs')
+    try:
+        run('P_B_OL_FIX', census_spec(build, c.MAP_FIX, stress=True, texmods=OL_TEXMODS, extra=[DPCVARS]), texmods=True)
+        run('P_B_OL_MW', census_spec(build, c.MAP_MW, stress=True, texmods=OL_TEXMODS, extra=[DPCVARS]), texmods=True)
+        run('P_B_OL_FIX_FIRSTONLY', census_spec(build, c.MAP_FIX, stress=True, texmods=OL_TEXMODS, extra=[DPCVARS], first_only=True),
+            texmods=True)
+    finally:
+        remove(HOST_DP, 'scratch texture-group LODBias=1')
+    print(json.dumps(manifest('M1_after_before'), indent=1), flush=True)
+
+
+if __name__ == '__main__' and sys.argv[1] == 'before':
+    phase_before(sys.argv[2])
+
+
+UV, NM = 'uv_corruption', 'normal_corruption'
+FIX, FIX_N, STREAM = 'StaticMeshActor_0', 'StaticMeshActor_12', 'StaticMeshActor_74'
+FOCUS = ['IAI.Capture.FocusGate 0']
+
+
+def variant(v, mode):
+    """Per-variant pre commands, plan extras, extra args and scratch config for a mode (pie|staged)."""
+    pre, pe, extra, dp, target_uv = [], {}, [], None, FIX
+    if v in ('V1', 'V3'):
+        bias, cin = (1, 0) if v == 'V1' else (0, 1)
+        if mode == 'pie':
+            mods = [dict(actors=[FIX, FIX_N], lod_bias=bias if v == 'V1' else None, cinematic=cin if v == 'V3' else None)]
+            pre += [f'PYSTEP {PY / "texmods.py"}']
+            pe.update(texmods=mods, texmods_wait_s=10.0)
+        else:
+            pre += [f'IAI.Bench.TexCorruptHostTexBias {FIX} {bias} {cin}', f'IAI.Bench.TexCorruptHostTexBias {FIX_N} {bias} {cin}']
+    elif v == 'V2':
+        dp = 'pie' if mode == 'pie' else 'staged'
+    elif v == 'V4':
+        pre += ['r.MipMapLODBias 1']
+    elif v == 'V5a':
+        pre += ['r.Streaming.UsePerTextureBias 1', 'r.Streaming.MipBias 1']
+    elif v == 'V5b':
+        pre += ['r.Streaming.UsePerTextureBias 0', 'r.Streaming.MipBias 1']
+    elif v == 'V6':
+        pre += ['r.Streaming.PoolSize 40']
+        target_uv = STREAM
+    return pre, pe, extra, dp, target_uv
+
+
+def with_dp(where, fn):
+    if where is None:
+        return fn()
+    if where == 'pie':
+        place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 (V2, PIE)')
+        try:
+            return fn()
+        finally:
+            remove(HOST_DP, 'scratch texture-group LODBias=1 (V2, PIE)')
+    bak = None
+    if STAGED_DP.exists():
+        bak = W / 'staged_DeviceProfiles.ini.bak'
+        shutil.copyfile(STAGED_DP, bak)
+        C.receipt(bak, 'BACKUP of the staged build saved DeviceProfiles.ini before V2')
+        STAGED_DP.unlink()
+    place(STAGED_DP, dp_text('Windows'), 'scratch texture-group LODBias=1 (V2, staged saved config)')
+    try:
+        return fn()
+    finally:
+        remove(STAGED_DP, 'scratch texture-group LODBias=1 (V2, staged)')
+        if bak:
+            shutil.copyfile(bak, STAGED_DP)
+            C.receipt(STAGED_DP, 'RESTORED the staged build saved DeviceProfiles.ini after V2')
+
+
+def proof_leg(label, build, mode, v, kind):
+    """kind: uv | normal | identity | canfail (census both targets + a uv capture)."""
+    pre, pe, extra, dp, tuv = variant(v, mode)
+    spec = dict(mode=mode, build=build, map=c.MAP_FIX, census=False, extra=extra + ['-IAIBench'], frames=150, cfg='2 4 8 14 0')
+    pre = FOCUS + pre
+    if kind == 'uv':
+        spec.update(anomaly=UV, target=tuv, args=['tile'])
+    elif kind == 'normal':
+        spec.update(anomaly=NM, target=FIX_N, args=['invert'])
+    elif kind == 'identity':
+        pre += ['IAI.Bench.TexCorruptIdentity 1']
+        spec.update(anomaly=UV, target=tuv)
+    elif kind == 'canfail':
+        pre += [f'IAI.Bench.TexCorruptCensus {tuv}', f'IAI.Bench.TexCorruptCensus {FIX_N}']
+        spec.update(anomaly=UV, target=tuv, args=['tile'])
+    if mode == 'pie':
+        pre = pre[:1] + pre[1:]
+        pe.setdefault('texmods_out', str(W / 'inv' / f'{label}.texmods.json'))
+        spec['plan_extra'] = pe
+        spec['wait'] = 600
+    spec['pre'] = pre
+    return with_dp(dp, lambda: run(label, spec))
+
+
+def phase_after(build, exe=None):
+    W.mkdir(parents=True, exist_ok=True)
+    print(json.dumps(manifest('M2_before_after'), indent=1), flush=True)
+    run('P_A_FIX', census_spec(build, c.MAP_FIX), inventory=False)
+    run('P_A_MW', census_spec(build, c.MAP_MW), inventory=False)
+    place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 for the office-like PIE legs (after)')
+    try:
+        run('P_A_OL_FIX', census_spec(build, c.MAP_FIX, stress=True, texmods=OL_TEXMODS, extra=[DPCVARS]), texmods=True)
+        run('P_A_OL_MW', census_spec(build, c.MAP_MW, stress=True, texmods=OL_TEXMODS, extra=[DPCVARS]), texmods=True)
+    finally:
+        remove(HOST_DP, 'scratch texture-group LODBias=1 (after)')
+    print(json.dumps(manifest('M3_after_census'), indent=1), flush=True)
+
+
+def phase_proof(build, mode, variants, kinds):
+    for v in variants:
+        for k in kinds:
+            proof_leg(f'{"P" if mode == "pie" else "S"}_{v}_{k}_{build[-8:]}', build, mode, v, k)
+    print(json.dumps(manifest(f'M_proof_{mode}_{build[-8:]}_{int(time.time())}'), indent=1), flush=True)
+
+
+if __name__ == '__main__' and sys.argv[1] in ('after', 'proof'):
+    if sys.argv[1] == 'after':
+        phase_after(sys.argv[2])
+    else:
+        phase_proof(sys.argv[2], sys.argv[3], sys.argv[4].split(','), sys.argv[5].split(','))
+
+def proof_leg_x(label, build, mode, v, kind, extra_pre):
+    pre, pe, extra, dp, tuv = variant(v, mode)
+    spec = dict(mode=mode, build=build, map=c.MAP_FIX, census=False, extra=extra + ['-IAIBench'], frames=150, cfg='2 4 8 14 0')
+    pre = FOCUS + pre + list(extra_pre)
+    if kind == 'identity':
+        pre += ['IAI.Bench.TexCorruptIdentity 1']
+        spec.update(anomaly=UV, target=tuv)
+    elif kind == 'uv':
+        spec.update(anomaly=UV, target=tuv, args=['tile'])
+    elif kind == 'normal':
+        spec.update(anomaly=NM, target=FIX_N, args=['invert'])
+    if mode == 'pie':
+        pe.setdefault('texmods_out', str(W / 'inv' / f'{label}.texmods.json'))
+        spec['plan_extra'] = pe
+        spec['wait'] = 600
+    spec['pre'] = pre
+    return with_dp(dp, lambda: run(label, spec))
+
+
+if __name__ == '__main__' and sys.argv[1] == 'chain1':
+    b = sys.argv[2]
+    phase_after(b)
+    proof_leg_x('P_V0_identity_' + b, b, 'pie', 'V0', 'identity', [])
+    proof_leg_x('P_V4_identity_prod_' + b, b, 'pie', 'V4', 'identity', [])
+    proof_leg_x('P_V4_identity_comp_' + b, b, 'pie', 'V4', 'identity', ['IAI.Bench.TexCorruptSrcMipCompensation 1'])
+    proof_leg_x('P_V4_identity_nopatch_' + b, b, 'pie', 'V4', 'identity', ['IAI.Bench.TexCorruptRtSamplerBias 0'])
+
+ORB = '/Game/StackOBot/Blueprints/GameElements/BP_EnergyOrb.BP_EnergyOrb_C'
+
+
+def b_leg(label, build, extra_pre, anomaly=UV, mode='tile'):
+    out = C.OUT / label
+    pe = dict(out_dir=str(out), bspawn_out=str(W / 'inv' / f'{label}.bspawn.json'),
+              bspawn=dict(class_path=ORB, dist=260.0, anomaly=anomaly, mode=mode, frames=150, pre=list(extra_pre)))
+    (W / 'inv').mkdir(parents=True, exist_ok=True)
+    spec = dict(mode='pie', build=build, map=c.MAP_FIX, census=False, kind='exit', wait=600, extra=['-IAIBench'], cfg='2 4 8 14 0',
+                pre=FOCUS + [f'PYSTEP {PY / "bspawn.py"}'], plan_extra=pe)
+    return run(label, spec)
+
+
+if __name__ == '__main__' and sys.argv[1] == 'bproof':
+    b = sys.argv[2]
+    b_leg('P_B_ORB_scope_' + b, b, [])
+    b_leg('P_B_ORB_noscope_' + b, b, ['IAI.Bench.TexCorruptNoPartScope 1'])
+
+VARS = ['V1', 'V2', 'V3', 'V4', 'V5a', 'V5b', 'V6']
+
+
+def phase_final_census(b):
+    for tag, mp in (('FIX', c.MAP_FIX), ('MW', c.MAP_MW)):
+        run(f'P_F_{tag}_{b}', census_spec(b, mp))
+    place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 (final office-like)')
+    try:
+        for tag, mp in (('FIX', c.MAP_FIX), ('MW', c.MAP_MW)):
+            run(f'P_F_OL_{tag}_{b}', census_spec(b, mp, stress=True, texmods=OL_TEXMODS, extra=[DPCVARS]), texmods=True)
+    finally:
+        remove(HOST_DP, 'scratch texture-group LODBias=1 (final office-like)')
+
+
+if __name__ == '__main__' and sys.argv[1] == 'chain2':
+    b, old = sys.argv[2], sys.argv[3]
+    steps = sys.argv[4].split(',') if len(sys.argv) > 4 else ['census', 'pie', 'b', 'pie_canfail', 'staged', 'staged_canfail']
+    print(json.dumps(manifest(f'M_chain2_start_{b}'), indent=1), flush=True)
+    if 'census' in steps:
+        phase_final_census(b)
+    if 'pie' in steps:
+        for v in VARS:
+            for k in ('uv', 'normal', 'identity'):
+                proof_leg(f'P_{v}_{k}_{b}', b, 'pie', v, k)
+    if 'b' in steps:
+        b_leg('P_B_ORB_scope_' + b, b, [])
+        b_leg('P_B_ORB_noscope_' + b, b, ['IAI.Bench.TexCorruptNoPartScope 1'])
+    if 'pie_canfail' in steps:
+        for v in VARS:
+            proof_leg(f'P_{v}_canfail_{old}', old, 'pie', v, 'canfail')
+    if 'staged' in steps:
+        for v in VARS:
+            for k in ('uv', 'normal', 'identity'):
+                proof_leg(f'S_{v}_{k}_{b}', b, 'staged', v, k)
+    if 'staged_canfail' in steps:
+        for v in ('V2', 'V4', 'V5a', 'V5b', 'V6'):
+            proof_leg(f'S_{v}_canfail_{old}', old, 'staged', v, 'canfail')
+    print(json.dumps(c.restore_s1(), indent=1), flush=True)
+    print(json.dumps(manifest(f'M_chain2_end_{b}'), indent=1), flush=True)
+
+if __name__ == '__main__' and sys.argv[1] == 'bproof2':
+    b = sys.argv[2]
+    def b_leg2(label, extra_pre):
+        out = C.OUT / label
+        pe = dict(out_dir=str(out), bspawn_out=str(W / 'inv' / f'{label}.bspawn.json'),
+                  bspawn=dict(class_path=ORB, dist=260.0, anomaly=UV, mode='tile', frames=150, pre=list(extra_pre), disallow_nanite=True))
+        spec = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, kind='exit', wait=600, extra=['-IAIBench'], cfg='2 4 8 14 0',
+                    pre=FOCUS + [f'PYSTEP {PY / "bspawn.py"}'], plan_extra=pe)
+        return run(label, spec)
+    b_leg2('P_B2_ORB_scope_' + b, [])
+    b_leg2('P_B2_ORB_noscope_' + b, ['IAI.Bench.TexCorruptNoPartScope 1'])
+
+if __name__ == '__main__' and sys.argv[1] == 'bproof3':
+    b, cls, tag = sys.argv[2], sys.argv[3], sys.argv[4]
+    def b_leg3(label, extra_pre):
+        out = C.OUT / label
+        pe = dict(out_dir=str(out), bspawn_out=str(W / 'inv' / f'{label}.bspawn.json'),
+                  bspawn=dict(class_path=cls, dist=320.0, dz=-60.0, anomaly=UV, mode='tile', frames=150, pre=list(extra_pre), disallow_nanite=True))
+        spec = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, kind='exit', wait=600, extra=['-IAIBench'], cfg='2 4 8 14 0',
+                    pre=FOCUS + [f'PYSTEP {PY / "bspawn.py"}'], plan_extra=pe)
+        return run(label, spec)
+    b_leg3(f'P_B3_{tag}_scope_' + b, [])
+    b_leg3(f'P_B3_{tag}_noscope_' + b, ['IAI.Bench.TexCorruptNoPartScope 1'])
+
+if __name__ == '__main__' and sys.argv[1] == 'autool':
+    b = sys.argv[2]
+    place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 (auto-pool office-like MainWorld)')
+    try:
+        pe = dict(texmods=OL_TEXMODS, texmods_wait_s=12.0, texmods_out=str(W / 'inv' / f'P_AUTO_OL_MW_{b}.texmods.json'))
+        spec = dict(mode='pie', build=b, map=c.MAP_MW, census=False, extra=[DPCVARS, '-IAIBench'], frames=600, cfg='2 4 8 14 0',
+                    auto=['uv_corruption', 'normal_corruption'], seed=777, wait=900,
+                    pre=FOCUS + STRESS + [f'PYSTEP {PY / "texmods.py"}', 'WAIT 10'], plan_extra=pe)
+        run(f'P_AUTO_OL_MW_{b}', spec)
+    finally:
+        remove(HOST_DP, 'scratch texture-group LODBias=1 (auto-pool office-like MainWorld)')
+
+if __name__ == '__main__' and sys.argv[1] == 'autofix':
+    b = sys.argv[2]
+    place(HOST_DP, dp_text('WindowsEditor'), 'scratch texture-group LODBias=1 (auto-pool office-like fixture)')
+    try:
+        pe = dict(texmods=OL_TEXMODS, texmods_wait_s=12.0, texmods_out=str(W / 'inv' / f'P_AUTO_OL_FIX_{b}.texmods.json'))
+        spec = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, extra=[DPCVARS, '-IAIBench'], frames=600, cfg='2 4 8 14 0',
+                    auto=['uv_corruption', 'normal_corruption'], seed=777, wait=900,
+                    pre=FOCUS + STRESS + ['IAI.SetMinScreenCoverage 0', 'IAI.SetPollRadius 0', f'PYSTEP {PY / "texmods.py"}', 'WAIT 10'],
+                    plan_extra=pe)
+        run(f'P_AUTO_OL_FIX2_{b}', spec)
+    finally:
+        remove(HOST_DP, 'scratch texture-group LODBias=1 (auto-pool office-like fixture)')

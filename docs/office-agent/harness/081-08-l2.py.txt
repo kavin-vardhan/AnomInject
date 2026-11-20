@@ -1,0 +1,41 @@
+from pathlib import Path
+import datetime, json, re, sys
+
+def audit(log, post):
+    lines=log.splitlines(); errors=[]
+    def stamp(line):
+        m=re.search(r'\[(\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}:\d{3})\]',line)
+        return datetime.datetime.strptime(m[1],'%Y.%m.%d-%H.%M.%S:%f') if m else None
+    placed=[(i,l) for i,l in enumerate(lines,1) if 'IAI-L2 PLACED request=1 ok=1' in l]
+    starts=[(i,l) for i,l in enumerate(lines,1) if 'IAI-L2 CAPTURE-START' in l]
+    if len(placed)!=1:errors.append('missing/duplicate/successless placement marker')
+    if post and len(starts)!=1:errors.append('missing/duplicate capture-start marker')
+    if not post and starts:errors.append('capture started before L2 precheck')
+    violations=[]; previous=[]
+    if placed:
+        t0=stamp(placed[0][1]); t1=stamp(starts[0][1]) if starts else None
+        if t0 is None or (post and (t1 is None or t1<t0)):errors.append('invalid marker timestamps')
+        for i,line in enumerate(lines,1):
+            if not re.search(r'respawn|possess|OnPawnAvatarSet',line,re.I):continue
+            t=stamp(line)
+            if t is not None and t0 is not None and t<t0:previous.append({'line':i,'text':line})
+            # Check the entire flushed/final log by timestamp, including buffered lines after the marker.
+            if t0 is not None and t is not None and t>=t0 and (t1 is None or t<=t1):violations.append({'line':i,'text':line})
+            elif t is None and placed[0][0]<i and (not starts or i<starts[0][0]):violations.append({'line':i,'text':line})
+        if violations:errors.append('respawn/possession in placement-to-capture interval')
+    return {'status':'INVALID-FIXTURE' if errors else 'PASS-L2','mode':'post' if post else 'pre',
+            'placement':placed,'capture_start':starts,'last_prior_host_event':previous[-1] if previous else None,
+            'violations':violations,'errors':errors}
+
+if __name__=='__main__':
+    if sys.argv[1]=='--selftest':
+        a='[2026.09.21-10.00.00:000] IAI-L2 PLACED request=1 ok=1\n'
+        b='[2026.09.21-10.00.01:000] IAI-L2 CAPTURE-START\n'
+        assert audit(a+b,True)['status']=='PASS-L2'
+        assert audit(a+b+'[2026.09.21-10.00.00:500] OnPawnAvatarSet\n',True)['status']=='INVALID-FIXTURE'
+        assert audit(a+b+'[2026.09.21-10.00.02:500] OnPawnAvatarSet\n',True)['status']=='PASS-L2'
+        assert audit(a+a+b,True)['status']=='INVALID-FIXTURE'
+        print('L2 interval selftest PASS, including buffered event after capture marker')
+    else:
+        r=audit(Path(sys.argv[1]).read_text(encoding='utf-8-sig',errors='replace'),sys.argv[3]=='post')
+        Path(sys.argv[2]).write_text(json.dumps(r,indent=2)); print(json.dumps(r));sys.exit(10 if r['errors'] else 0)

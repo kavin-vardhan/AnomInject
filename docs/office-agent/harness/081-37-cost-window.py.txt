@@ -1,0 +1,74 @@
+import importlib.util,json,os,sys,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews');EV=R/'081-37-evidence'
+tag=sys.argv[1] if len(sys.argv)>1 else 'default'
+os.environ['IAI_R23_BUDGET_TAG']=tag;os.environ.setdefault('IAI_C37_ROOT',str(EV/'cost'));os.environ['PYTHONDONTWRITEBYTECODE']='1'
+spec=importlib.util.spec_from_file_location('c37',R/'081-37-cost-lib.py');C=importlib.util.module_from_spec(spec);spec.loader.exec_module(C)
+L,c=C.L,C.c;BOUNDARY=Path(os.environ.get('IAI_C37_BOUNDARY',str(EV/'cost-boundary.json')))
+PRED_REL='docs/predictions/2026-09-26-m55-stage3-cost.md'
+def checks(where):
+    problems=[]
+    def chk(ok,m):
+        if not ok:problems.append(m)
+    b=json.loads(BOUNDARY.read_text()) if BOUNDARY.exists() else None
+    chk(b is not None,f'boundary missing {BOUNDARY}')
+    if not b:return problems,{}
+    post22=json.loads((c.E22/'postflight.json').read_text())
+    ours,foreign=c.classify()
+    chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],f'our engine/game processes present ({where})')
+    for name,r in {'AnomalyInjector':c.RP,'Lyra':c.L,'CaptureBench':c.C}.items():
+        chk(not c.git(r,'diff','--name-only') and not c.git(r,'diff','--cached','--name-only'),f'{name} tracked modifications')
+        st_=c.state(r);old=post22['repos'][name]
+        chk(st_['head']==old['head'] and st_['branch']==old['branch'],f'{name} head/branch moved {st_["head"][:7]} {st_["branch"]}')
+    fh=c.git(c.RP,'rev-parse',c.FEATURE);chk(fh==b['feature_head'],f'feature head {fh[:7]} != boundary {b["feature_head"][:7]}')
+    try:chk(c.git(c.RP,'rev-parse',f'refs/remotes/origin/{c.FEATURE}')==fh,'feature branch not pushed (origin != local)')
+    except Exception as ex:problems.append(f'origin feature ref unreadable {ex}')
+    chk(sorted(p.name for p in (c.L/'Binaries/Win64').iterdir() if p.is_file())==post22['lyra_module_names'],'Lyra module set')
+    for p,h in post22['verified_binaries'].items():chk(c.sha(p)==h,f'binary changed {p}')
+    b3=c.binary_v3()
+    for key in ('built','staged','archive'):chk(c.sha(b3[key])==b3['sha256'],f'002805CF not {key}')
+    for r in b3['containers']:chk(c.sha(r['path'])==r['sha256'],f'container {r["path"]}')
+    chk(c.sha(c.PRE_M55).upper().startswith('0844220E'),'pre-m55 archive')
+    for p,h in b['harness'].items():
+        q=Path(p) if Path(p).is_absolute() else R/p
+        chk(q.exists() and c.sha(q)==h,f'harness file changed {p}')
+    try:
+        committed=__import__('subprocess').check_output(['git','-C',str(c.RP),'show',f'{b["feature_head"]}:{PRED_REL}'])
+        chk(__import__('hashlib').sha256(committed).hexdigest()==b['predictions_sha256'],'committed predictions differ from the boundary')
+    except Exception as ex:problems.append(f'committed predictions unreadable {ex}')
+    return problems,dict(foreign=[(p['pid'],p['name']) for p in foreign],b3=b3['sha256'][:8],feature_head=fh)
+def write(name,obj):
+    n=len(list(C.ROOT.glob(name.replace('{n}','*'))));p=C.ROOT/name.replace('{n}',str(n+1));p.write_text(json.dumps(obj,indent=2,default=str));return p
+def main():
+    pre,info=checks('preflight');write('preflight-{n}.json',dict(utc=c.now(),tag=tag,problems=pre,**info))
+    if pre:print(json.dumps(dict(result='PREFLIGHT FAILED - no leg run',problems=pre)));return 10
+    if L.budget_left()<=0:print(json.dumps(dict(result='NOT-QUIET',why='the 45-min wait budget of this tag is spent',budget=L.budget_state())));return 4
+    invocation=c.now();code=0;msg=None;state=None
+    try:
+        C.quiet_gate('window-start');L.pp_gate('window-start');base=C.load_gate('window-start')
+        write('window-start-{n}.json',dict(invocation=invocation,tag=tag,baseline_load=base,budget=L.budget_state()))
+        state=C.run_campaign(invocation)
+    except (C.Stop,L.Stop) as ex:code,msg=ex.code,ex.msg
+    post,pinfo=checks('postflight')
+    for n in ('cost-verdict.json','oracle-readings.json','bank-manifest.json','evidence-manifest.json'):
+        p=C.ROOT/n;k=C.ROOT/f'{p.stem}.before-{tag}.json'
+        if p.exists() and not k.exists():k.write_bytes(p.read_bytes())
+    bank={};B=c.B/'_bench_sessions_bank'
+    for d in B.glob('M55B3R23_S3_*'):
+        for q in d.rglob('*'):
+            if q.is_file():bank[str(q.relative_to(c.B))]=c.sha(q)
+    (C.ROOT/'bank-manifest.json').write_text(json.dumps(bank,indent=1))
+    an=C.analyze();orc=C.jload(C.ROOT/'oracle-readings.json',{}) or {}
+    for x in C.ledger():
+        if x['status']==C.COUNTED_OK and not x.get('voided') and x['cond']=='B' and x.get('session') and x.get('leg') in C.ACTIVE and x['label'] not in orc:
+            e,s=L.run_oracle(x['session'],C.ROOT/'legs');orc[x['label']]=dict(exit=e,summary=s)
+    (C.ROOT/'oracle-readings.json').write_text(json.dumps(orc,indent=1,default=str))
+    man={str(q.relative_to(c.B)):c.sha(q) for q in C.ROOT.rglob('*') if q.is_file() and q.name not in ('evidence-manifest.json',)}
+    (C.ROOT/'evidence-manifest.json').write_text(json.dumps(man,indent=1))
+    write('postflight-{n}.json',dict(utc=c.now(),problems=post,stop_code=code,stop=msg,campaign=state,verdict=an.get('overall'),**pinfo))
+    print(json.dumps(dict(tag=tag,stop_code=code,stop=msg,postflight_problems=post,headline_overall=an.get('overall'),
+                          headline_paced=[{k:v.get(k) for k in ('resolution','verdict','why')} for v in an['verdicts']],
+                          stress_pacing_off=[{k:v.get(k) for k in ('resolution','verdict','label','cause')} for v in an.get('stress',[])],
+                          diag=an.get('diag'),oracle={k:v['exit'] for k,v in orc.items()},budget=L.budget_state()),default=str))
+    return code or (11 if post else 0)
+if __name__=='__main__':sys.exit(main())

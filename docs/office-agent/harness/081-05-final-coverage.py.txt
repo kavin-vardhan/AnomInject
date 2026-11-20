@@ -1,0 +1,16 @@
+from pathlib import Path
+import json,collections
+base=Path(r"D:\IntrusiveAnomalies");ev=base/"_reviews/081-05-evidence"
+src=json.loads((ev/"final-ledger-v6.json").read_text())
+out={}
+for fixture in ("STACK","LYRA"):
+    legs=[r for r in src["legs"] if r["fixture"]==fixture and not r["errors"]]
+    out[fixture]=dict(accepted=len(legs),rows=sum(r["rows"] for r in legs),valid_pairs=sum(r["reasons"].get("identity_valid",0) for r in legs),
+        max_bytes_high_water=max([r["summary"]["change_bytes_high_water"] for r in legs] or [0]),
+        max_retained_after_close=max([r["summary"]["change_bytes_retained"] for r in legs] or [0]),
+        min_ordinary_events=min([r["event_count"] for r in legs if r["gate"]!=11] or [0]),
+        formats=sorted({f for r in legs for f in r["formats"]}),
+        healthy=[dict(order=r["order"],reasons=r["reasons"],crc_masks=r["frozen_masks_verified"],high_water=r["summary"]["change_bytes_high_water"]) for r in legs if r["gate"]==14],
+        exceptional=[dict(gate=r["gate"],order=r["order"],reasons=r["reasons"]) for r in legs if r["reasons"].get("out_of_order_timeout",0) and r["gate"]!=2])
+out["invalid_attempts"]=[dict(label=r.get("label"),errors=r["errors"]) for r in src["legs"] if r["errors"]]
+(ev/"coverage-v6.json").write_text(json.dumps(out,indent=2));print(json.dumps(out,indent=2))

@@ -1,0 +1,126 @@
+"""090-10f2 Item 3 fixture: cooked per-texture, texture-group and cinematic LOD bias.
+Run in an editor commandlet (-run=pythonscript). Creates NEW assets only under /Game/CaptureBenchTexCorrupt/Bias0910f2:
+for each variant V1 (texture LODBias 1), V2 (LODGroup TEXTUREGROUP_Project01; the cooked device profile biases that group),
+V3 (NumCinematicMipLevels 1): copies of the textures the uv target (StaticMeshActor_0) and the normal target
+(StaticMeshActor_12) draw, a material instance per target over those copies, and a copy of CB_TexCorruptLevel whose two targets
+use them. Existing assets are never overwritten; a report is written to $BIAS0910F2_OUT."""
+import json, os
+import unreal
+
+LEVEL = '/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel'
+DIR = '/Game/CaptureBenchTexCorrupt/Bias0910f2'
+STREAMED = os.environ.get('BIAS0910F2_STREAMED') == '1'
+TARGETS = ['StaticMeshActor_0'] if STREAMED else ['StaticMeshActor_0', 'StaticMeshActor_12']
+SFX = os.environ.get('BIAS0910F2_SUFFIX', 'S')
+VARIANTS = ({'V1' + SFX: dict(lod_bias=1), 'V2' + SFX: dict(group='TEXTUREGROUP_Project01')} if STREAMED
+            else {'V1': dict(lod_bias=1), 'V2': dict(group='TEXTUREGROUP_Project01'), 'V3': dict(cinematic=1)})
+STREAM_SRC = os.environ.get('BIAS0910F2_SRC', '/Game/CaptureBenchTexCorrupt/Textures/T_TC_Big4kA')
+EAL = unreal.EditorAssetLibrary
+MEL = unreal.MaterialEditingLibrary
+REP = dict(created=[], targets={}, variants={}, errors=[])
+OUT = os.environ.get('BIAS0910F2_OUT', r'D:\IA_BankOverflow\_r910f2\author_bias.json')
+
+
+def log(m):
+    unreal.log('BIAS0910F2 ' + m)
+
+
+def actors_by_name(world):
+    return {a.get_name(): a for a in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Actor)}
+
+
+def main():
+    existing = EAL.list_assets(DIR, recursive=True) if EAL.does_directory_exist(DIR) else []
+    if any(('/%s' % v) in a or a.endswith('_%s' % v) or ('Bias%s' % v) in a for a in existing for v in VARIANTS):
+        raise SystemExit('BIAS0910F2 refusing: variant assets already exist in %s' % DIR)
+    world = unreal.EditorLoadingAndSavingUtils.load_map(LEVEL)
+    acts = actors_by_name(world)
+    info = {}
+    for t in TARGETS:
+        a = acts.get(t)
+        if a is None:
+            raise SystemExit('BIAS0910F2 missing target %s' % t)
+        smc = a.get_component_by_class(unreal.StaticMeshComponent)
+        mat = smc.get_material(0)
+        names = [str(n) for n in MEL.get_texture_parameter_names(mat)]
+        texvals = {}
+        for n in names:
+            if isinstance(mat, unreal.MaterialInstance):
+                texvals[n] = MEL.get_material_instance_texture_parameter_value(mat, n)
+            else:
+                texvals[n] = None
+        info[t] = dict(material=mat, params=texvals)
+        REP['targets'][t] = dict(material=mat.get_path_name(), is_instance=isinstance(mat, unreal.MaterialInstance),
+                                 params={k: (v.get_path_name() if v else None) for k, v in texvals.items()})
+        log('target %s material %s params %s' % (t, mat.get_path_name(), REP['targets'][t]['params']))
+    for v, mod in VARIANTS.items():
+        vrep = dict(maps=None, mics={}, textures={})
+        for t in TARGETS:
+            mat = info[t]['material']
+            params = dict(info[t]['params'])
+            if not isinstance(mat, unreal.MaterialInstance) or any(val is None for val in params.values()):
+                defaults = {}
+                for n in params:
+                    val = MEL.get_material_default_texture_parameter_value(mat if not isinstance(mat, unreal.MaterialInstance) else mat.get_base_material(), n)
+                    defaults[n] = val
+                for n, val in defaults.items():
+                    if params.get(n) is None:
+                        params[n] = val
+            parent = mat
+            if STREAMED:
+                params = {n: EAL.load_asset(STREAM_SRC) for n in params}
+            mic_path = '%s/MI_%s_%s' % (DIR, t, v)
+            factory = unreal.MaterialInstanceConstantFactoryNew()
+            mic = unreal.AssetToolsHelpers.get_asset_tools().create_asset(mic_path.split('/')[-1], DIR, unreal.MaterialInstanceConstant, factory)
+            MEL.set_material_instance_parent(mic, parent)
+            for n, tex in params.items():
+                if tex is None or not isinstance(tex, unreal.Texture2D):
+                    continue
+                dst = '%s/%s_%s' % (DIR, tex.get_name(), v)
+                if EAL.does_asset_exist(dst):
+                    copy = EAL.load_asset(dst)
+                else:
+                    copy = EAL.duplicate_asset(tex.get_path_name(), dst)
+                    if 'lod_bias' in mod:
+                        copy.set_editor_property('lod_bias', mod['lod_bias'])
+                    if 'cinematic' in mod:
+                        copy.set_editor_property('num_cinematic_mip_levels', mod['cinematic'])
+                    if 'group' in mod:
+                        copy.set_editor_property('lod_group', getattr(unreal.TextureGroup, mod['group'].upper()))
+                    EAL.save_loaded_asset(copy)
+                    REP['created'].append(dst)
+                MEL.set_material_instance_texture_parameter_value(mic, n, copy)
+                vrep['textures'][dst] = dict(param=n, source=tex.get_path_name(), lod_bias=copy.get_editor_property('lod_bias'),
+                                             cinematic=copy.get_editor_property('num_cinematic_mip_levels'),
+                                             group=str(copy.get_editor_property('lod_group')))
+            MEL.update_material_instance(mic)
+            EAL.save_loaded_asset(mic)
+            REP['created'].append(mic_path)
+            vrep['mics'][t] = mic_path
+        map_path = '%s/CB_TC_Bias%s' % (DIR, v)
+        if not EAL.duplicate_asset(LEVEL, map_path):
+            raise SystemExit('BIAS0910F2 could not duplicate %s' % LEVEL)
+        REP['created'].append(map_path)
+        w2 = unreal.EditorLoadingAndSavingUtils.load_map(map_path)
+        a2 = actors_by_name(w2)
+        for t in TARGETS:
+            smc = a2[t].get_component_by_class(unreal.StaticMeshComponent)
+            smc.set_material(0, EAL.load_asset(vrep['mics'][t]))
+        unreal.EditorLoadingAndSavingUtils.save_map(w2, map_path)
+        vrep['maps'] = map_path
+        REP['variants'][v] = vrep
+        log('variant %s done: %s' % (v, json.dumps(vrep)))
+
+
+try:
+    main()
+except SystemExit as ex:
+    REP['errors'].append(str(ex))
+    log('STOP %s' % ex)
+except Exception as ex:
+    REP['errors'].append('%s: %s' % (type(ex).__name__, ex))
+    log('ERROR %s: %s' % (type(ex).__name__, ex))
+finally:
+    with open(OUT, 'w', encoding='utf-8') as f:
+        json.dump(REP, f, indent=1, default=str)
+    log('REPORT %s created=%d errors=%s' % (OUT, len(REP['created']), REP['errors']))

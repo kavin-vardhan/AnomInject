@@ -1,0 +1,76 @@
+from pathlib import Path
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-08-evidence'
+previous=(E/'CURRENT.before.md').read_bytes();current=B/'ToCodex/CURRENT.md'
+assert current.read_bytes()==previous
+header='''# 081-08 m55 Stage 2 implementation / qualification halt — 2026-09-21
+
+Owner supplied `_reviews/081-07-chat-ruling-lyra-scoped-stage-2-released.md`.
+Disposition: NEEDS-DECISION. Stage 2 implemented and built; static null/solid twins both
+orders qualified (five events each). Delay=3 natural exhausted three B1-invalid attempts:
+A1 modal coverage85.9% <90%, A2/A3 calibrated-pose mismatch. Cause NOT ESTABLISHED.
+No measurement verdict, fourth attempt or capture after the halt. Stage 3 HELD.
+Codex implements; Chat orchestrates; Code independently reviews after Stage 3. No mailbox brief.
+
+Read in order:
+1. D:/IntrusiveAnomalies/_reviews/081-08-codex-m55-stage-2-report.md (full, questions at end).
+2. D:/IntrusiveAnomalies/_reviews/081-07-chat-ruling-lyra-scoped-stage-2-released.md.
+3. D:/IntrusiveAnomalies/_reviews/081-08-frozen/AnomalyInjector/docs/sessions/2026-09-21-081-08-codex-m55-stage-2.md.
+4. Frozen docs/change-evidence-fields.md and docs/predictions/2026-09-20-m55-change-evidence.md.
+5. 081-08-evidence/final-ledger.json, twins-ordering.json, four accepted audit-m55s2v3_*.json,
+   leg-m55s2v3_delay_n.log, binary-v3.json and source-checks.json.
+6. 081-08-evidence/bank-manifest.json, restoration.json, postflight.json; 081-08-frozen/manifest.json.
+
+Stage 1 ACCEPTED/CLOSED on36 legs: StackOBot30, Lyra6. The other24 Lyra G1–G12/order legs
+are DROPPED-BY-OWNER-DECISION (host-chosen spawn; accepted Stage 1 candidate lacked placement).
+Historical three L1-invalid attempts and original G14 failed-precondition-undefined preserved.
+Never relabel the24 as UNEXERCISED/FAIL or resume that dropped matrix.
+
+Current candidate source989da8b12ccf9fb7b70409f08a6321d5f7d78087; final feature local/origin
+99adbbb35a333244fc926cd395b999045082f9ed. Game built/staged/archive SHA256
+2c21ede58f54b947e014f29e7c81181872c90a8334eea8f004bb0c1f4ab6b392.
+Candidate Lyra11-file archive: _binary_baselines/m55-stage2-lyra-cece3c18.
+Runtime invariance predecessor remains archived AEBD09EA, unchanged; comparison UNRUN.
+Old0844220E, five containers, prior artifacts and pre-existing untracked files preserved.
+
+Main restored m51 53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67, clean tracked,11 handoffs retained.
+Lyra detached caa68c6799db023f7a24c0d6cfc56124ce27b542, clean, nine original modules restored;
+only the two newly introduced AnomalyBench module files removed. Main StackOBotEditor modules
+remain the rebuilt candidate, as does staged Game; do not infer binaries from m51 source.
+CaptureBench b2ca7646e094b61d423f879dbad47af116f0ae10 with eight prior untracked files unchanged.
+Master local/origin031a103b18b90b2ce9dd626b22e9498717c60815 unchanged. No merge/tag/cook/host edit.
+116 source/docs files frozen. No owned game/editor/build process or watcher remains in flight.
+
+Evidence:66/80 twin window pairs measured;20/20 onsets measured;284 mask CRC/PNG matches;
+zero denominator/histogram/onset-reference/persistence/mutation/drop audit counters; bytes retained0.
+Solid onset fraction1.0 > control0.017606–0.021331 and null0.000120–0.000987. Explicit budget/
+predecessor refusals retained. This is not a Stage 3 independent pixel oracle or cost verdict.
+
+Open: delay natural allowance exhausted (0 remaining); delay synthetic; moving-camera twins;
+normal/depth-silenced/already-occluded hide; blink; short; drop; dedicated run-end; actual teardown;
+StuckMipNoHold; six-leg AEBD09EA invariance; all three scoped Lyra legs. Offscreen-at-SI3 helper
+WITHDRAWN unrun: executes before first live fire and does not prove occlusion. Private B1 exception
+removed; no leg used it. A real occluder fixture and motion-fixture checks must be declared.
+Prepared helpers are not permission to resume or to renew allowances. Old081-08-boundary.py post
+is stale; actual boundary checker is081-08-finish-boundary.py.
+
+Lyra L2 editor module built, log/L1 checkers selftested; zero runtime attempts. First scoped leg
+still has3 total attempts. If L2+L1 fails all3, drop Lyra entirely for m55 without asking again.
+Only null/solid natural and G3/G270 permitted on Lyra; no Lyra Stage 3 or cost matrix.
+
+Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4** into Stage 3, with explanation before cost gates.
+Prior coverage limits copied byte-for-byte with a separate status amendment. Stage 1 teardown
+limit is still open, mandatory in Stage 2. No release/calibration/observable-change verdict.
+
+**Chat review REQUIRED** for the B1 fixture/allowance continuation and Stage 2 disposition.
+**Chat review NOT REQUIRED** for completed authorized implementation/build/boundary documentation.
+Next mandatory checkpoint: Chat's ruling on081-08. Future GREEN Stage 2 automatically releases
+Stage 3; its report is then mandatory before Code review. No fresh session/context switch advised.
+Recheck live state and read the report's Questions for chat before any continuation.
+
+Earlier CURRENT content is preserved byte-for-byte below as history.
+
+---
+
+'''
+current.write_bytes(header.replace('\n','\r\n').encode('utf-8')+previous)
+print('CURRENT updated; all previous bytes preserved.')

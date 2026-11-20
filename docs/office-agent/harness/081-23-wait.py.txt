@@ -1,0 +1,19 @@
+import importlib.util,json,sys,time,datetime
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-23-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+purpose=sys.argv[1] if len(sys.argv)>1 else 'wait'
+limit=float(sys.argv[2]) if len(sys.argv)>2 else 540.0
+interval=float(sys.argv[3]) if len(sys.argv)>3 else 60.0
+need=int(sys.argv[4]) if len(sys.argv)>4 else 2
+t0=time.time();checks=[];streak=0
+while True:
+    try:q=c.quiet()
+    except Exception as ex:
+        q=dict(quiet=False,blocking=[('check-failed',type(ex).__name__,str(ex)[:120])],foreign=[],ours=[])
+    checks.append(dict(utc=c.now(),quiet=q['quiet'],blocking=[b[0] for b in q['blocking']]))
+    c.log_event('quiet-check',purpose=purpose,quiet=q['quiet'],blocking=q['blocking'],foreign_nonblocking=[(p['pid'],p['name']) for p in q['foreign'] if (p['pid'],p['name'],p['path']) not in q['blocking']])
+    streak=streak+1 if q['quiet'] else 0
+    if streak>=need:
+        print(json.dumps(dict(purpose=purpose,result='QUIET',checks=len(checks),waited_s=round(time.time()-t0),last=checks[-1])));sys.exit(0)
+    if time.time()-t0+ (interval if q['quiet'] else interval)>limit:
+        print(json.dumps(dict(purpose=purpose,result='NOT-QUIET',checks=len(checks),waited_s=round(time.time()-t0),last=checks[-1])));sys.exit(1)
+    time.sleep(30 if q['quiet'] else interval)

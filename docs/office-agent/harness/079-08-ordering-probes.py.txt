@@ -1,0 +1,36 @@
+"""Additional D1 checks, declared before execution; no repository or bank writes."""
+import pathlib
+
+driver = pathlib.Path(__file__).with_name("079-08-review-validation.py")
+exec(compile(driver.read_text(encoding="utf-8").split('mode = sys.argv[1]')[0],
+             str(driver), "exec"))
+
+RESULT["predictions"] = {
+    "control": "True target-texture runs10..11 and15..16, precise full-object masks. All four edges must align.",
+    "late_second_onset": "Only second onset label moves15->16. First end must remain12 (offset0); second onset should be15(offset-1) or explicitly refused. It must not be reused as the first clear.",
+    "early_second_onset": "Only second onset label moves15->14. First end must remain12, second onset should read15(offset+1) or refuse.",
+    "mixed_mode": "First run bbox-only, second masked. First run's untrusted search must not suppress the second run's true onset15."
+}
+(ROOT / "079-08-ordering-predictions.json").write_text(json.dumps(RESULT, indent=2)+"\n", encoding="utf-8")
+RESULT["probes"] = {}
+cases = {
+    "adjacent_control": dict(label_runs=((10,11),(15,16))),
+    "adjacent_late_second_onset": dict(label_runs=((10,11),(16,16))),
+    "adjacent_early_second_onset": dict(label_runs=((10,11),(14,16))),
+    "mixed_late_second_onset": dict(label_runs=((10,11),(16,16)), mask_runs=((15,99),))
+}
+try:
+    for name, kw in cases.items():
+        p = vc._codex07_fixture(str(scratch), name, runs=((10,11),(15,16)),
+            patch_sides=(10,30), mask="region", **kw)
+        RESULT["probes"][name] = gate(p)
+finally:
+    assert scratch.resolve().is_relative_to(ROOT) and scratch.name.startswith("079-08-scratch-")
+    for d, dirs, files in os.walk(scratch, followlinks=False):
+        for n in dirs:
+            p = pathlib.Path(d)/n
+            assert not (p.lstat().st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT), p
+    shutil.rmtree(scratch)
+    out = ROOT / "079-08-validation-ordering.json"
+    out.write_text(json.dumps(RESULT, indent=2, default=str)+"\n", encoding="utf-8")
+    print("SAVED", out, flush=True)

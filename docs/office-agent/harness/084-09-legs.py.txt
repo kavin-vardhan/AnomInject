@@ -1,0 +1,80 @@
+FMW='/Game/StackOBot/Maps/MainWorld'
+FGATE='/Game/CaptureBenchGate/CB_GateLevel'
+ROCK='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+ROCK2='StaticMeshActor_UAID_A036BC6AB247EBF902_2048592804'
+SHARED='BP_SpawnPad_C_UAID_B42E9936F54253D500_1492231360'
+GATE_TARGET='StaticMeshActor_49'
+AA_OFF=['r.AntiAliasingMethod 0']
+AA_OFF_ARBITER=['r.AntiAliasingMethod 0','r.Lumen.DiffuseIndirect.Allow 0','r.DynamicGlobalIlluminationMethod 0','r.ReflectionMethod 0']
+SYN=['IAI.Bench.SynthTickOrder 1']
+CFG_M52='2 4 8 30 0'
+CFG_EDGE='2 4 8 14 0'
+CFG_LOD='2 4 16 14 0'
+CFG_MASK='2 4 6 4 0'
+BENCH='-IAIBench'
+BENCH_FIX='-IAIBench -IAIBenchFixture'
+CC_LEVERS=['IAI.Bench.InputLock 1','IAI.Bench.CameraSchedule cc_v1','IAI.Anomaly.CameraClipTriggerRadius 100000']
+CC_MW_LEVERS=['IAI.Anomaly.CameraClipTriggerRadius 100000']
+LOD=['IAI.Anomaly.LodMaxDistance 0','IAI.Anomaly.LodHalfPeriod 8']
+def leg(leg_id,group,role,map_,anomaly,target,frames,cfg,levers=(),seed=777,auto=False,required=True,extra=BENCH,start_args=(),null=None,pair=None,near=None,
+        premise=None,flag=None,note='',variant=None,cond=None):
+    return dict(leg=leg_id,group=group,role=role,map=map_,anomaly=anomaly,target=target,frames=frames,cfg=cfg,levers=list(levers),seed=seed,auto=auto,
+                required=required,extra=extra,start_args=list(start_args),kind='capture',null=null,pair=pair,near=near,premise=premise,flag=flag,note=note,build='FIX',
+                variant=variant,cond=cond)
+POOL5=['IAI.Auto.Pool all 0','IAI.Auto.Pool blinking 1','IAI.Auto.Pool missing_texture 1','IAI.Auto.Pool corrupted_texture 1','IAI.Auto.Pool missing_object 1',
+       'IAI.Auto.Pool stuck_low_mip 1']
+LEGS=[
+ leg('B0','M52','SYNC',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,null='B5'),
+ leg('B5','M52','NULL',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,['IAI.Bench.StuckMipNoHold 1'],note='the matched null: its OWN sharpness series calibrates the edge-local reference (G356); it writes no event on a G350 build and that is not a failure'),
+ leg('B3','M52','SYNC',FMW,'stuck_low_mip',None,1200,CFG_M52,['IAI.Auto.Pool all 0','IAI.Auto.Pool stuck_low_mip 1'],seed=4242,auto=True,null='B5'),
+ leg('B9','M52','AA_OFF',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,AA_OFF,null='B5'),
+ leg('B0L','M52','LEVER',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,['IAI.Bench.StuckMipLegacyTiming 1'],null='B5',note='timing can-fail: must FAIL sync'),
+ leg('P1','M52','PURITY_CANFAIL',FMW,'stuck_low_mip',SHARED,300,CFG_M52,['IAI.Bench.StuckMipLegacyPurity 1'],note='purity can-fail: must FAIL (iii)'),
+ leg('CC_ON_NAT','BCC','CC_ON',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['100'],pair=('CC_NULL_A_NAT','CC_NULL_B_NAT'),near=100),
+ leg('CC_NULL_A_NAT','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('CC_NULL_B_NAT','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('CC_ON_AAOFF','BCC','CC_ON',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,AA_OFF_ARBITER+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['100'],pair=('CC_NULL_AAOFF',None),near=100),
+ leg('CC_NULL_AAOFF','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,AA_OFF_ARBITER+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('CC_ON_SYN','BCC','CC_ON',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,SYN+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['100'],pair=('CC_NULL_SYN',None),near=100),
+ leg('CC_NULL_SYN','BCC','CC_NULL',FGATE,'camera_clipping',GATE_TARGET,200,CFG_EDGE,SYN+CC_LEVERS,seed=4242,extra=BENCH_FIX,start_args=['10'],near=10),
+ leg('MASK55V2','MASK55V2','MASK',FMW,None,None,1200,CFG_MASK,POOL5+['IAI.Bench.TagPoolLimit 12'],seed=4242,auto=True,
+     note='concurrent mask records: stuck_low_mip in the pool keeps its record live through its restore trail while the next event fires (B0 read peak_live 2 in 084-06); TagPoolLimit 12 forces recycling on MainWorld'),
+]
+MT85='StaticMeshActor_85'
+LEGS+=[
+ leg('MT85_NAT','MT85','SYNC',FGATE,'missing_texture',MT85,300,CFG_EDGE,seed=4242,
+     note='decides the 084-06 MASK55 borderline (+1 at onset on StaticMeshActor_85): amendment R1 left it CONFOUNDED-REFERENCE on the 4-frame MASK55 gaps; 14 post frames give >= 4 clean frames beyond the previous settle'),
+ leg('MT85_SYN','MT85','ORDER',FGATE,'missing_texture',MT85,300,CFG_EDGE,SYN,seed=4242),
+]
+REAL_TYPES=(('BL','blinking'),('MO','missing_object'),('MT','missing_texture'),('CT','corrupted_texture'))
+for code,an in REAL_TYPES:
+    LEGS.append(leg(f'REAL_{code}_NAT','BREAL','SYNC',FMW,an,ROCK,300,CFG_EDGE))
+    LEGS.append(leg(f'REAL_{code}_SYN','BREAL','ORDER',FMW,an,ROCK,300,CFG_EDGE,SYN))
+LOD_TARGETS=(('R1',ROCK),('R2',ROCK2))
+for tcode,tgt in LOD_TARGETS:
+    LEGS.append(leg(f'LODP_{tcode}','BLOD','PREMISE',FMW,'lod_popping',tgt,300,CFG_LOD,LOD+AA_OFF,
+                    note='premise: >= 80 % of its non-warm-up, camera-still events must be MEASURABLE before this target gate legs count'))
+for tcode,tgt in LOD_TARGETS:
+    for cond,lv in (('NAT',[]),('SYN',SYN),('NAT_AAOFF',AA_OFF),('SYN_AAOFF',SYN+AA_OFF)):
+        LEGS.append(leg(f'LOD_{tcode}_{cond}','BLOD','AA_OFF' if 'AAOFF' in cond else ('ORDER' if 'SYN' in cond else 'SYNC'),FMW,'lod_popping',tgt,600,CFG_LOD,LOD+lv,
+                        required=False,premise=f'LODP_{tcode}',flag='--with-lod-gate',
+                        note='gate leg: runs only with --with-lod-gate (chat accepts the best-remaining targets, the declared rule selected none) AND a PASSED premise'))
+FLOD='/Game/AnomalyFixtures/CB_LodFixture'
+LODF_TARGETS=(('FN','N','CB_LodFix_N'),('FD','D','CB_LodFix_D'))
+LODF_FRAMES=720
+LODF_CONDS=(('NAT',[],'SYNC'),('SYN',SYN,'ORDER'),('NAT_AAOFF',AA_OFF,'AA_OFF'),('SYN_AAOFF',SYN+AA_OFF,'AA_OFF'))
+for tcode,var,tgt in LODF_TARGETS:
+    LEGS.append(leg(f'LODP_{tcode}','BLODF','PREMISE',FLOD,'lod_popping',tgt,300,CFG_LOD,LOD+AA_OFF,variant=var,cond='NAT_AAOFF',
+                    note='084-08b fixture premise (the selection rule met by construction, lodfix-selection.json): >= 80 % of non-warm-up, camera-still events MEASURABLE before this variant gate legs run'))
+for tcode,var,tgt in LODF_TARGETS:
+    for cond,lv,role in LODF_CONDS:
+        LEGS.append(leg(f'LOD_{tcode}_{cond}','BLODF',role,FLOD,'lod_popping',tgt,LODF_FRAMES,CFG_LOD,LOD+lv,premise=f'LODP_{tcode}',variant=var,cond=cond,
+                        note='084-08b fixture gate leg (required, 084-08 ruling 1): >= 16 judged events, 0 off frames at t50 outside transition frames; variant D multi-frame fades at the pop edges are a FINDING, never excused'))
+LEGS+=[
+ leg('CCMW_ON','BCCMW','CC_ON',FMW,'camera_clipping',ROCK,200,CFG_EDGE,CC_MW_LEVERS,seed=4242,start_args=['100'],pair=('CCMW_NULL_A','CCMW_NULL_B'),near=100,note='the hollow-mesh reading: no labelled confirmed frame at or below the per-frame null floor'),
+ leg('CCMW_NULL_A','BCCMW','CC_NULL',FMW,'camera_clipping',ROCK,200,CFG_EDGE,CC_MW_LEVERS,seed=4242,start_args=['10'],near=10),
+ leg('CCMW_NULL_B','BCCMW','CC_NULL',FMW,'camera_clipping',ROCK,200,CFG_EDGE,CC_MW_LEVERS,seed=4242,start_args=['10'],near=10,note='null-vs-null floor (G352)'),
+]
+ORDER=['M52','BCC','MASK55V2','MT85','BREAL','BLOD','BLODF','BCCMW']
+def legs_sorted():return sorted(LEGS,key=lambda L:(ORDER.index(L['group']),LEGS.index(L)))
+def by_id(i):return next(L for L in LEGS if L['leg']==i)

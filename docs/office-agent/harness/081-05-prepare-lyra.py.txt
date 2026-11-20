@@ -1,0 +1,32 @@
+from pathlib import Path
+import hashlib, json, shutil
+base = Path(r'D:\IntrusiveAnomalies')
+src = Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector\Binaries\Win64')
+dst = base / '_binary_baselines/m55-stage1-lyra-entry-caa68c6'
+dst.mkdir(exist_ok=False)
+records = []
+for p in src.iterdir():
+    if p.is_file():
+        q = dst / p.name
+        shutil.copy2(p, q)
+        h = hashlib.file_digest(p.open('rb'), 'sha256').hexdigest()
+        assert h == hashlib.file_digest(q.open('rb'), 'sha256').hexdigest()
+        records.append(dict(name=p.name, size=p.stat().st_size, sha256=h))
+(dst/'entry-manifest.json').write_text(json.dumps(records, indent=2))
+(base/'_reviews/081-05-evidence/lyra-binary-before.json').write_text(json.dumps(records, indent=2))
+runner = base / 'StackOBot/Plugins/CaptureBench/tools/lyra_leg.ps1'
+s = runner.read_text(encoding='utf-8-sig')
+lines = []
+for line in s.splitlines():
+    if 'Get-Process -Name ' in line and 'Stop-Process' in line:
+        line = 'if (Get-Process -Name UnrealEditor,StackOBot,LyraGame -ErrorAction SilentlyContinue) { throw "Bench not idle; no process stopped" }'
+    if '$p = Start-Process' in line:
+        line = line.replace('-PassThru', '-PassThru -WindowStyle Hidden')
+    lines.append(line)
+s = '\n'.join(lines)+'\n'
+# Fresh uniquely named outputs only; the original archival move paths are unreachable.
+needle = '$stamp = Get-Date -Format "yyyyMMdd-HHmmss"'
+assert needle in s
+s = s.replace(needle, 'if ((Test-Path -LiteralPath $dir) -or (Test-Path -LiteralPath $log)) { throw "Existing output; choose a fresh label" }\n' + needle)
+(base/'_reviews/081-05-evidence/lyra_leg_owned.ps1').write_text(s, encoding='utf-8-sig')
+print(json.dumps(dict(archive=str(dst), files=records), indent=2))

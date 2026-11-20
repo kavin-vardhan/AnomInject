@@ -1,0 +1,75 @@
+import importlib.util,json,re,subprocess,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-23-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+spec=importlib.util.spec_from_file_location('c18',r'D:\IntrusiveAnomalies\_reviews\081-18-common.py');c18=importlib.util.module_from_spec(spec);spec.loader.exec_module(c18)
+B,E,R=c.B,c.E,c.R
+HOST=sys.argv[1]
+b3=c.binary_v3()
+if HOST=='lyra':
+    L=c.L;staged=json.loads((E/'lyra-staged.json').read_text())
+    ref=json.loads((R/'081-17-evidence/command-LYRA_G3_N_A2.json').read_text())
+    def refarg(n):return ref[ref.index(n)+1]
+    assert refarg('-MaxFrames')=='300' and '-AutoPool' in ref and refarg('-ResX')=='1920' and refarg('-ResY')=='1080'
+    BASE_EXTRA=refarg('-ExtraExecCmds')
+    LEGS=[('L1_LYRA_ON',True),('L2_LYRA_OFF',False),('L3_LYRA_OFF',False),('L4_LYRA_ON',True)]
+    ledger_p=E/'lyra-results.json'
+else:
+    ref=json.loads((R/'081-17-evidence/command-B_SOLID1080_N_A1.json').read_text())
+    def refarg(n):return ref[ref.index(n)+1]
+    assert refarg('-MaxFrames')=='90' and refarg('-Anomaly')=='solid_swap' and refarg('-Order')=='0' and '-ExtraExecCmds' not in ref
+    LEGS=[('S1_STACK_ON',True),('S2_STACK_OFF',False)]
+    ledger_p=E/'stack-results.json'
+if len(sys.argv)>2:LEGS=[x for x in LEGS if x[0] in sys.argv[2:]]
+ledger=json.loads(ledger_p.read_text()) if ledger_p.exists() else []
+def save():ledger_p.write_text(json.dumps(ledger,indent=2))
+for leg,on in LEGS:
+    rows=[x for x in ledger if x['leg']==leg]
+    if any(x['status'] in ('READING','CAPTURE-FAILED','NOT-RUN','HARNESS-INVALID-MODE') for x in rows):continue
+    while True:
+        rows=[x for x in ledger if x['leg']==leg]
+        if len(rows)>=3:
+            ledger.append(dict(leg=leg,label=None,attempt=None,status='NOT-RUN',reason='3 invalid attempts: '+', '.join(x['status'] for x in rows)));save()
+            print(f'{leg} NOT-RUN after 3 invalid attempts',flush=True);break
+        q=c.quiet()
+        if not q['quiet']:c.log_event('leg-refused-not-quiet',leg=leg,blocking=q['blocking']);print(json.dumps(dict(result='NOT-QUIET',leg=leg,blocking=q['blocking'])),flush=True);sys.exit(4)
+        if HOST=='lyra':
+            for r in staged['modules']:assert c.sha(L/'Binaries/Win64'/r['name'])==r['sha256'],r['name']
+            assert c.git(L,'rev-parse','HEAD')==staged['source_commit']
+        else:
+            for key in ('built','staged','archive'):assert c.sha(b3[key])==b3['sha256'],key
+        attempt=len(rows)+1;label=f'{leg}_A{attempt}';d=E/label;runlog=E/f'runner-{label}.log';assert not d.exists() and not runlog.exists()
+        if HOST=='lyra':
+            extra=BASE_EXTRA+('' if on else ', IAI.Capture.ChangeEvidence 0')
+            args=[c.PWSH,'-NoProfile','-File',str(R/'081-23-lyra-run.ps1'),'-Label',label,'-MaxFrames','1800','-ResX',refarg('-ResX'),'-ResY',refarg('-ResY'),'-Config',refarg('-Config'),'-AutoPool','-ExtraExecCmds',extra]
+        else:
+            args=[c.PWSH,'-NoProfile','-File',str(R/'081-23-measure.ps1'),'-Label',label,'-Anomaly',refarg('-Anomaly'),'-Order',refarg('-Order'),'-MaxFrames','1800','-Config',refarg('-Config'),'-ResX',refarg('-ResX'),'-ResY',refarg('-ResY')]
+            if not on:args+=['-ExtraExecCmds','IAI.Capture.ChangeEvidence 0']
+        (E/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+        t0=c.now()
+        with runlog.open('w',encoding='utf-8') as f:run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+        launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'))
+        err=launch.get('error') or '';sent=bool(launch.get('capture_start_sent'))
+        row=dict(leg=leg,evidence=('ON' if on else 'OFF'),label=label,attempt=attempt,runner_exit=run.returncode,started=t0,finished=c.now(),capture_start_sent=sent,error=err,session=launch.get('session'))
+        for key in ('_l1_result.json','_l2_pre.json','_l2_post.json','result.json'):
+            p=d/key
+            if p.exists():row[key]=json.loads(p.read_text(encoding='utf-8-sig'))
+        row['post_l2_ok']=launch.get('post_l2_ok')
+        text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace') if (d/'game.log').exists() else ''
+        row['lock_place_release']=[len(re.findall(r'IAI-INPUT-LOCK ON .*',text)),len(re.findall(r'IAI-L2 PLACED .*',text)),len(re.findall(r'IAI-INPUT-LOCK OFF .*',text))]
+        focus=launch.get('capture_focus',[]);row['foreground']=[sum(x['foreground_pid']==launch.get('pid') for x in focus),len(focus)]
+        row['in_capture_host_events']=c18.in_capture_events(d/'game.log')
+        row['handled_ensure']='=== Handled ensure: ===' in text
+        if 'FOREIGN-EDITOR-APPEARED' in err:
+            row['status']='INVALID-FOREIGN';row['foreign']=launch.get('foreign_editor');row['foreign_where']=launch.get('foreign_where')
+            ledger.append(row);save();c.log_event('leg-invalid-foreign',leg=leg,label=label,where=launch.get('foreign_where'),foreign=launch.get('foreign_editor'))
+            print(json.dumps({k:row.get(k) for k in ('label','status','foreign_where')}),flush=True);sys.exit(5)
+        if run.returncode==0:
+            mc=c18.mode_check(label,on,launch.get('session'),d/'game.log');row['mode_check']=mc
+            row['status']='READING' if mc['ok'] else 'HARNESS-INVALID-MODE'
+        elif not sent or 'L1-INVALID' in err or 'PRECAPTURE' in err:row['status']='INVALID-PRECAPTURE'
+        else:row['status']='CAPTURE-FAILED'
+        ledger.append(row);save()
+        print(json.dumps({k:row.get(k) for k in ('label','status','runner_exit','error','foreground','lock_place_release','post_l2_ok')},default=str),flush=True)
+        if row['status']=='HARNESS-INVALID-MODE':print('STOP: evidence switch not in intended state',flush=True);sys.exit(3)
+        if row['status'] in ('READING','CAPTURE-FAILED'):break
+print(f'{HOST} legs done',flush=True)

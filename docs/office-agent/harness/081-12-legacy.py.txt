@@ -1,0 +1,66 @@
+from pathlib import Path
+import hashlib,json,subprocess,sys,shutil,itertools,re
+from PIL import Image
+B=Path(r'D:\IntrusiveAnomalies'); E=B/'_reviews/081-12-evidence'; bank=B/'_bench_sessions_bank'
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+candidate=json.loads((B/'_reviews/081-11-evidence/binary-v2.json').read_text())
+prior=json.loads((B/'_reviews/081-06-evidence/binary-candidate-v6.json').read_text())
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+assert sha(prior['archive'])==prior['sha256'] and sha(candidate['archive'])==candidate['sha256']
+def idle():
+ s=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name StackOBot,UnrealEditor,LyraGame,UnrealBuildTool -ErrorAction SilentlyContinue) | Select-Object -ExpandProperty Id']).decode().strip();assert not s,s
+def stage(wanted):
+ idle();assert sha(candidate['staged']) in (prior['sha256'],candidate['sha256'])
+ shutil.copy2(wanted['archive'],candidate['staged']);assert sha(candidate['staged'])==wanted['sha256']
+def keys(v):
+ if isinstance(v,dict):return sorted((k,keys(x)) for k,x in v.items())
+ if isinstance(v,list):return sorted(set(json.dumps(keys(x)) for x in v))
+ return None
+results=[];checks=[]
+try:
+ for mapname,path,target in [('MAIN','/Game/StackOBot/Maps/MainWorld','StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'),('CB','/Game/CaptureBenchGate/CB_GateLevel','StaticMeshActor_49')]:
+  current=[]
+  for i,(binary,enabled) in enumerate([(prior,0),(prior,0),(candidate,0),(candidate,1),(candidate,1),(candidate,0)],1):
+   stage(binary);label=f'M55S2R12_{mapname}{i}_E{enabled}'
+   args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-12-legacy-run.ps1'),'-Label',label,'-BankPrefix','M55S2_',
+    '-Map',path,'-Anomaly','blinking','-Target',target,'-MaxFrames','90','-MaxAttempts','3','-WaitSec','120',
+    '-ExtraExecCmds',f'r.AntiAliasingMethod 0, IAI.Capture.ChangeEvidence {enabled}']
+   log=E/f'leg-{label.lower()}.log';assert not log.exists()
+   (E/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+   with log.open('w',encoding='utf-8') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=B/'StackOBot/Plugins/CaptureBench/tools')
+   assert r.returncode==0,(label,r.returncode)
+   session=next((bank/('M55S2_'+label)).glob('session*'))
+   attempt=next(t for t in bank.glob('M55S2_'+label+'_try*') if (t/session.name).exists())
+   labels=sorted(map(json.loads,(session/'labels.jsonl').read_text(encoding='utf-8-sig').splitlines()),key=lambda r:r['session_index'])
+   anno=json.loads((session/'annotation.json').read_text(encoding='utf-8-sig'));summary=json.loads((session/'run_summary.json').read_text(encoding='utf-8-sig'))
+   text=(attempt/'_leg_game.log').read_text(encoding='utf-8-sig',errors='replace')
+   ties=re.findall(r'MASK-TIE session_index=(\d+) tag=(\d+) tableCount=(\d+) pngCount=(\d+) drawnCount=(-?\d+)',text)
+   own_errors=[];occupancy={};mask_count=0
+   for row in labels:
+    if not row.get('mask_file'):continue
+    p=session/row['mask_file'];raw=Image.open(p).convert('L').tobytes();values={x for x in raw if x};mask_count+=1
+    expected={a['mask_value'] for a in row['anomalies']}
+    if not values<=expected:own_errors.append(f"si={row['session_index']} mask values {values} outside own tags {expected}")
+    if len(expected)!=1:own_errors.append(f"si={row['session_index']} expected one target tag")
+    occupancy[p.name]=hashlib.sha256(bytes(bool(x) for x in raw)).hexdigest()
+   assert mask_count and ties and len(labels)==90
+   if not all(x[2]==x[3] for x in ties):own_errors.append('MASK-TIE count mismatch')
+   result=dict(label=label,map=mapname,sha256=binary['sha256'],session=str(session),events=len(anno['anomalies']),mask_count=mask_count,own_errors=own_errors,
+    counts={r['session_index']:[(a['id'],a['target_name'],a.get('target_pixels'),a.get('target_drawn_pixels'),a.get('observable')) for a in r['anomalies']] for r in labels},
+    masks={p.name:sha(p) for p in (session/'target_mask').glob('*.png')},occupancy=occupancy,
+    camera=[r['view'] for r in labels],onsets=[r['session_index'] for j,r in enumerate(labels) if r['anomaly_present'] and (j==0 or not labels[j-1]['anomaly_present'])],
+    label_keys=keys(labels),annotation_keys=keys(anno),summary_keys=sorted(k for k in summary if not k.startswith('change_')),
+    event_ranges=[{k:a.get(k) for k in ('anomaly_type','affected_frames','injected_frames','observable_frame_count','unmeasured_frame_count','observability_measured','manifested')} for a in anno['anomalies']],
+    mask_ties=sorted(ties if mapname=='MAIN' else [(x[0],*x[2:]) for x in ties]),ensures='=== Handled ensure: ===' in text)
+   results.append(result);current.append(result);(E/'legacy-runs.json').write_text(json.dumps(results,indent=2))
+   print(json.dumps(dict(label=label,events=result['events'],onsets=result['onsets'],own_errors=own_errors)),flush=True)
+  for a,b in itertools.combinations(current,2):
+   fields=['counts','camera','onsets','label_keys','annotation_keys','summary_keys','event_ranges','mask_ties','masks' if mapname=='MAIN' else 'occupancy']
+   checks.append(dict(a=a['label'],b=b['label'],equal={k:a[k]==b[k] for k in fields}))
+  passed=all(all(c['equal'].values()) for c in checks) and not any(r['ensures'] or r['own_errors'] for r in results)
+  out=dict(runs=results,comparisons=checks,passed=passed)
+  (E/'legacy-comparison.json').write_text(json.dumps(out,indent=2))
+  print(json.dumps(dict(map=mapname,passed=passed,differences=[c for c in checks if not all(c['equal'].values())])),flush=True)
+  if not passed:sys.exit(1)
+finally:stage(candidate)

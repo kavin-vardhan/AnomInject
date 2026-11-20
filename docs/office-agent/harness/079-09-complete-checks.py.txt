@@ -1,0 +1,72 @@
+"""Verify final endpoint hardening is inert on every calibration shadow, plus CLI/scorer contracts."""
+import contextlib
+import hashlib
+import importlib.util
+import io
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+sys.dont_write_bytecode = True
+ROOT = Path(r"D:\IntrusiveAnomalies")
+TOOLS = ROOT / "StackOBot/Plugins/AnomalyInjector/tools"
+SCORER = ROOT / "StackOBot/Plugins/CaptureBench/tools/m079_shift_recovery.py"
+sys.path.insert(0, str(TOOLS))
+import verify_capture as vc
+spec = importlib.util.spec_from_file_location("scorer079", SCORER)
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+mlo = vc._offset_module()
+OUT = ROOT / "_reviews/079-09-evidence/final"
+root = tempfile.mkdtemp(prefix="m079_shift_")
+result = {"verifier_sha256": hashlib.sha256(Path(vc.__file__).read_bytes()).hexdigest(),
+          "scorer_sha256": hashlib.sha256(SCORER.read_bytes()).hexdigest(), "bounds": [], "classes": [], "cli": []}
+try:
+    for name in ("A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA"):
+        src = m.session_of(str(ROOT / "_bench_sessions_bank"), name)
+        for which, delta in m.PERTURBATIONS:
+            for variant in m.VARIANTS:
+                if delta == 0 and variant == "coherent":
+                    continue
+                dst = str(Path(root) / ("%s_%s_%s_%s" % (name, which, delta, variant)))
+                assert m.shadow(src, dst, which, delta, variant, mlo) is None
+                rows, _state = mlo.read_labels(str(Path(dst) / "labels.jsonl"))
+                paths = vc._frame_paths(dst, mlo)
+                previous = [min(paths), max(paths)]
+                current = [min(set(rows) | set(paths)), max(set(rows) | set(paths))]
+                assert previous == current, (name, which, delta, variant, previous, current)
+                result["bounds"].append(dict(session=name, which=which, delta=delta, variant=variant,
+                                              old=previous, final=current))
+    for name, opts, expected in (
+        ("control", {}, ["recovered", "recovered"]),
+        ("lighting", {"lighting": True}, ["wrong", "recovered"]),
+        ("partial", {"missing_masks": (61,)}, ["unassessable", "recovered"]),
+        ("blank", {"true_runs": (), "label_runs": ((40, 70),)}, ["no-transition", "no-transition"])):
+        source = vc._codex08_fixture(root, name, **opts)
+        excluded = []
+        cells = m.run_cell(source, str(Path(root) / "shadows"), name, "both", 0, "annotation",
+                           vc.REGION_CAP, mlo, m.cohort_of(source, mlo), excluded)
+        assert [c["outcome"] for c in cells] == expected and not excluded
+        result["classes"].append(dict(name=name, cells=cells))
+    negative = str(Path(root) / "blank")
+    missing = str(Path(root) / "not_a_session")
+    for case, path, report_only, expected in (("negative", negative, False, 2),
+            ("negative_report", negative, True, 0), ("execution_error", missing, True, 3)):
+        command = [sys.executable, "-B", str(TOOLS / "verify_capture.py"), "--label-pixel-gate", "--dir", path]
+        if report_only:
+            command.append("--report-only")
+        run = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        assert run.returncode == expected, (case, run.returncode, run.stderr)
+        result["cli"].append(dict(case=case, exit=run.returncode, stdout=run.stdout, stderr=run.stderr))
+    log = io.StringIO()
+    with contextlib.redirect_stdout(log):
+        assert m.selftest() == 0
+    (OUT / "scorer_selftest.txt").write_text(log.getvalue(), encoding="utf-8")
+    (OUT / "complete_checks.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    print("39/39 calibration shadow bounds identical before/after endpoint hardening")
+    print("Scorer classes, mixed-run zero-cell eligibility, unsupported denominator and zero-cap contracts OK")
+    print("CLI NO-TRACE=2, report-only=0, execution error with report-only=3")
+finally:
+    m.cleanup(root)

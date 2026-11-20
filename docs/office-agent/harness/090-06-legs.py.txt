@@ -1,0 +1,154 @@
+FMW='/Game/StackOBot/Maps/MainWorld'
+FSYN='/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel'
+ROCK='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+UV='uv_corruption';NM='normal_corruption'
+UC1='StaticMeshActor_0';NN1='StaticMeshActor_12'
+ORC16='StaticMeshActor_75';ORC64='StaticMeshActor_76';ORCN='StaticMeshActor_79'
+AA_OFF=['r.AntiAliasingMethod 0']
+AA_OFF_ARBITER=['r.AntiAliasingMethod 0','r.Lumen.DiffuseIndirect.Allow 0','r.DynamicGlobalIlluminationMethod 0','r.ReflectionMethod 0']
+TONEMAP_OFF=['ShowFlag.Tonemapper 0'];LIGHTING_OFF=['ShowFlag.Lighting 0']
+ID='IAI.Bench.TexCorruptIdentity 1'
+OFF16=['IAI.Label.TransitionOffFrames 16']
+POOL5=['IAI.Auto.Pool all 0','IAI.Auto.Pool blinking 1','IAI.Auto.Pool missing_texture 1','IAI.Auto.Pool corrupted_texture 1',
+       'IAI.Auto.Pool missing_object 1','IAI.Auto.Pool stuck_low_mip 1']
+CFG_EDGE='2 4 8 14 0'
+CFG_M52='2 4 8 30 0'
+CFG_POOL='2 4 6 4 0'
+BENCH='-IAIBench'
+V2_RULE='annotation_membership_per_policy_v2_effect_installed'
+V1_RULE='annotation_membership_per_policy_v1'
+def labelled_window(k,cfg=CFG_EDGE):
+    """Fire k (1-based) of a targeted capture run under IAI.Capture.Config <settleK> <pre> <positive> <post> <bursts>
+    (AnomalyCaptureSubsystem.cpp:993-1065): LeadIn captures si 0..pre-1 and BeginFire runs on the tick that captures si pre-1, so that
+    frame is labelled (the label is sampled at OnWorldTickEnd, after BeginFire); settleK ticks are not captured; Positives captures
+    positive frames and BeginRevert runs on the tick of the last one (that frame is NOT labelled); SettleAfterRevert is not captured;
+    PostGap captures post frames and the next BeginFire runs on the tick of the last one. Labelled window = [first, first+positive-1],
+    first = (pre-1) + (positive+post)*(k-1); the revert tick is si first+positive."""
+    K,pre,pos,post,_=(int(x) for x in cfg.split())
+    first=(pre-1)+(pos+post)*(k-1)
+    return first,first+pos-1
+F1_FIRE_K=7
+F1_FIRST,F1_LAST=labelled_window(F1_FIRE_K)
+F1_SI=F1_FIRST+(F1_LAST-F1_FIRST+1)//2
+F1_INTERRUPTED=F1_LAST-F1_SI+1
+F1_WHY=(f'fire {F1_FIRE_K} = the 3rd E1-JUDGEABLE fire, not the literal 3rd fire: on MainWorld the pawn view still moves until si <= 92 '
+        f'(measured on 8 banked MainWorld legs, AA on and off) and the frozen E1 reads fires 1-2 WARMUP and 3-4 CAMERA-MOVED on the banked '
+        f'084-09 REAL_MT_NAT / REAL_CT_NAT, so a lever on the literal 3rd fire (si {labelled_window(3)[0]}..{labelled_window(3)[1]}) could not be judged from '
+        f'pixels. Fire {F1_FIRE_K} labels si {F1_FIRST}..{F1_LAST}; si = {F1_FIRST} + 8//2 = {F1_SI}: labelled {F1_FIRST}..{F1_SI-1}, '
+        f'effect_interrupted {F1_SI}..{F1_LAST} ({F1_INTERRUPTED} entries), revert tick {F1_LAST+1}')
+MINUTES={60:1.0,120:1.0,200:1.1,300:1.15,400:1.2,600:1.35,1200:1.7,1800:2.2}
+def minutes_for(frames):
+    ks=sorted(MINUTES)
+    for k in ks:
+        if frames<=k:return MINUTES[k]
+    return MINUTES[ks[-1]]
+def leg(leg_id,group,role,map_,anomaly,target,frames,cfg,levers=(),seed=777,auto=False,extra=BENCH,mode=None,binary='NEW',null=None,
+        predict='',pass_rule='',kind='capture',echo_extra=(),lever=None,note='',extra_minutes=0.0,standin=None,readback=()):
+    return dict(leg=leg_id,group=group,role=role,map=map_,anomaly=anomaly,target=target,frames=frames,cfg=cfg,levers=list(levers),seed=seed,auto=auto,
+                extra=extra,mode=mode,start_args=[mode] if mode else [],binary=binary,null=null,predict=predict,pass_rule=pass_rule,kind=kind,
+                echo_extra=list(echo_extra),lever=lever,note=note,minutes=round(minutes_for(frames)+extra_minutes,2) if kind=='capture' else 0.0,
+                standin=standin,readback=list(readback),aa_off=any(x=='r.AntiAliasingMethod 0' for x in levers))
+A_PRED=('E1 (frozen 089-03) t50 PASS on every judged fire, onset +0 / offset +0, >= 8 judged (the banked 084-09 REAL_MT/CT_NAT read 10: fires 1-2 WARMUP, '
+        '3-4 CAMERA-MOVED); label_transition_effect_interrupted_entries == 0 (run_summary == the F1 log line == labels.jsonl); '
+        f'label_labelled_rule == {V2_RULE}; verify_capture --label-rule NO MISMATCH under the NEW rule')
+A_RULE='E1 leg PASS (or PASS-WITH-CENSORED), 0 FAIL fires, judged >= 8; effect_interrupted 0 in all three places; v2 rule string; label-rule exit 0'
+LEGS=[]
+for code,an in (('MT','missing_texture'),('CT','corrupted_texture')):
+    LEGS.append(leg(f'REAL_{code}_NAT','A_REAL','SYNC',FMW,an,ROCK,300,CFG_EDGE,[],predict=A_PRED+' (AA on = TSR, the default)',pass_rule=A_RULE,
+                    standin=f'M52S09_REAL_{code}_NAT'))
+for code,an in (('MT','missing_texture'),('CT','corrupted_texture')):
+    LEGS.append(leg(f'REAL_{code}_NAT_AAOFF','A_REAL','AA_OFF',FMW,an,ROCK,300,CFG_EDGE,AA_OFF,predict=A_PRED+' (AA off; r.AntiAliasingMethod = "0" read back)',
+                    pass_rule=A_RULE,readback=['aa_off']))
+B_PRED=('as 089-04 measured on DC2: E1 (frozen 089-03) t50 16 PASS + 1 CENSORED (the final fire, cut by the frame cap), starts +0 x17, ends +0 x16; '
+        '0 NOT-MEASURABLE (bar predicted-invisible scramble pairs), 0 m53 transition flags, masks exact, label-rule exit 0; '
+        'label_transition_effect_interrupted_entries == 0 (nothing interrupts an effect on the fixture); rule string v2')
+B_RULE='089-04 leg_m53 verdict PASS with >= 16 judged onsets and offsets; effect_interrupted 0; v2 rule string'
+for anom,mode,tgt in ((UV,'tile',UC1),(UV,'scramble',UC1),(NM,'invert',NN1),(NM,'green_flip',NN1)):
+    LEGS.append(leg(f'F_{mode.upper()}_NAT','B_M53F','SYNC',FSYN,anom,tgt,400,CFG_EDGE,[],mode=mode,predict=B_PRED,pass_rule=B_RULE,
+                    standin=f'M53DC2_F_{mode.upper()}_NAT',
+                    note='the 089-04 CommitDelay arms (ARM_CD3/CD5) are NOT run as a can-fail: under F1 the pre-commit frames are effect_interrupted, so labels start with the picture and that lever is no longer expected to FAIL'))
+G_RULE='089-04b family gate (each family on its own P-ORC, the leg on its own null) PASS for the 4 MODE legs; NULL_AS_MODES passes on both nulls'
+LEGS+=[
+ leg('MODE_TILE','B_GMODE','MODE',FSYN,UV,ORC16,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF,mode='tile',null='MODE_UVNULL',readback=['arbiter','showflags'],
+     predict='G-MODE-UV tile PASS on >= 4 counted fires under the 089-04b family gate (089-04b: match 1.0 on 9); wrong-mode negatives < 50 %',pass_rule=G_RULE,standin='M53DC2_MODE_TILE'),
+ leg('MODE_SCRAMBLE','B_GMODE','MODE',FSYN,UV,ORC64,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF,mode='scramble',null='MODE_UVNULL',readback=['arbiter','showflags'],
+     predict='G-MODE-UV scramble PASS; the logged scramble pair equals the recomputation (089-04b: 9/9)',pass_rule=G_RULE,standin='M53DC2_MODE_SCRAMBLE'),
+ leg('MODE_UVNULL','B_GMODE','NULL',FSYN,UV,ORC16,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+[ID],readback=['arbiter','showflags'],
+     predict='identity null (mode_source=bench_lever lever=identity); null read as each uv mode < 50 %; label-rule exit 0',pass_rule=G_RULE,standin='M53DC2_MODE_UVNULL'),
+ leg('MODE_INVERT','B_GMODE','MODE',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+LIGHTING_OFF,mode='invert',null='MODE_NNULL',readback=['arbiter','showflags'],
+     predict='G-MODE-N invert PASS (089-04b: 1,152/1,152 cells across invert + green_flip)',pass_rule=G_RULE,standin='M53DC2_MODE_INVERT'),
+ leg('MODE_GREENFLIP','B_GMODE','MODE',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+LIGHTING_OFF,mode='green_flip',null='MODE_NNULL',readback=['arbiter','showflags'],
+     predict='G-MODE-N green_flip PASS',pass_rule=G_RULE,standin='M53DC2_MODE_GREENFLIP'),
+ leg('MODE_NNULL','B_GMODE','NULL',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER+TONEMAP_OFF+LIGHTING_OFF+[ID],readback=['arbiter','showflags'],
+     predict='identity null; null read as each normal mode < 50 %; label-rule exit 0',pass_rule=G_RULE,standin='M53DC2_MODE_NNULL'),
+]
+F1_NEW_PRED=(f'the {{line}} line names session_index={F1_SI}, the rock and missing_texture; fire {F1_FIRE_K} labelled si {F1_FIRST}..{F1_SI-1} '
+             f'(last labelled = si-1 = {F1_SI-1}); si {F1_SI}..{F1_LAST} transition-only (labelled false, transition 1, transition_reason '
+             f'["effect_interrupted"]), not in annotation.json, no target mask; label_transition_effect_interrupted_entries == {F1_INTERRUPTED} == '
+             f'the F1 log line == labels.jsonl, and none elsewhere; E1 on fire {F1_FIRE_K}: onset +0, offset +0 against {F1_SI-1}, si {F1_SI} below '
+             f'half strength (t50), no effect_interrupted frame pixel-visible; every other judged fire PASS +0/+0 (>= 8 judged); label-rule NO MISMATCH; rule v2')
+F1_NEW_RULE='090-06-eval f1_check(expect=new) PASS: every structural row, the counts, the lever line, and the E1 pixel reading (with the declared F1 adjudication of E1\'s temporal-AA-only invariant)'
+LEGS+=[
+ leg('F1_RAWREV_AAOFF','C_F1','F1',FMW,'missing_texture',ROCK,300,CFG_EDGE,AA_OFF+[f'IAI.Bench.RawRevertAt {F1_SI}'],lever=('RAW-REVERT',F1_SI),readback=['aa_off','lever'],
+     predict=F1_NEW_PRED.format(line='Capture(bench): RAW-REVERT')+' (the raw early IAI.Revert case)',pass_rule=F1_NEW_RULE,standin='@selftest:rawrev_ok',note=F1_WHY),
+ leg('F1_RETAKE_AAOFF','C_F1','F1',FMW,'missing_texture',ROCK,300,CFG_EDGE,AA_OFF+[f'IAI.Bench.RetakeMaterialAfter {F1_SI}'],lever=('RETAKE-MATERIAL',F1_SI),readback=['aa_off','lever'],
+     predict=F1_NEW_PRED.format(line='Capture(bench): RETAKE-MATERIAL')+f'; frames_condition_lost == 0 (labelled frames are exactly the installed ones) and label_transition_effect_interrupted_entries == {F1_INTERRUPTED} (> 0) (the host-replacement case)',
+     pass_rule=F1_NEW_RULE+' + frames_condition_lost == 0',standin='@selftest:retake_ok',note=F1_WHY),
+]
+POOL_NOTE=('seed / pool / config of 084-09 MASK55V2 (seed 4242, POOL5, cfg 2 4 6 4 0) without its TagPoolLimit 12 mask lever: the one banked MainWorld auto-pool leg '
+           'whose pool REACHED Nanite targets (57 UNMEASURABLE TARGET reason=nanite lines, 270 unmeasured labelled frames on SM_Ramp2, RoomBuilderSquare_C, '
+           'BP_SpawnPad_C). 089-03 B3 (seed 4242, pool stuck_low_mip) read 0 reason=nanite lines; 089-04 host legs are targeted fires, not auto-pool.')
+N_FALLBACK=('refused_nanite > 0 is a READING only if a Nanite actor was on screen: shown by census_unmeasurable_nanite > 0 on this leg (29 on every banked MainWorld leg) '
+            'OR by NANITE_ALLOW1 reason=nanite lines; refused 0 with that proof = FAIL, refused 0 without it = UNJUDGEABLE (blind), never PASS')
+LEGS+=[
+ leg('NANITE_SKIP_DEFAULT','D_NANITE','NANITE',FMW,None,None,600,CFG_POOL,POOL5,seed=4242,auto=True,echo_extra=['IAI.Targets.AllowNanite'],readback=['nanite_policy'],
+     predict=('no setting passed; nanite_target_policy "refused(compiled)" (the DC2 container ini carries no AllowNaniteTargets key); refused_nanite >= 1 distinct actors, '
+              'predicted to include SM_Ramp2, RoomBuilderSquare_C and BP_SpawnPad_C; REFUSED-NANITE lines (site=auto_pool) name exactly that set, equal to the run-end '
+              '"NANITE TARGETS REFUSED = N"; 0 "UNMEASURABLE TARGET ... reason=nanite" lines; unmeasurable_targets_admitted == 0; every labelled entry\'s frame mask_state '
+              'present or empty, never unmeasured (a G295 "TARGET MASK UNAVAILABLE" frame on a non-Nanite target is counted apart and reported, as 089-03 MASK55A did). '+N_FALLBACK),
+     pass_rule='090-06-eval nanite_check(skip) PASS (PASS-WITH-G295 is reported to chat, not a silent pass)',standin='M52S09_MASK55V2',note=POOL_NOTE),
+ leg('NANITE_ALLOW1','D_NANITE','NANITE',FMW,None,None,600,CFG_POOL,POOL5+['IAI.Targets.AllowNanite 1'],seed=4242,auto=True,echo_extra=['IAI.Targets.AllowNanite'],readback=['nanite_policy'],
+     predict=('IAI.Targets.AllowNanite EFFECTIVE READ-BACK = allowed(console); nanite_target_policy "allowed(console)"; >= 1 "UNMEASURABLE TARGET ... reason=nanite" line '
+              '(57 on MASK55V2); unmeasurable_targets_admitted > 0; refused_nanite == 0 and no REFUSED-NANITE line; the admitted events carry target_pixels -1, '
+              'observable null, observability_measured false (the old contract)'),
+     pass_rule='090-06-eval nanite_check(allow) PASS',standin='M52S09_MASK55V2',note=POOL_NOTE),
+]
+E_NOTE='frame counts kept at 089-03\'s (1200 / 1200 / 1800): its README never says a shorter count keeps the >= 16 judged floor, and B9 read exactly 16/16 at 1200'
+LEGS+=[
+ leg('B9','E_M52','AA_OFF',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,AA_OFF,null='B5',readback=['aa_off'],standin='M52S10_B9',note=E_NOTE,
+     predict=('as 089-03: E1 (game-time-aligned null B5) PASS 16/16, onset +0 transition-aware (1-5 partial frames record-backed), offset +0, 0 temporal flags, '
+              '0 unflagged off frames; null coverage PASS; label_transition_effect_interrupted_entries == 0 (stuck_low_mip is not a FireWindow type); rule v2'),
+     pass_rule='E1 aligned (089-03 m52_leg) 0 FAIL, >= 16 judged, 0 UNJUDGEABLE; coverage PASS; effect_interrupted 0; label-rule exit 0'),
+ leg('B0','E_M52','SYNC',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,OFF16,null='B5',readback=['off16'],standin='M52S10_B0',note=E_NOTE,
+     predict=('as 089-03: label_transition_off_frames 16 read back; E1 aligned PASS on every judged event, 0 FAIL, ends at t50 +4..+6 under TSR (inside the 16 off-frames), '
+              'onsets partial-flagged, 0 UNJUDGEABLE; effect_interrupted 0; rule v2'),
+     pass_rule='read-back 16; E1 aligned 0 FAIL and 0 UNJUDGEABLE; coverage PASS; effect_interrupted 0; label-rule exit 0'),
+ leg('B5','E_M52','NULL',FMW,'stuck_low_mip',ROCK,1800,CFG_M52,['IAI.Bench.StuckMipNoHold 1'],standin='M52S10_B5',note='the matched null, run IMMEDIATELY after B9 and B0',
+     predict='null_check_v2 PASS (0 events, 0 labelled / held rows); game time 0 .. >= 60 s; covers B9 and B0 t(first label - 12) .. t(last label) + 2 s',
+     pass_rule='null_check_v2 PASS and coverage PASS on B9 and B0'),
+]
+LEGS+=[
+ leg('F1_RETAKE_OLD_CANFAIL','C_F1_OLD','F1_CANFAIL',FMW,'missing_texture',ROCK,300,CFG_EDGE,AA_OFF+[f'IAI.Bench.RetakeMaterialAfter {F1_SI}'],binary='OLD',
+     lever=('RETAKE-MATERIAL',F1_SI),readback=['aa_off','lever'],extra_minutes=0.5,standin='@selftest:canfail_old',note=F1_WHY+'; the exe is swapped to OLD once, after every NEW leg',
+     predict=(f'FAIL as required: RETAKE-MATERIAL at session_index={F1_SI}; fire {F1_FIRE_K} labelled {F1_FIRST}..{F1_LAST} (labels run to the scheduled end); '
+              f'no effect_interrupted anywhere (the build has no such reason, rule string {V1_RULE}); frames_condition_lost == {F1_INTERRUPTED} (> 0); '
+              f'E1 FAIL on fire {F1_FIRE_K}: offset edge {-(F1_INTERRUPTED)} (the picture is clean from {F1_SI}: last visible {F1_SI-1} - last labelled {F1_LAST}) '
+              'with "labelled frame(s) not pixel-visible outside transition frames"'),
+     pass_rule='090-06-eval f1_check(expect=old) CANFAIL-PROVEN: this is what proves the pixel check can fail'),
+ leg('P0','F_PART0','PART0',None,None,None,0,None,kind='part0',
+     predict='NOT-RUNNABLE tonight (see the README: no 090-05 delivery package exists and none can be cooked/staged on this box)',pass_rule='-'),
+]
+ORDER=['A_REAL','B_M53F','B_GMODE','C_F1','D_NANITE','E_M52','C_F1_OLD','F_PART0']
+def legs_sorted():return sorted(LEGS,key=lambda L:(ORDER.index(L['group']),L['minutes'],LEGS.index(L)))
+def by_id(i):return next(L for L in LEGS if L['leg']==i)
+PART0_NOT_RUNNABLE=dict(
+ status='NOT-RUNNABLE',
+ needs='089-03-part0.ps1 launches a DELIVERY package (E:\\IA_BuildCache\\_rehearsal\\<A|B>\\game\\...\\StackOBot.exe) with no bench flags and checks the control token against the bundle config.json, the bench levers DISABLED x3 with preset 0 and no ENABLED line, the anomaly list, the delivered pool line and the inert probe (deliveryMode=1)',
+ why=['no delivery package carrying the 090-05 code exists: the only packages on the box are the 088-01 rehearsal packages A (6D1B659F) and B (C18D0F41), built from pre-090-05 code; re-launching them would only repeat 089-03\'s PASS on unchanged bytes and would say nothing about F1 or the Nanite skip',
+      'a new package cannot be cooked and staged here: every BuildCookRun copies ThirdParty\\DbgHelp\\dbghelp.dll into staging and this box has refused to create any file named dbghelp.dll since ~03:00 on 2026-09-30 (repo G418); -stagingdirectory does not help; security settings are not to be changed',
+      'the bench exe is not a substitute: it carries the AnomalyBench levers, so the delivery lever audit fails on it BY DESIGN (G398)'],
+ unblock='a Shipping/delivery package cooked AND staged from the 090-05 m53 head (the owner clears the dbghelp.dll refusal, or the package is built on another box and copied in), then the 089-03-part0.ps1 check with 12 ids (uv/normal registered, not in the pool) plus two new rows: the package ini\'s AllowNaniteTargets read back (IAI.Targets.AllowNanite with no argument prints the effective value) and lever_audit --binary on the package exe')
+def cmd_table():
+    out=[]
+    for L in legs_sorted():out.append((L['leg'],L['group'],L['map'],L['frames'],L['binary'],L['minutes'],L['predict'],L['pass_rule']))
+    return out

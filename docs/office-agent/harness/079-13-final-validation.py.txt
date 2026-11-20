@@ -1,0 +1,44 @@
+"""Capture every permanent selftest's complete readings, plus the batch contracts."""
+import contextlib
+import hashlib
+import io
+import json
+from pathlib import Path
+import sys
+import unittest
+
+sys.dont_write_bytecode = True
+TOOLS = Path(r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\tools")
+sys.path.insert(0, str(TOOLS))
+import verify_capture as vc
+import test_verify_capture_consistency as contracts
+
+OUT = Path(__file__).parent / "079-13-evidence/final"
+OUT.mkdir(exist_ok=True, parents=True)
+original = vc.label_pixel_gate
+readings = []
+
+def recorded(*args, **kwargs):
+    code, lines = original(*args, **kwargs)
+    readings.append({"name": Path(args[0]).name, "code": code, "lines": lines,
+                     "detail": kwargs.get("out_detail", [])})
+    return code, lines
+
+vc.label_pixel_gate = recorded
+summary = io.StringIO()
+with contextlib.redirect_stdout(summary):
+    code = vc._label_pixel_selftest(8, 4, 1)
+vc.label_pixel_gate = original
+(OUT / "selftest.txt").write_text(summary.getvalue(), encoding="utf-8")
+(OUT / "selftest_details.json").write_text(json.dumps({
+    "verifier_sha256": hashlib.sha256((TOOLS / "verify_capture.py").read_bytes()).hexdigest(),
+    "exit": code, "fixtures": readings}, indent=2) + "\n", encoding="utf-8")
+print(summary.getvalue(), end="")
+full = "\n\n".join("CASE " + r["name"] + "\n" + "\n".join(r["lines"]) for r in readings)
+(OUT / "selftest_full.txt").write_text(full + "\n", encoding="utf-8")
+log = io.StringIO()
+result = unittest.TextTestRunner(stream=log, verbosity=2).run(
+    unittest.defaultTestLoader.loadTestsFromModule(contracts))
+(OUT / "contracts.txt").write_text(log.getvalue(), encoding="utf-8")
+print(log.getvalue(), end="")
+raise SystemExit(code or (0 if result.wasSuccessful() else 1))

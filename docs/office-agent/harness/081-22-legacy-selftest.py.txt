@@ -1,0 +1,43 @@
+import importlib.util,json,sys,tempfile
+from pathlib import Path
+sys.argv=['x','d']
+spec=importlib.util.spec_from_file_location('lg',r'D:\IntrusiveAnomalies\_reviews\081-22-legacy.py');lg=importlib.util.module_from_spec(spec);spec.loader.exec_module(lg)
+bank=lg.bank
+tmp=Path(tempfile.mkdtemp(prefix='r22selftest_'));lg.E=tmp
+def load(lab):
+    s=next((bank/('M55S2_'+lab)).glob('session*'));att=next(t for t in bank.glob('M55S2_'+lab+'_try*') if (t/s.name).exists());return s,att
+def prep(name,lab,w):
+    s,att=load(lab);rec,fl,fr=lg.reading(name,w,s,att)
+    (tmp/f'reading-{name}.json').write_text(json.dumps(rec,default=str));(tmp/f'flat-{name}.json').write_text(json.dumps(dict(flat=fl,frames=fr),default=str))
+pre,b3=lg.pre,lg.b3s
+cases={}
+prep('K1','M55S2R12_MAIN1_E0',pre);prep('K2','M55S2R12_MAIN3_E0',b3);prep('K3','M55S2R12_MAIN6_E0',b3);prep('K4','M55S2R12_MAIN2_E0',pre)
+out,recs=lg.compare('N',[('K1',pre),('K2',b3),('K3',b3),('K4',pre)])
+cases['known_good_081_12_off']=dict(run_unique=out['run_unique_count'],unstable=out['unstable_fields'],cross=[(x['a'],x['b'],x['extra_paths_count'],x['gated_fields_unequal']) for x in out['cross']],
+    native_pairs_unequal=[(p['a'],p['b'],[f for f,v in p['fields_equal'].items() if not v]) for p in out['pairs']],colour=[(p['a'],p['b'],p['colour_frames_byte_equal']) for p in out['pairs']])
+prep('K5','M55S2R12_MAIN4_E1',b3);prep('K6','M55S2R12_MAIN5_E1',b3)
+flats={k:json.loads((tmp/f'flat-{k}.json').read_text())['flat'] for k in ('K1','K2','K3','K4','K5','K6')}
+hist=set()
+for x,y in (('K1','K4'),('K2','K3'),('K5','K6')):
+    dx,dy=flats[x],flats[y];hist|={p for p in set(dx)|set(dy) if dx.get(p)!=dy.get(p)}
+histdoc=dict(source='081-12 MainWorld legacy bank, three same-binary pairs: pre MAIN1~MAIN2, m55-candidate OFF MAIN3~MAIN6, m55-candidate ON MAIN4~MAIN5',paths=sorted(hist))
+real=Path(r'D:\IntrusiveAnomalies\_reviews\081-22-evidence\legacy-historical-run-unique.json')
+if not real.exists():real.write_text(json.dumps(histdoc,indent=1))
+(tmp/'legacy-historical-run-unique.json').write_text(json.dumps(histdoc,indent=1))
+out,recs=lg.compare('N',[('K1',pre),('K2',b3),('K3',b3),('K4',pre)])
+def rules(out):
+    return dict(declared=all(x['extra_paths_count']==0 and not x['gated_fields_unequal'] for x in out['cross']),key_presence=out['key_presence']['ok'],
+                strict_reference=all(x['count']==0 for x in out['strict_vs_reference_pair']))
+cases['known_good_081_12_off']['rules']=rules(out)
+cases['historical_run_unique_paths']=len(hist)
+out2,_=lg.compare('N',[('K1',pre),('K5',b3),('K3',b3),('K4',pre)])
+out3,_=lg.compare('N',[('K1',pre),('K5',b3),('K6',b3),('K4',pre)])
+cases['must_fail_one_leg_on']=dict(rules=rules(out2),added=out2['key_presence']['added_in_b3'].get('K5',[])[:5])
+cases['must_fail_both_legs_on']=dict(rules=rules(out3),cross=[(x['a'],x['b'],x['extra_paths_count']) for x in out3['cross']])
+ok_good=all(cases['known_good_081_12_off']['rules'].values())
+ok_bad1=not cases['must_fail_one_leg_on']['rules']['key_presence'] and not cases['must_fail_one_leg_on']['rules']['strict_reference']
+ok_bad2=not any(cases['must_fail_both_legs_on']['rules'].values())
+res=dict(tmp=str(tmp),known_good_pass=ok_good,one_leg_on_caught=ok_bad1,both_legs_on_caught=ok_bad2,
+         note='declared rule alone misses a one-sided difference (one-leg-on case); key presence and the reference-pair rule catch it',cases=cases)
+Path(r'D:\IntrusiveAnomalies\_reviews\081-22-evidence\legacy-comparator-selftest.json').write_text(json.dumps(res,indent=2,default=str))
+print(json.dumps(dict(known_good_pass=ok_good,one_leg_on_caught=ok_bad1,both_legs_on_caught=ok_bad2,good_rules=cases['known_good_081_12_off']['rules'],one=cases['must_fail_one_leg_on'],both=cases['must_fail_both_legs_on']['rules']),default=str)[:3000])

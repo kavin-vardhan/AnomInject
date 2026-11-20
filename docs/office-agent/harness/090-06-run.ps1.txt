@@ -1,0 +1,144 @@
+param(
+ [switch]$DryRun,
+ [switch]$Live,
+ [string]$Only='',
+ [int]$InjectLockS=0,
+ [switch]$LaunchLeg,
+ [string]$Label='',
+ [string]$EvDir='',
+ [string]$Map='',
+ [string]$ExecCmds='',
+ [string]$Kind='capture',
+ [string]$OutLabel='',
+ [int]$WaitSec=600,
+ [int]$ResX=1280,
+ [int]$ResY=720,
+ [string]$ExtraArgs='',
+ [string]$Exe=''
+)
+$ErrorActionPreference='Stop'
+$py='C:\Python313\python.exe'
+$lib='D:\IntrusiveAnomalies\_reviews\090-06-lib.py'
+$realExe='D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe'
+$sandbox='E:\IA_BuildCache\_r90_06_dry'
+if(-not $LaunchLeg){
+ if($DryRun -and $Live){throw 'say -DryRun OR -Live, not both'}
+ if(-not $DryRun -and -not $Live){throw 'say -DryRun (no game, no real bench path) or -Live (the bench window)'}
+ $env:PYTHONDONTWRITEBYTECODE='1'
+ $env:PYTHONIOENCODING='utf-8'
+ $a=@('-B',$lib)
+ if($DryRun){
+  $a+='dry'
+  $env:IAI_R906_DRY='1'
+  if(-not $env:IAI_R906_ROOT){$env:IAI_R906_ROOT='D:\IntrusiveAnomalies\_reviews\090-06-evidence\dry-'+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()}
+  if($InjectLockS -gt 0){$env:IAI_R906_INJECT_LOCK_S=[string]$InjectLockS}
+ } else {
+  $a+='live'
+  Remove-Item Env:IAI_R906_DRY -ErrorAction SilentlyContinue
+ }
+ if($Only){$a+=@('--only',$Only)}
+ & $py @a
+ exit $LASTEXITCODE
+}
+if(@('capture') -notcontains $Kind){throw "unknown kind $Kind"}
+if(-not $OutLabel){throw 'OutLabel required for a capture kind'}
+if(-not $Exe){$Exe=$realExe}
+$exeSide=Split-Path $Exe
+if(Test-Path -LiteralPath $EvDir){throw "evidence dir exists: $EvDir"}
+New-Item -ItemType Directory -Path $EvDir | Out-Null
+$log=Join-Path $EvDir 'game.log'
+$argsList=@($Map,'-windowed',"-ResX=$ResX","-ResY=$ResY","-ExecCmds=`"$ExecCmds`"",'-unattended','-nosplash',"-abslog=$log")
+if($ExtraArgs){$argsList+=@($ExtraArgs -split ' '|Where-Object{$_})}
+$record=[ordered]@{label=$Label;kind=$Kind;map=$Map;out_label=$OutLabel;exec_cmds=$ExecCmds;args=$argsList;exe=$Exe;dry=[bool]$DryRun;started_utc=[DateTime]::UtcNow.ToString('o');focus=@();capture_focus=@();errors=@()}
+function Save-Record{$record|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $EvDir 'launch.json') -Encoding utf8}
+if($DryRun){
+ $full=[IO.Path]::GetFullPath($Exe)
+ if(-not $full.StartsWith($sandbox,[StringComparison]::OrdinalIgnoreCase)){$record.status='REFUSED-DRY-REAL-EXE';$record.error="dry run: the exe $full is not under the sandbox $sandbox";Save-Record;throw $record.error}
+ $record.status='DRY-NOT-LAUNCHED'
+ $record.exe_exists=(Test-Path -LiteralPath $Exe)
+ if($record.exe_exists){$record.exe_sha256=(Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash.ToLower()}
+ $record.cmd_chars=$ExecCmds.Length
+ $record.would_check_busy=@(Get-Process -Name StackOBot,UnrealEditor,UnrealEditor-Cmd,LyraGame,LyraEditor -ErrorAction SilentlyContinue|ForEach-Object{@{pid=$_.Id;name=$_.ProcessName}})
+ Save-Record
+ Write-Output "DRY $Label exe=$Exe exists=$($record.exe_exists) chars=$($ExecCmds.Length) (nothing launched)"
+ exit 0
+}
+if(-not ([IO.Path]::GetFullPath($Exe)).Equals($realExe,[StringComparison]::OrdinalIgnoreCase)){throw "live: only the staged bench exe is launched ($realExe), not $Exe"}
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class M906Fg {
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h,int cmd);
+ [DllImport("user32.dll")] public static extern void keybd_event(byte k,byte s,uint f,UIntPtr e);
+ [StructLayout(LayoutKind.Sequential)] public struct Point { public int X; public int Y; }
+ [DllImport("user32.dll")] public static extern bool GetCursorPos(out Point p);
+ public static uint FgPid(){uint p;GetWindowThreadProcessId(GetForegroundWindow(),out p);return p;}
+ public static string Cursor(){Point p;GetCursorPos(out p);return p.X+","+p.Y;}
+ public static void Force(IntPtr h){ShowWindow(h,9);keybd_event(0x12,0,0,UIntPtr.Zero);keybd_event(0x12,0,2,UIntPtr.Zero);SetForegroundWindow(h);BringWindowToTop(h);}
+}
+"@
+$busy=@(Get-Process -Name StackOBot,UnrealEditor,UnrealEditor-Cmd,LyraGame,LyraEditor -ErrorAction SilentlyContinue)
+if($busy.Count){$record.status='REFUSED-NOT-IDLE';$record.busy=@($busy|ForEach-Object{@{pid=$_.Id;name=$_.ProcessName;path=$_.Path}});Save-Record;throw 'bench not idle - refused (nothing is killed)'}
+$outDir=Join-Path $exeSide $OutLabel
+if(Test-Path -LiteralPath $outDir){throw "exe-side output exists: $outDir"}
+$record.exe_sha256=(Get-FileHash -LiteralPath $Exe -Algorithm SHA256).Hash.ToLower()
+$record.cursor_before=[M906Fg]::Cursor()
+$record.out_dir=$outDir
+Save-Record
+$p=$null
+function Check-Foreign($where){$fe=@(Get-Process -Name UnrealEditor,UnrealEditor-Cmd,LyraEditor -ErrorAction SilentlyContinue);if($fe.Count){$record.foreign_editor=@($fe|ForEach-Object{@{pid=$_.Id;path=$_.Path}});$record.foreign_where=$where;throw "FOREIGN-EDITOR-APPEARED $where"}}
+function Hold-Focus($sh){try{$sh.AppActivate($p.Id)|Out-Null}catch{};try{$p.Refresh();if($p.MainWindowHandle -ne 0){[M906Fg]::Force($p.MainWindowHandle)}}catch{}}
+try{
+ $p=Start-Process -FilePath $Exe -ArgumentList $argsList -PassThru
+ $record.pid=$p.Id;Save-Record
+ $sh=New-Object -ComObject WScript.Shell
+ $sw=[Diagnostics.Stopwatch]::StartNew();$stable=0;$focusAt=-1.0
+ for($i=0;$i -lt 90;$i++){
+  Start-Sleep -Milliseconds 400
+  if($p.HasExited){throw 'game exited during startup'}
+  Check-Foreign 'startup'
+  Hold-Focus $sh
+  $fg=[M906Fg]::FgPid()
+  $record.focus+=@{utc=[DateTime]::UtcNow.ToString('o');foreground_pid=$fg;cursor=[M906Fg]::Cursor()}
+  if($fg -eq $p.Id){if($focusAt -lt 0){$focusAt=[math]::Round($sw.Elapsed.TotalSeconds,1)};$stable++}else{$stable=0}
+  if($stable -ge 8){break}
+ }
+ $record.focus_at_s=$focusAt;$record.focus_held=([M906Fg]::FgPid() -eq $p.Id)
+ $record.sampling_started_utc=[DateTime]::UtcNow.ToString('o')
+ $run=[Diagnostics.Stopwatch]::StartNew();$nextForeign=0.0;$session=$null
+ while($run.Elapsed.TotalSeconds -lt $WaitSec){
+  if($p.HasExited){throw 'game exited during capture'}
+  $t=$run.Elapsed.TotalSeconds
+  if($t -ge $nextForeign){$nextForeign+=1.0;Check-Foreign ('capture t='+[math]::Round($t,1))}
+  $fg=[M906Fg]::FgPid();$record.capture_focus+=@{seconds=$t;foreground_pid=$fg}
+  if($fg -ne $p.Id){Hold-Focus $sh}
+  $session=Get-ChildItem -LiteralPath $outDir -Directory -ErrorAction SilentlyContinue|Where-Object{Test-Path -LiteralPath (Join-Path $_.FullName 'run_summary.json')}|Select-Object -First 1
+  if($session){break}
+  Start-Sleep -Milliseconds 100
+ }
+ $record.anchor_end=@{utc=[DateTime]::UtcNow.ToString('o')}
+ if(-not $session){throw 'NO-RUN-SUMMARY within the wait'}
+ $prevN=-1;$prevZ=-1;$st=0
+ for($w=0;$w -lt 40;$w++){
+  $ff=@(Get-ChildItem -LiteralPath (Join-Path $session.FullName 'Actual_Frames') -File -ErrorAction SilentlyContinue)
+  $n=$ff.Count;$z=@($ff|Where-Object{$_.Length -eq 0}).Count
+  if($n -eq $prevN -and $z -eq $prevZ){$st++}else{$st=0}
+  if($st -ge 4 -and $z -eq 0){break}
+  $prevN=$n;$prevZ=$z;Start-Sleep -Milliseconds 250
+ }
+ Start-Sleep -Milliseconds 2500
+ $record.session=$session.FullName
+ $record.status='COMPLETE'
+}catch{
+ $record.status='PROTOCOL-FAIL';$record.error=$_.Exception.Message
+}finally{
+ if($p -and -not $p.HasExited){Stop-Process -Id $p.Id -Force;$p.WaitForExit();$record.killed_by_pid=$p.Id}
+ elseif($p -and $null -eq $record.exit_code){try{$record.exit_code=$p.ExitCode}catch{}}
+ $record.finished_utc=[DateTime]::UtcNow.ToString('o');Save-Record
+}
+Write-Output "$Label kind=$Kind status=$($record.status) session=$($record.session) error=$($record.error)"
+if($record.status -ne 'COMPLETE'){exit 1}
+exit 0

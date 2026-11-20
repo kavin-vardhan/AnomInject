@@ -1,0 +1,137 @@
+import importlib.util
+import itertools
+import json
+import math
+import sys
+from pathlib import Path
+
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+EV = R / '084-08b-evidence'
+SCAN = EV / 'lodfix-scan.json'
+s = importlib.util.spec_from_file_location('lodsel59', R / '084-09-lodselect.py')
+LS = importlib.util.module_from_spec(s)
+s.loader.exec_module(LS)
+FIX_MAP = '/Game/AnomalyFixtures/CB_LodFixture'
+LUMA = (0.2126, 0.7152, 0.0722)
+
+
+def hull_area(pts):
+    pts = sorted(set(pts))
+    if len(pts) < 3:
+        return 0.0
+
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo = []
+    up = []
+    for p in pts:
+        while len(lo) >= 2 and cr(lo[-2], lo[-1], p) <= 0:
+            lo.pop()
+        lo.append(p)
+    for p in reversed(pts):
+        while len(up) >= 2 and cr(up[-2], up[-1], p) <= 0:
+            up.pop()
+        up.append(p)
+    h = lo[:-1] + up[:-1]
+    a = 0.0
+    for i in range(len(h)):
+        x1, y1 = h[i]
+        x2, y2 = h[(i + 1) % len(h)]
+        a += x1 * y2 - x2 * y1
+    return abs(a) / 2.0
+
+
+def clip(pts):
+    return [(min(max(x, 0.0), float(LS.CAM['w'])), min(max(y, 0.0), float(LS.CAM['h']))) for x, y in pts]
+
+
+def sphere_silhouette_pct(c, r, n=48):
+    pts = []
+    for i in range(n + 1):
+        th = math.pi * i / n
+        for j in range(2 * n):
+            ph = 2 * math.pi * j / (2 * n)
+            q = LS.project((c[0] + r * math.sin(th) * math.cos(ph), c[1] + r * math.sin(th) * math.sin(ph), c[2] + r * math.cos(th)))
+            if q:
+                pts.append(q)
+    return 100.0 * hull_area(clip(pts)) / (LS.CAM['w'] * LS.CAM['h'])
+
+
+def cube_silhouette_pct(c, h):
+    pts = [LS.project((c[0] + sx * h, c[1] + sy * h, c[2] + sz * h)) for sx, sy, sz in itertools.product((-1, 1), repeat=3)]
+    return 100.0 * hull_area(clip([p for p in pts if p])) / (LS.CAM['w'] * LS.CAM['h'])
+
+
+def main():
+    scan = json.loads(SCAN.read_text(encoding='utf-8'))
+    ps = scan['player_start']
+    LS.CAM = dict(origin=tuple(ps['location']), pitch=ps['rotation'][0], yaw=ps['rotation'][1], hfov=90.0, aspect=1.7777777910232544,
+                  w=1280, h=720, source='fixture PlayerStart pose (the view = the PlayerStart pose, as on CB_GateLevel, where GM_InGame finds no spawn pad)')
+    author = json.loads((EV / 'author-3.json').read_text(encoding='utf-8'))
+    colors = dict(L0=author['params']['lod0_color'], L1=author['params']['lod1_color'])
+    rows = []
+    for comp in scan['components']:
+        m = scan['meshes'][comp['mesh']]
+        tris = m['triangles']
+        ratio = tris[0] / tris[-1] if len(tris) >= 2 and tris[-1] else None
+        rect, behind = LS.rect_of(comp['origin'], comp['extent'])
+        cov = 100.0 * (rect[2] - rect[0]) * (rect[3] - rect[1]) / (LS.CAM['w'] * LS.CAM['h']) if rect else 0.0
+        dist = math.dist(comp['origin'], LS.CAM['origin'])
+        ssz = 2.0 * max(0.5, 0.5 * LS.CAM['aspect']) * comp['sphere'] / max(1.0, dist)
+        ss = m['screen_sizes']
+        pred = 0
+        for i in range(len(ss) - 1, 0, -1):
+            if ss[i] > ssz:
+                pred = i
+                break
+        checks = dict(multi_lod=m['lods'] >= 2, not_nanite=m['nanite'] is False, visible=bool(comp['visible']) and not comp['hidden_in_game'],
+                      unique_name=bool(comp['unique_name']), predicted_lod0=(pred == 0 and len(ss) == m['lods']),
+                      in_frustum_coverage=LS.MIN_COV <= cov <= LS.MAX_COV, triangle_ratio=(ratio is not None and ratio >= LS.MIN_RATIO))
+        failed = [k for k, v in checks.items() if not v]
+        row = dict(actor=comp['actor'], component=comp['component'], mesh=comp['mesh'].split('.')[-1], lods=m['lods'], triangles=tris,
+                   triangle_ratio=None if ratio is None else round(ratio, 4), nanite=m['nanite'], screen_sizes=ss, distance_cm=round(dist, 2),
+                   sphere=round(comp['sphere'], 3), screen_size=round(ssz, 4), predicted_lod=pred, bounds_coverage_pct=round(cov, 4),
+                   rect=None if rect is None else [round(v, 1) for v in rect], corners_behind=behind, checks=checks, failed=failed, qualifies=not failed)
+        if comp['actor'].startswith('CB_LodFix_'):
+            h = comp['extent'][0]
+            mats = comp['component_materials']
+            dith = [scan['materials'][p]['dithered_lod_transition'] for p in mats]
+            row['fixture'] = dict(
+                variant=comp['actor'][-1], lod0_silhouette_pct=round(sphere_silhouette_pct(comp['origin'], comp['sphere']), 2),
+                worst_lod_silhouette_pct=round(cube_silhouette_pct(comp['origin'], h), 2), section_slots=m['section_slots'],
+                lod_materials=mats, lod_materials_distinct=len(set(mats)) == len(mats), dithered_lod_transition=dith,
+                lod0_luma=round(sum(a * b for a, b in zip(LUMA, colors['L0'])), 4), lod1_luma=round(sum(a * b for a, b in zip(LUMA, colors['L1'])), 4),
+                cast_shadow=comp['cast_shadow'], mobility=comp['mobility'])
+        rows.append(row)
+    multi = [r for r in rows if r['lods'] >= 2]
+    ok = sorted([r for r in rows if r['qualifies']], key=lambda r: -(r['triangle_ratio'] * r['bounds_coverage_pct']))
+    picked = []
+    for r in ok:
+        if all(LS.overlap(r['rect'], p['rect']) < 0.5 for p in picked):
+            picked.append(r)
+        if len(picked) == 2:
+            break
+    fx = {r['fixture']['variant']: r for r in rows if r.get('fixture')}
+    spec = dict(
+        both_selected=sorted(r['actor'] for r in picked) == ['CB_LodFix_D', 'CB_LodFix_N'],
+        coverage_10_40=all(10.0 <= fx[v]['bounds_coverage_pct'] <= 40.0 for v in fx),
+        lod0_silhouette_10_40=all(10.0 <= fx[v]['fixture']['lod0_silhouette_pct'] <= 40.0 for v in fx),
+        variant_D_dithered=all(fx['D']['fixture']['dithered_lod_transition']),
+        variant_N_not_dithered=not any(fx['N']['fixture']['dithered_lod_transition']),
+        per_lod_materials_distinct=all(fx[v]['fixture']['lod_materials_distinct'] for v in fx),
+        overlap_between_variants=round(LS.overlap(fx['N']['rect'], fx['D']['rect']), 4))
+    out = dict(rule=str(R / '084-09-evidence' / 'lod-selection-rule.md'), rule_unchanged=True, map=FIX_MAP, camera=LS.CAM,
+               thresholds=dict(min_cov=LS.MIN_COV, max_cov=LS.MAX_COV, min_ratio=LS.MIN_RATIO), multi_lod_components=multi,
+               qualifying=[r['actor'] for r in ok], selected=[r['actor'] for r in picked], shortfall=max(0, 2 - len(picked)), fixture_spec=spec,
+               runtime_prediction=dict((v, dict(coverage_line_bounds_coverage_pct=fx[v]['bounds_coverage_pct'], tolerance_pct_points=1.0,
+                                                current_lod_level=0, screen_size=fx[v]['screen_size'])) for v in fx),
+               note='screen size and predicted LOD use the rule formula with the READ screen sizes (LOD1 0.05); LOD screen sizes are readable here because the scan loads StaticMeshEditor first')
+    (EV / 'lodfix-selection.json').write_text(json.dumps(out, indent=1), encoding='utf-8')
+    print(json.dumps(dict(selected=out['selected'], shortfall=out['shortfall'], spec=spec,
+                          rows=[(r['actor'], r['triangle_ratio'], r['bounds_coverage_pct'], r['screen_size'], r['predicted_lod'], r['failed'],
+                                 (r.get('fixture') or {}).get('lod0_silhouette_pct'), (r.get('fixture') or {}).get('worst_lod_silhouette_pct')) for r in rows]), indent=1))
+    return 0 if (not out['shortfall'] and all(v for k, v in spec.items() if k != 'overlap_between_variants')) else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

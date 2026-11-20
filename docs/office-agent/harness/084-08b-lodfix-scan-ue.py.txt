@@ -1,0 +1,87 @@
+import json
+import os
+import traceback
+
+import unreal
+
+OUT = os.environ.get("IAI_LODFIX_OUT", "")
+MAP = "/Game/AnomalyFixtures/CB_LodFixture"
+res = dict(map=MAP, ok=False, errors=[], actors=[], components=[], meshes={}, materials={}, player_start=None)
+
+
+def vec(v):
+    return [float(v.x), float(v.y), float(v.z)]
+
+
+def mat_info(mi):
+    if mi is None:
+        return None
+    p = mi.get_path_name()
+    if p not in res["materials"]:
+        base = mi.get_base_material() if hasattr(mi, "get_base_material") else mi
+        rec = dict(path=p, cls=mi.get_class().get_name())
+        try:
+            rec["dithered_lod_transition"] = bool(base.get_editor_property("dithered_lod_transition"))
+        except Exception as ex:
+            rec["dithered_lod_transition"] = "unreadable: %s" % ex
+        try:
+            rec["shading_model"] = str(base.get_editor_property("shading_model"))
+            rec["blend_mode"] = str(base.get_editor_property("blend_mode"))
+        except Exception as ex:
+            res["errors"].append("material props %s: %s" % (p, ex))
+        res["materials"][p] = rec
+    return p
+
+
+try:
+    unreal.SystemLibrary.execute_console_command(None, "Module Load StaticMeshEditor")
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    res["load_level"] = bool(les.load_level(MAP))
+    actors = list(eas.get_all_level_actors())
+    names = {}
+    for a in actors:
+        names[a.get_name()] = names.get(a.get_name(), 0) + 1
+    for a in actors:
+        rot = a.get_actor_rotation()
+        res["actors"].append(dict(name=a.get_name(), label=a.get_actor_label(), cls=a.get_class().get_name(),
+                                  location=vec(a.get_actor_location()), rotation=[float(rot.pitch), float(rot.yaw), float(rot.roll)],
+                                  hidden=bool(a.get_editor_property("hidden"))))
+        if isinstance(a, unreal.PlayerStart):
+            res["player_start"] = res["actors"][-1]
+        for c in a.get_components_by_class(unreal.StaticMeshComponent):
+            mesh = c.get_editor_property("static_mesh")
+            if mesh is None:
+                continue
+            mp = mesh.get_path_name()
+            if mp not in res["meshes"]:
+                n = int(sme.get_lod_count(mesh))
+                slots = []
+                for sm in mesh.get_editor_property("static_materials"):
+                    slots.append(dict(slot_name=str(sm.get_editor_property("material_slot_name")),
+                                      material=mat_info(sm.get_editor_property("material_interface"))))
+                res["meshes"][mp] = dict(path=mp, lods=n, screen_sizes=[float(x) for x in sme.get_lod_screen_sizes(mesh)],
+                                         triangles=[int(mesh.get_num_triangles(i)) for i in range(n)],
+                                         sections=[int(mesh.get_num_sections(i)) for i in range(n)],
+                                         section_slots=[[int(sme.get_lod_material_slot(mesh, i, s)) for s in range(mesh.get_num_sections(i))] for i in range(n)],
+                                         slots=slots, nanite=bool(mesh.get_editor_property("nanite_settings").enabled),
+                                         mesh_bounds=str(mesh.get_bounds()))
+            o, e, r = unreal.SystemLibrary.get_component_bounds(c)
+            overrides = [mat_info(c.get_material(i)) for i in range(c.get_num_materials())]
+            res["components"].append(dict(actor=a.get_name(), label=a.get_actor_label(), component=c.get_name(), mesh=mp,
+                                          lods=res["meshes"][mp]["lods"], origin=vec(o), extent=vec(e), sphere=float(r),
+                                          visible=bool(c.is_visible()), hidden_in_game=bool(a.get_editor_property("hidden")),
+                                          unique_name=names.get(a.get_name(), 0) == 1,
+                                          forced_lod=int(c.get_editor_property("forced_lod_model")), min_lod=int(c.get_editor_property("min_lod")),
+                                          mobility=str(c.get_editor_property("mobility")), cast_shadow=bool(c.get_editor_property("cast_shadow")),
+                                          component_materials=overrides, scale=vec(a.get_actor_scale3d())))
+    res["ok"] = True
+except Exception:
+    res["errors"].append(traceback.format_exc())
+
+if OUT:
+    with open(OUT, "w", encoding="utf-8") as f:
+        json.dump(res, f, indent=1)
+unreal.log("[lodfix-scan] ok=%s actors=%d components=%d meshes=%d materials=%d errors=%d" % (
+    res["ok"], len(res["actors"]), len(res["components"]), len(res["meshes"]), len(res["materials"]), len(res["errors"])))

@@ -1,0 +1,90 @@
+"""Freeze committed feature artifacts, restore m51 and verify the completed boundary."""
+import datetime
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+REV = ROOT / "_reviews"
+OUT = REV / "079-13-evidence/final"
+PLUGIN = ROOT / "StackOBot/Plugins/AnomalyInjector"
+CB = ROOT / "StackOBot/Plugins/CaptureBench"
+FROZEN = REV / "079-13-frozen"
+BASE = "53e6e5154d4f36e3cfbcfa5ad524eac2fa092852"
+pre = json.loads((OUT.parent / "preflight.json").read_text())
+
+
+def git(repo, *args):
+    return subprocess.check_output(["git", "-C", str(repo), *args], text=True, encoding="utf-8").strip()
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def check_untracked(repo, name):
+    before = pre[name]["untracked"]
+    now = {s: sha(repo / s) for s in git(repo, "ls-files", "--others", "--exclude-standard").splitlines()}
+    assert before.keys() == now.keys(), (name, before.keys() ^ now.keys())
+    changed = [s for s in before if before[s] != now[s]]
+    assert changed == ([] if name == "AnomalyInjector" else ["tools/m079_shift_recovery.py"]), changed
+    return {"hashes": now, "changed": changed}
+
+
+assert git(PLUGIN, "branch", "--show-current") == "fix/verifier-field-validity"
+assert not git(PLUGIN, "status", "--porcelain", "--untracked-files=no")
+feature = git(PLUGIN, "rev-parse", "HEAD")
+remote = git(PLUGIN, "ls-remote", "origin", "refs/heads/fix/verifier-field-validity").split()[0]
+assert feature == remote == git(PLUGIN, "rev-parse", "origin/fix/verifier-field-validity")
+assert git(PLUGIN, "rev-parse", "HEAD:Source") == pre["source_tree"]
+assert git(PLUGIN, "rev-parse", "HEAD:Shaders") == pre["shaders_tree"]
+assert git(PLUGIN, "rev-parse", "HEAD:tools/measure_label_offset.py") == pre["mlo_blob"]
+assert not git(PLUGIN, "diff", BASE, "HEAD", "--", "Source", "Shaders", "tools/measure_label_offset.py")
+assert sha(REV / "079-12-codex-delta-report.md") == pre["previous_report_sha256"]
+assert sha(REV / '079-11-codex-delta-report.md') == pre['older_report_sha256']
+assert not git(CB, "status", "--porcelain", "--untracked-files=no")
+assert git(CB, "rev-parse", "HEAD") == pre["CaptureBench"]["head"]
+
+FROZEN.mkdir(exist_ok=True)
+files = ["tools/verify_capture.py", "tools/measure_label_offset.py", "tools/test_verify_capture_consistency.py",
+         "CLAUDE.md", "docs/client-readme.md", "docs/office-rdp-card.md", "docs/gotchas.md",
+         "docs/predictions/2026-09-20-verifier-consistency-semantics.md",
+         "docs/sessions/2026-09-20-079-13-codex-delta.md", "docs/verifier-characterisation.md"]
+manifest = {"feature_sha": feature, "files": {}}
+for relative in files:
+    source = PLUGIN / relative
+    dest = FROZEN / source.name
+    shutil.copy2(source, dest)
+    manifest["files"][dest.name] = {"git_path": relative, "sha256": sha(dest),
+                                    "git_blob": git(PLUGIN, "rev-parse", "HEAD:" + relative)}
+source = CB / "tools/m079_shift_recovery.py"
+shutil.copy2(source, FROZEN / source.name)
+manifest["files"][source.name] = {"git_path": None, "sha256": sha(source), "git_blob": None,
+                                 "status": "CaptureBench local/untracked; no remote"}
+(FROZEN / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+(OUT / "implementation.diff").write_text(git(PLUGIN, "diff", BASE, "HEAD") + "\n", encoding="utf-8")
+(OUT / "diffstat.txt").write_text(git(PLUGIN, "diff", "--stat", BASE, "HEAD") + "\n", encoding="utf-8")
+subprocess.run(["git", "-C", str(PLUGIN), "switch", "m51"], check=True)
+assert git(PLUGIN, "rev-parse", "HEAD") == pre["AnomalyInjector"]["head"]
+assert not git(PLUGIN, "status", "--porcelain", "--untracked-files=no")
+assert git(PLUGIN, "rev-parse", "master") == git(PLUGIN, "rev-parse", "origin/master") == "ac13700d99fe116056f5aa11611f8931a563a3f2"
+assert git(PLUGIN, "ls-remote", "origin", "refs/heads/master").split()[0] == "ac13700d99fe116056f5aa11611f8931a563a3f2"
+now = datetime.datetime.now(datetime.timezone.utc)
+start = datetime.datetime(2026, 9, 20, 11, 16, 4, tzinfo=datetime.timezone.utc)
+seconds = int((now - start).total_seconds())
+result = {"start_utc": "2026-09-20 11:16:04 UTC", "end_utc": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+          "elapsed": f"{seconds // 60}m {seconds % 60:02d}s", "elapsed_seconds": seconds,
+          "feature_sha": feature, "remote_feature_sha": remote,
+          "m51_sha": git(PLUGIN, "rev-parse", "m51"), "master_sha": git(PLUGIN, "rev-parse", "master"),
+          "capturebench_sha": git(CB, "rev-parse", "HEAD"),
+          "previous_report_sha256": sha(REV / "079-12-codex-delta-report.md"),
+          "older_report_sha256": sha(REV / '079-11-codex-delta-report.md'),
+          "source_tree": pre["source_tree"], "shaders_tree": pre["shaders_tree"], "mlo_blob": pre["mlo_blob"],
+          "plugin_untracked": check_untracked(PLUGIN, "AnomalyInjector"),
+          "capturebench_untracked": check_untracked(CB, "CaptureBench"),
+          "plugin_status": git(PLUGIN, "status", "--porcelain"), "capturebench_status": git(CB, "status", "--porcelain"),
+          "tracked_trees_clean": True}
+(OUT / "boundary.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+print(json.dumps({k:v for k,v in result.items() if "untracked" not in k and "status" not in k}, indent=2))

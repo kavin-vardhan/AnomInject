@@ -1,0 +1,70 @@
+from pathlib import Path
+import datetime,hashlib,json,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-18-evidence';R=B/'StackOBot/Plugins/AnomalyInjector'
+L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector');C=B/'StackOBot/Plugins/CaptureBench'
+E17=B/'_reviews/081-17-evidence'
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(r,*a):return subprocess.check_output(['git','-C',str(r),*a]).decode().strip()
+def idle():
+    s=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool,ShaderCompileWorker -ErrorAction SilentlyContinue | Select-Object Id,ProcessName) | ConvertTo-Json -Compress']).decode().strip()
+    assert not s or s=='[]',s
+def state(r):
+    return {'head':git(r,'rev-parse','HEAD'),'branch':git(r,'branch','--show-current'),
+            'refs':git(r,'for-each-ref','--format=%(refname) %(objectname)','refs/heads','refs/remotes'),
+            'untracked':{p:sha(r/p) for p in git(r,'ls-files','--others','--exclude-standard').splitlines()}}
+idle()
+post17=json.loads((E17/'postflight.json').read_text());pre17=json.loads((E17/'preflight.json').read_text())
+man17=json.loads((E17/'evidence-manifest.json').read_text());bank17=json.loads((E17/'bank-manifest.json').read_text())
+assert post17['verdict'].startswith('PASS') and not post17['problems']
+EXTERNAL={'_reviews/081-17-codex-vs-code-comparison.md':'chat scorecard, edited 2026-09-24 01:07:42 IST after 081-17R postflight (19:27:47Z); expected external update, re-baselined'}
+if '--rerun' in sys.argv:assert (E/'preflight-attempt1-one-external-change.json').exists() and not (E/'preflight.json').exists()
+else:assert not E.exists();E.mkdir()
+pre={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'round':'081-18','repos':{},'mismatches':[]}
+for name,r in {'AnomalyInjector':R,'Lyra':L,'CaptureBench':C}.items():
+    assert not git(r,'diff','--name-only') and not git(r,'diff','--cached','--name-only'),name
+    st=state(r);old=post17['repos'][name]
+    for k in ('head','branch','refs','untracked'):
+        if st[k]!=old[k]:pre['mismatches'].append([name,k])
+    pre['repos'][name]=st
+assert pre['repos']['AnomalyInjector']['head']=='53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67' and pre['repos']['AnomalyInjector']['branch']=='m51'
+assert pre['repos']['Lyra']['head']=='caa68c6799db023f7a24c0d6cfc56124ce27b542' and pre['repos']['Lyra']['branch']==''
+lyra_bins=sorted(p.name for p in (L/'Binaries/Win64').iterdir() if p.is_file())
+pre['lyra_module_names']=lyra_bins
+if lyra_bins!=post17['lyra_module_names'] or len(lyra_bins)!=9 or any('AnomalyBench' in n for n in lyra_bins):pre['mismatches'].append(['Lyra','module set'])
+bins={}
+for p,h in post17['verified_binaries'].items():
+    a=sha(p);bins[p]=a
+    if a!=h:pre['mismatches'].append(['binary',p])
+pre['verified_binaries']=bins
+m17=json.loads((E17/'binary-v2.json').read_text())
+for key in ('built','staged','archive'):
+    if bins.get(m17[key])!=m17['sha256']:pre['mismatches'].append(['8E64FA39 not built=staged=archive',key])
+for r in m17['containers']:
+    if sha(r['path'])!=r['sha256']:pre['mismatches'].append(['container',r['path']])
+arts={}
+for p,h in pre17['prior_artifacts'].items():
+    a=sha(B/p);arts[p]=a
+    if a!=h and p.replace('\\','/') in EXTERNAL:pre.setdefault('external_updates',[]).append([p,h,a,EXTERNAL[p.replace('\\','/')]])
+    elif a!=h:pre['mismatches'].append(['artifact',p])
+for p,h in man17.items():
+    a=sha(B/p);arts[p]=a
+    if a!=h and p.replace('\\','/') in EXTERNAL:pre.setdefault('external_updates',[]).append([p,h,a,EXTERNAL[p.replace('\\','/')]])
+    elif a!=h:pre['mismatches'].append(['081-17 evidence',p])
+for name in ('081-17-chat-ruling-build2-accepted-throughput-readings.md','081-17-codex-vs-code-comparison.md'):
+    arts['_reviews/'+name]=sha(B/'_reviews'/name)
+if arts.get('_reviews/081-17-code-m55-build2-report.md')!=post17['report_sha256']:pre['mismatches'].append(['report','081-17'])
+pre['prior_artifacts']=arts
+bank={}
+for p,h in list(pre17['bank_files'].items())+list(bank17.items()):
+    a=sha(B/p);bank[p]=a
+    if a!=h:pre['mismatches'].append(['bank',p])
+pre['bank_files']=bank
+cur=sha(B/'ToCodex/CURRENT.md');pre['current_sha256']=cur
+if cur!=pre17['current_sha256']:pre['mismatches'].append(['ToCodex','CURRENT.md'])
+remote=git(R,'ls-remote','origin','refs/heads/feat/m55-change-evidence','refs/heads/master');pre['remote_refs']=remote
+if remote!=post17['remote_refs']:pre['mismatches'].append(['remote',remote])
+pre['counts']={'binaries':len(bins),'prior_artifacts':len(arts),'bank_files':len(bank)}
+(E/'preflight.json').write_text(json.dumps(pre,indent=2))
+print(json.dumps({'mismatches':pre['mismatches'],'counts':pre['counts'],'remote':remote,'lyra_modules':lyra_bins},indent=1))
+sys.exit(1 if pre['mismatches'] else 0)

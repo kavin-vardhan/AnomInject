@@ -1,0 +1,45 @@
+from pathlib import Path
+import hashlib,importlib.util,json,re,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-11-evidence'
+spec=importlib.util.spec_from_file_location('r1audit',B/'_reviews/081-09-diagnose.py');old=importlib.util.module_from_spec(spec);spec.loader.exec_module(old);old.E=E
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+manifest=json.loads((E/'binary-v2.json').read_text());pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+seq=[('ON',1),('OFF',1),('ON',2),('OFF',2),('ON',3),('OFF',3),('ON',4),('ON',5)];results=[]
+for mode,index in seq:
+    for key in ('built','staged','archive'):assert sha(manifest[key])==manifest['sha256']
+    label=f'F12V2_{mode}{index}';log=E/f'runner-{label}.log';assert not log.exists()
+    args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-11-preflight.ps1'),'-Label',label]
+    if mode=='ON':args+=['-FixtureOn']
+    with log.open('w') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+    if r.returncode:
+        results.append({'label':label,'mode':mode,'status':'HARNESS-INVALID','exit':r.returncode,'valid':False,'counts_toward_5':False})
+        (E/'validation-v2-results.json').write_text(json.dumps(results,indent=2));raise RuntimeError(f'{label} HARNESS-INVALID; journal cause and use remaining bounded correction iteration')
+    a=old.audit(label);d=E/label;text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace')
+    snaps=[json.loads(l) for l in (d/'snapshots.jsonl').read_text().splitlines()]
+    errors=list(a['errors']);on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);placed=re.findall(r'IAI-L2 PLACED .*',text)
+    def need(c,msg):
+        if not c:errors.append(msg)
+    if mode=='ON':
+        need(a['status']=='B1-VALID' and a['settle_sample_index']==0 and a['modal_rotation']==(0.0,0.0,0.0) and a['modal_coverage']==1.0,'ON strict B1/settle/modal gate')
+        need(all(s['view']['origin']==[-1500,0,260] and all(abs(v)<1e-6 for v in s['view']['rot']) for s in snaps),'ON independent calibrated pose')
+        need(len(on)==len(off)==len(placed)==1,'one lock/placement/unlock required')
+        readiness=re.findall(r'IAI-BENCH READY pc=\S+ pawn=\S+ spectator=\S+ viewtarget=\S+ capture_active=0 map=\S+ fixture=1',text)
+        need(len(readiness)==3,'one readiness line per fixture command')
+        need('IAI-INPUT-LOCK REFUSED' not in text and 'IAI-L2 REFUSED' not in text,'fixture refused')
+        if on and off and placed:
+            need('lookIgnored=1 moveIgnored=1' in on[0] and 'ok=1' in placed[0],'lock or placement failed')
+            prior=re.search(r'priorLook=(\d) priorMove=(\d)',on[0]);after=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0])
+            need(bool(prior and after and prior.groups()==after.groups()),'unlock did not restore entry ignore flags')
+            need('reason=command' in off[0] and text.index(on[0])<text.index(placed[0])<text.index(off[0]),'unexpected unlock/order')
+    else:
+        # Control B1 failures are observations, never a failure of the required ON matrix.
+        errors=[e for e in a['errors'] if e != 'never settled' and 'missing/invalid target snapshot rectangles after settle' not in e];need(not on and not off and not placed,'OFF control applied a fixture action')
+    a.update(mode=mode,strict_errors=errors,valid=not errors,lock_lines=on,unlock_lines=off,placement_lines=placed)
+    (d/'fixture-audit.json').write_text(json.dumps(a,indent=2));results.append(a)
+    (E/'validation-v2-results.json').write_text(json.dumps(results,indent=2))
+    print(json.dumps({k:a[k] for k in ('label','mode','status','valid','settle_sample_index','modal_rotation','modal_coverage','focus_valid_samples','strict_errors')}),flush=True)
+    if errors:raise RuntimeError(f'{label} validation failed; stop without renewing allowances')
+summary={'ON_pass':sum(r['valid'] for r in results if r['mode']=='ON'),'ON_required':5,'OFF_observed':3,'capture_start_sent':False,'allowance_renewed':True,'results':'validation-v2-results.json'}
+assert summary['ON_pass']==5
+(E/'validation-v2-summary.json').write_text(json.dumps(summary,indent=2));print(json.dumps(summary),flush=True)

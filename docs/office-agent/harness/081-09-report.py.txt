@@ -1,0 +1,256 @@
+from pathlib import Path
+import collections,datetime,hashlib,json,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-09-evidence';R=B/'StackOBot/Plugins/AnomalyInjector'
+def sha(p):
+    with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+results=json.loads((E/'diagnosis-v3-results.json').read_text());assert len(results)==10
+summary={'observations':[],'side_counts':{},'capture_snapshots_verified_idle':0,'inference':'Ambiguous: both binaries fail pose; unequal rates and foreground contention confound attribution. No correction branch or allowance renewal.'}
+for r in results:
+    d=E/r['label'];launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'))
+    snaps=[json.loads(l) for l in (d/'snapshots.jsonl').read_text().splitlines()]
+    assert len(snaps)==90 and not launch['capture_start_sent']
+    assert all(not s['capture']['running'] and s['capture']['framesWritten']==0 and not s['capture']['runDir'] and not s['active'] for s in snaps)
+    assert all(s['view']['origin']==[-1500,0,260] and s['view']['viewportPx']==[1280,720] and s['view']['fovDeg']==90 for s in snaps)
+    summary['capture_snapshots_verified_idle']+=90
+    focus=collections.Counter(f['foreground_pid'] for f in launch['focus'])
+    summary['observations'].append({**r,'focus_all_samples':r['focus_valid_samples']==90,'preflight_fully_qualified':r['status']=='B1-VALID' and r['focus_valid_samples']==90,'foreground_pid_counts':dict(focus),'duration_seconds':launch['finished_seconds']})
+for side in ('A','B'):
+    rr=[r for r in summary['observations'] if r['label'].startswith('R1V3_'+side)]
+    summary['side_counts'][side]={'launches_with_90_snapshots':len(rr),'B1_valid':sum(r['b1_raw'] and not r['errors'] for r in rr),'focus_all_samples':sum(r['focus_all_samples'] for r in rr),'B1_and_focus_all_samples':sum(r['preflight_fully_qualified'] for r in rr)}
+summary['foreground_process_lookup']={'pid':18684,'process_name':'SearchHost','lookup':'Read-only Get-Process after series; no process/window change. PID observation alone does not identify what user action caused foreground ownership.'}
+summary['ancillary_launches']=[{'label':'R1_A1','status':'PROTOCOL-FAIL','snapshots':0,'cause':'Observer rejected binary-framed JSON welcome'}, {'label':'R1V2_A1','status':'B1-VALID pilot with older observer','snapshots':90}, {'label':'R1V2_B1','status':'FOCUS-FAIL before sampling','snapshots':0}, {'label':'R1V3_A2','status':'PROTOCOL-FAIL','snapshots':0,'cause':'Observer passed null startup-log text to regex'}]
+summary['total_launches']=14;summary['fresh_qualification_allowance_released']=False
+(E/'diagnosis-summary.json').write_text(json.dumps(summary,indent=2))
+src=['AnomalyInjector.uplugin','Source/AnomalyBench/Private/AnomalyBenchModule.cpp','Source/AnomalyInjector/Private/Anomalies/Anomaly_ChangeCase.h','Source/AnomalyInjector/Private/Anomalies/Anomaly_ChangeCase.cpp','Source/AnomalyControlServer/Private/ControlSnapshot.cpp','Source/AnomalyInjector/Private/AnomalyViewport.cpp']
+source={'files':{p:sha(R/p) for p in src},'findings':['AnomalyBench target allowlist is Editor only; packaged Game does not compile this module. Placement additionally requires explicit command/fixture flag/L_ShooterGym/no active capture.','Twin constructors assign IDs and a bool; bActive starts false. TickAlways has an active guard. No placement in registration. ChangeEvidenceCases gates Apply, not registration.','ChangeStage is created at StartRun; snapshots confirm no capture started.','ControlSnapshot and AnomalyViewport are byte-identical in git between Stage 1 source3dc1dda and Stage 2 source989da8b.'],'limits':'Source exclusions do not prove startup timing or capture-path runtime equivalence.'}
+diff=subprocess.check_output(['git','-C',str(R),'diff','3dc1dda','989da8b','--','Source/AnomalyControlServer/Private/ControlSnapshot.cpp','Source/AnomalyInjector/Private/AnomalyViewport.cpp']).decode();assert not diff
+(E/'source-mechanism-read.json').write_text(json.dumps(source,indent=2))
+table='| Observation | Settle sample | Modal pitch/yaw/roll | Modal bbox (px) | Coverage / distinct | B1 | Foreground samples |\n|---|---:|---|---|---|---|---:|\n'
+for r in results:
+    rot='/'.join(f'{x:g}' for x in r['modal_rotation']);box='none' if r['modal_bbox'] is None else '/'.join(f'{x:g}' for x in r['modal_bbox'])
+    table+=f"| {r['label']} | {r['settle_sample_index']} | {rot} | {box} | {r['modal_coverage']:.1%} / {r['distinct']} | {'PASS' if r['b1_raw'] and not r['errors'] else 'FAIL'} | {r['focus_valid_samples']}/90 |\n"
+(E/'results-table.md').write_text(table)
+outcome='''
+## Final diagnosis — NEEDS-DECISION, no correction branch selected
+
+The complete R1V3 series has900 snapshots, five observations each A/B in alternating order.
+Stage 1 B1-valid4/5, Stage 2 B1-valid2/5. Sustained foreground90/90 samples: A2/5, B0/5.
+The same counts2/5 and0/5 meet both B1 and sustained focus; raw B1 passes without focus
+are not a final-fixture certificate. Four raw B1 passes late in the series had0/90 foreground.
+Both binaries show orientation-only instability; origin(-1500,0,260), FOV90 and1280x720 are
+constant across all900 snapshots. All have capture idle, framesWritten0, empty runDir/active.
+
+Foreground PID18684 dominates failed/late observations; a read-only post-series lookup resolves
+it to SearchHost. No owner application, window, process, input setting or search UI was changed.
+This identifies foreground contention, not its initiating action and not a causal proof of every
+earlier failure. B1 failures occur on both binaries, so a Stage-2-only regression is not established;
+1/5 versus3/5 pose failures with inconsistent focus does not establish similar rates either.
+Follow the predeclared ambiguous-result branch: no flags bisect, L2 Game change, rebuild or new
+qualification allowance. Cause of the earlier Stage 2 capture failures remains NOT ESTABLISHED.
+
+All14 launches retained: ten full comparison observations plus four ancillary (binary-frame
+observer failure, one earlier valid A pilot, foreground failure before sampling, empty-log observer
+failure). The V3_A2R1 launch only replaces an observation absent due to observer failure; no B1
+failure is rerun or removed. Explicit tooling corrections above precede their further launches.
+
+Report081-09 contains every reading and asks Chat to resolve the focus-confounded branch, ideally
+a bounded comparable-focus preflight before attributing a binary regression or permitting L2.
+The accepted static twins remain accepted; DELAY_N still has0 remaining qualification attempts.
+R2–R4 authorized mechanisms remain deferred to their own post-R1 block; R5 Lyra stays last.
+Stage 1 accepted36/Lyra24 DROPPED-BY-OWNER-DECISION unchanged; actual teardown, runtime invariance,
+Stage 3 oracle/cost still open. Preserve FPS21.5 vs30 on evidence-OFF MAIN4 and prior limits.
+
+**Chat review REQUIRED** at this R1 disposition/next step before any further preflights/correction
+or R2–R4, because the observed rates/focus do not select the ruling's conditional branches and
+the ruling explicitly requires this report/ferry stop. **Chat review NOT REQUIRED** for completed
+authorized diagnosis and boundary documentation. Stage 3 held. No fresh session recommended.
+'''
+p=R/'docs/sessions/2026-09-21-081-09-codex-m55-fixture-diagnosis.md';p.write_text(p.read_text(encoding='utf-8')+outcome,encoding='utf-8')
+p=R/'CLAUDE.md';t=p.read_text(encoding='utf-8');start=t.index('> **081-08,');end=t.index('\n> 🏁',start)
+t=t[:start]+'''> **081-09, 2026-09-21 — m55 R1 no-capture fixture diagnosis: NEEDS-DECISION.**
+> Archived Stage 1 AEBD09EA passed B1 in4/5 observations; Stage 2 2C21EDE5 in2/5.
+> Focus was inconsistent: only2/5 A and0/5 B held it for all90 samples. SearchHost was
+> observed owning foreground during much of the series. Both binaries fail pose;
+> neither a Stage-2-only regression nor similar failure rates is established.
+> No capture/injection, rebuild, source fix or allowance renewal. Static twins remain
+> accepted by081-08 ruling; DELAY_N's three old invalid attempts remain uncredited.
+> Read `docs/sessions/2026-09-21-081-09-codex-m55-fixture-diagnosis.md` and external
+> `_reviews/081-09-codex-m55-fixture-diagnosis.md`. **Chat review REQUIRED** for the
+> ambiguous R1 continuation and explicit report/ferry boundary before R2–R4. **Chat review
+> NOT REQUIRED** for completed authorized diagnosis/documentation. R5 Lyra runs last;
+> Stage 3 remains held. Feature changes this round are documentation only.
+> Stage 1 accepted36; Lyra24 DROPPED-BY-OWNER-DECISION unchanged. No Code brief.
+> This m55 feature status supersedes older status prose below for this workstream.
+''' + t[end:];p.write_text(t,encoding='utf-8')
+p=R/'docs/predictions/2026-09-20-m55-change-evidence.md';p.write_text(p.read_text(encoding='utf-8')+'''
+
+## AMENDMENT 081-09 outcome, 2026-09-21 — R1 diagnosis, no qualification allowance renewed
+
+081-08 continuation ruling accepts the four static twin legs. R1 no-capture A/Bx5 is complete:
+AEBD09EA B1-valid4/5,2C21EDE5 B1-valid2/5, with inconsistent foreground focus (sustained A2/5,
+B0/5). Both binaries fail, rates are unequal, and focus confounds attribution. No correction
+branch selected; no rebuild or capture. Chat review REQUIRED at the explicit R1 report boundary.
+No new allowance; R2–R4 (including authorized real occluder and natural moving twins) deferred;
+R5 scoped Lyra last. GREEN R2–R4 plus R5 resolved is now the automatic Stage 3 release condition.
+The twenty-four Stage 1 Lyra legs remain DROPPED-BY-OWNER-DECISION. See081-09 journal/report.
+''',encoding='utf-8')
+p=R/'docs/gotchas.md';p.write_text(p.read_text(encoding='utf-8')+'''
+
+## G277 — B1 pose validity and foreground ownership are separate observations (2026-09-21, R1 preflight)
+
+No-capture server snapshots can retain a calibrated static camera while another process owns
+foreground. In081-09, four late A/B preflights passed raw B1 with0/90 foreground samples;
+they do not certify a focused final fixture. Other launches changed orientation and lost the
+visible target while foreground ownership alternated. Retain both pose and foreground series;
+do not infer binary regression, input cause or fixed-fixture readiness from the B1 count alone.
+The adapter uses snapshot indices, not captured-frame indices. Keep missing target rows explicit.
+UE's control JSON may arrive in binary WebSocket data frames; require valid JSON rather than
+Text framing. Treat an empty newly created log as not ready, not as a regex input error.
+''',encoding='utf-8')
+report='''# 081-09 — m55 Stage 2 R1 fixture diagnosis
+
+2026-09-21. Authority: `081-08-chat-rulings-stage-2-continuation.md`. This is the R1 report
+and mandatory owner-ferry stop. Codex implements; Chat orchestrates; Code reviews after Stage 3.
+
+## Disposition
+
+**NEEDS-DECISION.** Completed five no-capture observations per archived binary, alternating A/B.
+Stage 1 **AEBD09EA passed raw B1 4/5**; Stage 2 **2C21EDE5 passed raw B1 2/5**. Both exhibit pose
+failures, but foreground focus was not comparable: sustained focus for all90 snapshots occurred
+in only2/5 A observations and0/5 B observations. Four late raw B1 passes had0/90 foreground samples.
+
+This does not isolate a Stage-2-only regression or establish similar failure rates. Therefore I
+have not selected R1's regression-bisect or L2-correction branch, rebuilt, or renewed any Stage 2
+qualification allowance. The earlier capture failures' cause remains **NOT ESTABLISHED** after
+the required comparison. The observed foreground contention is a concrete confound to resolve.
+
+**Chat review REQUIRED** for R1 continuation and the explicit report/ferry boundary before R2–R4.
+**Chat review NOT REQUIRED** for the completed authorized diagnosis and boundary documentation.
+The next mandatory checkpoint is Chat's ruling on this report. Stage 3 remains held until a
+GREEN R2–R4 report plus R5 resolved, as the latest ruling specifies.
+
+## Recipe and what was measured
+
+Prediction was committed before any launch in the081-09 journal. Same staged Game path, same
+five cooked containers, CB_GateLevel, windowed1280x720, AA0/AE-off, marker1, stall0,
+SVE1/Delivery0/Pace1/Fps30, Config2/4/16/4/0, ChangeEvidenceCases1/ChangeGate14/SynthTickOrder0,
+explicit fixture flag. Every archive/staged binary was hashed before launch. Commands unavailable
+in A were not replaced with inferred settings. Only the existing control server was started.
+
+After world/server readiness and a fixed five-second settle, retain90 fresh snapshots at requested
+20Hz. Convert the exact target StaticMeshActor_49's normalized visible-component rectangle to
+pixel x/y/width/height; use the existing B1/A56 checker without threshold changes (modal>=90%,
+distinct<=3, bbox tolerance8px; settleK5,0.5 degrees). The snapshot/label eight-corner projection
+paths are compatible for this single-static-mesh fixture and unchanged across A/B. Missing target
+rectangles stay missing and fail closed. No reference bbox is substituted. Settle indices below
+are **snapshot sample indices, not capture indices**. Adapter rows are not labels.jsonl.
+
+The control observer records foreground PID/cursor position and uses the existing runner's
+AppActivate plus Win32 foreground forcing. It records pose even if focus is absent so diagnosis
+is not discarded. Raw B1 and sustained focus are separate fields; neither self-certifies the other.
+No placement or camera/movement mutation, no anomaly injection, no capture_start/IAI.Capture.Start.
+
+## Complete comparison: every observation retained
+
+''' + table + '''
+All900 comparison snapshots have origin(-1500,0,260), FOV90 and viewport1280x720. Instability is
+in orientation. Each has capture.running=false, framesWritten0, empty runDir and no active anomaly.
+For target-missing observations, no bbox exists to compare; that is an invalid fixture reading,
+not a fabricated off-calibration bbox. B1 failure rows were never rerun or removed.
+
+Foreground PID18684 appears extensively in failed and late observations. A read-only lookup
+after the series identified it as **SearchHost**. The final four observations recorded that PID
+for all90 samples. This establishes competing foreground ownership. It does not establish which
+action caused it, whether it caused every camera delta, or explain the earlier capture failures.
+I did not close, kill, alter or interact with that owner application.
+
+`081-09-evidence/diagnosis-summary.json` carries raw B1 counts, separate focus counts and the full
+table. `diagnosis-v3-results.json` preserves the observation results; every per-launch directory
+contains launch metadata, full game log, raw snapshots and control-b1 adapter rows/result.
+
+## Observer defects and additional launches
+
+There were **14 launches total**, not ten: ten complete comparison observations and four retained
+ancillary launches. All were without capture. These are explicit tooling corrections, not hidden
+measurement-result retries:
+
+1. `R1_A1`: zero snapshots; my new reader wrongly required a Text WebSocket frame. UE sends
+   its JSON using NetworkingWebSocket binary data frames. Authentication succeeded, then the
+   reader threw. Corrected to parse JSON from either data-frame type, matching the existing client.
+2. `R1V2_A1`:90 snapshots, B1 PASS (pitch359.36°, bbox0/477.9/307.7/242.1); retained as a pilot
+   under the earlier observer, not pooled into the complete common-observer series.
+3. `R1V2_B1`: zero snapshots; foreground was absent at the observer's pre-sampling check.
+   Added the omitted existing AppActivate mechanism and retained diagnostic sampling when
+   foreground fails. This does not waive focus for final-fixture qualification.
+4. `R1V3_A2`: zero snapshots; a newly created empty log read as null and caused a regex error.
+   Cast to an empty string while waiting for readiness. Continued with `R1V3_A2R1` then B2 onward.
+   Earlier V3 A1/B1 readings stayed in the denominator. No sampling or B1 threshold changed.
+
+Each failed observer launch's owned PID was stopped/joined and the Stage 2 executable restored.
+Corrections were journalled before the next launch. No accepted/invalid earlier measurement leg
+was rewritten, deleted or credited by these observer repairs.
+
+## Source mechanism read and interpretation
+
+- AnomalyBench is allowlisted to Editor, so it is absent from this packaged Game build. Its
+  placement also requires an explicit command, fixture flag, Lyra map and inactive capture.
+  Automatic placement from this module is not a supported explanation for these Game starts.
+- The twin constructors set an ID and boolean; active state starts false. Their always-tick
+  hook is guarded by active state. Neither registration nor constructors place the pawn.
+  ChangeEvidenceCases gates Apply, not registration; it is not a registration-disable lever.
+- The measurement stage is created at StartRun. No StartRun occurred in these preflights.
+- ControlSnapshot/AnomalyViewport are unchanged between accepted Stage 1 and Stage 2 source.
+
+These reads narrow candidate mechanisms, not prove timing equivalence. The experiment shows
+that the Stage 1 binary can also fail B1. It does **not** show that a Stage 2 contribution is
+impossible. With1/5 versus3/5 raw pose failures and unequal focus, neither conditional diagnosis
+is established. I followed the predeclared ambiguous-result stop instead of treating uncertainty
+as authorization for a correction or claiming that five focused valid preflights were achieved.
+
+## Remaining authorization and coverage
+
+- The four static twin legs remain accepted by081-08. Stage 1 remains accepted on36, with the
+  other24 Lyra legs **DROPPED-BY-OWNER-DECISION**. Historical invalid attempts remain preserved.
+- DELAY_N's three measurement-fixture attempts remain uncredited and exhausted. No fresh
+  allowance has been activated. This R1 diagnostic series is not a qualification capture series.
+- R2 real cooked-mesh occluder and R3 natural moving twins are authorized approaches for their
+  later block. The withdrawn offscreen recipe/private B1 exception remains withdrawn.
+- R2–R4 gates, mandatory actual teardown and six-leg AEBD09EA legacy invariance remain open.
+  R5 Lyra runs last: null/solid natural and G3/G270 only; zero L2/L1 runtime attempts used and
+  the first-leg three-attempt auto-drop rule remains unchanged. No Lyra Stage 3/cost legs.
+- Stage 3 oracle/cost/release work remains held. Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4**
+  and the verbatim prior coverage limits; no cost or shipping conclusion is made here.
+
+## Verified boundary and read order
+
+Documentation-only feature changes this round; implementation remains989da8b, built/staged Game
+2C21EDE5. No rebuild, cook, merge, tag, Lyra host edit or mailbox brief. Candidate was restored
+after every interrupted/complete batch. Archives, containers and previous round artifacts are
+verified unchanged. Final feature commit/push and frozen docs are recorded in postflight/manifest.
+
+Main checkout restored m51 `53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67`; Lyra remains detached
+`caa68c6799db023f7a24c0d6cfc56124ce27b542` with its nine original module files. Main built/staged
+Game and StackOBotEditor modules remain Stage 2 candidate binaries despite the m51 source checkout.
+CaptureBench and all pre-existing untracked files are unchanged. Master/m51 refs are untouched.
+No owned game/editor/build or watcher is left in flight. All earlier CURRENT bytes are retained.
+No fresh-session change is recommended for this continuing workstream.
+
+Read: this report;081-08 continuation ruling; frozen081-09 journal; diagnosis-summary.json and
+the ten full observations; the four ancillary logs; source-mechanism-read.json; preflight,
+evidence-manifest, postflight and frozen manifest. All current-round evidence is under
+`D:/IntrusiveAnomalies/_reviews/081-09-evidence`.
+
+## Questions for chat
+
+R1 produced an uncovered, focus-confounded outcome: A fails1/5 and B3/5; no B observation held
+foreground throughout sampling. Please rule on a bounded repeat under comparable, independently
+verified focus before choosing regression bisect versus L2 correction. I recommend resolving
+foreground contention first, then keeping the same B1 thresholds and all invalid readings.
+No owner-app change, extra preflight allowance or Stage 2 allowance has been assumed. If Chat
+instead accepts the shared failure signature as sufficient for R1 step3 despite these rates,
+please say so explicitly; L2 would still need independent5/5 focused B1 validation afterward.
+
+VERDICT: NEEDS-DECISION
+'''
+(B/'_reviews/081-09-codex-m55-fixture-diagnosis.md').write_text(report,encoding='utf-8')
+print(json.dumps(summary['side_counts']))

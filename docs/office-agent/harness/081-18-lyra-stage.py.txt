@@ -1,0 +1,22 @@
+from pathlib import Path
+import json,hashlib,shutil,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-18-evidence';L=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector')
+ENTRY='caa68c6799db023f7a24c0d6cfc56124ce27b542'
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def git(*a):return subprocess.check_output(['git','-C',str(L),*a]).decode().strip()
+idle=subprocess.check_output(['powershell','-NoProfile','-Command','@(Get-Process -Name UnrealEditor,StackOBot,LyraGame,UnrealBuildTool,ShaderCompileWorker -ErrorAction SilentlyContinue) | Select-Object -ExpandProperty Id']).decode().strip();assert not idle,idle
+out=E/'lyra-staged.json';assert not out.exists()
+m=json.loads((B/'_reviews/081-17-evidence/binary-v2.json').read_text());entry=json.loads((B/'_reviews/081-15-evidence/lyra-staged.json').read_text())['entry_modules']
+target=L/'Binaries/Win64'
+assert git('rev-parse','HEAD')==ENTRY and not git('diff','--name-only') and not git('diff','--cached','--name-only') and not git('ls-files','--others','--exclude-standard')
+names=sorted(p.name for p in target.iterdir() if p.is_file());assert names==sorted(r['name'] for r in entry),names
+for r in entry:assert sha(target/r['name'])==r['sha256'],r['name']
+for r in m['lyra_modules']:assert sha(Path(m['lyra_archive'])/r['name'])==r['sha256'],r['name']
+git('checkout','--detach',m['source_commit'])
+for r in m['lyra_modules']:
+ shutil.copy2(Path(m['lyra_archive'])/r['name'],target/r['name']);assert sha(target/r['name'])==r['sha256']
+names=sorted(p.name for p in target.iterdir() if p.is_file());assert names==sorted(r['name'] for r in m['lyra_modules']),names
+assert git('rev-parse','HEAD')==m['source_commit'] and not git('diff','--name-only') and not git('ls-files','--others','--exclude-standard')
+out.write_text(json.dumps(dict(source_commit=git('rev-parse','HEAD'),archive=m['lyra_archive'],modules=m['lyra_modules'],entry_source=ENTRY,entry_modules=entry),indent=2))
+print('Lyra staged: detached',m['source_commit'][:7],'with',len(names),'build-2 modules from',m['lyra_archive'])

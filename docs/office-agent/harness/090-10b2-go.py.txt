@@ -1,0 +1,96 @@
+"""090-10b2 leg batch. Usage: 090-10b2-go.py <BUILD> <leg> [<leg> ...]. Leg names are templates resolved against the build sha8.
+Every leg waits for the quiet gate (no editor, no game, no foreign GPU-heavy process, 60 s without input, 3 reads)."""
+import importlib.util, json, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+_s = importlib.util.spec_from_file_location('h10b2', str(Path(__file__).with_name('090-10b2-common.py')))
+h = importlib.util.module_from_spec(_s); _s.loader.exec_module(h)
+c = h.c
+UV, NM, SM = 'uv_corruption', 'normal_corruption', 'stuck_low_mip'
+ROCK = 'StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+FOCUS = ['IAI.Capture.FocusGate 0']
+MAT = '/Game/CaptureBenchTexCorrupt/Materials/M_TC_UC4'
+
+
+def legs(b):
+    L = {}
+    py = h.PY
+    L['P_PROBE'] = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, kind='exit', hold_s=6.0, settle_s=6.0, wait=300,
+                        pre=['PYSTEP ' + str(py / 'probe.py')], plan_extra=dict(probe_out='{RUNS}/{LABEL}.probe.json'))
+    L['P_UV'] = dict(mode='pie', build=b, map=c.MAP_FIX, census=True, anomaly=UV, target=c.FIX, pre=list(FOCUS))
+    L['P_NM'] = dict(mode='pie', build=b, map=c.MAP_FIX, census=True, anomaly=NM, target=c.FIX_N, pre=list(FOCUS))
+    L['P_SM77'] = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, anomaly=SM, target=c.FIX_M52, pre=list(FOCUS))
+    for mode, frames, wait in (('identity', 120, 3.0), ('missing', 120, 3.0), ('healthy', 600, 75.0)):
+        L['P_ISM_' + mode.upper()] = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, kind='exit', wait=900, settle_s=8.0,
+                                          pre=list(FOCUS) + ['PYSTEP ' + str(py / 'construct.py')],
+                                          plan_extra=dict(out_dir='{OUT}', construct_out='{RUNS}/{LABEL}.construct.json',
+                                                          construct=dict(mode=mode, material=MAT, frames=frames, wait_s=wait)))
+    for tag, mode, mat, frames, wait in (('P_SPL_IDENTITY', 'identity', MAT, 120, 3.0),
+                                         ('P_SPL_FRESH_UC5', 'fresh', '/Game/CaptureBenchTexCorrupt/Materials/M_TC_UC5', 300, 0.0),
+                                         ('P_SPL_FRESH_UC3', 'fresh', '/Game/CaptureBenchTexCorrupt/Materials/M_TC_UC3', 300, 0.0),
+                                         ('P_SPL_FRESH_UC2', 'fresh', '/Game/CaptureBenchTexCorrupt/Materials/M_TC_UC2', 300, 0.0)):
+        L[tag] = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, kind='exit', wait=900, settle_s=8.0,
+                      pre=list(FOCUS) + ['PYSTEP ' + str(py / 'construct.py')],
+                      plan_extra=dict(out_dir='{OUT}', construct_out='{RUNS}/{LABEL}.construct.json', done_timeout_s=300,
+                                      construct=dict(mode=mode, material=mat, frames=frames, wait_s=wait)))
+    L['P_SPL_STALE'] = dict(mode='pie', build=b, map=c.MAP_FIX, census=False, kind='exit', wait=900, settle_s=8.0,
+                            pre=list(FOCUS) + ['PYSTEP ' + str(py / 'construct.py')],
+                            plan_extra=dict(out_dir='{OUT}', construct_out='{RUNS}/{LABEL}.construct.json', done_timeout_s=400,
+                                            construct=dict(mode='stale', material='/Game/CaptureBenchTexCorrupt/Materials/M_TC_UC2',
+                                                           frames=150, wait_s=5.0, prep_s=60.0)))
+    b9 = dict(arbiter=False, cfg='2 4 8 30 0', frames=1200, wait=1200, extra=['-IAIBench'])
+    L['P_B9'] = dict(mode='pie', build=b, map=c.MAP_MW, census=False, anomaly=SM, target=ROCK,
+                     pre=FOCUS + ['IAI.Targets.AllowNanite 1', 'r.AntiAliasingMethod 0'], **b9)
+    L['P_B5'] = dict(mode='pie', build=b, map=c.MAP_MW, census=False, anomaly=SM, target=ROCK,
+                     pre=FOCUS + ['IAI.Targets.AllowNanite 1', 'r.AntiAliasingMethod 0', 'IAI.Bench.StuckMipNoHold 1'], **b9)
+    L['S_B9'] = dict(mode='staged', build=b, map=c.MAP_MW, census=False, anomaly=SM, target=ROCK,
+                     pre=['IAI.Targets.AllowNanite 1', 'r.AntiAliasingMethod 0'], **b9)
+    L['S_B5'] = dict(mode='staged', build=b, map=c.MAP_MW, census=False, anomaly=SM, target=ROCK,
+                     pre=['IAI.Targets.AllowNanite 1', 'r.AntiAliasingMethod 0', 'IAI.Bench.StuckMipNoHold 1'], **b9)
+    L['P_MWAUTO'] = dict(mode='pie', build=b, map=c.MAP_MW, census=False, auto=[SM, UV, NM], frames=600, wait=900,
+                         pre=FOCUS + ['IAI.Targets.AllowNanite 0'])
+    L['S_UV'] = dict(mode='staged', build=b, map=c.MAP_FIX, census=True, anomaly=UV, target=c.FIX)
+    L['S_NM'] = dict(mode='staged', build=b, map=c.MAP_FIX, census=True, anomaly=NM, target=c.FIX_N)
+    cen = ['IAI.Targets.AllowNanite 0']
+    L['P_CEN_MW'] = dict(mode='pie', build=b, map=c.MAP_MW, census=False, kind='exit', record_dt=True, settle_s=12.0, hold_s=25.0, wait=900,
+                         arbiter=False, pre=cen + ['WAIT 5', 'IAI.TexCorrupt.Census all', 'WAIT 15'])
+    L['P_CEN_BIG'] = dict(mode='pie', build=b, map=c.MAP_MW, census=False, kind='exit', record_dt=True, settle_s=12.0, hold_s=60.0, wait=1500,
+                          arbiter=False, pre=cen + ['PYSTEP ' + str(py / 'clones.py'), 'WAIT 8', 'IAI.TexCorrupt.Census all', 'WAIT 45'],
+                          plan_extra=dict(clones=dict(count=15000, per_tick=500, out='{RUNS}/{LABEL}.clones.json')))
+    L['P_CEN_MW_WARM'] = dict(mode='pie', build=b, map=c.MAP_MW, census=False, kind='exit', record_dt=True, settle_s=12.0, hold_s=40.0,
+                              wait=900, arbiter=False,
+                              pre=cen + FOCUS + ['IAI.Auto.Pool all 0', 'IAI.Capture.Start {OUT} png 777 30', 'WAIT 12',
+                                                 'IAI.TexCorrupt.Census all', 'WAIT 20'])
+    L['P_CEN_HUGE'] = dict(L['P_CEN_BIG'], hold_s=90.0, wait=2400,
+                           plan_extra=dict(clones=dict(count=40000, per_tick=800, out='{RUNS}/{LABEL}.clones.json')))
+    L['S_CEN_MW'] = dict(mode='staged', build=b, map=c.MAP_MW, census=False, kind='log', pattern='Capture Ended. Writing CSV', count=1,
+                         arbiter=False, wait=600, pre=cen + ['DEFER ' * 300 + 'csvprofile start', 'DEFER ' * 330 + 'IAI.TexCorrupt.Census all',
+                                                            'DEFER ' * 900 + 'csvprofile stop'], post_wait_s=20)
+    return L
+
+
+def resolve(label, spec):
+    s = json.loads(json.dumps(spec))
+    rep = {'{RUNS}': str(h.WORK / 'runs'), '{LABEL}': label, '{OUT}': str(h.OUT / label)}
+    def fix(v):
+        if isinstance(v, str):
+            for k, r in rep.items():
+                v = v.replace(k, r)
+            return v
+        if isinstance(v, dict):
+            return {k: fix(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [fix(x) for x in v]
+        return v
+    return fix(s)
+
+
+if __name__ == '__main__':
+    build = sys.argv[1]
+    L = legs(build)
+    for name in sys.argv[2:]:
+        base = name.split('__')[0]
+        label = f'{base}_{build}' + (('__' + name.split('__')[1]) if '__' in name else '')
+        spec = resolve(label, L[base])
+        rec = h.run(label, spec)
+        print(json.dumps(h.brief(rec), default=str), flush=True)

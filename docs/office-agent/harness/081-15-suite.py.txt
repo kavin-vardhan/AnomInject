@@ -1,0 +1,153 @@
+from pathlib import Path
+import hashlib,importlib.util,json,re,subprocess,sys
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-15-evidence'
+def sha(p):
+ with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+m=json.loads((E/'binary-v1.json').read_text());results=json.loads((E/'suite-results.json').read_text()) if (E/'suite-results.json').exists() else []
+
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+cases={
+ 'null':dict(anomaly='null_effect'), 'solid':dict(anomaly='solid_swap'),
+ 'delay':dict(anomaly='solid_swap',delay=3),
+ 'hide':dict(anomaly='missing_object'),
+ 'hide_depth':dict(anomaly='missing_object',extra='IAI.Bench.HideOmitDepthPassSilencing 1',depth=True),
+ 'empty':dict(anomaly='missing_object',scene='occluder',empty=True,normal=False),
+ 'blink':dict(anomaly='blinking',config='2 4 100 4 0',frames=360,blink=True),
+ 'short':dict(anomaly='null_effect',config='2 4 2 4 0',short=True),
+ 'runend':dict(anomaly='null_effect',config='2 4 100 4 0',frames=20,event_floor=1,runend=True),
+ 'drop':dict(anomaly='solid_swap',extra='IAI.Bench.DestroyTarget StaticMeshActor_49 15',frames=45,event_floor=1,drop=True,normal=False),
+ 'nohold':dict(anomaly='stuck_low_mip',extra='IAI.Bench.StuckMipNoHold 1, IAI.Capture.DeferredOnsetTimeout 8',nohold=True,normal=False),
+ 'teardown':dict(anomaly='null_effect',config='2 4 1000 4 0',frames=1000,event_floor=1,teardown=True,extra='IAI.Bench.ChangeTeardownAt 30'),
+ 'moving_null':dict(anomaly='null_effect',scene='motion',motion=True),
+ 'moving_solid':dict(anomaly='solid_swap',scene='motion',motion=True)}
+cases.update({
+ 'count_fail':dict(anomaly='null_effect',config='2 4 2 4 0',extra='IAI.Bench.ChangeGate 16',cf=16),
+ 'wall_fail':dict(anomaly='null_effect',config='2 4 2 4 0',extra='IAI.Bench.ChangeGate 17',cf=17),
+ 'null1080':dict(anomaly='null_effect',res=(1920,1080),all_pairs=True),
+ 'solid1080':dict(anomaly='solid_swap',res=(1920,1080),all_pairs=True)})
+for gate in (1,2,3,4,5,6,7,10,11,12,13,15):
+ cases['g'+str(gate)]=dict(anomaly='corrupted_texture',config='2 8 16 4 0',frames=9 if gate==11 else 90,event_floor=1 if gate==11 else 3,identity_gate=gate,extra=f'IAI.Bench.ChangeGate {gate}, Log LogAnomalyCapture Verbose')
+seq=[(n,o) for n in ('count_fail','wall_fail','null1080','solid1080') for o in (0,1)]
+seq += [(n,o) for n in ('null','solid','delay','hide','hide_depth','empty','blink','short','drop','runend','teardown') for o in (0,1)]
+seq += [('moving_null',0),('moving_solid',0)]
+seq += [('g'+str(g),o) for g in (1,2,3,4,5,6,7,10,11,12,13,15) for o in (0,1)]
+if len(sys.argv)>1:seq=[x for x in seq if x[0] in sys.argv[1:]]
+for case,order in seq:
+ c=cases[case]
+ if any(x['case']==case and x['order']==order and x.get('accepted') for x in results):continue
+ accepted=False
+ for attempt in range(1,4):
+  for key in ('built','staged','archive'):assert sha(m[key])==m['sha256']
+  label=f'B_{case.upper()}_{"S" if order else "N"}_A{attempt}';d=E/label;log=E/f'runner-{label}.log'
+  args=[pwsh,'-NoProfile','-File',str(B/'_reviews/081-15-measure.ps1'),'-Label',label,'-Anomaly',c['anomaly'],'-Order',str(order),'-MaxFrames',str(c.get('frames',90)),'-Config',c.get('config','2 4 16 4 0')]
+  if c.get('res'):args+=['-ResX',str(c['res'][0]),'-ResY',str(c['res'][1])]
+  if c.get('extra'):args+=['-ExtraExecCmds',c['extra']]
+  if c.get('scene'):args+=['-SceneMode',c['scene']]
+  if c.get('delay'):args+=['-DelayFrames',str(c['delay'])]
+  if log.exists():
+   from types import SimpleNamespace
+   prior=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));r=SimpleNamespace(returncode=0 if prior['status']=='COMPLETE' else 1)
+  else:
+   with log.open('w') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+  launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'));text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace');errors=[]
+  if r.returncode:errors.append('runner: '+launch.get('error',str(r.returncode)))
+  focus=launch.get('capture_focus',[]);hits=sum(x['foreground_pid']==launch['pid'] for x in focus)
+  if not focus or hits!=len(focus):errors.append('whole-leg foreground failed')
+  if '=== Handled ensure: ===' in text:errors.append('runtime handled ensure')
+  on=re.findall(r'IAI-INPUT-LOCK ON .*',text);off=re.findall(r'IAI-INPUT-LOCK OFF .*',text);place=re.findall(r'IAI-L2 PLACED .*',text)
+  if len(on)!=1 or len(off)!=1 or len(place)!=1:errors.append('lock/placement/release count')
+  elif re.search(r'priorLook=(\d) priorMove=(\d)',on[0]).groups()!=re.search(r'lookIgnored=(\d) moveIgnored=(\d)',off[0]).groups():errors.append('unlock restoration')
+  if launch.get('session'):
+   session=Path(launch['session'])
+   pose=subprocess.run([sys.executable,str(B/'_reviews/081-15-capture-pose.py'),str(session)],capture_output=True,text=True)
+   (d/'capture-pose.txt').write_text(pose.stdout+pose.stderr)
+   if pose.returncode and not (c.get('motion') or c.get('nohold')):errors.append('captured-label B1 failed')
+   if c.get('nohold'):
+    labels=list(map(json.loads,(session/'labels.jsonl').read_text().splitlines()))
+    if not labels or not all(x['view']['origin']==[-1500,0,260] and x['view']['rot']==[0,0,0] for x in labels):errors.append('nohold capture pose drift after valid settled B1')
+  row=dict(label=label,case=case,order=order,attempt=attempt,fixture_errors=errors,foreground_hits=hits,foreground_samples=len(focus),session=launch.get('session'))
+  (d/'fixture-result.json').write_text(json.dumps(row,indent=2));results=[x for x in results if x['label']!=label];results.append(row);(E/'suite-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps(row),flush=True)
+  if errors:continue
+  result=a.audit(session,d/'game.log',c);
+  records=list(map(json.loads,(session/'change_evidence.jsonl').read_text().splitlines()));pairs=[x for x in records if x['kind']=='pair'];events=[x for x in records if x['kind']=='event'];labels={x['session_index']:x for x in map(json.loads,(session/'labels.jsonl').read_text().splitlines())}
+  def need(ok,msg):
+   if not ok:result['errors'].append(msg)
+  if c.get('delay'):
+   transitions=[x for x in pairs if x['window_index']==3 and x['chg_measured']]
+   need(len(transitions)>=3 and all(x['chg_gt8']/x['chg_n']>.9 for x in transitions),'delay transition at window_index3')
+   need(all(x['chg_gt8']/x['chg_n']<.1 for x in pairs if x['window_index']<3 and x['chg_measured']),'delay changed before index3')
+  if c.get('depth'):
+   aa=[x for l in labels.values() for x in l['anomalies'] if x.get('target_pixels',-1)>0 and x.get('target_drawn_pixels',-1)>=0]
+   need(bool(aa) and all(x['target_drawn_pixels']==x['target_pixels'] for x in aa),'depth-silencing drawn=count')
+   result['depth_observable_counts']={str(v):sum(x.get('observable')==v for x in aa) for v in (True,False,None)}
+  if c.get('empty'):
+   summary=json.loads((session/'run_summary.json').read_text());annotation=json.loads((session/'annotation.json').read_text())
+   need(len(annotation['anomalies'])+summary.get('vetoed_events',0)==len(events),'occluded legacy-veto/final-event accounting')
+   traces={int(g):int(hit) for g,hit in re.findall(r'IAI-OCCLUSION TRACE gfc=(\d+) hit=\S+ occluder_hit=(\d)',text)}
+   onsets=[x for x in pairs if x['window_index']==0]
+   need(bool(onsets),'occluded onsets absent')
+   for x in onsets:
+    l=labels[x['session_index']];ann=[q for q in l['anomalies'] if q['id']+'@'+str(q['start_frame'])==x['event']]
+    need(len(ann)==1 and ann[0]['target_pixels']==0 and traces.get(l['frame_index'])==1,'independent onset occlusion proof')
+    need(x['reason']=='empty_region' and x['prev_target_pixels']==-1,'empty onset semantics')
+   need(not any(x['chg_measured'] for x in pairs),'occluded phase measured pairs')
+   result['occlusion_trace_count']=len(traces)
+  if c.get('motion'):
+   moving=[x for x in pairs if x['cam_moved'] and (x['cam_drot_deg']!=0 or x['cam_dpos_cm']!=0)]
+   need(bool(pairs) and len(moving)/len(pairs)>=.9,'motion gate90%')
+   result['motion_fraction']=len(moving)/len(pairs) if pairs else 0
+  if c.get('all_pairs'):
+   need(bool(pairs) and all(x['chg_measured'] for x in pairs),'1080 twin incomplete required-pair yield')
+   onset=[x for x in pairs if x['window_index']==0 and x['chg_measured']]
+   need(len(onset)>=3,'1080 twin onset floor')
+   need(all(x['chg_gt8']/x['chg_n'] < .1 if c['anomaly']=='null_effect' else x['chg_gt8']/x['chg_n'] > .9 for x in onset),'1080 twin separation')
+  if c.get('cf'):
+   timeout=[dict(si=int(si),clock=clock,n=int(n),ms=float(ms)) for si,clock,n,ms in re.findall(r'CLOSURE-TIMEOUT si=(\d+) clock=(\w+) laterCompletions=(\d+) elapsedMs=([\d.]+)',text)]
+   result['timeout_paths']=timeout
+   need(bool(timeout),'missing closure timeout path proof')
+   if c['cf']==16:
+    need('MISSING-COMPLETION gate=16 si=3' in text,'count can-fail not injected')
+    need(any(t['si']==3 and t['clock']=='completions' and t['n']>=8 and t['ms']<5000 for t in timeout),'missing completion did not use count path')
+    need(any(x['session_index']==3 and x['reason']=='closure_timeout' for x in pairs),'missing completion not reflected in required row')
+   else:
+    result['expected_unmeasured_diagnostic']=[x for x in result['errors'] if x=='no measured window pair']
+    result['errors']=[x for x in result['errors'] if x!='no measured window pair']
+    need(result['summary']['change_colour_completion_latency_samples']==0,'stalled pipeline received colour completion')
+    need(all(t['clock']=='wall' and t['n']==0 and 4999<=t['ms']<10000 for t in timeout),'stalled pipeline backstop not five seconds')
+    need(not any(x['chg_measured'] for x in pairs),'stalled missing-completion fault measured a pair')
+  if c.get('identity_gate'):
+   g=c['identity_gate'];s=result['summary']
+   trace={int(si):reason for si,valid,reason in re.findall(r'PAIR si=(\d+) valid=(\d) reason=(\S+)',text)}
+   result['identity_trace']=trace
+   need(len(trace)==s['change_issued'],'identity trace lacks finalization for issued rows')
+   by={x['session_index']:x for x in pairs}
+   if g==1:
+    need(s['change_colour_multi_ready_drain']>0 and s['change_reason_out_of_order_timeout']==0,'two-ready ordering failed')
+    h=by.get(8,{}).get('receipt',{});n=by.get(9,{}).get('receipt',{})
+    need(0<=h.get('t_drain_ms',-1)-h.get('t_submit_ms',0)<1000 and 0<n.get('t_drain_ms',-1)<=h.get('t_drain_ms',-1),'two-ready real receipt reverse-order proof')
+   if g==2:need(s['change_capture_arm_dropped']==1 and s['change_reason_predecessor_missing']>0,'dropped arm/dependent refusal absent')
+   if g in (3,4,5):
+    need(trace.get(8)=='current_undelivered','current-delivery fault not exercised')
+    if g in (3,4):need(trace.get(9)=='predecessor_undelivered','failed predecessor not refused')
+   if g==6:
+    need(s['change_mask_capture_served_ge2']>0 and s['change_reason_mask_payload_missing']>0,'coalescing refusal absent')
+   if g==7:need(s.get('change_epoch_rejected_colour_drain',0)>0 and s.get('change_epoch_rejected_mask_drain',0)>0 and trace.get(9)=='epoch_reset','old-generation drain rejection absent')
+   if g==10:need(trace.get(8)=='budget_exceeded','forced capacity refusal absent')
+   if g==11:
+    need(s['change_late_results']>0 and s['change_reason_closure_timeout']>0,'late/closure fault absent')
+    need(bool(re.search(r'LATE-FROZEN beforeChars=[1-9]\d* afterChars=[1-9]\d* mutations=0',text)),'positive frozen-record equality absent')
+   if g==12:need(by.get(8,{}).get('prev_session_index')==6 and trace.get(8)=='predecessor_missing','stale actual predecessor fault absent')
+   if g==13:need(8 not in trace and trace.get(9)=='predecessor_missing' and s.get('change_bench_unregistered_capture')==1 and len(labels)==90,'registration-gap predicate failed')
+   if g==15:
+    need(all(s.get('change_'+k,0)>0 for k in ('pending_colour_cancelled','pending_mask_cancelled','pending_family_deferred')),'unserved-arm cleanup absent')
+    need(trace.get(8)=='closure_timeout' and trace.get(9)=='epoch_reset' and len(labels)==89,'unserved-arm lifetime predicate failed')
+  (d/'measurement-audit.json').write_text(json.dumps(result,indent=2));row['measurement_errors']=result['errors'];row['accepted']=not result['errors']
+  (E/'suite-results.json').write_text(json.dumps(results,indent=2))
+  print(json.dumps({k:result[k] for k in ('events','pairs','measured','errors')}),flush=True)
+  if result['errors']:sys.exit(1)
+  accepted=True;break
+ if not accepted:
+  print('INVALID-FIXTURE-EXHAUSTED: '+label,flush=True);sys.exit(2)
+print('Static twin reruns accepted',flush=True)

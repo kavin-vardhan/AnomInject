@@ -1,0 +1,42 @@
+import json
+import os
+import traceback
+
+import unreal
+
+OUT = os.environ.get("IAI_LODFIX_OUT", "")
+r = dict(steps=[])
+
+
+def step(name, fn):
+    try:
+        v = fn()
+        r["steps"].append([name, "ok", repr(v)[:400]])
+        return v
+    except Exception:
+        r["steps"].append([name, "err", traceback.format_exc()[-400:]])
+        return None
+
+
+sphere = unreal.load_asset("/Engine/BasicShapes/Sphere")
+step("has_subsystem_before", lambda: hasattr(unreal, "StaticMeshEditorSubsystem"))
+step("lib_screen_sizes_before", lambda: list(unreal.EditorStaticMeshLibrary.get_lod_screen_sizes(sphere)))
+step("lib_lod_count_before", lambda: unreal.EditorStaticMeshLibrary.get_lod_count(sphere))
+step("is_editor", lambda: unreal.SystemLibrary.is_editor() if hasattr(unreal.SystemLibrary, "is_editor") else None)
+step("module_load", lambda: unreal.SystemLibrary.execute_console_command(None, "Module Load StaticMeshEditor"))
+step("has_subsystem_after", lambda: hasattr(unreal, "StaticMeshEditorSubsystem"))
+sme = step("get_subsystem", lambda: unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem))
+step("sub_screen_sizes", lambda: list(sme.get_lod_screen_sizes(sphere)) if sme else None)
+step("lib_screen_sizes_after", lambda: list(unreal.EditorStaticMeshLibrary.get_lod_screen_sizes(sphere)))
+step("sphere_tris", lambda: sphere.get_num_triangles(0))
+step("sphere_bounds", lambda: str(sphere.get_bounds()))
+step("sphere_nanite", lambda: sphere.get_editor_property("nanite_settings").enabled)
+step("sphere_auto_ss", lambda: sphere.get_editor_property("auto_compute_lod_screen_size"))
+step("has_get_smd", lambda: hasattr(sphere, "get_static_mesh_description"))
+step("has_build_from_smd", lambda: hasattr(sphere, "build_from_static_mesh_descriptions"))
+step("has_add_material", lambda: hasattr(sphere, "add_material"))
+step("has_rename", lambda: hasattr(sphere, "rename"))
+if OUT:
+    with open(OUT, "w", encoding="utf-8") as f:
+        json.dump(r, f, indent=1)
+unreal.log("LODFIX_PROBE done %d steps" % len(r["steps"]))

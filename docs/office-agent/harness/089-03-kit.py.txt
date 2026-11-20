@@ -1,0 +1,109 @@
+import bisect,collections,hashlib,importlib.util,json,os,sys,time
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def _load(name,path):
+    s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=_load('c93k',R/'089-03-common.py')
+GT_GAP_S=4.5/30.0
+RULE=('KIT-GT (089-03): the office kit label_sync_check.py (blob 165d55f6, unmodified) judges each stuck_low_mip event on the ratio of its own leg '
+      'sharpness series to the null leg sharpness series interpolated at the SAME GAME TIME t (a bracketing null gap over 4.5 frames refused); '
+      'an event whose window [first label - PRE_W, last label + SPAN_AFTER] reaches a frame outside the null time range reads UNJUDGEABLE-NULL-RANGE '
+      '(a refused gap: UNJUDGEABLE-NULL-GAP), never judged. The kit itself ships with no null (G396); this is the harness feeding it the aligned basis.')
+def kit():
+    blob=c.git_blob(c.KIT)
+    if blob!=c.KIT_BLOB:raise SystemExit(f'pinned kit blob {blob} != {c.KIT_BLOB}')
+    return _load('lsc93',c.KIT)
+def slim(row):
+    per=(row.get('per') or {}).get('t50') or {}
+    e=(per.get('edges') or [{}])[0] if per.get('edges') else {}
+    return dict(type=row.get('type'),ord=row.get('ord'),status=row.get('status'),path=row.get('path'),verdict=per.get('verdict'),verdict_raw=per.get('verdict_raw'),
+                fails=per.get('fails'),start=e.get('start'),end=e.get('end'),start_ta=e.get('start_ta'),end_ta=e.get('end_ta'),cs=e.get('cs'),ce=e.get('ce'),
+                kit_status=row.get('kit_status'),null_cover=row.get('null_cover'),label=row.get('label'))
+def summary(rows):
+    by=collections.defaultdict(lambda:dict(n=0,status=collections.Counter(),t50=collections.Counter(),start=collections.Counter(),end=collections.Counter(),fail_events=[]))
+    for r in rows:
+        s=by[r['type']];s['n']+=1;s['status'][r['status']]+=1
+        if r['status']=='OK':
+            s['t50'][r['verdict']]+=1
+            if r.get('start_ta') is not None and not r.get('cs'):s['start'][r['start_ta']]+=1
+            if r.get('end_ta') is not None and not r.get('ce'):s['end'][r['end_ta']]+=1
+            if r['verdict']=='FAIL':s['fail_events'].append(dict(ord=r['ord'],fails=r.get('fails'),start=r.get('start_ta'),end=r.get('end_ta')))
+    out={}
+    for t,s in by.items():
+        out[t]=dict(n=s['n'],status=dict(s['status']),t50=dict(s['t50']),start_ta='{'+', '.join(f'{k:+d}:{v}' for k,v in sorted(s['start'].items()))+'}',
+                    end_ta='{'+', '.join(f'{k:+d}:{v}' for k,v in sorted(s['end'].items()))+'}',fail_events=s['fail_events'][:20])
+    fails=sum(v['t50'].get('FAIL',0) for v in out.values());passes=sum(v['t50'].get('PASS',0) for v in out.values());cens=sum(v['t50'].get('CENSORED',0) for v in out.values())
+    judged=fails+passes;unj=sum(n for v in out.values() for k,n in v['status'].items() if str(k).startswith('UNJUDGEABLE'))
+    extra='-'.join(x for x,n in (('CENSORED',cens),('UNJUDGEABLE',unj)) if n)
+    verdict='FAIL' if fails else ('NO-JUDGED-EVENT' if not judged else ('PASS-WITH-'+extra if extra else 'PASS'))
+    return dict(per_type=out,judged=judged,passed=passes,fail=fails,censored=cens,unjudgeable=unj,verdict=verdict,
+                rule='judged = t50 PASS + FAIL; CENSORED and UNJUDGEABLE events are counted apart and never read as a pass')
+def office(sd,out):
+    lsc=kit();dec=lsc.choose_decoder(False);t0=time.time()
+    info,rows,el,fr=lsc.run([str(sd)],dec)
+    text=lsc.report(info,rows,dec,el,fr)
+    Path(out).with_suffix('.txt').write_text(text,encoding='utf-8')
+    res=dict(mode='office',kit_blob=c.KIT_BLOB,session=str(sd),decoder=dec,seconds=round(time.time()-t0,1),read=info['read'],refused=dict(info['refused']),
+             events=[slim(r) for r in rows]);res['summary']=summary(res['events'])
+    Path(out).write_text(json.dumps(res,indent=1,default=str),encoding='utf-8');return res
+def aligned(sd,null_sd,out):
+    lsc=kit();dec=lsc.choose_decoder(False);t0=time.time()
+    ns=lsc.Session(str(null_sd),dec)
+    nrows=ns.rows;ntimes={si:float(r['t']) for si,r in nrows.items() if r.get('t') is not None}
+    orig=lsc.tables52;ncache={};info=dict(null=str(null_sd),null_t=[min(ntimes.values()),max(ntimes.values())] if ntimes else None,aligned=0,oor=0,gap=0)
+    cdir=c.CACHE;cdir.mkdir(parents=True,exist_ok=True)
+    nkey=hashlib.sha1((Path(null_sd)/'labels.jsonl').read_bytes()).hexdigest()[:16]
+    def null_tab(roi):
+        if roi in ncache:return ncache[roi]
+        p=cdir/f'kitnull_{nkey}_{"_".join(map(str,roi))}.json'
+        if p.exists():tab={int(k):v for k,v in json.loads(p.read_text()).items()}
+        else:
+            tab=orig(ns,[roi])[roi];tmp=p.with_suffix('.tmp%d'%os.getpid());tmp.write_text(json.dumps({str(k):v for k,v in tab.items()}));os.replace(tmp,p)
+        ncache[roi]=tab;return tab
+    state={}
+    def patched(s,rois):
+        T=orig(s,rois);res={}
+        for roi in [r for r in rois if r is not None]:
+            NT=null_tab(roi);pts=sorted((ntimes[si],v) for si,v in NT.items() if si in ntimes);nt=[p[0] for p in pts];nv=[p[1] for p in pts];rho={}
+            oor=set();gap=set()
+            for si,v in T[roi].items():
+                tv=s.rows.get(si,{}).get('t')
+                if tv is None:gap.add(si);continue
+                tv=float(tv)
+                if not nt or tv<nt[0]-1e-9 or tv>nt[-1]+1e-9:oor.add(si);continue
+                i=bisect.bisect_left(nt,tv)
+                if i<len(nt) and abs(nt[i]-tv)<=1e-9:val=nv[i]
+                elif i<=0 or i>=len(nt) or nt[i]-nt[i-1]>GT_GAP_S+1e-9:gap.add(si);continue
+                else:val=nv[i-1]+(nv[i]-nv[i-1])*(tv-nt[i-1])/(nt[i]-nt[i-1])
+                if val<=0:gap.add(si);continue
+                rho[si]=v/val
+            res[roi]=rho;state[roi]=dict(oor=oor,gap=gap)
+            info['aligned']+=len(rho);info['oor']+=len(oor);info['gap']+=len(gap)
+        return res
+    lsc.tables52=patched
+    try:s,rule,taa,rows=lsc.analyse_session(str(sd),dec,{'stuck_low_mip'})
+    finally:lsc.tables52=orig
+    evs={e['ord']:e for e in lsc.events_of(s)};oor=set().union(*[v['oor'] for v in state.values()]) if state else set();gap=set().union(*[v['gap'] for v in state.values()]) if state else set()
+    last=s.sis[-1]
+    for r in rows:
+        e=evs.get(r.get('ord'));L=sorted(e['L']) if e and e.get('L') else []
+        if not L:continue
+        r['label']=[L[0],L[-1]]
+        win=[si for si in range(L[0]-lsc.PRE_W,min(L[-1]+lsc.SPAN_AFTER,last)+1) if si in s.rows]
+        o=[si for si in win if si in oor];g=[si for si in win if si in gap]
+        ts=[float(s.rows[si]['t']) for si in win if s.rows[si].get('t') is not None]
+        r['null_cover']=dict(window=[win[0],win[-1]] if win else None,t=[round(min(ts),3),round(max(ts),3)] if ts else None,out_of_range=len(o),gap=len(g),null_t=info['null_t'])
+        if o or g:r['kit_status']=r.get('status');r['status']='UNJUDGEABLE-NULL-RANGE' if o else 'UNJUDGEABLE-NULL-GAP';r.pop('per',None)
+    res=dict(mode='aligned',rule=RULE,kit_blob=c.KIT_BLOB,session=str(sd),null=str(null_sd),decoder=dec,seconds=round(time.time()-t0,1),taa=taa,label_rule=rule,basis=info,
+             events=[slim(r) for r in rows])
+    res['summary']=summary(res['events'])
+    Path(out).write_text(json.dumps(res,indent=1,default=str),encoding='utf-8');return res
+def main(a):
+    if a and a[0]=='office' and len(a)==3:r=office(a[1],a[2])
+    elif a and a[0]=='aligned' and len(a)==4:r=aligned(a[1],a[2],a[3])
+    elif a and a[0]=='selftest':
+        lsc=kit();return lsc.selftest(False)
+    else:print('usage: 089-03-kit.py office <session> <out.json> | aligned <session> <null_session> <out.json> | selftest');return 2
+    print(json.dumps(dict(mode=r['mode'],seconds=r['seconds'],summary=r['summary']),default=str)[:1500]);return 0
+if __name__=='__main__':sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,26 @@
+from pathlib import Path
+import json,math,hashlib,importlib.util,re
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-13-evidence';bank=B/'_bench_sessions_bank'
+spec=importlib.util.spec_from_file_location('audit',B/'_reviews/081-08-audit.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+def readrows(p):return list(map(json.loads,p.read_text().splitlines()))
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+g3=bank/'M52E_M52E_G3_HOLD_NAT/session_20260920-214315/labels.jsonl'
+g2=bank/'M52E_M52E_G2_CANFAIL/session_20260920-214247/labels.jsonl'
+def compare(rows,ref,key):
+ x={r[key]:r for r in rows};y={r[key]:r for r in ref};both=sorted(x.keys()&y.keys());d=[]
+ for i in both:
+  v,w=x[i]['view'],y[i]['view'];pos=math.dist(v['origin'],w['origin']);rot=max(abs((p-q+180)%360-180) for p,q in zip(v['rot'],w['rot']))
+  d.append(dict(key=i,actual_session_index=x[i]['session_index'],reference_session_index=y[i]['session_index'],origin_cm=pos,rotation_deg=rot,passed=pos<=1 and rot<=.1))
+ return dict(key=key,compared=len(d),actual_only=sorted(x.keys()-y.keys()),reference_only=sorted(y.keys()-x.keys()),max_origin_cm=max(r['origin_cm'] for r in d),max_rotation_deg=max(r['rotation_deg'] for r in d),failures=[r for r in d if not r['passed']],rows=d)
+out={'qualification':'UNCHANGED: both natural attempts invalid under predeclared full saved-frame G3 comparison; no requalification or further launch','references':{str(p):sha(p) for p in (g3,g2)},'attempts':[]}
+for attempt in (2,3):
+ label=f'M55S2R13_NOHOLD_N_A{attempt}';physical=bank/f'M55S2_{label}_try1';s=next(physical.glob('session*'));rows=readrows(s/'labels.jsonl');d=E/label
+ r=a.audit(s,physical/'_leg_game.log',dict(nohold=True,normal=False));text=(physical/'_leg_game.log').read_text(encoding='utf-8-sig',errors='replace');summary=json.loads((s/'run_summary.json').read_text());anno=json.loads((s/'annotation.json').read_text());events=readrows(s/'change_evidence.jsonl')
+ deferred=[q for l in rows for q in l['anomalies'] if q['id']=='stuck_low_mip'];fires={q['id']+'@'+str(q['start_frame']) for q in deferred};arms=re.findall(r'M23 ARM id=(\d+) target=StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803 .*armIndex=1(?:\s|$)',text)
+ checks=dict(three_fires=len(fires)>=3,three_applied_fire_lines=len(re.findall(r"Auto.FireSpecific: 'stuck_low_mip' on '[^']+' -> applied\.",text))>=3,held_false=all(q.get('stuck_mip.held') is False and q.get('stuck_mip.bench_no_hold') is True for q in deferred),bias_suppressed='streaming bias is DELIBERATELY NOT WRITTEN' in text,unmeasured_deferred_rows=all(q.get('target_pixels')==-1 and q.get('observable') is None for q in deferred),zero_legacy_injected_frames=all(x['injected_frames']['frame_count']==0 for x in anno['anomalies']),event_identity={x['event'] for x in events}==fires,all_final_zero_phases=all(x['kind']=='event' and x['phase_count']==0 and x['reason']=='no_labelled_frames' for x in events),legacy_veto_accounting=len(anno['anomalies'])+summary.get('vetoed_events',0)==len(events))
+ r.update(qualification='UNQUALIFIED DIAGNOSTIC ONLY',checks=checks,active_fire_ids=sorted(fires),first_arm_ids=arms,deferred_legacy_rows=len(deferred),summary_positive_frames=summary['positive_frames'],legacy_injected_frames=sum(x['injected_frames']['frame_count'] for x in anno['anomalies']),vetoed_events=summary['vetoed_events'],raw_semantics_pass=not r['errors'] and all(checks.values()))
+ (d/'diagnostic-unqualified-audit.json').write_text(json.dumps(r,indent=2))
+ row=dict(label=label,g3_saved_index=compare(rows,readrows(g3),'session_index'),g3_engine_frame=compare(rows,readrows(g3),'frame_index'),g2_nohold_saved_index=compare(rows,readrows(g2),'session_index'),g2_nohold_engine_frame=compare(rows,readrows(g2),'frame_index'),raw_semantics_pass=r['raw_semantics_pass'])
+ out['attempts'].append(row)
+ print(json.dumps(dict(label=label,checks=checks,base_errors=r['errors'],g3_saved_max=row['g3_saved_index']['max_origin_cm'],g3_engine_compared=row['g3_engine_frame']['compared'],g3_engine_max=row['g3_engine_frame']['max_origin_cm'],g2_saved_max=row['g2_nohold_saved_index']['max_origin_cm'])),flush=True)
+(E/'camera-reference-cause.json').write_text(json.dumps(out,indent=2))

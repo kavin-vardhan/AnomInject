@@ -1,0 +1,53 @@
+import importlib.util,json,re,subprocess,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-22-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+B,E,R=c.B,c.E,c.R
+b3=c.binary_v3()
+ledger_p=E/'part1-b-results.json';ledger=json.loads(ledger_p.read_text()) if ledger_p.exists() else []
+def save():ledger_p.write_text(json.dumps(ledger,indent=2))
+if any(x['status'] in ('PASS','FIXTURE-VALID-FAILURE') for x in ledger):print('leg (b) already decided');sys.exit(0)
+while True:
+    used=len(ledger)
+    if used>=3:print('leg (b) NOT-RUN after 3 invalid attempts',flush=True);sys.exit(2)
+    q=c.quiet()
+    if not q['quiet']:c.log_event('leg-refused-not-quiet',leg='b',blocking=q['blocking']);print(json.dumps(dict(result='NOT-QUIET',blocking=q['blocking'])),flush=True);sys.exit(4)
+    for key in ('built','staged','archive'):assert c.sha(b3[key])==b3['sha256'],key
+    attempt=used+1;label=f'F1_CANCEL_A{attempt}';d=E/label;log=E/f'runner-{label}.log'
+    assert not d.exists() and not log.exists(),label
+    args=[c.PWSH,'-NoProfile','-File',str(R/'081-22-f1.ps1'),'-Label',label]
+    (E/f'command-{label}.json').write_text(json.dumps(args,indent=2))
+    t0=c.now()
+    with log.open('w') as f:r=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT)
+    launch=json.loads((d/'launch.json').read_text(encoding='utf-8-sig'))
+    text=(d/'game.log').read_text(encoding='utf-8-sig',errors='replace') if (d/'game.log').exists() else ''
+    err=launch.get('error') or ''
+    row=dict(label=label,attempt=attempt,started=t0,finished=c.now(),runner_exit=r.returncode,error=err,capture_start_sent=launch.get('capture_start_sent'),
+             focus_violations=launch.get('focus_violations'),fg_samples=len(launch.get('fg') or []),minimised=launch.get('minimised'))
+    if 'FOREIGN-EDITOR-APPEARED' in err:
+        row['status']='INVALID-FOREIGN';row['foreign']=launch.get('foreign_editor');ledger.append(row);save()
+        c.log_event('leg-invalid-foreign',leg='b',label=label,where=launch.get('foreign_where'),foreign=launch.get('foreign_editor'));print(json.dumps(row),flush=True);sys.exit(5)
+    if r.returncode or 'PRECAPTURE' in err or (launch.get('focus_violations') or 0)>0:
+        row['status']='INVALID-PRECAPTURE' if (not launch.get('capture_start_sent') or 'PRECAPTURE' in err or (launch.get('focus_violations') or 0)>0) else 'PROTOCOL-FAIL'
+        ledger.append(row);save();print(json.dumps(row),flush=True)
+        if row['status']=='PROTOCOL-FAIL':sys.exit(3)
+        continue
+    errors=[]
+    sb=launch.get('status_before_stop') or {}
+    if not (sb.get('running') is True and sb.get('frames')==0):errors.append(f'status before stop not running=true frames=0: {sb}')
+    cancelled=re.findall(r'=== Capture run CANCELLED before focus[^\n]*',text)
+    discarded=re.findall(r'Capture\(m55\): STAGE-DISCARDED run wrote no session; issued=(\d+)[^\n]*',text)
+    if len(cancelled)!=1:errors.append(f'CANCELLED lines={len(cancelled)}')
+    if len(discarded)!=1 or discarded[0]!='0':errors.append(f'STAGE-DISCARDED lines={discarded}')
+    if '=== Handled ensure: ===' in text:errors.append('handled ensure')
+    snaps={k:launch.get(k) for k in ('dir_before_stop','dir_after_stop_5s','dir_after_exit')}
+    for k in ('dir_after_stop_5s','dir_after_exit'):
+        v=snaps[k] or {}
+        if v.get('files'):errors.append(f'{k}: files present {v["files"][:5]}')
+        if any(Path(x).name.startswith('session_') for x in v.get('dirs') or []):errors.append(f'{k}: session folder present {v["dirs"][:5]}')
+    started=re.findall(r'=== Capture run STARTED[^\n]*',text)
+    row.update(status='PASS' if not errors else 'FIXTURE-VALID-FAILURE',errors=errors,status_before_stop=sb,stop_reply=launch.get('stop_reply'),
+               cancelled_line=cancelled,stage_discarded_line=[l for l in text.splitlines() if 'STAGE-DISCARDED' in l][:2],started_banner_lines=len(started),
+               effective_lines=re.findall(r'Capture\(m55\): EFFECTIVE[^\n]*',text)[:2],capture_root_exists_after_exit=(snaps['dir_after_exit'] or {}).get('exists'),
+               dir_snapshots=snaps)
+    ledger.append(row);save();print(json.dumps({k:row.get(k) for k in ('label','status','errors','status_before_stop','cancelled_line','stage_discarded_line','capture_root_exists_after_exit','fg_samples','focus_violations')},default=str),flush=True)
+    sys.exit(0 if row['status']=='PASS' else 1)

@@ -1,0 +1,68 @@
+import importlib.util,json,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('c22',r'D:\IntrusiveAnomalies\_reviews\081-22-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+B,E,R,L=c.B,c.E,c.RP,c.L
+pre=json.loads((E/'preflight.json').read_text())
+problems=[]
+ours,foreign=c.classify()
+ours_live=[p for p in ours if p['name']!='UnrealTraceServer.exe']
+if ours_live:problems.append(['processes of our engine/folders present at close',ours_live])
+feature=c.git(R,'rev-parse',c.FEATURE)
+if feature!=c.git(R,'rev-parse','origin/'+c.FEATURE):problems.append(['feature not pushed',feature])
+wt=c.git(R,'worktree','list','--porcelain')
+if '_scratch_081_22' in wt:problems.append(['scratch worktree still registered'])
+if Path(r'D:\IntrusiveAnomalies\_scratch_081_22').exists():problems.append(['scratch folder still present'])
+repos={}
+for name,r in {'AnomalyInjector':R,'Lyra':L,'CaptureBench':c.C}.items():
+    if c.git(r,'diff','--name-only') or c.git(r,'diff','--cached','--name-only'):problems.append([name,'tracked modifications'])
+    st=c.state(r);old=pre['repos'][name]
+    for k in ('head','branch','untracked'):
+        if st[k]!=old[k]:problems.append([name,k,old[k] if k!='untracked' else None,st[k] if k!='untracked' else sorted(set(st[k])^set(old[k]))])
+    a=dict(l.split(' ',1) for l in old['refs'].splitlines());z=dict(l.split(' ',1) for l in st['refs'].splitlines())
+    delta={k:[a.get(k),z.get(k)] for k in a.keys()|z.keys() if a.get(k)!=z.get(k)}
+    allowed={'refs/heads/'+c.FEATURE,'refs/remotes/origin/'+c.FEATURE} if name in ('AnomalyInjector','Lyra') else set()
+    if set(delta)-allowed:problems.append([name,'unexpected ref delta',delta])
+    st['ref_delta']=delta;repos[name]=st
+bins={}
+for path,h in pre['verified_binaries'].items():
+    a=c.sha(path) if Path(path).exists() else None;bins[path]=a
+    if a!=h:problems.append(['binary changed',path])
+b3=c.binary_v3()
+for key in ('built','staged','archive'):
+    if c.sha(b3[key])!=b3['sha256']:problems.append(['002805CF not built=staged=archive',key])
+for r in b3['containers']:
+    if c.sha(r['path'])!=r['sha256']:problems.append(['container changed',r['path']])
+if c.sha(c.PRE_M55)!=pre['pre_m55_archive']['sha256']:problems.append(['pre-m55 archive changed'])
+lyra_names=sorted(q.name for q in (L/'Binaries/Win64').iterdir() if q.is_file())
+if lyra_names!=pre['lyra_module_names']:problems.append(['Lyra module set',lyra_names])
+restored=json.loads((E/'lyra-restored.json').read_text()) if (E/'lyra-restored.json').exists() else None
+if (E/'lyra-staged.json').exists() and not restored:problems.append(['Lyra staged but no restore record'])
+if restored:
+    for r in restored['restored_modules']:
+        if c.sha(L/'Binaries/Win64'/r['name'])!=r['sha256']:problems.append(['Lyra module hash',r['name']])
+for path,h in pre['prior_artifacts'].items():
+    if c.sha(B/path)!=h:problems.append(['artifact',path])
+for path,h in pre['bank_files'].items():
+    if c.sha(B/path)!=h:problems.append(['bank',path])
+cur=c.sha(B/'ToCodex/CURRENT.md')
+if cur!=pre['current_sha256']:problems.append(['ToCodex CURRENT.md changed'])
+remote=c.git(R,'ls-remote','origin','refs/heads/'+c.FEATURE,'refs/heads/master')
+if feature+'\trefs/heads/'+c.FEATURE not in remote or c.MASTER+'\trefs/heads/master' not in remote:problems.append(['remote',remote])
+if repos['AnomalyInjector']['head']!=c.M51 or repos['AnomalyInjector']['branch']!='m51':problems.append(['main checkout not m51'])
+if repos['Lyra']['head']!=c.LYRA:problems.append(['Lyra head'])
+tags=c.git(R,'tag','--points-at',feature)
+if tags:problems.append(['tag on feature',tags])
+bank={str(q.relative_to(B)):c.sha(q) for d in (B/'_bench_sessions_bank').glob('M55B3R22_*') for q in d.rglob('*') if q.is_file()}
+(E/'bank-manifest.json').write_text(json.dumps(bank,indent=2))
+out=dict(utc=c.now(),feature_commit=feature,repos=repos,verified_binaries=bins,lyra_module_names=lyra_names,prior_artifacts_verified=len(pre['prior_artifacts']),
+         prior_bank_files_verified=len(pre['bank_files']),new_bank_files_hashed=len(bank),current_sha256_unchanged=cur==pre['current_sha256'],remote_refs=remote,
+         our_processes=ours,foreign_processes_present=foreign,problems=problems,
+         verdict=('PASS: boundary restored (main m51 53bf725, Lyra caa68c6 with original 9 modules, staged exe 002805CF = build 3, every binary, '
+                  'container, prior artifact and bank file byte-identical to preflight, scratch worktree removed)') if not problems else 'FAIL: see problems')
+(E/'postflight.json').write_text(json.dumps(out,indent=2))
+man={str(q.relative_to(B)):c.sha(q) for q in E.rglob('*') if q.is_file() and q.name not in ('evidence-manifest.json','postflight.log')}
+for q in sorted((B/'_reviews').glob('081-22-*')):
+    if q.is_file():man[str(q.relative_to(B))]=c.sha(q)
+(E/'evidence-manifest.json').write_text(json.dumps(man,indent=2))
+print(json.dumps({k:v for k,v in out.items() if k not in ('repos','verified_binaries')},indent=2,default=str)[:4000])
+sys.exit(1 if problems else 0)

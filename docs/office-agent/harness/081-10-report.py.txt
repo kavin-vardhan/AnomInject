@@ -1,0 +1,258 @@
+from pathlib import Path
+import hashlib,json,subprocess
+B=Path(r'D:\IntrusiveAnomalies');E=B/'_reviews/081-10-evidence';R=B/'StackOBot/Plugins/AnomalyInjector'
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+m=json.loads((E/'binary-v1.json').read_text());launch=json.loads((E/'F12_ON1/launch.json').read_text(encoding='utf-8-sig'));log=(E/'F12_ON1/game.log').read_text(encoding='utf-8-sig',errors='replace')
+assert launch['status']=='PROTOCOL-FAIL' and not launch['capture_start_sent'] and not launch['focus']
+assert 'IAI-INPUT-LOCK REFUSED' in log and 'IAI-INPUT-LOCK ON ' not in log and 'IAI-L2 PLACED' not in log
+assert not (E/'F12_ON1/snapshots.jsonl').exists()
+prior=json.loads((B/'_reviews/081-08-evidence/final-ledger.json').read_text())
+ledger={'stage1':prior['stage1'],'stage2_measurement_evidence':'Four static twins accepted by081-08 ruling on2C21EDE5; mandatory rerun on a qualified replacement binary remains open.','fixture_validation':{'candidate':m['sha256'],'ON_required':5,'ON_attempted':1,'ON_qualified':0,'ON_remaining_unrun':4,'OFF_required':3,'OFF_attempted':0,'first_attempt':'F12_ON1','status':'INVALID-FIXTURE: input-lock guard refused; runner calls this PROTOCOL-FAIL','pose_samples':0,'placement_attempts':0,'lock_applied':False,'fresh_allowance_released':False},'delay_n_old_invalid_attempts':3,'delay_n_old_remaining':0,'lyra_runtime_attempts_used':0,'r2_r4':'HELD at081-10 report boundary','r5':'UNRUN; after R2–R4, exact scoped twins/G3, first-leg auto-drop unchanged','stage3':'HELD'}
+(E/'final-ledger.json').write_text(json.dumps(ledger,indent=2))
+source_read={'source_commit':m['source_commit'],'facts':['InputLock requires PC->GetPawn() although SetIgnoreLookInput/SetIgnoreMoveInput require only a controller.','PlaceView also requires PC->GetPawn(); no runtime placement was attempted.','Controller.cpp implements ignore-input counters as increments/decrements; implementation does not reset host counts.','PlayerController.h exposes GetPawnOrSpectator separately; GetPawn does not establish spectator availability.','Combined REFUSED line does not distinguish missing controller from missing pawn; No Spawnpad found is supporting context, not proof of a specific pointer state.'],'runtime':'First ON failed before settle; no input-lock ON or placement log; no snapshots, captures or retry.','changed_source':subprocess.check_output(['git','-C',str(R),'diff','--name-only','39a71d8',m['source_commit'],'--','Source','AnomalyInjector.uplugin']).decode().splitlines()}
+(E/'bounded-cause-read.json').write_text(json.dumps(source_read,indent=2))
+outcome='''
+## Outcome — first enabled preflight refused, matrix stopped
+
+Built source4a1475670bca25d3e6735a137547637bb986482a; all three Development targets succeeded.
+GameB283E34C full SHA256 b283e34c13a8229680848e6b87ac5e448b457a2e0f0e5ae8a15759742d0384da,
+241723392 bytes, built/staged/archive agree. Lyra eleven-file archive
+_binary_baselines/m55-stage2-fixture-lyra-23258325. Pre-fix2C21EDE5 and older archives preserved;
+five cooked containers unchanged. A44 input-lock/placement + existing controls positive, invented
+token absent. Only fixture module, descriptor and typed control bridge changed; arithmetic unchanged.
+
+F12_ON1 first enabled launch: server/world ready3.332s, authenticated, module command entered,
+then IAI-INPUT-LOCK REFUSED fixture/map/ready-controller/inactive-capture/argument gate.
+Observer stopped because no successful lock log existed. No settle, placement, snapshots or
+capture. No retries. Four remaining ON and all three OFF launches UNRUN, zero qualified of five.
+Runner status PROTOCOL-FAIL is the wrapper; substantive outcome is fixture command refusal.
+The ruled <5/5 stop applies, no allowance renews. Owned PID35828 stopped/joined by finally.
+
+Own implementation issue: InputLock unnecessarily requires PC->GetPawn(), even though ignoring
+input requires only the controller. PlaceView also assumes GetPawn rather than inspecting the
+active view owner/spectator. Runtime map log says No Spawnpad found. This strongly motivates the
+readiness correction but the combined refusal log cannot prove which pointer was absent; do not
+claim pawn absence is directly measured. Engine exposes GetPawnOrSpectator separately. Need exact
+controller/pawn/spectator/view-target diagnostics and controller-only lock gating, then safe placement
+of the actual view owner under existing scope. No new camera, host edit or pose pin is proposed.
+No follow-up implementation, second build or preflight was made after the ruled stop.
+
+Input-counter balancing, run-end/controller-change/cleanup release paths are implemented but
+runtime UNEXERCISED; first enable refused. Explicit unlock also UNRUN. Dynamic module loading
+did work: module emitted its refusal despite the old cooked descriptor. Independent B1 remains
+unchanged and unrun on the new candidate, never inferred from an executed command receipt.
+
+G278 records Chat's accepted focus-transition mechanism and fixture rule. This failed local
+readiness assumption does not reopen the old-binary diagnosis. Stage1 accepted36/Lyra24
+DROPPED-BY-OWNER-DECISION unchanged; old DELAY_N three invalids remain uncredited, zero remaining.
+R2–R4/new static twins, actual teardown, AEBD09EA invariance and R5 still UNRUN. F3's whole-leg
+foreground audit remains mandatory for081-11 runners; no measurement runner was exercised here.
+
+**Chat review REQUIRED** for this failed081-10 validation disposition and correction/revalidation
+before081-11. **Chat review NOT REQUIRED** for completed authorized build and safe documentation.
+Next mandatory checkpoint is Chat's ruling on081-10. Stage3 held; no new allowances or release.
+No fresh session recommended. Preserve all earlier CURRENT bytes, including separate workstreams.
+'''
+p=R/'docs/sessions/2026-09-22-081-10-codex-m55-fixture-fix.md';p.write_text(p.read_text(encoding='utf-8')+outcome,encoding='utf-8')
+p=R/'CLAUDE.md';t=p.read_text(encoding='utf-8');start=t.index('> **081-09,');end=t.index('\n> 🏁',start)
+t=t[:start]+'''> **081-10, 2026-09-22 — m55 fixture fix built; first ON preflight refused: NEEDS-DECISION.**
+> Source4a14756 / GameB283E34C. Input lock and Game-side StackOBot placement implemented;
+> all three builds passed, but F12_ON1 refused at input-lock readiness before settle/placement.
+> Own guard unnecessarily requires PC->GetPawn(); runtime also logs No Spawnpad found.
+> The combined refusal does not prove which pointer was absent. No lock ON, snapshots,
+> capture or retry.0/5 qualified; remaining4 ON/3 OFF UNRUN. No allowance renewal.
+> Read `docs/sessions/2026-09-22-081-10-codex-m55-fixture-fix.md` and external
+> `_reviews/081-10-codex-m55-fixture-fix.md`. **Chat review REQUIRED** for the ruled
+> stop/correction/revalidation before081-11. **Chat review NOT REQUIRED** for completed
+> authorized build/documentation. R2–R4, R5 and Stage3 held; old static twins stay accepted
+> and old DELAY_N invalids stay uncredited. Stage1 accepted36/Lyra24 dropped unchanged.
+> Main/Lyra source and Lyra modules restored at report boundary; main binaries remainB283E34C.
+> No Code brief, merge/tag/cook/owner-app change. Same workstream; no fresh session advised.
+> This m55 feature status supersedes older status prose below for this workstream.
+''' +t[end:];p.write_text(t,encoding='utf-8')
+p=R/'docs/gotchas.md';p.write_text(p.read_text(encoding='utf-8')+'''
+
+## G278 — lock fixture input before settle, place after settle; keep focus required for capture (2026-09-22, Chat081-09 ruling)
+
+B1 pose failures on CB_GateLevel correlate with partial foreground during settle. Chat accepts
+focus transitions feeding mouse deltas into look input as the mechanism; SearchHost was the
+contender on2026-09-21. Fixture legs lock look/move input and place the view after settle.
+Focus is recorded and remains required for the whole measurement leg. The no-capture081-10
+preflight expressly accepts a pose pass with0/90 foreground; do not transfer that exception to capture.
+
+First implementation readiness pitfall: input locking needs a player controller, not a possessed
+pawn. The081-10 implementation added a GetPawn prerequisite and its first enable refused on a
+map logging No Spawnpad found. The composite refusal does not identify the absent pointer.
+GetPawnOrSpectator is a distinct engine API; inspect actual controller/pawn/spectator/view owner
+before defining placement readiness. Do not create a replacement camera or infer a successful
+lock from command execution. This candidate is built but not runtime-qualified; matrix stopped.
+''',encoding='utf-8')
+p=R/'docs/predictions/2026-09-20-m55-change-evidence.md';p.write_text(p.read_text(encoding='utf-8')+'''
+
+## AMENDMENT 081-10 outcome, 2026-09-22 — fixture fix, preflight stop
+
+Chat081-09 explicitly applies R1 step3; no further old-binary diagnosis repeats. Implement input
+lock before settle and one-shot StackOBot placement, Game/Editor non-Shipping, no cook/host edits.
+The new required no-capture sequence is ON1/OFF1/ON2/OFF2/ON3/OFF3/ON4/ON5. ON requires5/5,
+settle0, modal0/0/0,100% coverage, unchanged B1; foreground counted but not a preflight veto.
+Measurement legs still require foreground throughout. Source4a14756/GameB283E34C built, but
+ON1's input-lock guard refused before sampling.0/5 qualified; remaining4 ON/3 OFF UNRUN.
+No retries/allowance renewal. Own GetPawn prerequisite needs correction/explicit readiness read.
+Chat review REQUIRED at081-10 stop.081-11 R2–R4 and081-12 R5 deferred; Stage3 held. Historical
+twins accepted, old DELAY_N invalids uncredited, Stage1 accepted36/Lyra24 owner-dropped unchanged.
+''',encoding='utf-8')
+p=R/'docs/change-evidence-fields.md';t=p.read_text(encoding='utf-8');needle='preflight explicitly permits absent foreground while checking the pose, per Chat\'s ruling.';assert needle in t;t=t.replace(needle,needle+'\nStatus081-10: built, not runtime-qualified. First input-lock enable refused before placement;\nits extra GetPawn readiness prerequisite is under review. No lock/placement success is claimed.');p.write_text(t,encoding='utf-8')
+report='''# 081-10 — m55 fixture fix and stopped preflight validation
+
+2026-09-22. Authority:081-09-chat-ruling-fixture-fix.md. Codex implements; Chat orchestrates;
+Code independently reviews after Stage3. This is the explicit fix/preflight report boundary.
+
+## Disposition
+
+**NEEDS-DECISION.** Implemented the bench input lock and extended one-shot placement to the Game
+target/StackOBot. All three Development builds passed. The **first enabled preflight refused at
+the input-lock readiness check**, before settle, placement or snapshots. Required5/5 was not
+achieved:0 qualified,1 attempted,4 enabled and3 disabled launches UNRUN.
+
+I followed the ruling's stop condition. **No retry, capture or fresh qualification allowance.**
+This is an implementation/readiness failure, not a new Stage2 measurement result. My guard
+requires a possessed pawn even though locking input only needs a controller. The map log also
+says No Spawnpad found; the combined refusal does not directly identify the missing pointer.
+
+**Chat review REQUIRED** for this failed validation disposition and correction/revalidation before
+081-11. **Chat review NOT REQUIRED** for completed authorized implementation/build and boundary
+documentation. Next mandatory checkpoint is Chat's ruling on081-10. Stage3 remains held.
+
+## Implemented source and build identity
+
+Built source: `4a1475670bca25d3e6735a137547637bb986482a`.
+Game SHA256: `b283e34c13a8229680848e6b87ac5e448b457a2e0f0e5ae8a15759742d0384da`.
+Size241,723,392 bytes. Built, staged and archived copies agree. Archive:
+`D:/IntrusiveAnomalies/_binary_baselines/StackOBot.exe.m55-stage2-B283E34C`.
+Lyra11-file candidate archive:
+`D:/IntrusiveAnomalies/_binary_baselines/m55-stage2-fixture-lyra-23258325`.
+Full module/container hashes and A44:081-10-evidence/binary-v1.json.
+
+Only three implementation files changed: descriptor, AnomalyBenchModule.cpp and the typed
+control-server bridge. No measurement arithmetic, label writer, observable rule, shader, content,
+auto/selector pool or verifier changes. No host source changes or cook.
+
+- AnomalyBench now allows Game/Editor and excludes Client/Server and Shipping. Commands remain
+  explicit, fixture-flag/map gated and unavailable during active capture.
+- IAI.Bench.InputLock1 calls SetIgnoreLookInput(true)/SetIgnoreMoveInput(true) once. Repeated enable
+  does not stack. Release decrements only its owned counts, preserving pre-existing host counts;
+  implemented release paths are explicit off, observed run end, world cleanup, module shutdown,
+  lost controller/subsystem. It does not reset host input flags or pin the view. **All enable/release
+  runtime behaviour remains unqualified because this first enable refused.**
+- StackOBot desired camera is(-1500,0,260), rotation(0,0,0), cited from081-09 R1V3_A1 snapshots
+  and the B1 CALIB_BBOX(0,485.2,306.1,234.8). Placement uses measured camera-to-pawn offset and
+  requires the CB input lock. Lyra's reference is unchanged. No replacement camera, ghost mode,
+  velocity reset or persistent pose pin. **Placement was never attempted.**
+- Typed bench_input_lock/bench_place_view requests explicitly load the linked fixture module.
+  Existing cooked descriptors predate it; explicit loading avoids recooking. Module loading
+  was exercised successfully enough to emit the fixture command's refusal. An executed receipt
+  only means the command was called; the observer separately requires success logs and fresh B1.
+
+StackOBot Game, StackOBotEditor and LyraEditor Development all exited0. A44 found UTF-16 input-lock
+and placement literals plus existing measurement controls; the invented token was absent in both
+encodings. Pre-fix2C21EDE5 remains archived, unchanged, as do AEBD09EA/0844220E and all five cooked
+containers. There was one source build revision and one attempted validation launch.
+
+## Predeclared validation and actual result
+
+Predictions were committed before implementation/build in the081-10 journal. Intended order:
+ON1,OFF1,ON2,OFF2,ON3,OFF3,ON4,ON5. Same CB map,1280x720,AA0/AE-off and diagnostic snapshot recipe
+as081-09. ON would lock before five-second settle, place once, wait700ms and collect90 snapshots.
+Strict ON gate: settle sample0, modal rotation0/0/0,100% coverage, B1 PASS, calibrated origin,
+exactly one successful lock/placement and explicit unlock restoring prior ignore flags.
+Foreground PID/sample counts are diagnostic here, including0/90 passes as the new ruling permits.
+
+Actual `F12_ON1`:
+
+| Item | Reading |
+|---|---|
+| Owned process | PID35828, stopped/joined by runner finally |
+| Game/world readiness | 3.3320459 seconds after launch |
+| Authentication | Succeeded at14:39:15.489 UTC |
+| Fixture command | REFUSED at14:39:15.528 UTC, GFrameCounter43 |
+| Log | `IAI-INPUT-LOCK REFUSED fixture/map/ready-controller/inactive-capture/argument gate` |
+| Input lock ON | Absent |
+| Settle/placement | Never reached |
+| Pose/foreground sample count |0; no snapshot file |
+| B1/coverage/pose verdict | Unavailable, not pass |
+| capture_start/injection | Not sent |
+| Runner exit/status |1 / PROTOCOL-FAIL (`Input lock not observed`) |
+
+The wrapper calls this PROTOCOL-FAIL, but the substantive result is an explicit fixture guard
+refusal. No measurement or5/5 certificate can be inferred. All remaining seven launches are UNRUN;
+I did not repeat ON1 or quietly reset validation. Evidence:runner-F12_ON1.log, F12_ON1/game.log,
+launch.json, validation-results.json and final-ledger.json under081-10-evidence.
+
+## Bounded cause read and concrete correction needed
+
+InputLock currently checks `!PC || !PC->GetPawn()` before calling the controller input methods.
+The latter condition is an unnecessary restriction introduced by me. Engine Controller.cpp
+confirms the ignore flags are controller counters; they do not require a possessed pawn.
+The same map startup logs `No Spawnpad found!` and associated host Blueprint warnings. The
+composite refusal line does not distinguish absent controller from absent pawn, so pawn absence
+is a supported hypothesis, not a measured fact from this launch.
+
+PlaceView also uses GetPawn. PlayerController.h exposes GetPawnOrSpectator separately. A corrected
+readiness path should log controller, pawn, spectator and active view-target identities explicitly,
+enable input locking when the controller is ready, and resolve the actual camera-owning actor for
+offset placement. Do not spawn a substitute camera/pawn or modify host source to make this pass.
+The branch needs this correction before any claim that F1/F2 work on CB. No post-failure edit to
+implementation, rebuild, diagnostic launch or revalidation was made after the required stop.
+
+This does not reopen Chat's accepted focus-transition explanation or call for another old-binary
+A/B diagnosis. It identifies a separate assumption in my attempted correction. G278 records the
+requested look/move lock + placement rule and keeps measurement focus requirements explicit.
+
+## Gates and authorization carried forward
+
+No fresh three-attempt allowance has been released. Old DELAY_N's three invalid attempts remain
+uncredited/exhausted. The four older static twin legs remain accepted; they must still be rerun
+on a successfully validated replacement binary. Stage1 stays ACCEPTED on36; the other24 Lyra
+legs are **DROPPED-BY-OWNER-DECISION**, with historical invalid evidence retained.
+
+081-11 R2–R4 remains pending: true cooked-mesh occluder, natural moving twins, all other phase/
+hide/delay/nohold/lifetime gates, mandatory actual teardown and six-leg AEBD09EA legacy invariance.
+F3 requires foreground throughout each future measurement leg and a PID/sample-count audit.
+This round exercised no measurement runner; its integration/audit remains required for081-11.
+081-12 R5 Lyra stays last, scoped null/solid natural +G3/G270; zero runtime attempts used and the
+first-leg three-attempt auto-drop rule unchanged. No Lyra Stage3/cost runs. Stage3 release requires
+GREEN R2–R4 plus R5 resolved.
+
+Carry **FPS 21.5 vs 30 on evidence-OFF MAIN4**, the prior verbatim limits and open teardown limit.
+No cost, arithmetic-oracle, release, merge or shipping conclusion is made by this report.
+
+## Restored boundary and read order
+
+Final feature documentation commit/push, frozen source/docs and all hashes are recorded in
+081-10-evidence/postflight.json and081-10-frozen/manifest.json. Main source restored m51
+`53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67`; Lyra detached source restored
+`caa68c6799db023f7a24c0d6cfc56124ce27b542`, its nine entry modules restored and only the two newly
+introduced AnomalyBench module files removed. Built/staged Game remainsB283E34C and main
+StackOBotEditor modules remain rebuilt candidate binaries; restored source is not binary identity.
+Master/m51/CaptureBench and pre-existing untracked files remain unchanged. No merge/tag/cook,
+office transfer, owner-app modification or mailbox brief. No owned process/build/watcher remains.
+All CURRENT bytes, including newer unrelated Blender/video boundaries, are preserved underneath
+the plugin handoff. No fresh-session switch recommended for this continuing plugin workstream.
+
+Read this report,081-09 ruling, frozen081-10 journal, final-ledger/bounded-cause-read, the first
+launch's full logs/metadata, binary-v1/build logs, frozen manifest and postflight. Prior accepted
+measurement evidence is still the081-08 report/banks; prior diagnosis remains preserved081-09.
+
+## Questions for chat
+
+The prescribed first ON validation refused before pose sampling, so I stopped under the <5/5
+rule. Please rule on correction/revalidation: remove the unnecessary pawn prerequisite from F1,
+add explicit readiness identities, resolve the real pawn/spectator/view owner for F2 within the
+existing bench-only/no-host/no-cook limits, and rerun the prescribed5 ON/3 OFF validation on a
+new archived build. Retain F12_ON1 uncredited and renew no measurement allowance until5/5.
+
+VERDICT: NEEDS-DECISION
+'''
+(B/'_reviews/081-10-codex-m55-fixture-fix.md').write_text(report,encoding='utf-8')
+print(json.dumps({'report':'081-10-codex-m55-fixture-fix.md','ON_qualified':0,'allowances_renewed':False}))

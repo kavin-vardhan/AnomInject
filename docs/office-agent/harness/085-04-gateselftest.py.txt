@@ -1,0 +1,201 @@
+"""085-04 offline gate selftest: every B-M53 gate proven both ways before any leg runs (no game, no bench).
+Writes 085-04-evidence/gateselftest.json; exit 0 only if every check passes."""
+import collections,importlib.util,json,os,shutil,subprocess,sys,tempfile,time
+from pathlib import Path
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+os.environ.setdefault('IAI_R854_STUB_LAUNCH','1')
+os.environ.setdefault('IAI_R854_ROOT',rf'E:\IA_BuildCache\_r854_selftest_{int(time.time())}')
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c854s',R/'085-04-common.py');L=load('lib854s',R/'085-04-lib.py');EV=load('ev854s',R/'085-04-eval.py');LG=L.LG
+RES=[]
+def check(ok,name,detail=None):
+    RES.append(dict(ok=bool(ok),name=name,detail=detail));print(('OK   ' if ok else 'FAIL ')+name+('' if ok else f'  :: {str(detail)[:300]}'),flush=True)
+TMP=Path(r'E:\IA_BuildCache\_r854_selftest_tmp');shutil.rmtree(TMP,ignore_errors=True);TMP.mkdir(parents=True)
+BANK=c.REAL_BANK
+def P(f,body):return f'[2026.09.29-21.00.00:000][{f%1000:3d}]LogAnomaly: {body}'
+def draw_line(att,sb,id_,elig,excl,tgt,cand,hold,mode,sa,res):
+    return P(10,f'Auto.Draw attempt={att} seed_before={sb} id={id_} eligible={elig} excluded={excl} target={tgt} candidates={cand} hold={hold} mode={mode} seed_after={sa} result={res}')
+def kat_log(seed,attempts,extra_draw_at=None):
+    st=EV.KAT.KatStream(seed);lines=[]
+    for i,(ne,nc,is_m53) in enumerate(attempts):
+        sb=st.seed;n=0
+        if ne>0:
+            n=1+((2+(1 if is_m53 else 0)) if nc>0 else 0)
+        if extra_draw_at==i:n+=1
+        for _ in range(n):st.mutate()
+        lines.append(draw_line(i,sb,'uv_corruption' if is_m53 else 'blinking',f'{ne}:ab12','-','StaticMeshActor_0' if nc else '-',f'{nc}' if nc else '-','3.5','tile' if is_m53 else '-',st.seed,'fired' if ne else 'all_excluded'))
+    return '\n'.join(lines)
+def seed_cases():
+    att=[(4,7,True),(4,7,False),(3,0,True),(0,5,False),(4,6,True)]
+    ok=EV.replay(EV.seed_draws(kat_log(4242,att)),4242)
+    check(ok['pass_'],'G-SEED (c) replay: an exact KAT-generated Auto.Draw sequence replays',ok)
+    bad=EV.replay(EV.seed_draws(kat_log(4242,att,extra_draw_at=2)),4242)
+    check(not bad['pass_'],'G-SEED (c) can-fail: one extra draw fails the replay',bad['mismatches'][:1])
+    wrongseed=EV.replay(EV.seed_draws(kat_log(4243,att)),4242)
+    check(not wrongseed['pass_'],'G-SEED (c) can-fail: a stream from another seed fails the replay',wrongseed['mismatches'][:1])
+    logs=dict(SEED_A1=kat_log(4242,att),SEED_A2=kat_log(4242,att),SEED_EMPTY=kat_log(4242,[(3,5,True)]).replace('mode=tile','mode=!none'))
+    g=EV.seed_gate(logs)
+    check(g['repeat_identical'] and g['replay']['pass_'] and g['empty']['all_none'],'G-SEED (a)+(c)+empty on consistent logs',g)
+    check('uv_corruption:scramble' in g['coverage_missing'],'G-SEED (d) coverage: a log drawing only tile reports the missing modes (never PASS)',g['coverage_missing'])
+    logs2=dict(logs,SEED_A2=kat_log(4242,att[:-1]))
+    check(not EV.seed_gate(logs2)['repeat_identical'],'G-SEED (a) can-fail: a repeat with one attempt fewer is not identical')
+def excl_cases():
+    def mk(rows):
+        d=TMP/f'excl_{len(list(TMP.iterdir()))}';d.mkdir()
+        (d/'labels.jsonl').write_text('\n'.join(json.dumps(r) for r in rows)+'\n',encoding='utf-8')
+        (d/'run_summary.json').write_text(json.dumps(dict(texcorrupt_m52_overlap_frames=sum(1 for r in rows if EV.EXG.is_coentry_row(r)),texcorrupt_admitted_after_unresolved=0)),encoding='utf-8')
+        return d
+    base=[dict(session_index=i,anomalies=[]) for i in range(20)]
+    for i in range(3,8):base[i]['anomalies']=[dict(id='stuck_low_mip',labelled=True)]
+    for i in (8,9,10):base[i]['anomalies']=[dict(id='stuck_low_mip',labelled=False,transition=1)]
+    for i in range(13,17):base[i]['anomalies']=[dict(id='uv_corruption',labelled=True)]
+    g=EV.exclusion_data(mk(base))
+    check(g.get('verdict')==EV.EXG.PASS and not g['coentry_frames'],'EXCL-DATA: disjoint m52 (labelled + TAA tail) and m53 frames PASS',g)
+    planted=json.loads(json.dumps(base));planted[9]['anomalies'].append(dict(id='uv_corruption',labelled=True))
+    g=EV.exclusion_data(mk(planted))
+    check(g.get('verdict')!=EV.EXG.PASS and g['coentry_frames']==[9],'EXCL-DATA can-fail: a planted m53 entry on an m52 transition-tail frame fails',g)
+    miscount=mk(base);(miscount/'run_summary.json').write_text(json.dumps(dict(texcorrupt_m52_overlap_frames=1,texcorrupt_admitted_after_unresolved=0)),encoding='utf-8')
+    g=EV.exclusion_data(miscount)
+    check(g.get('verdict')!=EV.EXG.PASS,'EXCL-DATA can-fail: an in-run overlap counter that disagrees with the frames fails',g.get('reason'))
+    log_ok='\n'.join([P(100,"Capture(m52): RESTORE CARRIED event=stuck_low_mip@17 target=StaticMeshActor_77 - the run ended"),
+                      P(130,'Auto.Exclude candidate=uv_corruption partner=stuck_low_mip state=trail_open event=stuck_low_mip@17 attempt=0'),
+                      P(150,'Capture(m52): RESTORE TRAIL CLOSED event=stuck_low_mip@17 at si=31 - trailing frames held=0 unknown=0 missing=0'),
+                      P(160,"uv_corruption: APPLIED mode=tile tile=8 fault=none noapply=0 on 'StaticMeshActor_0' - apply_ms=1.2")])
+    r2=mk([dict(session_index=i,anomalies=[dict(id='uv_corruption',labelled=True)] if 10<i<15 else []) for i in range(20)])
+    g=EV.excl_a_gate(r2,None,log_ok)
+    check(g['verdict']=='PASS','EXCL-A on a consistent chain log (carried, trail_open exclude, apply after the close) PASS',g)
+    bad=log_ok.replace(P(160,''),P(140,''))
+    g=EV.excl_a_gate(r2,None,bad)
+    check(g['verdict']=='FAIL' and g['applies_before_close']==1,'EXCL-A can-fail: an m53 APPLIED before the trail close fails',g)
+    g=EV.excl_a_gate(r2,None,log_ok.replace('state=trail_open','state=idle'))
+    check(g['verdict']=='FAIL','EXCL-A can-fail: no trail_open exclusion (the owner\'s failure, "live until BeginRevert") fails',g['trail_open_excludes'])
+    lb='\n'.join([draw_line(0,111,'-','0:-','stuck_low_mip:fire_live','-','-','-','-',111,'all_excluded'),draw_line(1,111,'stuck_low_mip','1:aa','-','StaticMeshActor_77','2','4.0','-',222,'fired')])
+    rb=mk([dict(session_index=i,anomalies=[dict(id='uv_corruption',labelled=True)] if 4<i<12 else []) for i in range(20)])
+    g=EV.excl_b_gate(rb,lb)
+    check(g['verdict']=='PASS','EXCL-B on a consistent log (all_excluded seed unchanged, then m52 fires) PASS',g)
+    g=EV.excl_b_gate(rb,lb.replace('seed_after=111 result=all_excluded','seed_after=112 result=all_excluded'))
+    check(g['verdict']=='FAIL','EXCL-B can-fail: an excluded attempt that consumed a draw fails (P2-8)',g['first_all_excluded_seed_unchanged'])
+def reason_cases():
+    Lg=LG.by_id('REASON_E6')
+    ok='\n'.join([P(1,"TEXCORRUPT-REFUSED family=uv mode=none target='StaticMeshActor_0' final=mode_invalid:unknown:bogus step=E6 slots=1 qualified=0 required_bytes=0"),
+                  P(2,"TEXCORRUPT-REFUSED family=uv mode=none target='StaticMeshActor_0' final=mode_invalid:not_in_delivery:drift step=E6 slots=1 qualified=0 required_bytes=0"),
+                  P(3,"TEXCORRUPT-REFUSED family=uv mode=none target='StaticMeshActor_0' final=mode_invalid:family:invert step=E6 slots=1 qualified=0 required_bytes=0")])
+    check(EV.reason_gate(Lg,ok)['pass_'],'G-REASON-DC E6: bogus / drift / family refusals read')
+    early=ok.replace('final=mode_invalid:family:invert step=E6','final=no_mesh step=E1')
+    check(not EV.reason_gate(Lg,early)['pass_'],'G-REASON-DC can-fail: a synthetic earlier-step refusal (no_mesh at E1) fails the family case')
+    Ln=LG.by_id('REASON_MIXED_N')
+    pf=P(4,"TEXCORRUPT-REFUSED family=normal mode=invert target='StaticMeshActor_80' final=partial_footprint:1/2:no_normal_map step=V1P slots=2 qualified=1 required_bytes=0")
+    check(EV.reason_gate(Ln,pf)['pass_'],'G-REASON-DC TC_Mixed: partial_footprint:1/2:no_normal_map read')
+    check(not EV.reason_gate(Ln,pf.replace('partial_footprint:1/2:no_normal_map','over_budget'))['pass_'],'G-REASON-DC can-fail: over_budget in place of partial_footprint fails')
+def lever_cases():
+    off='\n'.join([P(1,'IAI bench levers: DISABLED (46 masked) where=Initialize newly=46 preset=0')]+[f'[2026.09.29-21.00.00:000][  2]Cmd: Command not recognized: {x} 1' for x in ('IAI.Bench.SynthTickOrder','IAI.Bench.TexCorruptIdentity','IAI.Bench.DestroyTarget')])
+    Lo=LG.by_id('LEVER_OFF');Ln=LG.by_id('LEVER_ON')
+    check(EV.lever_gate(Lo,off)['pass_'],'G-LEVER off: DISABLED echo, the three spot levers refused, no twins')
+    check(not EV.lever_gate(Lo,off.replace('Command not recognized: IAI.Bench.TexCorruptIdentity','x'))['pass_'],'G-LEVER can-fail: a spot lever that was accepted fails')
+    check(not EV.lever_gate(Lo,off+'\n'+P(5,'IAI.ListAnomalies: solid_swap null_effect'))['pass_'],'G-LEVER can-fail: twins listed without the flag fail')
+    on='\n'.join([P(1,'IAI bench levers: ENABLED (-IAIBench) where=Initialize present=46'),P(5,'  solid_swap (bench)'),P(5,'  null_effect (bench)')])
+    check(EV.lever_gate(Ln,on)['pass_'],'G-LEVER on: ENABLED echo and twins listed')
+    check(not EV.lever_gate(Ln,on.replace('ENABLED','DISABLED (0 masked)'))['pass_'],'G-LEVER on can-fail: no ENABLED echo fails')
+    Lc=LG.by_id('F_TILE_NAT')
+    check(L.bench_flag_errors(Lc,on)==[] and L.bench_flag_errors(Lc,off)!=[],'G377: a -IAIBench leg needs the ENABLED line (a DISABLED log is an error)')
+    check(L.bench_flag_errors(Lo,off)==[] and L.bench_flag_errors(Lo,on)!=[],'G377: a no-flag leg needs the DISABLED line')
+def census_cases():
+    good='\n'.join([P(96,'IAI-TEXCORRUPT-CENSUS v1 scope=view candidates=4 cap_bytes=134217728 uv_modes=tile+scramble normal_modes=invert+green_flip'),
+                    P(96,'IAI-TEXCORRUPT-CENSUS v1 id=uv_corruption eligible=2 refused=2 reasons=over_budget:2'),
+                    P(96,'IAI-TEXCORRUPT-CENSUS v1 id=normal_corruption eligible=1 refused=3 reasons=over_budget:2,partial_footprint:1'),
+                    P(96,'IAI-TEXCORRUPT-CENSUS v1 end stats_unchanged=1')])
+    check(EV.census_product(good)['grammar_pass'],'G-CENSUS grammar: the four count lines parse')
+    named=good.replace('reasons=over_budget:2\n','reasons=over_budget:2 target=SM_rock\n',1)
+    check(not EV.census_product(named)['grammar_pass'],'G-CENSUS can-fail: a line carrying a name token fails the grammar')
+    bench=[]
+    for a,u,n in (('A','APPLY','APPLY'),('B','APPLY','over_budget'),('C','over_budget','over_budget'),('D','over_budget','partial_footprint:1/2:no_normal_map')):
+        for fam,fin in (('uv',u),('normal',n)):bench.append(P(96,f"TEXCORRUPT-CENSUS family={fam} mode=none target='{a}' final={fin} step=- slots=2 qualified=2 required_bytes=10"))
+    j=EV.census_join(EV.census_product(good),EV.census_bench('\n'.join(bench)))
+    check(j['pass_'],'G-CENSUS count join: product counts equal the aggregated bench lines',j)
+    j2=EV.census_join(EV.census_product(good.replace('eligible=2 refused=2','eligible=3 refused=1')),EV.census_bench('\n'.join(bench)))
+    check(not j2['pass_'],'G-CENSUS can-fail: a doctored count fails the join')
+    p=subprocess.run([c.PYTHON,str(c.tool('census_readonly_check.py')),'--selftest','--root',str(c.FEAT)],capture_output=True,text=True,encoding='utf-8',errors='replace')
+    check(p.returncode==0,'census_readonly_check.py --selftest (cold-process log cases) exits 0',((p.stdout or '')+(p.stderr or '')).strip().splitlines()[-2:])
+def mode_source_cases():
+    Ln=LG.by_id('F_NULL_UV_AAON')
+    good=P(20,"Auto.FireSpecific: 'uv_corruption' mode_source=bench_lever lever=identity (no mode argument; the bench lever defines the mode)")
+    check(EV.mode_source_check(Ln,good)['pass_'],'identity null: mode_source=bench_lever lever=identity PASS')
+    rr=P(20,"Auto.FireSpecific: 'uv_corruption' mode_source=round_robin mode=tile index=0/2")
+    check(not EV.mode_source_check(Ln,rr)['pass_'],'identity null can-fail: mode_source=round_robin under the identity lever FAILS (085-02c N1)')
+    check(not EV.mode_source_check(Ln,'')['pass_'],'identity null can-fail: no mode_source line FAILS')
+    Lt=LG.by_id('F_TILE_NAT')
+    check(EV.mode_source_check(Lt,P(20,"Auto.FireSpecific: 'uv_corruption' mode_source=argument mode=tile"))['pass_'],'production leg: mode_source=argument mode=tile PASS')
+    check(not EV.mode_source_check(Lt,P(20,"Auto.FireSpecific: 'uv_corruption' mode_source=argument mode=scramble"))['pass_'],'production leg can-fail: the wrong mode argument FAILS')
+    Lr=LG.by_id('ARM_RD3_AAOFF');one=P(1,'Capture run STARTED');two=one+'\n'+P(300,'Capture run STARTED')
+    check(EV.f5_check(Lr,one)['pass_'] and not EV.f5_check(Lr,two)['pass_'],'F5: one RestoreDelay run per process PASS; a second run in the process FAILS')
+def arm_cases():
+    Lc=LG.by_id('ARM_CD3_AAOFF');Lr=LG.by_id('ARM_RD3_AAOFF')
+    mk=lambda v,st,en:dict(e1=dict(leg_verdict=v,t50=dict(start=st,end=en)))
+    check(EV.arm_canfail(Lc,mk('FAIL',{3:8},{0:8}))['proven'],'arm (c) CommitDelay 3: FAIL with start +3 counts as proven')
+    check(not EV.arm_canfail(Lc,mk('PASS',{0:8},{0:8}))['proven'],'arm (c) can-fail of the can-fail: a PASS at 0 is NOT proven (the lever did not bite)')
+    check(EV.arm_canfail(Lr,mk('FAIL',{0:8},{3:8}))['proven'] and not EV.arm_canfail(Lr,mk('FAIL',{0:8},{1:8}))['proven'],'arm (c) RestoreDelay 3: end +3 proven, end +1 not')
+def lock_cases():
+    per=lambda rows:EV.census_bench('\n'.join(P(96,f"TEXCORRUPT-CENSUS family={f} mode=none target='{a}' final={fin} step=- slots=1 qualified=1 required_bytes={req}") for a,f,fin,req in rows))['per_actor']
+    sys.argv=['085-04-window.py','preflight'];W=load('w854s',R/'085-04-window.py')
+    h=W.pick_hosts(per([(LG.ROCK,'uv','APPLY',10),(LG.ROCK,'normal','APPLY',10),('B','uv','APPLY',10),('B','normal','over_budget',5)]))
+    check(h['H1U']==LG.ROCK and h['H1N']==LG.ROCK and not h['cap_declared'],'ND-4: an actor eligible for both families at 128 MiB is H1 for both, no cap raise',h)
+    h=W.pick_hosts(per([(LG.ROCK,'uv','over_budget',200000000),(LG.ROCK,'normal','over_budget',210000000)]))
+    check(h['cap_declared'] and h['cap_bytes']==268435456 and h['H1U']==LG.ROCK,'ND-4: nothing eligible at 128 MiB, budget-only refusals -> a DECLARED bench-only raise to the next power of two (256 MiB for 210 MB)',h)
+    s1=per([(LG.ROCK,'uv','texture_not_parameter',0),(LG.ROCK,'normal','texture_not_parameter',0),(LG.MW_FLOOR,'uv','over_budget',219541488),
+            (LG.MW_FLOOR,'normal','partial_footprint:18/30:no_normal_map',0),('BP_Stomper_C_x','uv','partial_footprint:1/7:not_fully_resident',0),
+            ('BP_Stomper_C_x','normal','not_fully_resident',0)])
+    h=W.pick_hosts(s1)
+    check(h['H1U']==LG.MW_FLOOR and h['cap_bytes']==268435456 and h['H1N'] is None and 'NOT-RUN-PREMISE' in h['_nd4'],
+          'ND-4 on the S1-bank shape: the rock is never a host (texture_not_parameter), uv only under a declared 256 MiB raise, normal has NO host (chat)',h)
+    h=W.pick_hosts(per([('A','uv','partial_footprint:1/2:x',0),('A','normal','host_mid:override:mid',0)]))
+    check(h['H1U'] is None and h['H1N'] is None and not h['cap_declared'],'ND-4: non-budget refusals are never rescued by a cap raise',h)
+def delay_known_answer():
+    tot=collections.Counter();warm=0
+    for leg in ('M55B3R23_C2_DELAY_N_A1','M55B3R23_C2_DELAY_S_A1'):
+        sd=L.find_session(BANK/leg) or next((BANK/leg).glob('session_*'))
+        e2=EV.E9.ls086_verdict(sd,types={'solid_swap'});sm=EV.E9.summarize_ls086(e2)
+        st=(sm.get('t50') or {}).get('start','');warm+=(sm.get('t50') or {}).get('status',{}).get('WARMUP',0)
+        for m in __import__('re').finditer(r'([+-]?\d+):(\d+)',str(st)):tot[int(m.group(1))]+=int(m.group(2))
+    check(set(tot)=={3} and sum(tot.values())>=6,'can-fail (a): 086-01 solid_swap DELAY known answer re-read by the 085-04 copy reads start +3 on every non-warm-up event',dict(start=dict(tot),warmups=warm))
+def doctor_cases():
+    sd=L.find_session(BANK/'M53S1_WC_UC1_CHANSWAP') or next((BANK/'M53S1_WC_UC1_CHANSWAP').glob('session_*'))
+    orig={e['start_frame']:e['L'] for e in EV.m53_events(sd)}
+    rowset={r['session_index'] for r in EV.E9.read_jsonl(Path(sd)/'labels.jsonl')}
+    for v in ('onset_late_1','offset_late_1','shift_plus_1'):
+        d=EV.doctor_copy(sd,v,TMP/'doctor')
+        got={e['start_frame']:e['L'] for e in EV.m53_events(d)}
+        want={k:[x for x in EV._doctor_list(Lst,v) if x in rowset] for k,Lst in orig.items()}
+        ok=all(sorted(got.get(k,[]))==sorted(want[k]) for k in orig if want[k])
+        check(ok and (Path(sd)/'labels.jsonl').read_bytes()!=(d/'labels.jsonl').read_bytes(),f'doctor_copy {v}: every m53 event labelled set moved, the original untouched',{k:(orig[k][:3],got.get(k,[])[:3]) for k in list(orig)[:2]})
+    e2x=EV.E9.summarize_ls086(EV.E9.ls086_verdict(sd,types=EV.M53))
+    d=EV.doctor_copy(sd,'onset_late_1',TMP/'doctor')
+    e2d=EV.E9.summarize_ls086(EV.E9.ls086_verdict(d,types=EV.M53))
+    check(json.dumps(e2x)!=json.dumps(e2d),'can-fail (b) machinery on a real m53 capture (S1 wrong copy UC1 chanswap, E2): the doctored onset changes the verdict',dict(exact=(e2x.get('t50') or {}).get('status'),doctored=(e2d.get('t50') or {}).get('status')))
+def scramble_cases():
+    inv=[(s,o) for s in (777,) for o in range(0,40) if EV.scramble_invisible(s,o)==0]
+    check(EV.scramble_invisible(777,1)>0,'scramble visibility on TC_UC1: seed 777 ordinal 1 predicted visible',EV.scramble_invisible(777,1))
+    RES.append(dict(ok=True,name='READING: predicted-invisible scramble ordinals on TC_UC1 for seed 777 (0..39)',detail=inv))
+def restore_cases():
+    rec=L.stage('DC','st-dc',stub_start='FIX');check(rec['verified'] and rec['before_set']=='FIX','staging (stub): DC staged from a FIX-staged start with a verified receipt (never assumes the start)',rec['before_set'])
+    os.environ['IAI_R854_INJECT_LOCK_S']='8'
+    r=L.restore_m53('st-restore',sleep=lambda s:time.sleep(min(s,3)))
+    os.environ['IAI_R854_INJECT_LOCK_S']='0'
+    check(r['verified'] and any(x['attempt']>1 for x in r['copies']),'G355: the restore copied a locked file on a retry and verified all six',[(Path(x['dst']).name,x['attempt']) for x in r['copies']][:3])
+def module_selftests():
+    for name,f in (('oracle','085-04-oracle.py'),('m53rows','085-04-m53rows.py')):
+        js=L.jload(c.EV/name/'selftest.json')
+        ok=bool(js) and (js.get('pass') is True or js.get('all_pass') is True or js.get('ok') is True or js.get('verdict')=='PASS')
+        check(ok,f'{f} selftest json all-pass',{k:js.get(k) for k in ('pass','all_pass','ok','verdict','proofs_total','proofs_passed','cases_total','cases_passed') if js and k in js})
+def main():
+    for fn in (seed_cases,excl_cases,reason_cases,lever_cases,census_cases,mode_source_cases,arm_cases,lock_cases,scramble_cases,
+               delay_known_answer,doctor_cases,restore_cases,module_selftests):
+        try:fn()
+        except Exception as ex:
+            import traceback;check(False,f'{fn.__name__} raised',traceback.format_exc()[-800:])
+    ok=all(r['ok'] for r in RES)
+    out=dict(utc=c.now(),checks=len(RES),failed=[r['name'] for r in RES if not r['ok']],pass_=ok,ok=ok,results=RES)
+    (c.EV).mkdir(parents=True,exist_ok=True);(c.EV/'gateselftest.json').write_text(json.dumps(out,indent=1,default=str),encoding='utf-8')
+    print(f'GATESELFTEST {sum(r["ok"] for r in RES)}/{len(RES)} {"PASS" if ok else "FAIL"}');return 0 if ok else 1
+if __name__=='__main__':sys.exit(main())

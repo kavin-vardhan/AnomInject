@@ -1,0 +1,45 @@
+"""090-10e string scan: printable runs (>= 6 chars) in UTF-16LE and ASCII, set difference between two builds' binaries.
+Usage: 090-10e-strings.py <old binary> <new binary> [token ...]. Each differing string is classified as 'round' when it contains
+one of the tokens (this round's own strings), 'short' when it is under 12 chars (string-pool artefacts), else 'other'."""
+import re, sys, json
+from pathlib import Path
+
+U = re.compile(rb'(?:[\x20-\x7e]\x00){6,}')
+A = re.compile(rb'[\x20-\x7e]{6,}')
+
+
+def strings(p):
+    b = Path(p).read_bytes()
+    u = {m.group().decode('utf-16-le') for m in U.finditer(b)}
+    a = {m.group().decode('ascii') for m in A.finditer(b)}
+    return u, a
+
+
+def main():
+    dest = None
+    if sys.argv[1] == '--out':
+        dest = sys.argv[2]; del sys.argv[1:3]
+    old, new, toks = sys.argv[1], sys.argv[2], [t.lower() for t in sys.argv[3:]]
+    ou, oa = strings(old)
+    nu, na = strings(new)
+    out = dict(old=old, new=new)
+    for enc, o, n in (('utf16', ou, nu), ('ascii', oa, na)):
+        added = sorted(n - o)
+        removed = sorted(o - n)
+        def cls(s):
+            if any(t in s.lower() for t in toks):
+                return 'round'
+            return 'short' if len(s) < 12 else 'other'
+        out[enc] = dict(added=len(added), removed=len(removed),
+                        added_by_class={k: sum(1 for s in added if cls(s) == k) for k in ('round', 'short', 'other')},
+                        removed_by_class={k: sum(1 for s in removed if cls(s) == k) for k in ('round', 'short', 'other')},
+                        other_added=[s[:140] for s in added if cls(s) == 'other'][:40],
+                        other_removed=[s[:140] for s in removed if cls(s) == 'other'][:40])
+    txt = json.dumps(out, indent=1)
+    if dest:
+        Path(dest).write_text(txt, encoding='utf-8')
+    print(txt)
+
+
+if __name__ == '__main__':
+    main()

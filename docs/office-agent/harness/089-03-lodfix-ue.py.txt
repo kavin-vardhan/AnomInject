@@ -1,0 +1,153 @@
+import json
+import os
+import traceback
+
+import unreal
+
+MODE = os.environ.get("IAI_LODFIX_MODE", "render")
+OUT = os.environ["IAI_LODFIX_OUT_DIR"]
+TAG = os.environ.get("IAI_LODFIX_TAG", MODE)
+MAPS = [m for m in os.environ.get("IAI_LODFIX_MAPS", "/Game/AnomalyFixtures/CB_LodFixture").split(",") if m]
+FIX = "/Game/AnomalyFixtures/CB_LodFixture"
+SUN_LABEL = "CB_LodFix_Sun"
+POINT_LABEL = "CB_LodFix_Point_%02d"
+POINTS = ((450.0, -340.0, 520.0), (450.0, 340.0, 520.0), (450.0, 0.0, 640.0))
+POINT_INTENSITY = 400.0
+POINT_RADIUS = 1200.0
+SUN_ROT = dict(roll=0.0, pitch=-40.0, yaw=20.0)
+CAPTURES = int(os.environ.get("IAI_LODFIX_CAPTURES", "4"))
+BENCH_CVARS = ("r.DefaultFeature.AutoExposure 0", "r.EyeAdaptationQuality 0")
+_ALL_SOURCES = dict(ldr=(unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR, unreal.TextureRenderTargetFormat.RTF_RGBA8, ""),
+                    base=(unreal.SceneCaptureSource.SCS_BASE_COLOR, unreal.TextureRenderTargetFormat.RTF_RGBA8, "-basecolor"),
+                    hdr=(unreal.SceneCaptureSource.SCS_SCENE_COLOR_HDR, unreal.TextureRenderTargetFormat.RTF_RGBA16F, "-hdr"))
+SOURCES = [_ALL_SOURCES[k] for k in os.environ.get("IAI_LODFIX_SOURCES", "ldr").split(",") if k]
+EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+LES = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+res = dict(mode=MODE, tag=TAG, maps=MAPS, errors=[], renders={}, lights={}, patch=None, ok=False)
+
+
+def vec(v):
+    return [float(v.x), float(v.y), float(v.z)]
+
+
+def light_rec(a):
+    r = a.get_actor_rotation()
+    f = a.get_actor_forward_vector()
+    lc = a.light_component
+    rec = dict(name=a.get_name(), label=a.get_actor_label(), cls=a.get_class().get_name(), location=vec(a.get_actor_location()),
+               pitch=float(r.pitch), yaw=float(r.yaw), roll=float(r.roll), forward=vec(f),
+               intensity=float(lc.get_editor_property("intensity")), mobility=str(a.root_component.get_editor_property("mobility")),
+               cast_shadows=bool(lc.get_editor_property("cast_shadows")))
+    if isinstance(a, unreal.DirectionalLight):
+        rec["points_down"] = bool(f.z < 0)
+    if isinstance(a, unreal.PointLight):
+        rec["attenuation_radius"] = float(lc.get_editor_property("attenuation_radius"))
+    return rec
+
+
+def lights():
+    return [light_rec(a) for a in EAS.get_all_level_actors() if isinstance(a, (unreal.DirectionalLight, unreal.PointLight, unreal.SkyLight))]
+
+
+def world():
+    return unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+
+
+def render(map_path, name):
+    w = world()
+    for c in BENCH_CVARS:
+        unreal.SystemLibrary.execute_console_command(w, c)
+    for a in EAS.get_all_level_actors():
+        if isinstance(a, unreal.SkyLight):
+            a.light_component.recapture_sky()
+    ps = [a for a in EAS.get_all_level_actors() if isinstance(a, unreal.PlayerStart)]
+    if not ps:
+        res["errors"].append("no PlayerStart in " + map_path)
+        return
+    loc = ps[0].get_actor_location()
+    rot = ps[0].get_actor_rotation()
+    for src, fmt, suffix in SOURCES:
+        rt = unreal.RenderingLibrary.create_render_target2d(w, 1280, 720, fmt)
+        cap = EAS.spawn_actor_from_class(unreal.SceneCapture2D, loc, rot)
+        comp = cap.capture_component2d
+        comp.set_editor_property("texture_target", rt)
+        comp.set_editor_property("capture_source", src)
+        comp.set_editor_property("fov_angle", 90.0)
+        comp.set_editor_property("capture_every_frame", False)
+        comp.set_editor_property("capture_on_movement", False)
+        for _ in range(CAPTURES):
+            comp.capture_scene()
+        rec = dict(map=map_path, pose=dict(location=vec(loc), rotation=[float(rot.pitch), float(rot.yaw), float(rot.roll)]),
+                   captures=CAPTURES, cvars=list(BENCH_CVARS), capture_source=str(src), fov=90.0)
+        if fmt == unreal.TextureRenderTargetFormat.RTF_RGBA8:
+            fn = name + suffix + ".png"
+            unreal.RenderingLibrary.export_render_target(w, rt, OUT, fn)
+            rec["file"] = os.path.join(OUT, fn)
+        grid = []
+        for j in range(9):
+            for i in range(16):
+                c = unreal.RenderingLibrary.read_render_target_raw_uv(w, rt, (i + 0.5) / 16.0, (j + 0.5) / 9.0)
+                grid.append([round(float(c.r), 5), round(float(c.g), 5), round(float(c.b), 5), round(float(c.a), 5)])
+        rec["grid16x9_raw"] = grid
+        rec["grid_max_rgb"] = max(max(g[0], g[1], g[2]) for g in grid)
+        rec["grid_mean_rgb"] = sum((g[0] + g[1] + g[2]) / 3.0 for g in grid) / len(grid)
+        res["renders"][name + suffix] = rec
+        EAS.destroy_actor(cap)
+
+
+def patch():
+    if not unreal.EditorLoadingAndSavingUtils.load_map(FIX):
+        raise RuntimeError("load_map failed " + FIX)
+    before = lights()
+    render(FIX, TAG + "-before")
+    acts = EAS.get_all_level_actors()
+    suns = [a for a in acts if isinstance(a, unreal.DirectionalLight) and a.get_actor_label() == SUN_LABEL]
+    if len(suns) != 1:
+        raise RuntimeError("expected one %s, found %d" % (SUN_LABEL, len(suns)))
+    if [a for a in acts if a.get_actor_label().startswith("CB_LodFix_Point_")]:
+        raise RuntimeError("REFUSED: point lights already present - the fixture was already patched")
+    suns[0].set_actor_rotation(unreal.Rotator(**SUN_ROT), False)
+    for i, p in enumerate(POINTS):
+        pl = EAS.spawn_actor_from_class(unreal.PointLight, unreal.Vector(*p), unreal.Rotator(roll=0.0, pitch=0.0, yaw=0.0))
+        pl.set_actor_label(POINT_LABEL % i)
+        pl.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+        pl.light_component.set_editor_property("intensity", POINT_INTENSITY)
+        pl.light_component.set_editor_property("attenuation_radius", POINT_RADIUS)
+        pl.light_component.set_editor_property("cast_shadows", True)
+    after = lights()
+    render(FIX, TAG + "-after-same-process")
+    if not LES.save_current_level():
+        raise RuntimeError("save_current_level failed")
+    labels = sorted(a.get_actor_label() for a in EAS.get_all_level_actors() if a.get_actor_label().startswith("CB_LodFix_"))
+    res["patch"] = dict(before=before, after=after, labels=labels, sun_rotation_set=SUN_ROT, points=[list(p) for p in POINTS],
+                        point_intensity=POINT_INTENSITY, point_radius=POINT_RADIUS)
+    sun_after = [x for x in after if x["label"] == SUN_LABEL][0]
+    if not sun_after["points_down"] or abs(sun_after["pitch"] + 40.0) > 0.01:
+        raise RuntimeError("sun rotation did not take: %s" % sun_after)
+
+
+def render_maps():
+    for m in MAPS:
+        if not unreal.EditorLoadingAndSavingUtils.load_map(m):
+            res["errors"].append("load_map failed " + m)
+            continue
+        res["lights"][m] = lights()
+        res.setdefault("actors", {})[m] = [dict(name=a.get_name(), label=a.get_actor_label(), cls=a.get_class().get_name(), location=vec(a.get_actor_location()),
+                                                bounds_radius=float(a.get_actor_bounds(False)[1].length()) if isinstance(a, unreal.StaticMeshActor) else None)
+                                           for a in EAS.get_all_level_actors() if isinstance(a, (unreal.StaticMeshActor, unreal.PlayerStart))]
+        if SOURCES:
+            render(m, TAG + "-" + m.split("/")[-1])
+
+
+try:
+    os.makedirs(OUT, exist_ok=True)
+    if MODE == "patch":
+        patch()
+    else:
+        render_maps()
+    res["ok"] = not res["errors"]
+except Exception:
+    res["errors"].append(traceback.format_exc())
+with open(os.path.join(OUT, "lodfix-%s.json" % TAG), "w", encoding="utf-8") as f:
+    json.dump(res, f, indent=1, default=str)
+print("IAI-LODFIX-DONE ok=%s errors=%d" % (res["ok"], len(res["errors"])))

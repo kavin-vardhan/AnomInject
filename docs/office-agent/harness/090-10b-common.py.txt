@@ -1,0 +1,337 @@
+"""090-10b bench harness: idle + person gate, staging, editor-DLL swap, leg runner (staged game / editor -game / editor PIE), and the
+pixel reader. Nothing here kills a process it did not start; the launcher kills only its own PID."""
+from pathlib import Path
+import ctypes, ctypes.wintypes, hashlib, json, os, re, shutil, subprocess, sys, time
+sys.dont_write_bytecode = True
+B = Path(r'D:\IntrusiveAnomalies'); R = B / '_reviews'; EVR = R / '090-10b-evidence'
+WORK = Path(r'E:\IA_BuildCache\_r910b'); OUT = WORK / 'out'; EV = WORK / 'ev'
+PWSH = r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+STAGED = B / 'StackOBot' / 'Builds' / 'BenchGate' / 'Windows' / 'StackOBot'
+STAGED_EXE = STAGED / 'Binaries' / 'Win64' / 'StackOBot.exe'
+BL = B / '_binary_baselines'
+HOST = Path(r'E:\IA_BuildCache\_r53_host\StackOBot'); HOST_UPROJECT = HOST / 'StackOBot.uproject'
+HOST_PLUGIN_BIN = HOST / 'Plugins' / 'AnomalyInjector' / 'Binaries' / 'Win64'
+EDITOR_EXE = Path(r'D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealEditor.exe')
+DLLS = ['UnrealEditor-AnomalyBench.dll', 'UnrealEditor-AnomalyCapture.dll', 'UnrealEditor-AnomalyControlServer.dll',
+        'UnrealEditor-AnomalyInjector.dll', 'UnrealEditor-AnomalyShaders.dll']
+CONTAINER = ['StackOBot-Windows.utoc', 'StackOBot-Windows.ucas', 'StackOBot-Windows.pak', 'global.utoc', 'global.ucas']
+DC2 = BL / 'm53dc2-cook-45E2FA86'
+S1 = BL / 'm53-s1-maskedfix-cook-20DA6F98'
+BUILDS = {'8131479A': BL / 'm53-09009-8131479A', 'A3EC29D8': BL / 'm53-09007-A3EC29D8', '45FD344C': BL / 'm53-09004-45FD344C',
+          '85395644': BL / 'm53-09010-85395644', '97D292F8': BL / 'm53-09005-97D292F8', '01DBA661': WORK / 'builds' / 'c0896df', '2F924FB3': WORK / 'builds' / 'c7bbc51', '07A65316': WORK / 'builds' / '9f3bae1', '65607703': WORK / 'builds' / '0a69ea3'}
+FIX = 'StaticMeshActor_0'; FIX_N = 'StaticMeshActor_12'; FIX_M52 = 'StaticMeshActor_77'
+MAP_FIX = '/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel'; MAP_MW = '/Game/StackOBot/Maps/MainWorld'
+ARBITER = ['r.AntiAliasingMethod 0', 'r.Lumen.DiffuseIndirect.Allow 0', 'r.DynamicGlobalIlluminationMethod 0', 'r.ReflectionMethod 0']
+BASE = ['r.DefaultFeature.AutoExposure 0', 'r.EyeAdaptationQuality 0', 'CaptureBench.Marker 0', 'IAI.Capture.SVE 1',
+        'IAI.Capture.Delivery 0', 'IAI.Capture.Pace 1', 'IAI.Capture.Fps 30', 'IAI.Capture.Mask 1', 'IAI.Capture.TargetMask 1',
+        'IAI.Capture.RunLog 1']
+T_ABS = 4.0; T_REL = 4.0; NULL_FLOOR = 0.5
+
+
+def sha8(p):
+    h = hashlib.sha256()
+    with open(p, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()[:8].upper()
+
+
+def jsave(p, o):
+    Path(p).parent.mkdir(parents=True, exist_ok=True)
+    Path(p).write_text(json.dumps(o, indent=1, default=str), encoding='utf-8')
+
+
+GPU_SM_PCT = 10
+EDITOR_RX = re.compile(r'^(UnrealEditor.*|UE4Editor.*|LyraEditor.*)\.exe$', re.I)
+GAME_NAMES = {'stackobot.exe', 'lyragame.exe', 'lyraclient.exe', 'lyraserver.exe'}
+GPU_EXEMPT = {'dwm.exe', 'csrss.exe', 'system', 'idle', 'explorer.exe', 'searchhost.exe', 'textinputhost.exe',
+              'startmenuexperiencehost.exe', 'shellexperiencehost.exe', 'claude.exe'}
+
+
+def processes():
+    cmd = "@(Get-CimInstance Win32_Process | Select-Object ProcessId,Name,ExecutablePath,CommandLine) | ConvertTo-Json -Compress"
+    for a in range(4):
+        try:
+            s = subprocess.check_output([PWSH, '-NoProfile', '-Command', cmd], timeout=120).decode('utf-8', 'replace').strip()
+            break
+        except Exception:
+            if a == 3:
+                raise
+            time.sleep(5)
+    v = [] if not s or s == '[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+    return [dict(pid=x['ProcessId'], name=x.get('Name') or '', path=x.get('ExecutablePath'), cmd=(x.get('CommandLine') or '')[:200]) for x in v]
+
+
+def gpu_heavy(ps):
+    exe = r'C:\Windows\system32\nvidia-smi.exe'
+    if not Path(exe).exists():
+        return []
+    try:
+        out = subprocess.run([exe, 'pmon', '-c', '2', '-s', 'u'], capture_output=True, text=True, timeout=30).stdout
+    except Exception:
+        return []
+    per = {}
+    for ln in out.splitlines():
+        if ln.startswith('#') or not ln.strip():
+            continue
+        f = ln.split()
+        if len(f) < 4 or not f[1].isdigit():
+            continue
+        per.setdefault(int(f[1]), []).append(int(f[3]) if f[3].isdigit() else 0)
+    byname = {x['pid']: x['name'] for x in ps}
+    me = {os.getpid(), os.getppid()}
+    return [dict(pid=p, name=byname.get(p, '?'), sm=min(v)) for p, v in per.items()
+            if min(v) >= GPU_SM_PCT and p not in me and byname.get(p, '?').lower() not in GPU_EXEMPT]
+
+
+def idle_read():
+    ps = processes()
+    blocking = [dict(pid=p['pid'], name=p['name'], path=p['path']) for p in ps
+                if EDITOR_RX.match(p['name']) or p['name'].lower() in GAME_NAMES]
+    blocking += gpu_heavy(ps)
+    return blocking
+
+
+_W = ctypes.wintypes
+
+
+class _LII(ctypes.Structure):
+    _fields_ = [('cbSize', _W.UINT), ('dwTime', _W.DWORD)]
+
+
+def person_idle_s():
+    x = _LII(); x.cbSize = ctypes.sizeof(_LII)
+    ok = ctypes.windll.user32.GetLastInputInfo(ctypes.byref(x)); n = ctypes.windll.kernel32.GetTickCount()
+    return round(((n - x.dwTime) & 0xFFFFFFFF) / 1000.0, 1) if ok else None
+
+
+def wait_quiet(budget_s=3600, poll_s=20, need=3, person_s=60.0):
+    """3 consecutive idle reads (no UnrealEditor of any engine, no game, no foreign GPU-heavy process) and no input for 60 s."""
+    t0 = time.time(); streak = 0; last = None
+    while time.time() - t0 < budget_s:
+        bl = idle_read(); pi = person_idle_s()
+        ok = not bl and (pi is None or pi >= person_s)
+        streak = streak + 1 if ok else 0
+        last = dict(blocking=bl, person_idle_s=pi, streak=streak)
+        if streak >= need:
+            return dict(clear=True, waited_s=round(time.time() - t0, 1), **last)
+        time.sleep(poll_s)
+    return dict(clear=False, waited_s=round(time.time() - t0, 1), **(last or {}))
+
+
+def stage(exe_build):
+    src_exe = BUILDS[exe_build] / 'StackOBot.exe'
+    rec = dict(exe=exe_build, container='45E2FA86')
+    for n in CONTAINER:
+        d = STAGED / 'Content' / 'Paks' / n
+        if not d.exists() or sha8(d) != sha8(DC2 / n):
+            shutil.copyfile(DC2 / n, d)
+        rec[n] = sha8(d)
+        assert rec[n] == sha8(DC2 / n), n
+    if not STAGED_EXE.exists() or sha8(STAGED_EXE) != exe_build:
+        shutil.copyfile(src_exe, STAGED_EXE)
+    rec['staged_exe'] = sha8(STAGED_EXE)
+    assert rec['staged_exe'] == exe_build
+    return rec
+
+
+def restore_s1():
+    for n in CONTAINER:
+        shutil.copyfile(S1 / n, STAGED / 'Content' / 'Paks' / n)
+    shutil.copyfile(S1 / 'StackOBot.exe', STAGED_EXE)
+    got = {n: sha8(STAGED / 'Content' / 'Paks' / n) for n in CONTAINER}
+    got['exe'] = sha8(STAGED_EXE)
+    want = {n: sha8(S1 / n) for n in CONTAINER}
+    want['exe'] = sha8(S1 / 'StackOBot.exe')
+    return dict(ok=got == want, got=got)
+
+
+def host_dlls():
+    return {n: sha8(HOST_PLUGIN_BIN / n) for n in DLLS}
+
+
+def swap_editor(build):
+    src = BUILDS[build] / 'editor'
+    bak = WORK / 'host_bin_backup'
+    if not bak.exists():
+        bak.mkdir(parents=True)
+        for n in DLLS:
+            shutil.copyfile(HOST_PLUGIN_BIN / n, bak / n)
+        jsave(bak / 'hashes.json', host_dlls())
+    for n in DLLS:
+        shutil.copyfile(src / n, HOST_PLUGIN_BIN / n)
+        assert sha8(HOST_PLUGIN_BIN / n) == sha8(src / n)
+    return host_dlls()
+
+
+def restore_editor():
+    bak = WORK / 'host_bin_backup'
+    for n in DLLS:
+        shutil.copyfile(bak / n, HOST_PLUGIN_BIN / n)
+    return host_dlls() == json.loads((bak / 'hashes.json').read_text())
+
+
+def leg_cmds(spec, out_dir):
+    cmds = list(BASE) + (ARBITER if spec.get('arbiter', True) else []) + [f'IAI.Capture.Config {spec.get("cfg", "2 4 8 14 0")}']
+    cmds += spec.get('pre', [])
+    if spec.get('census'):
+        cmds.append('IAI.TexCorrupt.Census')
+    if spec.get('auto'):
+        cmds += ['IAI.Auto.Pool all 0'] + [f'IAI.Auto.Pool {a} 1' for a in spec['auto']]
+        cmds.append(f'IAI.Capture.Start {out_dir} png {spec.get("seed", 777)} {spec.get("frames", 300)}')
+    elif spec.get('anomaly'):
+        cmds.append(' '.join([f'IAI.Capture.Start {out_dir} png {spec.get("seed", 777)} {spec.get("frames", 120)} {spec["anomaly"]} {spec["target"]}'] + spec.get('args', [])))
+    return cmds + spec.get('post', [])
+
+
+def run_leg(label, spec):
+    """spec: mode staged|game|pie, build, map, anomaly/target or auto, extra exec cmds."""
+    ev = EV / label; out = OUT / label
+    if ev.exists() or out.exists():
+        raise SystemExit(f'leg dirs exist: {label}')
+    mode = spec['mode']
+    cmds = leg_cmds(spec, str(out))
+    if mode == 'staged':
+        exe = STAGED_EXE
+        args = [spec['map'], '-windowed', '-ResX=1280', '-ResY=720', '-ExecCmds="' + ', '.join(cmds) + '"', '-unattended', '-nosplash']
+    elif mode == 'game':
+        exe = EDITOR_EXE
+        args = [str(HOST_UPROJECT), spec['map'], '-game', '-windowed', '-ResX=1280', '-ResY=720', '-ExecCmds="' + ', '.join(cmds) + '"',
+                '-unattended', '-nosplash', '-NoLiveCoding']
+    elif mode == 'pie':
+        exe = EDITOR_EXE
+        ev.mkdir(parents=True)
+        plan = dict(cmds=cmds, out_dir=str(out) if (spec.get('anomaly') or spec.get('auto')) else None, settle_s=spec.get('settle_s', 10.0),
+                    gap_ticks=2, done_timeout_s=spec.get('wait', 600), hold_s=spec.get('hold_s', 20.0))
+        jsave(WORK / 'plans' / f'{label}.json', plan)
+        args = [str(HOST_UPROJECT), spec['map'], '-pie', f'-ExecCmds="py {R / "090-10b-pie.py"}"',
+                f'-IAIPiePlan="{WORK / "plans" / (label + ".json")}"', '-nosplash', '-NoLiveCoding'] + ([] if spec.get('attended') else ['-unattended'])
+        ev.rmdir()
+    else:
+        raise SystemExit(mode)
+    args += spec.get('extra', [])
+    kind = spec.get('kind') or ('exit' if mode == 'pie' else ('capture' if (spec.get('anomaly') or spec.get('auto')) else 'log'))
+    af = WORK / 'args' / f'{label}.json'
+    jsave(af, args)
+    a = [PWSH, '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(R / '090-10b-run.ps1'), '-Label', label, '-EvDir', str(ev),
+         '-Exe', str(exe), '-ArgsFile', str(af), '-Kind', kind, '-WaitSec', str(spec.get('wait', 600))]
+    if kind == 'capture':
+        a += ['-OutDir', str(out)]
+    if spec.get('nofocus'):
+        a += ['-NoFocus']
+    if kind == 'log':
+        a += ['-WaitPattern', spec.get('pattern', 'IAI-TEXCORRUPT-CENSUS v1 end'), '-WaitCount', str(spec.get('count', 1))]
+    t0 = time.time()
+    rc = subprocess.run(a, capture_output=True, text=True)
+    res = dict(label=label, spec=spec, rc=rc.returncode, stdout=rc.stdout.strip()[-800:], stderr=rc.stderr.strip()[-800:],
+               wall_s=round(time.time() - t0, 1), out=str(out))
+    jsave(ev / 'result.json', res)
+    return res
+
+
+def find_session(label):
+    out = OUT / label
+    if not out.exists():
+        return None
+    for d in sorted(out.iterdir()):
+        if (d / 'run_summary.json').exists():
+            return d
+    return None
+
+
+LINE_RX = re.compile(r'(REFUSED|TEXCORRUPT-(DECIDE|REFUSED)|Auto\.Draw|Auto\.Fire|STUCKMIP|stuck_low_mip|NANITE|Nanite|nanite|REVERT|'
+                     r'0 matched|INTERRUPT|interrupted|ELIGIB|eligib|CENSUS|census v1|applied|APPLIED|LogPython|IAI-PIE)')
+
+
+def log_lines(label, limit=400):
+    p = EV / label / 'game.log'
+    if not p.exists():
+        return []
+    out = []
+    for ln in p.read_text(encoding='utf-8', errors='replace').splitlines():
+        if ('LogAnomaly' in ln or 'IAI-' in ln or 'LogPython' in ln) and LINE_RX.search(ln):
+            out.append(ln[ln.find(']') + 1:][:400] if ln.startswith('[') else ln[:400])
+    return out[:limit]
+
+
+SUMMARY_KEYS = re.compile(r'refus|nanite|effect|interrupt|texcorrupt|stuck|vetoed|positive_frames|total_frames|mode|eligib', re.I)
+
+
+def summary_fields(sess):
+    rs = json.loads((sess / 'run_summary.json').read_text(encoding='utf-8'))
+    return {k: v for k, v in rs.items() if SUMMARY_KEYS.search(k)}
+
+
+def _img(path):
+    from PIL import Image
+    return Image.open(path).convert('RGB')
+
+
+def _bbox_diff(a, b, box):
+    from PIL import ImageChops, ImageStat
+    x, y, w, h = [int(round(v)) for v in box]
+    x0, y0 = max(0, x), max(0, y)
+    x1, y1 = min(a.size[0], x + max(1, w)), min(a.size[1], y + max(1, h))
+    if x1 <= x0 or y1 <= y0:
+        return None
+    d = ImageChops.difference(a.crop((x0, y0, x1, y1)), b.crop((x0, y0, x1, y1)))
+    st = ImageStat.Stat(d)
+    return round(sum(st.mean) / 3.0, 3)
+
+
+def pixels(sess):
+    """Per event: median mean-abs RGB diff inside the event's drawn bbox, labelled frames vs the last clean frame before the event,
+    against the null (the two clean frames before the event). Corrupts = median >= T_ABS and >= T_REL x max(null, NULL_FLOOR)."""
+    ann = json.loads((sess / 'annotation.json').read_text(encoding='utf-8'))
+    rows = {}
+    for ln in (sess / 'labels.jsonl').read_text(encoding='utf-8').splitlines():
+        if ln.strip():
+            r = json.loads(ln); rows[r['session_index']] = r
+    evs = []
+    for e in ann.get('anomalies', []):
+        fr = (e.get('affected_frames') or {}).get('frame_indices') or (e.get('injected_frames') or {}).get('frame_indices') or []
+        tgt = ((e.get('affected_objects') or {}).get('nodes') or [{}])[0].get('name')
+        boxes = []
+        for i in fr:
+            for a in (rows.get(i) or {}).get('anomalies', []):
+                if a.get('target_name') == tgt and a.get('id') == e.get('anomaly_type'):
+                    bx = a.get('bbox_drawn_px') or (a.get('bbox_px') if a.get('bbox_valid') else None)
+                    if bx and bx[2] > 0 and bx[3] > 0:
+                        boxes.append(bx)
+        rec = dict(type=e.get('anomaly_type'), mode=e.get('anomaly_subtype'), target=tgt, frames=[fr[0], fr[-1]] if fr else None, n=len(fr))
+        if not fr or not boxes:
+            rec['verdict'] = 'NO-BBOX'; evs.append(rec); continue
+        x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
+        x1 = max(b[0] + b[2] for b in boxes); y1 = max(b[1] + b[3] for b in boxes)
+        box = (x0, y0, x1 - x0, y1 - y0); rec['bbox'] = [round(v) for v in box]
+        s = fr[0]
+        ref = [i for i in (s - 1, s - 2) if i in rows and not any(a.get('target_name') == tgt for a in rows[i].get('anomalies', []))]
+        if not ref:
+            rec['verdict'] = 'NO-CLEAN-REF'; evs.append(rec); continue
+        r1 = _img(sess / rows[ref[0]]['image'])
+        null = _bbox_diff(r1, _img(sess / rows[ref[1]]['image']), box) if len(ref) > 1 else None
+        ds = [_bbox_diff(_img(sess / rows[i]['image']), r1, box) for i in fr if i in rows]
+        ds = sorted(d for d in ds if d is not None)
+        med = ds[len(ds) // 2] if ds else None
+        rec.update(null=null, median=med, max=ds[-1] if ds else None)
+        thr = max(T_ABS, T_REL * max(null or 0.0, NULL_FLOOR))
+        rec['threshold'] = thr
+        rec['verdict'] = 'CORRUPTS' if med is not None and med >= thr else 'NO-VISIBLE-CHANGE'
+        evs.append(rec)
+    return evs
+
+
+def read_leg(label):
+    sess = find_session(label)
+    r = dict(label=label, session=str(sess) if sess else None)
+    if sess:
+        r['summary'] = summary_fields(sess)
+        ann = json.loads((sess / 'annotation.json').read_text(encoding='utf-8'))
+        r['events'] = len(ann.get('anomalies', []))
+        try:
+            r['pixels'] = pixels(sess)
+        except Exception as ex:
+            r['pixels_error'] = f'{type(ex).__name__}: {ex}'
+    r['lines'] = log_lines(label)
+    jsave(EV / label / 'reading.json', r)
+    return r

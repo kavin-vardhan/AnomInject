@@ -1,0 +1,89 @@
+from pathlib import Path
+import datetime,hashlib,json,os,subprocess,sys,time
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+B=Path(r'D:\IntrusiveAnomalies');R=B/'_reviews';EV=R/'082-07-evidence'
+LIVE_RUN=EV/'run'
+RUN=Path(os.environ.get('IAI_R53_ROOT',str(LIVE_RUN)))
+STUB=os.environ.get('IAI_R53_STUB_LAUNCH')=='1'
+if STUB and RUN.resolve()==LIVE_RUN.resolve():raise SystemExit('IAI_R53_STUB_LAUNCH=1 refused: the run root is the live evidence dir '+str(LIVE_RUN))
+PREP=EV/'prep'
+RP=B/'StackOBot/Plugins/AnomalyInjector'
+SRC=Path(r'E:\IA_BuildCache\_r53_src\AnomalyInjector')
+HOST_PLUGIN=Path(r'E:\IA_BuildCache\_r53_host\StackOBot\Plugins\AnomalyInjector')
+CB=B/'StackOBot/Plugins/CaptureBench'
+FEATURE='feat/m53-uv-normal-corruption'
+M51_HEAD='53bf725bd406f8ce3e38d6ed153b7ff77e3a3e67'
+HOST_HEAD='c9f8089'
+STAGED_ROOT=B/'StackOBot/Builds/BenchGate/Windows/StackOBot'
+EXE=STAGED_ROOT/'Binaries/Win64/StackOBot.exe'
+EXE_SIDE=EXE.parent
+PAKS=STAGED_ROOT/'Content/Paks'
+STAGED={
+ 'Binaries/Win64/StackOBot.exe':'2fcdf059176da4e65645b4523c1efd73b13ab2489a8ffc3867ac2de26177cb36',
+ 'Content/Paks/StackOBot-Windows.utoc':'20da6f980e071ca63b9407821bb886b485b9db45f82ebf1bd3653b75726d1f54',
+ 'Content/Paks/StackOBot-Windows.ucas':'534c586357b1844585d14cb946ad05934f86aeedc98af7fe70dea35813333b28',
+ 'Content/Paks/StackOBot-Windows.pak':'fd766b7bad3a8092d60f0a6815e9af3fc12fd2e7f40febeffdd19c75227f1b0e',
+ 'Content/Paks/global.utoc':'462b8ac67ce8bfa278c8bc1763c7dd36f35984b60a91781ba034e8ea82667de6',
+ 'Content/Paks/global.ucas':'bb05cf99f9b05fcdce6b2a1a8972527b62df282533ec9009029e9c6e0c2f3ddb'}
+ARCHIVE=B/'_binary_baselines/m53-s1-normalfix-cook-30FE0FDE'
+BANK=B/'_bench_sessions_bank'
+REAL_BANK=BANK
+BANK_PREFIX='M53S1_'
+if STUB:
+    BANK=RUN/'_stub_bank';EXE_SIDE=RUN/'_stub_exe_side'
+    for _d in (BANK,EXE_SIDE):_d.mkdir(parents=True,exist_ok=True)
+def bank_read(name):
+    p=BANK/name
+    return p if (p.exists() or not STUB) else REAL_BANK/name
+FIXTURE_ACTORS=R/'082-06-evidence/texcorrupt_fixture_actors.json'
+FIXTURE_MANIFEST=R/'082-06-evidence/fixture_src/texcorrupt_fixture_manifest.json'
+FIXTURE_SRC=R/'082-06-evidence/fixture_src'
+G10_STATUS=R/'082-06c-evidence/build-status.txt'
+G10_LOGS=(R/'082-06c-evidence/build-g10-StackOBot.log',R/'082-06c-evidence/build-g10-StackOBotEditor.log')
+G10_ARCHIVE=Path(r'E:\IA_BuildCache\_binary_baselines\StackOBot.exe.m53-s1rem-2FCDF059')
+PRED='docs/predictions/2026-09-27-m53-s1-legs.md'
+PWSH=r'C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe'
+PY=r'C:\Python313\python.exe'
+OURS_MARKERS=('d:\\uesource','intrusiveanomalies','lyrastartergame','\\stackobot','ia_buildcache')
+NAMES=('UnrealEditor.exe','UnrealEditor-Cmd.exe','StackOBot.exe','LyraGame.exe','LyraEditor.exe','LyraClient.exe','LyraServer.exe','UnrealBuildTool.exe','ShaderCompileWorker.exe','CrashReportClient.exe','CrashReportClientEditor.exe','UnrealTraceServer.exe','dotnet.exe')
+EDITORS=('UnrealEditor.exe','UnrealEditor-Cmd.exe','LyraEditor.exe')
+GAMES=('StackOBot.exe','LyraGame.exe','LyraClient.exe','LyraServer.exe')
+E_FLOOR_GB=50.0;D_FLOOR_GB=15.0
+def sha(p):
+    with Path(p).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+def now():return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def git(r,*a):return subprocess.check_output(['git','-C',str(r),*a],stderr=subprocess.DEVNULL).decode().strip()
+def classify():
+    names=",".join("'"+n+"'" for n in NAMES);s=''
+    for attempt in range(4):
+        try:
+            s=subprocess.check_output(['powershell','-NoProfile','-Command',"@(Get-CimInstance Win32_Process | Where-Object { $_.Name -in "+names+" } | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine,CreationDate) | ConvertTo-Json -Compress"]).decode().strip();break
+        except subprocess.CalledProcessError:
+            if attempt==3:raise
+            time.sleep(5)
+    v=[] if not s or s=='[]' else json.loads(s) if s.startswith('[') else [json.loads(s)]
+    ours=[];foreign=[]
+    for x in v:
+        t=((x.get('ExecutablePath') or '')+' '+(x.get('CommandLine') or '')).lower()
+        rec=dict(pid=x['ProcessId'],ppid=x.get('ParentProcessId'),name=x['Name'],path=x.get('ExecutablePath'),cmd=(x.get('CommandLine') or '')[:240],created=str(x.get('CreationDate')))
+        if x['Name']=='dotnet.exe' and 'unrealbuildtool' not in t:continue
+        if any(m in t for m in OURS_MARKERS):ours.append(rec)
+        else:foreign.append(rec)
+    return ours,foreign
+def quiet():
+    ours,foreign=classify()
+    editors=[p for p in ours+foreign if p['name'] in EDITORS]
+    games=[p for p in ours+foreign if p['name'] in GAMES]
+    blocking=editors+games+[p for p in ours if p['name'] in ('UnrealBuildTool.exe','ShaderCompileWorker.exe','dotnet.exe')]
+    return dict(quiet=not blocking,blocking=[(p['pid'],p['name'],p['path']) for p in blocking],ours=ours,foreign=foreign)
+def free_gb(drive):
+    import shutil
+    return round(shutil.disk_usage(drive).free/1e9,1)
+def log_event(kind,**kw):
+    RUN.mkdir(parents=True,exist_ok=True);p=RUN/'environment-events.json';ev=json.loads(p.read_text()) if p.exists() else []
+    ev.append(dict(utc=now(),kind=kind,**kw));p.write_text(json.dumps(ev,indent=2,default=str))
+def staged_state():
+    return {k:sha(STAGED_ROOT/k) for k in STAGED}
+def fixture_actors():
+    d=json.loads(FIXTURE_ACTORS.read_text(encoding='utf-8'))
+    return {a['label']:a for a in d['actors']}

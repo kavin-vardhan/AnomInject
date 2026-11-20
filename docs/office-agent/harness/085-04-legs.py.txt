@@ -1,0 +1,141 @@
+FMW='/Game/StackOBot/Maps/MainWorld'
+FGATE='/Game/CaptureBenchGate/CB_GateLevel'
+FSYN='/Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel'
+UV='uv_corruption';NM='normal_corruption'
+UC1='StaticMeshActor_0';NN1='StaticMeshActor_12';LAYER='StaticMeshActor_57'
+ORC16='StaticMeshActor_75';ORC64='StaticMeshActor_76';M52HOLD='StaticMeshActor_77';M52SHARE='StaticMeshActor_78'
+ORCN='StaticMeshActor_79';MIXED='StaticMeshActor_80'
+FIXTURE_LABELS={UC1:'TC_UC1',NN1:'TC_NN1',LAYER:'TC_Layer',ORC16:'TC_OracleUV16',ORC64:'TC_OracleUV64',M52HOLD:'TC_M52Hold',
+                M52SHARE:'TC_M52Share',ORCN:'TC_OracleN',MIXED:'TC_Mixed'}
+ROCK='StaticMeshActor_UAID_A036BC6AB247EBF902_2044254803'
+ROCK2='StaticMeshActor_UAID_A036BC6AB247EBF902_2048592804'
+MW_FLOOR='RoomBuilderSquare_C_UAID_00155DE1D4771FCF00_1080865874'
+AA_OFF=['r.AntiAliasingMethod 0']
+AA_OFF_ARBITER=['r.AntiAliasingMethod 0','r.Lumen.DiffuseIndirect.Allow 0','r.DynamicGlobalIlluminationMethod 0','r.ReflectionMethod 0']
+SYN=['IAI.Bench.SynthTickOrder 1']
+ID='IAI.Bench.TexCorruptIdentity 1';NOAPPLY1='IAI.Bench.TexCorruptNoApply 1';TILEPROBE='IAI.Bench.TexCorruptTileProbe 2'
+def WC(f):return f'IAI.Bench.TexCorruptWrongCopy {f}'
+CFG_EDGE='2 4 8 14 0'
+CFG_M52='2 4 8 30 0'
+CFG_S1='2 16 8 4 0'
+BENCH='-IAIBench'
+NOFLAG=''
+CAP='@CAP'
+MODES=((UV,'tile',UC1),(UV,'scramble',UC1),(NM,'invert',NN1),(NM,'green_flip',NN1))
+CONDS=(('NAT',[],'SYNC'),('NAT_AAOFF',AA_OFF_ARBITER,'AA_OFF'),('SYN',SYN,'ORDER'))
+def leg(leg_id,group,role,map_,anomaly,target,frames,cfg,levers=(),seed=777,auto=False,required=True,extra=BENCH,mode=None,
+        start_args=(),null=None,kind='capture',pre_cmds=(),post_cmds=(),runs=None,cond=None,note='',premise=None,expect=None,
+        flag=None,wait_pattern=None,wait_count=1,lever=None):
+    sa=list(start_args)
+    if mode and not sa:sa=[mode]
+    return dict(leg=leg_id,group=group,role=role,map=map_,anomaly=anomaly,target=target,frames=frames,cfg=cfg,levers=list(levers),
+                seed=seed,auto=auto,required=required,extra=extra,mode=mode,start_args=sa,null=null,kind=kind,pre_cmds=list(pre_cmds),
+                post_cmds=list(post_cmds),runs=runs,cond=cond,note=note,premise=premise,expect=expect,flag=flag,build='DC',
+                wait_pattern=wait_pattern,wait_count=wait_count,lever=lever)
+LEGS=[]
+PREMISE=[
+ leg('P_HOST_CEN','PREMISE','CENSUS',FMW,None,None,0,CFG_EDGE,extra=NOFLAG,kind='census',
+     post_cmds=['IAI.TexCorrupt.Census','IAI.TexCorrupt.Census all'],wait_pattern='IAI-TEXCORRUPT-CENSUS v1 end',wait_count=2,
+     note='P-HOST + G-CENSUS (MainWorld, cold process, no -IAIBench) + the ND-4 yield at the delivered 128 MiB cap'),
+ leg('P_HOST_BENCH','PREMISE','CENSUS',FMW,None,None,0,CFG_EDGE,kind='census',post_cmds=['IAI.TexCorrupt.Census','IAI.Bench.TexCorruptCensus'],
+     wait_pattern='TEXCORRUPT-CENSUS END',wait_count=1,note='P-HOST: per-actor decisions at 128 MiB (names H1/H2, required_bytes for any ND-4 cap raise) and the G-CENSUS count join'),
+ leg('P_ORC_UV','PREMISE','NULL',FSYN,UV,ORC16,120,CFG_EDGE,AA_OFF_ARBITER+[ID],post_cmds=['@DEFERPROBES'],note='P-ORC: the UV oracle tiles on a null (cells >= 32 apart, interiors <= 2, fit <= 0.5 px, >= 1:1)'),
+ leg('P_ORC_N','PREMISE','NULL',FSYN,NM,ORCN,120,CFG_EDGE,AA_OFF_ARBITER+[ID],note='P-ORC: the normal oracle tile on a null (equality pattern, separation)'),
+ leg('P_M52F','PREMISE','M52F',FSYN,'missing_texture','StaticMeshActor_1',60,CFG_EDGE,post_cmds=['@DEFERPROBES'],
+     runs=dict(first=dict(anomaly='stuck_low_mip',target=M52HOLD,frames=40,cfg=CFG_EDGE,label_suffix='_r1'),defer=600),
+     note='P-M52F + P-EXCL run 1: m52 on TC_M52Hold holds with a trail and the capture ends mid-event (RESTORE CARRIED); DEFER probes calibrate DEFER ticks to GFrameCounter'),
+ leg('P_FLOOR','PREMISE','FLOOR',FMW,UV,MW_FLOOR,120,CFG_EDGE,[ID],note='P-FLOOR: the floor first decision k/30 (partial_footprint if 0<k<30)'),
+ leg('P_SYN','PREMISE','POSE',FSYN,UV,UC1,120,CFG_EDGE,SYN+[ID],post_cmds=['@DEFERPROBES'],note='P-SYN: the fixture synth-order pose vs the native modal pose'),
+]
+LEGS+=PREMISE
+for anom,mode,tgt in MODES:
+    for cond,lv,role in CONDS:
+        nul=f'F_NULL_{"UV" if anom==UV else "N"}_{"AAOFF" if cond=="NAT_AAOFF" else "AAON"}'
+        LEGS.append(leg(f'F_{mode.upper()}_{cond}','BM53F',role,FSYN,anom,tgt,400,CFG_EDGE,lv,mode=mode,null=nul,cond=cond))
+for fam,anom,tgt in (('UV',UV,UC1),('N',NM,NN1)):
+    for aa,lv in (('AAON',[]),('AAOFF',AA_OFF_ARBITER)):
+        LEGS.append(leg(f'F_NULL_{fam}_{aa}','BM53F','NULL',FSYN,anom,tgt,400,CFG_EDGE,lv+[ID],cond='NAT' if aa=='AAON' else 'NAT_AAOFF',
+                        note='refresh-matched identity null (082-15): must read mode_source=bench_lever lever=identity'))
+for host,rows in (('H1',[('tile',UV,'NAT'),('scramble',UV,'NAT'),('invert',NM,'NAT'),('green_flip',NM,'NAT'),(None,UV,'NAT'),(None,NM,'NAT'),
+                          ('tile',UV,'NAT_AAOFF'),('invert',NM,'NAT_AAOFF'),(None,UV,'NAT_AAOFF'),(None,NM,'NAT_AAOFF')]),
+                  ('H2',[('tile',UV,'NAT'),('scramble',UV,'NAT'),('invert',NM,'NAT'),('green_flip',NM,'NAT'),(None,UV,'NAT'),(None,NM,'NAT')])):
+    for mode,anom,cond in rows:
+        lv=([CAP]+(AA_OFF_ARBITER if cond=='NAT_AAOFF' else []))
+        fam='UV' if anom==UV else 'N'
+        nul=f'MW_{host}_NULL_{fam}_{cond}'
+        tgt='@'+host+('U' if anom==UV else 'N')
+        if mode:
+            LEGS.append(leg(f'MW_{host}_{mode.upper()}_{cond}','BM53MW','SYNC' if cond=='NAT' else 'AA_OFF',FMW,anom,tgt,300,CFG_EDGE,lv,
+                            mode=mode,null=nul,cond=cond,premise='P_HOST_BENCH'))
+        else:
+            LEGS.append(leg(nul,'BM53MW','NULL',FMW,anom,tgt,300,CFG_EDGE,lv+[ID],cond=cond,premise='P_HOST_BENCH'))
+LEGS+=[
+ leg('ARM_CD3_AAOFF','BM53ARM','CANFAIL',FSYN,UV,UC1,200,CFG_EDGE,AA_OFF_ARBITER+['IAI.Bench.TexCorruptCommitDelay 3'],mode='tile',expect='start+3',
+     note='can-fail (c): the picture commits 3 frames after APPLIED; the onset must read +3, the offset 0'),
+ leg('ARM_CD3_AAON','BM53ARM','CANFAIL',FSYN,UV,UC1,200,CFG_EDGE,['IAI.Bench.TexCorruptCommitDelay 3'],mode='tile',expect='start+3'),
+ leg('ARM_RD3_AAOFF','BM53ARM','CANFAIL',FSYN,UV,UC1,200,CFG_EDGE,AA_OFF_ARBITER+['IAI.Bench.TexCorruptRestoreDelay 3'],mode='tile',expect='end+3',
+     note='can-fail (c): restore 3 frames after REVERT; one RestoreDelay run per process (F5)'),
+ leg('ARM_RD3_AAON','BM53ARM','CANFAIL',FSYN,UV,UC1,200,CFG_EDGE,['IAI.Bench.TexCorruptRestoreDelay 3'],mode='tile',expect='end+3'),
+ leg('ARM_NOAPPLY1','BM53ARM','CANFAIL',FSYN,UV,UC1,200,CFG_EDGE,AA_OFF_ARBITER+[NOAPPLY1],mode='tile',expect='holes',
+     note='can-fail (d): labelled, never visible -> FAIL'),
+ leg('MODE_TILE','GMODE','MODE',FSYN,UV,ORC16,200,CFG_EDGE,AA_OFF_ARBITER,mode='tile',null='MODE_UVNULL'),
+ leg('MODE_SCRAMBLE','GMODE','MODE',FSYN,UV,ORC64,200,CFG_EDGE,AA_OFF_ARBITER,mode='scramble',null='MODE_UVNULL'),
+ leg('MODE_UVNULL','GMODE','NULL',FSYN,UV,ORC16,200,CFG_EDGE,AA_OFF_ARBITER+[ID]),
+ leg('MODE_INVERT','GMODE','MODE',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER,mode='invert',null='MODE_NNULL'),
+ leg('MODE_GREENFLIP','GMODE','MODE',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER,mode='green_flip',null='MODE_NNULL'),
+ leg('MODE_NNULL','GMODE','NULL',FSYN,NM,ORCN,200,CFG_EDGE,AA_OFF_ARBITER+[ID]),
+ leg('EXCL_A','EXCL','EXCL_A',FSYN,UV,UC1,120,CFG_EDGE,mode='tile',premise='P_M52F',
+     runs=dict(first=dict(anomaly='stuck_low_mip',target=M52HOLD,frames=40,cfg=CFG_EDGE,label_suffix='_r1'),defer='@EXCL_A_DEFER'),
+     note='one process, two captures: run 1 m52 capped mid-event (trail carried), run 2 uv tile whose first burst must read Auto.Exclude state=trail_open'),
+ leg('EXCL_B','EXCL','EXCL_B',FSYN,UV,UC1,120,CFG_EDGE,['IAI.Auto.Pool all 0','IAI.Auto.Pool stuck_low_mip 1'],mode='tile',premise='P_M52F',
+     post_cmds=['@DEFER_B1 IAI.Auto.FireOnce','@DEFER_B2 IAI.Auto.FireOnce'],
+     note='m53 live: a FireOnce inside the first positives reads all_excluded (fire_live), seed unchanged; one in PostGap after R+2 applies m52 (control)'),
+ leg('REASON_E6','REASON','REASON',FSYN,UV,UC1,120,CFG_EDGE,start_args=['bogus'],
+     post_cmds=['@DEFER_R1 IAI.Apply uv_corruption =StaticMeshActor_0 drift','@DEFER_R2 IAI.Apply uv_corruption =StaticMeshActor_0 invert'],
+     note='E6 through a real Apply: bogus -> mode_invalid:unknown, drift -> mode_invalid:not_in_delivery, invert on uv -> mode_invalid:family'),
+ leg('REASON_MIXED_N','REASON','REASON',FSYN,NM,MIXED,120,CFG_EDGE,mode='invert',note='TC_Mixed normal: partial_footprint:1/2:no_normal_map'),
+ leg('REASON_MIXED_UV','REASON','REASON',FSYN,UV,MIXED,120,CFG_EDGE,mode='tile',note='TC_Mixed uv: applies (the control)'),
+ leg('AON_MW','AON','AON',FMW,UV,MW_FLOOR,120,CFG_EDGE,mode='tile',premise='P_FLOOR',note='G-AON-MW: the floor first decision refuses partial_footprint (exercised only if P-FLOOR reads 0<k<30)'),
+]
+POOL_SEED=['IAI.Auto.Pool all 0','IAI.Auto.Pool uv_corruption 1','IAI.Auto.Pool normal_corruption 1','IAI.Auto.Pool missing_texture 1','IAI.Auto.Pool blinking 1']
+LEGS+=[
+ leg('SEED_A1','SEED','SEED',FSYN,None,None,300,CFG_EDGE,POOL_SEED,seed=4242,auto=True),
+ leg('SEED_A2','SEED','SEED',FSYN,None,None,300,CFG_EDGE,POOL_SEED,seed=4242,auto=True,note='G-SEED (a) repeat of SEED_A1'),
+ leg('SEED_EMPTY','SEED','SEED',FSYN,None,None,300,CFG_EDGE,POOL_SEED+['IAI.Anomaly.TexCorruptUvModes none','IAI.Anomaly.TexCorruptNormalModes none'],seed=4242,auto=True,
+     note='empty mode sets: every m53 attempt draws once and reads !none'),
+ leg('LEVER_OFF','LEVER','LEVER_OFF',FSYN,UV,UC1,60,CFG_EDGE,mode='tile',extra=NOFLAG,
+     post_cmds=['IAI.Bench.SynthTickOrder 1','IAI.Bench.TexCorruptIdentity 1','IAI.Bench.DestroyTarget StaticMeshActor_12','IAI.ListAnomalies'],
+     note='Development, no flag: every IAI.Bench name refused, no echo, no effect, no twins listed'),
+ leg('LEVER_ON','LEVER','LEVER_ON',FSYN,UV,UC1,60,CFG_EDGE,mode='tile',post_cmds=['IAI.ListAnomalies'],note='with -IAIBench: the ENABLED echo, twins listed'),
+ leg('CENSUS_FSYN','CENSUS','CENSUS',FSYN,None,None,0,CFG_EDGE,extra=NOFLAG,kind='census',post_cmds=['IAI.TexCorrupt.Census'],
+     wait_pattern='IAI-TEXCORRUPT-CENSUS v1 end',wait_count=1,note='G-CENSUS on the fixture, cold, no -IAIBench'),
+ leg('CENSUS_FSYN_BENCH','CENSUS','CENSUS',FSYN,None,None,0,CFG_EDGE,kind='census',post_cmds=['IAI.TexCorrupt.Census','IAI.Bench.TexCorruptCensus'],
+     wait_pattern='TEXCORRUPT-CENSUS END',wait_count=1,note='the G-CENSUS count join on the same view'),
+ leg('BIND_TILE','BIND','TILE',FSYN,UV,LAYER,100,CFG_S1,[TILEPROBE]),
+ leg('BIND_TILENULL','BIND','TILENULL',FSYN,UV,LAYER,100,CFG_S1,[TILEPROBE,NOAPPLY1]),
+ leg('BIND_ID','BIND','ID',FSYN,UV,LAYER,100,CFG_S1,[ID]),
+ leg('BIND_IDNULL','BIND','NULL',FSYN,UV,LAYER,100,CFG_S1,[ID,NOAPPLY1]),
+ leg('GID_UC1_ID','GID','ID',FSYN,UV,UC1,100,CFG_S1,AA_OFF_ARBITER+[ID],null='GID_UC1_NULL'),
+ leg('GID_UC1_NULL','GID','NULL',FSYN,UV,UC1,100,CFG_S1,AA_OFF_ARBITER+[ID,NOAPPLY1]),
+ leg('GID_UC1_WRONG','GID','WRONG',FSYN,UV,UC1,100,CFG_S1,AA_OFF_ARBITER+[ID,WC('chanswap')],null='GID_UC1_NULL'),
+ leg('GID_NN1_ID','GID','ID',FSYN,NM,NN1,100,CFG_S1,AA_OFF_ARBITER+[ID],null='GID_NN1_NULL'),
+ leg('GID_NN1_NULL','GID','NULL',FSYN,NM,NN1,100,CFG_S1,AA_OFF_ARBITER+[ID,NOAPPLY1]),
+ leg('GID_NN1_WRONG','GID','WRONG',FSYN,NM,NN1,100,CFG_S1,AA_OFF_ARBITER+[ID,WC('normal')],null='GID_NN1_NULL'),
+ leg('SR_B0','SYNCREG','SYNC',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,null='SR_B5',note='084-09 B0 on the merged build, prediction unchanged'),
+ leg('SR_B5','SYNCREG','NULL',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,['IAI.Bench.StuckMipNoHold 1'],note='084-09 B5 (the matched null B0/B3/B9 read, G356)'),
+ leg('SR_B3','SYNCREG','SYNC',FMW,'stuck_low_mip',None,1200,CFG_M52,['IAI.Auto.Pool all 0','IAI.Auto.Pool stuck_low_mip 1'],seed=4242,auto=True,null='SR_B5'),
+ leg('SR_B9','SYNCREG','AA_OFF',FMW,'stuck_low_mip',ROCK,1200,CFG_M52,AA_OFF,null='SR_B5'),
+]
+for code,an in (('BL','blinking'),('MO','missing_object'),('MT','missing_texture'),('CT','corrupted_texture')):
+    LEGS.append(leg(f'SR_REAL_{code}_NAT','SYNCREG','SYNC',FMW,an,ROCK,300,CFG_EDGE,note='084-09 REAL_*_NAT on the merged build'))
+COST_LV=[CAP,'IAI.Capture.Pace 0']
+LEGS+=[
+ leg('COST_DISCARD','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV+[ID],premise='P_HOST_BENCH',note='declared discard, run first (G186)'),
+ leg('COST_A1','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV+[ID],premise='P_HOST_BENCH'),
+ leg('COST_B1','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV,mode='tile',premise='P_HOST_BENCH'),
+ leg('COST_B2','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV,mode='tile',premise='P_HOST_BENCH'),
+ leg('COST_A2','COST','COST',FMW,UV,'@H1U',300,CFG_EDGE,COST_LV+[ID],premise='P_HOST_BENCH'),
+]
+ORDER=['PREMISE','LEVER','CENSUS','BM53F','GMODE','BM53ARM','REASON','EXCL','BIND','GID','SEED','AON','BM53MW','COST','SYNCREG']
+def legs_sorted():return sorted(LEGS,key=lambda L:(ORDER.index(L['group']),LEGS.index(L)))
+def by_id(i):return next(L for L in LEGS if L['leg']==i)

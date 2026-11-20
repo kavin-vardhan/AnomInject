@@ -1,0 +1,96 @@
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+B = Path(r'D:\IntrusiveAnomalies')
+E = B / '_reviews/081-44-evidence'
+H = Path(r'E:\IA_BuildCache\_r44_host\StackOBot')
+W = H / 'Plugins/AnomalyInjector'
+STAGED = B / 'StackOBot/Builds/BenchGate/Windows/StackOBot/Binaries/Win64/StackOBot.exe'
+PAKS = B / 'StackOBot/Builds/BenchGate/Windows/StackOBot/Content/Paks'
+B3 = B / '_binary_baselines/StackOBot.exe.m55-build3-002805CF'
+B3_SHA = '002805cf70607106354fd46c0ee24c99c7dac15263b496c05e323f9b86f4e29d'
+
+
+def sha(p):
+    with open(p, 'rb') as f:
+        return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
+def git(r, *a):
+    return subprocess.check_output(['git', '-C', str(r), *a]).decode().strip()
+
+
+output = E / 'binary-merge-strip.json'
+assert not output.exists()
+pre = json.loads((E / 'preflight.json').read_text())
+assert sha(STAGED) == B3_SHA and sha(B3) == B3_SHA, 'staged or build-3 archive is not 002805CF'
+for name, h in pre['containers'].items():
+    assert sha(PAKS / name) == h, name
+source = git(W, 'rev-parse', 'HEAD')
+assert not git(W, 'status', '--porcelain', '-uno'), 'scratch worktree has tracked modifications'
+assert source == git(W, 'rev-parse', 'origin/feat/m55-change-evidence'), 'build source not pushed'
+built = H / 'Binaries/Win64/StackOBot.exe'
+h = sha(built)
+assert h != B3_SHA
+archive = B / f'_binary_baselines/StackOBot.exe.m55-merge-strip-{h[:8].upper()}'
+assert not archive.exists()
+shutil.copy2(built, archive)
+assert sha(archive) == h
+ebin = W / 'Binaries/Win64'
+edst = B / f'_binary_baselines/m55-merge-strip-editor-{source[:7]}'
+edst.mkdir()
+editor = []
+for p in sorted(ebin.iterdir()):
+    if p.is_file():
+        shutil.copy2(p, edst / p.name)
+        assert sha(p) == sha(edst / p.name)
+        editor.append(dict(name=p.name, size=p.stat().st_size, sha256=sha(p)))
+assert {'UnrealEditor-AnomalyBench.dll', 'UnrealEditor-AnomalyCapture.dll', 'UnrealEditor-AnomalyInjector.dll',
+        'UnrealEditor-AnomalyControlServer.dll', 'UnrealEditor-AnomalyShaders.dll'} <= {m['name'] for m in editor}
+shutil.copy2(built, STAGED)
+assert sha(STAGED) == h
+new_tokens = ['multi_view_families', 'unsupported_completion', 'STAGE-DISCARDED', 'BENCH-GATE-REFUSED', 'refused_no_fixture_flag']
+controls = ['BUDGET-EXCEEDED', 'HIGH-WATER-PEAK', 'change_bytes_peak_census', 'IAI-BENCH READY', 'ChangeCase:']
+invented = 'M55_R44_INVENTED_NOT_A_REAL_SYMBOL'
+binary = STAGED.read_bytes()
+b3bytes = B3.read_bytes()
+scan = {t: dict(ascii=binary.count(t.encode()), utf16=binary.count(t.encode('utf-16le')),
+                build3_utf16=b3bytes.count(t.encode('utf-16le'))) for t in new_tokens + controls + [invented]}
+assert all(scan[t]['utf16'] > 0 for t in new_tokens + controls), scan
+assert all(scan[t]['utf16'] == scan[t]['build3_utf16'] for t in new_tokens + controls), scan
+assert scan[invented]['utf16'] == 0 and scan[invented]['ascii'] == 0, scan
+ecap = (edst / 'UnrealEditor-AnomalyCapture.dll').read_bytes()
+editor_scan = {t: ecap.count(t.encode('utf-16le')) for t in new_tokens + ['BUDGET-EXCEEDED', invented]}
+assert all(editor_scan[t] > 0 for t in new_tokens + ['BUDGET-EXCEEDED']) and editor_scan[invented] == 0, editor_scan
+U16 = re.compile(rb'(?:[\x20-\x7e]\x00){8,}')
+
+
+def u16set(b):
+    return {m.group().decode('utf-16le') for m in U16.finditer(b)}
+
+
+PATHLIKE = re.compile(r'(?i)[a-z]:[\\/]|\\\\|/Engine/|\.cpp|\.h\b')
+s_new = u16set(binary)
+s_b3 = u16set(b3bytes)
+only_new = sorted(s_new - s_b3)
+only_b3 = sorted(s_b3 - s_new)
+plugin = re.compile(r'(?i)IAI|anomal|change_|m55|BENCH|STAGE-|capture|census|mask|stencil')
+string_diff = dict(utf16_strings_new=len(s_new), utf16_strings_build3=len(s_b3),
+                   only_new=len(only_new), only_build3=len(only_b3),
+                   only_new_nonpath_plugin=[s for s in only_new if plugin.search(s) and not PATHLIKE.search(s)],
+                   only_build3_nonpath_plugin=[s for s in only_b3 if plugin.search(s) and not PATHLIKE.search(s)],
+                   only_new_sample=only_new[:40], only_build3_sample=only_b3[:40])
+cont = {name: dict(sha256=sha(PAKS / name), unchanged=sha(PAKS / name) == hh) for name, hh in pre['containers'].items()}
+assert all(v['unchanged'] for v in cont.values())
+result = dict(source_commit=source, source_branch='feat/m55-change-evidence', build_host=str(H),
+              built=str(built), staged=str(STAGED), archive=str(archive), size=built.stat().st_size, sha256=h,
+              previous=dict(sha256=B3_SHA, archive=str(B3), size=B3.stat().st_size),
+              editor_archive=str(edst), editor_modules=editor, containers=cont, a44=scan,
+              a44_editor_capture_dll=editor_scan, utf16_string_diff_vs_build3=string_diff)
+output.write_text(json.dumps(result, indent=2))
+print(json.dumps({k: v for k, v in result.items() if k not in ('containers', 'editor_modules', 'utf16_string_diff_vs_build3')}, indent=1))
+print(json.dumps({k: v for k, v in string_diff.items() if not k.endswith('_sample')}, indent=1))

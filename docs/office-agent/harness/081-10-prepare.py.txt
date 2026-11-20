@@ -1,0 +1,34 @@
+from pathlib import Path
+B=Path(r'D:\IntrusiveAnomalies');p=B/'_reviews/081-09-preflight.ps1';t=p.read_text(encoding='utf-8')
+t=t.replace('param([Parameter(Mandatory=$true)][string]$Label)','param([Parameter(Mandatory=$true)][string]$Label, [switch]$FixtureOn)').replace('081-09-evidence','081-10-evidence')
+t=t.replace('capture_start_sent=$false;focus=@()','capture_start_sent=$false;fixture_on=[bool]$FixtureOn;focus=@()')
+start=t.index(' $settle=[Diagnostics.Stopwatch]::StartNew()');end=t.index(' $ct=[Threading.CancellationToken]::None;',start)
+settle=t[start:end];t=t[:start]+t[end:]
+pos=t.index(" Send @{type='subscribe';channels=@('snapshot');snapshotHz=20}")
+block=''' function BenchRequest($request) {
+  Send $request
+  for($j=0;$j -lt 8;$j++){$reply=(Recv)|ConvertFrom-Json;if($reply.type -eq $request.type){if(-not $reply.executed){throw "Bench command not executed: $($request.type)"};return}}
+  throw "Bench command receipt missing: $($request.type)"
+ }
+ if($FixtureOn){
+  BenchRequest @{type='bench_input_lock';enabled=$true}
+  $lockLog=[string](Get-Content -LiteralPath $log -Raw)
+  if($lockLog -notmatch 'IAI-INPUT-LOCK ON .*lookIgnored=1 moveIgnored=1'){throw 'Input lock not observed'}
+  $record.lock_confirmed_utc=[DateTime]::UtcNow.ToString('o')
+ }
+'''+settle+''' if($FixtureOn){
+  BenchRequest @{type='bench_place_view';request=1}
+  $placeLog=[string](Get-Content -LiteralPath $log -Raw)
+  if($placeLog -notmatch 'IAI-L2 PLACED request=1 ok=1'){throw 'Placement success not observed'}
+  $record.placement_confirmed_utc=[DateTime]::UtcNow.ToString('o')
+ }
+ Start-Sleep -Milliseconds 700
+'''
+t=t[:pos]+block+t[pos:]
+t=t.replace(" Send @{type='subscribe';channels=@()}\n $record.status", " Send @{type='subscribe';channels=@()}\n if($FixtureOn){BenchRequest @{type='bench_input_lock';enabled=$false};$record.unlock_confirmed_utc=[DateTime]::UtcNow.ToString('o')}\n BenchRequest @{type='bench_log_barrier'}\n $record.status")
+out=B/'_reviews/081-10-preflight.ps1';assert not out.exists();out.write_text(t,encoding='utf-8')
+# Stage helper: unique module archive key comes from the changed fixture DLL, not unchanged Capture DLL.
+t=(B/'_reviews/081-08-stage.py').read_text().replace('081-08-evidence','081-10-evidence').replace('m55-stage2-lyra-{sha(lyra/"UnrealEditor-AnomalyCapture.dll")','m55-stage2-fixture-lyra-{sha(lyra/"UnrealEditor-AnomalyBench.dll")')
+t=t.replace("tokens=['chg_gt8_max_sofar'","tokens=['IAI-INPUT-LOCK ON','IAI.Bench.PlaceView','chg_gt8_max_sofar'")
+(B/'_reviews/081-10-stage.py').write_text(t)
+print('Prepared runner: lock before settle, placement afterward; explicit release after snapshots. Stage helper uses new fixture-module identity.')

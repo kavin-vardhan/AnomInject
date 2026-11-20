@@ -1,0 +1,132 @@
+from pathlib import Path
+import sys
+R = Path(r'D:\IntrusiveAnomalies\_reviews')
+src = (R / '084-09-eval.py').read_text(encoding='utf-8')
+
+
+def sub(old, new, text):
+    n = text.count(old)
+    if n != 1:
+        sys.exit(f'anchor count {n} != 1: {old[:120]!r}')
+    return text.replace(old, new)
+
+
+t = src
+t = sub("c=_load('c59',R/'084-09-common.py')", "c=_load('c93',R/'089-03-common.py')", t)
+t = sub("EVALUATOR='084-09'", "EVALUATOR='089-03'", t)
+t = sub("""        mask=event_mask_frames(evs,lambda e:labfn(e) or e['rows'])
+        lg=estimate_lag(T,NT,mask)
+        if lg and lg[1]>=LAG_MIN_CORR:
+            info.update(basis='null-ratio',lag=lg[0],corr=round(lg[1],4),null_dir=str(null.dir))
+            rho={si:T[si]/NT[si+lg[0]] for si in T if (si+lg[0]) in NT and NT[si+lg[0]]>0}
+            info['NT']=NT;info['rho']=rho
+        else:info['lag_rejected']=lg""",
+        """        if GT_ALIGN:
+            ga=gt_align(s,null,T,NT)
+            info.update(basis='null-gt',lag=0,corr=None,null_dir=str(null.dir),null_t=ga['null_t'],gt_aligned_frames=len(ga['rho']),gt_refused_gap=len(ga['gap']),gt_out_of_range=len(ga['oor']))
+            info['NT']=ga['NTa'];info['rho']=ga['rho'];info['gt']=ga
+        else:
+            mask=event_mask_frames(evs,lambda e:labfn(e) or e['rows'])
+            lg=estimate_lag(T,NT,mask)
+            if lg and lg[1]>=LAG_MIN_CORR:
+                info.update(basis='null-ratio',lag=lg[0],corr=round(lg[1],4),null_dir=str(null.dir))
+                rho={si:T[si]/NT[si+lg[0]] for si in T if (si+lg[0]) in NT and NT[si+lg[0]]>0}
+                info['NT']=NT;info['rho']=rho
+            else:info['lag_rejected']=lg""", t)
+t = sub("""    ne_on=null_excursion(NT,L0-PRE_W,L0+2,lag) if basis['basis']=='null-ratio' else 0.0
+    ne_off=null_excursion(NT,L1-2,min(L1+20,span_hi),lag) if basis['basis']=='null-ratio' else 0.0""",
+        """    ne_on=null_excursion(NT,L0-PRE_W,L0+2,lag) if basis['basis'] in ('null-ratio','null-gt') else 0.0
+    ne_off=null_excursion(NT,L1-2,min(L1+20,span_hi),lag) if basis['basis'] in ('null-ratio','null-gt') else 0.0""", t)
+t = sub("""        row['label_source']='annotation' if ann.get(e['start_frame']) else 'stuck_mip.held'""",
+        """        if b.get('basis')=='null-gt':
+            cv=gt_window_cover(s,b,lw,nf);row['null_cover']=cv
+            if cv['status']!='OK':row.update(status=cv['status'],label=[lw[0],lw[-1]],label_n=len(lw),camera_moved=cam);res.append(row);continue
+        row['label_source']='annotation' if ann.get(e['start_frame']) else 'stuck_mip.held'""", t)
+t = sub("""if k not in ('rho','T','NT')}""", """if k not in ('rho','T','NT','gt')}""", t)
+t = sub("""    span_lo=max(span_lo,s.sis[0]);span_hi=min(span_hi,s.sis[-1])""",
+        """    if G395_FIX:
+        pLT=[x for o in all_evs if o is not ev for x in list(o['L'])+list(o['T']) if x<lo]
+        if pLT and max(pLT)+PREV_SETTLE+1>span_lo:span_lo=max(pLT)+PREV_SETTLE+1;res['span_bounded_after_previous']=max(pLT)
+    span_lo=max(span_lo,s.sis[0]);span_hi=min(span_hi,s.sis[-1])""", t)
+t = sub("""    refc=[si for si in range(lo-ls086.REF_BACK,lo) if clean(si)]
+    if len(refc)<3:refc=[si for si in range(lo-30,lo) if clean(si)][-8:]
+    if REF_AMENDMENT:
+        ra=reference_amendment(s,ev,other,lo,hi,Ts,clean)""",
+        """    pre_clean=(lambda si:clean(si) and si not in ev['entries']) if G395_FIX else clean
+    refc=[si for si in range(lo-ls086.REF_BACK,lo) if pre_clean(si)]
+    if len(refc)<3:refc=[si for si in range(lo-30,lo) if pre_clean(si)][-8:]
+    if REF_AMENDMENT:
+        ra=reference_amendment_v2(s,ev,other,lo,hi,Ts,clean,pre_clean) if G395_FIX else reference_amendment(s,ev,other,lo,hi,Ts,clean)""", t)
+t = sub("""        roff=[si for si in range(b+1,nxt) if clean(si)][:6]
+        on_views=[V(x) for x in ron];Ron=ls086.median_view(on_views);mu_on,thD_on,thP_on,_=ls086._noise(on_views,ctx)
+        off_ok=len(roff)>=2
+        if off_ok:
+            off_views=[V(x) for x in roff];Roff=ls086.median_view(off_views);mu_off,thD_off,thP_off,_=ls086._noise(off_views,ctx)
+            d_first=ls086.metrics(off_views[0],Roff,ctx)[0]
+            settled=d_first<=thD_off
+            drift=ls086.metrics(Roff,Ron,ctx)[0]
+        else:
+            Roff=Ron;mu_off,thD_off,thP_off=mu_on,thD_on,thP_on;settled=False;drift=None
+        midr=(a+b)/2.0;ser={}
+        for si in range(lo_w,hi_w+1):
+            if si not in s.rows:continue
+            v=V(si)
+            if v is None:continue
+            if si<=midr:D,P,_,_=ls086.metrics(v,Ron,ctx);ser[si]=(D,P,mu_on,thD_on,thP_on)
+            else:D,P,_,_=ls086.metrics(v,Roff,ctx);ser[si]=(D,P,mu_off,thD_off,thP_off)
+        dD_on=max(ser[si][0] for si in ser if si<=midr) if any(si<=midr for si in ser) else 0.0
+        dD_off=max(ser[si][0] for si in ser if si>midr) if any(si>midr for si in ser) else dD_on
+        for si,(D,P,mu,thD,thP) in ser.items():
+            dd=dD_on if si<=midr else dD_off
+            series[si]=dict(D=D,P=P,frac=(D-mu)/max(dd-mu,1e-6),strict=bool(D>thD or P>thP))
+            sig_by_si[si]=(thD-mu)/ls086.K_SIG
+        if not settled:cens[b]=('post reference not settled (its first frame still differs from the post median beyond noise)' if off_ok else 'no clean post-reference frames before the span ends')
+        run_info.append(dict(a=a,b=b,lo=lo_w,hi=hi_w,ref_on=ron,ref_off=roff,thrD_on=round(thD_on,3),thrD_off=round(thD_off,3),depth_on=round(dD_on,3),depth_off=round(dD_off,3),
+                             post_settled=settled,drift_D=None if drift is None else round(drift,3)))""",
+        """        roff=[si for si in range(b+1,nxt) if clean(si)][:6]
+        on_views=[V(x) for x in ron];Ron=ls086.median_view(on_views);mu_on,thD_on,thP_on,_=ls086._noise(on_views,ctx)
+        trim_info=None
+        if G395_FIX:
+            ncand=len(roff);roff,settled,trim_info=trim_offset_reference(roff,V,ctx,thD_on,thP_on);off_ok=settled and len(roff)>=2
+            if off_ok:
+                off_views=[V(x) for x in roff];Roff=ls086.median_view(off_views);mu_off,thD_off,thP_off,_=ls086._noise(off_views,ctx)
+                drift=ls086.metrics(Roff,Ron,ctx)[0]
+            else:
+                Roff=Ron;mu_off,thD_off,thP_off=mu_on,thD_on,thP_on;settled=False;drift=None;roff=[]
+            nsr=('post reference never settled (leave-one-out: no leading frame matched the frames after it); offset read against the onset reference' if ncand>=2 else 'no clean post-reference frames before the span ends')
+        else:
+            off_ok=len(roff)>=2
+            if off_ok:
+                off_views=[V(x) for x in roff];Roff=ls086.median_view(off_views);mu_off,thD_off,thP_off,_=ls086._noise(off_views,ctx)
+                d_first=ls086.metrics(off_views[0],Roff,ctx)[0]
+                settled=d_first<=thD_off
+                drift=ls086.metrics(Roff,Ron,ctx)[0]
+            else:
+                Roff=Ron;mu_off,thD_off,thP_off=mu_on,thD_on,thP_on;settled=False;drift=None
+            nsr=('post reference not settled (its first frame still differs from the post median beyond noise)' if off_ok else 'no clean post-reference frames before the span ends')
+        midr=(a+b)/2.0;ser={};looc={}
+        ron_s=set(ron) if G395_FIX and len(ron)>=3 else set();roff_s=set(roff) if G395_FIX and len(roff)>=3 else set()
+        for si in range(lo_w,hi_w+1):
+            if si not in s.rows:continue
+            v=V(si)
+            if v is None:continue
+            if si<=midr:
+                if si in ron_s:ser[si]=loo_read(si,ron,V,ctx,looc)
+                else:D,P,_,_=ls086.metrics(v,Ron,ctx);ser[si]=(D,P,mu_on,thD_on,thP_on)
+            else:
+                if si in roff_s:ser[si]=loo_read(si,roff,V,ctx,looc)
+                else:D,P,_,_=ls086.metrics(v,Roff,ctx);ser[si]=(D,P,mu_off,thD_off,thP_off)
+        dD_on=max(ser[si][0] for si in ser if si<=midr) if any(si<=midr for si in ser) else 0.0
+        dD_off=max(ser[si][0] for si in ser if si>midr) if any(si>midr for si in ser) else dD_on
+        off_scale='off-half max'
+        if G405_FIX and not any(si>midr and si in Ls for si in ser):dD_off=dD_on;off_scale='depth_on (G405: no labelled frame in the off half)'
+        for si,(D,P,mu,thD,thP) in ser.items():
+            dd=dD_on if si<=midr else dD_off
+            series[si]=dict(D=D,P=P,frac=(D-mu)/max(dd-mu,1e-6),strict=bool(D>thD or P>thP))
+            sig_by_si[si]=(thD-mu)/ls086.K_SIG
+        if not settled:cens[b]=nsr
+        run_info.append(dict(a=a,b=b,lo=lo_w,hi=hi_w,ref_on=ron,ref_off=roff,thrD_on=round(thD_on,3),thrD_off=round(thD_off,3),depth_on=round(dD_on,3),depth_off=round(dD_off,3),
+                             post_settled=settled,drift_D=None if drift is None else round(drift,3),off_scale=off_scale,ref_off_trim=trim_info,loo_frames=sorted(k[1] for k in looc)))""", t)
+t = t.rstrip('\n') + '\n' + (R / '089-03-eval-new.py').read_text(encoding='utf-8')
+(R / '089-03-eval.py').write_text(t, encoding='utf-8')
+print('089-03-eval.py written', len(t))

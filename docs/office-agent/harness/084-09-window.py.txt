@@ -1,0 +1,297 @@
+import collections,importlib.util,json,os,sys,time
+from pathlib import Path
+R=Path(r'D:\IntrusiveAnomalies\_reviews')
+MODES=('live','dry','gates','postflight','g356','mtcheck')
+MODE=sys.argv[1] if len(sys.argv)>1 else 'live'
+if MODE not in MODES:raise SystemExit('usage: 084-09-window.py '+'|'.join(MODES)+' [--with-lod-gate] [--only GROUP[,GROUP]]')
+LOD_GATE='--with-lod-gate' in sys.argv
+ONLY=None
+if '--only' in sys.argv:ONLY=set(sys.argv[sys.argv.index('--only')+1].split(','))
+if MODE=='dry':
+    os.environ['IAI_R59_STUB_LAUNCH']='1'
+    os.environ.setdefault('IAI_R59_ROOT',rf'E:\IA_BuildCache\_r59_dry_{int(time.time())}')
+    os.environ.setdefault('IAI_R59_CACHE',str(Path(os.environ['IAI_R59_ROOT'])/'_cache'))
+if MODE in ('g356','mtcheck'):
+    os.environ.setdefault('IAI_R59_ROOT',str(R/'084-09-evidence'/MODE))
+os.environ['PYTHONDONTWRITEBYTECODE']='1';sys.dont_write_bytecode=True
+def load(n,p):
+    s=importlib.util.spec_from_file_location(n,p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
+c=load('c59',R/'084-09-common.py');L=load('lib59',R/'084-09-lib.py');E=load('e59',R/'084-09-eval.py');LG=L.LG
+c.RUN.mkdir(parents=True,exist_ok=True)
+BANK=c.REAL_BANK
+def _one(d):
+    d=Path(d)
+    if not d.exists():return None
+    s=[x for x in d.iterdir() if x.is_dir() and x.name.startswith('session_')]
+    return s[0] if len(s)==1 else None
+def _b(n):return _one(BANK/f'M52SYNC_{n}_A1')
+DRY_STANDINS={'B0':_b('B0'),'B5':_b('B5'),'B3':_b('B3'),'B9':_b('B9'),'B0L':_b('B0L'),'P1':_b('P1'),
+ 'CC_ON_NAT':_b('CC_ON_NAT'),'CC_NULL_A_NAT':_b('CC_NULL_A_NAT'),'CC_NULL_B_NAT':_b('CC_NULL_B_NAT'),'CC_ON_AAOFF':_b('CC_ON_AAOFF'),
+ 'CC_NULL_AAOFF':_b('CC_NULL_AAOFF'),'CC_ON_SYN':_b('CC_ON_SYN'),'CC_NULL_SYN':_b('CC_NULL_SYN'),'MASK55V2':_b('MASK55'),
+ 'REAL_BL_NAT':_b('REAL_BL_R1'),'REAL_BL_SYN':_b('REAL_BL_R2'),'REAL_MO_NAT':_b('REAL_MO_R1'),'REAL_MO_SYN':_b('REAL_MO_R2'),
+ 'REAL_MT_NAT':_b('REAL_MT_R1'),'REAL_MT_SYN':_b('REAL_MT_R2'),'REAL_CT_NAT':_b('REAL_CT_R1'),'REAL_CT_SYN':_b('REAL_CT_R2'),
+ 'LODP_R1':_b('LOD_NAT_AAOFF'),'LODP_R2':_b('LOD_SYN_AAOFF'),'CCMW_ON':_b('CCMW_ON'),'MT85_NAT':_b('REAL_MT_R1'),'MT85_SYN':_b('REAL_MT_R2'),'CCMW_NULL_A':_b('CCMW_NULL_A'),'CCMW_NULL_B':_b('CCMW_NULL_B')}
+for _t in ('R1','R2','FN','FD'):
+    for _k,_v in (('NAT','LOD_NAT'),('SYN','LOD_SYN'),('NAT_AAOFF','LOD_NAT_AAOFF'),('SYN_AAOFF','LOD_SYN_AAOFF')):DRY_STANDINS[f'LOD_{_t}_{_k}']=_b(_v)
+DRY_STANDINS['LODP_FN']=_b('LOD_NAT_AAOFF');DRY_STANDINS['LODP_FD']=_b('LOD_SYN_AAOFF')
+DRY_FORCE_PREMISE=os.environ.get('IAI_R59_DRY_FORCE_PREMISE')=='1'
+def selected():
+    out=[]
+    for Lg in LG.legs_sorted():
+        if ONLY and Lg['group'] not in ONLY:continue
+        if not Lg['required'] and not (Lg.get('flag')=='--with-lod-gate' and LOD_GATE):continue
+        out.append(Lg)
+    return out
+def preflight():
+    p=[];n={}
+    try:n['fix_archive']=str(c.fix_archive());n['fix_set']={Path(k).name:v[:8] for k,v in c.fix_set().items()}
+    except SystemExit as ex:p.append(str(ex))
+    head=c.git(c.RP,'rev-parse',c.FIX_BRANCH);origin=c.git(c.RP,'rev-parse','refs/remotes/origin/'+c.FIX_BRANCH)
+    n.update(fix_head=head,fix_origin=origin)
+    if head!=origin:p.append(f'fix branch {head[:7]} != origin {origin[:7]}')
+    import subprocess
+    if subprocess.run(['git','-C',str(c.RP),'merge-base','--is-ancestor',c.FIX_SOURCE_COMMIT,head],capture_output=True).returncode!=0:p.append(f'fix branch head {head[:7]} does not contain the build-under-test source {c.FIX_SOURCE_COMMIT[:7]}')
+    if c.git(c.RP,'rev-parse','HEAD')!=c.M51_HEAD or c.git(c.RP,'branch','--show-current')!='m51':p.append('main checkout moved off m51 53bf725')
+    for f,blob in c.VERIFY_PINNED.items():
+        got=c.git_blob(c.VERIFY_DIR/f)[:10]
+        if got!=blob:p.append(f'pinned {f} blob {got} != {blob}')
+    n['verify_capture']=str(c.VERIFY_CAPTURE)
+    try:
+        cm=c.fix_cooked_maps();n['fix_cooked_maps']=cm
+        if not all(cm.values()):p.append(f'pinned FIX container is missing required map(s): {[k for k,v in cm.items() if not v]}')
+    except SystemExit as ex:p.append(str(ex))
+    if DRY_FORCE_PREMISE and not c.STUB:p.append('IAI_R59_DRY_FORCE_PREMISE is a DRY-ONLY switch and is set on a live run')
+    n['dry_force_premise']=DRY_FORCE_PREMISE
+    if not c.STUB:
+        cur=c.which_set();n['staged_now']=cur
+        if cur not in ('M53','FIX'):p.append('staged set is neither M53 nor FIX: '+json.dumps(c.staged_state()))
+        if cur!='M53' and not (c.M53_BACKUP/c.KEYS[0]).exists():p.append('staged set is not M53 and no verified M53 backup exists')
+        fe=c.free_gb('E:\\');fd=c.free_gb('D:\\');n.update(free_e_gb=fe,free_d_gb=fd)
+        if fe<c.E_FLOOR_GB:p.append(f'E: free {fe} < {c.E_FLOOR_GB}')
+        if fd<c.D_FLOOR_GB:p.append(f'D: free {fd} < {c.D_FLOOR_GB}')
+        ours,foreign=c.classify();n['foreign']=[(x['pid'],x['name']) for x in foreign]
+        if [x for x in ours if x['name']!='UnrealTraceServer.exe']:p.append('our engine/game processes present')
+    n['legs']=[x['leg'] for x in selected()];n['lod_gate']=LOD_GATE
+    out=dict(utc=c.now(),mode=MODE,problems=p,notes=n);L.jsave(c.RUN/f'preflight-{int(time.time())}.json',out);return out
+def sess_of(leg_id):
+    sd=L.leg_session(leg_id)
+    if sd is None and c.STUB:
+        a=[x for x in L.ledger() if x['leg']==leg_id and x['status']=='ACCEPTED']
+        if a:sd=L.find_session(c.BANK/a[-1]['label'])
+    return sd
+def premise_verdict(leg_id):
+    sd=sess_of(leg_id)
+    if sd is None:return dict(pass_=False,reason='premise leg not accepted')
+    d=E.diff_leg(sd,log=L.leg_log(leg_id));ev=d['events']
+    elig=[r for r in ev if r.get('status')=='OK']
+    meas=[r for r in elig if r.get('measurable')]
+    frac=len(meas)/len(elig) if elig else 0.0
+    out=dict(pass_=bool(elig) and frac>=0.8,eligible=len(elig),measurable=len(meas),fraction=round(frac,3),
+             status=dict(collections.Counter(r.get('status') for r in ev)),rule='>= 80 % of non-warm-up, camera-still (status OK) events MEASURABLE')
+    if c.STUB and DRY_FORCE_PREMISE and not out['pass_']:
+        out=dict(out,pass_=True,forced=True,real_pass=False,note='DRY ONLY: premise FORCED to pass so the dry run launches and evaluates the gate legs on stand-in data; the real stand-in verdict is real_pass')
+    L.jsave(c.RUN/f'premise-{leg_id}.json',out);return out
+def run_all():
+    done=[];prem={}
+    for Lg in selected():
+        if Lg.get('premise'):
+            pv=prem.get(Lg['premise']) or premise_verdict(Lg['premise']);prem[Lg['premise']]=pv
+            if not pv['pass_']:
+                if not [x for x in L.ledger() if x['leg']==Lg['leg']]:
+                    L.ledger_add(dict(leg=Lg['leg'],status='NOT-RUN-PREMISE',recorded=c.now(),reason=f'premise {Lg["premise"]} did not pass: {json.dumps(pv)}'))
+                done.append((Lg['leg'],'not-run-premise'));continue
+        stand=DRY_STANDINS.get(Lg['leg']) if c.STUB else None
+        r=L.run_leg(Lg,stub_session=stand);done.append((Lg['leg'],r));c.log_event('leg',leg=Lg['leg'],result=r)
+    return done
+def t_by_start(sd):
+    s=E.sess(sd);out={}
+    for ev in E.anno_events(s):out[(ev['type'],ev['start_frame'])]=sorted(ev['T'])
+    return out
+def m52_T_by_start(sd):
+    s=E.sess(sd);out={}
+    for e in E.L3.events(s):out[('stuck_low_mip',e['start_frame'])]=sorted(E.m52_transitions(s,e))
+    return out
+def common_checks(sd):
+    return dict(label_rule=L.label_rule(sd),labelled_membership=E.labelled_membership(sd),presence=E.presence_contract_v2(sd))
+def eval_m52_leg(Lg,sd,log,null_sd):
+    a=E.m52_leg(sd,null_sd,log);sm=E.summarize_rows(a['rows'])
+    s3=E.L3.Sess(sd);out=dict(e1=sm,e1_rows=a['rows'],bases=a['bases'],partial=E.partial_summary(a['rows']))
+    if Lg['role'] in ('SYNC','AA_OFF','LEVER','PURITY_CANFAIL','ORDER'):out['purity']=E.L3.gate_purity(log,s3)
+    out['edge_paths']=E.L3.edge_paths(s3,log);out['monitor_cost']=E.L3.monitor_cost(s3,log)
+    e2=E.ls086_verdict(sd,types={'stuck_low_mip'},T_by_start=m52_T_by_start(sd))
+    out['e2']=E.summarize_ls086(e2);out['e2_events']=e2
+    aa,src=E.detect_temporal_aa(E.sess(sd),log);out['temporal_aa']=dict(value=aa,source=src,summary={k:v for k,v in (E.sess(sd).summary or {}).items() if k.startswith(('label_','stuck_mip_'))})
+    return out
+def eval_diff_leg(Lg,sd,log):
+    d=E.diff_leg(sd,log=log);sm=E.summarize_diff(d['events'])
+    e2=E.ls086_verdict(sd,T_by_start=t_by_start(sd))
+    aa,src=E.detect_temporal_aa(E.sess(sd),log)
+    cref=collections.Counter((r.get('type'),r.get('status')) for r in d['events'])
+    return dict(e1=sm,e1_events=d['events'],e2=E.summarize_ls086(e2),e2_events=e2,temporal_aa=dict(value=aa,source=src),
+                per_type_status={f'{k[0]}:{k[1]}':v for k,v in cref.items()})
+def premise_label(pv):
+    if not pv:return None
+    return ('PREMISE-PASS' if pv.get('pass_') else 'PREMISE-FAIL')+(' (FORCED, dry only; real FAIL)' if pv.get('forced') else '')
+def lod_fixture_summary(g):
+    lf={}
+    for cond in ('NAT','SYN','NAT_AAOFF','SYN_AAOFF'):
+        gd=(g.get(f'LOD_FD_{cond}') or {}).get('lod');gn=(g.get(f'LOD_FN_{cond}') or {}).get('lod')
+        lf[cond]=dict(D=None if not gd else {k:gd[k] for k in ('verdict','judged','off_frames_t50_outside_transition','fade_edges','edges','fade_finding','intermediate_hist')},
+                      N=None if not gn else {k:gn[k] for k in ('verdict','judged','off_frames_t50_outside_transition','fade_edges','edges','fade_control','intermediate_hist')},
+                      compare=E.lod_fade_compare(gd,gn))
+    gv={}
+    for k,v in g.items():
+        if not isinstance(v,dict) or not (v.get('group') in ('BLOD','BLODF') or k.startswith(('LOD_','LODP_'))):continue
+        gv[k]=premise_label(v.get('premise')) if k.startswith('LODP_') else ((v.get('lod') or {}).get('verdict') or v.get('status'))
+    return dict(per_condition=lf,fade_findings_D=[c_ for c_,v in lf.items() if (v['D'] or {}).get('fade_finding')],gate_verdicts=gv,
+                premises={k:(v.get('premise') or {}) for k,v in g.items() if isinstance(v,dict) and k.startswith('LODP_')},fade_rule=E.LOD_FADE_RULE)
+def evaluate(legs=None):
+    rep=dict(utc=c.now(),mode=MODE,evaluator=E.EVALUATOR,release_threshold=E.RELEASE,reference_amendment=E.AMENDMENT,legs={},can_fail={},harness={})
+    legs=legs or selected()
+    for Lg in legs:
+        sd=sess_of(Lg['leg'])
+        if sd is None:
+            nr=[x for x in L.ledger() if x['leg']==Lg['leg']]
+            rep['legs'][Lg['leg']]=dict(status=(nr[-1]['status'] if nr else 'NOT ACCEPTED'),group=Lg['group']);continue
+        log=L.leg_log(Lg['leg']);r=dict(group=Lg['group'],role=Lg['role'],session=str(sd))
+        try:
+            r.update(common_checks(sd))
+            if Lg['group']=='M52':
+                if Lg['role']=='NULL':
+                    on=sess_of('B0');r['null']=E.null_check_v2(sd,on,LG.ROCK)
+                else:r.update(eval_m52_leg(Lg,sd,log,sess_of(Lg['null']) if Lg.get('null') else None))
+            elif Lg['group']=='BCC':
+                if Lg['role']=='CC_ON':
+                    na,nb=Lg['pair'];sa=sess_of(na);sb=sess_of(nb) if nb else None
+                    r['cc']=E.cc_gate(sd,sa,log,L.leg_log(na),sb,L.leg_log(nb) if nb else None,Lg['frames']) if sa else dict(valid=False,gate='INVALID',errors=[f'null {na} not accepted'])
+                    e2=E.ls086_verdict(sd,types={'camera_clipping'});r['e2']=E.summarize_ls086(e2)
+                else:r['role_note']='null leg: read through its ON pair'
+            elif Lg['group']=='BCCMW':
+                if Lg['role']=='CC_ON':
+                    na,nb=Lg['pair'];sa=sess_of(na);sb=sess_of(nb) if nb else None
+                    r['cc_mw']=E.cc_mw_gate(sd,sa,sb,Lg['frames']) if sa else dict(gate='INVALID',verdict='NO-NULL')
+                else:r['role_note']='null leg: read through its ON pair'
+            elif Lg['group']=='MASK55V2':
+                r['mask']=E.mask_gate(sd,log);r.update(eval_diff_leg(Lg,sd,log))
+            else:
+                r.update(eval_diff_leg(Lg,sd,log))
+                if Lg['role']=='PREMISE':r['premise']=premise_verdict(Lg['leg'])
+                elif Lg['group'] in ('BLOD','BLODF'):r['lod']=E.lod_gate(r['e1_events'],variant=Lg.get('variant'));r['lod']['cond']=Lg.get('cond')
+        except Exception:
+            import traceback;r['error']=traceback.format_exc()[-1500:]
+        rep['legs'][Lg['leg']]=r
+    g=rep['legs']
+    if 'e1' in (g.get('B0L') or {}):rep['can_fail']['B0L_timing_lever_must_FAIL']=dict(e1=g['B0L']['e1']['leg_verdict'],proven=g['B0L']['e1']['leg_verdict']=='FAIL')
+    if 'purity' in (g.get('P1') or {}):rep['can_fail']['P1_purity_lever_must_FAIL']=dict(observed=g['P1']['purity']['verdict'],proven=g['P1']['purity']['verdict'].startswith('FAIL'))
+    for k,v in g.items():
+        if isinstance(v,dict) and (v.get('cc') or {}).get('valid'):rep['can_fail'][f'{k}_sphere_proxy_must_disagree']=dict(proven=v['cc']['gate2_canfail_proven'])
+    rep['lod_fixture']=lod_fixture_summary(g)
+    rep['label_rule_all_pass']=all((v.get('label_rule') or {}).get('pass_') for v in g.values() if isinstance(v,dict) and v.get('label_rule'))
+    rep['harness']={p.name:c.sha(p)[:16] for p in sorted(R.glob('084-09-*')) if p.is_file() and p.suffix in ('.py','.ps1','.md')}
+    L.jsave(c.RUN/'report.json',rep);write_md(rep,c.RUN/'report.md');return rep
+def write_md(rep,path):
+    ln=[f'# 084-09 bench report ({rep["mode"]}, {rep["utc"]}, evaluator {rep["evaluator"]}, release threshold {rep["release_threshold"]})','',
+        '| leg | group | E1 release (t50) | start / end at t50 | E2 086-01 t50 | label-rule | membership | gate |','|---|---|---|---|---|---|---|---|']
+    for k,v in rep['legs'].items():
+        if not isinstance(v,dict):continue
+        e1=v.get('e1') or {};e2=v.get('e2') or {};lr=v.get('label_rule') or {};lm=v.get('labelled_membership') or {}
+        gate=(v.get('lod') or {}).get('verdict') or (v.get('cc') or {}).get('gate') or (v.get('cc_mw') or {}).get('gate') or (v.get('mask') or {}).get('verdict') or ((v.get('null') or {}).get('pass_') and 'NULL-PASS') or ((v.get('premise') or {}).get('pass_') is not None and ('PREMISE-PASS' if v['premise']['pass_'] else 'PREMISE-FAIL')) or v.get('status') or ''
+        ln.append(f"| {k} | {v.get('group')} | {e1.get('leg_verdict','')} {json.dumps((e1.get('t50') or {}).get('verdicts')) if e1 else ''} | {(e1.get('t50') or {}).get('start','')} / {(e1.get('t50') or {}).get('end','')} | {json.dumps((e2.get('t50') or {}).get('status')) if e2 else ''} | {lr.get('verdict','')} | {lm.get('rule','')} {'' if lm.get('pass_',True) else 'FAIL'} | {gate} |")
+    ln+=['','## can-fail','']+[f'- {k}: {json.dumps(v,default=str)[:300]}' for k,v in rep['can_fail'].items()]
+    for k,v in rep['legs'].items():
+        if isinstance(v,dict) and v.get('partial'):ln+=['',f'## {k} partial-flag guard',f"- counts {json.dumps(v['partial']['counts'])}",f"- edges {json.dumps(v['partial']['edge_histograms'])}",f"- over 8: {v['partial']['edges_over_8_investigate'][:5]}",f"- guard fails: {v['partial']['guard_fails'][:5]}"]
+        if isinstance(v,dict) and v.get('mask'):m=v['mask'];ln+=['',f"## {k} mask gate: {m['verdict']}",f"- events {m['events']}, masked {m['masked']}/{m['labelled_frames']}, peak live {m['peak_live']}, recycles {m['recycles_summary']}, TAG-OWNERS lines {m['tag_owner_lines']}, shared frames {m['tag_owner_shared_frames'][:5]}, prior collisions {m['prior_collision']}",f"- fail {m['fail_reasons']} invalid {m['invalid']}"]
+    lf=rep.get('lod_fixture') or {}
+    if lf:
+        ln+=['','## LOD fixture (084-08b): gate and fade at the pop edges','','| condition | D gate | D judged / off | D fade edges | N gate | N judged / off | N fade edges | D rate > N rate |','|---|---|---|---|---|---|---|---|']
+        for cond,v in (lf.get('per_condition') or {}).items():
+            d=v.get('D') or {};n=v.get('N') or {};cp=v.get('compare') or {}
+            ln.append(f"| {cond} | {d.get('verdict','')} | {d.get('judged','')} / {d.get('off_frames_t50_outside_transition','')} | {d.get('fade_edges','')} of {d.get('edges','')} | {n.get('verdict','')} | {n.get('judged','')} / {n.get('off_frames_t50_outside_transition','')} | {n.get('fade_edges','')} of {n.get('edges','')} | {cp.get('D_exceeds_N','')} |")
+        ln+=['',f"- variant D fade FINDINGS (never excused): {lf.get('fade_findings_D')}",f"- premises: {json.dumps({k:{kk:vv for kk,vv in (p or {}).items() if kk in ('pass_','eligible','measurable','fraction','forced')} for k,p in (lf.get('premises') or {}).items()})}",f"- rule: {lf.get('fade_rule')}"]
+    ln+=['',f'reference amendment: {rep.get("reference_amendment")}']
+    Path(path).write_text('\n'.join(ln)+'\n',encoding='utf-8')
+def postflight():
+    problems=[]
+    def chk(ok,msg):
+        if not ok:problems.append(msg)
+    ours,foreign=c.classify()
+    chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present at close')
+    st=c.staged_state();chk(st==c.M53,'staged set is not the m53 set: '+json.dumps(st))
+    chk(c.git(c.RP,'rev-parse','HEAD')==c.M51_HEAD and c.git(c.RP,'branch','--show-current')=='m51','main checkout moved off m51 53bf725')
+    fh=c.git(c.RP,'rev-parse',c.FIX_BRANCH);fo=c.git(c.RP,'rev-parse','refs/remotes/origin/'+c.FIX_BRANCH);chk(fh==fo,f'fix branch {fh[:7]} != origin {fo[:7]}')
+    led=L.ledger();acc=[x for x in led if x.get('status')=='ACCEPTED'];links=0
+    for x in acc:
+        a=c.BANK/x['label'];al=c.BANK/(c.BANK_PREFIX+x['leg'])
+        for p in [p for p in a.rglob('*') if p.is_file()]:
+            q=al/p.relative_to(a)
+            if not q.exists() or os.stat(q).st_ino!=os.stat(p).st_ino:problems.append(f'alias not a hardlink: {q}');break
+            links+=1
+    left=[d.name for d in c.EXE_SIDE.iterdir() if d.is_dir() and d.name.startswith(c.BANK_PREFIX)] if c.EXE_SIDE.exists() else []
+    chk(not left,f'leg copies left after banking: {left[:5]}')
+    bk={k:c.sha(c.M53_BACKUP/k) for k in c.KEYS if (c.M53_BACKUP/k).exists()};chk(bk==c.M53,'m53 backup does not verify')
+    out=dict(utc=c.now(),problems=problems,accepted_legs=len(acc),attempts=len([x for x in led if x.get('label')]),not_accepted=[x for x in led if x.get('status')!='ACCEPTED'],
+             alias_hardlinks_verified=links,left=left,staged=st,fix_head=fh,foreign_present=[(p['pid'],p['name']) for p in foreign],verdict='PASS' if not problems else 'FAIL')
+    L.jsave(c.RUN/'postflight.json',out);return out
+def g356():
+    rep06=json.loads((R/'084-06-evidence/run/report.json').read_text(encoding='utf-8'))
+    null=_b('B5');out=dict(utc=c.now(),evaluator=E.EVALUATOR,null=str(null),note='084-06 bank (build E9FF019A) re-evaluated with the 084-09 evaluator: the null ratio basis now calibrates from B5 own sharpness series (G356); nothing else in the m52 rule differs for these legacy rows (their transition flags carry no reason and read as temporal)',legs={})
+    for leg in ('B0','B3','B9','B0L'):
+        sd=_b(leg);log=L.log_text(BANK/f'M52SYNC_{leg}_A1'/'_leg'/'game.log')
+        a=E.m52_leg(sd,null,log);sm=E.summarize_rows(a['rows'])
+        old=[r for r in rep06['legs'][leg]['e1_rows'] if r.get('status')=='OK']
+        oldv={r['start_frame']:r['per']['t50']['verdict'] for r in old}
+        new={r['start_frame']:r for r in a['rows'] if r.get('status')=='OK'}
+        trans=collections.Counter()
+        for sf,v in oldv.items():
+            nr=new.get(sf);trans[f'{v}->{(nr or {}).get("release","MISSING")}']+=1
+        cens_old=[sf for sf,v in oldv.items() if v=='CENSORED']
+        resolved=[sf for sf in cens_old if (new.get(sf) or {}).get('release') in ('PASS','FAIL')]
+        out['legs'][leg]=dict(bases=a['bases'],summary_084_06=rep06['legs'][leg]['e1']['t50']['verdicts'],summary_084_09=sm['t50']['verdicts'],leg_verdict=sm['leg_verdict'],
+                              transitions=dict(trans),censored_084_06=len(cens_old),censored_resolved=len(resolved),resolved_to=dict(collections.Counter(new[sf]['release'] for sf in resolved)),
+                              still_censored=[dict(start_frame=sf,reasons=new[sf]['per']['t50']['two_sided']['censored_edges']) for sf in cens_old if sf not in resolved and sf in new],
+                              start=sm['t50']['start'],end=sm['t50']['end'],fail_reasons=sm['t50']['fail_reasons'])
+        print('g356',leg,json.dumps(dict(old=out['legs'][leg]['summary_084_06'],new=out['legs'][leg]['summary_084_09'],basis=a['bases'],resolved=len(resolved),of=len(cens_old)),default=str)[:600],flush=True)
+    out['null_check']=E.null_check_v2(null,_b('B0'),LG.ROCK)
+    tot=sum(v['censored_084_06'] for k,v in out['legs'].items() if k in ('B0','B3'));res=sum(v['censored_resolved'] for k,v in out['legs'].items() if k in ('B0','B3'))
+    out['B0_B3_censored_total']=tot;out['B0_B3_resolved']=res
+    L.jsave(c.RUN/'g356.json',out);return out
+def mtcheck():
+    sd=_b('MASK55');log=L.log_text(BANK/'M52SYNC_MASK55_A1'/'_leg'/'game.log')
+    out=dict(utc=c.now(),session=str(sd),amendment=E.AMENDMENT,runs={})
+    for mode in (False,True):
+        E.REF_AMENDMENT=mode;d=E.diff_leg(sd,log=log);ev=d['events']
+        per=collections.defaultdict(collections.Counter)
+        for r in ev:per[r.get('type')][r.get('release') if r.get('status')=='OK' else r.get('status')]+=1
+        tgt=[r for r in ev if r.get('type')=='missing_texture' and r.get('node')=='StaticMeshActor_85']
+        out['runs']['amended' if mode else '084-06 rule']=dict(per_type={k:dict(v) for k,v in per.items()},
+            StaticMeshActor_85=[{k:x.get(k) for k in ('ord','start_frame','status','release','label_n','reference')} | {'t50':{kk:(x.get('per') or {}).get('t50',{}).get(kk) for kk in ('verdict','fail_reasons','edges')}} for x in tgt])
+        print('mtcheck','amended' if mode else '084-06-rule',json.dumps(out['runs']['amended' if mode else '084-06 rule']['per_type']),flush=True)
+    E.REF_AMENDMENT=True
+    L.jsave(c.RUN/'mtcheck.json',out);return out
+def main():
+    if MODE=='g356':print(json.dumps({k:v for k,v in g356().items() if k!='legs'},default=str)[:3000]);return
+    if MODE=='mtcheck':o=mtcheck();print(json.dumps(o['runs'],default=str)[:6000]);return
+    if MODE=='postflight':pf=postflight();print(json.dumps(pf,default=str)[:3000]);sys.exit(1 if pf['problems'] else 0)
+    pf=preflight()
+    if pf['problems']:print(json.dumps(dict(result='PREFLIGHT-FAILED',problems=pf['problems'],notes=pf['notes']),default=str));sys.exit(10)
+    if MODE=='gates':evaluate();print(json.dumps(dict(result='GATES',report=str(c.RUN/'report.json')),default=str));return
+    code=0;why=None;t0=time.time();restore=None
+    try:
+        if not c.STUB:L.backup_m53()
+        L.stage('FIX','01-fix');run_all()
+    except BaseException as ex:
+        if isinstance(ex,KeyboardInterrupt):why='interrupted'
+        code=getattr(ex,'code',99) if isinstance(ex,L.Stop) else 99;why=(why or '')+f' {type(ex).__name__}: {getattr(ex,"msg",ex)}';c.log_event('window-stop',code=code,why=why)
+    finally:
+        try:restore=L.restore_m53()
+        except BaseException as ex:
+            code=code or 12;why=(why or '')+' | RESTORE FAILED: '+str(getattr(ex,'msg',ex));c.log_event('restore-failed',why=why)
+    rep=evaluate();elapsed=round(time.time()-t0,1)
+    pf2=postflight() if not c.STUB else dict(verdict='SKIPPED (dry)')
+    print(json.dumps(dict(result='COMPLETE' if code==0 else 'STOPPED',code=code,why=why,elapsed_s=elapsed,run=str(c.RUN),postflight=pf2.get('verdict'),
+                          restore=dict(attempts=(restore or {}).get('restore_attempts'),copies=[(Path(x['dst']).name,x['attempt']) for x in (restore or {}).get('copies',[])],injected_lock=(restore or {}).get('injected_lock')),
+                          label_rule_all_pass=rep.get('label_rule_all_pass'),
+                          lod_fixture={'gates':(rep.get('lod_fixture') or {}).get('gate_verdicts'),'fade_findings_D':(rep.get('lod_fixture') or {}).get('fade_findings_D')},
+                          legs={k:((v.get('lod') or {}).get('verdict') or (v.get('e1') or {}).get('leg_verdict') or (v.get('cc') or {}).get('gate') or (v.get('cc_mw') or {}).get('gate') or (v.get('mask') or {}).get('verdict') or v.get('status')) if isinstance(v,dict) else v for k,v in rep['legs'].items()},can_fail=rep['can_fail']),default=str)[:9000])
+    sys.exit(code)
+if __name__=='__main__':main()

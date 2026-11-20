@@ -1,0 +1,74 @@
+"""Prove final calibration behavior equals the frozen sweep apart from wording."""
+import ast
+import difflib
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(r"D:\IntrusiveAnomalies")
+OUT = ROOT / "_reviews/079-12-evidence/final"
+SNAP = ROOT / "_reviews/079-12-sweep-tools"
+TOOLS = ROOT / "StackOBot/Plugins/AnomalyInjector/tools"
+OUT.mkdir(parents=True, exist_ok=True)
+
+
+def named_nodes(path):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    result = {}
+    for index, node in enumerate(tree.body):
+        if index == 0 and isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            continue  # module documentation
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            key = node.name
+        elif isinstance(node, ast.Assign):
+            key = ast.unparse(node.targets[0])
+        else:
+            key = f"other_{index}"
+        result[key] = node
+    return result
+
+
+class ScorerReason(ast.NodeTransformer):
+    def visit_Constant(self, node):
+        if node.value == "no change above tau":
+            node.value = "no local peak in labelled window"
+        return node
+
+
+class HelpText(ast.NodeTransformer):
+    def visit_keyword(self, node):
+        if node.arg == "help":
+            node.value = ast.Constant(value="argparse help text")
+        return node
+
+
+checks = []
+for name, final, allowed, reason_transform in (
+    ("verify_capture.py", TOOLS / "verify_capture.py",
+     {"REGION_CAP", "REGION_CAP_N", "REGION_CAP_PROVENANCE", "_label_pixel_selftest"}, False),
+    ("m079_shift_recovery.py", ROOT / "StackOBot/Plugins/CaptureBench/tools/m079_shift_recovery.py",
+     set(), True)):
+    before = SNAP / name
+    old, new = named_nodes(before), named_nodes(final)
+    assert old.keys() == new.keys(), (name, old.keys() ^ new.keys())
+    changed = []
+    for key in old:
+        left = ScorerReason().visit(old[key]) if reason_transform else old[key]
+        right = new[key]
+        if name == "verify_capture.py" and key == "main":
+            left, right = HelpText().visit(left), HelpText().visit(right)
+        if ast.dump(left, include_attributes=False) != ast.dump(right, include_attributes=False):
+            changed.append(key)
+    assert set(changed) <= allowed, (name, changed)
+    delta = "".join(difflib.unified_diff(before.read_text(encoding="utf-8").splitlines(True),
+                                       final.read_text(encoding="utf-8").splitlines(True),
+                                       fromfile="sweep/" + name, tofile="final/" + name))
+    (OUT / (name + ".sweep-to-final.diff")).write_text(delta, encoding="utf-8")
+    checks.append({"file": name, "sweep_sha256": hashlib.sha256(before.read_bytes()).hexdigest(),
+                   "final_sha256": hashlib.sha256(final.read_bytes()).hexdigest(),
+                   "changed_nodes_after_reason_normalisation": changed,
+                   "scorer_reason_only_normalised": reason_transform,
+                   "argparse_help_text_ignored": name == "verify_capture.py",
+                   "calibration_behavior_equal": True})
+(OUT / "source_equivalence.json").write_text(json.dumps(checks, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(checks, indent=2))

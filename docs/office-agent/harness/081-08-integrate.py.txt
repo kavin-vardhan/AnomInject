@@ -1,0 +1,50 @@
+from pathlib import Path
+repo=Path(r'D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector')
+p=repo/'Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp'; s=p.read_text()
+s=s.replace('{ FName(TEXT("corrupted_texture")), EAnomalyActiveSource::FireWindow },', '{ FName(TEXT("corrupted_texture")), EAnomalyActiveSource::FireWindow },\n\t\t\t{ FName(TEXT("null_effect")), EAnomalyActiveSource::FireWindow },\n\t\t\t{ FName(TEXT("solid_swap")), EAnomalyActiveSource::FireWindow },')
+s=s.replace('Async->ChangeStage->Mask(Result.ChangeReceipt, FrozenMask, KeptPixels == 0);', 'Async->ChangeStage->Mask(Result.ChangeReceipt, FrozenMask, KeptPixels == 0, TagCounts);')
+s=s.replace('void UAnomalyCaptureSubsystem::BeginRevert()\n{', 'void UAnomalyCaptureSubsystem::BeginRevert()\n{\n\tif (Async.IsValid() && Async->ChangeStage.IsValid()) { Async->ChangeStage->EndEvents(TEXT("event_end")); }')
+at=s.index('\n}\n\nbool UAnomalyCaptureSubsystem::IsFireLabelledThisFrame')
+s=s[:at]+'''
+	if (Async->ChangeStage.IsValid())
+	{
+		TArray<FAnomalyChangeLabel> Labels;
+		for (int32 I = 0; I < Snap->Fires.Num(); ++I)
+		{
+			const auto& F = Snap->Fires[I];
+			// Region-less global/light classes do not acquire invented event regions.
+			if (F.Id == FName(TEXT("lighting_mismatch")) || F.Id == FName(TEXT("camera_clipping")) || F.Id == FName(TEXT("time_dilation"))) { continue; }
+			FAnomalyChangeLabel L;
+			L.Event = FString::Printf(TEXT("%s@%llu"), *F.Id.ToString(), F.StartFrame);
+			L.Type = F.Id.ToString(); L.Target = F.Target;
+			L.bLabelled = Snap->FireLabelled.IsValidIndex(I) && Snap->FireLabelled[I] != 0;
+			L.Tag = Snap->MaskValues.IsValidIndex(I) ? Snap->MaskValues[I] : 0;
+			Labels.Add(MoveTemp(L));
+		}
+		Async->ChangeStage->Observe(Snap->SessionIndex, Labels);
+	}
+'''+s[at:]
+p.write_text(s)
+p=repo/'Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp'; s=p.read_text()
+s=s.replace('#include "Anomalies/Anomaly_StuckLowMip.h"', '#include "Anomalies/Anomaly_StuckLowMip.h"\n#include "Anomalies/Anomaly_ChangeCase.h"')
+s=s.replace('\tRegister(MakeUnique<FAnomaly_StuckLowMip>());', '''\tRegister(MakeUnique<FAnomaly_StuckLowMip>());
+#if !UE_BUILD_SHIPPING
+	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("null_effect")), false));
+	Register(MakeUnique<FAnomaly_ChangeCase>(FName(TEXT("solid_swap")), true));
+#endif''')
+s=s.replace('\t\telse if (Id == FName(TEXT("stuck_low_mip")))', '''\t\telse if (Id == FName(TEXT("null_effect")) || Id == FName(TEXT("solid_swap")))
+		{
+			OutScope = EAnomalyScope::Object;
+			OutArgs.Add(IntArg(TEXT("delay"), TEXT("0"), 0));
+		}
+		else if (Id == FName(TEXT("stuck_low_mip")))''',1)
+p.write_text(s)
+import json
+ev=Path(r'D:\IntrusiveAnomalies\_reviews\081-08-evidence')
+ledger=json.loads((ev/'final-ledger.json').read_text())
+ledger['dropped_by_owner_decision']=ledger.pop('missing')
+for row in ledger['dropped_by_owner_decision']:
+    row.update(status='DROPPED-BY-OWNER-DECISION',reason='Host chooses spawn per launch; accepted Stage 1 candidate has no placement lever.')
+ledger['disposition']='Stage 1 ACCEPTED/CLOSED by owner decision; Stage 2 RELEASED'
+ledger.pop('remaining_allowance_per_missing_leg',None)
+(ev/'stage1-ledger.json').write_text(json.dumps(ledger,indent=2))

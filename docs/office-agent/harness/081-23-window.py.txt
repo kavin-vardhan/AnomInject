@@ -1,0 +1,17 @@
+import importlib.util,json,os,subprocess,sys,time
+from pathlib import Path
+W=sys.argv[1];assert W in ('c0','c1','c2','c3');limit=sys.argv[2] if len(sys.argv)>2 else '540';tag=sys.argv[3] if len(sys.argv)>3 else 'default'
+R=Path(r'D:\IntrusiveAnomalies\_reviews');os.environ.update(IAI_R23_WINDOW=W,IAI_R23_BUDGET_TAG=tag,PYTHONDONTWRITEBYTECODE='1');env=dict(os.environ);PY=sys.executable
+E=R/'081-23-evidence'/W;E.mkdir(parents=True,exist_ok=True);env['IAI_R23_ROOT']=str(E)
+def run(*a):return subprocess.run([PY,*map(str,a)],env=env).returncode
+if run(R/'081-23-preflight.py',W):print('PREFLIGHT FAILED - no leg run');sys.exit(10)
+spec=importlib.util.spec_from_file_location('lib23',R/'081-23-lib.py');L=importlib.util.module_from_spec(spec);spec.loader.exec_module(L)
+left=L.budget_left()
+if left<=0:print(json.dumps(dict(window=W,result='NOT-QUIET',why='the 45-min wait budget of this window is spent (081-30 ruling 2a)',budget=L.budget_state())));sys.exit(4)
+t=time.time();q=run(R/'081-23-wait.py',f'window-{W}',str(min(float(limit),left)),'60','2');L.budget_add('quiet-wait',time.time()-t,where=f'window-{W}-start')
+if q:print('NOT-QUIET - window not used; run again later');sys.exit(4)
+try:L.pp_gate(f'window-{W}-start')
+except L.Stop as ex:print(json.dumps(dict(window=W,result='NOT-QUIET',why=ex.msg,budget=L.budget_state())));sys.exit(ex.code)
+code=run(R/f'081-23-chunk{W[1]}.py')
+pf=run(R/'081-23-postflight.py',W)
+print(json.dumps(dict(window=W,chunk_exit=code,postflight_exit=pf,budget=L.budget_state())));sys.exit(code or (11 if pf else 0))

@@ -1,0 +1,50 @@
+from pathlib import Path
+from importlib.machinery import SourceFileLoader
+import json,subprocess,sys,shutil,hashlib
+base=Path(r'D:\IntrusiveAnomalies');ev=base/'_reviews/081-08-evidence';bank=base/'_bench_sessions_bank'
+audit=SourceFileLoader('audit2lyra',str(base/'_reviews/081-08-audit.py')).load_module().audit
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+version=sys.argv[1];ledger=[]
+def sha(p):
+    with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+manifest=json.loads((ev/f'binary-{version.lower()}.json').read_text())
+lyra=Path(r'E:\UEProjects\LyraStarterGame\Plugins\AnomalyInjector\Binaries\Win64')
+cases=[('null','null_effect','Cube4',90,1280,720,'IAI.Capture.Config 2 4 16 4 0, IAI.Bench.ChangeEvidenceCases 1'),
+       ('solid','solid_swap','Cube4',90,1280,720,'IAI.Capture.Config 2 4 16 4 0, IAI.Bench.ChangeEvidenceCases 1'),
+       ('g3','','',150,1920,1080,'IAI.Capture.Config 2 4 8 4 0, IAI.Auto.Pool all 0, IAI.Auto.Pool stuck_low_mip 1, IAI.Anomaly.StuckMipMaxCoAffected 8')]
+for case_index,(name,anomaly,target,frames,w,h,extra) in enumerate(cases):
+    for attempt in range(1,4):
+        for r in manifest['lyra_modules']:assert sha(lyra/r['name'])==r['sha256']
+        label=f'M55S2{version}_LYRA_{name.upper()}_N_A{attempt}'
+        log=ev/f'leg-{label.lower()}.log';assert not log.exists()
+        args=[pwsh,'-NoProfile','-File',str(ev/'lyra_leg_l2.ps1'),'-Label',label,'-Map','/ShooterCore/Maps/L_ShooterGym',
+            '-Seed','4242','-ResX',str(w),'-ResY',str(h),'-MaxFrames',str(frames),'-WaitSec','180','-SettleSec','45',
+            '-ExtraExecCmds',extra+', IAI.Bench.SynthTickOrder 0']
+        if anomaly:args+=['-Anomaly',anomaly,'-Target',target]
+        (ev/f'command-{label.lower()}.json').write_text(json.dumps(args,indent=2))
+        with log.open('w',encoding='utf-8') as f:run=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,cwd=base)
+        source=Path(r'E:\UEProjects\_lyra_legs')/label;dest=bank/label;assert not dest.exists()
+        if source.exists():shutil.copytree(source,dest)
+        else:dest.mkdir()
+        game_log=source.with_suffix('.log')
+        if game_log.exists():shutil.copy2(game_log,dest/'_leg_game.log');assert sha(game_log)==sha(dest/'_leg_game.log')
+        for p in source.rglob('*'):
+            if p.is_file():assert sha(p)==sha(dest/p.relative_to(source))
+        def result_file(n):
+            p=dest/n;return json.loads(p.read_text(encoding='utf-8-sig')) if p.exists() else None
+        r=dict(label=label,case=name,attempt=attempt,exit=run.returncode,bank=str(dest),l1=result_file('_l1_result.json'),
+               l2_pre=result_file('_l2_pre.json'),l2_post=result_file('_l2_post.json'))
+        if run.returncode==10:r.update(status='INVALID-FIXTURE',errors=['L2/L1 fixture invalid'])
+        elif run.returncode==0:
+            r.update(audit(next(dest.glob('session*')),dest/'_leg_game.log',dict(normal=True)))
+            r['status']='PASS' if not r['errors'] else 'INVALID-FIXTURE' if r['errors']==['runtime handled ensure in gate fixture'] else 'FAIL'
+        else:r.update(status='FAIL',errors=['runner/protocol failed'])
+        ledger.append(r);(ev/f'audit-{label.lower()}.json').write_text(json.dumps(r,indent=2));(ev/f'lyra-attempts-{version}.json').write_text(json.dumps(ledger,indent=2))
+        print(json.dumps({k:r[k] for k in ('label','status','errors','events','measured') if k in r}),flush=True)
+        if r['status']=='PASS':break
+        if r['status']!='INVALID-FIXTURE':sys.exit(1)
+        if attempt==3:
+            if case_index==0:
+                (ev/'lyra-dropped.json').write_text(json.dumps(dict(status='DROPPED-BY-OWNER-DECISION',reason='First Lyra leg exhausted three L2/L1 fixture attempts; Lyra unqualified for m55.',attempts=[x['label'] for x in ledger]),indent=2))
+                print('Lyra dropped entirely under explicit owner rule. No further Lyra legs.',flush=True);sys.exit(0)
+            print('Later Lyra fixture exhausted attempts; report finding.',flush=True);sys.exit(1)

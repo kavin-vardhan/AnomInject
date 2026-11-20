@@ -1,0 +1,139 @@
+GT_ALIGN=True
+G395_FIX=True
+G405_FIX=True
+GT_GAP_S=4.5/30.0
+GT_COVER_TAIL_S=2.0
+FIXES=('089-03 E1 fixes, declared 2026-09-30 before any 089-03 leg ran (089-01 chat ruling 1; 089-01 adjudication section 7 rows 1-3). '
+       'G395 - no judged frame sits inside its own reference: (a) an onset reference excludes the event own unlabelled fire rows (the office kit pre_clean rule); '
+       '(b) the offset reference drops leading unsettled frames by a leave-one-out test (each tested against the median and noise of the frames after it) and, once settled, '
+       'trailing unsettled frames (each tested against the frames before it), as the office kit does; if it never settles the offset is CENSORED and read against the onset reference; '
+       '(c) a judged frame that is itself a member of the reference it is read against (3 or more frames) is read against that reference WITHOUT it (median and noise); '
+       '(d) an event span starts no earlier than PREV_SETTLE=4 frames after the previous event last labelled or transition frame, so a neighbour delayed frame cannot enter it. '
+       'G405 - a label run whose off half holds no labelled frame is scaled by its own depth_on, never by post-label noise. '
+       'G406 - with a null leg, the stuck_low_mip basis divides each leg frame by the null sharpness interpolated at the SAME GAME TIME t (a bracketing null gap over 4.5 frames refused); '
+       'no lag search and no own-detrend fallback; an event whose measurement window [first label - PRE_W, span end] reaches a frame outside the null time range reads UNJUDGEABLE-NULL-RANGE '
+       '(a refused gap: UNJUDGEABLE-NULL-GAP), never judged; a leg whose null does not cover t(first label - PRE_W) .. t(last labelled frame) + 2 s reads UNJUDGEABLE-NULL-COVERAGE unless a judged event FAILs, '
+       'and a judged FAIL under the aligned null is REAL until shown otherwise (089-01 ruling 1).')
+def gt_align(s,null,T,NT):
+    import bisect
+    nr=sorted((null.by_si[si]['t'],NT[si]) for si in NT if si in null.by_si and null.by_si[si].get('t') is not None)
+    nt=np.array([x[0] for x in nr],dtype=np.float64);nv=np.array([x[1] for x in nr],dtype=np.float64)
+    out=dict(null_t=[round(float(nt[0]),4),round(float(nt[-1]),4)] if len(nt) else None,rho={},NTa={},oor=set(),gap=set(),t={})
+    for si,v in T.items():
+        r=s.by_si.get(si);tv=r.get('t') if r else None
+        if tv is None:out['gap'].add(si);continue
+        tv=float(tv);out['t'][si]=tv
+        if not len(nt) or tv<nt[0]-1e-9 or tv>nt[-1]+1e-9:out['oor'].add(si);continue
+        i=int(bisect.bisect_left(nt,tv))
+        if i<len(nt) and abs(nt[i]-tv)<=1e-9:val=float(nv[i])
+        elif i<=0 or i>=len(nt) or nt[i]-nt[i-1]>GT_GAP_S+1e-9:out['gap'].add(si);continue
+        else:val=float(np.interp(tv,nt,nv))
+        if val<=0:out['gap'].add(si);continue
+        out['NTa'][si]=val;out['rho'][si]=v/val
+    return out
+def gt_window(s,lw,nf):
+    hi_cap=s.rows[-1]['session_index'];L0=lw[0];L1=lw[-1]
+    span_hi=min(L1+SPAN_AFTER,hi_cap,(nf-PRE_W-1) if nf is not None else hi_cap)
+    return [si for si in range(L0-PRE_W,span_hi+1) if si in s.by_si]
+def gt_window_cover(s,b,lw,nf):
+    ga=b.get('gt') or {};win=gt_window(s,lw,nf)
+    oor=[si for si in win if si in ga.get('oor',())];gap=[si for si in win if si in ga.get('gap',())]
+    ts=[ga['t'][si] for si in win if si in ga.get('t',{})]
+    st='UNJUDGEABLE-NULL-RANGE' if oor else ('UNJUDGEABLE-NULL-GAP' if gap else 'OK')
+    return dict(status=st,window=[win[0],win[-1]] if win else None,t=[round(min(ts),3),round(max(ts),3)] if ts else None,null_t=ga.get('null_t'),
+                out_of_range=len(oor),gap=len(gap))
+def gt_leg_coverage(sd,null_sd):
+    if not null_sd:return dict(covered=None,reason='no null leg')
+    s=sess(sd);nu=sess(null_sd);ev=[e for e in anno_events(s) if e['type']==ID52 and e['L']]
+    if not ev:return dict(covered=None,reason='no stuck_low_mip event with labelled frames')
+    first=min(min(e['L']) for e in ev);last=max(max(e['L']) for e in ev)
+    lo=[si for si in range(first-PRE_W,first+1) if si in s.by_si];t_first=float(s.by_si[lo[0]]['t']);t_last=float(s.by_si[last]['t'])
+    nts=[float(r['t']) for r in nu.rows if r.get('t') is not None]
+    if not nts:return dict(covered=False,reason='null has no game time')
+    n0,n1=min(nts),max(nts)
+    return dict(covered=bool(n0<=t_first+1e-9 and n1>=t_last+GT_COVER_TAIL_S-1e-9),leg_t_first_window=round(t_first,3),leg_t_last_label=round(t_last,3),
+                need_until=round(t_last+GT_COVER_TAIL_S,3),null_t=[round(n0,3),round(n1,3)],leg_last_label_si=last,
+                rule='the null covers t(first label - PRE_W) .. t(last labelled frame) + 2 s (089-01 section 3, leg change 2)')
+def summarize_rows_v2(rows,cover=None):
+    sm=summarize_rows(rows)
+    unj=[r for r in rows if str(r.get('status','')).startswith('UNJUDGEABLE')]
+    sm['unjudgeable']=dict(n=len(unj),events=[dict(start_frame=r.get('start_frame'),status=r['status'],label=r.get('label'),null_cover=r.get('null_cover')) for r in unj])
+    sm['null_coverage']=cover
+    lv=sm['leg_verdict'];sm['leg_verdict_before_null_rule']=lv
+    if lv!='FAIL':
+        if cover and cover.get('covered') is False:lv='UNJUDGEABLE-NULL-COVERAGE'
+        elif unj and lv.startswith('PASS'):lv=lv+'-WITH-UNJUDGEABLE'
+        elif unj and lv=='NO-JUDGEABLE-EVENT':lv='UNJUDGEABLE'
+    sm['leg_verdict']=lv
+    return sm
+def trim_offset_reference(roff,V,ctx,thD_on,thP_on):
+    info=dict(candidates=list(roff),dropped_leading=[],dropped_trailing=[],settled=False,rule='office kit: leading frames tested leave-one-out against the frames after them, then trailing frames against the frames before them')
+    views=[V(x) for x in roff]
+    if len(views)<2 or any(v is None for v in views):return [],False,info
+    k=0;settled=False
+    while len(views)-k>=3:
+        rest=views[k+1:];_m1,thD1,thP1,_o1=ls086._noise(rest,ctx)
+        d,p,_o,_f=ls086.metrics(views[k],ls086.median_view(rest),ctx)
+        if d<=thD1 and p<=thP1:settled=True;break
+        k+=1
+    if not settled and len(views)-k==2:
+        d,p,_o,_f=ls086.metrics(views[k],views[k+1],ctx);settled=bool(d<=thD_on and p<=thP_on)
+    info['dropped_leading']=list(roff[:k]);use=list(roff[k:])
+    if settled:
+        while len(use)>=3:
+            head=use[:-1];hv=[V(x) for x in head];_mh,thDh,thPh,_oh=ls086._noise(hv,ctx)
+            d,p,_o,_f=ls086.metrics(V(use[-1]),ls086.median_view(hv),ctx)
+            if d<=thDh and p<=thPh:break
+            info['dropped_trailing'].insert(0,use[-1]);use=head
+    info['settled']=settled;info['used']=list(use) if settled else []
+    return (use if settled else []),settled,info
+def loo_read(si,ref,V,ctx,cache):
+    key=(tuple(ref),si)
+    if key not in cache:
+        others=[V(x) for x in ref if x!=si]
+        Rx=ls086.median_view(others);mu,thD,thP,_o=ls086._noise(others,ctx)
+        D,P,_b,_f=ls086.metrics(V(si),Rx,ctx);cache[key]=(D,P,mu,thD,thP)
+    return cache[key]
+def reference_amendment_v2(s,ev,other,lo,hi,Ts,clean,pre_clean):
+    prev=[x for x in other if x<lo];nxt=[x for x in other if x>hi]
+    prev_last=max(prev) if prev else None
+    start=max(lo-ls086.REF_BACK,(prev_last+PREV_SETTLE+1) if prev_last is not None else lo-ls086.REF_BACK)
+    pre=[si for si in range(start,lo) if pre_clean(si)]
+    out=dict(prev_last=prev_last,pre=pre,post=[],basis='pre',frames=pre,status='OK',rule=AMENDMENT,g395='the onset reference excludes the event own unlabelled fire rows (office kit pre_clean)')
+    if len(pre)>=REF_MIN:return out
+    tail=max([hi]+[x for x in Ts if x>hi]);lim=min(nxt) if nxt else tail+1+POST_SKIP+POST_REF_MAX
+    post=[si for si in range(tail+1+POST_SKIP,lim) if clean(si)][:POST_REF_MAX]
+    out.update(post=post,basis='pre+post',frames=sorted(pre+post))
+    if len(pre)+len(post)<REF_MIN:out.update(status='CONFOUNDED',basis='none')
+    return out
+CC_CONFIRMED_RULE=('PROPOSED camera_clipping reading (089-02a; a reading, not a gate, for chat to rule on): P is the minimum ON-vs-null pixel count over the '
+                   'positive-hold frames whose label is CONFIRMED (not camera_clipping_unconfirmed); F as the as-built gate (null-vs-null and the negative segments); '
+                   'theta = sqrt(max(F,1) max(P,1)); disagreements are counted on confirmed frames only and the unconfirmed frames are reported apart with their D; '
+                   'UNJUDGEABLE when P <= 2F. The as-built gate takes P over every positive hold, and the unconfirmed prop hold changes no pixel at AA off (084-09: D 0).')
+def cc_gate_confirmed(on_sd,null_sd,on_log,null_log,nullB_sd=None,nullB_log=None,frames=200):
+    r=cc_pair(on_sd,null_sd,on_log,null_log,nullB_sd,nullB_log,frames)
+    if not r.get('valid'):return dict(verdict='INVALID',errors=r.get('errors'),rule=CC_CONFIRMED_RULE)
+    on=sess(on_sd);D={int(k):v for k,v in r['D'].items()}
+    fr,armed=cc_schedule(on_log);seg={k:fr[k]['seg'] for k in range(frames)};des={k:fr[k]['designed'] for k in range(frames)}
+    unc={k:_flag(on.by_si[k],'camera_clipping.unconfirmed') for k in range(frames)}
+    lab={k:bool(on.by_si[k].get('camera_clipping.slab')) for k in range(frames)}
+    pos=POS_HOLDS+(('pawn_mesh',) if (armed or {}).get('pawn_mesh') else ())
+    conf=[k for k in range(frames) if seg[k] in pos and not unc[k]]
+    F=r['F'];P=min(D[k] for k in conf) if conf else 0
+    theta=float(np.sqrt(max(F,1)*max(P,1)));clipped={k:D[k]>theta for k in range(frames)}
+    dis=[k for k in range(frames) if not unc[k] and lab[k]!=clipped[k]]
+    edges=[]
+    for k0 in [k for k in range(1,frames) if des[k]!=des[k-1]]:
+        lo=max(0,k0-6);hi=min(frames-1,k0+6)
+        lf=next((k for k in range(lo+1,hi+1) if lab[k]!=lab[k-1]),None);of=next((k for k in range(lo+1,hi+1) if clipped[k]!=clipped[k-1]),None)
+        edges.append(dict(designed=k0,to=des[k0],label_flip=lf,pixel_flip=of,off=None if lf is None or of is None else lf-of))
+    unj=P<=2*F
+    return dict(rule=CC_CONFIRMED_RULE,F=F,P_confirmed=P,theta=round(theta,1),confirmed_positive_frames=len(conf),confirmed_disagreeing=dis,
+                unconfirmed_frames=sum(unc.values()),unconfirmed_D=[D[k] for k in range(frames) if unc[k]][:40],
+                unconfirmed_labelled_without_pixel_change=[k for k in range(frames) if unc[k] and lab[k] and not clipped[k]],
+                edges=edges,edge_offsets=[e['off'] for e in edges],unjudgeable=unj,
+                verdict='UNJUDGEABLE' if unj else ('PASS' if not dis and all(e['off'] in (0,None) for e in edges) else 'FAIL'))
+def fix_flags():return dict(GT_ALIGN=GT_ALIGN,G395_FIX=G395_FIX,G405_FIX=G405_FIX)
+def set_fixes(gt=True,g395=True,g405=True):
+    global GT_ALIGN,G395_FIX,G405_FIX
+    GT_ALIGN=bool(gt);G395_FIX=bool(g395);G405_FIX=bool(g405)

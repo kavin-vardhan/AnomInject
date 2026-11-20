@@ -1,0 +1,35 @@
+import importlib.util,json,os,sys
+from pathlib import Path
+W=sys.argv[1];assert W in ('c0','c1','c2','c3');os.environ['IAI_R23_WINDOW']=W
+spec=importlib.util.spec_from_file_location('c23',r'D:\IntrusiveAnomalies\_reviews\081-23-common.py');c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+R,E,E23,B=c.R,c.E,c.E23,c.B
+post22=json.loads((c.E22/'postflight.json').read_text());prep=json.loads((E23/'prep-boundary.json').read_text())
+problems=[]
+def chk(ok,msg):
+    if not ok:problems.append(msg)
+ours,foreign=c.classify()
+chk(not [p for p in ours if p['name']!='UnrealTraceServer.exe'],'our engine/game processes present at close')
+for name,r in {'AnomalyInjector':c.RP,'Lyra':c.L,'CaptureBench':c.C}.items():
+    chk(not c.git(r,'diff','--name-only') and not c.git(r,'diff','--cached','--name-only'),f'{name} tracked modifications')
+    st=c.state(r);old=post22['repos'][name]
+    chk(st['head']==old['head'] and st['branch']==old['branch'],f'{name} head/branch moved')
+chk(sorted(p.name for p in (c.L/'Binaries/Win64').iterdir() if p.is_file())==post22['lyra_module_names'],'Lyra module set not restored')
+for p,h in post22['verified_binaries'].items():chk(c.sha(p)==h,f'binary changed {p}')
+b3=c.binary_v3()
+for key in ('built','staged','archive'):chk(c.sha(b3[key])==b3['sha256'],f'002805CF not {key}')
+for r in b3['containers']:chk(c.sha(r['path'])==r['sha256'],f'container {r["path"]}')
+if (E/'lyra-staged.json').exists():chk((E/'lyra-restored.json').exists(),'Lyra staged but not restored')
+for p,h in prep['harness'].items():chk(c.sha(R/p)==h,f'harness file changed {p}')
+labels=set()
+for f in E.glob('command-*.json'):labels.add(f.stem[len('command-'):])
+bankman={}
+for d in (B/'_bench_sessions_bank').glob('M55B3R23_*'):
+    for q in d.rglob('*'):
+        if q.is_file():bankman[str(q.relative_to(B))]=c.sha(q)
+for d in (B/'_bench_sessions_bank').glob('M55B3R23_*'):pass
+(E/'bank-manifest.json').write_text(json.dumps(bankman,indent=1))
+man={str(q.relative_to(B)):c.sha(q) for q in E.rglob('*') if q.is_file() and q.name not in ('evidence-manifest.json','postflight.json')}
+(E/'evidence-manifest.json').write_text(json.dumps(man,indent=1))
+out=dict(utc=c.now(),window=W,problems=problems,new_bank_files=len(bankman),evidence_files=len(man),foreign_present=[(p['pid'],p['name']) for p in foreign],
+         verdict='PASS: main m51 53bf725, Lyra caa68c6 with 9 original modules, staged exe 002805CF, every binary/container/harness file unchanged' if not problems else 'FAIL: see problems')
+(E/'postflight.json').write_text(json.dumps(out,indent=2,default=str));print(json.dumps(out,default=str)[:2000]);sys.exit(1 if problems else 0)

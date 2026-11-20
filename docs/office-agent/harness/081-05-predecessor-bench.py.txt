@@ -1,0 +1,29 @@
+from pathlib import Path
+import json, hashlib, shutil, subprocess, sys
+base=Path(r'D:\IntrusiveAnomalies'); ev=base/'_reviews/081-05-evidence'
+v3=json.loads((ev/'binary-candidate-v3.json').read_text())
+before=json.loads((ev/'binary-before.json').read_text())
+staged=Path(v3['staged']); old=Path(before[1]['path']); candidate=Path(v3['archive'])
+pwsh=r'<USERPROFILE>\.cache\codex-runtimes\codex-primary-runtime\dependencies\native\powershell\pwsh.exe'
+def sha(p):
+    with p.open('rb') as f: return hashlib.file_digest(f,'sha256').hexdigest()
+def idle():
+    subprocess.run([pwsh,'-NoProfile','-Command',"if (Get-Process -Name UnrealEditor,StackOBot,LyraGame -ErrorAction SilentlyContinue) { throw 'Not idle' }"],check=True)
+idle()
+assert sha(staged)==sha(candidate)==v3['sha256']
+assert sha(old)==before[1]['sha256']
+for r in before[2:]: assert sha(Path(r['path']))==r['sha256']
+shutil.copy2(old,staged)
+assert sha(staged)==before[1]['sha256']
+result=dict(predecessor_sha256=sha(staged),candidate_sha256=v3['sha256'])
+try:
+    result['exit']=subprocess.run([sys.executable,str(base/'_reviews/081-05-controls.py'),'PREBENCH','bench']).returncode
+finally:
+    idle()
+    assert sha(staged)==before[1]['sha256']
+    shutil.copy2(candidate,staged)
+    assert sha(staged)==v3['sha256']
+    for r in before[2:]: assert sha(Path(r['path']))==r['sha256']
+    result['candidate_restored']=True
+    (ev/'predecessor-bench-swap.json').write_text(json.dumps(result,indent=2))
+sys.exit(result['exit'])
