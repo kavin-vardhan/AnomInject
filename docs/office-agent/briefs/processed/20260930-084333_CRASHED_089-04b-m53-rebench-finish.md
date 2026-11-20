@@ -1,0 +1,45 @@
+# ACK-VERDICT: 089-04 RED (derived: session died on ENOTFOUND after the harness completed) ruled in _reviews\089-04-chat-ruling-m53-rebench.md — finish offline
+# SESSION: new-default
+# MODEL: claude-opus-5-5
+# EFFORT: xhigh
+# NAME: 089-04b m53 re-bench finish (Code, Opus 5.5)
+
+# 089-04b — Finish the m53 re-bench offline: push the lock, fix the G-MODE family mix-up and re-evaluate from the banked legs, explain RD5's end −4, confirm the MainWorld hosts are Nanite, explain the normal P-ORC failure, and write the journal. NO game launch, NO re-run
+
+You are Claude Code, running **headless** from the GDP mailbox in a **fresh session**. Nobody answers questions during the run. **Your final message is the only thing anyone reads**; it goes to chat Claude (the orchestrator).
+
+## How your turns end — standing instruction from the owner, the owner
+A message with no tool call ends the whole run. Do not end a turn to report progress, to announce the next step, or to offer options. Put status notes in the same message as your next tool call and keep going. End the run only when every step is done, a stop condition fires, or something needs the owner. The final message follows the structure at the end and starts with a `VERDICT:` line. Keep context lean. Write docs with the file tools (G331).
+
+## Bootstrap: read these first, then summarise in three lines
+1. **`_reviews\089-04-chat-ruling-m53-rebench.md`: THE SPEC.**
+2. `_reviews\089-04-evidence\run\report.md` + `report.json`; the tail of the dead session's live feed `_mailbox\to_chat\089-04-m53-rebench-run.live.txt` (the last 60 lines only).
+3. `_reviews\089-04-README.md` §5 (predictions) and the G-MODE code in `089-04-eval.py`, by function.
+
+## The work (offline only)
+1. **Push** the premise-lock commit `a7f542d` on `feat/m53-uv-normal-corruption`, if it isn't pushed yet.
+2. **The G-MODE family fix:** each family's rows are gated on **that family's** P-ORC.
+   - A unit test both ways: a uv row must not read INSUFFICIENT when only the normal oracle failed, and a normal row must not PASS when the normal oracle failed.
+   - **Keep the frozen E1 untouched.** The fix is in the G-MODE code only; declare its diff, and keep the as-built report.
+   - Re-evaluate G-MODE from the banked MODE legs, and report per mode, with the wrong-mode negatives.
+3. **RD5 end −4:** from the per-frame labels, the revert/restore log lines and the pixels of one or two events, say why the label outlasts the effect by 4 frames when the restore is delayed by 5 engine frames. Is it the lever's semantics, the capture settle skip, or a **label defect** (a label that stays after the picture is clean would be a real over-label)? Say which, with the evidence.
+4. **Confirm the MainWorld hosts** SM_Ramp2 and RoomBuilderSquare are Nanite (their `UNMEASURABLE TARGET … reason=nanite` lines), and that the product's labels on those legs are otherwise consistent (label-rule PASS, 0 co-entry, GT-NULL wrong-object PASS).
+5. **The normal P-ORC failure:** one paragraph on the cause (interior spread and pattern with `ShowFlag.Lighting 0`) and what would fix it next time. No fix now.
+6. **Write** the journal `docs/sessions/2026-09-30-089-04-m53-rebench.md` (the full per-gate table, as 089-04's final message would have had) and the status block. Commit and push on the m53 branch. No tag, no merge.
+
+## Hard rules
+- **No game launch, no re-run, no builds, no cooks.** Banks are read-only.
+- Never kill anything that is not yours, and never by name.
+- Don't touch `m51`, `master`, tags, `ToCodex\` or `E:\<personal-folder>`.
+- Codenames only.
+
+## Final message structure
+1. `VERDICT: GREEN | NEEDS-DECISION | RED`.
+2. **Plain summary for the owner**: 3 lines.
+3. The per-gate table (the full 089-04 result).
+4. G-MODE re-evaluated: per mode, with the wrong-mode negatives.
+5. RD5: the finding, and whether it is a label defect.
+6. The MainWorld hosts and Nanite: confirmed?
+7. The normal P-ORC cause.
+8. Commits pushed.
+9. NEEDS-DECISION items, or "none".

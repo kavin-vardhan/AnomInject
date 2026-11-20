@@ -1,0 +1,25 @@
+# SESSION: new-default
+# NAME: 080 m52 stuck low mip (2)
+# MODEL: claude-opus-5
+# EFFORT: xhigh
+# ACK-VERDICT: 080-02 NEEDS-DECISION resolved by chat 2026-09-20 — F1 (re-fire refuses on an unrestored texture) is a defect to fix with verified restore + eligibility; onset latency handled by starting the labelled window at the first held frame; F3 reporting shape ruled; MaxCoAffected stays 0 (dataset purity over yield); G4/G8 unrun gates run now; verifier allowlist gains stuck_low_mip for held rows.
+
+# 080-03 — m52: window-at-first-held, verified restore + `not_restored` eligibility, per-texture telemetry, missing gates, verifier allowlist. Fresh session (previous at 78%).
+
+## 0. Bootstrap
+CLAUDE.md, `docs/CHAT-HANDOFF-079-*.md` §0/§3, `docs/predictions/2026-09-20-m52-stuck-low-mip.md` (+A1), journals 080-01/02, gotchas G265/G266. Branch `feat/m52-stuck-mip` at `ced1d80`; staged/archived exe `A8742A4A`. `master` `3ff88db`, `m51` untouched.
+
+## 1. Rulings (implement exactly; AMENDMENT 2 first)
+R1 **Window starts at first held frame.** The event's labelled span = N frames starting at the first frame where `IsCurrentlyAnomalous()` is true; the fire→held latency is a pre-roll that is NOT labelled and NOT counted against the window. A fire that never holds within `HOLD_TIMEOUT` frames (default 30 — state it) is `manifested:false` with reason `hold_timeout` and the target is released. Telemetry: `stuck_mip.onset_latency_frames` per event.
+R2 **Verified restore.** On revert: reset `NumCinematicMipLevels`, `UpdateCachedLODBias()`, then poll each held texture every frame until `resident_mips ≥ baseline_mips` (re-issue the stream-in request each poll if the engine's request was dropped — read the `!HasPendingInitOrStreaming()` guard Code named and log when it skips); timeout `RESTORE_TIMEOUT` frames (default 120) ⇒ `stuck_mip_restore_timeout` counter + log line + the texture stays tracked until restored. Run-summary gains `stuck_mip_restore_frames_max`.
+R3 **Eligibility:** a target with ANY texture still below its recorded baseline is ineligible with refusal reason `not_restored` (counted in the yield table). A re-fire on a held target is refused with `already_held` — never a silent no-op. Diagnose F1 first: reproduce (fire, revert, fire again within 5 frames) with the R2 logging, confirm the mechanism (prediction: the skipped StreamIn), then fix.
+R4 **Telemetry shape:** per event, `stuck_mip.textures[]` = `{name, baseline_mips, forced_mips, resident_mips_at_onset, held}`; `held` (any-of, unchanged), `held_all`, `armed_count`, `held_count`. Row-level `resident_mips`/`baseline_mips` renamed `primary_resident_mips`/`primary_baseline_mips` (additive rename: keep the old keys for this milestone, mark deprecated in the field reference — no, simpler: keys are new since 080-02 and unshipped; rename outright, schema stays 2).
+R5 **Verifier allowlist:** `tools/verify_capture.py` NO-TRACE class allowlist gains `stuck_low_mip` for rows with `held:true` (a held low mip on a target that passed the perceptibility filter necessarily changes pixels); selftest case: a stuck_low_mip event with held rows and no pixel change ⇒ NO-TRACE; with `held:false` rows ⇒ NO-TRACE unavailable (as today). Tool-only change; contracts/selftest counts updated.
+R6 `MaxCoAffected` stays 0. `GAutoPoolDefaultEnabled` stays off (yield 18.75 % < 25 %); re-measure G7 after R1–R3 — if ≥ 25 % on MainWorld, report it and chat brings the default-on decision to the owner.
+R7 G6 gets a real instrument: max and p99 frame time from the capture's own per-frame timing (or `stat unit` dump) for the m52 session vs the blinking control, not just pacing ratio.
+
+## 2. Gates (predictions first; both tick orders where the plan says)
+G2 can-fail re-run (`observable` null accepted as the honest value — amend). G3 hold: with R1, `manifested` = every fire that held within timeout; predeclare ≥ 6/7 fires manifest on MainWorld, 0 held→unheld mid-window. G3b F1 reproduction before/after R2/R3. G4 ALL FIVE exit paths incl. cancel-before-focus, target-destroyed, level-change — each `restored=N left-to-game=0 unresolved=0`. G5 onset unchanged (first labelled frame held) both orders. G6 per R7. G7 yield re-measured with the new refusal reasons split out (`not_restored`, `already_held`, `hold_timeout`). G8 Lyra: hold + restore + the VT NOT_APPLICABLE path must fire at least once (find a VT-textured target or state that Lyra has none and add a synthetic check). G9 schema additive re-check. G10 both orders. G11 verifier: NO-TRACE 0 and now AVAILABLE for the class (line printed).
+
+## 3. Closure
+Build, stage, hash, archive (predecessor `A8742A4A` verified at its archive first). Docs: predictions A2, journal, gotchas (the restore-skip guard gets a G-number if confirmed), client-readme row + fields, CLAUDE.md status. Commits pushed; NO merge, NO tag. Report per gate with exact lines, the F1 mechanism with the log evidence, the new G7 table, hashes; `VERDICT: GREEN` alone on the last line, else NEEDS-DECISION with numbers. Never kill by process name.
