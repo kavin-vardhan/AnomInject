@@ -1,3 +1,7 @@
+> **OFFICE PC? READ THIS FIRST.** If a file named `OFFICE_HOST` exists beside this repo's folder (the owner creates it once at the office), you are the office agent.
+> Read `docs/office-agent/START-HERE.md` and `docs/office-agent/OFFICE-AGENT-RULES.md` before anything else.
+> Those rules override everything below that tells an agent to edit, commit, tag or push: on the office PC you never push, and you never keep a change to plugin code.
+
 # AnomalyInjector — canonical context
 
 Personal research project **"GDP: Anomaly Injection"** (intrusive UE5 track). This is a
