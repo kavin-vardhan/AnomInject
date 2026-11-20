@@ -2,12 +2,14 @@
 
 Everything chat Claude (the orchestrator) ruled, planned or reviewed since session 078, plus Codex reviews, independent reviews, office cards and hand-offs. `*.brief.md` files are briefs chat wrote for Codex. `evidence-reports/` holds the reports, READMEs and frozen predictions that sat inside evidence folders (path separators became `__`). Files held back for a ruling (client text, office readings, real-name terms) are NOT here; see START-HERE.md. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
 
-Files: 746. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 749. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
+| 2026-11-14 | - | [CHAT-HANDOFF-095-client-feedback-m56-m58-review-done.md](CHAT-HANDOFF-095-client-feedback-m56-m58-review-done.md) | CHAT HANDOFF — back on main; client feedback units m56 and m58 written and reviewed; fixes and the engine test run are next |
 | 2026-11-14 | 095-13 | [095-13-ruling.md](095-13-ruling.md) | 095-13 — Chat ruling: the m57 review fixes are ACCEPTED; the two decisions are ruled; the heavy run is released behind one short p... |
 | 2026-11-14 | 095-12 | [095-12-ruling.md](095-12-ruling.md) | 095-12 — Chat ruling: the m59 review follow-ups are ACCEPTED; three decisions ruled |
+| 2026-11-14 | 095-11 | [095-11-ruling.md](095-11-ruling.md) | 095-11 — Chat ruling: the review of m57 and m59 is ACCEPTED; every finding and note is ruled |
 | 2026-11-14 | 095-11 | [095-11-independent-review.md](095-11-independent-review.md) | 095-11 — Independent review of m57 (lod_popping spatial trigger) and m59 (forced-LOD refusals) |
 | 2026-11-14 | 095-08 | [095-08-ruling.md](095-08-ruling.md) | 095-08 — Chat ruling: the m57 plan (LOD spatial trigger) is ACCEPTED, with one change; a small label fix goes first |
 | 2026-11-14 | 095-08 | [095-08-plan-B-lod-spatial-trigger.md](095-08-plan-B-lod-spatial-trigger.md) | 095-08 — Plan B: `lod_popping` gets a spatial trigger (m57, `feat/m57-lod-spatial-trigger`) |
@@ -22,6 +24,7 @@ Files: 746. Newest first. Date = last-modified date of the source file on the ho
 | 2026-11-13 | 095-02 | [095-02-plan-C-terrain-blink-subtype.md](095-02-plan-C-terrain-blink-subtype.md) | 095-02 — Plan C: terrain blink subtype (m58, `feat/m58-terrain-blink-subtype`) |
 | 2026-11-13 | 095-02 | [095-02-plan-A1-capture-continuity.md](095-02-plan-A1-capture-continuity.md) | 095-02 — Plan A-1: capture continuity (m56, `fix/m56-capture-continuity`) |
 | 2026-11-13 | 095-01 | [095-01-ruling.md](095-01-ruling.md) | 095-01 — Chat ruling: the disk stop was correct; split the brief so the branch move does not wait for disk |
+| 2026-11-13 | 095-00 | [095-00-ruling.md](095-00-ruling.md) | 095-00 — Chat ruling: back to the main line; the client's three review topics become units A / B / C |
 | 2026-11-13 | 095-00 | [095-00-code-capture-review-2026-11-11.md](095-00-code-capture-review-2026-11-11.md) | read-only review session of 2026-11-11 (not a mailbox brief). Chat's rulings on it: _reviews\095-00-ruling.md --> |
 | 2026-11-06 | 094-48d | [094-48d-chat-ruling-GR6b.md](094-48d-chat-ruling-GR6b.md) | Chat ruling GR6b (binding; replaces GR6) |
 | 2026-11-06 | 094-48c | [094-48c-code-review.md](094-48c-code-review.md) | 094-48c — Claude Code review: GR6 check, Part C (`2828f6a`), push HELD |
