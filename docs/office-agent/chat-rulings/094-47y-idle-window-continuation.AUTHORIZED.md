@@ -1,0 +1,35 @@
+# 094-47y — complete the retained GO3 gate in the owner's idle window
+
+The owner explicitly instructed on 2026-11-06: “continue now I won't touch the PC”, “High priority”, then “just start it, don't check idle time”. After the exact interruption was explained, the owner explicitly approved **“Stop the scan and worker now”**. Root stopped only the recorded read-only scan and its owned CLI tree at04:43UTC, preserved partial proof, and verified all15 exact process identities closed. No game/build was launched or interrupted. Root authorizes this bounded continuation now. One existing implementation CLI, one idle watcher, no second worker or subagents.
+
+The outstanding delivery is unchanged: Europa 4.25 packaged Development plus AnomDash, LOD corruption retained; GR1 PASS, GR2 full D3D12 comparison pair dropped, GR3 retained default-only GO3 at push gate, GR4 publication and handover. Never loosen a correctness gate. Root performs publication only after evidence review.
+
+## Read and preserve
+
+1. `_reviews/094-47w-chat-ruling.md` and `_reviews/094-47w-gr1-clarification.md`. The owner has expressly settled cycles and the six numeric timestamp schema entries. Do not reopen GR1.
+2. x's sealed predictions/helper controls and `root-receipts-094-47x/owner-directed-deferral.json` plus `closed-x-disposition.md`. x has NO completed final P9 or completed worker report. Do not mislabel the old w report as x. Preserve all partial receipts. The physical count is zero. The unfinished protection proof remains required after this capture.
+3. `root-receipts-094-47w/final-independent-closeout-review.json`, `gr1-final-disposition.json`, and the GR3/GO3 baseline pins in x `go3-prediction.json`.
+
+RUN is `D:/IntrusiveAnomalies/_relay/runs/2026-10-16-094-01-europa-phase-a-plan`; root receipts are RUN/root-receipts-094-47y. Fresh worker roots are `D:/IA_Europa/{Receipts,Temp,Evidence}/09447y`. Do not overwrite x or any prior file. Root has prepared no new native implementation.
+
+## Execute only the outstanding gate
+
+1. **Start the prepared capture promptly. No idle check or wait.** The owner expressly waived that operational admission rule. Record `idle_wait_waived_by_owner=true`; remove only the idle rejection/wait, keeping memory severe-stop, storage/owned-process and every capture correctness predicate. Reuse the already qualified x helpers/controls and measured forecast. Make fresh job copies with provenance, adapting job paths, parent accounting, deadlines and the waived idle admission. Do not rerun identical helper-control suites or old package/raw hashes or add auxiliary experiments. Bind sealed evidence under GR5, verify current helper hashes and the small changed surfaces. Fresh scoped FJ1/source/package checks remain, but no full entry P9. Reuse an existing sealed pre-operation inventory where the existing protection semantics allow it, carry every x+y charge, and defer the full canonical proof until after capture. Do not turn this continuation into another planning round.
+2. Run **one GO3 default-only D3D12 capture at1279×719** on the unchanged u packaged Development binary. Seed4242, native PNG,2352 frames, the four default routes in the established order, camera disabled, retained geometry/exposure/bench recipe. Fresh prediction before physical launch. Retain actual depth startup/live80/live2300 and bounded observer join, H4, strict default texture IoU1/zero spill, clean edges, counts/restoration, zero drops, upload suppression, crash checks and exact PID/birth closure. The global physical GO3 count is still zero at this handoff; this continuation authorizes its one physical attempt, not a retry of failed capture evidence.
+3. Run the established `keys46.py` against the frozen c5d0919 default-only odd-size output: no removed key or changed type, additions allowed, JSON int/float unified exactly as that reader already does. Execute the retained card's actual numbers-only commands. Seal only the new raw evidence once. No new baseline capture, D3D11 leg, dashboard capture/lifecycle/UI experiment, D3D12 full pair or calibration.
+4. After capture and readers, final FJ1 and **one unchanged canonical owner_p9.main() exit proof** with the pinned EG1 overlay. x's partial proof was explicitly deferred by the owner and has no PASS credit. The complete proof must cover the final state after this capture. Do not perform any additional full P9 before that point or independently repeat the worker's full hash pass.
+5. Write the complete final report, preservation/resource/owned-closure receipts and exact evidence paths. No worker commit/push. Root reads the full report and then handles both fast-forward-only pushes, fresh ls-remote checks, card/project copy and final owner report.
+
+## Pins and limits
+
+Plugin feature `bd767ca8ac7cd1ca18abe34d9cc66764fee100a6`; native `d10bbe859e81ef3a0a0e15dfc5224181cc7911b8`. Dashboard feature `b8ffaca1d88a2c89d1ed69adaac85501cc2fc0b5`; desktop SHA256 `c8120946ff5bb4daa713286510f091b75760ae41f0895480adea1a14e481be28`.
+
+Package `E:/IA_BuildCache/09447u-package/WindowsNoEditor`,34files2369785987bytes; manifest `D:/IA_Europa/Receipts/09447u/package-manifest.json`, SHA256 `c71067f78882ad0c26c5dd90b4a62774bce22b528cededc135034a67c98e41c1`; EXE `e8166cda4ac636f10d70ffa28db3e33da8997a284694b1554b9b79612c416110`; pak `d926673c1e26886f69292162a87bdfcfbfaade283ef83b21e71e48c8dc940f56`. Discover the inner executable from the pinned manifest.
+
+No source edits, builds, UBT/UAT/cook/stage, editor, new package/archive, dashboard launch/build,5.1 work, cleanup, binary compression, machine/owner-app changes or office-data transfer. Shipping stays excluded. Root source reads use Git objects with GIT_OPTIONAL_LOCKS=0; protected m51 worktree/index and all protected refs remain untouched.
+
+Additional y D ceiling4GiB, primary3GiB, E primary0. Use the complete measured x single-leg forecast; do not substitute the ceiling. Carry all parent charges including x's retained partial-operation allocation and existing incidental C/E/engine charges. Keep D25GiB floor +3GiB buffer + remaining allocation, C13start/10floor, E15start/10floor. No RAM admission wait; severe-pressure stop/drain remains. **No idle admission check/wait, expressly waived by the owner.** Do not simulate idle or alter owner applications.
+
+New hard end **12:00 IST 2026-11-06**, physical capture closed by **11:30 IST**, at least20minutes for final proof/report/drain. This is a separately authorized unit after x closure. Keep the conservative1620-second full-phase forecast and remaining-work launch admission; idle waiting is waived. One physical attempt, no unchanged retry, no automatic further unit. On a real failure preserve it, stop dependent publication and finish protection/closure.
+
+Chat review NOT REQUIRED for the owner's explicit continuation of the already ruled GR3/GR4 gates. The next mandatory Chat checkpoint is a new correctness failure or proposed change to capture/label meaning, tolerance or release scope. No such change is authorized.

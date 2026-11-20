@@ -1,0 +1,26 @@
+# 081-08 — chat rulings: Stage 2 measurement ACCEPTED as built; fixture diagnosis first, then finish the Stage 2 gates (chat Claude, orchestrator, 2026-09-21)
+
+The twin readings are the result m55 exists for: null `gt8/n` 0.0001–0.001, solid 1.0, control ~0.02, both orders, no tuning. Accepted as the Stage 2 measurement evidence. What stopped you is the fixture, not the measurement — and the fixture stopped on **StackOBot**, which never did this in Stage 1 (30/30, no result-based retries). That is the thing to read first.
+
+## R1 Fixture diagnosis BEFORE any new allowance (bounded, predictions first)
+Seven of eleven Stage 2 launches were INVALID-FIXTURE (NULL_N ×2, NULL_S ×1, SOLID_S ×1, DELAY_N ×3) on a fixture that was clean on the Stage 1 candidate. Settle index varied 0/48/29 and attempt 3's bbox was 7 px wide — the view is not where B1 expects. Candidates: (a) the Stage 2 binary or the new `AnomalyBench` module changes the start (placement/possession firing on StackOBot, a fixture command default, a module init side effect); (b) the twin anomalies' registration (catalogue 10→12) shifting something at level start; (c) host non-determinism that Stage 1 simply didn't hit. Do, in this order, no captures:
+1. **B1 preflight only** (launch, settle, snapshot, B1 check, exit; no `capture_start`) ×5 on the archived Stage 1 candidate `AEBD09EA` and ×5 on `2C21EDE5`, identical launch, alternating A/B. Prediction in the journal first. Record settle index, pose, modal bbox, B1 result per launch.
+2. If `2C21EDE5` fails and `AEBD09EA` does not ⇒ regression in the Stage 2 build: bisect by the cheapest lever available without a rebuild first (fixture flags off, twin registration off if a flag exists), then by rebuild if needed — find it, fix it, rebuild, re-archive, re-run step 1 ×5 on the fix. The fix is part of Stage 2.
+3. If both fail at a similar rate ⇒ host non-determinism ⇒ **apply L2-style placement to StackOBot** (the `AnomalyBench` placement, made available in the Game target under the same bench gating; StackOBot reference pose = the B1 calibrated pose, cite it), followed by the unchanged B1 check. Placement never self-certifies.
+4. Only after step 2 or 3 produces ≥ 5/5 B1-valid preflights on the final binary: **every Stage 2 leg gets a fresh 3-attempt allowance** (the twins already accepted stay accepted; the DELAY_N invalid attempts stay uncredited).
+Report what the diagnosis found as its own section; "not established" is allowed only after step 1 has been run and reported.
+
+## R2 Already-occluded onset — bench occluder authorised
+Bench-only geometric occluder: a fixture command spawns a static mesh between the camera and the target before fire, using a mesh that is **already in the cooked containers** (an existing level actor's mesh duplicated, or any StaticMesh asset proven present in the containers — cite how you proved it; if none can be proven, the gate is UNEXERCISED with that reason, no cook). Independent occlusion check, declared before the run: at the onset frame `target_pixels == 0` from the existing occlusion-correct mask **and** a camera→target line trace hitting the occluder (logged). Expected reading: `empty_region` ⇒ `indeterminate`, `prev_target_pixels = -1`, no phase pairs measured, final record present. The withdrawn offscreen recipe stays withdrawn; the private B1 exception stays deleted.
+
+## R3 Moving-camera twins — declare the motion gate, then run
+Motion fixture: whatever the bench already has for camera motion (a pawn auto-path, a yaw-rate control message from `AnomalyBench`, the existing CB moving recipe) — name it. Motion gate, declared before the run: `cam_moved == true` on ≥ 90 % of the window pairs and `|cam_drot_deg|` or `cam_dpos_cm` nonzero on those pairs; B1 applies at settle only (before motion starts). Expected: null onset stays far below solid; control rises with motion and is reported, never subtracted. One leg each twin, natural order; synthetic only if time allows.
+
+## R4 Remaining Stage 2 gates — run them in this round after R1
+Normal hide; depth-silencing hide (accepted case, `drawn == count`, `observable` unchanged); already-occluded onset (R2); blink > 8 phases (cap 8 + `phase_count`); short event; target-drop (`stuck_mip` destroy lever or the equivalent); dedicated run-end; **actual teardown** via the built CB OpenLevel command (mandatory — it is the Stage 1 UNEXERCISED line); `StuckMipNoHold` ⇒ `no_labelled_frames`; `solid_swap delay=3` both orders; the six-leg runtime legacy comparison against `AEBD09EA` (mandatory before Stage 3). Both orders where the gate has both-orders coverage; a leg that cannot run for a fixture reason after its allowance is reported INVALID-FIXTURE-EXHAUSTED with the cause read, not silently skipped.
+
+## R5 Lyra — unchanged scope, run last
+After everything above on StackOBot: null/solid natural + G-3 on the G270 recipe, with L2 placement and the first-leg auto-drop rule from 081-07. Not before R1–R4.
+
+## Bound and report
+This is more than one ~4 h block; split at natural points (R1 done → report; R2–R4 done → report; R5 → report) as `_reviews/081-09-…`, `081-10-…`, `081-11-…` — each with `VERDICT:` on the last line, each stopping for the owner to carry it. GREEN on the R2–R4 report plus R5 resolved (run or auto-dropped) releases Stage 3 automatically.

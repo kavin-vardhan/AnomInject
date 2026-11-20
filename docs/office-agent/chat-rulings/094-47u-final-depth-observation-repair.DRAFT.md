@@ -1,0 +1,30 @@
+# Europa final-depth observation repair — DRAFT, NOT RELEASED
+
+2026-11-06 07:13IST CORRECTION: this native-completion proposal is superseded before release by 094-47v-observer-repair.DRAFT.md. Re-reading GI2/GJ1 and the exact host probe confirms startup plus live observations near indices80/2300, not a required after-exit reading. A completion-only record is not a replacement for the late live observation. Preserve this draft as history; no native edit/build was authorized or performed from it.
+
+Prepared by root on2026-11-06 while09447u remains active. This is review preparation only. No second worker, brief or in-flight steering. Read the complete worker report and independently verify owned-process closure before deciding whether any continuation fits the retained08:42IST boundary and complete measured capacity. This draft grants no additional attempt or publication authority.
+
+The new d10bbe8 packaged B console capture completed2352 requested/written/paired frames with zero drops. Its worker reader passes the per-anomaly, LOD, mask, census, annotation, texture, strictIoU1/zero-spill, view and restoration checks. The exact depth-observation gate fails: only two `r.CustomDepth` query results exist. Root independently located the initial query before the preflight and the second query during the full capture. The worker traced the final query to an asynchronous post after C5 had already exited. Preserve the failed result and spent physical B attempt; neither stored receipt nor gate becomes passing.
+
+The raw evidence is sealed and independently rehashed:8324files1703014993bytes, including all8319 primary files, zero mismatches. Root's completed independent recomputation also returns overallFAIL solely at the missing depth observation: H4 PASS,443 strict texture measurements withIoU1/zero spill,140 clean timing edges,2352 frames,624clean/1728scored and restoration PASS. The exact original gate remains failed. Full C legs remain held. Independent lifecycle/desktop repairs continue under the active brief.
+
+## Source-backed minimal remedy to consider after closeout
+
+Root inspected d10bbe8 Git objects only, with GIT_OPTIONAL_LOCKS=0. In `Source/AnomalyCapture/Private/Compat/AnomalyCaptureLabels425.cpp`, `AnomalyCaptureC2::Finished` logs the completed transaction and then immediately calls `FPlatformMisc::RequestExit(false)` when the console path requested exit. An external monitor cannot reliably post a console query after that boundary. `FAnomalyCaptureLabels425` has already written restoration results before this transaction completion.
+
+The complete stop call chain was rechecked: `FAnomalyCaptureSession425::Stop` calls `Labels->Stop`, resets Labels, writes capture.json, resets the backend, then calls `AnomalyCaptureC2::Finished`. The label source already directly includes `HAL/IConsoleManager.h`. An actual `FindConsoleVariable`/`GetInt` observation at transaction completion therefore needs no guessed API or capture scheduling change. It must still handle an absent variable honestly and be reviewed in the exact implementation.
+
+If another bounded corrective continuation is explicitly released, prefer an actual read-only measurement at that native boundary: obtain the existing `r.CustomDepth` console variable and log its current integer value after restoration and before the exit request. Do not assign a constant, set a CVar, fabricate another query line, add an early duplicate merely to reach a count, delay capture scheduling, or reduce the required observation count. Keep the4.25/bench scope and Shipping exclusion; do not touch the5.1 adapter. Missing variable/read failure must remain an explicit failure or unavailable observation, never synthetic value1. Determine exact placement against the complete call chain before editing and include the proper direct header if required by strict compilation.
+
+This would change the native binary and therefore needs source-bound normal/strict compilation, new immutable stage with unchanged cooked resources, freshly sealed prediction, and fresh runtime proof. Retain all current candidate/evidence/binaries. Existing source and active reader controls must reject missing observation and wrong values. Do not reuse a passing old native leg as proof on the new executable or alter the original failed evidence.
+
+## Decision prerequisites, not an execution grant
+
+- Read full09447u report and review all completed lifecycle/desktop results, actual attempts and protection/artifact closure. No abandonment of the active worker.
+- Reassess whether the exact remedy is necessary and source-backed; the worker may produce further evidence that changes this proposal.
+- Any additional physical B attempt or new candidate validation needs an explicit root decision under the owner's technical delegation, recording old and additional counts side by side. No silent attempt reset, unchanged retry or automatic later job.
+- Prove the complete remaining measured peak, including preserved failedB, new binaries/stage, all dependent full legs/lifecycle tests, raw evidence, proof and drain, within explicitly retained or separately decided resource bounds. No speculative cache savings, protected cache deletion or raw relocation/compression.
+- Retain08:42IST wall end and reserve sufficient full exit-protection/owned-drain time. If the complete safe sequence cannot fit, preserve the failure and deliver the qualified components with the gap stated.
+- Census/private-pass exact comparison fields and all2352/zero-drop/IoU1/zero-spill/default-four/seed4242 criteria remain. A missing observation does not authorize changing capture meaning, correctness tolerance or release authority. D12 full advancement remains dependent on required D11 equivalence.
+
+Chat review **NOT REQUIRED** for preparation of this source-backed measurement repair under owner delegation. The next mandatory owner/Chat checkpoint is an actual capture/label-meaning, correctness-tolerance or release-authority change. This draft changes none of those and is not a released continuation.

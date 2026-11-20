@@ -1,0 +1,13 @@
+# 078-07 — offline mask-arm batching check, predictions before the read
+
+2026-09-06. Source-only preparation completed; the M23 PASS/ARM contents of the selected bank logs have not yet been inspected in this pass. Chat's `078-06-chat-evidence-review.md` supplies the proposed hypothesis. No live leg, owner action, build, code change or git mutation is involved. Codex performs this bounded read directly.
+
+Inputs: the four passing `PB1F_F_PAIR_*` banks (natural/synthetic, 100/50) and the failing `M51_F1CTRL_A_PAIR_NAT`, `M51D_M51D_HI_OLD_NAT`, `M51D_M51D_HI_NEW_NAT` banks. Use accepted session copies once each; no attempt double-counting. Preserve full log hashes and line-numbered parsed receipts in a new `M51_MASK_BATCH_DIAG_EVIDENCE` directory.
+
+Chat predicts failing legs have callbacks with servedArms >= 2, approximately as numerous as PREVIOUS matches, while passing legs have only servedArms == 1 during capture. Record that hypothesis unchanged and report whether the actual distribution supports it.
+
+**Source-derived counterprediction:** healthy legs can also have servedArms >= 2 because normal measurement, target-mask capture and census independently arm the same extension within one tick. Source has target-mask IDs with bit 61 and census IDs with bit 62; normal measurement receives GFrameCounter as ID. Therefore batching consumer requests is not itself evidence of batching different ticks. I expect the proposed healthy-only-one discriminator to fail; do not invent a numerical frequency in advance.
+
+For each log, count all M23 PASS records and separately capture-associated records containing target-mask request serials 1..40 (these recipes request 40 frames; validate serial coverage rather than assuming it). Record servedArms distribution, decoded IDs by namespace, multiple target-capture requests per callback, multiple normal game-frame IDs per callback, ID-count mismatches/duplicates and source lines. Associate target serials with capture opportunities only if the log/source establishes the mapping; otherwise keep that association UNKNOWN. Keep summaries' speed_ratio and ticks_per_captured_frame separate.
+
+Discriminators: a healthy multi-consumer callback falsifies the literal all-ones prediction. Distinct captured target IDs or different normal game-frame IDs in the same callback are more specific evidence of accumulated requests, but still require a frame/pixel link to attribute this failure. Absence of either does not exonerate the whole mask path. Do not claim a deterministic WithholdWorldRender gate before its implementation and actual arm/render behavior are measured. End after this offline read; H-editor needs owner coordination and is held.

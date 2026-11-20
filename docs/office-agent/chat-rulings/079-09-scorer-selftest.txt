@@ -1,0 +1,14 @@
+  TINY both+0/annotation scored0 unscored2
+  TINY onset+1/annotation scored2 unscored0
+  TINY onset+1/coherent scored2 unscored0
+  TINY onset-1/annotation scored0 unscored2
+  TINY onset-1/coherent scored0 unscored2
+  TINY end+1/annotation scored0 unscored2
+  TINY end+1/coherent scored0 unscored2
+  TINY end-1/annotation scored2 unscored0
+  TINY end-1/coherent scored2 unscored0
+  TINY both+1/annotation scored0 unscored2
+  TINY both+1/coherent scored2 unscored0
+  TINY both-1/annotation scored0 unscored2
+  TINY both-1/coherent scored0 unscored2
+SCORER SELFTEST: OK; mixed_run scored0/unscored2; tiny26 keys incl8 unsupported; zero boundary

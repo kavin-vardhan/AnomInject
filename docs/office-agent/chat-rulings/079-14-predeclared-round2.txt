@@ -1,0 +1,9 @@
+﻿# Round 2 predeclarations (written BEFORE running)
+F25 lighting_caveat_consistent        -> CONSISTENT with run-line lighting caveat, ring d=1.0 both edges | exit 0
+F26 no_trace_with_extrapolated_edges  -> NO-TRACE + 'edge pairs use extrapolated masks'                  | exit 2
+F27 unresolved_mask_id_never_no_trace -> UNASSESSABLE 'NO-TRACE unavailable: mask id unresolved'         | exit 0
+F28 high_regional_motion_caveat       -> CONSISTENT + '(caveat: high regional change m=0.6000 ...)'      | exit 0
+F29 exact_quarter_change              -> CONSISTENT, both edges d=0.2500 EXACTLY                          | exit 0
+F30 below_rgb_threshold_no_trace      -> NO-TRACE (documented thresholded absence, R3)                    | exit 2
+F31 non_manifested_event              -> event UNASSESSABLE (non-manifested), never NO-TRACE              | exit 0
+F32 span_at_session_start             -> onset UNASSESSABLE(truncated by session boundary), end TRANSITION 4 delta +0 => PARTIAL | exit 0

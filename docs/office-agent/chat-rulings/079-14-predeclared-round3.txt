@@ -1,0 +1,4 @@
+﻿Round 3 predeclarations (written BEFORE running)
+F33 mask_wrong_dimensions_in_span     -> UNASSESSABLE 'mask unreadable at frame 13 (dimensions)'; NO extrapolation fallback; never NO-TRACE | exit 0
+F34 foreign_id_outside_span_only      -> out-of-span id 201 absent => bounded boundary fallback from the span; in-span ids intact; nothing changes => NO-TRACE with extrapolation disclosure | exit 2
+F35 foreign_id_outside_span_real_change -> same masks, real change on the labelled onset/end => both TRANSITIONs delta +0 => CONSISTENT | exit 0

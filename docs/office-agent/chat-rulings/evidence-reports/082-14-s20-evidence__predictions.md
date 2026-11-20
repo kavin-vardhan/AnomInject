@@ -1,0 +1,2704 @@
+# m53 S2 — every mode for both ids, plus the S1 debt list — PRE-DECLARED PLAN, GATES AND PREDICTIONS
+
+🔁 **Revision 2.2 — 082-14, 2026-09-28** (parent `9d622e0`). It applies Codex's mini-delta (082-13, CHANGES REQUIRED,
+M1–M4) under chat's ruling `_reviews\082-13-chat-ruling-minidelta.md`, and records the S2-0 harness that was built,
+proven and locked against it. **Read "🔁 082-14 — REVISION 2.2" first, then "🔁 082-13 — REVISION 2.1", then §3A.**
+Every body edit of this revision is marked 🔁 082-14.
+
+🔁 **Revision 2.1 — 082-13, 2026-09-28** (parent `82c0ebd`). It applies Codex's delta (082-12, CHANGES REQUIRED, D1–D6)
+and the noise-tolerance ruling, under chat's ruling `_reviews\082-12-chat-ruling-s2-delta.md`. **Read "🔁 082-13 —
+REVISION 2.1" first (below "How to read this file"), then §3A (S2-0), then "🔁 082-12 — REVISION 2".** Every body edit
+of this revision is marked 🔁 082-13.
+
+🔁 **Revision 2 — 082-12, 2026-09-28** (parent `f6b47d4`). It applies Codex's design review (082-11, CHANGES REQUIRED)
+under chat's ruling 082-11. **Read "🔁 082-12 — REVISION 2" (below "How to read this file") and §3A (S2-0) first.**
+Every body edit is marked 🔁 082-12.
+
+**082-10, 2026-09-28. Branch `feat/m53-uv-normal-corruption`, parent `2a8e350` (the S1 close-out). PLAN ONLY.**
+No plugin source, harness, CaptureBench, fixture, build, cook, stage or bench action was taken. Everything below
+was read from source, config, git objects and the bank, or computed offline.
+
+**Inputs.**
+
+- The plan: `docs/predictions/2026-09-26-m53-uv-normal-corruption.md` (revision 3.4), especially §R13's S2 row,
+  §R7 (corruptors, transaction, `uv_scramble`), §R10 (labels), §R11 (failure policy), §R12 (gates) and v1 §3.2 / §7.2
+  (the mode definitions and the mode draw).
+- The S1 record: `docs/predictions/2026-09-27-m53-s1-legs.md`, AMENDMENTS 1–4 and **S1 RESULT** (R1–R7, above all the
+  R6 debt list).
+- Rulings: `_reviews\082-08-chat-ruling-codex-evidence-review.md` (governing), `082-07l-chat-ruling-s1-complete.md`,
+  `082-07h-chat-ruling-t10-premise.md`, `082-07j-chat-ruling-can-premise.md`.
+- Codex's S1 evidence review `_reviews\082-08-codex-m53-s1-evidence-review.md` (the "remains unestablished" paragraph
+  and the further holes, lines 108–118).
+- Gotchas G318–G337.
+- Four read-only research passes run for this plan (engine streaming source; the MainWorld control-pair frames;
+  plugin source anchors; the S1 harness), whose results are cited where used, plus offline computations kept in
+  `E:\IA_BuildCache\_r82_10_scratch\` (not committed; the harness brief moves the ones S2 relies on into CaptureBench).
+
+**How to read this file.**
+
+- §1 is the scope and the placement of every S1 debt. §2 is the source change list. §3 holds the two cause reads
+  that decide the design, and the plan for the rest of the cause-read list. §4–§5 are the fixture and harness
+  changes. §6 is the gate table with predictions. §7 is the premise audit, row by row. §8–§10 are builds, briefs and
+  Codex checkpoints. §11 is NEEDS-DECISION. §12 is what this file does not claim.
+- Line anchors are `file:line` at `2a8e350`. Abbreviations: **ATC** `Source/AnomalyInjector/Private/Anomalies/Anomaly_TexCorrupt.cpp`,
+  **ATH** its `.h`, **TCT/TCS/TCD/TCB** `TexCorruptTree/State/Draw/Bench.cpp`, **TCP** `TexCorruptPure.h`, **TCC**
+  `TexCorruptCore.h`, **AIS** `Source/AnomalyInjector/Private/AnomalyInjectorSubsystem.cpp`, **AAI**
+  `AnomalyAutoInjectorSubsystem.cpp`, **ACS** `Source/AnomalyCapture/Private/AnomalyCaptureSubsystem.cpp`, **SLM**
+  `Anomaly_StuckLowMip.cpp`, **ABM** `Source/AnomalyBench/Private/AnomalyBenchModule.cpp`. Harness anchors (`lib:`,
+  `run:`, `legs:`, `common:`) are the S1 harness in `D:\IntrusiveAnomalies\_reviews\082-07-*`.
+- **The one structural change from S1** is §6.0: a **premise window** of read-only probe legs on the S2 build, run
+  **before** the gate predictions are locked. S1 had four mid-campaign stops (fixture, time, focus, camera), each a
+  runtime premise the stub could not see and the frame-1 census did not read. §7 audits every premise on paper;
+  the premise window reads, on the real runner, the ones paper cannot settle.
+
+---
+
+## 🔁 082-14 — REVISION 2.2: Codex's mini-delta (M1–M4) applied; the S2-0 harness built, proven and locked
+
+**082-14, 2026-09-28. Bench-free.** No plugin source, CaptureBench, fixture, build, cook, stage, launch or bench action.
+The harness lives outside the repo (`_reviews\082-14-s20-*`); this file records it.
+
+**Inputs.**
+- `_reviews\082-13-chat-ruling-minidelta.md`, which **governs**: M1–M4 accepted. No further Codex round before S2-0,
+  because S2-0 is a class-D diagnostic whose outcome goes to chat and cannot pass or fail the feature.
+- `_reviews\082-13-codex-m53-s2-minidelta.md` (P2-M1, P2-M2, P2-M3, P3-M4).
+
+| ruling | Codex finding | here | body sections edited |
+|---|---|---|---|
+| M1 | P2-M1: a disposition count stood in for defective state | R22.1 | R21.6, §3A.6, §3A.7 |
+| M2 | P2-M2: the bank proof could not pass all T-checks | R22.2 | R21.1 ("Proven before the first leg"), §3A.6 |
+| M3 | P2-M3: drift offsets counted in saved frames | R22.3 | R21.3, R2.1 (G-MODE-UV row), §6.2 (G-RD-DRIFT) |
+| M4 | P3-M4: a residual "≤ 8" | R22.4 | §6.2 (G-MODE-N) |
+| — | found while building and proving the harness | R22.5 | §3A.4, §3A.5, R21.8 |
+| — | the harness, its proofs and its lock | R22.6 | §3A.9, §9, §10, §11, §12 |
+
+### R22.1 M1: a restore-defect class needs an actual Effective-material mismatch after revert
+
+**The rule (chat's ruling 1, as applied).**
+- **PLUGIN-WIDE-RESTORE-DEFECT** requires every one of:
+  - REPRODUCED-BY-SWAP;
+  - SAME-TRACE-AS-ID-F;
+  - not REPRODUCED-BY-REFRESH;
+  - a matched footprint (ID-F 30/30, C 30 slots on 12 components; otherwise FOOTPRINT-UNMATCHED);
+  - **an actual Effective-material mismatch after revert on both C's and ID-F's slots.**
+- A `left-to-game` or `unresolved` count alone **never** classifies. Anything short of the full condition reads
+  **"REPRODUCED-BY-SWAP, CAUSE UNRESOLVED"**.
+
+**What "an Effective mismatch" is, operationally.**
+- Per arm leg, the census at [F + 40] is compared with the census at [F − 2]: the uv block of the floor's own
+  single-target census, the same 30 slot keys (`owner.component[index]`), and the `effective=` names.
+- A mismatch is at least one slot whose post-revert Effective differs from its pre-event Effective.
+- An unreadable or incomplete census does **not** establish a mismatch, so the reading is CAUSE UNRESOLVED.
+- The override-array growth (`raw=None(len n)` after `SetMaterial(slot, nullptr)`) is recorded and never counts
+  (§3A.7's stated difference).
+- The disposition counts (`left-to-game`, `unresolved`, `corrupted_texture`'s revert-of counts) are reported beside the
+  class as descriptions.
+
+⚠ **Applied to M53-RESTORE-DEFECT as well: Code's extension, flagged for chat (§11).**
+- Its condition carried the same clause ("or a slot left `left-to-game` or `unresolved`").
+- Codex's counter-example applies to the m53 arm unchanged: a game that restores the material before revert makes m53
+  report `left-to-game` (ATC:1118-1125) with an equal final state.
+- It is now SPECIFIC-TO-M53-PATH **and** an Effective mismatch on ID-F. With an equal Effective state it reads
+  "M53-SPECIFIC, CAUSE NOT IN SLOT STATE"; with an unreadable census, "M53-SPECIFIC, CAUSE UNRESOLVED".
+- Chat may narrow it back to PLUGIN-WIDE only. That is an evaluator change and a re-lock.
+
+**Can-fail (synthetic, on the locked evaluator; all pass, R22.6).**
+
+| case | reads |
+|---|---|
+| same trace, no refresh, `left-to-game` 30 on C and on ID-F, Effective equal | REPRODUCED-BY-SWAP, CAUSE UNRESOLVED (never PLUGIN-WIDE) |
+| the same with `unresolved` 5 on both | the same |
+| same trace, no refresh, Effective mismatch on both | PLUGIN-WIDE-RESTORE-DEFECT |
+| mismatch on C only | CAUSE UNRESOLVED |
+| C's post-revert census missing | CAUSE UNRESOLVED |
+| footprint unmatched (ID-F 12/30) | CAUSE UNRESOLVED |
+| SPECIFIC-TO-M53-PATH with `left-to-game` 30 on ID-F, Effective equal | M53-SPECIFIC, CAUSE NOT IN SLOT STATE |
+| SPECIFIC-TO-M53-PATH with a mismatch on ID-F | M53-RESTORE-DEFECT |
+
+### R22.2 M2: each timing check names the source of its proof
+
+The requirement that every T-check pass the named bank inputs before launch is **withdrawn**: the bank has no census
+command, cache query or Reattach line, and the warm-free bank leg's first fire is "not applied". Each check is proven by:
+- a **synthetic negative**: a mutated schedule or an edited log must FAIL;
+- a **bank positive**, where the bank has the lines;
+- **first-live-leg validation**: a T-failure on the first leg of a type stops the window (R21.1, unchanged).
+
+| check | bank positive (read-only, first burst only) | synthetic negatives (all FAIL) | first live leg |
+|---|---|---|---|
+| **T1** si → fi | A: `FMW_ID`, `COLL_A_FMW`, `FMW_CTL_A`, `FMW_CTL_B`, `COLL_N_FMW`, si 0–51 (their first burst under `2 40 8 4 0`). B's warm-free map: the three `M55B3R23_NOHOLD_*_try1` legs, si 0–15 (pre 4) | labels shifted by 2 frames; a dropped row; seven mutated schedules (§R22.6) | yes |
+| **T2** warm | A: the five legs above (`ON`, issued at [1], released at [2]) | B carrying `WARM DRAW issued`; B echo `ON`; A without the release; A issued at [2]; B with warm on; A with warm off | **B: the only source** (0 of 414 banked M53S1 logs ran warm-off) |
+| **T3** one fire, applied, at [F] | A: the five legs, log sliced to [57] (one fire at [42]). **Bank negative:** `M55B3R23_NOHOLD_S_A1_try1`'s first fire is "not applied", and T3 FAILS it | a second fire line (INVALID-PROTOCOL); "not applied"; C at [60]; no `IAI.Apply` | yes |
+| **T4** the arm's token at [F] | ID-P: `FMW_ID`, `COLL_A_FMW`; N1: `FMW_CTL_A`, `FMW_CTL_B`; N2: `COLL_N_FMW` | N2 + APPLIED; N2 or R without the NoApply-2 marker; N1 without APPLIED noapply=1; N1 noapply=0; installing noapply=1; installing 0 slots; C with an m53 DECIDE; C at [F + 1]; R without its [F] Reattach | **C and R: the only source** |
+| **T5** the revert at [F + 10] | ID-P: the 12 per-slot lines + summary at [52]; N1 / N2: the summary at [52] | `IAI.Revert` at [53]; a per-slot line missing; C without its revert-of line; an N2 summary with a slot | **C and R: the only source** |
+| **T6** census at [F − 2], [F + 40] | none: the bank never ran the census through `DEFER`. Parser positive: the floor census of `M53S1_G0_FMW` (30 uv slots, 12 components, read inside a 6-target block and in its own block) | census at [F − 3]; the second census missing; `targets=2` | **the only source** (nested `DEFER` never ran on the bench) |
+| **T7** Reattach at [F], [F + 10] | none (`none on a non-R leg` passes on all five bank legs) | R at [F − 1] and [F + 9]; a non-R leg with a Reattach line | **the only source** |
+| **T8** the cache query echo | none. Format positive: the bank's `r.DefaultFeature.AutoExposure = "0"      LastSetBy: Console` parses with the same shape | a cache-off query reading 1; a cache-on query set by Console; two query echoes; the query after `Capture run STARTED`; a cache-off leg without the set echo | **the only source** |
+
+### R22.3 M3: every drift offset is counted in engine frames
+
+- An event's labelled frames are its fire-tick capture and the first `pos − 1` positive captures. Those follow the two
+  unsaved settle frames. The `pos`-th positive capture is the revert tick, labelled clean (ACS:737-779).
+- So, with `k = frame_index − ApplyFrame + 1` (R2.2's clock), the labelled frames carry **k = 1, 4, 5, …, pos + 2**.
+- **G-MODE-UV `drift`** (`2 16 100 4 4`): each event covers k = 1, 4 … 102, that is offsets `0.25·k/30` = **0.0083,
+  then 0.0333 … 0.85 UV** (100 labelled frames). Revision 2.1's "k = 1 … 100, 0.008–0.833" is withdrawn.
+- **G-RD-DRIFT (a)**: the logged offset on labelled frame j (0-based) equals `frac(0.25·k/30)` with k counted as above,
+  i.e. k = 1 at j = 0 and k = j + 3 for j ≥ 1. The saved-frame formula `frac(0.25·(j+1)/30)` is withdrawn. The static
+  legs at j = 0, 49 and 99 use k = 1, 52 and 102, so offsets 0.0083, 0.4333 and 0.85.
+- §1.1 already states the engine clock (`k = f − ApplyFrame`, offset `frac(v·(k + 1)/VideoFps)`) and is unchanged.
+
+### R22.4 M4: the residual "≤ 8" is struck
+
+§6.2's G-MODE-N rule column now reads "τ as locked (R21.7)". There is no residual ceiling; exceeding the locked τ after
+the lock is a FAIL.
+
+### R22.5 Found while building and proving the harness
+
+1. **The null-agreement window (§3A.5 "at every si").**
+   - Measured: the five bank nulls differ by up to **55** in K at si 0–31 (launch-dependent streaming settle, §3.2
+     class B) and agree within **2** from si 32 to 99.
+   - Read literally, "N1 vs N2 ≤ 2 in K at every si" would make every S2-0 cell INCONCLUSIVE on the bank's own pattern.
+   - R21.8's "controls agree within 2 at every si" was a misreading of Codex's si 36–99 bound, and is corrected.
+   - **Rule as locked:** the nulls must agree (≤ 2 in K) at every si **from the first labelled si to the last** (A:
+     si 39–106; B: si 61–128). That window contains every si a flag reads, plus the event. The per-si null reading is
+     reported for every si of the leg.
+   - Proven both ways: 55 at si 0–31 only does not make a cell INCONCLUSIVE; a difference of 3–4 at one window si does.
+   - ⚠ **Chat may widen the window.** That is an evaluator change and a re-lock.
+2. **Region R's "first si".**
+   - Taken literally, it reads si 0 on the bank: early frames differ inside R across launches.
+   - §3.2's reading is frame-by-frame with the null-vs-null check inside R. As locked, the first si is the first si where
+     the arm differs from both nulls inside R (≥ 16 on ≥ 32 px) **while the nulls agree there** (fewer than 32 px ≥ 16).
+   - On the bank it reads **si 39** (`FMW_ID`: 101 and 106 px against the nulls, which differ on 8 px), as §3.2
+     recorded. The unconditioned first si is reported beside it.
+   - "Dilated 20 px" is implemented as each class-A rectangle grown by 20 px.
+3. **The bank census layout.** `M53S1_G0_FMW`'s first census block is a 6-target visible-actor census, with the floor
+   inside it. The state reader keys families per target. S2-0's censuses are single-target, which T6 enforces.
+4. **T1's bank positive covers whole first bursts:** si 0–51 on five A legs and si 0–15 on three warm-free legs. That is
+   wider than R21.1's "first two steps".
+5. **The command line.** The real batch label carries the attempt suffix (`…_A1`), so the longest `-ExecCmds` is
+   **2,810** characters (R21.8 measured 2,807 on suffix-free labels) and the longest full command line **3,117**,
+   against 16,384.
+
+### R22.6 The S2-0 harness (082-14): files, rules, proofs, dry run, lock
+
+**Files** (`D:\IntrusiveAnomalies\_reviews\`; SHA-256, first 8):
+
+| file | sha | role |
+|---|---|---|
+| `082-14-s20-common.py` | `DD02FF79` | paths, the S2-0 run root, the stub switches (refused on the live root), the families |
+| `082-14-s20-lib.py` | `DD23F202` | schedule model, batches, T1–T8, the state readers, K / region-R readings, flags, M1 classification, known answer, sequencer, evaluation |
+| `082-14-s20-synth.py` | `0CE54027` | the synthetic-leg generator (dry run and proofs only; never used by a real leg) |
+| `082-14-s20-tokens.py` | `35049F28` | the A44 token scan (R21.8's, extended to every regex token) |
+| `082-14-s20-preflight.py` | `29DD7CE3` | boundary, head, predictions, harness, staged set, m51, token scan, processes, disk |
+| `082-14-s20-window.py` | `0110F271` | preflight → budget → quiet → known answer → person gate → the 24 legs → evaluation → postflight |
+| `082-14-s20-postflight.py` | `A11548A4` | staged set, harness, m51, head, hardlink aliases, exe-side leftovers, manifest |
+
+- **Reused unmodified (by import):** the S1 runner `082-07-run.ps1` (`DAC11E33`), `082-07-lib.py` (`96831D8F`: the
+  person gate, the quiet check, the wait budget, `bank_attempt`, `alias_hardlinks`, `validity`, `trajectory_errors`,
+  `Sess`), `082-07-common.py` (`91AF53D8`), `082-07-legs.py` (`C552C587`) and the pinned trajectory (`1CE9D988`). All
+  five equal S1's lock `1c3a348f`, which is not edited.
+- **The S1 module is pointed at S2-0's own run root** (`_reviews\082-14-s20-evidence\run`) before it is imported, so
+  S1's live evidence directory is never written.
+- **Bank layout:** attempt `M53S20_<leg>_A<n>`, alias `M53S20_<leg>` (hardlinks), with the S1 bank rules.
+
+**Rules the sequencer enforces** (pre-fixed, outcome-independent):
+- **First leg of each type:** the type is (family, arm role). The first family-OFF leg also gates T8. A T-failure
+  before its type has passed all eight checks is **TIMING-MODEL-FAIL**: stop, code 20, not re-run.
+- **A validated type:** a T-failure is INVALID-TIMING, re-run adjacently; a second INVALID-TIMING on the same leg stops
+  (code 21).
+- **S1's budgets are unchanged:** INVALID 3, INVALID-POSE (the pinned trajectory) 6, ENV-INTERRUPTED 5, then NOT-RUN
+  (code 2).
+- **T-checks run only on a leg that passed S1's non-pose validity** (launch, focus, artifacts). They are read before the
+  next launch and before any pixel reading.
+- **FX:** C's overrode line must name 12 components, and each R Reattach list must contain the 12 floor component names
+  from that leg's own pre-event census. Otherwise FIXTURE-CANNOT-EXERCISE, stop, code 12.
+- **After the A-on cell's three legs,** its reading is taken. **absent ⇒ NOT-REPRODUCED, report and stop (code 24).**
+- **At window start:** the token scan (preflight) and the known answer (the evaluator must reproduce Codex's
+  `independent-shadow.json` exactly; else code 22).
+- **Other stop codes:** 4 not quiet / person / budget, 5 foreign editor, 6 bank, 10 preflight / staged.
+- **A recorded stop is never re-run by a resume.** A leg carrying TIMING-MODEL-FAIL, FIXTURE-CANNOT-EXERCISE, NOT-RUN or
+  two INVALID-TIMING refuses on a re-invoked window with the same code and launches nothing, until a ruling supersedes it.
+
+**The proofs** (`_reviews\082-14-s20-evidence\prep\proof-s20.py` → `proof-s20.json`, **93 checks, 0 failed**):
+
+| section | checks | what |
+|---|---|---|
+| (a) bank | 20 | the known answer: every si 0–99, all 10 install-vs-null pairs (1,000 readings), null_max, metadata and trace_first_si **equal to Codex's JSON**; the control bound 2 over si 32–99 (55 at si 0–31); ≥ 16 on ≥ 32 px at every si 39–99; two bank cells read **present**, a null-as-arm cell **absent**, region R first si 39; the +20-tint and null-copy can-fails; the census parser; the T-check bank positives above, and the T3 bank negative |
+| (b) synthetic | 65 | all 24 generated legs pass T1–T8 (1); 34 token negatives, each failing exactly its declared checks, plus 1 regex check (the full `-ExecCmds` command-line echo is never counted); 6 cell readings (present ×2, absent, partial, INCONCLUSIVE, the early-null-noise case); 2 cross readings (≤ 2, and "3 on 40 px"); 3 state-reader cases; 17 classification branches including M1 and its sibling; the gating rule (1) |
+| (c) schedule mutations | 8 | pre 60 (revision 2's C clock), warm on in B, warm off in A, settle 3, 9 positives, the cap one short, A pre 41, B pre 63 on R: each fails its declared T-set |
+
+**The sequencer** (`prep/proof-sequencer.py` → `proof-sequencer.json`, **8 checks, 0 failed**). The real sequencer
+and the real runner (`-Stub`) run on scratch roots with injected faults:
+- a first-of-type T1 failure stops with code 20 after one launch, and the resume refuses without a launch;
+- a T6 failure on a validated type reads INVALID-TIMING and is re-run adjacently (A1 then A2), accepted, and the window
+  continues;
+- a second INVALID-TIMING stops (code 21), and the resume refuses;
+- the first family-OFF leg's T8 failure stops (code 20), not INVALID-TIMING;
+- an absent ID-P stops NOT-REPRODUCED (code 24) after the A-on cell;
+- C naming 11 components stops FIXTURE (code 12), and the resume refuses.
+
+**Dry run** (`prep/dryrun.py`): all 24 batches through the real sequencer and the real S1 runner with launch stubbed
+(`-Stub`) and synthetic artifacts. 24/24 legs accepted on attempt 1, T1–T8 green on every leg, the runner's recorded
+`-ExecCmds` length equal to the harness's on all 24, 8 cells read, and live S1 state and the real bank untouched:
+**10 checks, 0 failed**. The post-lock dry run runs the real `082-14-s20-window.py` in stub mode, with preflight and
+postflight.
+
+**The lock.** `_reviews\082-14-s20-evidence\boundary.json` is issued **after** the commit that carries this revision,
+and pins:
+- that commit as the feature head (local == origin);
+- this file's SHA-256 at it;
+- the seven S2-0 files and the five imported S1 files above;
+- Codex's `independent-shadow.json` (`2AE6B518`);
+- the staged set: exe `2FCDF059`, utoc `20DA6F98`, ucas `534C5863`, pak `FD766B7B`, `global.*`, with the rollback
+  archive `m53-s1-maskedfix-cook-20DA6F98` hash-equal to it.
+
+Any change means a re-issue. A docs commit on the branch after the lock blocks the window (the S1 trap).
+
+**Invocation (082-15, only on the owner's "PC idle"):**
+`C:\Python313\python.exe D:\IntrusiveAnomalies\_reviews\082-14-s20-window.py 082-15 540`.
+
+---
+
+## 🔁 082-13 — REVISION 2.1: Codex's delta (D1–D6) and the noise ruling applied
+
+**082-13, 2026-09-28. PLAN ONLY, bench-free.** No source, harness, CaptureBench, fixture, build, cook, stage or bench
+action. The runnability check (R21.8) read the staged exe's bytes and hashed the staged set; nothing was launched.
+
+**Inputs.**
+- `_reviews\082-12-chat-ruling-s2-delta.md`, which **governs**: D1–D6 accepted; the `noise` tolerance ruled; the other
+  revision-2 defaults accepted.
+- `_reviews\082-12-codex-m53-s2-delta.md` (D1–D6; P2-1, P2-2, P2-3 and P2-7 PARTIAL).
+
+**Anchors.** Source at `82c0ebd` (source tree identical to `2a8e350`). The engine is the 5.1 source at
+`D:\UESource\UnrealEngine`. Bank lines are `_bench_sessions_bank\<leg>\_leg\game.log:<line>` unless stated.
+
+| ruling | Codex finding | here | body sections edited |
+|---|---|---|---|
+| D1 | P2-D1 the swap arm's clock | R21.1 | §3A.2, §3A.3, §3A.5, §3A.9, §9 |
+| D2 | P2-D2 the N2/R success predicate | R21.2 | §3A.5 |
+| D3 | P2-D3 G-MODE-UV's drift event floor | R21.3 | R2.1 table, §6.2 (G-MODE-UV, totals) |
+| D4 | P2-D4 retention vs the ledger | R21.4 | R2.2 table, R2.6, R2.11, §2.5, §2.6, §5.3, §6.0 (P-LVL), §6.2 (G-SNAP-FAIL, G4 LEVEL-CHANGE, totals) |
+| D5 | P2-D5 binding identity | R21.5 | R2.7, §2.5, §5.3, §6.2 (slots row) |
+| D6 | P2-D6 PLUGIN-WIDE from pixels | R21.6 | §3A.4, §3A.7, §3A.8, §9, §12 |
+| noise | ruling "not as written" | R21.7 | R2.1, §6.0 (scope rule, P-ORC), §6.2 (G-MODE-N, stop rule), §7, §11 |
+| — | "is S2-0 runnable on this build?" | **R21.8** | §3A.9 |
+
+### R21.1 D1: one warm policy per family, and a re-declared schedule for every arm
+
+**The defect, from source.**
+- The m53 warm draw is wanted only when an m53 id is targeted, or enabled in the auto pool (ACS:2442-2451).
+- When wanted, `BeginActualRun` puts a 2-frame **non-capturing** `TexCorruptWarm` phase before the lead-in (ACS:3631-3638,
+  :722-735).
+- `corrupted_texture` is not an m53 id, and neither m53 id is in the default enabled set, so C never takes the phase.
+- Under revision 2's family B recipe (`2 60 8 60 0`), C therefore fired at frame 60 and the m53 legs at 62. Equal
+  `session_index` meant engine frames 2 apart: a different point on MainWorld's camera trajectory and a different dither
+  phase.
+
+**Design change.**
+- **Family A** (ID-P, N1, N2) keeps the banked schedule, **warm ON** (the compiled default). Every A arm is an m53
+  targeted leg, so all three take the phase alike. The schedule stays as banked because REPRODUCED is defined on it.
+- **Family B** (ID-F, C, R and their nulls) runs **warm OFF on every leg**, including C, where it is inert.
+  - `IAI.Capture.TexCorruptWarmDraw 0` goes in the batch before `IAI.Capture.Start`. The setter refuses only while a run is
+    active (ACS:2462-2473).
+  - **Adjusted lead-in:** pre = 62, so the apply stays at frame 62. That keeps ID-F's premise: every banked decision from
+    frame 58 on refuses only at V2 (`FMW_ID :2909`).
+
+**The re-declared schedule.** A single burst, `burstCount 0`, ended by the frame cap before a second fire (ACS:705-718).
+"si → fi" is `labels.jsonl` `session_index` → `frame_index`.
+
+| | family A | family B |
+|---|---|---|
+| warm | ON (compiled default): non-capturing frames 1–2 | OFF (`IAI.Capture.TexCorruptWarmDraw 0`) |
+| config · frames | `2 40 8 60 0` · 107 | `2 62 8 60 0` · 129 |
+| apply frame F (the fire tick; its capture is the first labelled si) | 42 = si 39 | 62 = si 61 |
+| event (labelled) | si 39–46 | si 61–68 |
+| revert frame F + 10 (its capture is the first clean si) | 52 = si 47 | 72 = si 69 |
+| tail = the post-event window every flag reads | si 47–106 (60) | si 69–128 (60) |
+| si → fi | si + 3 (si 0–39) · si + 5 (40–47) · si + 7 (48–106) ⇒ fi 3 … 113 | si + 1 (0–61) · si + 3 (62–69) · si + 5 (70–128) ⇒ fi 1 … 133 |
+| census lever, `IAI.Bench.TexCorruptCensus <MW_FLOOR>` | F − 2 = 40 (`DEFER`×39) · F + 40 = 82 (×81, = si 75) | 60 (×59) · 102 (×101, = si 97) |
+| R's refresh, `Reattach.Components class=InstancedStaticMeshComponent` | — | 62 (×61) · 72 (×71) |
+
+**Per arm.** Batch = BASE (`082-07-lib.py:457-459`) + `r.Shadow.Virtual.Cache 0` (cache-off cells only) +
+`r.Shadow.Virtual.Cache` (the query echo, **every leg**) + `IAI.Capture.Config <cfg>` + the levers below +
+`IAI.Capture.Start <label> png 777 <frames> <anomaly> <MW_FLOOR>` + the two census `DEFER` chains (+ R's two refresh chains).
+Every leg must also log exactly one `Auto.FireSpecific: '<id>' on '<MW_FLOOR>' -> applied.` at [F] and exactly one
+`IAI.Revert '<id>' -> reverted.` at [F + 10].
+
+| arm | family | anomaly | levers, in order | exactly one, at [F] | at [F + 10] |
+|---|---|---|---|---|---|
+| ID-P | A | `uv_corruption` | `IAI.Bench.TexCorruptIdentity 1` | `APPLIED … noapply=0 …` with `slots n/30 committed`, n ≥ 1 | the m53 `REVERT` summary and one revert line per committed slot |
+| N1 | A | `uv_corruption` | `…Identity 1`, `IAI.Bench.TexCorruptNoApply 1` | the NoApply-1 marker (ATC:961-965) and `APPLIED … noapply=1 …` with `slots 0/…` | the m53 `REVERT` summary |
+| N2 | A | `uv_corruption` | `…Identity 1`, `…NoApply 2` | the NoApply-2 marker (ATC:776-781); **no** APPLIED | the m53 `REVERT` summary |
+| ID-F | B | `uv_corruption` | `IAI.Capture.TexCorruptWarmDraw 0`, `…Identity 1`, `IAI.Anomaly.TexCorruptMaxRtBytes 268435456` | as ID-P; `slots 30/30` expected (else FOOTPRINT-UNMATCHED, which is not a timing failure) | as ID-P |
+| C | B | `corrupted_texture` | `…WarmDraw 0`, the cap | `corrupted_texture: overrode <s> slot(s) across <m> component(s)` (ACT:131); no m53 DECIDE / APPLIED / NoApply line | `corrupted_texture: revert of <s> captured slot(s) …` (ACT:246) |
+| R | B | `uv_corruption` | `…WarmDraw 0`, `…Identity 1`, `…NoApply 2`, the cap | the NoApply-2 marker; no APPLIED; one `Reattach.Components:` Display line | the m53 `REVERT` summary; one `Reattach.Components:` line |
+| N1, N2 | B | `uv_corruption` | as family A's, preceded by `…WarmDraw 0` and followed by the cap | as family A's | as family A's |
+
+**Evidence for the two maps.**
+- **A's map is read off the bank,** `M53S1_FMW_ID_A1` `labels.jsonl`: si 0→fi 3, 39→42, 40→45, 47→52, 48→55. Its warm
+  draw is at `[  1]` and released at `[  2]`; APPLIED is at `[ 42]`; the per-slot revert is at `[ 52]`.
+- **B's lead-in and first positive step are read off three banked warm-free MainWorld targeted legs**
+  (`M55B3R23_NOHOLD_S_A1_try1`, `_N_A1_try1`, `_N_A2_try1`, pre = 4): si 0→fi 1, si 3→fi 4 (= pre, the fire tick),
+  si 4→fi 7.
+- **The revert step (+2) is the same phase code as A's** (ACS:782-786).
+- ⚠ **No M53S1 leg ever ran warm-off:** 0 of 414 banked M53S1 logs carry `TexCorruptWarmDraw: off`. The warm-off m53
+  schedule is therefore validated in S2-0's own legs (T1–T8 below).
+
+**Found.** When warm is OFF but an m53 id is targeted, the warm echo's trailing clause still says "a 2-frame NON-CAPTURING
+phase runs". The clause tests only whether warm is wanted (ACS:3263-3265), while the phase is gated on
+`bTexCorruptWarmDraw && …` (ACS:3633). **The timing check keys on `frame_index` and on the absence of the
+`WARM DRAW issued` line, never on that clause.** Recorded, not changed (a source change is out of scope here).
+
+**Engine order used by the schedule.** `-ExecCmds` are queued as deferred commands (`UnrealEngine.cpp:2047`).
+`TickDeferredCommands` runs only the commands present when it starts (`:2279-2309`), at the **end** of each engine-loop
+iteration, after `GFrameCounter++` (`LaunchEngineLoop.cpp:5568`, `:5608`). `DEFER` appends its argument (`:4756-4759`,
+`:5199-5202`). So a command logged `[k]` runs **before world tick k**, and n nested `DEFER`s run before world tick 1 + n.
+R's refresh at `[62]` / `[72]` therefore lands in the same rendered frame as ID-F's install / revert, which happen in world
+ticks 62 / 72.
+
+**Timing validation, every arm and every leg (T1–T8).** Read from each leg's own artifacts **before the next leg launches,
+and before any pixel reading of that leg is computed**:
+
+| check | rule |
+|---|---|
+| **T1** | `labels.jsonl` has exactly the rows si 0 … frames − 1, and every row's `frame_index` equals the family map above |
+| **T2** | A: the warm echo reads `ON`, `WARM DRAW issued` at `[1]` and `released` at `[2]`. B: the echo reads `OFF` from `IAI.Capture.TexCorruptWarmDraw (console)` (ACS:2455-2459), and there is no `WARM DRAW issued` line |
+| **T3** | exactly one `Auto.FireSpecific` line of any disposition in the leg (AAI:473, :501-502), reading `-> applied.` at [F], and exactly one `IAI.Apply '<id>' -> applied.` (AIS:792) |
+| **T4** | the arm's token at [F], per the table above (D2 defines the null / refresh rows) |
+| **T5** | exactly one `IAI.Revert '<id>' -> reverted.` (AIS:812) at [F + 10], plus the arm's revert token |
+| **T6** | exactly two `TEXCORRUPT-CENSUS BEGIN targets=1` lines (TCT:991), at [F − 2] and [F + 40] |
+| **T7** | R: exactly two `Reattach.Components:` Display lines (`EngineGlobals.cpp:153`), at [F] and [F + 10]. Every other leg: none |
+| **T8** | exactly one query echo `r.Shadow.Virtual.Cache = "<v>"      LastSetBy: <by>` (`ConsoleManager.cpp:1972`) before `Capture run STARTED`: cache-on cells v = 1, `<by>` not Console; cache-off cells v = 0, Console |
+
+- **The first leg of each type** in run order validates that type: A-N1, A-ID-P, A-N2, A-off's first leg (T8 off),
+  B-N1, B-ID-F, B-N2, B-C, B-R, and B-off's first leg. **A T-failure there stops the window** for a declared amendment. It
+  is not re-run for a better number, because it means the schedule model is wrong.
+- **A T-failure on a later leg of an already-validated type** is INVALID-TIMING. The rule is fixed here, reads only
+  outcome-independent tokens, and is decided before any pixel of that leg is read (the A63 shape). The leg is re-run once,
+  adjacently. A second consecutive INVALID-TIMING on that leg stops the window.
+- ~~**Proven before the first leg** (G96):~~
+  - ~~the T-checks pass the banked `M53S1_FMW_ID_A1` (A's map on si 0–51, its first event) and
+    `M55B3R23_NOHOLD_S_A1_try1` (the warm-free map, with its own pre = 4, on its first event);~~
+  - ~~they FAIL synthetic copies: labels shifted by 2 frames (revision 2's C schedule); a B log carrying `WARM DRAW issued`;
+    a C log with its apply at `[60]`; a leg with two `Auto.FireSpecific` lines.~~
+  - 🔁 082-14 (M2): the "pass the named bank inputs" clause is withdrawn. The bank has no census, cache query or
+    Reattach line, and the warm-free leg's first fire is "not applied", which T3 correctly FAILS. **Each check's proof
+    source is R22.2's table:** a synthetic negative, a bank positive where the bank has the lines, and first-live-leg
+    validation. All four synthetic copies above are among R22.2's negatives, and all FAIL.
+
+**Source impact: none.** Harness (the S2-0 driver and evaluator, R21.8): the B lever, the query echo, T1–T8.
+
+**Premise-audit line.**
+- **CD:** the pinned trajectory was built from sessions that start at `frame_index` 1, i.e. warm-free ones (its JSON
+  `rule`). It covers fi 1–702 with one gap at fi 5, bridged by `trajectory_errors` because fi 4 and fi 6 are equal
+  (`082-07-lib.py:227-230`). Both families' fi lie in 1–133.
+- **DP:** within a family, the same si is the same engine frame (T1). Revision 2's cross-arm comparisons are now
+  same-frame.
+- **RS:** the warm draw touches only its own scratch targets (TCD:203-304), so warm OFF does not move ID-F's frame-62
+  qualification. A warm-off first fire could meet A4 `corruptor_shader_map_incomplete` (ATC:856-858). This is predicted not
+  to fire in a cooked build; if it does, it is a T4 failure (stop), never a flag.
+
+### R21.2 D2: the null and refresh legs count the fire marker, not APPLIED
+
+**The defect, from source and the bank.** NoApply-2 returns at ATC:782, before the APPLIED line (ATC:989-996). The banked
+`M53S1_COLL_N_FMW_A1` shows the NoApply-2 marker (`:2543`), `IAI.Apply 'uv_corruption' -> applied.` (`:2544`) and
+`Auto.FireSpecific … -> applied.` (`:2545`), and **no APPLIED**. Revision 2's "one APPLIED or one `corrupted_texture`
+apply" therefore failed every valid N2 and R leg.
+
+**Design change.** §3A.5's protocol row becomes T3 + T4 (R21.1):
+- **every leg:** exactly one fire attempt (one `Auto.FireSpecific` line of any disposition), reading `applied`, at [F]. Its
+  early returns (AAI:444-457) are silent, but none can trigger in a one-fire run (no live fire before it; `MaxConcurrent`
+  4);
+- **installing arms (ID-P, ID-F):** exactly one `APPLIED … noapply=0`;
+- **N1:** the NoApply-1 marker **and** `APPLIED … noapply=1` (N1 does log APPLIED, ATC:959-966 then :989);
+- **N2 and R:** exactly one NoApply-2 marker, checked separately, and **zero** APPLIED lines;
+- **C:** its own overrode line, and zero m53 decision lines;
+- a second fire line of any disposition is INVALID-PROTOCOL.
+
+**Can-fail.** The banked `COLL_N_FMW_A1` passes the N2 rule (at its own F = 42), and `FMW_ID_A1` passes the installing
+rule. Synthetic copies FAIL: an N2 log with an APPLIED line added; one with the NoApply-2 marker removed; one with a
+second `Auto.FireSpecific` line.
+
+**Source impact: none.** Harness: the S2-0 evaluator. **Premise:** every token is at Log or Warning and present in the
+staged exe (R21.8).
+
+### R21.3 D3: `drift` in G-MODE-UV gives four complete events
+
+**Design change.**
+- The G-MODE-UV `drift` leg runs `IAI.Capture.Config 2 16 100 4 4`, 432 frames:
+  - labelled events at si 15–114, 119–218, 223–322 and 327–426;
+  - their revert-frame captures, labelled clean, at si 115, 219, 323 and 427;
+  - burst count 4 ends the run after the fourth post gap (ACS:787-808), so no fifth fire starts.
+- Each event re-anchors its offset at its own Apply (R2.2's clock). ~~Every event covers the offsets
+  `frac(0.25·k/30)`, k = 1 … 100, that is 0.008–0.833 UV.~~ 🔁 082-14 (M3, R22.3): counted in **engine** frames, every
+  event's labelled frames carry k = 1, 4, 5 … 102 (the two settle frames are unsaved but advance the clock), so the
+  offsets `0.25·k/30` are 0.0083, then 0.0333 … **0.85 UV**.
+  - 🔁 082-13: revision 2's "offsets reach 0.42 UV" does not follow from the declared rate; corrected.
+- **It gets its own NoApply-1 null on the same schedule.** The `2 16 8 4 0` null covers only si 0–99, on another si → fi
+  map. So G-MODE-UV goes from 6 legs to **7**.
+- **The coverage floor stays the same for every mode, as ruled:** ≥ 4 counted events and ≥ 512 kept px per frame. There
+  is no one-event exception.
+- G-RD-DRIFT keeps its one-event recipe. Its rules are per labelled frame k, and it has no event floor.
+
+**Can-fail.**
+- Revision 2's own recipe (`2 16 100 4 0`, 120 frames: one event) evaluated by the coverage clause reads 1 counted
+  event and FAILs (offline, from the schedule).
+- A synthetic 4-event leg truncated to 3 FAILs.
+
+**Source impact: none.** Harness: the leg declaration.
+
+**Premise-audit line.**
+- **RS / FX:** `T_TC_OracleUV16` is never streamed.
+- **Budget:** each event's targets are released at revert, pending expires at revert + 2 (TCP:350-403), and the next
+  Apply is at revert + 6 (2 settle frames + 4 post frames).
+- **WP:** 432 frames at 30 fps is about 14.4 s, inside the runner's 240 s wait (`082-07-run.ps1:8`).
+
+### R21.4 D4: retained targets are judged by the post-GC object census; a separate fault unbalances the ledger
+
+**The defect, from source.** Retention does not touch the accounting. `ReleaseAllTargets` moves each output's bytes to
+pending (ATC:156-172; `FEventAccount::ReleaseCreated`, TCP:438-450), and pending expires on its due frame (TCP:392-403).
+So a retained render target reads **balanced**, and revision 2's "RetainRt reads unbalanced" could not fire.
+
+⚠ **A second trap, found while designing the replacement.** `FEventAccount::Close` releases whatever `Created` remains
+(TCP:452-458). A fault that merely skips `ReleaseCreated` for one output would still read balanced, because `Close` moves
+the bytes. The fault must make the event account forget the bytes without the ledger move.
+
+**Design change.**
+- **`IAI.Bench.TexCorruptRtCensus <0|1>`** replaces `…PostTeardownCensus` (same R2.11 gate). When on, after every ledger
+  judgement reading, the injector requests a full GC. Once the GC has completed, it logs
+  `TEXCORRUPT-RTCENSUS kind=<rollback|post_revert|post_teardown> ticket=<T|-> gc=1 found=<n> names=[…]` over the live
+  `UTextureRenderTarget2D` objects named `TexCorruptRT_*`. The readings are: `rollback` and `post_revert` (ATC:594-600),
+  and R2.6's `post_teardown`.
+- **`IAI.Bench.TexCorruptRetainRt <0|out|snap>`** (was `<0|1>`): the first released target of that kind, in the first
+  event, stays strongly referenced in a bench static array. The accounting is unchanged, so **the ledger reads balanced
+  by design**.
+- **New `IAI.Bench.TexCorruptOmitReleaseAccounting <0|1>`:** in `ReleaseAllTargets`, for the first output of the first
+  event, the render target is released as normal, but its bytes are subtracted from `Account.Created` and
+  `Account.Reserved` **without** `ReleaseToPending`. `Close` cannot re-release them, and the global `Live` keeps them.
+
+**G-SNAP-FAIL, re-declared.** Every leg has `TexCorruptRtCensus 1`. **4 legs** (was 2):
+
+| leg | rule | prediction |
+|---|---|---|
+| (a) FailStep `snap` | rollback reading `off=2 live=0 pending=0 balanced`; snapshot bytes created and released; no slot touched; the RTCENSUS after it `found=0` | PASS |
+| (b) target destroyed mid-drift | TARGET LOST → `post_revert` balanced at R + 2, snapshots included; RTCENSUS `found=0` | PASS |
+| (c) negative: `drift` + `TexCorruptRetainRt snap` | the census clause: `found ≥ 1`, naming a `TexCorruptRT_snap_*` ⇒ **FAIL** | its ledger reading is **balanced** (the ledger cannot see retention, which is why the census clause exists) |
+| (d) negative: `drift` + `TexCorruptOmitReleaseAccounting 1` | the ledger clause: `post_revert` `live>0 … unbalanced` ⇒ **FAIL** | its RTCENSUS reads `found=0` (the object was released) |
+
+- **Each fault fires its own clause and not the other.** That independence is the proof that the two clauses test two
+  things.
+- R2.6 LEVEL-CHANGE (a) is unchanged in substance: it judges RTCENSUS and uses `TexCorruptRetainRt out`.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| TCB (bench, gated) | `TexCorruptRtCensus` (renamed), `TexCorruptRetainRt <kind>`, `TexCorruptOmitReleaseAccounting` | TCB:90-363 |
+| ATC | the census request after the `rollback` / `post_revert` reading and after `post_teardown`; the retain and omit branches in `ReleaseAllTargets` | :156-172, :594-600, :1321-1330 |
+| TCS | the lever state, beside `GLevers` | :252 |
+| `tools/texcorrupt_pure_test.cpp` | an account whose bytes are forgotten leaves `Live > 0` after `Close`; `ReleaseCreated` + `Close` balances | — |
+
+**Premise-audit line.**
+- **GL:** the census must follow a completed GC (the line's `gc=1`), and render targets must be named (R2.6).
+- The levers exist only with `-IAIBench` (R2.11).
+
+### R21.5 D5: a binding keeps its association, layer index and texture path
+
+**The defect.** `{slot_key, param, texture}` cannot tell a global `Tex` from a layer-0 `Tex` on the same slot. The fixture
+has exactly that pair: `M53S1_BIND_ID_A1 :1997` (`param='Tex' assoc=global layer=-1 …T_TC_LayerGlobal`) and `:1998`
+(`param='Tex' assoc=layer layer=0 …T_TC_LayerLayer`). Swapping their textures leaves the flat rows unchanged.
+
+**Design change.**
+- `texcorrupt.bindings` rows are `{slot_key, param, association, layer_index, texture}`:
+  - `association` ∈ {`global`, `layer`, `blend`} and `layer_index` (−1 for global), derived as ATC:755-757 derives them
+    from `FMaterialParameterInfo`;
+  - `texture` is the full object path, as the DECIDE binding line prints it (TCT:958).
+- **The key is (`slot_key`, `param`, `association`, `layer_index`).** That tuple is the `FMaterialParameterInfo` (Name,
+  Association, Index), which is unique within one material, so the key is unique per slot.
+- R2.7's exact check compares the keyed rows with the DECIDE binding lines of installed slots, with texture-path equality
+  per key.
+
+**Can-fail: the association-swap negative (must FAIL).** On `BIND_ID_A1`'s inventory (slot
+`StaticMeshActor_57.StaticMeshComponent0[0]`), a hand-built `bindings` block exchanges the two textures between the
+global and the layer-0 row.
+- The flat `{slot_key, param, texture}` multiset is unchanged, so revision 2's check would pass it.
+- The keyed check FAILs it.
+- The G-BIND regression's `BIND_ID` leg on the S2 build supplies the real inventory the same swap is built from.
+
+**Source impact.** ATC: the rows gain `association` and `layer_index` (the values already exist in the per-binding
+record, ATC:755-757). TCT: `slot_key` on the binding line (already R2.7).
+
+**Premise.** **FX:** one slot carries both associations (`BIND_ID_A1`).
+
+### R21.6 D6: the swap flag is descriptive; a plugin-wide class needs the same trace and defective state
+
+**Design change.**
+- **A new cross-arm reading in family B:** C vs ID-F in K at every tail si, at the same cache setting. Both are family B,
+  so the same si is the same frame (R21.1).
+  - **SAME-TRACE-AS-ID-F:** both are present, and C vs ID-F ≤ 2 in K at every tail si.
+  - **DIFFERENT-TRACE:** C is present and exceeds 2 at any tail si.
+- **REPRODUCED-BY-SWAP stays a descriptive flag:** "reproduced by another material swap".
+- **PLUGIN-WIDE-RESTORE-DEFECT** (replaces PLUGIN-WIDE) requires **all** of:
+  - REPRODUCED-BY-SWAP;
+  - SAME-TRACE-AS-ID-F;
+  - not REPRODUCED-BY-REFRESH;
+  - **rendering-relevant defective state established after revert on both C's and ID-F's slots:** a slot's Effective
+    material differs from its pre-event value (the census)~~, or a slot is left `left-to-game` / `unresolved` (ATC:1114-1122;
+    ACT:246's counts for C)~~. 🔁 082-14 (M1, R22.1): **only the Effective mismatch establishes it, on both arms.** A
+    `left-to-game` / `unresolved` count alone never classifies; it is reported as a description.
+- **Otherwise REPRODUCED-BY-SWAP reads "reproduced by another material swap; CAUSE UNRESOLVED".** It goes to chat as a
+  description, not as an escalation class. Chat decides whether it reaches the owner.
+- STALE-NULL and M53-RESTORE-DEFECT are unchanged; both already require the state evidence. 🔁 082-14: M53-RESTORE-DEFECT
+  now also needs an Effective mismatch, not a disposition count (M1 extended, R22.1, flagged in §11).
+
+**Can-fail (synthetic, on the evaluator).**
+- A C tail equal to ID-F's but with every census Effective equal to its pre-event value reads CAUSE UNRESOLVED, never
+  PLUGIN-WIDE-RESTORE-DEFECT.
+- A C tail differing from ID-F's by 3 on 40 px reads DIFFERENT-TRACE.
+- The same-trace and defective-state case reads PLUGIN-WIDE-RESTORE-DEFECT.
+- 🔁 082-14 (M1): **the equal-Effective / non-zero-disposition negative.** Same trace, no refresh, `left-to-game` 30 on
+  both arms with every Effective equal reads CAUSE UNRESOLVED, never PLUGIN-WIDE-RESTORE-DEFECT. It and the rest of R22.1's
+  table are proven on the locked evaluator.
+
+**Source impact: none.** Harness: the S2-0 evaluator.
+
+### R21.7 The `noise` tolerance: measured before the lock, fixed at the lock, a FAIL after it
+
+**Design change.**
+1. **Measure (premise window, P-ORC, 1 new leg).** m53 identity (`IAI.Bench.TexCorruptIdentity 1`, `normal_corruption`)
+   on `TC_OracleN`, with `TC_OracleN_RefId` in view.
+   - Identity is a **correct implementation**: S1's G-ID read it exact on the BC5 normal row N-N1. It goes through the
+     same output path as `noise`: the BGRA8 output target and the normal sampler.
+   - RefId is baked by the same `noise_ref` code as RefA, with A = 0. That reduces to OracleN's own encoded values (§4),
+     and the offline proof asserts the equality.
+   - **τ_id** = the maximum per-pixel max-channel |d| between the identity tile and the RefId tile, over their eroded
+     interiors, on every captured frame.
+   - τ0 (the NoApply-1 OracleN tile vs RefId, display only) is reported beside it.
+   - §6.0 permits the leg: "probes use nulls, censuses or identity".
+2. **Fix (the lock amendment).** τ = τ_id + δ_arith.
+   - δ_arith is the offline bound on the arithmetic `noise` adds and identity does not: the normalise and the re-encode.
+     `noise_ref` computes it as the maximum level difference between a float64 evaluation and an fp16-intermediate,
+     round-to-nearest emulation, over every texel.
+   - **τ is never set from a `noise` leg.** Running the implementation under test to set its own tolerance would fit τ to
+     that implementation.
+3. **Soundness, checked offline at the fixed τ before the lock.**
+   - RefA2 and RefNeg must each FAIL the `noise` rule (≥ 99 % of interior px within τ, and none above 3τ). Given their
+     ≥ 32 separation on ≥ 128 texels, that holds when 3τ < 32, or when ≥ 1 % of pixels are beyond τ.
+   - **If either passes, or if P-ORC cannot produce τ_id, the reference cannot be matched at a sound tolerance.** That
+     is reported for a chat ruling **before the lock**, and no G-MODE-N `noise` leg runs as Q until chat rules.
+4. **After the lock, exceeding τ is a mode FAIL and stops the window** (§6.2's stop rule).
+   - The "τ ≤ 8" bound and the NOT-QUALIFIABLE debt are **withdrawn**.
+
+**Can-fail.** RefA2 and RefNeg, as above. A synthetic `noise` frame set with 2 % of interior px at τ + 1 FAILs.
+
+**Source / fixture impact: none.** RefId already exists (§4). Harness: `noise_ref` gains δ_arith. P-ORC goes from 2 legs
+to 3.
+
+**Premise.** The identity tile is displayed at ≥ 1:1, so the host samples the output target's mip 0 (P-ORC already
+checks the display).
+
+### R21.8 S2-0 runnability on the current staged S1 build (the brief's step 2)
+
+**The staged set, hashed read-only.** Exe `2FCDF059` (241,945,600 B), utoc `20DA6F98` (313,261 B), ucas `534C5863`
+(365,250,192 B), at `Builds\BenchGate\Windows\StackOBot`. It matches `m53-s1-maskedfix-cook-20DA6F98`. No StackOBot or
+editor process was running.
+
+**The token table (A44 method).**
+- The scanner is `E:\IA_BuildCache\_r82_13_scratch\token_scan.py`, not committed; the S2-0 brief re-runs it.
+- It counts each token in both ASCII and UTF-16LE, plus UTF-16 with a terminating NUL (the exact literal, so
+  `r.Shadow.Virtual.Cache` is not counted through `….Cache.DrawInvalidatingBounds`).
+
+| group | tokens (UTF-16 exact count; ASCII 0 for all) | result |
+|---|---|---|
+| BASE (17 commands) | `r.DefaultFeature.AutoExposure`, `r.EyeAdaptationQuality`, `CaptureBench.Marker`, `CaptureBench.Stall.GameMs`, `IAI.Capture.SVE`, `IAI.Capture.Delivery`, `IAI.Capture.Pace`, `IAI.Capture.Fps`, `r.AntiAliasingMethod`, `r.Lumen.DiffuseIndirect.Allow`, `r.DynamicGlobalIlluminationMethod`, `r.ReflectionMethod`, `IAI.Bench.SynthTickOrder`, `IAI.Capture.Mask`, `IAI.Capture.TargetMask` | 1 each: present |
+| S2-0 commands, levers, cvars | `IAI.Capture.Config`, `IAI.Capture.Start`, **`IAI.Capture.TexCorruptWarmDraw`**, `IAI.Bench.TexCorruptIdentity`, `IAI.Bench.TexCorruptNoApply`, `IAI.Anomaly.TexCorruptMaxRtBytes`, `IAI.Bench.TexCorruptCensus`, `r.Shadow.Virtual.Cache`, `r.Shadow.Virtual.Enable`, `DEFER`, `Reattach.Components`; ids `uv_corruption`, `corrupted_texture` | 1 each: present |
+| log tokens the evaluator keys on | the census BEGIN / END, `TEXCORRUPT-%s` + `DECIDE` (the DECIDE lines are assembled, TCT:932, :940, :958), APPLIED, the NoApply-1 / -2 markers, `Auto.FireSpecific … -> %s.` and `-> 0 matched.`, `IAI.Apply … -> %s.`, `IAI.Revert … -> reverted.`, the m53 `REVERT` summary and per-slot revert line, `corrupted_texture: overrode …` and `revert of …`, `Reattach.Components:` / `   Component: %s`, the warm echo, `WARM DRAW issued`, the cvar set and query echoes, `TEXCORRUPT-LEDGER id=%s kind=%s` | ≥ 1 each: present |
+| **absent controls** (S2-only levers) | `IAI.Bench.ExecAtFrame`, `…TexCorruptRetainRt`, `…TexCorruptRtCensus`, `…TexCorruptOmitReleaseAccounting`, `…TexCorruptDriftZero` | **0 in both encodings:** the scan can read an absence, so its 1s are readings |
+
+- **No `-IAIBench` is needed.** S2-0 uses only S1 levers, which are compiled under `#if !UE_BUILD_SHIPPING` (TCB:90-363),
+  and the runner passes none (`082-07-run.ps1:24`).
+- **The command-line length.** All 24 batches were generated from this section's recipe
+  (`E:\IA_BuildCache\_r82_13_scratch\s20_legs.py`). The longest (B-R, cache off: 29 commands, 292 `DEFER` tokens) is
+  **2,807 chars** of `-ExecCmds`, and **3,106 chars** with the exe path, map, flags and `-abslog`. The cap is
+  `MaxCommandLineSize = 16384` (`CommandLine.h:26`). `-ExecCmds` is read into an `FString` (`ParseExecCommands.cpp:55-64`)
+  and split on commas; no S2-0 command contains a comma.
+- **Engine facts the recipe relies on:**
+  - `Reattach.Components` is compiled in Development (`EngineGlobals.cpp:86-187`) and re-registers every live component
+    of the class (`:159-168`);
+  - `r.Shadow.Virtual.Cache` is `ECVF_RenderThreadSafe`, not a cheat (`VirtualShadowMapCacheManager.cpp:27-32`);
+  - a console set echoes `name = "v"` (`ConsoleManager.cpp:1957`), and the query adds `LastSetBy` (`:1972`);
+  - the `DEFER` and frame-order facts are in R21.1.
+- ⚠ **Never exercised on the bench, and therefore validated in-leg by T1–T8:** nested `DEFER` (the S1 harness never
+  issued it: 0 hits in `082-07-lib.py`, `-legs.py`, `-run.ps1`) and the warm-off m53 schedule (0 of 414 M53S1 legs).
+
+**Every S2-0 predicate, row by row: can a correct run satisfy it?**
+
+| predicate | satisfiable? | why |
+|---|---|---|
+| T1 the si → fi map | yes | A: the bank reads it exactly; B: the warm-free bank legs read its first two steps, and the third is the same code |
+| T2 warm | yes | the echo and the `WARM DRAW issued` line are in the exe; A's are banked at `[1]` / `[2]` |
+| T3 one fire, applied | yes | a targeted run fires once per burst and the cap ends the run before a second (ACS:705-718, :787-808) |
+| T4 the arm tokens | yes | APPLIED / NoApply-1 / NoApply-2 / overrode lines as in source; N2's shape is banked (`COLL_N_FMW_A1`) |
+| T5 the revert tokens | yes | `IAI.Revert … -> reverted.` and the m53 REVERT are banked at `[52]` on `COLL_N_FMW_A1` |
+| T6 the census at F − 2, F + 40 | yes, **unexercised** | depends on nested `DEFER`; source-derived; the first leg reads it |
+| T7 the refresh at F, F + 10 | yes, **unexercised** | the same |
+| T8 the cache echo | yes | the query form is S1 BASE's own pattern (`r.DefaultFeature.AutoExposure` query, `lib:457`) |
+| FX: target resolves; C names 12 components; R's lists include the 12 floor components | yes, with a limit | the overrode line prints the component count (ACT:131). The Reattach list prints `GetName()` only (`EngineGlobals.cpp:164`), and other RoomBuilder actors reuse the `NODE_AddInstancedStaticMeshComponent-*` names, so the check proves that the names appear; that every ISM-class component is re-registered holds by construction |
+| CD: the pinned trajectory | yes | fi 1–133 ⊂ 1–702; the fi 5 gap is bridged (lib:227-230) |
+| DP: same si ⇒ same frame | yes | T1 |
+| RS: ID-F 30/30 | not a validity row | a mismatch reads FOOTPRINT-UNMATCHED and everything else still reports |
+| WP: every scheduled command inside the capture | yes | the last is at fi 102 (B) or 82 (A); the last captured frame is fi 133 or 113 |
+| nulls: N1 vs N2 ≤ 2 in K | yes | Codex's bank reading: controls agree within 2 ~~at every si~~ 🔁 082-14 (R22.5): **over si 32–99 only**; si 0–31 reach 55 (launch-dependent streaming settle). The rule is read over the first labelled si to the last (`independent-shadow.json`) |
+| the evaluator's known answer (§3A.6) | yes | offline, on the seven banked A1 legs |
+| the readings and flags | yes | readings, not gates; every flag is a function of them |
+
+**Answer: YES, S2-0 is runnable as specified on the current staged S1 build, with no new binary.** It is conditional on
+the first leg of each type confirming the two unexercised mechanisms. If one fails, that stops the window for a declared
+amendment; it is not worked around on the bench.
+
+### R21.9 The other 082-12 rulings, recorded
+
+- **Accepted as written:**
+  - P2-9's reading of "by default", with the fix in S2;
+  - the 60-frame clean tail in every S2-0 cell;
+  - the footprint-matched refresh lever, decided after S2-0;
+  - `-IAIBench` and runtime lever registration.
+- **The M3 client-build check goes on `PRE-DELIVERY-CHECKLIST.md`'s M3 packaging list**, added when M3 opens, as proposed
+  in R2.11.
+- ⚠ **S2-0's harness name.** Revision 2 named it `_reviews\082-13-s20-*`, which is this brief's number. It is now named by
+  the S2-0 brief's own number (§3A.9).
+- ⚠ **§3A.5's CD row said "frame_index, t and view".** The trajectory carries the view only, and `trajectory_errors`
+  compares the pose. The row now says so.
+
+---
+
+## 🔁 082-12 — REVISION 2: Codex's design review (082-11) and chat's ruling applied
+
+**082-12, 2026-09-28. PLAN ONLY, bench-free.** No source, harness, CaptureBench, fixture, build, cook, stage or bench
+action was taken.
+
+**Inputs.**
+- `_reviews\082-11-chat-ruling-codex-s2-design-review.md`, which **governs**: all eleven findings are accepted.
+- `_reviews\082-11-codex-m53-s2-design-review.md`, including its mode table, its premise-audit table and its MainWorld
+  bank reading. The reproducer and readings (`bank_audit.py`, `independent-shadow.json`) are in
+  `_relay\runs\2026-09-28-082-11-m53-s2-design-review\`.
+- `_reviews\082-10-chat-ruling-s2-plan.md`.
+
+**Anchors.** Source anchors are at `f6b47d4`, whose source tree is identical to `2a8e350`. Four read-only research
+passes backed them: auto-pool, capture and m52; the texcorrupt lifecycle and telemetry; the fixture and corruptor graphs;
+the S1 harness, the bank and the 5.1 engine. The load-bearing anchors were re-read for this revision (the census ARM map,
+`DEFER`, `Reattach.Components`, the census lever, `StartRun`'s focus branch, `FRandomStream`, the auto-pool draw block).
+
+**Layout.**
+- **R2.1–R2.11**, one per ruling. Each has the four parts the brief asks for: **design change · gate or proof, with its
+  can-fail · source impact, file by file, with line anchors · premise-audit line.**
+- **§3A is S2-0** (ruling 3): its own section, runnable on the current staged S1 build.
+- **The body (§0–§12) is edited in place** wherever a ruling changes it. Each edit is marked 🔁 082-12 and points back here.
+  Superseded text is replaced rather than kept when keeping it would leave two contradictory rules. The pre-revision text
+  is at `f6b47d4`.
+
+| ruling | Codex finding | here | body sections edited |
+|---|---|---|---|
+| 1 | P2-1 mode correctness | R2.1 | §4 (oracle rows), §5.3, §6.0 (P-ORC), §6.2 (G-MODE-UV, G-MODE-N), §7 |
+| 2 | P2-2 drift snapshot | R2.2 | §2.3, §6.0 (P-SNAP), §6.2 (G-SNAP-*), §7 |
+| 3 | P2-3 S2-0 | R2.3, **§3A** | §3.2, §6.0 (P-VSM withdrawn), §9, §11 |
+| 4 | P2-4 renamed successor | R2.4 | §1.2 row 4, §2.6, §6.0 (P-RCR), §6.2 (G4 RECREATED), §7 |
+| 5 | P2-5 G5 Restoring | R2.5 | §2.6, §2.7, §6.0 (P-M52), §6.2 (G5), §7 |
+| 6 | P2-6 level change | R2.6 | §1.2 row 3, §2.5, §5.3, §6.0 (P-LVL), §6.2 (G4 LEVEL-CHANGE), §7 |
+| 7 | P2-7 telemetry | R2.7 | §1.2 row 10, §2.5, §5.3, §6.2 (G8, slots), §7 |
+| 8 | P2-8 RNG contract | R2.8 | §1.1, §2.2, §2.4, §5.3, §6.0 (P-SEED), §6.2 (G-SEED), §7 |
+| 9 | P2-9 cross-anomaly sharing | R2.9 | §2.7, §6.2 (G5-REV), §7, §11 |
+| 10 | P2-10 three predicates | R2.10 | §6.2 (G-REASON E6, G4 CAN, G3-S2, TRIP), §7 |
+| 11 | P3-1 levers in client builds | R2.11 | §2.6, §6.2 (G-LEVER), §11 |
+
+**Found while applying the rulings** (not in the review; each is corrected in the body, marked 🔁):
+
+- `fixture_layout_projection` does not exist in code. It appears only in this file. The layout premise now cites the
+  projection math (`make_texcorrupt_fixture.py:498-503`, `:543-546`) and each tile's `screen_px` in
+  `texcorrupt_fixture_actors.json` (`:540`).
+- **The fixture's own verify rejects the planned A3 producer.** `normal_proofs` fails any normal map bound outside
+  `NORMAL_READOUTS` and requires every entry there to be Default Lit (`make_texcorrupt_fixture.py:927-928`, `:939-958`).
+  An Unlit, emissive-only `M_TC_NormalUnconn` therefore needs a declared verify exception (§4).
+- **`TC_NN1` is weak for two modes.** Its cells change by only **25** (green_flip, cell 1) and **31** (flat, cell 3) levels
+  at the texel, below the fixture's own `PROOF_FLOOR 32` (`texcorrupt_fixture_images.py:25`, `:137`). G1-NAT's "changed"
+  rule still holds on its other cells, but this is one reason the mode oracle gets its own cells (R2.1).
+- **Nine `IAI.Bench.*` commands compile into Shipping today:** six in AIS (`:1069`, `:1108`, `:1132`, `:1153`, `:1176`,
+  `:1209`) and three in SLM (`:1055`, `:1079`, `:1198`). Recorded, not changed, except `DestroyTarget` (R2.11).
+- **No capture-active guard on several injection paths:** `IAI.Auto.Run`, `IAI.Auto.Step` and `IAI.Auto.FireOnce`
+  (AAI:157-184, :985, :988-995), raw `IAI.Apply` (AIS:769-794, :1004-1019), and the control server's `inject` /
+  `auto_fire_once` (`AnomalyControlServerSubsystem.cpp:468-499`, `:653-661`). This bears on R2.9.
+- **Render targets are created unnamed** (`NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None,
+  RF_Transient)`, TCD:33), so no object census can find them today (R2.6).
+- **`ApplyFrame` is written and never read** (ATH:142, ATC:686). **`Unresolved` has no `FRunStats` field**
+  (`Public/AnomalyTexCorrupt.h:18-21`).
+
+### R2.1 Ruling 1 (P2-1): a mode-specific output oracle
+
+**Design change.** G1 stays the **alignment** gate: onset, edges, every labelled frame changed. Two new Q rows judge
+**which transform was drawn**, on new fixture cells built to be asymmetric (§4 🔁):
+- **G-MODE-UV** for the UV family;
+- **G-MODE-N** for the normal family.
+
+Each classifies the output against **the null's own rendering of each cell**, so no absolute colour has to be predicted.
+
+1. **UV family (`tile`, `swap`, `scramble`, `drift`): the sampled source cell.**
+   - Every cell of `T_TC_OracleUV16` (4×4 cells of 32 texels) and `T_TC_OracleUV64` (8×8 cells of 16 texels) has a
+     distinct colour, so the colour of an output pixel names the source cell it came from.
+   - For each kept pixel p, the mode's map gives the expected source position s(p), from the authored graph
+     (`create_texcorrupt_assets.py:41-66`):
+
+     | mode | expected source position s(p) |
+     |---|---|
+     | `tile` | `frac(uv·N)` at `SrcMip` |
+     | `swap` | `uv.yx` |
+     | `scramble` | `i = a⁻¹·(j − b) mod K²`, with `j = c.y·K + c.x` row-major (`:50-60`) and (a, b) recomputed independently by R2.8's CRC spec, never read from the log |
+     | `drift` | `(frac(u + off_f), v)` |
+
+   - The expected colour is the null's colour of the cell containing s(p): the median of that cell's eroded interior on
+     the null frame at the same `session_index`.
+   - **Match:** within 16 of the expected colour, and at least 32 from every other cell's colour.
+   - Kept pixels are ≥ 3 px inside the tile edge, with s(p) ≥ 1.5 display px from any source-cell edge at the sampled mip.
+
+2. **Normal family (`invert`, `green_flip`, `flat`): the expected signed and encoded normal.**
+   - `T_TC_OracleN`'s cells hold a set of normals **closed under the tested transforms**: (±0.55, ±0.20), (±0.20, ±0.55)
+     and (0, 0).
+   - Every sign variant is present, so the output of `invert`, `green_flip`, a red-only flip or `flat` is itself a cell
+     of the null.
+   - Match per cell (as above) against the cell holding the expected normal (`NORMAL_ENCODE`,
+     `create_texcorrupt_assets.py:97-111`):
+
+     | mode | expected normal |
+     |---|---|
+     | `invert` | (−x, −y) |
+     | `green_flip` | (x, −y) |
+     | `flat` | (0, 0) |
+
+   - The oracle readout emits the decoded normal (`N·0.5 + 0.5`) with **BaseColor 0 and Specular 0**. The lit term is
+     therefore zero and the displayed colour depends on the normal only; this is a premise, read in P-ORC.
+
+3. **`noise`: a reference tied to the authored sample and amplitude.**
+   - `T_TC_OracleN_RefA` is baked offline from the authoring script's own `NOISE_WAVES` (`:35-39`, generation `:143-152`),
+     exactly as the graph samples them (`:291`): host UV0 untiled, `NoiseMip = clamp(level, 0, 8)`, `Noise.xy·A` added to
+     `n.xy` with `n.z` kept, normalised, encoded, for A = 0.5.
+   - It is stored as BGRA8 with `CompressionNone` and the normal sampler, the same decode the m53 output RT goes through.
+   - The `noise` leg's tile is compared pixel by pixel with the RefA tile (same size, depth and readout; a pure
+     translation). The tolerance τ is fixed in the premise window from the identity reference tile `RefId`.
+     🔁 082-13 (R21.7): τ = τ_id + δ_arith. τ_id is measured on a P-ORC **identity** leg against RefId; δ_arith is an
+     offline arithmetic bound. τ is fixed at the lock, checked for soundness against RefA2 / RefNeg before it, and a FAIL
+     after it.
+
+**Wrong-mode negatives run on real frames, not only on synthetic ones.**
+- Every production leg's frames are evaluated against every other mode of its family, and against identity. Each of those
+  evaluations must FAIL (< 50 % match).
+- Named cases:
+  - `invert` evaluated as `green_flip`, and `green_flip` as `invert`. This is the ruling's case: an `invert` implemented as
+    `green_flip` produces exactly the `green_flip` leg's frames, and fails the `invert` oracle.
+  - `swap` against identity.
+  - `tile` N = 8 against N = 4 and N = 16.
+  - `scramble` against the pairs of ordinal ± 1, and against the forward map (a used where a⁻¹ belongs).
+  - `drift` against rate ×2, rate ×½, the sign-flipped offset and a frozen offset.
+  - `flat` against identity.
+  - `noise` against `RefA2` (A = 0.25) and `RefNeg` (−noise).
+
+⚠ **Resolution limit, stated.** A one-frame `drift` timing error moves the picture by about 1 px (0.25 UV/s at 30 fps is
+1.07 texels on 128²), inside the edge exclusion. Per-frame timing is carried by G-RD-DRIFT (a)'s logged offset and G1's
+edges. The oracle carries rate, sign and sampling.
+
+**Gate or proof.**
+
+| row | legs | rule | can-fail |
+|---|---|---|---|
+| **G-MODE-UV** (Q) | `tile` ×8, `swap`, `drift` on `TC_OracleUV16`; `scramble` K = 8 on `TC_OracleUV64`; one NoApply-1 null on each tile — ~~**6 legs**~~. ~~`drift` uses `2 16 100 4 0`, 120 frames (offsets reach 0.42 UV)~~; the others `2 16 8 4 0`. 🔁 082-13 (R21.3): **`drift` uses `2 16 100 4 4`, 432 frames: four complete 100-frame events** (offsets ~~0.008–0.833 UV~~ 🔁 082-14 (M3): 0.0083, then 0.0333–0.85 UV, engine-frame k = 1, 4 … 102, each), **with its own NoApply-1 null on that schedule — 7 legs** | every kept pixel of every labelled frame of every counted event (≥ 4) matches; ≥ 512 kept px per frame. 🔁 082-13: the floor is the same for every mode, `drift` included | the wrong-mode evaluations above FAIL on the same frames; the null's frames evaluated as any mode FAIL; offline, before the lock, every listed pair of expectations differs on ≥ 25 % of kept pixels. 🔁 082-13: a one-event `drift` leg FAILs the coverage clause |
+| **G-MODE-N** (Q) | `invert`, `green_flip`, `flat`, `noise` on `TC_OracleN`, plus one NoApply-1 null — **5 legs** | `invert` / `green_flip` / `flat`: every cell interior matches the expected cell. `noise`: ≥ 99 % of interior px within τ of RefA, and none above 3τ | as above; `RefA2` and `RefNeg` fail the `noise` rule (offline, they differ from RefA by ≥ 32 on ≥ 128 texels). ~~**τ > 8 makes the `noise` oracle NOT-QUALIFIABLE: a mandatory debt shown to chat, never dropped**~~ 🔁 082-13 (R21.7): τ is fixed at the lock from P-ORC's identity measurement plus δ_arith. If RefA2 or RefNeg would pass at that τ, chat rules **before the lock**. After the lock, exceeding τ is a FAIL |
+
+**Source impact.**
+- **Plugin C++: none.** The oracle is a fixture and harness row; the authored graphs stay the reference definition.
+- **Fixture:**
+  - `texcorrupt_fixture_images.py`: the new images and their offline proofs (cell colour separation; the closed normal
+    set's encoded separation; the noise references and their negatives' separation).
+  - `make_texcorrupt_fixture.py`, in the `s2add` mode:
+    - the tiles;
+    - `M_TC_OracleUV`, an Unlit rgb readout in the `readout()` pattern (`:563-566`);
+    - `M_TC_OracleN`, a normal readout in the `:273-275` pattern with BaseColor 0 and Specular 0, registered in
+      `NORMAL_READOUTS` (`:435-440`) so `normal_proofs` (`:939-958`) accepts it;
+    - the references, bound through the same readout.
+  - **The S2 cook covers all of it** (§4, §8).
+- **Harness (§5.3 🔁):**
+  - `oracle_map`: the screen-to-UV fit from the null's cell grid;
+  - `ev_mode_uv` and `ev_mode_n`;
+  - `noise_ref`: the offline reference generator, shared with the fixture's offline proof.
+
+**Premise-audit line.**
+- **FX:** the oracle cells are new. Each must be separable on the null (≥ 32 between any two displayed cells; interiors
+  uniform to ≤ 2). The tiles must be visible and unoccluded, and displayed at ≥ 1:1, so the host samples mip 0.
+  → **PW P-ORC**.
+- **RS:** never streamed (the encoding-texture convention; `S()` defaults `never_stream` true,
+  `make_texcorrupt_fixture.py:143`).
+- **DP:** same-index cross-leg (G318).
+- **HL:** tile edges are excluded by 3 px and cells are eroded. G324's halo sits outside a changed tile, within 16 px.
+- **CD:** the F-SYN modal pose.
+- **Display:** the normal readout's lit term is zeroed by BaseColor 0 and Specular 0, so what remains is position-only.
+  RefId's cross-tile residual τ0 measures it (PW P-ORC).
+- **Placement:** the only free areas big enough for 128 px tiles are the lower corners outside the transition fan
+  (x < 304 and x > 976, y 410–676, at depth 1000; projection `make_texcorrupt_fixture.py:498-503`). S2-2 confirms them
+  from `texcorrupt_fixture_actors.json`'s `screen_px`; P-ORC confirms them on the null.
+
+### R2.2 Ruling 2 (P2-2): the drift snapshot path is qualified on its own
+
+**Design change.**
+- **Snapshot dispatch is explicit, not an enum alone** (Codex's implementation consequences):
+  - `AllocKind::Snapshot` gets its own branch in the allocation loop. Today the loop has Output and an `else` that means
+    Scratch (ATC:229-248).
+  - A per-output snapshot pointer is held strongly through `Hold` (ATC:73-84 → the subsystem's `TexCorruptStrongRefs`,
+    `AnomalyInjectorSubsystem.h:158-159`).
+  - It is released in `ReleaseAllTargets` (ATC:156-172) **and** on the rollback path `FailAt` (ATC:174-197).
+  - It is included in `EventRequirement` and `PlanAllocations` (TCP:198-216, :239-279), so V2's `Fits` and the reservation
+    see it **before** any allocation.
+- **The redraw binds the snapshot.**
+  - The level MIDs' source parameter and the mip tripwire accept a `UTextureRenderTarget2D`. Today the bound source is
+    `UTexture2D* Source` (ATH:42, set at ATC:740), and the tripwire reads `Source->GetResource()` (TCD:137-163).
+  - The redraw draws only from the snapshot. The live source is read only at Apply, to populate it.
+- **The clock** (Codex's drift-clock note). The offset for engine frame f is `frac(v·(f − ApplyFrame + 1)/VideoFps)`:
+  - `ApplyFrame` (ATH:142, written at ATC:686, read nowhere today) is the engine frame of Apply;
+  - frames that are not saved (settle) still advance it;
+  - the label row carries `uv_offset_u`, `uv_offset_v` and the draw frame.
+
+  G1-SYN and G-RD-DRIFT (a) check the first Apply frame in both dispatch orders.
+- **If `drift` is deferred under D5** (G-RD-DRIFT or any G-SNAP row fails), `drift` also leaves the qualified
+  auto-draw set: the enabled-mode knob refuses its name under that disposition.
+
+**Gate or proof.**
+
+| row | legs | rule | can-fail |
+|---|---|---|---|
+| **G-SNAP-ID** (Q): snapshot vs original, independent of the drift reference | `IAI.Bench.TexCorruptDriftZero 1` (offset forced to 0 on every redraw, through the snapshot path) on three encodings: **colour** U-C2 (`T_TC_UC2`, DXT1 sRGB); **data** `TC_RedrawOpaque` (BGRA8 linear, logged `class=data`); **normal** `TC_NN1` (BC5, reached by the UV family). 3 legs, plus nulls: G-ID regression's U-C2 / N-N1 nulls are reused and 1 new `TC_RedrawOpaque` null | every labelled frame vs the null at the same index: region max \|d\| ≤ 2 (G-ID's rule). The null never touches the snapshot path | `IAI.Bench.TexCorruptSnapshotFault mipshift` (populate the snapshot from SrcMip + 1) and `… chanswap` on U-C2 each read ≥ 16 (2 legs); their offline minima are computed first (G322) |
+| **G-SNAP-BIND** (Q) | every `drift` leg | at Apply, one `TEXCORRUPT-DRIFT-BIND level=<l> param=<p> tex=<name>` per level MID, read back from the MID (`GetTextureParameterValue`, as ATC:342-359 does), naming a snapshot RT (`TexCorruptRT_snap_*`) and never the source | a leg with `IAI.Bench.TexCorruptDriftLiveSource 1` names the source and fails the row |
+| **G-SNAP-RES** (Q): a real residency change while drift is active | `drift` on `TC_M52Share` (source `T_TC_M52Shared`, 1024², streamed; §4), recipe `2 40 30 4 0`. `ExecAtFrame 50 IAI.Apply stuck_low_mip =<TC_M52Hold>`, then `ExecAtFrame 56 IAI.Bench.TexCorruptCensus <TC_M52Hold>`. 3 legs: drift only · drift + m52 · drift + m52 + `TexCorruptDriftLiveSource 1` | the frame-56 census reads the shared source **below** its full chain (the premise, read in the leg itself); drift + m52 vs drift only, at the same index, inside the target mask: ≤ 2 on every labelled frame; tripwire 0 | the live-source leg reads ≥ 16 from the first labelled frame after the census-confirmed drop |
+| **G-SNAP-FAIL** (Q): ownership edges | (a) FailStep at a new step `snap` (after the snapshots are allocated and populated, before the outputs); (b) the target destroyed mid-drift (`IAI.Bench.DestroyTarget`, behind the R2.11 gate). 2 legs | (a) rollback `off=2 live=0 pending=0 balanced`, snapshot bytes counted created and released, no slot touched; (b) TARGET LOST → revert → `post_revert` balanced at R + 2, snapshots included. 🔁 082-13 (R21.4): **plus, on both, a post-GC `TEXCORRUPT-RTCENSUS … found=0`** (`TexCorruptRtCensus 1`) | S1's FailStep proofs stand; ~~a leg with `IAI.Bench.TexCorruptRetainRt 1` (R2.6) reads unbalanced~~ 🔁 082-13 (R21.4): **two negative legs, one per clause.** `TexCorruptRetainRt snap` ⇒ RTCENSUS `found ≥ 1` FAILs (its ledger reads balanced); `TexCorruptOmitReleaseAccounting 1` ⇒ `post_revert` unbalanced FAILs (its census reads `found=0`) |
+| **G-SNAP-BUDGET** (Q) | `TC_M52Share`. From TCP's formulas for a 1024² BGRA8 texture: output chain **5,592,404 B**, scratch **1,398,100 B**, snapshot **5,592,404 B**. Three legs: `IAI.Anomaly.TexCorruptMaxRtBytes 9000000` with `drift`; the same cap with `tile`; the cap set to drift's logged need exactly, with `drift` | at the 9,000,000 cap, `drift` refuses `over_budget` at V2 with need = outputs + snapshots + scratch (12,582,908), and `tile` (6,990,504) applies. At the exact cap, `drift` applies | the two caps straddle only the snapshot term: a build that left the snapshot out of `EventRequirement` applies `drift` at 9,000,000 and fails the row |
+
+- The knob is in **bytes**, range 1,048,576–1,073,741,824 (TCC:139-141, TCS:172-173), so the boundary is exact.
+- The byte figures are predictions from TCP's formulas; the rows read the logged `required_bytes`.
+- G-RD-DRIFT's `noclear` negative stays: it tests accumulation, a different defect.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| TCP | `AllocKind::Snapshot`; the plan and `EventRequirement` include one chain per unique `drift` output | TCP:198-216, :228-232, :239-279 |
+| ATC | a snapshot allocation branch; populate the snapshots first (an identity draw of every level from the live source); bind the level MIDs' source parameter to the snapshot; release snapshots in `ReleaseAllTargets` and `FailAt`; the offset from `ApplyFrame`; the `TEXCORRUPT-DRIFT-BIND` line | ATC:156-197, :199-285, :287-361, :686, :1014-1029, :1075-1078 |
+| ATH | `FOutput::Source` widens to `UTexture*` (a 2D texture, or a snapshot RT for the redraw); a `Snapshot` member per output | ATH:42-58 |
+| TCD | the tripwire and the mip copy accept an RT source; RTs are named `TexCorruptRT_<out\|scratch\|snap>_*` (with R2.6) | TCD:23-72, :109-163 |
+| TCB (bench, behind R2.11's gate) | `TexCorruptDriftZero`, `TexCorruptSnapshotFault <mipshift\|chanswap\|0>`, `TexCorruptDriftLiveSource`; FailStep gains step `snap`. 🔁 082-13 (R21.4): `TexCorruptRtCensus`, `TexCorruptRetainRt <0\|out\|snap>`, `TexCorruptOmitReleaseAccounting` | TCB:90-363 (the FailStep lever at :279) |
+| `tools/texcorrupt_pure_test.cpp` | snapshot bytes in `EventRequirement` and the plan; the offset formula across unsaved settle frames | — |
+
+**Premise-audit line.**
+- **FX:** U-C2, `TC_RedrawOpaque` and `TC_NN1` are never streamed, and S1 proved identity exact on the direct-source
+  path (G-ID 0).
+- **RS:** `T_TC_M52Shared` must be fully resident at `drift`'s Apply (T10) and must drop during the event
+  → **PW P-SNAP** reads the census at frames 42 and 56.
+- **GL / WP:** DestroyTarget and FailStep as in S1.
+- **Codex's P2-2 is why:** the static reference shares the snapshot path, so it no longer carries identity. G-SNAP-ID's
+  null never touches that path.
+
+### R2.3 Ruling 3 (P2-3): S2-0 becomes a matrix — see §3A
+
+**Design change.**
+- P-VSM leaves the premise window.
+- **S2-0 is §3A:** a matrix of three intervention arms × shadow cache on/off, each cell with its own non-installing
+  nulls, a single event followed by an equally long clean tail, the footprint and slot state logged, and predictions
+  declared first. It runs on the current staged S1 build.
+- **082-10's decision tree is withdrawn.** It assigned causes that its comparisons cannot separate, and its three
+  verdicts are not mutually exclusive (Codex).
+
+**Gate or proof.** S2-0 has **readings and outcome flags, no Q verdict**. Its outcome goes to chat's ruling before
+S2-1. Its evaluator is proven first against a known answer: it must reproduce Codex's `independent-shadow.json` on the
+seven banked legs exactly (§3A.6).
+
+**Source impact.**
+- **None on the current build.**
+- **Conditional:** if S2-0 plus its state evidence establish a restore defect in the m53 path, the fix joins S2-1. It
+  would be in the revert path, ATC:1081-1192. Nothing is sized until then.
+- R2.4's `TEXCORRUPT-SLOTSTATE` line gives S2 the post-revert slot state that the current build can read only through the
+  census lever.
+
+**Premise-audit line.** Given per leg in §3A.5.
+
+### R2.4 Ruling 4 (P2-4): the renamed successor keeps §R8.3's cleanup contract
+
+**Design change.** §R8.3's contract is kept unchanged (`docs/predictions/2026-09-26-m53-uv-normal-corruption.md:1243-1264`).
+- **The renamed row proves cleanup, not exact restore:**
+  1. after the revert, no slot of any mesh component of the owner still holds one of our host MIDs;
+  2. the successor's slot falls back to the **asset default** (`GetMaterial(i) == Asset`). For `TC_UC1` that is
+     WorldGridMaterial, while the original raw override is `M_TC_UC1` (`M53S1_G4_TWO_A1/_leg/game.log:2004` records both);
+  3. `unresolved = 1` and `swept ≥ 1` for the recreated slot;
+  4. render targets are released and the ledger is balanced at R + 2.
+
+  **It makes no exact-restore claim.**
+- **The same-name variant is the exact-restore control.** The component is re-found by name (ATC:1106-1110), the slot
+  reads `restored-exact`, and the material is pointer-identical to Raw (ATC:1128-1132).
+- **Limitation, recorded here and in §12:** a component re-created under a new name while corruption is active falls back
+  to its asset default. This is §R8.3's sweep (step 4), which is "cleanup, … never evidence of an exact restore".
+
+**Gate or proof.** G4 RECREATED is four legs:
+- renamed uv;
+- renamed normal;
+- same uv;
+- 🆕 **the retained-host-MID negative:** renamed uv with `IAI.Bench.TexCorruptSkipSweep 1`. The successor keeps the MID,
+  so the row must **FAIL** on clause (1). This is the negative Codex asked for: a same-name success alone does not show
+  that a renamed cleanup failure would be caught.
+
+The slot state is read from R2.4's `TEXCORRUPT-SLOTSTATE` line, which is written after the sweep.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| ATC | after the owner sweep, one `TEXCORRUPT-SLOTSTATE owner=<o> slot_key=<component path>#<i> current=<material> ours=<0\|1> override_len=<n>` per slot of every mesh component of each touched owner (bounded by the owner's slot count; Log verbosity, shipping). It is the post-revert slot state that G3-S2, G4 and S2's MainWorld rows read | after ATC:1144-1171 |
+| ATC + `Public/AnomalyTexCorrupt.h` + ACS | `Unresolved` joins `FRunStats` (today it is counted locally and dropped, ATC:1111-1116; `FRunStats` at `Public/AnomalyTexCorrupt.h:18-21`) and `run_summary` gains `texcorrupt_unresolved` (beside the others at ACS:5736-5786) | as named |
+| TCB (bench, gated) | `IAI.Bench.TexCorruptSkipSweep <0\|1>`; `IAI.Bench.TexCorruptRecreateComponent` as §2.6 plans | TCB:90-363 |
+
+**Premise-audit line.**
+- **GL / FX:** whether a root component can be destroyed and replaced at runtime → PW P-RCR (unchanged).
+- **src:** the renamed successor carries the host MID through the copied override array; it is not found by name
+  (ATC:1106-1110), so the slot is `unresolved` (ATC:1111-1116); the sweep sets it to nullptr (ATC:1144-1171); so it
+  resolves to the asset default. The disposition is **predicted from source**; no probe is needed to discover it (Codex).
+  P-RCR reads that the lever did destroy the original and that the successor did hold the MID.
+
+### R2.5 Ruling 5 (P2-5): G5 RESTORING proves the drop and the insertion
+
+**Design change.** The premise leg and every gate leg prove three things.
+1. **A measured residency drop before Revert.** `ExecAtFrame 35 IAI.Bench.TexCorruptCensus <TC_M52Hold>` reads
+   `T_TC_M52Shared` below its baseline.
+2. **An actual insertion into Restoring.** Today insertion is silent, and it happens only for a texture still below
+   baseline: `if (Tex->GetNumResidentMips() >= H.BaselineResidentMips) { ++AlreadyBack; continue; }` (SLM:772-785). A new
+   SLM line `STUCKMIP-RESTORING tracked tex=<name> resident=<r> baseline=<b> frame=<f>` is written at the insertion, and a
+   `STUCKMIP-RESTORING already_back tex=<name>` line on the skip.
+3. **At the m53 decision (frame 42),** T7 refuses `held_by_stuck_low_mip` for that texture (TCT:423-427).
+
+**The fallback** (only if P-M52 shows that the new fixture cannot produce 1 and 2 deterministically):
+- `IAI.Bench.StuckMipPinRestoring 2` inserts the texture at Revert regardless of residency, and pins it.
+- That row is then labelled **state/plumbing**, never live-restoring evidence.
+
+**Pin cleanup at run end:**
+- the pin clears at `FinishRun` and on world teardown, with the echo `pin cleared`;
+- the entry then follows the normal loop to `RESTORE VERIFIED` (SLM:874-885) or its timeout report (SLM:902-912);
+- the row requires the clear line.
+
+🔻 **Correction: the ratio claim is withdrawn.** Targeted and raw m52 already bypass both the texel ratio and the
+co-affected limit. `bAutoPool` is false, so `MaxCoAffected = INT_MAX` and `MinTexelRatio = 0` (SLM:344-357). Auto-pool
+selection is set only around the auto apply (AAI:379-381). So `StuckMipMinTexelRatio 0` is removed from P-M52 and G5,
+and the shared pair is justified by shared-texture coverage, not by a ratio rejection.
+
+**Gate or proof.**
+- **G5 HELD and RESTORING** (§6.2 🔁) carry clauses 1–3 and the pin-clear line.
+- 🆕 A **control leg:** the same recipe with no m52 apply. m53 **APPLIES** on `TC_M52Share` at frame 42, which shows the
+  refusal comes from T7 and nothing earlier.
+- A gate leg missing clause 1 or 2 is **FIXTURE-CANNOT-EXERCISE** for RESTORING and stays a **visible mandatory debt for
+  chat**; it never quietly narrows what S2 claims (Codex's scope rule for the premise window).
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| SLM | the two `STUCKMIP-RESTORING` lines; the pin lever (gated, R2.11) with mode 1 (pin an inserted entry) and mode 2 (insert and pin, plumbing only); `AnomalyStuckMip::ClearBenchPins()` | SLM:721-819 (Revert, insertion :772-785), :837-920 (TickAlways; early return :852-855) |
+| ACS | `FinishRun` calls `AnomalyStuckMip::ClearBenchPins()` | ACS:5305-5993 |
+
+**Premise-audit line.**
+- **RS:** m52's hold lowers residency over several frames, and whether the drop has happened by frame 35 on the new pair
+  → **PW P-M52**, census at 35.
+- **src:** insertion is conditional (SLM:772-785), and TickAlways returns at once on an empty list (SLM:852-855).
+- The bank's m52 timings (`M52D_M52D_G3_HOLD_NAT/…/anomaly_log.txt:1245`, `:1287`, `:1306`) are a different fixture
+  and do not transfer (Codex).
+
+### R2.6 Ruling 6 (P2-6): the level-change protocol, as Codex proposed
+
+**Design change.** A LEVEL-CHANGE leg must show, in this order:
+1. **APPLIED before the open.** Identity applies at frame 18; `ExecAtFrame 21 open /Game/CaptureBenchGate/CB_GateLevel`.
+2. **A world-ending target-loss revert for that event:** `TARGET LOST (world ending)` → REVERT.
+3. **The old-world `world_teardown` line with `balance=not_yet_due`**, and a new field `ticket=<T>`.
+   - Today the line is written after `Revert()` in the same call (ATC:1315-1329), so its `live` is normally 0; the
+     non-zero quantity is `pending`, and the balance is necessarily `not_yet_due`.
+   - The post-revert sample is then cleared (`PostRevertFrame = 0`, ATC:1331-1334).
+4. **A tagged new-world reading, `kind=post_teardown ticket=<T>`,** at or after the due frame, **from the same ticket.**
+   - The ticket lives in module-level state (TCS, beside `GLevers` and `GTripwire`), so it outlives the old anomaly
+     instance.
+   - The ledger itself is already global (`Ledger()`, ticked at the top of every `TickAlways`, ATC:1033).
+   - The next world's m53 instance reads the ticket in its `TickAlways` (ATC:1031-1038) using the same
+     `JudgeLedgerReading` rule (TCP:746-753).
+5. **A separate post-GC census-complete token.**
+   - It is enabled by ~~`IAI.Bench.TexCorruptPostTeardownCensus 1`~~ 🔁 082-13 (R21.4) `IAI.Bench.TexCorruptRtCensus 1`
+     (bench, R2.11 gate), set in the frame-1 batch; it survives the world change. The same lever also runs the census after
+     `rollback` and `post_revert` readings; its line carries `kind=`.
+   - After the post_teardown reading, the injector forces `CollectGarbage` and iterates the `UTextureRenderTarget2D`
+     objects, then logs `TEXCORRUPT-RTCENSUS ticket=<T> gc=1 found=<n> names=[…]`.
+   - The runner's `level_change` kind waits for **this** token, not for post_teardown, before it kills.
+- **For that census to be able to see ours, render targets are created named `TexCorruptRT_*`** (TCD:33 creates them
+  with `NAME_None` today).
+- **Claim scope.** This proves the declared **ledger and object** contract, not physical GPU deallocation (Codex). The
+  new-world reading reads the global ledger (both ids).
+
+**Gate or proof.** G4 LEVEL-CHANGE, uv and normal (2 legs). The rule is the token order:
+
+`APPLIED < TARGET LOST (world ending) < REVERT < world_teardown(T, not_yet_due) < new-world boot < post_teardown(T,
+frame ≥ due, live=0 pending=0 balanced) < RTCENSUS(T, found=0)`
+
+where the new-world boot is `Bringing World … up for play` naming `CB_GateLevel`.
+
+Can-fail:
+- **(a) A retained render target must be seen.** `IAI.Bench.TexCorruptRetainRt 1` (🔁 082-13, R21.4: `… out`) keeps one
+  released RT strongly referenced in a bench-only static array. RTCENSUS reads `found=1` and the row **FAILs** (1 leg).
+  This proves the census can see a deliberately retained named RT. 🔁 082-13: its ledger reading is predicted balanced
+  (retention does not touch the accounting), so this negative exercises the census clause only.
+- **(b) Synthetic logs FAIL** when any token is missing, duplicated or out of order, or carries a different ticket.
+- **(c) A late open reads NOT-EXERCISED, never PASS** (synthetic): APPLIED absent, or the event reverted before the open.
+  This replaces the old negative, which used the wrong ledger phase.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| ATC | on teardown: issue the ticket and log it on the `world_teardown` line; the next world's instance reads the ticket and logs `post_teardown`; then, when the lever is on, the forced GC and the RTCENSUS line | ATC:1031-1038, :1315-1335 |
+| TCS | the module-level ticket store | beside `GLevers` (TCS:252) and `GTripwire` |
+| TCD | named render targets | TCD:33 |
+| TCB (bench, gated) | ~~`TexCorruptPostTeardownCensus`~~ 🔁 082-13 `TexCorruptRtCensus`, `TexCorruptRetainRt` (🔁 082-13: `<0\|out\|snap>`) | TCB:90-363 |
+| S2 harness | the `level_change` runner kind waits for RTCENSUS; `ev_g4_level` checks the token order and the ticket | §5.3 |
+
+**Premise-audit line.**
+- **GL:** `open` tears the world down, and the injector reverts on teardown (AIS:406-438; ATC:1315-1320).
+- **WP:** ExecAtFrame's schedules are bound to their world and removed **before** it runs a command that can change the
+  world (Codex's ExecAtFrame trap, R2.11).
+- **The new world must tick the m53 instances past the due frame, and then GC** → **PW P-LVL** reads every token.
+
+### R2.7 Ruling 7 (P2-7): telemetry, with the serialisation change in scope
+
+**Design change.**
+- **The model** (`Public/AnomalyTelemetry.h:5-73`) already allows several named top-level arrays of flat
+  primitive-field objects. It has no nesting and no int64. It cannot hold an **empty** array, because `AddArrayEntry`
+  creates a key only together with its first entry (`:61-72`). S2 adds **`DeclareArray(Key)`**, so a declared list with
+  no entries serialises as `[]`. That is the whole serialisation change.
+- **No nesting is needed.** The plan's `textures[].slots[]` and the numeric array `uv_offset` are replaced by flat
+  shapes:
+
+| key (new, additive, inside m53 entries only) | shape | meaning |
+|---|---|---|
+| `texcorrupt.slots_installed` | declared array of `{slot_key, owner, component, slot (int), raw, resolved}` | the **committed** slots (`FOwnedSlot.bCommitted`, ATC:967-980), in commit order; `[]` when none |
+| `texcorrupt.slots_qualified_uncommitted` | declared array of `{slot_key}` | **bench NoApply-1 only**: qualified and not committed (ATC:959-966); absent otherwise |
+| `texcorrupt.bindings` | declared array of ~~`{slot_key, param, texture}`~~ 🔁 082-13 (R21.5) `{slot_key, param, association, layer_index, texture}`, `texture` the full object path | the texture-to-slot relation for installed slots; `[]` when none. Key: (`slot_key`, `param`, `association`, `layer_index`) = the `FMaterialParameterInfo`, unique per slot |
+| `texcorrupt.slots_untouched[].slot_key` | new string field inside the existing entries | the canonical identity added beside the existing `slot` (whose value, `CompName[i]`, has no owner, ATC:688-700, and is kept unchanged) |
+| `texcorrupt.uv_offset_u`, `texcorrupt.uv_offset_v` | float | the offset drawn for this frame (`drift`) |
+| `texcorrupt.draw_frame` | int | the engine frame the offset was drawn for (`drift`) |
+| `texcorrupt.scramble_cells`, `.scramble_a`, `.scramble_b`, `.ordinal` | int | K, the pair, and the attempt ordinal (R2.8) |
+| `texcorrupt.noise_amp`, `.flat_mix` | float | the values used |
+
+- **One canonical identity everywhere:** `slot_key = <component GetPathName()>#<slot index>`. It is used in the telemetry
+  above, the DECIDE slot and binding lines (TCT:939-944, :957-964), the revert per-slot line (ATC:1138-1141), R2.4's
+  SLOTSTATE line and the census. A bare `StaticMeshComponent0[0]` is ambiguous across owners (Codex).
+- **Committed, refused and qualified-but-uncommitted are kept apart.**
+  - **Refused** = non-qualified; these are the existing `slots_untouched` entries with their reasons (ATC:688-700).
+  - **Committed** = `slots_installed`.
+  - **Qualified but uncommitted** exists only under the bench NoApply-1.
+
+**Gate or proof.**
+- **The partition assertion covers real commits only.** On every non-NoApply leg:
+  `slots_installed ∪ slots_untouched` equals the DECIDE log's slot inventory, keyed by `slot_key`, and the two are
+  disjoint; and `|slots_installed| = texcorrupt.slots_corrupted`.
+- **NoApply is validated separately:**
+  - NoApply-1: `slots_installed = []` and `slots_qualified_uncommitted` = the DECIDE log's qualified set;
+  - NoApply-2: `slots_installed = []` and `bindings = []`.
+- **Binding-to-slot is verified against the event's own captured binding inventory.** `bindings` equals the DECIDE per-slot
+  binding lines (TCT:957-964) restricted to installed slots, exactly. A binding row naming an untouched slot, or a missing
+  row, FAILs. This closes Codex's "attach the transformed texture to a refused slot and still pass".
+  🔁 082-13 (R21.5): rows are compared **by key** (`slot_key`, `param`, `association`, `layer_index`), with texture-path
+  equality per key. The DECIDE binding line already prints `assoc=` and `layer=` (TCT:958; `BIND_ID_A1 :1997-1998`).
+- **Non-m53 label output stays byte-identical.** Two parts:
+  - by construction, only m53 calls the new API, and the writer's existing loops (`AnomalyLabelWriter.cpp:133-178`) are
+    not changed; this is checked on the S2-1 diff;
+  - **proven on banked runs (G8-VAL, §6.2 🔁):** a banked pre-S2 non-m53 run is compared byte for byte with the same recipe
+    on the S2 build, after only the declared run-unique fields are removed.
+- **m53's existing keys keep their shapes.** A key → JSON-type map is built from the S1 bank's m53 entries (9,657 entries,
+  082-08) and compared with every S2 leg's. Every S1 key keeps its type; new keys are additive only.
+- **The empty-array statement:** `slots_installed`, `bindings` and `slots_qualified_uncommitted` (where present) are always
+  emitted, as `[]` when empty. A missing key where it is declared FAILs.
+- **Can-fail:**
+  - synthetic rows, one per clause: a binding on an untouched slot, a slot in both sets, a missing declared array, a
+    changed type;
+  - on the bank, the S1 F-MW partial-fire logs with a hand-built telemetry block that attaches a texture to a refused slot;
+  - 🔁 082-13 (R21.5): **the association-swap negative.** On `BIND_ID_A1`'s inventory, the global `Tex` and layer-0 `Tex`
+    textures are exchanged in a hand-built block. The flat multiset is unchanged, and the keyed check must FAIL.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| `Public/AnomalyTelemetry.h` | `DeclareArray(Key)`; entries stay flat | :5-73 (`AddArrayEntry` :61-72) |
+| `AnomalyCapture/Private/AnomalyLabelWriter.cpp` | a declared array with zero entries is written as `[]` (the loop at :152-178 serialises every declared pair; if it skips empties, one condition changes there). No change to the Ints, Floats, Bools or Strings paths (:136-151) | :133-178 |
+| ATC | builds `slots_installed` from the committed `FOwnedSlot`s, `bindings` from the per-slot binding inventory, and adds `slot_key` to untouched entries; emits the new keys. 🔁 082-13 (R21.5): each binding row carries `association` and `layer_index` from the per-binding record | :688-700, :755-757, :785-803, :959-980, :1244-1302 |
+| TCT | `slot_key` on the DECIDE slot and binding lines | :939-944, :957-964 |
+| ATH | `FOwnedSlot` keeps the component path name captured at Apply | :70-83 |
+
+**Premise-audit line.**
+- **FX:** a non-trivial installed set exists on MainWorld: 12 of 30 committed on `FMW_ID` (`_leg/game.log:2405`,
+  `:2540`), and 21 qualified on `FMW_CTL_B` (`_leg/game.log:2406`).
+- **src:** `GetTelemetry` emits nothing when inactive (ATC:1246-1249), so R6 item 9's presence row scopes by the active
+  lifetime.
+- **G8's field sets** need the nested types and the empty arrays included in the comparison (Codex, the G8 can-fail row).
+- ⛔ The fields give slot identities and the texture-to-slot relation. They are not a pixel mask and not per-instance ISM
+  attribution (Codex).
+
+### R2.8 Ruling 8 (P2-8): the RNG contract
+
+**Design change (chat's decision).**
+- **Every m53 attempt consumes exactly one mode draw, even with an empty enabled set.** An empty set then refuses
+  `mode_invalid` sub **`no_mode_enabled`** (the plan's `no_enabled_mode` is renamed to the ruling's word).
+- **Non-m53 ids consume none.** So the stream position does not depend on the mode configuration, and changing D5's sets
+  never perturbs another draw.
+
+**Why the draw is explicit.** `FRandomStream::RandHelper(A)` is `(A > 0) ? TruncToInt(GetFraction() * float(A)) : 0`
+(`Engine/Source/Runtime/Core/Public/Math/RandomStream.h:186-189`), so `RandHelper(0)` consumes nothing. The mode draw is
+therefore **one explicit `GetFraction()`** (`:115-121`), with the index `N > 0 ? TruncToInt(U·N) : none`. For N ≥ 1 this
+is RandHelper's own truncation.
+
+**The draw protocol inside `TryFireOnce`, in order** (anchors at `f6b47d4`):
+1. the id: `RandHelper(Eligible.Num())` (AAI:272). The early returns before it consume nothing: :209, the census wait,
+   :253, :259;
+2. the target: `RandHelper(Candidates.Num())` (AAI:374). The no-candidates return at :361-372 comes after draw 1;
+3. the hold: `FRandRange(HoldMin, HoldMax)` (AAI:375);
+4. 🆕 **for an m53 id only, the mode fraction**, then the apply with the mode argument (AAI:379-381).
+
+`TryFireSpecific` (targeted) draws no mode: its mode is the typed argument. The free-running loop's interval draws
+(AAI:187-197) are unchanged.
+
+**The empty-set route.** The auto-pool passes a reserved token `!none`. The mode parser accepts that token only under
+auto-pool selection (`IsAutoPoolSelection`) and refuses it at E6 with `no_mode_enabled`. A typed `!none` is refused
+`unknown:!none`.
+
+**The log, for every attempt, applied or refused** (it replaces the HUD-only, one-decimal hold of AAI:391 and the hold-less
+`Auto.Fire` line at :397-398):
+
+`Auto.Draw attempt=<o> seed_before=<u32> id=<id> eligible=<n>:<fp> target=<name> candidates=<n>:<fp> hold=<%.9g>
+mode=<m|none|-> seed_after=<u32> result=<applied|0 matched|no_candidates>`
+
+- `seed_before` is `GetCurrentSeed()` before the id draw;
+- each `fp` is a CRC fingerprint of the sorted names, so a mismatch can be pinned on the candidate set rather than the
+  draw (Codex's premise-audit row);
+- `attempt` is the run-wide attempt ordinal.
+
+**The scramble-pair derivation, made exact** (Codex's CRC spec):
+- `h = FCrc::MemCrc32(B, 12, 0)`, where B is exactly three 32-bit little-endian words `{Seed, Ordinal, 0x53434D52}`,
+  written into a `uint8[12]` by hand. No aggregate is hashed, so there are no padding bytes.
+- `Seed` is the auto-injector's configured seed, which `StartRun` sets from the capture's seed argument (ACS:3005-3012).
+- `Ordinal` is the per-id, per-run count of m53 Apply calls before this one; **the first attempt is 0.** It is
+  incremented on every Apply call, whether it applies or refuses, on every entry path. It is reset at `StartRun`
+  (`AnomalyTexCorrupt::ResetRunStats`, ACS:3209).
+- It is logged as `ordinal=` on the DECIDE/REFUSED line and as `texcorrupt.ordinal`, and `h` is logged as `scramble_h`.
+- It consumes no pool-stream draw. `FiresApplied` is not used (it counts applies only).
+
+**Gate or proof.**
+- 🆕 **The real selection routine against an independent known-answer stream (a pure test).**
+  - The draw order above becomes one template in TCP, `DrawAttempt<TStream>`, with callables for the candidate count
+    and the mode count. **AAI calls it** with `FRandomStream`.
+  - `tools/texcorrupt_pure_test.cpp` calls the same template with an independent generator written from the engine's
+    documented definition: `Seed = Seed·196314165 + 907633515` (`RandomStream.h:353-355`); the fraction from
+    `0x3F800000 | (Seed >> 9)` (`:115-121`).
+  - The expected values come from a third implementation, `tools/texcorrupt_draw_kat.py`, committed as a table.
+  - Cases:
+    - zero, one and several enabled modes;
+    - applied and refused attempts, with an identical sequence (R-SEED);
+    - non-m53 ids (no mode draw);
+    - the no-candidates early return (exactly one draw);
+    - m53 and non-m53 attempts interleaved;
+    - an empty set: one draw, then `none`.
+  - **CRC:** an independent CRC-32 (reflected 0xEDB88320), checked on `"123456789"` → 0xCBF43926, and on six declared
+    (seed, ordinal) vectors from the Python script's `zlib.crc32`. It covers refusal interleaving (a refused attempt uses
+    up an ordinal) and reset (two runs in one process both start at 0).
+- **G-SEED (§6.2 🔁) keeps the census-off comparisons as integration evidence,** and adds:
+  - (c) **a full recompute on real runs:** the harness replays each leg from seed 4242 with its own Python generator,
+    using the logged counts, and every logged id index, target index, hold, mode and `seed_after` must match;
+  - (d) **non-vacuous coverage:** across the F-SYN G-SEED legs, ≥ 3 attempts per m53 id, ≥ 1 applied and ≥ 1 refused m53
+    attempt, and ≥ 1 non-m53 attempt between m53 attempts;
+  - 🆕 **one leg with `IAI.Anomaly.TexCorruptUvModes none`:** every uv attempt refuses `mode_invalid:no_mode_enabled`,
+    and its `seed_after` is four generator steps after its `seed_before` (id, target, hold, mode).
+- **Can-fail:**
+  - a build that skips the mode draw fails (c) at the first m53 attempt;
+  - a build that always takes `Modes[0]` fails (c) whenever the recomputed index is not 0;
+  - the comparator fails a synthetic sequence with one extra draw.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| TCP | `DrawAttempt<TStream>`; `ModeIndexFromFraction(U, N)`; `ScramblePair(Seed, Ordinal, K)` over the explicit 12 bytes | new |
+| AAI | the draw block through `DrawAttempt`; the mode argument or `!none`; the `Auto.Draw` line | :241-252, :272, :361-381, :391, :397-398 |
+| ATC + TCS | the per-id ordinal (reset with the run stats); `ordinal=` and `scramble_h=` on the lines; the `!none` token accepted only under auto-pool selection | ATC:618-663 (the Args parse), TCS (the run stats) |
+| TCT | E6's sub-reasons: `unknown:<arg>`, `family:<arg>`, `no_mode`, `no_mode_enabled` | :814-819 |
+| `tools/texcorrupt_pure_test.cpp`, `tools/texcorrupt_draw_kat.py` | the tests and the known-answer table | — |
+
+**Premise-audit line.**
+- **src:** `RandHelper(0)` consumes no draw (`RandomStream.h:186-189`).
+- **src:** `Eligible` is filtered by `EnabledIds` (AAI:241-252), and visible actors are name-sorted before sampling
+  (AAI:263).
+- **The census makes candidate sets launch-dependent,** so G-SEED runs with it off (unchanged). The fingerprints make any
+  remaining mismatch attributable.
+- **PW P-SEED sizes the legs; it does not establish repeatability** (Codex).
+
+### R2.9 Ruling 9 (P2-9): the source determination, and the fix it selects
+
+**Determination: YES — the product auto-injection path can run m52 and m53 at the same time on different actors under
+its default concurrency rules.**
+
+**The concurrency facts, from source.**
+- **`MaxConcurrent` defaults to 4:** `int32 MaxConcurrent = 4;` (`Public/AnomalyAutoInjectorSubsystem.h:132`).
+  - It is floored at 1 (AAI:567-571).
+  - It can be set from the console (`IAI.Auto.MaxConcurrent`, AAI:958-966) and from the control server's `auto_config`
+    (`AnomalyControlServerSubsystem.cpp:619`). No ini key reads it.
+- **`TryFireOnce` removes only what is already live.**
+  - Under the cap (AAI:209-212), the only exclusions are the live **id** (AAI:241-252, `IsIdLive` :767-777) and the live
+    **actor** (AAI:285-289, `IsActorLive` :779-789).
+  - So a different id on a different actor is admitted while another fire is live.
+- **Holds expire independently in the free-running mode.**
+  - `IAI.Auto.Run` (AAI:903-911) → `Tick` (AAI:110-127) → `AdvanceTime` (AAI:187-197) → `ServiceReverts` reverts each fire
+    when its own hold elapses (AAI:699-724). The hold is drawn at 3–6 s (`.h:128-131`).
+  - So m53 on actor A can revert while m52 on actor B still holds a texture they share.
+
+**The pool rules.**
+- `stuck_low_mip` is in `GAutoPool` (AAI:22-31, entry :30), and the m53 ids join it in S2 (D4).
+- **Only the enabled set keeps them off by default:** `GAutoPoolDefaultEnabled` omits `stuck_low_mip` (AAI:35-41), and D4
+  leaves the m53 ids off. That is operator configuration, one pool checkbox each (the dashboard; `IAI.Auto.Pool`), not a
+  guard.
+- Read as the ruling's parenthesis asks (the `MaxConcurrent` default and the pool rules), the answer is **yes, by
+  default**. ⚠ If chat reads "by default" as "with the default enabled set", the answer flips; in that case the branch
+  below becomes the narrowed limitation, and the fix is still cheap and harmless.
+
+**m52's enumeration misses an m53 host.**
+- `CollectComponentTextures` keeps only `UTexture2D`s from `GetUsedTextures` (SLM:101-116).
+- An m53 host MID binds `UTextureRenderTarget2D`s in the source's place (TCD:23-72; ATC:287-361), so the host component
+  stops counting as a user of its original texture (`BuildVisibleTextureUserCounts`, SLM:118-144; auto-pool only,
+  SLM:344-357, :369-372).
+- At the compiled `StuckMipMaxCoAffected 0` (`Public/AnomalyDefaults.h:82`), m52's auto-pool admission refuses any
+  texture that another visible component uses (SLM:459-470) — except the m53 host, which it cannot see.
+
+**Inside a capture run, the unassisted FSM cannot produce the overlap.**
+- `StartRun` pauses the Run loop (ACS:2998-3003) and reverts every auto and raw anomaly (ACS:3005-3012).
+- Each burst fires once (ACS:4449-4473).
+- `BeginRevert` reverts every live fire together (ACS:4475-4484 → AAI:726-739).
+- **But several paths have no capture-active guard:** `IAI.Auto.Run`, `IAI.Auto.Step` and `IAI.Auto.FireOnce`
+  (AAI:157-184, :985, :988-995); raw `IAI.Apply` (AIS:769-794, :1004-1019); and the control server's `inject` and
+  `auto_fire_once` (`:468-499`, `:653-661`). A `TryFireOnce` fire joins `LiveFires`, which capture labels.
+
+**Where the harm lands.**
+- **In the free-running mode no dataset is written.** The harm there is m52's default shared-texture refusal being
+  bypassed: A is degraded when m53 reverts, and m52's gate never counted A.
+- **In a capture run with one of those out-of-band inputs, it is a label hole.** A shows the held source after m53
+  reverts, and nothing labels A.
+
+**Design (the ruling's "can by default" branch): S2 includes the source fix.**
+- m52's co-affected enumeration counts an m53-hosted component as a user of the original textures its host MID replaced.
+  Whatever m52 does with a co-affected user (refuse at the default 0; whatever it does above 0) then applies to the m53
+  host too.
+- **R2.2's snapshot isolation stands either way:** a `drift` redraw never samples a source that m52 holds.
+- **Kept as a recorded limitation:** injection through the unguarded out-of-band paths during a capture run stays
+  unsupported (the m53 plan's §R8.4 already lists raw Apply). S2 adds no capture-active guard; that would be a change to
+  the capture product, outside m53.
+
+**Gate or proof: G5-REV (Q), one leg.**
+- Recipe `2 40 8 4 0`; m53 identity targeted at `TC_M52Share`, which applies at frame 42.
+- `ExecAtFrame 30 IAI.Bench.StuckMipCoAffected T_TC_M52Shared <TC_M52Hold>`: the baseline, before m53. The users include
+  `TC_M52Share`'s component with `via=used`.
+- `ExecAtFrame 44 …` (m53 active): the same component is listed with `via=texcorrupt_original`, and the count equals frame
+  30's.
+- **Can-fail, in the same leg:** `ExecAtFrame 45 IAI.Bench.StuckMipCoAffectedIgnoreTexCorrupt 1`, then `ExecAtFrame 46 …`
+  reads the host **missing** (count one lower). `ExecAtFrame 47 … 0` restores it.
+- The print calls the same `BuildVisibleTextureUserCounts` that m52's admission uses (SLM:118-144), and ignores the
+  would-be m52 target's actors as m52 does.
+- ⚠ No auto-pool m52 fire is judged: auto-pool target choice is random over the visible candidates. The admission
+  decision itself (SLM:459-470) is unchanged code reading the counts this row checks.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| `Public/AnomalyTexCorrupt.h` | `AppendOriginalTexturesFor(UWorld*, const UPrimitiveComponent*, TArray<UTexture2D*>&)` | new |
+| ATC | its implementation: for both ids, every committed `FOwnedSlot` on that component contributes the original `UTexture2D`s bound in that slot (R2.7's per-slot binding inventory) | ATH:70-83; ATC:785-803, :967-980 |
+| SLM | `CollectComponentTextures` appends them (`AddUnique`) after `GetUsedTextures`; the bench print `IAI.Bench.StuckMipCoAffected <texture> [ignoreActor]` and the can-fail `…IgnoreTexCorrupt <0\|1>`, both behind R2.11's gate | SLM:101-116, :118-144 |
+
+No dependency change: SLM and ATC are in the same module.
+
+**Premise-audit line.**
+- **FX:** `TC_M52Share` and `TC_M52Hold` sample the same `T_TC_M52Shared` asset (§4 read-back).
+- **RS:** m53 must apply on `TC_M52Share` at frame 42, so the texture must be fully resident by then → PW P-M52's baseline.
+- **src:** as above; the print reads the function the admission reads.
+
+### R2.10 Ruling 10 (P2-10): three predicates, corrected
+
+**(a) E6 is validated through an actual parse and Apply decision, not through the census.**
+- The census skips E6 by construction: `if (!In.bCensus && In.Mode == EMode::None)` (TCT:814-819; the census sets
+  `bCensus`, TCT:1003). So no census can admit an E6 row.
+- The E6 rows are admitted by two **earlier-precondition controls**:
+  - **the same target applies with a valid mode:** G1-NAT's `tile` leg on `TC_UC1`, and the G-SEED legs for
+    `no_mode_enabled`;
+  - **the refusal line itself shows the tree reached E6:** `final=mode_invalid step=E6`, with E1–E5 not named.
+- The rows: `uv_corruption <TC_UC1> bogus` → `mode_invalid:unknown:bogus`; `uv_corruption <TC_UC1> invert` →
+  `mode_invalid:family:invert`; the empty-set leg (R2.8) → `mode_invalid:no_mode_enabled`.
+- **Can-fail:** a synthetic REFUSED line at an earlier step, and one with a different sub-reason, each FAIL.
+
+**(b) G4 CAN asserts the cancellation branch and nothing more.**
+- **Preconditions, declared and read back** (they gate the `IsGameWindowFocused` call at ACS:3362):
+  - `IAI.Capture.FocusGate 1` is set explicitly in the leg and its echo reads ON;
+  - a game window exists (the runner launches `-windowed`);
+  - the `IAI.Bench.TreatUnfocused -> ON` echo.
+- **The branch:** the actual `=== Capture ARMED: … waiting for game-window focus …` line (ACS:3367-3369), then
+  `CANCELLED before focus`.
+- **Absent:**
+  - any `TEXCORRUPT-DECIDE`, `REFUSED` or `APPLIED`;
+  - any warm draw that actually executed, or any allocation;
+  - `BeginActualRun`'s start line;
+  - `FINISHED`;
+  - a surviving session directory.
+- **Allowed:** the configuration echoes, i.e. `TEXCORRUPT-ASSETS` at startup (AIS:250) and the warm-draw configuration line
+  that `StartRun` prints before the focus branch (ACS:3262-3265).
+- **Stats are compared with the post-reset baseline:** `ResetRunStats` runs before the focus branch (ACS:3208-3211), so
+  every `texcorrupt_*` run stat reads its reset value.
+- **TRIP exempts a proven pre-focus cancellation.** A leg with the ARMED line, the CANCELLED line and no session directory
+  expects no summary; every other leg still FAILs on a missing summary or key.
+
+**(c) G3-S2 declares the expected per-slot restore disposition.**
+- It no longer requires `restored-exact` everywhere. The evaluator derives the expected disposition of every committed
+  slot from the Apply-time capture on the DECIDE slot lines (`raw=<m>(len n)`, TCT:939-944):
+  - Raw non-null ⇒ `restored-exact` (ATC:1128-1132);
+  - Raw null ⇒ `restored-default` (ATC:1133-1137);
+  - a renamed successor ⇒ `unresolved` + `swept` (R2.4).
+- It compares that with the revert's per-slot lines (ATC:1138-1141) and R2.4's SLOTSTATE line.
+- Example: the MainWorld partial event expects `restored-default` × 12, which is exactly what `FMW_ID` logged
+  (`_leg/game.log:2686-2698`).
+- **Can-fail:** a synthetic `restored-default` on a Raw-non-null slot, and the reverse, each FAIL.
+
+**Source impact.** None beyond R2.4's SLOTSTATE line and R2.8's E6 sub-reasons. These are harness predicates (§5.3 🔁).
+
+**Premise-audit line.**
+- **(a) src:** the census skip, as above.
+- **(b) FI:** the runner forces OS focus from 400 ms (`082-07-run.ps1:55-77`, G332), so the lever overrides the predicate,
+  not the focus. Same-batch Stop precedes the 30 s `ArmedPending` timeout. The S1 CAN bank legs STARTED and FINISHED with
+  0 frames, so they are not cancellation evidence (Codex).
+- **(c) src/real:** as above.
+
+### R2.11 Ruling 11 (P3-1): new levers behind an explicit bench-only enablement
+
+**Design change.**
+- **One runtime gate, `-IAIBench`, on the process command line.**
+  - `AnomalyBenchGate::IsEnabled()` returns `!UE_BUILD_SHIPPING && FParse::Param(FCommandLine::Get(), TEXT("IAIBench"))`.
+  - It is in a new `Public/AnomalyBenchGate.h` in AnomalyInjector, so ACS, SLM, TCB and AnomalyBench all read one
+    definition.
+  - An unconditional echo at the injector's `Initialize`: `IAI bench levers: ENABLED (-IAIBench) | DISABLED`.
+- **Every new S2 lever is registered at runtime, and only when enabled.**
+  - It is registered with `IConsoleManager::Get().RegisterConsoleCommand` in the owner's `Initialize` / `StartupModule`,
+    and unregistered at shutdown. It also sits inside `#if !UE_BUILD_SHIPPING` (or `ANOMALY_CAPTURE` in ACS).
+  - Why not at static init: a static `FAutoConsoleCommand` in a monolithic exe can run before the command line is parsed,
+    so the gate goes at runtime registration.
+  - A leg without `-IAIBench` therefore has **no such command**.
+- **The levers covered:**
+  - `TexCorruptStaticOffset`, `…DriftZero`, `…SnapshotFault`, `…DriftLiveSource`, `…RecreateComponent`, `…SkipSweep`,
+    `…RetainRt`, ~~`…PostTeardownCensus`~~ 🔁 082-13 `…RtCensus`, `…OmitReleaseAccounting` (R21.4), `…ForcePredicate`
+    (TCB);
+  - `TreatUnfocused` (ACS);
+  - `ExecAtFrame` (AnomalyBench);
+  - `StuckMipPinRestoring`, `StuckMipCoAffected`, `StuckMipCoAffectedIgnoreTexCorrupt` (SLM);
+  - **and `IAI.Bench.DestroyTarget`, which moves behind the same gate and inside `#if !UE_BUILD_SHIPPING`**: its
+    registration (AIS:1175-1206), its globals (AIS:40-46), `ServiceBenchDestroyLatch` (AIS:296-355) and its call (AIS:464).
+- **`ExecAtFrame` lives in AnomalyBench** (a Shipping-denylisted module, `AnomalyInjector.uplugin:19-25`), registered only
+  when enabled. Codex's trap is handled:
+  - its service runs from its **own** `OnWorldPostActorTick` callback, never after `WorldTick`'s input-lock return
+    (ABM:71);
+  - each schedule is bound to its world;
+  - a schedule is removed **before** running a command that can change the world.
+
+  It does not inherit the old fixture/map guard (ABM:33-42).
+- **Not changed (not a wholesale audit), recorded:**
+  - the pre-S2 bench commands that compile into Shipping: `SynthTickOrder`, `HideMode`, `HideOmitShadowSilencing`,
+    `HideOmitDepthPassSilencing` and `SpawnTranslucentProbe` in AIS (:1069, :1108, :1132, :1153, :1209), and
+    `StuckMipNoHold`, `StuckMipVirtualProbe` and `StuckMipUnlinkLock` in SLM (:1055, :1079, :1198);
+  - the S1 TexCorrupt levers (already `#if !UE_BUILD_SHIPPING`, TCB:90-363).
+- **The S2 harness passes `-IAIBench` on every leg.**
+
+**Gate or proof: G-LEVER (Q), narrow as ruled.**
+1. **Shipping source audit.**
+   - Every new lever's registration, state and service code sits inside `#if !UE_BUILD_SHIPPING`, `ANOMALY_CAPTURE` or the
+     AnomalyBench module, and is registered only through the gate.
+   - The audit script must **flag a planted unguarded registration** in a synthetic copy (the can-fail) before its verdict
+     on the real tree is read.
+2. **Bench enablement: one Development leg without `-IAIBench`.** It issues every new lever and `DestroyTarget` in its
+   batch:
+   - the gate echo reads `DISABLED`;
+   - no lever echo and no lever effect appear (no RT retained, no pin, no successor component, no destroy).
+
+   The paired leg with `-IAIBench` shows every echo. That pair is the can-fail.
+
+**The M3 client-artifact proof goes on the M3 checklist** (to be added to `PRE-DELIVERY-CHECKLIST.md` when M3 opens; it is
+recorded here and in §11 so it is not lost):
+- launch the **actual delivered configuration** as delivered, which may be Development (`docs/client-delivery.md:144`),
+  with no `-IAIBench`;
+- issue every bench lever name;
+- none is registered or has an effect.
+
+⛔ The S2 proof covers Shipping plus bench enablement. It is not the client-artifact proof.
+
+**Source impact.**
+
+| file | change | anchor |
+|---|---|---|
+| `Public/AnomalyBenchGate.h` (new) | `IsEnabled()`; the echo helper | new |
+| AIS | the gate echo at `Initialize`; `DestroyTarget` behind the gate and inside `#if !UE_BUILD_SHIPPING` | AIS:40-46, :296-355, :464, :1175-1206 |
+| TCB, SLM, ACS | new levers registered at runtime through the gate | TCB:90-363; SLM (new block); ACS (inside `#if ANOMALY_CAPTURE`, 3828-7586) |
+| ABM | `ExecAtFrame`: its own tick callback, world-bound schedules | ABM:71, :116-126 |
+
+**Premise-audit line.**
+- **FX:** the harness must pass `-IAIBench`. A leg that forgets it fails on its first lever's missing echo (validity:
+  INVALID-PROTOCOL, never a feature FAIL).
+- `DestroyTarget` is used by S1-style destroy legs; the S2 harness passes the flag.
+
+---
+
+## 0. Status in one paragraph
+
+S1 shipped route B's identity path and its lifecycle, and closed as a scoped stage. S2 adds the eight product modes
+(uv `tile drift swap scramble`, normal `green_flip invert flat noise`), the auto-pool mode draw, both ids in the pool
+(default OFF), and every item S1 owed. **The plugin's corruptor graphs already implement every mode, so S2 needs no
+plugin-asset cook** (§2.1). **S2 does need one bench-fixture cook**, because three owed producers have no fixture row
+today (§4). So S2 is **one build pair and one fixture cook**, with one contingency build pair if the premise window
+refutes a premise that needs code.
+
+🔁 **082-12.** Revision 2 keeps that count and adds work inside it.
+- **S2-0 comes first** (§3A): 24 MainWorld legs on the current staged S1 build, with **no build and no cook**.
+- **The one fixture cook now also carries the mode-oracle cells** (R2.1, §4).
+- **Added to the one build pair's source:**
+  - the snapshot qualification levers (R2.2);
+  - SLOTSTATE and the renamed-successor negative (R2.4);
+  - the Restoring lines (R2.5);
+  - the level-change ticket and object census (R2.6);
+  - flat declared-array telemetry (R2.7);
+  - the explicit mode draw and its log (R2.8);
+  - m52's co-affected fix (R2.9);
+  - the `-IAIBench` gate (R2.11).
+
+Premise window ~19 legs; gate window ~129 legs (§6.0, §6.2).
+
+🔁 **082-13.** Revision 2.1 keeps the count too: 1 build pair, 1 fixture cook, and S2-0 on the current build.
+- **S2-0:** one warm policy per family, and every leg's timing checked (R21.1); the null / refresh predicate (R21.2); a
+  direct C-vs-ID-F trace comparison, with no plugin-wide class from pixels (R21.6). It is **runnable on the staged S1
+  build** (R21.8), still 24 legs.
+- **Gate window:** G-MODE-UV +1 (drift gets four events and its own null, R21.3); G-SNAP-FAIL +2 (two independent faults,
+  R21.4). **~132 legs.**
+- **Premise window:** P-ORC +1 (the identity leg that measures τ, R21.7). **~20 legs.**
+- **Source, added inside B1:** the RT census generalised, a kind-typed retain lever, and the omitted-accounting fault
+  (R21.4); two binding fields (R21.5).
+
+🔁 **082-14.** Revision 2.2 changes no count.
+- **M1–M4 are applied** (R22.1–R22.4).
+- **S2-0's harness is built, proven and locked:** `_reviews\082-14-s20-*`, 93 proof checks and a 10-check dry run of all
+  24 batches, both with 0 failures (R22.6).
+- **082-15 runs it** on the owner's "PC idle".
+
+---
+
+## 1. Scope
+
+### 1.1 The plan's S2 row, restated
+
+| content | where it is specified |
+|---|---|
+| the eight modes on both ids | v1 §3.2; §R7.1; §R7.5 (scramble); this file §2.2 (the parameter table) |
+| the auto-pool mode draw, keeping `R-SEED` | v1 §7.2; this file §2.4 |
+| both ids in `GAutoPool`, default OFF | §R1 D4 (ruled) |
+| `drift` only after `G-RD-DRIFT` | §R13 S2 row; this file §6 (`G-RD-DRIFT` runs first; a failure defers `drift`, D5) |
+| gates G1, G2, G5, G6, G8, G9, G-ID-M transformed (D), G-RD-DRIFT, G-REASON S2 rows, G10 | §R12.3; this file §6 |
+| both tick orders | §R13; this file §6.1 (the G230 scope rule decides which rows run synth) |
+
+**The mode parameters** (design parameters, not calibrated thresholds; `G-STR` in S3 reads them):
+
+| family | mode | corruptor scalars set per event | compiled value | knob (console > ini > compiled; out of range refused, not clamped) |
+|---|---|---|---|---|
+| uv | `tile` | `UvScale = N`, `SrcMip = min(m + log2 N, M − 1)` (§R3.4.6; the S1 tile probe's `SourceMipFor`, TCP:799-819) | N = 8 | `IAI.Anomaly.TexCorruptTileN` ∈ {2, 4, 8, 16} |
+| uv | `drift` | `UvOffsetU = frac(v · (k + 1) / VideoFps)`, `UvOffsetV = 0`, redrawn every frame from a snapshot (§2.3) | v = 0.25 UV/s | `IAI.Anomaly.TexCorruptDriftMilliUvPerSec` ∈ [1, 4000] (250) |
+| uv | `swap` | `UvSwap = 1` | — | — |
+| uv | `scramble` | `ScrambleOn = 1`, `ScrambleK = K`, `ScrambleAInv = a⁻¹ mod K²`, `ScrambleB = b` (§R7.5; derivation §2.2) | K = 8 | `IAI.Anomaly.TexCorruptScrambleK` ∈ [2, 64] |
+| normal | `invert` | `NormalSignX = −1`, `NormalSignY = −1` | — | — |
+| normal | `green_flip` | `NormalSignX = 1`, `NormalSignY = −1` | — | — |
+| normal | `flat` | `FlatMix = f` | f = 1.0 | `IAI.Anomaly.TexCorruptFlatMixPct` ∈ [1, 100] (100) |
+| normal | `noise` | `NoiseAmp = A`, `NoiseMip = clamp(m, 0, noise mips − 1)` (already set, ATC:322-332) | A = 0.5 | `IAI.Anomaly.TexCorruptNoiseAmpPct` ∈ [1, 400] (50) |
+
+- `k` is the event-local frame index (0 on the event's first labelled frame). A `drift` event's first frame is
+  therefore already shifted by one step (1.07 texels at 128²), not identity; §6's `G1` relies on that (offline proof
+  §6.3).
+  🔁 082-12 (R2.2): made exact. `k = f − ApplyFrame` in **engine** frames (f is the drawn frame; `ApplyFrame` ATH:142,
+  ATC:686), so unsaved settle frames still advance the offset. The row logs `uv_offset_u/v` and `draw_frame`.
+- `A = 0.5`: the shipped noise normal's |n.xy| has max 0.796, median 0.366, p10 0.157 (computed from the authoring
+  script's own wave table, `tools/create_texcorrupt_assets.py:35-39`), so the added tilt is up to 0.40, median 0.18.
+- **Enabled mode sets** for the auto-pool draw: `IAI.Anomaly.TexCorruptUvModes` / `…NormalModes` (comma-free
+  `+`-joined lists, e.g. `tile+scramble+drift`). Compiled = **D5 provisional** (uv `tile scramble drift`, normal
+  `invert green_flip noise`). Targeted fire may name any mode of the family regardless of the set.
+  🔁 082-12 (R2.8): the value `none` sets an empty list. Every m53 auto attempt still consumes one mode draw, and then
+  refuses `mode_invalid:no_mode_enabled`.
+- **No per-fire `strength` argument in S2** (v1 §9.1 listed one). Each mode's parameter is a knob and is logged per
+  event, so `G-STR` can amend them later; a `strength` arg adds a second route to the same values and nothing S2 can
+  test. Code's default, flagged in §11.
+
+### 1.2 Every S1 debt, placed (S1 RESULT R6 items 1–22 and Codex's further holes)
+
+| # | item | placement | how, and why there |
+|---|---|---|---|
+| 1 | T10 live `not_fully_resident` | **S2** | producer `PauseTextureStreaming` in the frame-1 batch on the existing `TC_Stream2k` (cause read (a), §3.1): holds exactly 7/12, not pending, no bias; frame-1 and frame-18 censuses prove the premise first (premise window P-T10) |
+| 2 | Q `no_normal_map` producer | **S2** | `normal_corruption` at **`TC_UC1`** (colour-only, never streamed, 8/8 resident at frame 1). The S1 census already reads `no_normal_map` there for the normal family (`legs:53` `normal_expected`, 0 G0 findings over 77 F-SYN targets). No fixture change, no time axis. The MainWorld floor stays a D reading (its 18 normal-bearing slots rank first, A3.3) |
+| 3 | G4 LEVEL-CHANGE | **S2** | bench trigger `IAI.Bench.ExecAtFrame <f> open <map>` (§2.6) mid-event, plus a new-world ledger line (`kind=post_teardown`, §2.5), because the only post-revert sample is cancelled at teardown (ATC:1333) and no run spans a level change (ACS `Deinitialize` → `FinishRun`). 🔁 082-12 (R2.6): the same ticket carried from `world_teardown` to `post_teardown`, then a post-GC `TEXCORRUPT-RTCENSUS` token the runner waits for; the retained-RT negative |
+| 4 | G4 RECREATED | **S2** | bench lever `IAI.Bench.TexCorruptRecreateComponent <ticks> <renamed\|same>` (§2.6). **Only a differently named successor exercises `swept`** (ATC:1106-1171): a same-named one is re-found by name and restores exact. Both variants run; `same` is the control. 🔁 082-12 (R2.4): the renamed row proves §R8.3's **cleanup** (no owned MID left, the asset default, resources released), **not** an exact restore; a `SkipSweep` negative must fail it |
+| 5 | cancel-before-focus | **S2** | bench lever `IAI.Bench.TreatUnfocused <0\|1>` overriding the one predicate `IsGameWindowFocused` (ACS:3773-3781) at both call sites (ACS:3362, :677). ⚠ For m53 the branch is **vacuous by construction**: nothing of m53 runs before `BeginActualRun` (the warm draw is there, plan §R9.3). The row claims the branch executes and leaves no m53 work and no session; plan §R8.5's "every exit reaches §R8.3" is corrected to say so. 🔁 082-12 (R2.10 b): configuration echoes are allowed; stats are compared with the post-reset baseline; FocusGate and a game window are declared; TRIP exempts the proven cancellation |
+| 6 | G-BIND per-frame layer check | **S2 harness** | `ev_bind_layer` takes a per-event **minimum** over measured frames and reports each failing si (today `lib:845` takes the maximum, `lib:855` tests it). Re-run on the S2 build as a regression row (§6) |
+| 7 | global-half far strip as a gate | **S2 harness** | the pixels of the global half more than 16 px from the layer half must read max \|d\| ≤ 2 (a new clause; Codex reads 784 px at max 1 on the bank). The < 32 allowance stays only inside 16 px |
+| 8 | TRIP requires the key | **S2 harness** | `ev_trip`: census kind ⇒ `N/A`; any other kind with no session or no key ⇒ FAIL (today `lib:1084` accepts `v in (0, None)`) |
+| 9 | active-lifetime block presence | **S2 harness** | a new proof row: every `labels.jsonl` row inside an m53 event's active lifetime (APPLIED → REVERT / TARGET LOST / teardown, joined by `frame_index % 1000`) carries the anomaly entry **and** the `texcorrupt.*` block |
+| 10 | partial-application telemetry | **S2 source** | ~~additive per-frame keys `texcorrupt.slots_installed[]` (owner path, component path, slot index) and `textures[].slots[]`~~ 🔁 082-12 (R2.7): flat, declared arrays `slots_installed`, `bindings` and (NoApply-1 only) `slots_qualified_uncommitted`, all keyed by one canonical `slot_key`; the serialisation change (`DeclareArray`) is in scope; proven on the MainWorld floor's partial first fire |
+| 11 | `observable: false` after a known termination | **outside S2: m51 / M3** | unchanged by 082-08 ruling; S2's P2-1 proof keeps the block-bearing scope **with** item 9's presence assertion, so a block missing inside the active lifetime cannot escape |
+| 12 | MainWorld arbiter for a nanite target | **S3** | cause read (b) (§3.2) sizes the problem: a null-stable region R exists (97–99 % of the frame) and must be declared from nulls; no S2 row judges MainWorld pixels. ⚠ §3.2 also found a **post-revert shadow trace** on MainWorld that the arbiter will have to explain first. 🔁 082-12: that trace is now **S2-0** (§3A), run before S2-1 |
+| 13 | the owner's budget call | **S3** | G7 at 64 / 128 / 256 MiB |
+| 14 | the halo | **S2 cause-read plan** | premise-window pair P-HALO (§6.0): one wrong-copy / null pair with bloom off and one with screen-space AO off; D readings, no gate. G1 is measured inside the target mask, where the halo does not reach (§7) |
+| 15 | the start-up element on the reason-producer row | **S2 cause-read plan** | a bank read in the harness brief (which frames, which pixels, which actor); no leg |
+| 16 | TC_Layer's 8-level gradient | **S2 cause-read plan** | bank read plus the fixture tool: whether `M_TC_Layer` is lit (a lit gradient needs no fix); no leg |
+| 17 | P5a ChainD grazing / transition phase exception | **S2 cause-read plan** | `G-RD-DRIFT` runs on the head-on redraw tiles only, and the ChainD exception is kept declared; bank read of the 10 differences in the harness brief |
+| 18 | `T_TC_Stream2k`'s full chain | **S2, done here** | cause read (a), §3.1: the first streaming pass has no instance data for the Movable fixture meshes, so the unknown-reference rule wants the full chain, and the 1000 MB pool keeps it |
+| 19 | the 51.7 s input | **S2 harness** | the raw input timestamps are persisted (item 21); every S2 leg is ≤ 20 s, so the event cannot fall inside one; no further action |
+| 20 | MainWorld control-pair nondeterminism | **S2, done here** | cause read (b), §3.2: camera, clock and dither phase identical; four animated zones (cause not established) plus streaming-timed speckle; no S2 Q row affected |
+| 21 | person detector | **S2 harness** | persist `inputs`/`moves` from `_pp_prongs` (`lib:396-407`) into `ev/`, and excuse inputs within `PP_FORCE_S` (0.75 s, `lib:324`) of the last startup `focus[]` sample (the runner's final `Force`, `run:71-78`) |
+| 22 | stale `ARCHIVE` | **S2 harness** | `common:28` names the superseded `m53-s1-normalfix-cook-30FE0FDE`; nothing reads it (only `G10_ARCHIVE`, `common:43`). S2's common names the S1 staged archive `m53-s1-maskedfix-cook-20DA6F98` (the S2 rollback) and the S2 archive once it exists |
+| C1 | clean collateral completeness | **S3**, with an S2 diagnostic | cause read done from the bank (§3.3): the only incomplete F-SYN entry on every sample is `T_TC_VT` (a virtual texture, residency −1); F-MW has 9 unresolved entries the log does not name. S2 adds one additive, lever-gated log line naming each unresolved entry (§2.5) so S3 can classify them |
+| C2 | installed-slot sets across host twins | **S2 source + S3 rule** | item 10 supplies the identities; any S2 cross-leg comparison that exists requires equal installed sets (none on F-MW is Q in S2); S3's host arbiter adopts the rule |
+| C3 | direct resource / renderer lifetime evidence | **S2, partial** | the LEVEL-CHANGE row adds a new-world object census of our render targets (named `TexCorruptRT_*`, §2.5) after a forced GC; physical GPU memory stays out of scope and is stated as such. 🔁 082-12 (R2.6): the census is a separate `RTCENSUS` token the runner waits for, and it is proven able to see a deliberately retained RT |
+| C4 | Q producers for reasons without one | **S2** for `mode_invalid`, `nanite_override`, `default_material_path`, `normal_unconnected`, `held_by_stuck_low_mip`, `not_fully_resident`, `no_normal_map`, and `runtime_lod_bias:per_texture` (a fixture texture with `LODBias 1`, admitted only if the census reads it, §4); **S2 optional block** (chat may trim): plumbing-only rows for `corruptor_not_ready`, `dxt5_normal_host`, `shader_map_unavailable/incomplete`, `resource_not_ready`, `streaming_pending` through one lever that forces the named predicate's input (§2.6); **UNEXERCISED, kept**: `mip_chain_shape` (no 5.1 fixture) and `runtime_lod_bias:per_texture` through a device profile |
+
+---
+
+## 2. Source changes, file by file
+
+Sizes are estimates of changed lines. "Bench" means compiled out of Shipping (`#if !UE_BUILD_SHIPPING`, the
+`AnomalyBench` module's Shipping denylist, or `ANOMALY_CAPTURE`, which is 0 in Shipping).
+
+### 2.1 No plugin-asset cook: the evidence
+
+- **The graphs implement every mode.** `tools/create_texcorrupt_assets.py` authors the assets S1 cooked:
+  - `UV_FN` (`:41-66`): swap (`:42`), `frac(uv·UvScale + offset)` (tile and drift, `:43`), the scramble inverse
+    permutation (`:44-64`), and the U-only texel shift;
+  - `NORMAL_ENCODE` (`:97-111`): the sign flip (`:98-99`), `FlatMix` with renormalisation (`:100-103`), `NoiseAmp`
+    with the shipped noise normal (`:104-107`).
+- **Every mode scalar exists and is enforced.** The scalar lists (`:22-33`) carry `UvScale, UvOffsetU/V, UvSwap,
+  ScrambleOn/K/AInv/B` and `NormalSignX/Y, FlatMix, NoiseAmp, NoiseMip`. `CheckCorruptorContract` (TCT:655-683)
+  requires a default for every listed scalar on **every fire** (E1, TCT:777-789), and all 1,069 S1 fires passed it
+  on the cooked assets.
+- **Offline cross-check of the scramble HLSL.** Its arithmetic (`d = j − B mod N; i = AInv·d mod N; uv = (ix + lx,
+  iy + ly)/K`) is the plan's `π⁻¹(j) = a⁻¹·(j − b) mod N` (§R7.5). A Python port reproduces a bijection for every
+  (a, b) with a odd, K = 8.
+- **What stays unproven until S2's legs:** only the identity, tile-probe (`UvScale`, `SrcMip` shift) and wrong-copy
+  branches have executed on the bench. The offset, swap, scramble, sign, flat and noise branches have never drawn.
+  `G1` proves them. **If a branch is wrong, fixing it is a re-author and a cook**: declared as the contingency in §8.
+
+### 2.2 Modes, the catalogue spec, scramble parameters (shipping)
+
+| file | change | anchor | size |
+|---|---|---|---|
+| TCC | `EMode` gains `Tile, Drift, Swap, Scramble, GreenFlip, Invert, Flat, Noise`; a family check `ModeFamily(EMode)` | TCC:35-41 | ~20 |
+| TCS | names in `LexMode` (`tile`, `drift`, …; the S1 names kept); the new knobs in the `FIntKnob` pattern (`IAI.Anomaly.TexCorrupt*`, TCS:172-176, help text TCS:259-276), each with its `G139` echo; the enabled-mode-set knobs (string lists, parsed and refused on an unknown or cross-family name) | TCS:99-108, :172-276 | ~160 |
+| ATC | **mode parse**: a mode arg (Args[1]) is parsed against the family's four names. Unknown ⇒ `mode_invalid` sub `unknown:<arg>`; the other family's name ⇒ `mode_invalid` sub `family:<arg>`; no arg and no bench lever ⇒ `mode_invalid` sub `no_mode` (targeted), while the auto-pool always passes its drawn mode. The S1 bench modes (identity, identity-redraw, tile probe) stay lever-driven and apply only with no mode arg, exactly as today | ATC:636-655 | ~60 |
+| TCT | E6 keeps its step and precedence; only the sub-reasons change | TCT:814-819 | ~10 |
+| ATC | **`SetupLevelMid`** sets each mode's scalars from §1.1's table (today every product scalar is written as its identity value, ATC:309-332); `ScrambleK/AInv/B` are written (never set today) | ATC:287-361 | ~60 |
+| TCP | **pure functions**, unit-tested in `tools/texcorrupt_pure_test.cpp`: `DriftOffset(k, v, fps)`, `ScramblePair(seed, fireOrdinal, K) → (a, b)`, `InverseModN`, `IsBijection`; `SourceMipFor` reused for `tile` (it already takes `TileN`, TCP:799-819) | TCP (new ~80), test (+~150) | ~230 |
+| AIS | `GetAuthoredSpec`: both ids gain an **enum `mode`** arg with their four values (the `lighting_mismatch` precedent, AIS:181-184); today they declare no args (AIS:205-208) | AIS:205-208 | ~20 |
+
+**Scramble pair derivation (§R7.5, made concrete).** `h = FCrc::MemCrc32` over the bytes of `{seed (int32),
+fireOrdinal (int32), 0x53434D52}`; `A = {a : 1 ≤ a < N, gcd(a, N) = 1}` sorted; `a = A[(h >> 16) mod |A|]`;
+`b = h mod N`; if `(a, b) = (1, 0)` then `b = 1`. `fireOrdinal` is a **new per-id, per-run counter of m53 fire
+attempts** (reset at `StartRun`, ACS:3209, incremented at every Apply call whether it applies or not), because no
+per-event fire index exists today (`FiresApplied` is run-wide and counts applies only). A fire attempt ordinal is the
+same in both tick orders (the capture FSM decides when fires happen) and is independent of apply results (`R-SEED`).
+The pair is logged on the APPLIED line and as `texcorrupt.scramble_a` / `texcorrupt.scramble_b` (§2.5).
+🔁 082-12 (R2.8), made exact:
+- the CRC input is exactly three little-endian 32-bit words written into a `uint8[12]` by hand (no aggregate, so no
+  padding), with CRC initial value 0;
+- the seed is the auto-injector's configured seed, which `StartRun` sets from the capture's seed (ACS:3005-3012);
+- the ordinal counts every Apply call, **starting at 0**, is reset at `StartRun` (ACS:3209), and is logged as `ordinal=`
+  and `texcorrupt.ordinal`, with `scramble_h=`;
+- it is covered by known-answer vectors (an independent CRC-32 plus Python `zlib.crc32`), refusal interleaving and reset
+  cases.
+
+⚠ **A fixture property found offline, and why the harness handles it rather than the product.** On F-SYN's encoding
+textures (a 16-texel cell grid with a period-4 palette, `texcorrupt_fixture_images.py:77-91`, `:128-129`) the K = 8
+scramble grid coincides with the image's cells, and **3 of 2,047 pairs are invisible**: (1, 32), (33, 0), (33, 32).
+Every other pair changes a median 75 % of cells. This is a property of a periodic synthetic image, not of the
+product; `G1` predicts each event's change from its logged pair and excludes a predicted-invisible event by name
+(§6).
+
+### 2.3 `drift`: the snapshot and the per-frame redraw (shipping)
+
+Today the only per-frame redraw is the bench `IdentityRedraw`, which redraws from the **live source** and runs the
+mip tripwire on it every frame (ATC:363-395, :1014-1029, :1075-1078). No snapshot exists and **no snapshot byte is
+accounted anywhere** (TCP:198-216, :228-232, :239-279; TCT:622-648).
+
+| file | change | anchor | size |
+|---|---|---|---|
+| TCP | `AllocKind::Snapshot`; `PlanAllocations` adds one full chain per output for `drift`; `EventRequirement` = outputs + snapshots + scratch, so V2's `Fits` and the reservation see it | TCP:198-279 | ~40 |
+| ATC | Apply (`drift` only): identity-draw every level of the source into the snapshot first (the §R7.4 step 5 order, "snapshots first"), then point each level MID's source parameter at the snapshot; keep scratch for the event (as IdentityRedraw does, ATC:902-908) | ATC:199-285, :805-809, :902-908 | ~70 |
+| ATC | `TickAlways`: for `drift`, per level: set `UvOffsetU/V` (read back), then clear → draw → copy (§R7.3). **The per-frame tripwire reads the snapshot**, whose mip count is fixed; the source is read only at Apply | ATC:1075-1078, :363-395 | ~50 |
+| ATC | release: snapshots join `ReleaseAllTargets` and the two-frame pending ledger | ATC:156-172 | ~15 |
+| 🔁 082-12 (R2.2) | **superseding detail:** snapshot dispatch is a branch of its own in the allocation loop (ATC:229-248), held strongly through `Hold`, released on rollback too (`FailAt`, ATC:174-197); `FOutput::Source` widens to `UTexture*` (ATH:42) and the tripwire takes an RT (TCD:137-163); the offset is keyed on `ApplyFrame`; the `TEXCORRUPT-DRIFT-BIND` read-back line; RTs named `TexCorruptRT_*` (TCD:33). Qualification: G-SNAP-ID / -BIND / -RES / -FAIL / -BUDGET (R2.2) | as named | ~120 |
+
+- **Why the snapshot is required, not optional:** a redraw from the live source would sample whatever residency the
+  source has on that frame. A concurrent `stuck_low_mip` hold on a shared source would reach the output and trip
+  `texcorrupt_rt_mip_mismatch`, the S1 STOP counter (inferred from ATC:365/393; not measured).
+- **Ordering, and why the label and the pixels agree:** `TickAlways` runs in the injector's `Tick` (AIS:459-462) or,
+  under `SynthTickOrder`, at `OnWorldPreActorTick` (AIS:504-511). Both precede `OnWorldTickEnd`, where the label is
+  sampled (m40), and both enqueue on the render-command FIFO before the frame's scene draw (§R7.4's ordering
+  argument). So frame k shows `drift`'s offset k in either order, and `texcorrupt.uv_offset` on frame k's row is the
+  offset drawn for it. 🔁 082-12: the fields are now `uv_offset_u`, `uv_offset_v` and `draw_frame`, and k is counted
+  in engine frames from `ApplyFrame` (R2.2). That the first Apply frame agrees in both dispatch orders is checked, not
+  assumed (G1-SYN, G-RD-DRIFT (a)).
+
+### 2.4 The pool and the mode draw (shipping)
+
+| file | change | anchor | size |
+|---|---|---|---|
+| AAI / its `.h` | `GAutoPool` + `uv_corruption`, `normal_corruption` (not in `GAutoPoolDefaultEnabled`, D4); `NumPoolKeys` 7 → 9 with the `static_assert`; keys `EKeys::Eight` / `Nine`; bind names; the HUD list; the `IAI.Auto.Bind` usage | AAI:22-41, :70-76, :654-660; `.h:40` | ~30 |
+| AAI | ~~**the mode draw** … `Modes[Stream.RandHelper(Modes.Num())]` … an empty enabled set draws nothing …~~ 🔁 082-12 (R2.8): the draw order is one template, `DrawAttempt<TStream>` (TCP), which AAI calls. For an m53 id: **exactly one `GetFraction()`**, even with an empty set (`RandHelper(0)` would consume nothing, `RandomStream.h:186-189`); the index is `N > 0 ? TruncToInt(U·N) : none`; the mode is passed as Args[1], or the reserved `!none`, which refuses `mode_invalid:no_mode_enabled`. Non-m53 ids: no mode draw. The `Auto.Draw` line for every attempt: attempt, `seed_before`, id, eligible count and fingerprint, target, candidate count and fingerprint, `hold=%.9g`, mode, `seed_after`, result | AAI:241-252, :272, :361-381, :391, :397-398 | ~60 |
+| `Public/AnomalyTexCorrupt.h` | `GetAutoDrawModes(FName Id, TArray<FString>&)`: true only for the two m53 ids | new | ~15 |
+
+- **Why the draw keys on the m53 ids and not on "the spec declares an enum `mode`" (v1 §7.2's wording):** no pool id
+  declares one today (`lighting_mismatch` does and is not pooled, AIS:181-184; the pool is AAI:22-31), so both rules
+  give the same draws now. Keying on the spec would silently re-roll every seeded run the day any pooled id gains an
+  enum `mode`. No `IAnomaly` change (the M1 lock holds).
+- **`G150`, precision kept:** the draw is over `Eligible`, filtered by `EnabledIds` (AAI:241-252). With both ids off,
+  `Eligible` and every draw are byte-identical to the S1 build. `G-SEED` tests it (§6).
+
+### 2.5 Telemetry, `run_summary`, and diagnostics (shipping unless marked)
+
+| key / line | where | what |
+|---|---|---|
+| `texcorrupt.mode` | exists (ATC:1244-1302) | now the product mode's name; the annotation subtype follows it (ACS:6022-6033, :6166-6169) |
+| `texcorrupt.expected_strength_class` | ATC:40-43 | the §R10 prior per mode: `strong` tile, scramble, invert; `medium` green_flip, noise, drift; `weak` swap, flat |
+| `texcorrupt.tile`, `.tile_detail_mips` | exist for the tile probe (ATC:1268-1269) | emitted for `tile` |
+| ~~`texcorrupt.uv_offset`~~ 🔁 082-12 (R2.7) `texcorrupt.uv_offset_u`, `.uv_offset_v`, `.draw_frame` | **new**, per frame | two floats and the engine frame drawn for this frame (`drift`); the model has no numeric arrays (`AnomalyTelemetry.h:5-73`) |
+| `texcorrupt.scramble_cells`, `.scramble_a`, `.scramble_b` | **new** | K and the pair |
+| `texcorrupt.noise_amp`, `.flat_mix` | **new** | the values used |
+| `texcorrupt.slots_installed` | **new** (item 10), 🔁 082-12 (R2.7) a **declared** array (`[]` when empty) | `{slot_key, owner, component, slot, raw, resolved}` of every **committed** slot, in commit order (`FOwnedSlot.bCommitted`, ATH:70-83, ATC:967-980); `slot_key` = `<component path name>#<slot>` |
+| ~~`texcorrupt.textures[].slots[]`~~ 🔁 082-12 (R2.7) `texcorrupt.bindings` | **new** (item 10), a declared flat array | ~~`{slot_key, param, texture}`~~ 🔁 082-13 (R21.5) `{slot_key, param, association, layer_index, texture}` for installed slots, equal by key to the DECIDE per-slot binding lines (TCT:957-964). It replaces the nested shape, which the model cannot hold |
+| 🔁 082-12 `texcorrupt.slots_qualified_uncommitted` | **new**, bench NoApply-1 only | `{slot_key}` of qualified slots the bench skipped committing (ATC:959-966) |
+| 🔁 082-12 `texcorrupt.slots_untouched[].slot_key` | new field in existing entries | the canonical identity beside the unchanged `slot` (`CompName[i]`, ATC:688-700) |
+| 🔁 082-12 `texcorrupt.ordinal`, `.scramble_h` | **new** | R2.8 |
+| 🔁 082-12 `TEXCORRUPT-SLOTSTATE`, `TEXCORRUPT-DRIFT-BIND`, `TEXCORRUPT-RTCENSUS`, `STUCKMIP-RESTORING`, `Auto.Draw` | **new** log lines | R2.4, R2.2, R2.6, R2.5, R2.8. 🔁 082-13 (R21.4): RTCENSUS (bench-only) carries `kind=<rollback\|post_revert\|post_teardown>` |
+| 🔁 082-12 `run_summary`: `texcorrupt_unresolved` | **new** | R2.4 (today the unresolved count is not kept, ATC:1111-1116) |
+| `run_summary`: `texcorrupt_fires_applied_<mode>` | ACS:5736-5786 | per-mode applied counts (16 keys, always emitted, like the refusal counters) |
+| `TEXCORRUPT-LEDGER kind=post_teardown` | **new** | if a world teardown left the ledger `not_yet_due`, the next world's injector logs one reading at teardown frame + 2 (in the new world), from the same `JudgeLedgerReading` rule (§R9.4). 🔁 082-12 (R2.6): both lines carry `ticket=<T>`, from a module-level store (TCS) that outlives the old instance |
+| `TEXCORRUPT-RTNAMES` | **new** | render targets are created with the name prefix `TexCorruptRT_` (outputs, snapshots, scratch), so an engine object census can find ours |
+| `TEXCORRUPT-COLL-UNRESOLVED` (**bench**, only with `IAI.Bench.TexCorruptCollateralDetail 1`) | the collateral collection | one line per unresolved entry: material path, parameter name, entry type, why it resolved to nothing (item C1) |
+
+- **Schema.** All keys are additive inside m53 anomaly entries or `run_summary`; `label_schema` stays 2 (the m52
+  ruling) and the `annotation.json` field set does not move (`P6`). `G8` checks it.
+- 🔁 082-12 (R2.7): **the serialisation change is in scope.**
+  - `FAnomalyTelemetry::DeclareArray` (`Public/AnomalyTelemetry.h:5-73`) lets a list with no entries exist. Today
+    `AddArrayEntry` creates a key only with its first entry (`:61-72`).
+  - The writer (`AnomalyCapture/Private/AnomalyLabelWriter.cpp:133-178`) writes a declared, empty list as `[]`. Its
+    Ints, Floats, Bools and Strings paths (`:136-151`) are untouched.
+  - Non-m53 output stays byte-identical: by construction (only m53 calls the new API), and proven by **G8-VAL** on a
+    banked run.
+
+### 2.6 Bench levers (all bench-only)
+
+| lever | module / file | what it does | serves |
+|---|---|---|---|
+| `IAI.Bench.TexCorruptStaticOffset <u> <v>` | AnomalyInjector, TCB (`#if !UE_BUILD_SHIPPING`) | the next `drift` event draws once at the fixed offset and is never redrawn (plan §R12.2 names it; it does not exist yet) | G-RD-DRIFT reference |
+| `IAI.Bench.TexCorruptRecreateComponent <ticks> <renamed\|same>` | TCB | N anomalous ticks after the next m53 APPLIED: on the target, create a successor mesh component of the same class (name `<orig>_TCR` for `renamed`; for `same`, the original is renamed to a trash name first and the successor takes its name), copy mesh, transform, mobility and override materials (our host MID included), register it, make it root if the original was, then `DestroyComponent` the original. Logs `RECREATED old→new holding_host_mid=<0\|1>` | G4 RECREATED |
+| `IAI.Bench.TreatUnfocused <0\|1>` | AnomalyCapture, ACS (`ANOMALY_CAPTURE`) | `IsGameWindowFocused` returns false while set; echoed; cleared at `FinishRun` | G4 CAN |
+| `IAI.Bench.ExecAtFrame <engineFrame> <command…>` | **AnomalyBench** (ABM tick hook `:125`); **not** behind ABM's fixture/map guard (ABM:33-42), which is kept for its three existing commands | runs one console command at `OnWorldPostActorTick` of the named `GFrameCounter`; echoes the schedule and the execution line (Warning, `LogAnomaly`), and refuses a frame already past | LEVEL-CHANGE (`open`); G5 (a raw `IAI.Apply` / `IAI.Revert` of `stuck_low_mip` at a chosen frame); the decision-frame census (`IAI.Bench.TexCorruptCensus` at the decision frame) |
+| `IAI.Bench.StuckMipPinRestoring <0\|1>` | SLM (`#if !UE_BUILD_SHIPPING`) | a reverted texture stays in `Restoring` (SLM:837-920) until the lever clears or the run ends; echoed. 🔁 082-12 (R2.5): mode 1 pins an entry that was actually inserted; mode 2 inserts and pins (the fallback, labelled plumbing only); `pin cleared` at `FinishRun` and on teardown | G5 RESTORING (otherwise a race: restoring lasts until the stream-in finishes) |
+| `IAI.Bench.TexCorruptForcePredicate <E2\|E3\|S5\|S6\|T8R\|T8P\|0>` | TCB | forces the named predicate's input to "fail" on the next decision only | the optional plumbing block (C4) |
+| 🔁 082-12 `IAI.Bench.TexCorruptDriftZero`, `…SnapshotFault <mipshift\|chanswap\|0>`, `…DriftLiveSource`, FailStep step `snap` | TCB | R2.2 | G-SNAP-* |
+| 🔁 082-12 `IAI.Bench.TexCorruptSkipSweep <0\|1>` | TCB | the revert skips the owner sweep | G4 RECREATED's negative (R2.4) |
+| 🔁 082-12 `IAI.Bench.TexCorruptRetainRt <0\|1>`, `…PostTeardownCensus <0\|1>` | TCB | keep one released RT strongly referenced; after `post_teardown`, force GC and log `RTCENSUS` | G4 LEVEL-CHANGE (R2.6), G-SNAP-FAIL's negative |
+| 🔁 082-13 (R21.4) `IAI.Bench.TexCorruptRtCensus <0\|1>` (replaces `…PostTeardownCensus`), `…RetainRt <0\|out\|snap>`, `…OmitReleaseAccounting <0\|1>` | TCB, ATC | the post-GC census after every `rollback`, `post_revert` and `post_teardown` reading; retain the first released RT of a kind (the ledger stays balanced); release the first output's RT but drop its bytes from the event account without the ledger move, so `Close` (TCP:452-458) cannot rescue them | G-SNAP-FAIL's two independent negatives; G4 LEVEL-CHANGE (a) |
+| 🔁 082-12 `IAI.Bench.StuckMipCoAffected <texture> [ignoreActor]`, `…CoAffectedIgnoreTexCorrupt <0\|1>` | SLM | print m52's co-affected users of a texture through `BuildVisibleTextureUserCounts`; ignore the R2.9 path | G5-REV (R2.9) |
+
+- 🔁 082-12 (R2.11): **every lever in this table, and `IAI.Bench.DestroyTarget`, registers at runtime only when the
+  process has `-IAIBench`**, and sits inside `#if !UE_BUILD_SHIPPING` (or `ANOMALY_CAPTURE`, or the AnomalyBench module).
+  - The gate is `Public/AnomalyBenchGate.h`, with an unconditional ENABLED/DISABLED echo.
+  - `ExecAtFrame` gets its own tick callback (not after ABM:71's input-lock return), with schedules bound to their world
+    and removed before any world-changing command.
+- ~~⚠ **Found, not in S2's scope:** `IAI.Bench.DestroyTarget` … reported for chat, not changed here.~~ 🔁 082-12
+  (ruling 11): **`DestroyTarget` moves behind the same gate in S2-1** (AIS:40-46, :296-355, :464, :1175-1206).
+  - The other eight pre-S2 bench commands that compile into Shipping (AIS:1069, :1108, :1132, :1153, :1209; SLM:1055,
+    :1079, :1198) are recorded, not changed. The ruling is not a wholesale audit.
+
+### 2.7 m52 and capture (shipping, small)
+
+- SLM: only the pin lever above. **m52's co-affected gate is blind to an m53-held actor** (§6, G5 reverse order):
+  after m53 commits, the host MID binds render targets, so `GetUsedTextures` + `Cast<UTexture2D>` (SLM:101-116) no
+  longer counts the m53 target as a user of the source. ~~Whether m52 should consult m53's live set is a product change
+  to m52: **NEEDS-DECISION**, not in S2 by default.~~
+- 🔁 082-12 (R2.9, ruling 9's "can by default" branch): **S2 includes the fix.**
+  - `CollectComponentTextures` (SLM:101-116) appends the original textures that an m53 host MID replaced on that
+    component, through `AnomalyTexCorrupt::AppendOriginalTexturesFor` (`Public/AnomalyTexCorrupt.h`).
+  - Tested by **G5-REV**.
+  - Also in SLM (R2.5): the `STUCKMIP-RESTORING tracked / already_back` lines at the insertion (SLM:772-785), and
+    `ClearBenchPins()`.
+- ACS: the `TreatUnfocused` lever. 🔁 082-12: `FinishRun` also calls `AnomalyStuckMip::ClearBenchPins()` (R2.5), and
+  `run_summary` gains `texcorrupt_unresolved` (R2.4).
+
+### 2.8 Totals
+
+About **1,000–1,200 changed lines** of C++ (shipping ~700, bench ~350, tests ~150), in AnomalyInjector (ATC, ATH,
+TCC, TCP, TCS, TCB, TCT, AIS, AAI, SLM, `Public/AnomalyTexCorrupt.h`), AnomalyCapture (ACS) and AnomalyBench (ABM).
+**No `Build.cs` change**; the declared dependency set of every module is unchanged (G10 checks it).
+
+🔁 082-12: revision 2 adds about **400–500 lines**.
+- Shipping ~200:
+  - snapshot dispatch and ownership;
+  - the telemetry `DeclareArray` and the writer;
+  - SLOTSTATE;
+  - the ticket;
+  - the draw template and its log;
+  - m52's co-affected fix;
+  - the Restoring lines;
+  - the bench gate.
+- Bench ~150: the eleven new levers and the gated registration.
+- Tests ~100: the draw and CRC known-answer tables; snapshot bytes.
+
+It also adds two files: `Public/AnomalyBenchGate.h` and the test's `tools/texcorrupt_draw_kat.py`; and it touches
+`Public/AnomalyTelemetry.h` and `AnomalyLabelWriter.cpp`. **Total ≈ 1,400–1,700 lines. Still no `Build.cs` change.**
+
+🔁 082-13: revision 2.1 adds about **40 lines**. Bench ~30: the census generalised, the kind-typed retain and the omit branch
+(R21.4). Shipping ~5: the two binding fields (R21.5). Tests ~10: the forgotten-bytes and `Close` cases in the pure test.
+No new file; still no `Build.cs` change.
+
+---
+
+## 3. Cause reads that decide the design
+
+### 3.1 (a) Why `T_TC_Stream2k` loads its full chain by frame 18 — and the T10 producer
+
+Engine paths relative to `D:\UESource\UnrealEngine`; `S\` = `Engine/Source/Runtime/Engine/Private/Streaming/`. Each
+statement is marked SOURCE-READ, LOG-READ or INFERENCE.
+
+**Why 7 of 12 at frame 1.** It is the cooked non-streaming tail, not a console variable: `[TextureStreaming]
+MinTextureResidentMipCount=7` (`Engine/Config/BaseEngine.ini:1570`, read at `SystemSettings.cpp:233-235`); the cook
+stores max(1, tail mips, 7) mips inline (`TextureDerivedData.cpp:2097-2104`, `:2487-2492`), the texture is created with
+that many (`Texture.cpp:1420-1421`, `:1470-1473`), and the streamer's floor is the same number
+(`S\StreamingTexture.cpp:239-246`). For 2048² that is 64² down to 1². SOURCE-READ.
+
+**Why the full chain.** Not the plane's distance or size:
+
+1. The first streaming pass starts at frame 0 (`Texture pool size now 1000 MB` at `[0]`, `M53S1_REASON_T10_A1`
+   `game.log:1515`; LOG-READ). Its dynamic-instance view is built before pending components are merged
+   (`S\StreamingManagerTexture.cpp:1679-1693`, `:402-405`, `:688`; `S\DynamicTextureInstanceManager.cpp:239-247`,
+   `:43-89`). Every fixture mesh is **Movable** (`make_texcorrupt_fixture.py:519`), so all go through that path
+   (`LevelTextureManager.cpp:147-155`; `PrimitiveComponent.cpp:610-617`). SOURCE-READ.
+2. With no reference, the "unknown reference" rule applies (`S\AsyncTextureStreaming.cpp:233-240`): a texture bound
+   in a draw within the last 90 s (5 s for the visible term) wants the **maximum allowed size**, 12 mips
+   (`:257-265`; `StreamingTexture.h:111-114`; `StreamingTexture.cpp:304-310`). The render time is stamped at
+   uniform-buffer bind (`D3D12Commands.cpp:1539`, read at `Texture.cpp:1131-1141`). The 2 px plane **is** drawn: its
+   texture is in the on-screen collateral set from frame 18 (§3.3). SOURCE-READ, LOG-READ.
+3. Once the plane registers, its size-based want should be about 7 (INFERENCE, texel factor ≈ 1.5 at 30,000 cm), but
+   the **keep-mips** pass holds resident mips while the pool has room (`S\AsyncTextureStreaming.cpp:471-508`,
+   `:713-753`; `StreamingTexture.cpp:462-473`), and `r.Streaming.DropMips 0` never drops cached mips (`:758-775`).
+   The pool is **1000 MB** on this box (scalability `TextureQuality@3`, `BaseScalability.ini:554-563`, echoed at
+   `game.log:422-431`). SOURCE-READ, LOG-READ.
+
+- **Ruled out:** `r.Streaming.FullyLoadUsedTextures` is 0 (`AsyncTextureStreaming.cpp:134`); no forced-resident flag
+  (`Texture.cpp:1153-1160`); `NotifyLevelChange` is empty (`StreamingManagerTexture.cpp:298-300`); no pre-stream call
+  in the host project. Built texture streaming data would not help: a Movable component never uses it
+  (`StaticMeshComponent.cpp:1101`), and no cook log shows a streaming build. SOURCE-READ, LOG-READ.
+- **Corroboration:** `T_TC_Cine` goes 7/9 → **8/9** by frame 18: 8 is its maximum allowed (9 minus its cinematic
+  mip), where a size rule would give 7. LOG-READ, INFERENCE.
+- **No contrary evidence** in 414 banked logs: `T_TC_Stream2k` reads 7/12 on all 6 frame-≤1 census lines and 12/12 on
+  all 32 later decision lines and all 292 collateral samples. LOG-READ.
+- **Not settled:** whether the settled want is 7 (the texture is merely kept) or 12 (the unknown-reference rule keeps
+  firing). The bank carries no streaming debug. One probe settles it (P-T10b, `InvestigateTexture`). **A latent race
+  in today's 12** follows from the first reading (a cancel is requested by the second pass around frame 13; the
+  stream-in finished first in every banked leg). INFERENCE. It does not affect S1's disposition of T10.
+
+**The producer: `PauseTextureStreaming` in the frame-1 `-ExecCmds` batch** (a non-Shipping engine console toggle,
+`StreamingManagerTexture.cpp:2388-2395`, `:2822-2826`; it echoes `Render asset streaming is now "PAUSED".`, `:2393`,
+which the harness requires exactly once).
+
+- While paused, the end-of-pass stream-in is skipped (`:1331`). The texture stays at its 7-mip tail; "update pending"
+  reads false (`StreamingTexture.h:169-176`); no update object exists, so `HasPendingInitOrStreaming(false)` is false
+  (`StreamableRenderAsset.cpp:229-234`) and T8 cannot fire; the cached LOD bias is untouched, so T9 `per_texture`
+  cannot fire; `r.Streaming.MipBias` stays 0, so E5 and T9 `streaming_budget` cannot fire. The tree reaches T10 with
+  an empty sub-reason (TCT:460-470: `MaxNumLODs` 12 = M; non-optional 12). SOURCE-READ.
+- **Why it is not a race:** the batch runs at the end of engine frame 1, and the first pass issues its stream-in at the
+  end of the pass (`r.Streaming.FramesForFullUpdate 5`), about frame 6. The margin is frames, not wall time, under the
+  fixed step. INFERENCE, **verified by P-T10** before the lock (frame-1 and frame-18 censuses both 7/12, the pause
+  echo exactly once).
+- **Why it is not another sub-reason:** the ruling forbade `r.Streaming.MipBias` because the tree files it as T9
+  `streaming_budget`. The pause changes no bias.
+- **Side effects, all irrelevant to the row:** every streamable texture stays at its tail (`T_TC_Cine` 7/9; engine
+  grid textures). The T10 leg judges only its own target's refusal.
+- **No fixture change** for T10. Candidates rejected: a tiny `r.Streaming.PoolSize` (lands anywhere in 7–11, not
+  exact); `r.Streaming.DropMips 1` (streams in then out); an off-screen plane (a re-cook, and the tree may refuse it
+  earlier); built streaming data or Static mobility (does not work, above).
+
+### 3.2 (b) The MainWorld control-pair nondeterminism — does it matter for S2?
+
+Read from the seven banked MainWorld legs (`M53S1_FMW_CTL_A/B`, `FMW_ID`, `COLL_A/N_FMW`, `REASON_S3O`,
+`REASON_A2`); scripts and outputs in `E:\IA_BuildCache\_r82_10_scratch\agentB\` (`s1_meta.py` … `s20_R_leaks.py`).
+
+**What is identical (MEASURED).** `frame_index`, `t` and the view are bit-identical at every `session_index` in all
+seven legs; wall cadence agrees within 0.2 ms; 125 ticks per leg (124 in S3O). So the camera, the engine clock and the
+tonemapper-grain phase all match, and G318 is not a contributor (its ±1-on-40 % signature never appears; ≥ 1 peaks at
+6.4 % of the frame). World Partition loads one cell at frame 0 and nothing after (LOG-READ).
+
+**What differs.** Two classes, both launch-dependent:
+
+| class | where | amplitude | when | cause |
+|---|---|---|---|---|
+| **A** | four animated / emissive zones: a particle column rising from the spawn pad around the robot (x 516–766, y 26–496), a rotating holographic ring above the ramp (x 58–188, y 224–318), a sky drone (x 305–370, y 53–107), a left-edge icon (x 44–100, y 132–179) | up to 255, every frame, in every one of the 21 leg pairs | the particle column grows after the robot spawns (fi ~21): ≥ 16 on ~600 px early, ~4,400 late | **not established.** The ring's phase offset between legs changes within a leg (not a clock offset); particle seeds or real-time-driven materials are candidates, untested |
+| **B** | speckle on textured surfaces (ramp, walls, crates, panels, the left rock); the floor tiles are clean | ±1 to ~15 outside the zones | switches at discrete frames (fi 7–8, 21, 35, 42); one leg out of step per window (CTL_B at si 18–31: 58,664 px at ≥ 1, the recorded maximum) | **not established.** It lines up with texture residency at the same engine frame: at frame 42 CTL_B saw 21 qualified floor slots and `T_ConcreteTileable_N` fully resident, the other four apply-path legs 12 slots and that texture at 7/13 `streaming_pending` (LOG-READ); census proxy-recreate schedules also vary (cycle 2 ends at tick 5 vs 6). Not isolated |
+
+- **Stable region (MEASURED):** 97–99 % of the frame is null-vs-null stable at |d| ≤ 2; the floor below y 450 is
+  stable on 345,294 of 345,600 px (five nulls, si 35–46). The floor target's projected box (`bbox_px [0, 189.5, 1280,
+  530.5]`) contains every class-A zone, and the target has no mask (`reason=nanite`), so "the target's pixels" cannot
+  be read. `--change-oracle` has **0 measured rows** on all seven legs (`mask_payload_missing`): coverage 0, never a
+  pass.
+
+**Does it matter for S2? No Q row in S2 reads MainWorld pixels.**
+
+| S2 row | effect | disposition |
+|---|---|---|
+| G1 F-MW | not judgeable on the whole frame or the target | a **D reading inside a region R** declared from the S2 nulls alone (the frame minus the four zones dilated 20 px), null-vs-null checked frame by frame inside R, reported as "first frame differing from the nulls inside R" with its count and max. The bank shows it is feasible: ID and COLL_A first differ from every null inside R at si 39 (104 px ≥ 3, max 83) against a null floor of 2 px (max 3). Two fresh S2 nulls are run; S1's are a different build |
+| G9 on F-MW | `--label-pixel-gate` compares within a session (the launch variation does not enter) but has no masks, so it is a bbox-only READING; `--change-oracle` has coverage 0 | D, reported as such |
+| G8 | field sets are structural; the view and fi fields are bit-identical | **compare keys, not values**: `slots_corrupted`, `slots_untouched`, `required_bytes`, `textures` depend on the launch's streaming state (21 vs 12 slots) |
+| G5, G6 | log reads | each leg's own log; a residency-dependent final can change with the launch (A2 read `streaming_pending` at frame 42, G328 / G329); G6 F-MW is D |
+
+**🚨 A side finding that is not nondeterminism, and it bears on G3 (MEASURED, spot-checked for this plan).** From si 39
+(the identity install at fi 42) the two installing legs (`FMW_ID`, `COLL_A_FMW`) differ from all five non-installing
+legs along the floor contact shadow under the ramp (x 0–370, y 440–490): **max 67–76 on 43–55 px ≥ 16 at si 39, 45,
+60, 90 and 99**, while the non-installing legs agree with each other there at max 1, and nothing differs at si 36–38.
+The event reverted at the end of its window (si ~46), so **si 60–99 are post-revert frames**. `run_summary` reads
+`texcorrupt_restored_exact 0`, `texcorrupt_restored_default 12`. So on MainWorld **the identity install, and its
+revert to the default material, leave a persistent pixel difference** in a region where the nulls are stable.
+
+- It is **not** a feature of the corruption: the mode is identity, and the difference is a shadow edge, not texture
+  content.
+- **Mechanism not established.** A candidate, INFERENCE only: the floor's instanced components are static; the
+  install's `SetMaterial` recreates their render state, which invalidates cached virtual-shadow-map pages, and the
+  re-rendered shadow differs from the pages the non-installing legs keep from load. If so, any material-swapping
+  anomaly (`missing_texture`, `corrupted_texture`) would leave the same trace, and the "stale" side would be the nulls.
+  F-SYN shows nothing of the kind (43 same-index restore rows at 0), and every F-SYN mesh is Movable.
+- **Consequence:** S1's G3 FMW passed on logs only with its pixel clause INVALID-ARBITER; this reading says a pixel
+  clause in a null-stable region would **not** have passed. It is a G3-shaped reading on host content, which §R13
+  makes an S3 stop. ~~**CHAT-DECISION REQUIRED** (§11): the premise window carries an optional D discriminator (P-VSM,
+  §6.0), and nothing in S2's Q rows depends on it.~~
+- 🔁 082-12. **Ruled (082-10 ruling 9, 082-11 ruling 3): the trace is S2-0, a matrix run before S2-1 (§3A).**
+- **Codex's independent reading confirms it**, with two precision corrections to the paragraph above:
+  - the controls agree within **2**, not 1, over si 36–99;
+  - "67–76 on 43–55 px" describes selected frames. Every install-vs-control pair exceeds 16 at every saved si 39–99; at
+    the si Codex tabulates, that is 43–70 px with max 67–84 (`_reviews\082-11-codex-m53-s2-design-review.md`, its bank
+    table; `independent-shadow.json`).
+- **What makes installation the discriminator:** NoApply-1 allocates and draws without `SetMaterial` and shows no trace.
+  `FMW_CTL_B` does so with a much larger allocation set, also without the trace.
+- **Still not established:** the mechanism, and which final image is correct.
+
+### 3.3 Collateral completeness (Codex hole C1), read from the bank
+
+- **F-SYN** (`M53S1_COLL_A_FSYN_A1\_leg\game.log`): every one of the 81 `TEXCORRUPT-COLL` samples reads
+  `incomplete=1 (… unknown_residency=1 …)`, and the one entry is **`T_TC_VT` at `-1:-1`**: the virtual-texture
+  producer tile, whose `FStreamableRenderResourceState` is not a mip residency. Every other one of the 49 collateral
+  textures has a level (`T_TC_Stream2k` reads `12:12` from the Apply sample at frame 18 onward, which also shows its
+  plane is drawn on screen within 0.2 s).
+- **F-MW** (`M53S1_COLL_A_FMW_A1`): `incomplete=9 (… unresolved=9 …)`, 73 of 73 textures, 232 primitives. The log
+  does not say which nine entries resolve to nothing.
+- **Disposition:** S3 decides whether a virtual texture is a declared exclusion from the residency reading (it
+  cannot be measured by mip count) or a separate reading; S2 only adds the naming line (§2.5).
+
+### 3.4 The rest of the cause-read list: plans, not results
+
+| item | plan | bench? | when |
+|---|---|---|---|
+| 14 halo | premise-window pair P-HALO: `WC chanswap` vs null on `TC_UC1` with `r.BloomQuality 0`; the same with `r.AmbientOcclusionLevels 0`. Readout: the ring and far-field maxima against S1's (G324). D only; a result changes no S2 row | 4 legs | premise window |
+| 15 start-up element | bank read of the 082-07d frames that showed it: which si, which pixels, which actor | no | harness brief |
+| 16 TC_Layer gradient | read `M_TC_Layer`'s shading model in `make_texcorrupt_fixture.py` (`layer_material`) and the gradient's direction against the sun (`TC_Sun`, pitch −45, yaw 35); a lit gradient needs no change | no | harness brief |
+| 17 P5a | bank read of the 10 ChainD differences (tile, si, frame mod 8); G-RD-DRIFT stays on head-on tiles | no | harness brief |
+| 19 51.7 s input | persisted timestamps (item 21) make a recurrence attributable | — | every S2 window |
+
+---
+
+## 3A. 🔁 082-12 — S2-0: the MainWorld shadow-trace matrix (ruling 3)
+
+### 3A.1 What it answers, and on what build
+
+- **The build:** the current staged S1 set — exe `2FCDF059`, utoc `20DA6F98`, ucas `534C5863` (archived as
+  `m53-s1-maskedfix-cook-20DA6F98`). **No build, no cook, no source change.** The owner's PC OK is required (082-10
+  sequence).
+- **The question.** What produces the persistent post-revert difference at MainWorld's ramp contact shadow? It is described
+  in §3.2, and Codex confirmed it independently: install vs control ≥ 16 at every si 39–99, controls agree within 2.
+  - Is it cache-dependent?
+  - Is it reproduced by another material swap?
+  - Is it reproduced by a plain render-state refresh?
+  - Is it specific to the tested m53 path?
+- **It is not a Q gate.** It produces readings and flags, and chat rules on them before S2-1.
+
+### 3A.2 The recipe, common to every leg
+
+- **Launch.**
+  - Map MainWorld, 1280×720 windowed.
+  - The runner is the S1 runner `082-07-run.ps1`, unmodified (launch line `:24`).
+  - `-ExecCmds` is built as the S1 lib builds it: BASE (`082-07-lib.py:457-459`) + `IAI.Capture.Config <cfg>` + the levers
+    + `IAI.Capture.Start <label> png 777 <frames> <anomaly> <target>` (`:472`) + the scheduled commands below.
+- **The target:** `MW_FLOOR` = `RoomBuilderSquare_C_UAID_00155DE1D4771FCF00_1080865874` (`082-07-legs.py:10`). It has
+  twelve `NODE_AddInstancedStaticMeshComponent-*` components and 30 slots, and it is Nanite (`M53S1_FMW_ID_A1/_leg/game.log`
+  `:2405-2533`, `:2550`).
+- **Native tick order.**
+- **The census at its compiled default (ON), exactly as banked.**
+  - It never tags the Nanite floor: `NOT_MEASURABLE(nanite)` (`:2550`); its ARM map names other actors (`:1813`).
+  - Its per-cycle proxy recreates of those other actors happen in every leg alike.
+- **The cache setting.**
+  - **Cache ON** = no cvar: the engine default is `r.Shadow.Virtual.Cache 1` (`VirtualShadowMapCacheManager.cpp:27-32`).
+    Virtual shadow maps are on through the project ini (`r.Shadow.Virtual.Enable=1`, `Config/DefaultEngine.ini:19`,
+    echoed at `game.log:276`).
+  - **Cache OFF** = `r.Shadow.Virtual.Cache 0` in the batch, right after BASE. The cvar is read on the render thread every
+    frame (`:618`, `:731`, `:775`). When it is off, no cache entry is found or kept (`:618-621`, `:775-780`).
+  - 🔁 082-13 (R21.1 T8): **every leg** then issues the query `r.Shadow.Virtual.Cache`, which echoes the effective value and
+    its `LastSetBy` (`ConsoleManager.cpp:1972`), the pattern BASE already uses for exposure. Cache-on cells must read `1`
+    (not set by Console), cache-off cells `0` (Console).
+- **A single event, followed by an equally long clean tail.**
+
+  | family | config | frames | apply frame F | event | tail |
+  |---|---|---|---|---|---|
+  | **A** (the banked schedule) | `IAI.Capture.Config 2 40 8 60 0` | 107 | 42 (as banked, `game.log:2540`) | si 39–46 | si 47–106 (60 frames) |
+  | ~~**B**~~ | ~~`2 60 8 60 0`~~ | ~~127~~ | ~~62~~ | ~~si 59–66~~ | ~~si 67–126~~ |
+  | 🔁 082-13 **B** (warm OFF on every leg) | `2 62 8 60 0` | 129 | 62 | si 61–68 | si 69–128 (60 frames) |
+
+  - 🔁 082-13 (R21.1): **one warm policy per family.** A keeps the compiled warm draw (every A arm is m53-targeted, so all
+    take it alike). Every B leg carries `IAI.Capture.TexCorruptWarmDraw 0` before `IAI.Capture.Start`, so C and the m53
+    arms share one clock. Revision 2's B had C firing at 60 and the m53 legs at 62. **R21.1 gives each family's full
+    si → fi map, the census and refresh frames with their `DEFER` depths, and each arm's tokens.**
+  - Every cell of a family has the same schedule and tail length.
+  - The 60 post-event frames cover the banked post-revert span (si 47–99), with margin.
+  - The frame cap ends the run before a second fire.
+- **Commands at a later frame, through nested `DEFER`** (this build has no ExecAtFrame).
+  - `-ExecCmds` run at engine frame 1 (`game.log` lines prefixed `[  1]`).
+  - `DEFER <cmd>` queues `<cmd>` for the next tick (`UnrealEngine.cpp:4756-4759`, `:5199-5202`), and
+    `TickDeferredCommands` runs only what was queued when it started (`:2279-2309`). So `DEFER` nested n times runs at
+    frame 1 + n.
+  - **Every leg** schedules the census lever `IAI.Bench.TexCorruptCensus MW_FLOOR` at **F − 2** (n = F − 3) and at
+    **F + 40** (n = F + 39). The lever is read-only and logs every slot's Raw/len/Asset/Resolved/Effective (TCB:352-361).
+  - 🔁 082-13 (R21.1): precisely, `TickDeferredCommands` runs at the **end** of each engine-loop iteration, after
+    `GFrameCounter++` (`LaunchEngineLoop.cpp:5568`, `:5608`). So a command logged `[k]` runs before world tick k, and the
+    `-ExecCmds` batch runs before world tick 1. ⚠ **Nested `DEFER` has never run on this bench** (the S1 harness never
+    issued it), so T6 / T7 validate it on the first leg of each type.
+
+### 3A.3 Arms and cells
+
+| arm | what the event does | levers in the batch | anomaly | family |
+|---|---|---|---|---|
+| **ID-P**: m53 identity, partial footprint (the banked case) | installs the identity host MID on the slots that qualify at frame 42. That is 12 or 21 of 30, depending on the launch: `FMW_ID :2405` qualified 12; `FMW_CTL_B :2406` qualified 21 | `IAI.Bench.TexCorruptIdentity 1` | `uv_corruption` | A |
+| **ID-F**: m53 identity, full footprint | by frame 62 every slot qualifies: every banked decision from frame 58 on refuses only at V2, with `over_budget:need_219541488` (`FMW_ID :2909`). With the cap raised it installs 30/30 | `IAI.Bench.TexCorruptIdentity 1`, `IAI.Anomaly.TexCorruptMaxRtBytes 268435456` | `uv_corruption` | B |
+| **C**: an existing, shipped material swap | `corrupted_texture` swaps every slot of every matching mesh component to its pink material, and restores Original or nullptr (`Anomaly_CorruptedTexture.cpp:112-124`, `:203-216`): 30/30 on the same 12 components | the cap (inert for C; kept so the B legs differ only by the arm) | `corrupted_texture` | B |
+| **R**: a plain render-state refresh, no material change | an m53 NoApply-2 event (nothing reserved, allocated, drawn or committed; ATC:769-783), so the capture has the same event, plus `Reattach.Components class=InstancedStaticMeshComponent` at F and at F + 10 (the arms' apply and revert frames). That command is a full unregister/register of every ISM component, logged per component with the frame prefix (`EngineGlobals.cpp:145-184`) | `IAI.Bench.TexCorruptIdentity 1`, `IAI.Bench.TexCorruptNoApply 2`, the cap, `DEFER`×(F − 1) and `DEFER`×(F + 9) `Reattach.Components class=InstancedStaticMeshComponent` | `uv_corruption` | B |
+| nulls **N1**, **N2** | **N1** = NoApply-1: the whole transaction except the slot commit, so no `SetMaterial` (ATC:959-966). **N2** = NoApply-2 | `IAI.Bench.TexCorruptIdentity 1` + `IAI.Bench.TexCorruptNoApply 1` or `2` (+ the cap in family B) | `uv_corruption` | A and B |
+
+🔁 082-13 (R21.1): **every family-B leg (ID-F, C, R, N1, N2) also carries `IAI.Capture.TexCorruptWarmDraw 0`**, first among
+its levers. The full per-arm lever order and the tokens each arm must log at [F] and [F + 10] are R21.1's per-arm table.
+
+- **The cells:**
+  - family A: {ID-P} × {cache on, cache off};
+  - family B: {ID-F, C, R} × {cache on, cache off}.
+- **Each cell is its arm leg plus its own N1 and its own N2, launched adjacently (N1, arm, N2). That is 24 legs.** Order:
+  A-on, A-off, B-ID-on, B-C-on, B-R-on, B-ID-off, B-C-off, B-R-off.
+- 🔁 082-13: labels `M53S20_<family>_<arm>_<ON|OFF>_<N1|arm|N2>`, e.g. `M53S20_B_C_OFF_C`. Every batch was generated
+  from this recipe and measured (R21.8): at most 29 commands and 3,106 command-line characters, against a 16,384 cap.
+- **The footprint is logged per arm leg:**
+  - ID-P and ID-F: the DECIDE slot lines, and APPLIED's `slots n/30 committed`;
+  - C: `corrupted_texture: overrode %d slot(s) across %d component(s)` (`Anomaly_CorruptedTexture.cpp:131`);
+  - R: the two Reattach component lists. 🔁 082-13: they print `GetName()` only (`EngineGlobals.cpp:164`), and other
+    RoomBuilder actors reuse the `NODE_AddInstancedStaticMeshComponent-*` names. The lists therefore show that the names
+    appear; that the floor's components are among those re-registered holds by construction, because every live
+    component of the class is iterated (`:159-168`).
+- **Footprint matching:**
+  - **ID-F and C are matched:** 30 slots on the same 12 components.
+  - ID-P is launch-dependent and is reported with its installed set.
+  - **R is not matched,** and that is recorded as its limitation. It re-registers every ISM component in the world, a
+    superset of the floor's 12. No per-component refresh exists on this build:
+    - the engine has no per-component recreate command;
+    - `Reattach.MaterialInstances` and re-setting `r.Velocity.ForceOutput` to its current value refresh everything,
+      globally (`EngineGlobals.cpp:88-142`; `ConsoleManager.cpp:659-665`; `PrimitiveSceneProxy.cpp:63-82`);
+    - `SetMaterial` with the unchanged material returns early (`MeshComponent.cpp:48-109`).
+- **If ID-F does not log `slots 30/30 committed`,** the B cells read **FOOTPRINT-UNMATCHED** for the ID-F-vs-C comparison,
+  the limitation is recorded, and everything else still reports.
+- **The minimum for a matched, material-free refresh** (proposed, not on this build): a bench lever that calls
+  `MarkRenderStateDirty` on exactly the components an m53 event would install on, at its apply and revert frames. It can
+  join S2-1 behind R2.11's gate if chat wants it after reading S2-0.
+
+### 3A.4 Readings
+
+- **K**, the ramp contact-shadow crop: x [0, 370), y [440, 490) (Codex's `bank_audit.py:22`). Per si: RGB max |d| and the
+  number of px whose max-channel difference is ≥ 16. For arm vs N1, arm vs N2 and N1 vs N2, all at the same
+  `session_index`.
+- 🔁 082-13 (R21.6): **cross-arm pairs in family B**, at the same cache setting and the same si (the same frame after
+  R21.1): **C vs ID-F** and **R vs ID-F**, the same two numbers per si.
+- 🔁 082-13: **"post-event si" in every flag means the family's tail:** si 47–106 (A) and si 69–128 (B). It starts at the
+  revert frame's own capture, which is labelled clean.
+- **Region R** (§3.2: the frame minus the four class-A zones dilated 20 px, declared from this window's own nulls). The
+  first si where the arm differs from both nulls (≥ 16 on ≥ 32 px), with its count and max, reported beside K.
+  - 🔁 082-14 (R22.5): **only at an si where the nulls agree inside R** (N1 vs N2 ≥ 16 on fewer than 32 px), §3.2's
+    frame-by-frame null check. Without it the bank reads si 0 (early frames differ across launches); with it, si 39. The
+    unconditioned first si is reported beside it. "Dilated 20 px" = each class-A rectangle grown by 20 px.
+- **State evidence:**
+  - the pre-event census (F − 2) and the post-revert census (F + 40), per slot: Raw, len, Asset, Resolved, Effective;
+  - m53's DECIDE slot lines and its revert lines (`override_len_before_apply / before_revert / after`, ATC:1138-1141);
+  - `corrupted_texture`'s revert count line (`:247`);
+  - the Reattach lists.
+- **Telemetry, beside the readings:** `speed_ratio` and sustained fps. With the cache off, every page is re-rendered.
+
+### 3A.5 Validity and the premise audit, per leg
+
+| axis | every leg | arm-specific |
+|---|---|---|
+| FX | MainWorld content is the S1 container (G-COOK proved it, 082-06d); the target resolves (`Auto.FireSpecific … applied`, `FMW_ID :2542`) | C: the overrode line names 12 components; R: both Reattach lists include all 12 floor components |
+| CD | the pinned MainWorld trajectory (`_reviews\082-07-mw-trajectory.json`, fi ≤ 702, native only; S1 A4.3.1): ~~frame_index, t and view are compared with it per leg~~ 🔁 082-13: every row's view (pose) is compared with it at the row's `frame_index`, through `trajectory_errors` (`082-07-lib.py:221-235`; the trajectory carries poses only). Its one gap in range, fi 5, is bridged because fi 4 and 6 agree (`:227-230`). Both families' fi (1–133) are inside it; a leg off the trajectory is INVALID-POSE | — |
+| DP | cross-leg comparison at the same `session_index` (G318). 🔁 082-13: **within a family, the same si is the same engine frame**, by T1 (R21.1) | — |
+| RS | ID-P's footprint is launch-dependent (12 or 21), recorded, not controlled | ID-F must commit 30/30, else FOOTPRINT-UNMATCHED |
+| LV | cache-off legs: the echo `r.Shadow.Virtual.Cache = "0"`. Every scheduled command's frame is read from the `[fff]` prefix of its output (census: `LogAnomaly`; Reattach: `LogConsoleResponse` Display). 🔁 082-13: plus the every-leg query echo (T8) | — |
+| WP | the runner stops 2.5 s after `run_summary`, and every scheduled command is inside the capture (the last is at F + 40). 🔁 082-13: that is fi 82 (A) and 102 (B), against a last captured fi of 113 and 133 | — |
+| protocol | ~~exactly one fire per leg: one APPLIED, or one `corrupted_texture` apply. A second fire is INVALID-PROTOCOL~~ 🔁 082-13 (R21.2): **exactly one `Auto.FireSpecific` line** (any disposition) per leg, reading `applied`, at [F]. Installing arms: exactly one `APPLIED … noapply=0`. N1: the NoApply-1 marker and `APPLIED … noapply=1`. **N2 and R: exactly one NoApply-2 marker, checked separately, and no APPLIED line.** C: its overrode line and no m53 decision line. A second fire line is INVALID-PROTOCOL | — |
+| ~~DEFER (P0)~~ | ~~**the first leg (A-on's N1) is read before any other.** Its APPLIED frame must be 42, and its two census lines must carry frames 40 and 82. A mismatch stops the window for a declared amendment before any arm leg. It is not re-run for a better number~~ | — |
+| 🔁 082-13 **timing, every leg (T1–T8)** | R21.1's eight checks: the si → fi map, the warm policy, one applied fire, the arm's tokens at [F], the revert at [F + 10], the census at [F − 2] and [F + 40], R's refresh at [F] and [F + 10], and the cache echo. Each is read **before the next leg launches and before any pixel reading of the leg**. **A failure on the first leg of a type stops the window** for a declared amendment, and is not re-run. On a later leg of a validated type it is INVALID-TIMING: re-run once, adjacently (a pre-fixed, outcome-independent rule); a second failure stops | per arm: R21.1's table |
+| nulls | N1 vs N2 ≤ 2 in K at every si ~~.~~ 🔁 082-14 (R22.5): **from the first labelled si to the last** (A si 39–106, B si 61–128); the bank nulls reach 55 at si 0–31, agree within 2 from si 32. The per-si reading is reported for every si. Otherwise the cell is INCONCLUSIVE and gives no flag | — |
+
+### 3A.6 The evaluator is proven first
+
+- **A known answer from an independent implementation (G96).** Before any S2-0 reading is read, the evaluator runs on the
+  seven banked A1 legs and must reproduce Codex's `independent-shadow.json` exactly: every si, every pair, max and
+  px ≥ 16.
+- **Synthetic can-fail cases:** a +20 tint in K must read present; a copy of a null must read absent.
+- 🔁 082-13: **the timing checks (R21.1) and the protocol rule (R21.2) are proven on the bank and on synthetic copies**
+  before the first leg. **The classifier (R21.6) is proven on synthetic cases:** same trace with equal state ⇒ CAUSE
+  UNRESOLVED; a difference of 3 on 40 px ⇒ DIFFERENT-TRACE; same trace with defective state on both ⇒
+  PLUGIN-WIDE-RESTORE-DEFECT.
+- 🔁 082-14: **done, and locked.**
+  - The known answer is reproduced exactly: 100 si, 1,000 install-vs-null readings, null_max, metadata and trace_first_si.
+  - The timing checks are proven per R22.2's source table (M2).
+  - The classifier is proven on 17 synthetic branches, including M1's equal-Effective / non-zero-disposition negative
+    (R22.1).
+  - 93 checks, 0 failed (R22.6). The window re-runs the known answer before its first leg and stops (code 22) if it
+    fails.
+
+### 3A.7 Outcome vocabulary: flags, not mutually exclusive
+
+**Per cell:**
+- **present:** the arm vs both of its nulls ≥ 16 on ≥ 32 px in K at every post-event si (from the si after the revert to
+  the last), with N1 vs N2 ≤ 2 throughout;
+- **absent:** the arm vs each null ≤ 2 in K at every post-event si;
+- **partial:** anything else, reported per si.
+
+| flag | condition |
+|---|---|
+| **REPRODUCED** | ID-P, cache on: present |
+| **NOT-REPRODUCED** | ID-P, cache on: absent. Report and stop; the bank reading stays a banked observation |
+| **CACHE-DEPENDENT** (per arm) | present with the cache on, absent with it off |
+| **REPRODUCED-BY-SWAP** ("reproduced by another material swap") | C, cache on: present. 🔁 082-13 (R21.6): **descriptive only**; it never classifies a cause by itself |
+| 🔁 082-13 **SAME-TRACE-AS-ID-F** / **DIFFERENT-TRACE** | C and ID-F both present (same cache setting), and C vs ID-F ≤ 2 in K at every tail si / C present and C vs ID-F > 2 at any tail si |
+| **REPRODUCED-BY-REFRESH** ("reproduced by a plain render-state refresh") | R, cache on: present, **and** R vs ID-F ≤ 2 in K at every post-event si (the refresh gives the installed image) |
+| **SPECIFIC-TO-M53-PATH** ("specific to the tested m53 path") | ID-F present, C absent, R absent (cache on) |
+
+**A causal classification needs the state evidence as well. The pixels alone never classify.**
+- **STALE-NULL** (a label caveat, not a restore defect).
+  - Condition: REPRODUCED-BY-REFRESH, and the post-revert census shows every slot's Effective material equal to its
+    pre-event value.
+  - Meaning: the non-installing null is the stale image. The anomaly refreshes a stale shadow, so post-event frames can
+    differ from an untouched run in the shadow region while they are labelled clean. This is ruling 3's case.
+- ~~**PLUGIN-WIDE** (escalated to the owner as a shipped-anomaly finding, as 082-10 ruling 9 required).~~
+  - ~~Condition: REPRODUCED-BY-SWAP and not REPRODUCED-BY-REFRESH, with the state evidence attached.~~
+  - 🔁 082-13 (R21.6, withdrawn): a different swap trace with perfectly restored materials satisfied it, without
+    establishing a shared restore defect.
+- 🔁 082-13 **PLUGIN-WIDE-RESTORE-DEFECT** (escalated to the owner as a shipped-anomaly finding, as 082-10 ruling 9
+  required).
+  - Condition: REPRODUCED-BY-SWAP **and** SAME-TRACE-AS-ID-F **and** not REPRODUCED-BY-REFRESH, **and** rendering-relevant
+    defective state established after revert on **both** C's and ID-F's slots. That means an Effective material that
+    differs from its pre-event value (the census)~~, or a slot left `left-to-game` / `unresolved` (ATC:1114-1122; ACT:246's
+    counts for C)~~.
+  - 🔁 082-14 (M1, R22.1): **an actual Effective mismatch after revert on both arms**, with a matched footprint. A
+    `left-to-game` / `unresolved` count alone never classifies; it is reported beside the class.
+- 🔁 082-13 **REPRODUCED-BY-SWAP, CAUSE UNRESOLVED**: REPRODUCED-BY-SWAP without all of the above. It is a description for
+  chat, not an escalation class; chat decides whether it reaches the owner.
+- **M53-RESTORE-DEFECT** (its fix joins S2-1).
+  - Condition: SPECIFIC-TO-M53-PATH, **and** the post-revert state differs from the pre-event state in a field that affects
+    rendering: the Effective material~~, or a slot left `left-to-game` or `unresolved`~~.
+  - 🔁 082-14 (M1 extended, R22.1, flagged for chat in §11): **only an Effective mismatch on ID-F establishes it**; a
+    disposition count alone does not.
+  - SPECIFIC-TO-M53-PATH with an identical Effective state reads **M53-SPECIFIC, CAUSE NOT IN SLOT STATE**, and goes to
+    chat unclassified. 🔁 082-14: with an unreadable census, **M53-SPECIFIC, CAUSE UNRESOLVED**.
+- **UNCLASSIFIED** otherwise; the flags are reported.
+
+**A state difference stated in advance, which is not by itself a restore failure.** After `SetMaterial(slot, nullptr)` the
+override array keeps its grown length with null entries (`MeshComponent.cpp:59-62`). On the bank: `FMW_ID :2686-2695`
+reads `override_len_before_apply=0 before_revert=1 after=1`, and the next decision reads `raw=None(len 1)`. §R8.3 names
+this limit. It is recorded in every classification, and it counts as rendering-relevant only if the Effective material
+differs.
+
+### 3A.8 Predictions, declared before any leg
+
+| # | cell | prediction | confidence and basis |
+|---|---|---|---|
+| S0-1 | ID-P, cache on | **present** at every si 39–106 (≥ 16 on ≥ 32 px in K), with the nulls ≤ 2 ⇒ REPRODUCED | high: 10 of 10 banked install-vs-control pairs at every si 39–99, with controls ≤ 2 (Codex, `independent-shadow.json`) |
+| S0-2 | every arm, cache off | **absent** ⇒ CACHE-DEPENDENT for every arm that shows it with the cache on | moderate: with the cache off no page is kept, so arm and null alike render every page fresh on every frame (`VirtualShadowMapCacheManager.cpp:618-621`, `:775-780`) |
+| S0-3 | ID-F, cache on | **present**, with 30/30 committed | moderate-high |
+| S0-4 | C, cache on | **present** after the revert ⇒ REPRODUCED-BY-SWAP | moderate: `SetMaterial` marks the render state dirty (`MeshComponent.cpp:77`), and a removed primitive invalidates its virtual-shadow-map footprint (`RendererScene.cpp:5109-5113`). This is the same path as m53's install and revert |
+| S0-5 | R, cache on | **present, and R ≈ ID-F** ⇒ REPRODUCED-BY-REFRESH | **low-moderate, the weakest.** It rests on an inference: that the trace is a re-render of invalidated cached pages, which a re-register also triggers |
+| S0-6 | state | post-revert Effective == pre-event Effective on every slot, for ID-P, ID-F and C. Override arrays are grown with nulls (ID: 0 → 1/2/3 on the committed components; C: 0 → the slot count on all 12). R is unchanged | high for ID (the bank); moderate for C |
+| 🔁 082-13 S0-4b | C vs ID-F, cache on | **SAME-TRACE-AS-ID-F** (≤ 2 in K at every tail si) | moderate: the same 30 slots on the same 12 components are re-materialised at the same frames (62 and 72) on one clock (R21.1), and both reverts restore the original or the default |
+
+- 🔁 082-13: every prediction in this table is read against R21.1's schedule (family B: apply at 62, tail si 69–128).
+  Revision 2's B indices (si 59–66, tail 67–126) are withdrawn.
+- **The predicted classification is STALE-NULL:** a label caveat on MainWorld-like content, not a restore defect.
+- **What refutes it:**
+  - ~~S0-5 fails while S0-4 holds ⇒ PLUGIN-WIDE (escalation)~~ 🔁 082-13 (R21.6): S0-5 fails while S0-4 holds ⇒
+    REPRODUCED-BY-SWAP, CAUSE UNRESOLVED, unless S0-4b and defective state on both arms also hold (then
+    PLUGIN-WIDE-RESTORE-DEFECT, an escalation);
+  - S0-4 and S0-5 both fail while S0-3 holds ⇒ SPECIFIC-TO-M53-PATH (a restore investigation joins S2-1);
+  - S0-1 fails ⇒ NOT-REPRODUCED.
+- ⛔ **Nothing here asserts a mechanism.** The virtual-shadow-map cache is a candidate, which the cache-off cells test.
+  Which final image is correct is not established until REPRODUCED-BY-REFRESH, or its absence, is read.
+
+### 3A.9 What S2-0 needs and what it changes
+
+- **Harness:** a new S2-0 driver and evaluator (~~`_reviews\082-13-s20-*`~~ 🔁 082-13: `_reviews\<S2-0 brief>-s20-*`,
+  named by the S2-0 brief's own number, because 082-13 is this revision) that calls the S1 runner unmodified. The S1
+  boundary files (`082-07-*`, boundary `1c3a348f`) are not edited.
+  - 🔁 082-14: **built in 082-14 as `_reviews\082-14-s20-*`** (the harness brief's number; 082-15 runs it). Files,
+    rules, proofs, dry run and lock are in R22.6.
+  - 🔁 082-13: it builds the batches exactly as R21.1 declares them (generated and measured in R21.8). It imports
+    `trajectory_errors` from the S1 lib rather than copying it, and implements T1–T8, R21.2's protocol rule and R21.6's
+    classifier, each proven first (§3A.6).
+  - 🔁 082-13: **it re-runs R21.8's token scan on the staged exe before the first leg**, and verifies the staged set by hash
+    before and after.
+- **Bench time:** 24 MainWorld legs of ~~107–127~~ 🔁 082-13: 107 (A) and 129 (B) frames, plus at most one INVALID-TIMING
+  re-run per leg (R21.1).
+  - 🔁 082-14: S1's MainWorld legs took 10.7–10.9 s each for 100 frames (runner wall time, launch included).
+  - The window adds a ≥ 30 s quiet check, the ~30 s known answer, a staged-set hash per leg (~2 s), the A-on cell
+    reading (~15 s) and the final evaluation (~2–4 min).
+  - **Expected ≈ 10–13 min** with no re-run and no person or quiet wait, inside one 45-min wait-budget tag.
+- **Nothing is staged, built or cooked.** The staged set is verified by hash before and after.
+- **Its result goes to chat before S2-1.**
+
+---
+
+## 4. Fixture changes, and the cook
+
+**Plugin assets: none** (§2.1). **Bench fixture: additions only**, through a new `make_texcorrupt_fixture.py` mode
+`TEXCORRUPT_FIXTURE_MODE=s2add` in the 082-07c / 082-07f pattern: it adds packages under
+`/Game/CaptureBenchTexCorrupt/`, adds actors to `CB_TexCorruptLevel`, and saves only those packages and the level.
+The generator `texcorrupt_fixture_images.py` gains the new images with their offline proofs.
+
+| new row | assets | why no existing row serves | offline proof (before the cook) | disk read-back (after authoring, from the saved bytes, 082-07f audit) |
+|---|---|---|---|---|
+| **A3 producer** `TC_NormalUnconn` | `T_TC_NormalUnconn` (BC5, `TC_Normalmap`, 128², the NN1 cells); `M_TC_NormalUnconn`: **Unlit**, the normal map sampled through a Normal sampler into **Emissive only**, Normal pin unconnected (the pre-082-07c readout, which produced `normal_unconnected` on every normal target in 082-07b) | 082-07c repaired all four normal readouts, including `M_TC_NormalEmis`, which was the intended A3 producer; it now applies (`legs:51` `NORMAL_APPLY`) | the tile is inside the view and unoccluded at the fixture camera (~~`fixture_layout_projection`~~ 🔁 082-12: that name exists nowhere in code; the check is the projection math `make_texcorrupt_fixture.py:498-503`, `:543-546`, and the tile's `screen_px` in `texcorrupt_fixture_actors.json`, `:540`), and its emissive range is non-black (luma > 0) | shading model Unlit; `get_material_property_input_node(MP_NORMAL)` is None; effective blend mode `get_blend_mode()` Opaque = authored (G323); the texture's compression / sRGB / `IsNormalMap`. 🔁 082-12: **the fixture's own verify would reject this row.** `normal_proofs` fails any normal map bound outside `NORMAL_READOUTS` and requires every entry there to be Default Lit (`make_texcorrupt_fixture.py:927-928`, `:939-958`). So `M_TC_NormalUnconn` is added to a declared **A3-producer exception** in verify: a normal map bound, the Normal pin unconnected, both asserted. The runtime predicate A3 reads is `!Root->IsPropertyConnected(MP_Normal)` on the resolved base material (TCT:528, :571-574), and A2 cannot fire first, because the texture is a normal map (TCT:553, :566-570) |
+| **G5 pair** `TC_M52Hold`, `TC_M52Share` | `T_TC_M52Shared`: 1024², `never_stream` **false**, World group, sRGB, a 64-texel cell pattern; one Unlit rgb readout `M_TC_M52Shared` on two facing 120-px tiles | every F-SYN encoding texture is never-streamed, so m52 cannot hold it (SLM:94, :473-491); the only streamed ones are `T_TC_Stream2k` (a ~2 px plane that m52 refuses, SLM:498-525) and `T_TC_Cine` (already carries a cinematic mip, which is m52's own mechanism) | both tiles visible and unoccluded; one texture shared by both materials' bindings (the same asset path) | `never_stream` false, `NumCinematicMipLevels` 0, `LODBias` 0, both tiles' materials resolving to the same texture |
+| 🔁 082-12 (R2.1) **mode oracle, UV** `TC_OracleUV16`, `TC_OracleUV64` | `T_TC_OracleUV16`: 128², 4×4 cells of 32 texels, 16 distinct colours. `T_TC_OracleUV64`: 128², 8×8 cells of 16 texels, 64 distinct colours from the cube of levels {40, 100, 160, 220}. Both are uncompressed (`CompressionNone`), sRGB, never streamed, with box mips (the cells align at every mip used). One Unlit rgb readout, `M_TC_OracleUV`. The tiles are displayed at ≥ 1:1, 128 px at depth 1000 | every existing `cells()` image has the same period-4 diagonal structure (`texcorrupt_fixture_images.py:77-90`): a transpose leaves half its cells unchanged, and offsets of (0.5, 0) or (0.25, 0.25) are identities. The chain images are symmetric under transpose (`:190`, `:198`, `:212`) | every cell colour differs from every other by ≥ 60 in one channel at the texel. Every negative pair of expectations (R2.1) differs on ≥ 25 % of the kept pixels. The tiles lie outside the transition fan and inside the view (the projection math, `make_texcorrupt_fixture.py:498-503`) | compression none, sRGB, `never_stream`, mip count; the readout Unlit; effective blend Opaque (G323) |
+| 🔁 082-12 (R2.1) **mode oracle, normal** `TC_OracleN` and the noise references `TC_OracleN_RefId`, `_RefA`, `_RefA2`, `_RefNeg` | `T_TC_OracleN`: 128², BC5 (`TC_Normalmap`), never streamed, 4×4 cells of 32 texels holding the closed normal set (±0.55, ±0.20), (±0.20, ±0.55), (0, 0). The references are BGRA8 (`CompressionNone`, `TC_Normalmap`, the normal sampler): RefId is OracleN's own values; RefA is the expected `noise` output at A = 0.5, baked from `NOISE_WAVES` exactly as the graph samples them (`create_texcorrupt_assets.py:35-39`, `:143-152`, `:291`); RefA2 is A = 0.25; RefNeg is −noise. One readout `M_TC_OracleN` in the `:273-275` normal pattern, with BaseColor 0 and Specular 0 (so the lit term is 0), registered in `NORMAL_READOUTS` (`:435-440`) | `TC_NN1`'s cells change by only 25 (`green_flip`, cell 1) and 31 (`flat`, cell 3), below `PROOF_FLOOR 32` (`:25`, `:137`). No cell set is closed under the sign flips, and no reference ties `noise` to its authored table | every pair in the closed set differs by ≥ 44 levels encoded. RefA2 and RefNeg differ from RefA by ≥ 32 on ≥ 128 texels | the BC5 / BGRA8 settings; `normal_proofs` passes with the new readout listed; BaseColor and Specular read back as 0 |
+| **T9 per_texture producer** `TC_LodBias` (optional; admitted only if the census reads it) | `T_TC_LodBias`: 128², never streamed, **`LODBias 1`**; Unlit rgb readout | no fixture texture has an asset LOD bias | visible, non-black | `LODBias` 1 saved. ⚠ Whether the cooked texture keeps `AssetLODBias > 0` at runtime (TCT:449) is **not known**: the cooker may strip the biased mip. The census reads it on the premise window; if it reads anything but `per_texture`, the row is recorded FIXTURE-CANNOT-EXERCISE (D) before the lock, never run as Q |
+
+**T10 needs no fixture change**: its producer is a console toggle on the existing `TC_Stream2k` (§3.1).
+
+**The cook** (runbook §8.6, host `E:\IA_BuildCache\_r53_host`, on the S2 editor binaries, G47):
+
+1. **M0** byte manifest (`texcorrupt_bytecheck.ps1`), then the authoring run, then **M1**. Rule, stricter than S1's:
+   every file present at M0 is byte-identical at M1 **except** `CB_TexCorruptLevel.umap`; every added file is under
+   `Content\CaptureBenchTexCorrupt\` and is on this section's list; nothing under `Config\` or the plugin's `Content\`
+   changes.
+2. Archive the staged quintet and exe to a fresh `_binary_baselines\m53-s2-precook-…` dir, hash-verified at the
+   destination (the S1 staged set `m53-s1-maskedfix-cook-20DA6F98` is already archived and is the rollback).
+3. Cook with `CB_TexCorruptLevel` in `-map=`; the map gate `-Required CB_GateLevel,MainMenu,MainWorld,Entry,CB_TexCorruptLevel`;
+   the IoStore listing; **G-COOK** as ruled in 082-06d (`CB_GateLevel` exact; `MainWorld` in the control-pair form,
+   ≥ 2 identical-input cooks, header byte-identical); **M2**.
+4. Stage; the A44 scan (every S2 token in UTF-16 with controls); the `G11` read-back on the first leg.
+
+---
+
+## 5. Harness changes
+
+The S2 harness is a **new file set** `_reviews\082-10-*` copied from `082-07-*`, so the S1 boundary, its evidence and
+its proof suites stay readable and unmodified. It gets its own boundary, issued after the docs commit that carries
+the S2 leg declarations (the 082-07a pattern).
+
+### 5.1 The four S2 harness items and the housekeeping
+
+- **G-BIND per-frame** (item 6), **global far strip** (item 7), **TRIP** (item 8), **active-lifetime presence**
+  (item 9): as §1.2. Each is proven both ways on the S1 bank before the lock: the per-frame check passes the banked
+  57 frames (1,192 px on each) and fails a synthetic `[1192, 0, 0, 0, 0, 0, 0, 0]`; the far strip passes the bank
+  (784 px at max 1) and fails a synthetic +20 tint; TRIP passes 191 banked summaries, fails a copy with the key
+  removed, and reads N/A on the two census legs; the presence row passes the bank outside the destroy legs, names
+  exactly the 21 post-destroy rows on them (as Codex's scan did), and fails a synthetic row stripped of its block
+  inside an active lifetime.
+- **Person detector** (item 21) and **`ARCHIVE`** (item 22): as §1.2.
+
+### 5.2 Generalisations
+
+- **Tick order as a leg field** `order ∈ {native, synth}`: `BASE` today pins `IAI.Bench.SynthTickOrder 0`
+  (`lib:459`); synth legs append `IAI.Bench.SynthTickOrder 1` after it, and **validity reads the echo**
+  (`IAI.Bench.SynthTickOrder -> ON`, AIS:703-733 / ACS:3758-3763). A missing or contrary echo is INVALID (protocol).
+- **`poses.json` keyed by (map, order)**, and every synth F-SYN leg checked against the native modal pose as well
+  (the spectator should not move; if it does, the leg is INVALID-POSE and the premise window says so first).
+- **Production modes**: `expected_mode` (`lib:1085-1089`) and `ev_p21`'s want-map (`lib:1100-1101`) take the leg's
+  mode; P2-3 checks subtype = mode for every mode.
+- `IDR`/`RX`/`FAMKEY` gain the new lines (`uv_offset`, `scramble`, `RECREATED`, `post_teardown`, `ExecAtFrame`,
+  `TreatUnfocused`, `StuckMipPinRestoring`). 🔁 082-12: `uv_offset` becomes `uv_offset_u/v` + `draw_frame`. Added:
+  `ordinal`, `scramble_h`, `Auto.Draw`, `TEXCORRUPT-SLOTSTATE`, `TEXCORRUPT-DRIFT-BIND`, `TEXCORRUPT-RTCENSUS`,
+  `ticket=`, `STUCKMIP-RESTORING`, `STUCKMIP-COAFFECTED`, `pin cleared`, and the bench-gate echo.
+- 🔁 082-12: every S2 leg's command line carries `-IAIBench` (R2.11).
+- `ev_g0` expectations for the new fixture rows; `common` for the S2 staged set, feature head, bank prefix `M53S2_`
+  and predictions path.
+- The MainWorld trajectory: S2's F-MW legs stay inside fi 1–702 (its unresolved paired gaps start at 703).
+
+### 5.3 New code
+
+| piece | what |
+|---|---|
+| `ev_onset_nat` | the native-order ONSET row: production leg vs the null at the same `session_index`, target mask region; clauses in §6 `G1` |
+| `ev_onset_syn` | the synth-order ONSET row: within-session edges plus the m44 mask onset (`m44_gates.py:142-148`'s rule, re-implemented beside the lib, not imported) |
+| `scramble_visibility` | per event, the predicted fraction of changed cells from the logged (a, b) and the row image (the offline proof of §6.3 as a function) |
+| `ev_grd_drift` | G-RD-DRIFT (schedule, drift vs static, noclear) |
+| `ev_g5`, `ev_g4_level`, `ev_g4_recreate`, `ev_g4_cancel` | the new lifecycle and interaction rows |
+| `ev_seed` | G-SEED: the `auto:` fire lines (id, target, hold, mode) compared across legs |
+| `ev_p8_fieldset` | G8's field-set comparison (reusing the m50 `P-C7 v3` comparator logic from CaptureBench `tools/m50_pc7v3.py`, read, not imported) |
+| `ev_slots_installed` | ~~item 10's proof: … every `textures[].slots[]` key installed or untouched~~ 🔁 082-12 (R2.7): the partition covers **real commits only**: `slots_installed ∪ slots_untouched` = the DECIDE inventory by `slot_key`, disjoint, and `|installed| = slots_corrupted`. NoApply-1 and NoApply-2 are validated separately. `bindings` must **equal** the DECIDE per-slot binding lines restricted to installed slots. Declared arrays must be present (as `[]` when empty). The m53 key → JSON-type map must match the S1 bank's |
+| runner kinds | `level_change` ~~(waits for the `post_teardown` ledger line, then kills)~~ 🔁 082-12 (R2.6): waits for the post-GC `TEXCORRUPT-RTCENSUS` token, then kills; `cancel` exists (`run:92-97`) and is reused for CAN |
+| `ExecAtFrame` validity | a leg that schedules a command must log the execution line at the scheduled frame, or it is INVALID (protocol) |
+| 🔁 082-12 `oracle_map`, `ev_mode_uv`, `ev_mode_n`, `noise_ref` | R2.1: the screen-to-UV fit from the null's cell grid; the per-pixel source-cell and per-cell normal classifiers; the noise reference generator (shared with the fixture's offline proof); the wrong-mode evaluations |
+| 🔁 082-12 `ev_snap` | R2.2: G-SNAP-ID / -BIND / -RES / -FAIL / -BUDGET |
+| 🔁 082-12 `ev_g4_level` | R2.6: the token order, one ticket, `found=0`; NOT-EXERCISED for a late open |
+| 🔁 082-12 `ev_g4_recreate` | R2.4: the cleanup clauses from SLOTSTATE; `same` read as exact |
+| 🔁 082-12 `ev_g5` | R2.5: the residency drop, the `STUCKMIP-RESTORING tracked` line, T7 at frame 42, `pin cleared` |
+| 🔁 082-12 `ev_g5rev` | R2.9: the three co-affected prints |
+| 🔁 082-12 `ev_seed` | R2.8: the independent Python replay of every `Auto.Draw` line from the seed and logged counts; the coverage floor |
+| 🔁 082-12 `ev_g4_cancel`, `ev_trip`, `ev_reason_e6`, `ev_g3_disposition` | R2.10: the cancellation rule; TRIP's cancellation exemption; E6 through an Apply decision; the expected per-slot disposition derived from each slot's Raw |
+| 🔁 082-12 `ev_lever` | R2.11: the gate echo and every lever absent without `-IAIBench`; the Shipping source audit with its planted-negative self-test |
+| 🔁 082-12 `ev_g8val` | R2.7: non-m53 anomaly entries byte-identical against a banked run after only the declared run-unique fields are removed |
+| 🔁 082-13 `ev_slots_installed`, `ev_snap`, `noise_ref`, `ev_mode_uv` | R21.5: `bindings` keyed by (`slot_key`, `param`, `association`, `layer_index`), plus the association-swap negative. R21.4: G-SNAP-FAIL's census clause and ledger clause, each with its own negative. R21.7: δ_arith, and the soundness check of RefA2 / RefNeg at the fixed τ. R21.3: the coverage floor on the 4-event `drift` leg against its own null |
+
+### 5.4 Proofs before the lock
+
+Every new evaluator proven both ways, on synthetic legs **and** on real banked frames of the same fixture (G326);
+the S1 proof suites re-run on copies; a no-flip over the S1 gate rows re-evaluated by the S2 lib on their recorded
+inputs (G327); a dry run; a stubbed end-to-end window (G315). The harness brief reports the counts.
+
+🔁 082-12. **A proof on the new fixture's own frames cannot exist before those frames do** (Codex). Each proof therefore
+states which kind it is:
+- **(a) banked real data**, for shared mechanics: the S1 bank for the partition, presence, TRIP, G3 dispositions and the
+  seed replay;
+- **(b) synthetic structural negatives;**
+- **(c) the premise window's own captures**, for the genuinely new producers: the oracle cells, the snapshot, Restoring,
+  the level-change tokens.
+
+Proofs of kind (c) are run on the premise-window legs **before** the gate lock, and the lock amendment records them.
+
+---
+
+## 6. Gates and predictions
+
+### 6.0 The premise window (new; read-only probes before the lock)
+
+**What it is.** A short window of **probe legs on the S2 build**, run after the harness is locked for the probes and
+**before** the gate predictions below are locked. A probe reads a premise; it has **no verdict** and cannot pass or
+fail a gate. Its reading either confirms a premise, or refutes it and forces a declared encoding change (or a
+FIXTURE-CANNOT-EXERCISE disposition) in a lock amendment **before any gate leg runs**. No probe is a gate leg re-run
+until it passes: probes use nulls, censuses or identity, never the production path a gate judges, except where a
+premise is about that path's timing (then the probe's own verdict is discarded by declaration).
+
+🔁 082-12. **The scope rule (Codex).**
+- **A probe establishes facts about the world.** For example: a component was replaced, a texture entered Restoring, a
+  new world booted.
+- **Once those facts hold, what follows them is product evidence.** A failure to remove an owned MID, to release an RT or
+  to balance the ledger can never become a "no verdict" or a generic FIXTURE-CANNOT-EXERCISE; it goes to chat as a
+  finding.
+- **A mandatory debt the probe cannot produce stays an explicitly unclosed debt for chat.** This covers T10, a live
+  Restoring entry, ~~and a qualified `noise` oracle~~. It never silently narrows what S2 claims. Optional rows (T9
+  `per_texture`, the plumbing block) keep their declared conditional scope.
+- 🔁 082-13 (R21.7): **the `noise` oracle is no longer on the debt path.** P-ORC measures τ_id on an identity leg, and the
+  lock amendment fixes τ. If no sound τ exists (RefA2 or RefNeg would pass, or τ_id cannot be read), chat rules **before
+  the lock**. After the lock, exceeding τ is a FAIL.
+
+| probe | legs | reads | settles |
+|---|---|---|---|
+| **P-DF** decision-frame census | 1 | the standard F-SYN recipe with `IAI.Bench.ExecAtFrame 18 IAI.Bench.TexCorruptCensus` (the first fire's decision frame under `2 16 8 4 0`: frame 18 in the banked F-SYN legs that log it, e.g. `REASON_T10_A1`, `REASON_T9S_A1`, `G4_FS2O_UV_A1`, `COLL_A_FSYN_A1`; DECIDE → APPLIED is 0 frames on all 1,069 S1 fires) plus a frame-1 census | every F-SYN binding's residency at frame 1 **and** frame 18: the T10 producer, `T_TC_M52Shared`, `T_TC_LodBias`'s `AssetLODBias`, and that nothing else streams |
+| **P-T10** | 2 | (a) a **census-only** leg (no m53 fire): `PauseTextureStreaming` in the frame-1 batch, a census of `TC_Stream2k` at frame 1 and `ExecAtFrame 18` / `ExecAtFrame 50` censuses; (b) the natural path with `ExecAtFrame 30 InvestigateTexture T_TC_Stream2k` (a D reading for §3.1's open question: settled want 7 or 12) | (a) the pause echo exactly once; 7/12, not pending, cached bias 0 at frames 1, 18 and 50; `T_TC_Cine` 7/9. (b) the wanted size and reference type |
+| **P-SYN** | 2 | a NoApply leg on `TC_UC1` and on `TC_NN1` in synth order | the synth pose (vs native), the within-session pre-onset band in the target masks (the G1-SYN premise: ≤ 2), the mask onset present, the echo |
+| **P-LVL** | 1 | identity on `TC_UC1`, `ExecAtFrame 21 open /Game/CaptureBenchGate/CB_GateLevel` | the old-world REVERT and `world_teardown` lines; whether `FinishRun` wrote the session on `Deinitialize`; the new world boots; the `post_teardown` line appears; the process keeps running until killed. 🔁 082-12 (R2.6): with `TexCorruptPostTeardownCensus 1` (🔁 082-13: `TexCorruptRtCensus 1`, R21.4), it reads every token of R2.6's order and the ticket carried from old world to new; the runner waits for `RTCENSUS` |
+| **P-RCR** | 2 | identity on `TC_UC1` with `TexCorruptRecreateComponent 3 renamed` and `3 same` | the root component can be destroyed and replaced at runtime (the lever logs the successor as root); the revert lines (`unresolved` + `swept 1`; `restored-exact` + `swept 0`). 🔁 082-12 (R2.4): and the renamed successor held the host MID before revert (`holding_host_mid=1`); SLOTSTATE shows the asset default after it. No exact restore is expected there |
+| **P-CAN** | 1 | `TreatUnfocused 1`, `IAI.Capture.Start …, IAI.Capture.Stop` | `ArmedPending` taken (the log line), `CANCELLED before focus`, no session directory, ~~no m53 line~~. 🔁 082-12 (R2.10 b): `IAI.Capture.FocusGate 1` set and echoed; a game window present; configuration echoes allowed; no DECIDE / APPLIED, no warm draw executed, no FINISHED; stats at their post-reset values |
+| **P-M52** | 2 | census-only legs (no m53 fire), recipe `2 40 8 4 0`: ~~`StuckMipMinTexelRatio 0`;~~ `ExecAtFrame 36 IAI.Apply stuck_low_mip =<TC_M52Hold>` then `ExecAtFrame 42 IAI.Bench.TexCorruptCensus <TC_M52Share>` (held); the same with apply at 30, **🔁 `ExecAtFrame 35 IAI.Bench.TexCorruptCensus <TC_M52Hold>`**, `ExecAtFrame 36 IAI.Revert stuck_low_mip` and `StuckMipPinRestoring 1` (restoring) | m52's `HOLD` line with `baseline_resident` above the floor at frame 36 (§3.1 predicts the full chain is streamed by then), the REVERT and pin echoes, and the frame-42 census reading T7 `held_by_stuck_low_mip` on the share tile. 🔁 082-12 (R2.5): the ratio knob is dropped (raw m52 bypasses it, SLM:344-357). The restoring leg must also show the frame-35 drop and a `STUCKMIP-RESTORING tracked` line at 36. If it cannot, the fallback is mode 2, labelled plumbing, and the live Restoring stays a mandatory debt |
+| **P-SEED** | 1 | auto-pool on F-SYN with both m53 ids enabled, seed 4242, `IAI.Capture.Census 0` | the mode draw logs; how many m53 draws apply vs refuse (F-SYN's many refusal producers) — sizing `G-SEED`. 🔁 082-12 (R2.8): it sizes the legs and does **not** establish repeatability; the `Auto.Draw` lines replay offline |
+| 🔁 082-12 **P-ORC** (R2.1) | 2 (🔁 082-13: **3**) | NoApply-1 (uv) on `TC_OracleUV16`, and NoApply-1 (normal) on `TC_OracleN`. Every oracle and reference tile is in view on both. 🔁 082-13 (R21.7): **plus m53 identity (`IAI.Bench.TexCorruptIdentity 1`, `normal_corruption`) on `TC_OracleN`, with RefId in view** | the cell colours are separable (≥ 32 between any two, interiors ≤ 2); the screen-to-UV fit residual is ≤ 0.5 px; the display is ≥ 1:1; tiles are unoccluded; τ0 = RefId vs OracleN, cross-tile, in the interiors. ~~It fixes τ for `noise` before the lock. τ > 8 makes the `noise` oracle NOT-QUALIFIABLE (a mandatory debt)~~ 🔁 082-13: **τ_id** = the identity tile vs RefId, max per-pixel max-channel \|d\| over eroded interiors and every frame. The lock amendment fixes τ = τ_id + δ_arith (offline) and checks soundness (RefA2 and RefNeg must fail at τ). No sound τ ⇒ a chat ruling before the lock |
+| 🔁 082-12 **P-SNAP** (R2.2) | 1 | `drift` on `TC_M52Share` with m52 raw-applied at `TC_M52Hold` at frame 50; censuses at 42 and 56 | `T_TC_M52Shared` fully resident at `drift`'s Apply (42), and below its full chain at 56 while `drift` is active: G-SNAP-RES's premise |
+| **P-A8** | 1 (only if no banked A-side matches) | the pre-m53 exe `E0BE6F0A` on its own archived container `m53-s1-precook-container-67EA1FE0`, the G8 recipe | the A-side boots and runs the recipe on MainWorld's pinned trajectory |
+| **P-HALO** | 4 | §3.4 item 14 | D readings for the halo cause |
+| ~~**P-VSM** (optional, D)~~ | — | 🔁 082-12 (R2.3): **withdrawn from the premise window.** It is S2-0 (§3A), run on the current build before S2-1 | — |
+
+**Premise window total:** ~~about 16 legs (19 with P-VSM)~~ 🔁 082-12: **about 19 legs** (the 16 plus P-ORC 2 and P-SNAP 1; P-VSM's 3 have moved to S2-0). 🔁 082-13: **about 20** (P-ORC's identity leg, R21.7). Its dispositions are written as a lock amendment to this file before the gate window.
+
+### 6.1 Which rows run in which tick order (the G230 scope rule)
+
+- **Alignment rows run in both orders:** G1 (as `G1-NAT` and `G1-SYN`), G2, the P2 proofs and the presence row.
+- **Pixel arbiters run native only:** G1-NAT's null comparison, G-RD-DRIFT, G-ID-M transformed, the G-ID regression
+  (G230: synth-order runs are nondeterministic across legs even at the AA-off arbiter). 🔁 082-12: so do **G-MODE-UV,
+  G-MODE-N, G-SNAP-ID and G-SNAP-RES** (cross-leg against a null or a reference leg). The first Apply frame of `drift`
+  in synth order is carried by G1-SYN (R2.2).
+- 🔁 082-12: **G-SNAP-BIND, G-SNAP-FAIL, G-SNAP-BUDGET, G5-REV, G8-VAL and G-LEVER are log or structure rows, native
+  only.**
+- **Log rows run native only** and say so: G-REASON, G4, G5, G6, G8, G-SEED. None of them makes a per-frame
+  alignment claim.
+- **F-MW rows run native only:** the pinned trajectory was built from native launches and is untested under
+  `SynthTickOrder` (a premise the window does not spend a probe on; no F-MW row is Q in S2 anyway).
+
+### 6.2 The gate table
+
+Common: F-SYN, AA-off arbiter recipe (`BASE`), 1280×720, 30 fps paced, `2 16 8 4 0`, 100 frames (7 full events + 1
+truncated), seed 777, native order unless stated. Tolerances are N4's (identity ≤ 2) and S1's wrong-copy floor (≥ 16).
+**Region** = the event's target-mask pixels (`region()`, `lib:48-54`). **Changed** = max-channel |d| ≥ 16 on at least
+**32 px** of the region.
+
+| row | class | legs | rule | can-fail proof (the falsifier must be able to fire) | prediction |
+|---|---|---|---|---|---|
+| **G10** | Q | every build | both targets exit 0, zero warnings, the declared dependency set, no new module | S1's G10 negative proofs stand (`bind_link_check`) | PASS |
+| **G11** | Q | every leg | `TEXCORRUPT-ASSETS` resolves all three. ~~the noise texture's own sampling is proven by G1-NAT `noise`~~ 🔁 082-12 (R2.1): resolution and correct sampling are **separate assertions**. G11 asserts resolution only; **G-MODE-N `noise`** asserts that the authored noise was sampled at the right mip and amplitude (Codex: a wrong but visible normal transform passes G1) | a missing asset fails G11; a wrong noise sampling fails G-MODE-N | PASS |
+| **G-RD-DRIFT** 🔑 runs first | Q | per input (`TC_RedrawOpaque`, `TC_RedrawAlpha`): 1 `drift` leg (`2 16 100 4 0`, 120 frames, one event), 3 `TexCorruptStaticOffset` legs at the logged offsets of k = 0, 49, 99, 1 `drift` + `WrongCopy noclear` leg — 10 legs | (a) the logged `uv_offset` on labelled frame k equals ~~`frac(0.25·(k+1)/30)`~~ 🔁 082-14 (M3, R22.3): `frac(0.25·k_e/30)` with the engine count `k_e = frame_index − ApplyFrame + 1`, i.e. k_e = 1 at k = 0 and k_e = k + 3 for k ≥ 1 (the settle frames advance the clock) to 1e-6, every k; the static legs at k = 0, 49, 99 therefore sit at k_e = 1, 52, 102 (0.0083, 0.4333, 0.85 UV); (b) `drift` frame k vs the static leg's frame k (same `session_index`, same dither phase): region max \|d\| ≤ 2 for k ∈ {0, 49, 99}; (c) the tripwire 0; (d) `required_bytes` = outputs + snapshots + scratch (arithmetic from the logged sizes) | (e) `noclear` at k = 49 reads ≥ 16 against `drift` (offline ≥ 48 on these inputs, S1 plan §R12.4) | PASS on both inputs (the snapshot copy is the identity G-ID proved exact on BGRA8 linear and DXT5 sRGB). 🔁 082-12 (R2.2): that parenthesis is **not** evidence for the snapshot. The static reference shares the snapshot path, so (b) cannot see a wrong snapshot. The snapshot's own qualification is **G-SNAP-ID / -BIND / -RES / -FAIL / -BUDGET** below |
+| **G1-NAT** | Q | per mode (8): 1 production leg; per family: 2 NoApply-1 legs with two different modes (the null **and** a same-build control pair). UV on `TC_UC1`, normal on `TC_NN1` — 12 legs | per event: (a) first labelled si is **changed** vs the null; (b) si − 1 reads ≤ 2; (c) every labelled si is changed (static modes) or its logged `uv_offset` is non-zero and it is changed (`drift`); (d) end + 1 reads ≤ 2; (e) the first mask frame with the event's tag equals the first labelled frame; (f) a `scramble` event whose logged (a, b) is predicted invisible (0 changed cells) is excluded by name. 🔁 082-12 (Codex): the exclusion is driven by the pair **recomputed independently** from the seed and ordinal (R2.8's CRC spec), and the logged pair must equal it. A mismatch is a FAIL, never an exclusion. ≥ 4 counted events per mode, after exclusions. The control pair reads 0 differing pixels (the band) | the rule fires on its own legs: pre-onset si − 1 must read ≤ 2 while si reads changed; a label one frame early fails (a) or (b), one late fails (b); the null-vs-null control would read changed if the null were mode-dependent | PASS, every mode. Offline minima at the displayed mip (§6.3): tile 3,072 / 4,096 px, swap 2,048, drift frame 0 512, scramble ≥ 512 for every visible pair (at least 8 of 64 cells, each palette pair ≥ 48 apart), every normal mode changes all four NN1 cells. 🔁 082-12 (R2.1): **G1-NAT is the alignment gate only.** It cannot tell one visible mode from another (Codex's cheapest defect: an `invert` built as `green_flip` passes it). The mode itself is judged by G-MODE-UV / G-MODE-N |
+| **G1-SYN** | Q | per mode (8) production leg + 1 NoApply per family, synth order — 10 legs | per event: (a) mask onset (as G1-NAT (e)); (b) within the session: si vs si − 1 changed, si − 1 vs si − 2 ≤ 2; (c) end: end + 1 vs end changed, end + 2 vs end + 1 ≤ 2 (static modes; `drift` changes every frame, so its end clause is end + 1 vs end changed only) | a within-session edge one frame off fails (b) or (c); the P-SYN probe establishes the pre-onset band first | PASS, every mode. 🔁 082-12 (Codex's G1-SYN note): **the claim is narrowed to within-session edge alignment plus the mask onset.** A synth-only dropout inside a static interior is not claimed; native evidence is not a synth-interior proof |
+| 🔁 082-12 **G-MODE-UV** (R2.1) | Q | `tile` ×8, `swap`, `drift` on `TC_OracleUV16`; `scramble` K = 8 on `TC_OracleUV64`; a NoApply-1 null on each — ~~6 legs (`drift`: `2 16 100 4 0`, 120 frames)~~ 🔁 082-13 (R21.3): **7 legs; `drift` runs `2 16 100 4 4`, 432 frames (four complete events), with its own NoApply-1 null on that schedule**; the floor below applies to `drift` unchanged | every kept pixel of every labelled frame of every counted event (≥ 4) names the expected source cell (within 16 of it, ≥ 32 from every other); ≥ 512 kept px per frame; scramble's (a, b) is recomputed independently | on the same real frames: each leg evaluated as every other UV mode and as identity FAILs (< 50 % match); tile ×8 vs ×4 and ×16; scramble vs ordinal ± 1 and vs the forward map; drift vs rate ×2, ×½, the sign flip and a frozen offset. Offline, each listed pair differs on ≥ 25 % of kept pixels | PASS, every mode |
+| 🔁 082-12 **G-MODE-N** (R2.1) | Q | `invert`, `green_flip`, `flat`, `noise` on `TC_OracleN`; a NoApply-1 null — 5 legs | `invert` / `green_flip` / `flat`: every cell interior names the cell of the expected normal. `noise`: ≥ 99 % of interior px within τ of RefA, none above 3τ (τ from P-ORC~~, ≤ 8~~ 🔁 082-14 (M4): τ as locked, R21.7; no residual ceiling) | `invert` evaluated as `green_flip`, and the reverse, FAIL; `flat` as identity FAILs; `noise` against RefA2 and RefNeg FAILs (offline ≥ 32 on ≥ 128 texels) | PASS, every mode (~~`noise` only if τ ≤ 8; otherwise NOT-QUALIFIABLE, a mandatory debt~~ 🔁 082-13, R21.7: τ = τ_id + δ_arith, fixed at the lock; no sound τ ⇒ a chat ruling before the lock; above τ after the lock ⇒ FAIL) |
+| 🔁 082-12 **G-SNAP-ID** (R2.2) | Q | `TexCorruptDriftZero 1` on U-C2, `TC_RedrawOpaque`, `TC_NN1` (uv) — 3 legs, plus 1 new `TC_RedrawOpaque` null (the others shared with the G-ID regression), plus 2 fault legs | every labelled frame vs the null at the same index ≤ 2 (G-ID's rule) | `SnapshotFault mipshift` and `chanswap` on U-C2 read ≥ 16 | PASS at 0 on all three encodings |
+| 🔁 082-12 **G-SNAP-BIND** (R2.2) | Q | every `drift` leg | one `TEXCORRUPT-DRIFT-BIND` per level MID naming a `TexCorruptRT_snap_*`, read back from the MID | `DriftLiveSource 1` names the source and fails | PASS |
+| 🔁 082-12 **G-SNAP-RES** (R2.2) | Q | `drift` on `TC_M52Share` (`2 40 30 4 0`): drift only · + m52 raw at `TC_M52Hold` (frame 50) · + m52 + `DriftLiveSource 1` — 3 legs | the frame-56 census shows the shared source below its full chain; drift + m52 vs drift only ≤ 2 in the target mask on every labelled frame; tripwire 0 | the live-source leg reads ≥ 16 after the census-confirmed drop | PASS |
+| 🔁 082-12 **G-SNAP-FAIL** (R2.2) | Q | FailStep `snap`; the target destroyed mid-drift — 2 legs. 🔁 082-13 (R21.4): **plus 2 negative legs; all 4 with `TexCorruptRtCensus 1`** | rollback `off=2 live=0 pending=0 balanced`, snapshot bytes created and released, no slot touched; TARGET LOST → `post_revert` balanced with snapshots included. 🔁 082-13: **and RTCENSUS `found=0` after each reading** | ~~a `TexCorruptRetainRt 1` leg reads unbalanced~~ 🔁 082-13: `drift` + `TexCorruptRetainRt snap` ⇒ `found ≥ 1` FAILs, with its ledger balanced; `drift` + `TexCorruptOmitReleaseAccounting 1` ⇒ `post_revert` unbalanced FAILs, with `found=0`. Each fault fires only its own clause | PASS |
+| 🔁 082-12 **G-SNAP-BUDGET** (R2.2) | Q | `TC_M52Share` with `IAI.Anomaly.TexCorruptMaxRtBytes 9000000`: `drift`; `tile`; then `drift` at a cap equal to its logged need — 3 legs | at the 9,000,000 cap, `drift` refuses `over_budget` at V2 with need = outputs + snapshots + scratch (predicted 12,582,908) and `tile` (predicted 6,990,504) applies; `drift` applies at its exact need | a build that left the snapshot out of `EventRequirement` applies `drift` at 9,000,000 | PASS |
+| **G2** | Q | the NoApply legs of G1-NAT and G1-SYN (4 + 2) | every labelled row: `condition_held` false, `condition_detail` `slot_not_installed`, `observable` **false** (not null), `target_pixels` > 0; `run_summary` `frames_condition_lost` = `positive_frames`, `vetoed_events` 0; annotation: every event present, `injected_frames` non-empty, `affected_frames` empty. ≥ 4 events per id | the production legs read `condition_held` true, `installed`, `observable` true on the same rows (the predicate can say true) | PASS. **Premise already read on the S1 bank** (`M53S1_NULL_UC2_A1`): 57/57 rows `observable false`, `condition_held false`, `slot_not_installed`, `target_pixels > 0`; `frames_condition_lost 57 = positive_frames`; `affected_frames` empty on all 8 events |
+| **G-ID-M transformed** | D | `tile` with `TexCorruptTileN 2` and `swap`, each at `TC_ChainA_Mag`, `TC_ChainB_Mag`, `TC_ChainA_Far`, `TC_ChainB_Far` — 8 legs | the baked mode's tile region vs the reference-bug tile (`TC_RefTile2_*`, `TC_RefSwap_*`, same geometry row) translated onto it: the per-pixel difference histogram (bins as G-ID). Grazing and transition rows are not translation-comparable and are reported as per-tile statistics only | — (D) | `tile ×2` differs from the real bug under magnification (the `tile_detail_mips = 1` limit, §R3.4.6) and matches it closely under minification; `swap` matches on the square chains |
+| **G-REASON S2** | Q | 1 leg each, all 8 fires refused — 8 legs (+1 optional) | the named final, step and counters (`reason_check`, `lib:764-788`): **E6** `mode_invalid:unknown:bogus` (`uv_corruption … bogus`); **E6** `mode_invalid:family:invert` (`uv_corruption … invert`); **S4** `nanite_override` (`TC_Nanite`); **S7** `default_material_path` (`TC_Skeletal`); **A2** `no_normal_map` (`TC_UC1`, normal); **A3** `normal_unconnected` (`TC_NormalUnconn`, normal); **T10** `not_fully_resident` (`TC_Stream2k`, `PauseTextureStreaming` in the frame-1 batch; empty sub-reason); **T7** via G5; **T9** `runtime_lod_bias:per_texture` (`TC_LodBias`, only if P-DF admits it) | each producer's census reading (frame 1 **and** frame 18 for anything that streams) must name the reason before the lock; the S1 rows' precedence proofs stand. 🔁 082-12 (R2.10 a): **except E6, which the census skips by construction** (TCT:814-819). E6 is admitted through an actual Apply decision, using the earlier-precondition controls: the same target applies with a valid mode (G1-NAT `tile` on `TC_UC1`), and the refusal line reads `step=E6`. A third E6 row, `mode_invalid:no_mode_enabled`, is read from G-SEED's empty-set leg. A synthetic refusal at an earlier step, or with another sub-reason, FAILs | PASS each |
+| **G-REASON plumbing** (optional block) | Q-plumbing | 6 legs | `TexCorruptForcePredicate <X>` ⇒ that reason by name at that step, nothing earlier, no slot touched, counters | each is a refusal the tree never produces on a healthy cook; the row proves the path and the precedence only, **not** the predicate's detection, and says so | PASS |
+| **G4 LEVEL-CHANGE** | Q | uv on `TC_UC1`, normal on `TC_NN1`, `ExecAtFrame 21 open /Game/CaptureBenchGate/CB_GateLevel` — 2 legs; 🔁 plus 1 negative leg | 🔁 082-12 (R2.6), replacing the old rule: the token order `APPLIED < TARGET LOST (world ending) < REVERT < world_teardown(T, not_yet_due) < new-world boot < post_teardown(T, frame ≥ due, live=0 pending=0 balanced) < RTCENSUS(T, found=0)`, with one ticket T throughout. The runner waits for RTCENSUS. The claim is the ledger/object contract, not GPU deallocation | 🔁 (a) the `TexCorruptRetainRt 1` (🔁 082-13: `… out`) leg reads `found=1` and FAILs; (b) synthetic logs with a token missing, duplicated, out of order or on another ticket FAIL; (c) a late open (no APPLIED before it, or reverted before it) reads NOT-EXERCISED, never PASS. ~~a leg whose target is not live at the `open` must read no `world_teardown` line with live bytes~~ (withdrawn: the wrong ledger phase) | PASS |
+| **G4 RECREATED** | Q | `renamed` uv, `renamed` normal, `same` uv — 3 legs; 🔁 plus the `SkipSweep` negative | `renamed`: per-slot `unresolved`, the sweep resets the successor (`swept 1`, `texcorrupt_swept 1`), ~~successor slot pointer-identical to the original material after revert~~ 🔁 082-12 (R2.4): **no slot of the owner holds one of our MIDs (SLOTSTATE `ours=0` everywhere); the successor's slot is on the asset default (`current` = Asset, e.g. WorldGridMaterial on `TC_UC1`); RTs released and the ledger balanced. No exact-restore claim.** `same`: re-found by name, `restored-exact` (pointer-identical to Raw), `swept 0` | `same` is the control: a renamed leg that read `restored-exact` would mean the lever did not destroy the original. 🔁 The retained-host-MID negative: `renamed` uv + `TexCorruptSkipSweep 1` must FAIL clause 1 | PASS |
+| **G4 CAN** | Q | uv, normal — 2 legs | `TreatUnfocused -> ON` echo; `ArmedPending`; `CANCELLED before focus`; no FINISHED line; no session directory left; ~~no m53 line of any kind; `texcorrupt_*` stats untouched~~ 🔁 082-12 (R2.10 b): `IAI.Capture.FocusGate 1` set and echoed, and a game window present; the actual `Capture ARMED … waiting for game-window focus` line (ACS:3367-3369); **no** DECIDE / REFUSED / APPLIED, no warm draw executed, no allocation, no BeginActualRun, no FINISHED, no session; configuration echoes (`TEXCORRUPT-ASSETS`, the warm-draw configuration line ACS:3262-3265) **allowed**; stats equal the post-reset baseline (`ResetRunStats` runs before the focus branch, ACS:3208-3211) | the STOP-BEFORE-FIRE legs of S1 are the contrary case (FINISHED, 0 frames); a leg whose echo is missing is INVALID | PASS |
+| **G5** | Q (forward), ~~D (reverse)~~ | recipe `2 40 8 4 0` (first decision at frame 42): `TC_M52Share` targeted m53 identity with m52 raw-applied at `TC_M52Hold` by `ExecAtFrame`: HELD (apply at 36) and RESTORING (apply at 30, revert at 36, `StuckMipPinRestoring 1`) — 2 legs; ~~`StuckMipMinTexelRatio 0` on both~~ 🔁 082-12 (R2.5): the ratio knob is dropped (raw m52 bypasses it, SLM:344-357); 🔁 plus 1 control leg with no m52 | every m53 event refused `held_by_stuck_low_mip`, step V1; m52's HOLD (and REVERT + pin echo) lines precede frame 42; no slot touched. 🔁 082-12 (R2.5): RESTORING also needs **the frame-35 census below baseline** and **the `STUCKMIP-RESTORING tracked` line at 36**; `pin cleared` must appear at run end. ~~**Reverse order**: recorded as a source finding …~~ → 🔁 **G5-REV** below (R2.9) | P-M52 must show the HOLD before frame 42 and the census reading T7; a gate leg whose own log lacks the HOLD is FIXTURE-CANNOT-EXERCISE, never PASS. 🔁 The control leg (no m52) APPLIES at 42. A RESTORING leg without the drop or the insertion is FIXTURE-CANNOT-EXERCISE and a **visible mandatory debt**, or, under the fallback, a state/plumbing row | PASS forward |
+| 🔁 082-12 **G5-REV** (R2.9) | Q | recipe `2 40 8 4 0`: m53 identity at `TC_M52Share` (applies at 42); `ExecAtFrame 30`, `44` and `46 IAI.Bench.StuckMipCoAffected T_TC_M52Shared <TC_M52Hold>`, with `…IgnoreTexCorrupt 1` at 45 and 0 at 47 — 1 leg | frame 30 lists `TC_M52Share`'s component `via=used`; frame 44 (m53 active) lists it `via=texcorrupt_original`, with the same count | frame 46 (the fix path ignored) reads it missing, count one lower | PASS |
+| **G6** | Q (S4, via G-REASON) + D | 1 F-MW leg: targeted `tile` at a modular-kit Nanite actor without an override | the Nanite admit path: if it reaches APPLY, `observability_measured` false and no arm (ACS:6208-6230); if refused, the reason is recorded and the row is UNEXERCISED | — (D) | refused `over_budget` or `not_fully_resident` (§R14.1), i.e. UNEXERCISED; stated in advance |
+| **G8** | Q | A: pre-m53 (banked leg matching on every axis, else P-A8's A-side); B: S2 build, same recipe, m53 not fired; B′: S2 build, `tile` at the MainWorld floor — 2–3 legs | `P-C7 v3` field sets: `labels.jsonl` adds 0 / removes 0 between A and B; `annotation.json` field set unchanged; `run_summary` adds exactly the declared `texcorrupt_*` keys (S1's and §2.5's); B′'s m53 rows carry only additive keys inside m53 entries and `anomaly_subtype` = `tile`. 🔁 082-12 (R2.7): the field-set comparison includes JSON **types**, nested shapes and declared empty arrays; every S1 m53 key keeps its type | the comparator fails a synthetic added field (the m50 proof). 🔁 It also fails a changed type and a missing declared array | PASS |
+| 🔁 082-12 **G8-VAL** (R2.7) | Q | A: a banked pre-S2 run of a non-m53 recipe that matches on every axis (G184 search in S2-3; if none exists, the S1 exe `2FCDF059` in the same window, exe-only swap, G103). B: the S2 build, same recipe. F-SYN, targeted `blinking` and `corrupted_texture` at `TC_UC1`, seed 777, census off — 1–2 legs | every non-m53 anomaly entry in `labels.jsonl` and `annotation.json` is **byte-identical** between A and B, once the declared run-unique fields are removed (`t_wall`, and whatever the A/A control pair measures, as `P-C7 v2` does) | the comparator fails a one-character edit and a reordered key | PASS |
+| **G-SEED** | Q | F-SYN auto-pool, both ids enabled (plus the default four), seed 4242, 2 legs; MainWorld auto-pool with m53 disabled, seed 4242, on the S2 build and on the S1 exe `2FCDF059` (exe-only swap, G103) — 4 legs. **All four with `IAI.Capture.Census 0`** (a leg condition, not a default) | (a) the two F-SYN legs' `auto:` fire sequences are identical in id, target, hold and mode; every drawn mode is in the enabled set; (b) the two MainWorld sequences are identical (the m53 ids not enabled re-roll nothing). 🔁 082-12 (R2.8): (b) compares id, target and result only (the S1 exe logs no hold). **(c)** every `Auto.Draw` line of the F-SYN legs matches an independent Python replay from seed 4242 and the logged counts: id and target indices, `hold=%.9g`, mode and `seed_after`. **(d)** coverage: ≥ 3 attempts per m53 id, ≥ 1 applied and ≥ 1 refused m53 attempt, ≥ 1 non-m53 attempt between m53 attempts. 🔁 Plus **1 empty-set leg** (`IAI.Anomaly.TexCorruptUvModes none`): every uv attempt refuses `mode_invalid:no_mode_enabled`, and its `seed_after` is 4 generator steps after its `seed_before` | a leg with a different seed must differ (synthetic); (b)'s comparison fails a synthetic sequence with one extra draw. 🔁 That synthetic only tests the comparator. The draw itself is tested by (c) and by R2.8's pure known-answer test: a skipped mode draw, or a constant `Modes[0]`, fails (c) | PASS |
+| **G-BIND regression** | Q | the S1 four `BIND_*` legs on the S2 build — 4 legs | S1's G-BIND (3) with items 6 and 7 | the S1 bank proofs (§5.1) | PASS |
+| **G-ID regression** | Q | `U-C1`, `U-C2` (+ alpha), `U-N1`, `N-N1`, `MASKED` (+ alpha): identity, null, one assigned wrong copy each — 15 legs | S1's G-ID rule | the assigned wrong copy ≥ 16 | PASS at 0 (S2 touches `SetupLevelMid`, the identity path's own function) |
+| **G3-S2** | Q | every production leg | ~~every revert `restored-exact`~~ 🔁 082-12 (R2.10 c): **every committed slot's revert disposition equals its expected disposition**, derived from its Apply-time Raw on the DECIDE slot line: Raw non-null ⇒ `restored-exact`; Raw null ⇒ `restored-default`; a renamed successor ⇒ `unresolved` + `swept`. The MainWorld partial event expects `restored-default` × 12 (`FMW_ID :2686-2698`). Also: ledger `post_revert` R + 2 `live=0 pending=0 balanced`, render targets released (snapshots included for `drift`) | S1's G3 proofs; 🔁 a synthetic `restored-default` on a Raw-non-null slot, and the reverse, FAIL | PASS |
+| **P2-1 / P2-3 / presence / slots** | PROOF | every m53 leg | P2-1 (one predicate), P2-3 (subtype = mode), item 9, item 10 (on B′ and the F-MW partial first fire: the installed set equals the DECIDE log's qualified set, e.g. 12 slots on four ISM component families as Codex tabulated). 🔁 082-12 (R2.7): the partition covers real commits only; NoApply is validated separately; `bindings` equals the event's own binding inventory; the declared arrays are present. 🔁 082-13 (R21.5): `bindings` is compared by (`slot_key`, `param`, `association`, `layer_index`), with the texture path per key | proven both ways on the bank and synthetic rows (§5.1). 🔁 Plus R2.7's synthetic clause negatives. 🔁 082-13: plus the association-swap negative on `BIND_ID_A1`'s inventory, which must FAIL | CONFIRMED |
+| **TRIP** | Q | every summary-bearing leg | key present and 0; census N/A. 🔁 082-12 (R2.10 b): **a proven pre-focus cancellation** (the ARMED line, the CANCELLED line, no session directory) **is exempt**, because no summary is expected; a missing summary on any other leg is a FAIL | §5.1 | PASS |
+| 🔁 082-12 **G-LEVER** (R2.11) | Q | 1 Development leg **without** `-IAIBench` issuing every new lever and `DestroyTarget`; the same batch **with** it — 2 legs; plus the Shipping source audit | without the flag: the gate echo reads `DISABLED`, and no lever echo or effect appears. With it: every echo. Source audit: every new lever's registration, state and service code is Shipping-excluded and registered only through the gate | the audit script flags a planted unguarded registration in a synthetic copy; the with-flag leg shows the echoes | PASS. ⛔ The client-artifact proof belongs to M3 (R2.11) |
+| **G9** | D | every S2 production leg | `--label-pixel-gate --report-only` and `--change-oracle`; the evidence rows must be present (exit 0 on absent evidence is not accepted). On F-MW the change oracle has **coverage 0** (no target mask, `mask_payload_missing`, §3.2): reported as no reading, never as a pass | the verifiers' own `--selftest` | readings |
+| **G1 F-MW** | D | `tile` at the MainWorld floor (B′ above) and **2 S2 NoApply legs** (`2 40 8 4 0`, 100 frames, native) — 2 extra legs | the first fire's partial application and its installed set (item 10); "first si differing from both nulls inside region R" (§3.2), with ≥ 16 on ≥ 32 px as the reporting rule and the null-vs-null count at the same si beside it | — | the first fire applies partially at fi 42 (si 39) on a launch-dependent slot set (12 or 21 in S1); si 39 is the first differing si inside R; later fires refuse `over_budget` |
+
+**Totals:** gate window about **95 legs** (≈ 25–30 min of bench at S1's 10.7 s per F-SYN leg, plus longer drift and
+MainWorld legs and person / quiet waits), premise window about 16.
+
+🔁 082-12. **Totals now: gate window about 129 legs; premise window about 19.**
+
+| row | legs added |
+|---|---|
+| G-MODE-UV | 6 |
+| G-MODE-N | 5 |
+| G-SNAP-ID (with its faults and one null) | 6 |
+| G-SNAP-RES | 3 |
+| G-SNAP-FAIL | 2 |
+| G-SNAP-BUDGET | 3 |
+| G4 LEVEL-CHANGE negative | 1 |
+| G4 RECREATED negative | 1 |
+| G5 control | 1 |
+| G5-REV | 1 |
+| G8-VAL | ≤ 2 |
+| G-SEED empty set | 1 |
+| G-LEVER | 2 |
+| **total** | **+34** |
+
+S2-0 (§3A) is 24 more legs, run before S2-1 on the S1 build.
+
+🔁 082-13. **Totals now: gate window about 132 legs; premise window about 20.** Added: G-MODE-UV +1 (the `drift` leg's own
+null, R21.3); G-SNAP-FAIL +2 (the two independent negatives, R21.4); P-ORC +1 (the τ identity leg, R21.7). The G-MODE-UV
+`drift` leg is 432 frames, not 120. S2-0 stays at 24 legs, plus at most one INVALID-TIMING re-run per leg.
+
+**Stop rule (§R11, S1's list extended).** Any Q row that FAILs stops the window. So does a wrong copy or can-fail
+lever that cannot fire (G96), a mip tripwire above 0, a `G1` mode failing ONSET, `G2`'s falsifier unable to fire, and
+any §R11 STOP row. A `G-RD-DRIFT` failure **defers `drift`** (D5) and skips every other `drift` row by declaration.
+Nothing is re-run until it passes, no tolerance moves, no fallback is taken.
+🔁 082-12:
+- a **G-SNAP-*** failure also defers `drift`, and removes it from the qualified auto-draw set (R2.2);
+- a **G-MODE-UV / G-MODE-N** failure on a mode is a mode FAIL and stops the window;
+- a **wrong-mode negative that fails to fail** is a G96 stop (the oracle cannot discriminate);
+- ~~the `noise` oracle becoming NOT-QUALIFIABLE (τ > 8) is **not** a stop: it is a mandatory debt reported to chat.~~
+  🔁 082-13 (R21.7, chat's ruling): **a `noise` reading above the locked τ is a mode FAIL and stops the window.** "No sound
+  τ" is settled before the lock by a chat ruling, never after it.
+
+### 6.3 Offline visibility proofs (computed for this plan; the harness brief commits the script)
+
+From `texcorrupt_fixture_images.py`'s own images, at the mip the host displays (`TC_UC1`: a 128² texture on a 64 px
+tile ⇒ output mip 1), bilinear sampling:
+
+| mode on `TC_UC1` | texels changed by ≥ 16 (of 4,096) | max |
+|---|---|---|
+| `tile` ×8 | 3,072 (75 %) | 120 |
+| `tile` ×2 | 3,072 (75 %) | 120 |
+| `swap` | 2,048 (50 %) | 72 |
+| `drift` frame 0 (0.25 UV/s, 30 fps) | 512 (12.5 %) | 64 |
+| `scramble` K = 8 | median pair 75 % of cells; every other pair changes **at least 8 of 64 cells** (≥ 512 texels; any two palette colours differ by ≥ 48); **3 of 2,047 pairs change nothing**: (1, 32), (33, 0), (33, 32) | ≥ 48 |
+
+| mode on `TC_NN1` | emissive change per cell (linear, max channel, negatives clamped) |
+|---|---|
+| `invert` | 0.35 / 0.35 / 0.30 / 0.25 |
+| `green_flip` | 0.35 / 0.10 / 0.30 / 0.25 |
+| `flat` | 0.35 / 0.35 / 0.067 / 0.25 |
+| `noise` (A = 0.5) | up to 0.40 added tilt (median 0.18) |
+
+The emissive figures are a lower bound on the picture change: the readout is lit, and the lit term moves as well.
+The in-leg reading is the authority; a mode that reads unchanged is a G1 FAIL, never re-tuned in the same turn.
+
+---
+
+## 7. The premise audit
+
+Axes: **FX** fixture state · **RS** streaming / residency at the decision frame · **FI** focus and input · **WP** window
+and process lifetime · **GL** GC and level load · **CD** camera determinism · **LV** log verbosity · **HL** screen-space
+halo · **DP** tonemapper dither phase. "Real" means checked against `082-07-run.ps1` and banked real logs; "src" means
+source-read; "PW" means settled by a premise-window probe before the lock.
+
+| row | premises and how each was checked | design change it forced |
+|---|---|---|
+| G10 | FX n/a. Build products cleared before the gate build (G309, host memory) | — |
+| G11 | LV: `TEXCORRUPT-ASSETS` is logged at Log on 193/193 S1 legs (real) | — |
+| G-RD-DRIFT | FX: `TC_RedrawOpaque` BGRA8 linear, `TC_RedrawAlpha` DXT5 sRGB, never streamed (real: S1 census) · RS: never streamed ⇒ no time axis · DP: drift vs static compared at the **same** `session_index` across legs, so both sit in the same dither phase (G318; S1 same-index reads 0) · HL: region is the mask; nothing changes outside it that the rule reads · CD: F-SYN modal pose, 156/156 real sessions · ChainD's phase exception (G330) avoided by using head-on tiles | the static-offset lever, snapshot accounting and a snapshot-based tripwire (§2.3), none of which exist |
+| G1-NAT | FX: `TC_UC1`/`TC_NN1` 128², never streamed, fully resident at frame 1 (real) · FX: every mode changes the displayed picture (offline §6.3), except three scramble pairs (declared exclusion) · RS: none · DP: same-index cross-leg (G318) · HL: the halo sits outside the changed tile (G324), and the rule reads only the mask · CD: modal pose · WP: the leg finishes by `run_summary` then a 2.5 s kill (`run:111-139`), as S1's 193 legs · LV: mask onset read from `labels.jsonl` (`mask_file`), no log line needed | `drift` starts at one step so frame 0 is measurable; scramble telemetry (a, b); the null shared across modes is proven mode-independent by a same-build control pair |
+| G1-SYN | **G230: cross-leg pixel comparison is impossible under SynthTickOrder** (src + the m45 measurement) ⇒ within-session edges only · DP: within-session frames differ in phase, so the tolerance 2 absorbs the ±1 grain (G318) · CD: synth pose unmeasured on F-SYN → **PW P-SYN** · the within-run static band under synth is unmeasured on F-SYN → **PW P-SYN** | G1 split into NAT (cross-leg) and SYN (within-session + mask); the leg's order is read back from the echo |
+| G2 | the predicate says false through one function (P2-1) and true on applied rows (real: S1) · `observable` false, not null, on NoApply rows (**real: `M53S1_NULL_UC2_A1`**, 57/57) | — |
+| G-ID-M transformed | FX: the reference-bug tiles exist (`make_texcorrupt_fixture.py:572-578`) at the same geometry rows · CD: facing tiles at one depth project by pure translation; grazing and transition tiles do not | grazing and transition reduced to per-tile statistics |
+| G-REASON E6 | FX none; the mode parse is new code | the parse and its sub-reasons are new (§2.2) |
+| G-REASON S4 / S7 | FX: `TC_Nanite` / `TC_Skeletal` read `nanite_override` / `default_material_path` in the S1 census (real, `legs:52` `NORMAL_SHARED`, 0 G0 findings); static material properties, no time axis; the fixture's verify mode proved both from disk (082-06d) | — |
+| G-REASON A2 | FX: `TC_UC1` normal family reads `no_normal_map` in the census (real); never streamed | **the MainWorld floor cannot produce it** (A3.3: normal-bearing slots rank first), so the producer moves to F-SYN |
+| G-REASON A3 | FX: **no current fixture row produces `normal_unconnected`** (082-07c repaired `M_TC_NormalEmis`, `legs:51`) | new fixture row `TC_NormalUnconn` (§4) |
+| G-REASON T10 | RS: **the frame-1 census premise is false** on the natural path (G328; real: 7/12 at frame 1, 12/12 at frame 18), and that path is a "kept" state with a latent race (§3.1) · the pause pins the 7-mip tail from frame 1, so the census moment and the decision moment read the same state by construction → **PW P-T10** reads both · LV: the pause echo must appear once (a toggle; a second one unpauses) · FX: `TC_Stream2k` unchanged | producer = `PauseTextureStreaming` (console); no fixture change; E5 / T8 / T9 shown unable to fire (§3.1) |
+| G-REASON T9 per_texture | FX: whether the cooked texture keeps `AssetLODBias > 0` is unknown → **PW P-DF** | admitted only on the census; otherwise D |
+| G4 LEVEL-CHANGE | GL: the capture run finishes on world teardown (ACS `Deinitialize` → `StopRun` → `FinishRun`, src); the injector revert on `EndPlay(LevelTransition)` (AIS:406-438, src); no new-world ledger reading exists (ATC:1333, :1033, src) · WP: the process continues in the new world; the runner must wait for a new-world line (new kind) · FI: `open` is an engine command available in Development (the m55 `ChangeTeardownAt` precedent used `OpenLevel`, ACS:650-659); ExecAtFrame fires in-world · all → **PW P-LVL** | the `post_teardown` line, the RT name prefix, the `level_change` runner kind, `ExecAtFrame` |
+| G4 RECREATED | GL: the successor holds our host MID through the strong UPROPERTY arrays (src) · FX: destroying a StaticMeshActor's root component at runtime and promoting a successor → **PW P-RCR** · src: a same-named successor restores exact; only a renamed one reaches `swept` (ATC:1106-1171) | two variants; `same` is the control |
+| G4 CAN | FI: **the runner forces focus from 400 ms** (`run:55-77`; G332) ⇒ the lever overrides the predicate, not the OS focus · WP: `ArmedPending` times out at 30 s (ACS `.h:262`) and would then start the run, so the Stop is in the same batch · LV: the cancel line is at Log (ACS:5873-5875) → **PW P-CAN** | the lever; the row's claim narrowed to the branch (m53 is vacuous there) |
+| G5 | src: **"held" is unreachable in a targeted capture**, because `StartRun` reverts every live anomaly (ACS:3008-3012), and inside a run one fire exists per burst ⇒ m52 is raw-applied **after** StartRun at a fixed frame · src: m52 skips a texture at or below its target (SLM:482-491) and refuses a small on-screen one (SLM:498-525; ratio compiled 8.0, `AnomalyDefaults.h:102`) ⇒ a new 1024² streamed pair and the ratio knob set to 0 · RS: the pair must be above the non-streaming floor when m52 picks it; §3.1's mechanism (the first pass streams every drawn texture's full chain, issued around frame 6) makes that likely by frame 36, and the 40-frame lead-in keeps the margin in frames → **PW P-M52** reads the baseline · "restoring" ends when the stream-in finishes (SLM:837-920), a race ⇒ the pin lever · src: raw-applied anomalies survive `BeginRevert` (S1 G4 TWO: the normal event stayed live through eight uv events) | new fixture pair; ExecAtFrame; pin lever; the reverse-order clause re-declared as a finding. 🔁 082-12: ~~the ratio knob set to 0~~ is withdrawn, because raw m52 already bypasses the ratio and the co-affected limit (SLM:344-357, R2.5). The pin cannot create an entry, since insertion needs the texture below baseline (SLM:772-785), so the legs prove the drop and the insertion (R2.5). The reverse order is now G5-REV with a source fix (R2.9) |
+| G6 F-MW | CD: pinned trajectory, native only · RS: the kit's 4096² sets refuse first (§R14.1) | stated as UNEXERCISED in advance |
+| G8 | FX: A and B share MainWorld content (G-COOK proved it unchanged up to identical-input variance) · CD: pinned trajectory (fi ≤ 702) · the A-side exe must run on a container → a banked matching A-side first, else **PW P-A8** on the archived pre-m53 container | A-side sourcing rule |
+| G-SEED | src: no pooled id declares an enum `mode`; `Eligible` is filtered by `EnabledIds` · RS: whether an m53 draw applies does not matter to the draw protocol (`R-SEED`) · **the census makes the candidate set launch-dependent**: it excludes candidates on a cycle schedule that varies between launches (MainWorld cycle 2 ends at tick 5 in one leg and 6 in another, §3.2), and the target draw is over the surviving candidates (AAI:283-374) ⇒ the legs run with the census off · CD: F-SYN static pose; MainWorld pinned trajectory (fi ≤ 702) · **PW P-SEED** sizes the legs | the draw keys on the m53 ids (§2.4); census off in G-SEED legs |
+| G-BIND / G-ID / G3 regressions | as S1 (real) | — |
+| P2 proofs, presence, slots | src: `GetTelemetry` returns no block when inactive (ATC:1248); item 9 scopes by the log lifetime · FX: the F-MW partial fire gives a non-trivial installed set (real: 12 of 30 on `FMW_ID`) | the presence row |
+| TRIP | real: key present in 191/191 summary-bearing S1 sessions | census legs N/A |
+| G1 F-MW | CD: fi, t, view bit-identical across 7 real legs; DP matched · four class-A zones differ every frame up to 255 → excluded from region R · class B speckle ≤ 15 outside them, streaming-timed · RS: the first fire's installed set depends on the launch's streaming state at frame 42 (12 vs 21 slots, real) · mask: none (`nanite`) · change-oracle coverage 0 (real) · the install leaves a persistent shadow-edge trace (§3.2), which sits inside R and would read as a change after revert | D only; region R from S2 nulls; item 10's identities printed beside the reading; the post-revert trace reported, not judged. 🔁 082-12: it is judged by S2-0 (§3A) before S2-1, and chat's ruling on S2-0 decides how G1 F-MW reads it |
+
+**Rows where a premise needed a design change** (summary): G1-SYN (G230), G5 (four premises), T10 (G328), A2 and A3
+(fixture), G4 CAN (G332), G4 LEVEL-CHANGE (no run spans a teardown; no new-world reading), G4 RECREATED (same name ⇒
+exact restore), G-RD-DRIFT (missing lever and accounting), scramble (fixture periodicity), G-SEED (draw keyed on ids),
+F-MW rows (native only), G1 F-MW and G9 on F-MW (region R, D; the post-revert shadow trace), G8 (keys, not values).
+
+🔁 082-12 — **the premise audit for the rows revision 2 adds or changes.** Each row's full line is in its R2
+subsection. The one-line forms:
+
+| row | premises and how each was checked | design change it forced |
+|---|---|---|
+| G-MODE-UV / G-MODE-N | **FX:** new cells; separability, display ≥ 1:1, visibility and occlusion → **PW P-ORC**. **src:** the graph definitions (`create_texcorrupt_assets.py:41-66`, `:97-111`, `:291`). **Display:** the normal readout's lit term is zeroed (BaseColor 0, Specular 0), and RefId's cross-tile residual measures what remains. **real:** `TC_NN1` changes by only 25 and 31 on two modes (`texcorrupt_fixture_images.py:137`) | new asymmetric oracle cells; wrong-mode negatives on real frames; the `noise` reference |
+| G-SNAP-* | **FX:** three encodings, never streamed, S1 G-ID 0 on the direct path. **RS:** the shared source is fully resident at Apply and drops mid-event → **PW P-SNAP**. **src:** the tripwire and binding types (ATH:42, TCD:137-163) | snapshot dispatch and ownership; the bind read-back; the residency leg; the budget boundary |
+| G4 LEVEL-CHANGE | **src:** teardown reverts before it logs (ATC:1315-1329), and the post-revert sample is cleared (ATC:1331-1334). **GL/WP:** the new world must tick past the due frame, then GC → **PW P-LVL**. **src:** RTs are unnamed today (TCD:33) | ticket, named RTs, the RTCENSUS token, the runner waits for it |
+| G4 RECREATED | **src:** a renamed successor resolves to the asset default after the sweep (ATC:1106-1171). **real:** `TC_UC1`'s Raw is `M_TC_UC1` and its asset default is WorldGridMaterial (`M53S1_G4_TWO_A1 … :2004`) | a cleanup claim, not an exact one; the SLOTSTATE line; the SkipSweep negative |
+| G4 CAN | **FI:** the runner forces focus (G332). **src:** FocusGate and a game window gate the predicate call (ACS:3362); `ResetRunStats` runs before focus (ACS:3208-3211); configuration echoes print before focus (ACS:3262-3265; AIS:250) | the allowed-echo list, the post-reset baseline, TRIP's cancellation exemption |
+| G5 / G5-REV | **src:** conditional insertion (SLM:772-785) and an early return on an empty list (SLM:852-855); raw m52 bypasses the ratio (SLM:344-357). **RS:** the drop by frame 35 → **PW P-M52**. **src:** m52 counts only `UTexture2D` users (SLM:101-116) | the drop and insertion clauses; the control leg; the co-affected fix and its print |
+| G-SEED | **src:** `RandHelper(0)` consumes nothing (`RandomStream.h:186-189`); the draw order (AAI:272, :374-375); the census makes candidate sets launch-dependent | the explicit mode fraction, the `Auto.Draw` line and replay, coverage, the empty-set leg |
+| G-REASON E6 | **src:** the census skips E6 (TCT:814-819) | admission through an Apply decision and a valid-mode control |
+| G3-S2 | **src:** the exact and default branches (ATC:1128-1137). **real:** `FMW_ID` restores 12 × default | the expected per-slot disposition |
+| G8 / G8-VAL | **src:** the telemetry model and the writer (`AnomalyTelemetry.h:5-73`, `AnomalyLabelWriter.cpp:133-178`). **FX:** a banked A-side that matches on every axis, else the S1 exe | a type-aware field comparison; byte identity of non-m53 entries |
+| G-LEVER | **FX:** the harness passes `-IAIBench`; a leg without it that needs a lever is INVALID-PROTOCOL. **src:** static registration can precede command-line parsing, so the gate registers at runtime | the runtime gate; `DestroyTarget` behind it |
+| S2-0 (§3A) | its own per-leg audit (§3A.5): the pinned trajectory, the single event, DEFER frames (P0), the cache echo, footprint matching | a matrix instead of a decision tree |
+| 🔁 082-13 S2-0 timing (R21.1) | **src:** the warm phase is taken only by m53-targeted runs (ACS:2442-2451, :3631-3638), so C and the m53 arms had different clocks. **real:** A's si → fi map (`FMW_ID_A1`); the warm-free map (`M55B3R23_NOHOLD_*`); no banked warm-off m53 leg (0 of 414). **src:** a deferred command logged `[k]` runs before world tick k (`LaunchEngineLoop.cpp:5568`, `:5608`); nested `DEFER` is unexercised on the bench | warm OFF across family B, pre 62; T1–T8 on every leg |
+| 🔁 082-13 G-SNAP-FAIL (R21.4) | **src:** retention leaves the accounting untouched (ATC:156-172; TCP:392-403, :438-450), and `Close` rescues un-released bytes (TCP:452-458) | the post-GC census clause; a separate omitted-accounting fault |
+| 🔁 082-13 `bindings` (R21.5) | **real:** global and layer-0 `Tex` on one slot (`BIND_ID_A1 :1997-1998`) | association and layer index in the key |
+| 🔁 082-13 G-MODE-N `noise` (R21.7) | **src:** §6.0 allows identity probes; identity shares the output path with `noise` | τ measured on identity, fixed at the lock, a FAIL after it |
+
+---
+
+## 8. Builds and cooks, in order
+
+| step | what | where | staging and rollback |
+|---|---|---|---|
+| 🔁 082-12 **S2-0** | §3A's 24 MainWorld legs on the **current staged S1 set** (exe `2FCDF059`, utoc `20DA6F98`, ucas `534C5863`): **no build, no cook**; the set is hash-verified before and after. 🔁 082-13: its runnability on that set is checked in R21.8 (tokens, lengths, predicates) | bench (owner's PC OK) | nothing staged |
+| B1 | the S2 source: comment strip, then **editor** and **game** builds (G10) after clearing the plugin's build products (G309). 🔁 082-12: including every R2 change, and any restore fix S2-0 establishes | host `E:\IA_BuildCache\_r53_host` (plugin as a detached worktree at the S2 head; `_r53_src` is the branch worktree; the main checkout stays on `m51`) | archive the exe and editor DLLs to `_binary_baselines\m53-s2-…`; nothing staged yet |
+| C1 | `s2add` authoring, offline proofs, M0/M1, disk read-back. 🔁 082-12: **it now includes the mode-oracle cells and the noise references (R2.1)** and the `TC_NormalUnconn` verify exception (§4) | host (Content is a junction to the real project; guarded by the byte manifest, 082-06) | — |
+| C2 | archive the staged set; cook; G-COOK; M2; stage the S2 exe + container; A44 | host → `Builds\BenchGate` | rollback = `m53-s1-maskedfix-cook-20DA6F98` (exe `2FCDF059`, utoc `20DA6F98`, ucas `534C5863`), hash-verified copy back |
+| (B2) | **contingency**: a second build pair if the premise window or Codex's source review forces code | host | as B1 |
+| (C3) | **contingency**: a second cook only if a corruptor graph branch is wrong (§2.1) or a fixture row fails its read-back | host | as C2 |
+| G-SEED (b), G8 A-side | exe-only swaps (G103) to `2FCDF059` / `E0BE6F0A` with receipts before and after, restored by hash | bench | the S2 staged set is re-verified after each |
+
+**Counts: 1 build pair and 1 fixture cook; 0 plugin-asset cooks.** With contingencies: up to 2 build pairs and 2 cooks.
+
+🔁 082-12. **The counts are unchanged: 1 build pair (B1) and 1 fixture cook (C2, now also carrying the oracle cells);
+0 plugin-asset cooks; S2-0 needs neither.**
+- **If S2-0 establishes an m53 restore defect,** its fix rides B1: no extra build.
+- **The contingencies stay as written:** a second build pair if the premise window or Codex's source review forces
+  code; a second cook only if a corruptor branch is wrong or a fixture row fails its read-back.
+- ⚠ **A new cook trigger, named:** if P-ORC shows an oracle tile off screen or unseparable, moving or re-authoring it is
+  a fixture change, and that is C3.
+
+---
+
+## 9. Brief sequence
+
+| brief | who / effort | content | stop points | size (context) |
+|---|---|---|---|---|
+| 🔁 **082-12** (this) | Code, xhigh | revision 2 (R2.1–R2.11), the P2-9 determination, the S2-0 spec (§3A); commit and push; then the **Codex delta check via the Relay**, collected, not acted on | — | — |
+| 🔁 **chat** | chat | rules on the delta | — | — |
+| 🔁 **082-13** | Code, xhigh | revision 2.1 (R21.1–R21.9): D1–D6 and the noise ruling; S2-0's runnability on the staged build; commit and push; then a **Codex mini-delta via the Relay**, collected, not acted on | — | — |
+| 🔁 **chat** (082-13 ruling) | chat | M1–M4 accepted; no further Codex round before S2-0 | — | — |
+| 🔁 **082-14** | Code, xhigh, bench-free | apply M1–M4 (R22.1–R22.4); build, prove and lock the S2-0 harness `_reviews\082-14-s20-*`; dry run of all 24 batches (R22.6) | a proof failing; the dry run failing | — |
+| 🔁 **S2-0 = 082-15** | Code, high, bench, **owner's PC OK** | §3A: the evaluator proven on the bank first (§3A.6); ~~P0 first~~ 🔁 082-13: the token scan re-run, then T1–T8 on every leg with the first leg of each type gating (R21.1); the 24 legs; readings, flags, a classification only with the state evidence | ~~P0 mismatch~~ 🔁 082-13: a T-failure on a type's first leg, or a second INVALID-TIMING on one leg; the evaluator failing its known answer; a harness or game crash | medium (~40 %) |
+| 🔁 **chat** | chat | rules on S2-0: STALE-NULL (label caveat) / ~~PLUGIN-WIDE (owner escalation)~~ 🔁 082-13: PLUGIN-WIDE-RESTORE-DEFECT (owner escalation) / REPRODUCED-BY-SWAP, CAUSE UNRESOLVED (chat decides) / M53-RESTORE-DEFECT (fix joins S2-1) / other | — | — |
+| **S2-1 source** | Code, xhigh | §2 in full; pure tests extended and green; comment strip; B1 (both targets, G10); archive. 🔁 082-12: plus R2.1–R2.11's source (incl. the draw/CRC known-answer tests) and any restore fix S2-0 establishes | a build warning or failure; a pure test failing | large (~70 %) |
+| **S2-1R** | Codex via Relay | source review of S2-1's diff (the S1 082-06 precedent); chat rules; fix delta if needed (B2) | chat | — |
+| **S2-2 fixture and cook** | Code, high | §4: images and proofs, `s2add`, M0/M1, read-back, C2, G-COOK, stage, A44 | any read-back or G-COOK failure | medium (~40 %) |
+| **S2-3 harness** | Code, xhigh | §5: the `082-10-*` set, generalisations, new evaluators, proofs both ways (synthetic and banked), dry run, stubbed e2e; the bank cause reads 15–17; **the probe legs declared** as a section of this file; docs commit; probe boundary | a proof failing | large (~60 %) |
+| **S2-4a premise window** | Code, high | §6.0's probes (~16 legs, one window); the lock amendment to this file with every probe's disposition; the gate boundary re-issued after that docs commit | a probe that crashes the harness or the game (a harness stop, not a verdict) | medium (~40 %) |
+| **S2-4b gate window** | Code, high | §6.2's legs (~95), `G-RD-DRIFT` first | §6.2's stop rule | medium (~50 %) |
+| **S2-5** | Codex via Relay | evidence review of S2 (the 082-08 precedent); chat rules | chat | — |
+| **S2-6 close-out** | Code, high | "S2 RESULT" in this file (measured / log-only / N/A per headline count, G337), journal, status, gotchas | — | small (~25 %) |
+
+**Estimate: 5 Code sessions** (S2-1, S2-2, S2-3, S2-4a+b possibly one window session each, S2-6), plus two or three
+Codex runs. The Relay's measured durations (518–1,839 s per run) put each Codex step at under 40 minutes.
+🔁 082-12: **7 Code sessions** (this one, S2-0, S2-1, S2-2, S2-3, S2-4a+b, S2-6) and **four Codex runs**: this delta, S2-1R,
+S2-5, and a delta if chat asks for one. S2-3 grows: it takes the oracle, snapshot, level-change, seed-replay and partition
+evaluators (§5.3 🔁).
+
+---
+
+## 10. Codex checkpoints
+
+1. **Design review of this plan, via the Relay, before any code** (required). The request should ask Codex to attack
+   §6.0 (can a probe launder a result?), §7 (any premise read as settled that is not), the G5 re-design, the
+   G1-SYN split, and the mode draw's `R-SEED` argument. 🔁 082-12: **done** (082-11, CHANGES REQUIRED, eleven findings,
+   all accepted); revision 2 applies them. **1b. The delta check of revision 2 via the Relay** (082-12), collected to
+   `_reviews\082-12-codex-m53-s2-delta.md`; chat rules on it before S2-0. 🔁 082-13: **done** (CHANGES REQUIRED, D1–D6,
+   all accepted by `_reviews\082-12-chat-ruling-s2-delta.md`); revision 2.1 applies them. **1c. A mini-delta of revision
+   2.1 via the Relay** (082-13), collected to `_reviews\082-13-codex-m53-s2-minidelta.md`. Per the ruling's sequence,
+   S2-0 follows on the current build with the owner's PC OK. 🔁 082-14: **done** (CHANGES REQUIRED, M1–M4, all accepted
+   by `_reviews\082-13-chat-ruling-minidelta.md`); revision 2.2 applies them. **No further Codex round before S2-0**
+   (class D); chat checks M1–M4 in 082-14's report. Codex's next checkpoints are the S2-1 source review and the S2
+   evidence review.
+2. **Source review after S2-1** (recommended; the S1 precedent found 6 P2 and 3 P3 in S1's code).
+3. **Evidence review after the gate window** (required).
+
+---
+
+## 11. NEEDS-DECISION
+
+**Owner / product:**
+
+- **D5, default mode sets** (provisional since revision 2): uv `tile scramble drift`, normal `invert green_flip
+  noise`; `swap` and `flat` available but off. S2 tests all eight either way; the compiled sets only drive the
+  auto-pool draw. The owner may wait for S3's `G-STR`.
+- ~~**m52's co-affected gate and m53** (§2.7): … Recommended: not in S2; recorded as a known limitation that cannot
+  arise inside a capture run.~~ 🔁 082-12: **ruled by 082-11 ruling 9, and decided by the source determination
+  (R2.9):**
+  - the auto path can hold both at once by default, so the fix is in S2 (G5-REV);
+  - "cannot arise inside a capture run" is withdrawn: it holds only for the unassisted FSM.
+
+**Chat (technical, each with Code's default):**
+
+- 🚨 **The MainWorld post-revert shadow trace (§3.2).** On the S1 bank, MainWorld's identity install and its revert to
+  the default material leave a persistent difference (max 67–76, 43–55 px) at the ramp contact shadow, where the nulls
+  agree to 1. It is a G3-shaped reading on host content (an S3 stop under §R13). Mechanism not established; the
+  candidate is a shadow-cache invalidation by `SetMaterial` on static geometry, which would make it a property of every
+  material-swap anomaly. ~~Default: run the optional P-VSM discriminator in the premise window and rule on the finding
+  before S3; no S2 Q row depends on it.~~ 🔁 082-12: ruled. It is S2-0 (§3A), a matrix run before S2-1.
+- **The premise window (§6.0)**, a new step between the harness lock and the gate lock. Default: adopt it.
+- **The optional plumbing block** (C4). Default: include it (6 legs, no fixture).
+- **No per-fire `strength` argument in S2** (§1.1). Default: omit.
+- **G8's A-side**: a banked pre-m53 MainWorld leg that matches on every axis (G184), else an exe-and-container swap to
+  `E0BE6F0A` + `m53-s1-precook-container-67EA1FE0`. Default: search the bank first in S2-3.
+- **The design values** of §1.1 (N = 8, 0.25 UV/s, K = 8, f = 1.0, A = 0.5). Default: as listed; `G-STR` may amend.
+- **`IAI.Bench.DestroyTarget` in Shipping** (§2.6): out of S2's scope; flagged for a hygiene milestone.
+
+🔁 082-12 — **status of the items above.** All are ruled:
+- the shadow trace → S2-0 (§3A);
+- the premise window → adopted;
+- the plumbing block → included, plumbing-only;
+- no `strength` argument → accepted;
+- G8's A-side → a banked match, else P-A8;
+- the design values → accepted as defaults;
+- `DestroyTarget` → behind the S2 bench gate (R2.11);
+- D5 → the owner, at S3, with G-STR numbers.
+
+**Code's defaults in revision 2, for chat to confirm or change.** None blocks the delta check or S2-0's specification.
+1. **P2-9's reading of "by default"** (R2.9): the `MaxConcurrent` default and the pool rules → yes → the fix is in S2. If
+   chat means "with the default enabled set", the answer is no; then the limitation narrows to the out-of-band paths,
+   and the fix is still harmless.
+2. **S2-0's "equally long clean tail"** (§3A.2): read as the same 60-frame tail in every cell, which covers the banked
+   post-revert span (si 47–99).
+3. **S2-0's refresh arm is class-wide** (every ISM component), because this build has no per-component refresh. The
+   footprint-matched lever is proposed for S2-1, to be decided after S2-0 reads (§3A.3).
+4. ~~**The `noise` oracle's tolerance bound, τ ≤ 8** (R2.1). Above it the `noise` oracle is NOT-QUALIFIABLE, a mandatory
+   debt for chat, not a stop.~~ 🔁 082-13: **not accepted as written.** Chat's ruling is applied in R21.7: τ is measured in
+   the premise window, fixed at the lock, and a FAIL after it; no sound τ goes to chat before the lock.
+5. **The bench gate's name, `-IAIBench`, and runtime registration** (R2.11). The pre-S2 bench commands that compile into
+   Shipping are recorded, not changed.
+6. **The M3 checklist item** (R2.11): the client-artifact proof, to be added to `PRE-DELIVERY-CHECKLIST.md` when M3 opens.
+
+🔁 082-13 — **all six are ruled** (`_reviews\082-12-chat-ruling-s2-delta.md`). 1, 2, 3, 5 and 6 are accepted as written;
+item 3's footprint-matched lever is decided after S2-0. Item 4 is replaced (R21.7). No NEEDS-DECISION item is added by
+revision 2.1.
+
+🔁 082-14 — **Code's defaults in revision 2.2, implemented in the locked harness, for chat to confirm or change before
+082-15.** None blocks the run as locked. A change is an evaluator edit, a re-proof and a re-lock.
+1. **The null-agreement window** (R22.5 item 1): the nulls must agree from the first labelled si to the last, not at
+   every si. The bank nulls reach 55 in K at si 0–31, so the literal rule would make every cell INCONCLUSIVE.
+2. **M1 extended to M53-RESTORE-DEFECT** (R22.1): only an Effective mismatch on ID-F establishes it. Chat's ruling
+   named PLUGIN-WIDE-RESTORE-DEFECT; the same disposition-count clause sat in the m53 class.
+3. **Region R's first si needs the nulls to agree inside R at that si** (R22.5 item 2). Without that condition the bank
+   reads si 0.
+4. **Sequencer readings of rules the plan left open** (R22.6):
+   - "a second consecutive INVALID-TIMING" is implemented as a second INVALID-TIMING on the same leg (stricter);
+   - S1's budgets govern non-timing invalidity (INVALID 3, INVALID-POSE 6, ENV-INTERRUPTED 5);
+   - an FX mismatch is a stop (code 12), not a re-run;
+   - NOT-REPRODUCED on the A-on cell stops the window after its third leg ("report and stop", §3A.7).
+
+---
+
+## 12. What this file does not claim
+
+- ⛔ No mode is claimed to work: the graphs are proven to carry each mode's parameters, not to draw them correctly
+  (§2.1). `G1` decides.
+- ⛔ No perceptibility, strength, yield or cost number (S3: `G-STR`, `G7`, `G-COST`).
+- ⛔ No MainWorld pixel verdict of any kind in S2.
+- ⛔ The offline visibility proofs (§6.3) are predictions from the fixture's own images, not measurements.
+- ⛔ Nothing here changes `m51` (held at `53bf725`), `master`, any tag, the staged build, the harness, CaptureBench or
+  the fixture.
+- 🔁 082-12:
+  - ⛔ **No mode is claimed correct until G-MODE-UV / G-MODE-N pass.** G1 is alignment only.
+  - ⛔ **The `drift` oracle cannot see a one-frame timing slip** (about 1 px). G-RD-DRIFT (a) and G1 carry per-frame
+    timing.
+  - ⛔ **A component re-created under a new name while corruption is active falls back to its asset default.** That is
+    cleanup (§R8.3 step 4), not an exact restore.
+  - ⛔ **S2-0 gives flags and, only with the state evidence, a classification.** No mechanism is asserted. Which
+    MainWorld image is "correct" is not established by this file.
+  - ⛔ **LEVEL-CHANGE proves the ledger and object contract,** not physical GPU deallocation.
+  - ⛔ **The telemetry gives slot identities and the texture-to-slot relation.** It gives no pixel mask and no
+    per-instance ISM attribution.
+  - ⛔ **G-LEVER is a Shipping-plus-bench-enablement proof.** The client-artifact proof is M3's.
+  - ⛔ **Injection through the unguarded out-of-band paths during a capture run stays unsupported** (R2.9).
+- 🔁 082-13:
+  - ⛔ **A swap reproducing the trace is a description, not a cause** (R21.6). No plugin-wide restore defect is claimed
+    without the same trace and defective post-revert state on both arms.
+  - ⛔ **S2-0's two unexercised mechanisms** (nested `DEFER`, the warm-off m53 schedule) **are predictions until their first
+    legs read them** (R21.1, R21.8).
+  - ⛔ **The post-GC object census proves the object contract; the ledger proves the accounting.** Neither is evidence for
+    the other (R21.4).
+- 🔁 082-14:
+  - ⛔ **A disposition count is not a restore defect** (M1). No restore-defect class is claimed without an Effective
+    mismatch after revert on every arm the class names.
+  - ⛔ **The S2-0 dry run's STALE-NULL is synthetic.** It shows the pipeline end to end on generated frames and is not a
+    reading. S2-0 has produced no reading yet.
+  - ⛔ **T6, T7, T8 and warm-off T2 have no bank positive.** They are proven by synthetic negatives only, until the first
+    live leg of each type reads them (R22.2).

@@ -1,0 +1,18 @@
+function IAICounts($log) {
+  $m = @(Select-String -LiteralPath $log -Pattern 'stuck_low_mip|Capture\(m52\)' | ForEach-Object { $_.Line })
+  $sw = @($m | ForEach-Object { if ($_ -match 'shared_world - (\d+) user') { [int]$Matches[1] } })
+  $hn = @($m | Where-Object { $_ -like '*HELD NONE*' })
+  $b = @(0,0,0,0,0,0)
+  foreach ($l in $hn) { if ($l -match '\] - (\d+) virtual, (\d+) not streamable[^,]*, (\d+) excluded[^,]*, (\d+) shared[^,]*, (\d+) too small[^,]*, (\d+) imperceptible') { for ($i=0; $i -lt 6; $i++) { $b[$i] += [int]$Matches[$i+1] } } }
+  "PURITY ENUMERATION        " + @($m | Where-Object { $_ -like '*PURITY ENUMERATION*' }).Count
+  "HOLDING                   " + @($m | Where-Object { $_ -match ' - HOLDING \d+ of \d+' }).Count
+  "HELD NONE                 " + $hn.Count
+  "  HELD NONE buckets       virtual $($b[0]) | not streamable $($b[1]) | excluded $($b[2]) | shared $($b[3]) | too small $($b[4]) | imperceptible $($b[5])"
+  "shared_world              " + $sw.Count
+  "  users 2 to 8            " + @($sw | Where-Object { $_ -le 8 }).Count
+  "  users 9 or more         " + @($sw | Where-Object { $_ -ge 9 }).Count
+  if ($sw.Count -gt 0) { "  users min / max         " + ($sw | Measure-Object -Minimum -Maximum | ForEach-Object { "$($_.Minimum) / $($_.Maximum)" }) }
+  "baseline_pending          " + @($m | Where-Object { $_ -like '*baseline_pending -*' }).Count
+  "HOLD CONTAMINATED         " + @($m | Where-Object { $_ -like '*HOLD CONTAMINATED*' }).Count
+  "matched 0 mesh            " + @($m | Where-Object { $_ -like '*stuck_low_mip: matched 0 mesh*' }).Count
+}

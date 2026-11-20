@@ -1,0 +1,6 @@
+﻿{"utc": "2026-09-25T06:10:11.915826+00:00", "window": "c1", "problems": [], "quiet_now": true, "blocking": [], "foreign": [[33660, "UnrealTraceServer.exe"]]}
+{"purpose": "window-c1", "result": "QUIET", "checks": 2, "waited_s": 31, "last": {"utc": "2026-09-25T06:10:42.811428+00:00", "quiet": true, "blocking": []}}
+{"label": "C1_G8_N_A1", "status": "FIXTURE-VALID-FAILURE", "errors": ["case: build-3 D: SI8 carries no receipt"], "readings": {"events": 5, "pairs": 19, "measured": 17, "high_water": 18432000, "budget_si": [], "oracle_exit": 0, "oracle_summary": {"sidecar_rows": 24, "unparseable_lines": 0, "pair_rows": 19, "event_rows": 5, "claimed": 17, "compared": 17, "matched": 17, "mismatched": 0, "unavailable": 0, "ref_claimed": 17, "ref_compared": 17, "ref_matched": 17, "ref_mismatched": 0, "ref_unavailable": 0, "capture_path": "sve"}, "speed_ratio": 0.9999975422832453, "pngs": 89}}
+{"exit": 1, "message": "FIXTURE-VALID-FAILURE C1_G8_N_A1: ['case: build-3 D: SI8 carries no receipt']"}
+{"utc": "2026-09-25T06:12:18.448178+00:00", "window": "c1", "problems": [], "new_bank_files": 13987, "evidence_files": 17, "foreign_present": [[33660, "UnrealTraceServer.exe"]], "verdict": "PASS: main m51 53bf725, Lyra caa68c6 with 9 original modules, staged exe 002805CF, every binary/container/harness file unchanged"}
+{"window": "c1", "chunk_exit": 1, "postflight_exit": 0}

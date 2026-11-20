@@ -1,0 +1,53 @@
+# 093-04 — Claude Code review of Codex's J1 continuation (follow-up capture base)
+
+**Date:** 2026-10-13, about 23:55 IST · **Author:** Claude Code (mailbox brief `093-04-j1-continuation.md`), reviewer only.
+
+**Inputs:**
+- Codex's report: `_relay\runs\2026-10-13-093-03-j1-natural-base\report.md` (resumed session `<uuid>`, `gpt-6-astra`/`max`, full access, 1,508 s, VERDICT NEEDS-DECISION). The 093-03 report is preserved beside it as `report-093-03.md`.
+- The local branch `fix/followup-capture` in `E:\IA_BuildCache\_r933\AnomalyInjector`: docs commits `1e6dc65` and `ca2605f` (head) on top of `72edc48`. **Not pushed.**
+- Evidence under `E:\IA_BuildCache\_r933\continuation09304`.
+
+**Method:** reading and recounting only. No build, cook, stage, editor or game launch, and no git write. My baselines, scratch copies and outputs are in `_relay\runs\2026-10-13-093-03-j1-natural-base\code-receipts-093-04\`. I took my own staging, refs and process baselines **before** launching Codex, so the restore checks below compare against an independent "before" rather than only Codex's receipts. The PIE session I recounted was unchanged by my reads (file count, bytes and latest mtime identical before and after).
+
+## Counts
+**16 OK · 11 GAP.**
+
+## Gate table
+
+| # | Item | Codex result | My check | Verdict |
+|---|---|---|---|---|
+| 1 | Session continuity | Resumed J1 session | Same thread id in the new `thread.started` event. Codex's own rollout `turn_context` for the resumed turn: `gpt-6-astra`, `max`, `danger-full-access`. Ledger row `093-03-j1-natural-base-resume1` appended | OK |
+| 2 | F6 corrected control, PIE (`F1_P_uv_aaoff`, row 191) | PASS: old `[]`, new CLI exit 1, new hook "labels event missing from annotation" | Rebuilt the three variants myself on fresh scratch copies (`code-receipts-093-04\f6diag\`). Row 191 has no transition (transitions are on 239/479/719/959). Self-consistent wrong event (`start_frame` 999999, `target_name` WrongTarget, matching `event_id`): old hook `[]`, new hook `labels event missing from annotation: uv_corruption@999999\|WrongTarget`, standalone `annotation_transition_check.py --dir` exit 1. Intact: `[]` / `[]`, CLI exit 0. Matches Codex's `result.json` on every variant. Old checker = `23098fa:tools/verify_capture.py`, identical in content to `_r917`'s copy (line endings only). Source capture hashes unchanged | OK |
+| 3 | F6 event-ID-only second control | Rejected by both versions | `labels event_id mismatch at 191` from old and new hooks; CLI exit 1. Documented as a self-consistency control, not as the old-checker can-fail | OK |
+| 4 | Docs: F6 explanation corrected | Gotcha, status block, journals, architecture | `git diff 72edc48 ca2605f`: the gotcha is rewritten; the `CLAUDE.md` status block, the 093-03 journal (correction header plus the rewritten stop section), the new 093-04 journal and `architecture.md` all say "the event-ID-only mutant tripped the per-row self-consistency test in both versions; no transition-free capture is needed". The old "retained `pie_end_settle` transitions" cause no longer appears as a finding anywhere on the branch | OK |
+| 5 | Gotcha renumber | G465 → G477 | Over all 70 refs: the highest existing heading is G476 (`feat/vt-blur-stacks`). G477 is a heading only on `fix/followup-capture`, and no other ref's gotchas mention G477–G489. G465 survives only in the 093-04 journal's renumber note | OK |
+| 6 | Reader wording (C5) | Docs and report corrected | Status block, 093-03 journal and report all say: the existing `verify_capture.py --label-pixel-gate` exits 0 with four UNASSESSABLE events on the wrong-view release control, and the rejection comes from the job's marker and measured-mask checks. Reader unchanged (no `tools` diff) | OK |
+| 7 | Capture-size note (C7) | "unknown" | Stated in one line in the report and the journal, as the request allows. Not a gate | OK |
+| 8 | No source change since `72f3eb3` | None | `git diff --stat 72f3eb3 ca2605f -- Source Shaders tools` is empty. The two new commits touch only `CLAUDE.md`, `docs/architecture.md`, `docs/gotchas.md` and two journals | OK |
+| 9 | Predictions file unchanged | Unchanged | SHA-256 `16C8E76B…5922E6` at the head, identical to my read before launch and to `initial.json`'s `prediction_sha256`. `git diff 72edc48 ca2605f -- docs/predictions` is empty | OK |
+| 10 | Archives | 6/6 rehash | My rehash: candidate `followup-capture-J1-72f3eb3-E41ABF93` 6/6, release control `release-2026-10-05-23098fa-218BA4C7` 6/6. No new archive in `_binary_baselines`; the index `README.md` is untouched (02-10). The candidate archive's own README still carries the old F6 cause; Codex left it alone ("add archives only") and records it as superseded | OK |
+| 11 | Bench cook and container hash | **STOP**: cook commandlet exit 0 (928 packages), UnrealPak exit 0, then UAT `NullReferenceException` in `Project.RunIoStore`, exit 1; no `.utoc`/`.ucas` | Confirmed in `cook.log` (line 482; frame at `CopyBuildToStagingDirectory.Automation.cs:3518`, which dereferences `SC.PackageStoreManifest.FullPath`). Archive output empty. The only artifact is a partial `StackOBot-Windows.pak`, 7,466,614 B, SHA-256 `7c89da81…6fcdde`, which matches the report. **No cooked container hash exists**, so no staged gate could run | GAP |
+| 12 | Cook-failure diagnosis | Harness output-path mismatch, not a product defect | Supported by file layout and engine source. The receipt passed `-CookOutputDir=…\continuation09304\cooked` (no platform folder). The commandlet wrote all 985 files under `cooked\StackOBot\` (manifest at `cooked\StackOBot\Metadata\packagestore.manifest`). UAT staging appends `Windows` when the directory name is not the platform (lines 983–986). It loads the manifest only if that directory exists (1219–1224), so the manifest load was skipped. `cooked\Windows\StackOBot\Metadata` now holds only `Crypto.json`, written at the end. The exact null operand is not recorded, and Codex says so | OK |
+| 13 | Stopping on that failure | Applied the stop rule; no retry | The request's stop condition is "an unexpected **gate** failure", and the frozen predictions' stop rule names merge conflicts, acceptance-gate failures and the idle timeout. A packaging failure attributed to the harness's own output argument is in none of those, and correcting a harness argument is not a source change. The stop is conservative and fully disclosed. Its consequence is that the entire remaining matrix stayed unrun. Whether a harness-only failure halts is chat's call | GAP (ruling needed) |
+| 14 | PIE recount, `F1_P_uv_aaoff` | 1,152 images, 4 fires, 8 edges +0, 192 measured masks | Recount with the head's tools (unchanged since `72f3eb3`): `verify_capture.py --dir … --label-pixel-gate` exit 0, 4/4 CONSISTENT, all 8 onset/end edges `delta=+0`. The output is byte-identical to 093-03's recount. `recount_rows.py`: 1,152 rows = 1,152 images, `session_index` 0..1151 = image ids, 192 labelled rows each with a nonzero measured mask, `mask_state` 192 present + 960 unmeasured | OK |
+| 15 | F1 owner guard, shared-proxy mode (PIE) | Not run | — | GAP |
+| 16 | F2 C1/C2 scope and tag retirement (PIE) | Not run | — | GAP |
+| 17 | F3 opaque/masked alpha pair (PIE) | Not run | — | GAP |
+| 18 | Dropped-mask accounting with deliberate drops (PIE) | Not run | — | GAP |
+| 19 | m52 blurry hold (PIE) | Not run | — | GAP |
+| 20 | Shared proxy blur: co-user, masks, recovery (PIE) | Not run | — | GAP |
+| 21 | UV/normal regression: normal and co-user (PIE) | Not run (UV only, from 093-03) | — | GAP |
+| 22 | Label-pixel gate beyond the UV leg, and its capture-specific can-fails (shift ±1, missing/blank/wrong-count mask, erased marker) | Not run | — | GAP |
+| 23 | Every staged gate, including staged F6, and the staged recount this review was asked for | Not run (no container) | No staged leg exists, so none could be recounted | GAP |
+| 24 | Live staging restored by receipt | Never mutated; 1,327 BenchGate files rehashed | My own pre-launch inventory of all of `StackOBot\Builds` (5,764 files, including MidRepro and Windows) against the after state: **0 differences** in path, size or mtime. The staged exe `2FCDF059` and all `.pak/.utoc/.ucas`/`global.*` hashes are identical. The cook staged to an isolated `continuation09304\cook-stage` | OK |
+| 25 | Build host restored by receipt | 201 files match; 2 job-created files removed | Rehash of all 201 `restored.json` entries (relative to `_r53_host\StackOBot`): 201/201. `restored.json` equals `initial.json` on all 201. The two removed files (`Config\DefaultDeviceProfiles.ini`, sha `aca6bdf4…`, and one CrashReportClient INI) are absent now and were not in the initial set, so they were job-created. Host plugin worktree detached at `23098fa`, clean. Host exe back to `218BA4C7`. `cook-content-before.json` equals `cook-content-after.json` | OK |
+| 26 | Push discipline and refs | Nothing pushed | `ls-remote origin fix/followup-capture` is empty. Of 70 refs, the only change from my pre-launch snapshot is local `fix/followup-capture` `72edc48` → `ca2605f`. `m51` `53bf725`, `master` `b5f15a3`, `release/2026-10-05` `d7eee97` and 30 tags are unchanged. The main checkout is still on `m51` with only the owner's 15 untracked files. Not pushing was correct, since gates are not green | OK |
+| 27 | Process and safety hygiene | Own PIDs exited; no foreign PID touched | After the job, only the owner's five Codex desktop processes remain (PIDs 5372/28244/9636/30108/36516, the same as before launch). No UnrealEditor, UAT, UnrealPak or StackOBot process. All relay PIDs (runner 10388, codex 38756) exited. Free space D: 176.6 GB, E: 259 GB | OK |
+
+## What is wrong, with evidence
+1. **The bench container does not exist (row 11).** The cook commandlet succeeded, but packaging threw in `RunIoStore`. Every staged gate, the staged F6 control and the staged recount depend on it.
+2. **The cause is the harness's cook output path, and the evidence supports that (row 12).** `-CookOutputDir` did not end in `Windows`, so the commandlet's output and UAT's expected path diverged. A corrected path is a **candidate** fix, not a verified one: no corrected cook has run.
+3. **The stop was applied to a harness failure, not a gate failure (row 13).** That left the whole matrix (rows 15–23) unrun again. The run used 25 minutes of a 14-hour budget.
+4. **Named risk for the next cook, not a finding.** The `dbghelp.dll` creation block (gotcha G418, from 2026-09-30) last showed as not blocking in 090-10f2 (2026-10-02). This cook failed before it would have staged that file, so the block's state today is untested.
+
+Nothing was fixed. Chat rules.
