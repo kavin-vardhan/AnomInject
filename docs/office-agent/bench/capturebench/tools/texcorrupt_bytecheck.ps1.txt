@@ -1,0 +1,172 @@
+# texcorrupt_bytecheck.ps1 - m53 N2 "additive only" byte check (plan R12.1).
+#
+# Hashes (SHA-256) every file under the four M0 roots and writes a manifest in the M0 JSON shape
+# (root, rel, size, sha256 per file). With -Baseline it compares against that manifest:
+#   - every baseline file must still exist, byte-identical (size and hash);
+#   - no baseline file may be removed;
+#   - an added file is allowed only under StackOBot/Content/CaptureBenchTexCorrupt/ or as one of the
+#     plugin's three new corruptor/noise assets in the feature worktree's Content.
+# Anything else is a violation, and the script exits 1. The report names CB_GateLevel.umap,
+# MainWorld.umap and MainWorld's external actors explicitly, whatever the verdict.
+# Exit: 0 clean (or no baseline), 1 violation, 2 tooling error (a root missing or nothing hashed).
+param(
+    [Parameter(Mandatory = $true)][string]$Label,
+    [Parameter(Mandatory = $true)][string]$Out,
+    [string]$Baseline = "",
+    [string]$ProjectRoot = "D:\IntrusiveAnomalies\StackOBot",
+    [string]$FeatureContent = "E:\IA_BuildCache\_r53_src\AnomalyInjector\Content",
+    [string[]]$ExtraRoot = @()
+)
+
+$ErrorActionPreference = "Stop"
+
+$roots = [ordered]@{
+    "StackOBot/Content"      = (Join-Path $ProjectRoot "Content")
+    "StackOBot/Config"       = (Join-Path $ProjectRoot "Config")
+    "plugin-live/Content"    = (Join-Path $ProjectRoot "Plugins\AnomalyInjector\Content")
+    "plugin-feature/Content" = $FeatureContent
+}
+# Extra roots are READINGS only (label=path). They are hashed and listed, never judged.
+$extra = [ordered]@{}
+foreach ($x in $ExtraRoot) {
+    $kv = $x.Split("=", 2)
+    if ($kv.Count -ne 2) { Write-Host "BYTECHECK TOOLING ERROR: -ExtraRoot must be label=path, got '$x'"; exit 2 }
+    $extra[$kv[0]] = $kv[1]
+}
+
+$allowedFolderPrefix = "CaptureBenchTexCorrupt/"
+$allowedPluginAdds = @(
+    "Materials/M_CorruptTex_UV.uasset",
+    "Materials/M_CorruptTex_Normal.uasset",
+    "Textures/T_CorruptTex_NoiseN.uasset"
+)
+
+function Get-Sha256Hex([string]$path) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $fs = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try { $bytes = $sha.ComputeHash($fs) } finally { $fs.Dispose(); $sha.Dispose() }
+    return ([System.BitConverter]::ToString($bytes)).Replace("-", "").ToLowerInvariant()
+}
+
+function Hash-Root([string]$label, [string]$root) {
+    $list = New-Object System.Collections.Generic.List[object]
+    if (-not (Test-Path -LiteralPath $root)) { return $null }
+    $base = (Resolve-Path -LiteralPath $root).Path.TrimEnd("\")
+    $files = Get-ChildItem -LiteralPath $root -Recurse -File -Force | Sort-Object FullName
+    foreach ($f in $files) {
+        $rel = $f.FullName.Substring($base.Length + 1).Replace("\", "/")
+        $list.Add([ordered]@{ root = $label; rel = $rel; size = $f.Length; sha256 = (Get-Sha256Hex $f.FullName) })
+    }
+    return , $list
+}
+
+$t0 = Get-Date
+$entries = New-Object System.Collections.Generic.List[object]
+foreach ($k in $roots.Keys) {
+    $r = Hash-Root $k $roots[$k]
+    if ($null -eq $r) { Write-Host "BYTECHECK TOOLING ERROR: root '$k' missing at $($roots[$k])"; exit 2 }
+    foreach ($e in $r) { $entries.Add($e) }
+}
+$extraEntries = New-Object System.Collections.Generic.List[object]
+foreach ($k in $extra.Keys) {
+    $r = Hash-Root $k $extra[$k]
+    if ($null -ne $r) { foreach ($e in $r) { $extraEntries.Add($e) } }
+}
+if ($entries.Count -eq 0) { Write-Host "BYTECHECK TOOLING ERROR: nothing hashed - a zero is blindness, not a clean read"; exit 2 }
+$secs = [math]::Round(((Get-Date) - $t0).TotalSeconds, 1)
+
+$doc = [ordered]@{
+    manifest     = $Label
+    taken_utc    = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    roots        = $roots
+    extra_roots  = $extra
+    count        = $entries.Count
+    seconds      = $secs
+    entries      = $entries
+    extra_entries = $extraEntries
+}
+
+$verdict = "NO-BASELINE"
+$exit = 0
+if ($Baseline -ne "") {
+    $base = Get-Content -LiteralPath $Baseline -Raw | ConvertFrom-Json
+    $baseMap = @{}
+    foreach ($b in $base.entries) { $baseMap["$($b.root)|$($b.rel)"] = $b }
+    $curMap = @{}
+    foreach ($c in $entries) { $curMap["$($c.root)|$($c.rel)"] = $c }
+
+    $changed = New-Object System.Collections.Generic.List[string]
+    $removed = New-Object System.Collections.Generic.List[string]
+    $addedAllowed = New-Object System.Collections.Generic.List[string]
+    $addedDisallowed = New-Object System.Collections.Generic.List[string]
+    $unchanged = 0
+    foreach ($key in $baseMap.Keys) {
+        $b = $baseMap[$key]
+        if (-not $curMap.ContainsKey($key)) { $removed.Add($key); continue }
+        $c = $curMap[$key]
+        if ($c.sha256 -ne $b.sha256 -or [int64]$c.size -ne [int64]$b.size) { $changed.Add($key) } else { $unchanged++ }
+    }
+    foreach ($key in $curMap.Keys) {
+        if ($baseMap.ContainsKey($key)) { continue }
+        $c = $curMap[$key]
+        $ok = $false
+        if ($c.root -eq "StackOBot/Content" -and $c.rel.StartsWith($allowedFolderPrefix)) { $ok = $true }
+        if ($c.root -eq "plugin-feature/Content" -and ($allowedPluginAdds -contains $c.rel)) { $ok = $true }
+        if ($ok) { $addedAllowed.Add($key) } else { $addedDisallowed.Add($key) }
+    }
+
+    $named = [ordered]@{}
+    foreach ($n in @("CaptureBenchGate/CB_GateLevel.umap", "StackOBot/Maps/MainWorld.umap")) {
+        $key = "StackOBot/Content|$n"
+        $state = "absent-in-baseline"
+        if ($baseMap.ContainsKey($key)) {
+            if (-not $curMap.ContainsKey($key)) { $state = "REMOVED" }
+            elseif ($curMap[$key].sha256 -eq $baseMap[$key].sha256) { $state = "identical " + $curMap[$key].sha256.Substring(0, 16) }
+            else { $state = "CHANGED" }
+        }
+        $named[$n] = $state
+    }
+    $extPrefixes = @("__ExternalActors__/StackOBot/Maps/MainWorld/", "__ExternalObjects__/StackOBot/Maps/MainWorld/")
+    $extTotal = 0; $extSame = 0; $extBad = New-Object System.Collections.Generic.List[string]
+    foreach ($key in $baseMap.Keys) {
+        $b = $baseMap[$key]
+        if ($b.root -ne "StackOBot/Content") { continue }
+        $hit = $false
+        foreach ($p in $extPrefixes) { if ($b.rel.StartsWith($p)) { $hit = $true } }
+        if (-not $hit) { continue }
+        $extTotal++
+        if ($curMap.ContainsKey($key) -and $curMap[$key].sha256 -eq $b.sha256) { $extSame++ } else { $extBad.Add($b.rel) }
+    }
+    $named["MainWorld external actors/objects"] = "$extSame of $extTotal identical"
+
+    $clean = ($changed.Count -eq 0 -and $removed.Count -eq 0 -and $addedDisallowed.Count -eq 0 -and $extBad.Count -eq 0)
+    $verdict = if ($clean) { "CLEAN" } else { "VIOLATION" }
+    if (-not $clean) { $exit = 1 }
+    $doc["compare"] = [ordered]@{
+        baseline          = $Baseline
+        baseline_label    = $base.manifest
+        baseline_count    = $base.count
+        unchanged         = $unchanged
+        changed           = $changed
+        removed           = $removed
+        added_allowed     = $addedAllowed
+        added_disallowed  = $addedDisallowed
+        named             = $named
+        mainworld_ext_bad = $extBad
+        verdict           = $verdict
+    }
+    Write-Host ("BYTECHECK {0} vs {1}: {2} - baseline {3} files, unchanged {4}, changed {5}, removed {6}, added-allowed {7}, added-DISALLOWED {8}" -f `
+        $Label, $base.manifest, $verdict, $base.count, $unchanged, $changed.Count, $removed.Count, $addedAllowed.Count, $addedDisallowed.Count)
+    foreach ($k in $named.Keys) { Write-Host ("  {0}: {1}" -f $k, $named[$k]) }
+    foreach ($x in $changed) { Write-Host "  CHANGED  $x" }
+    foreach ($x in $removed) { Write-Host "  REMOVED  $x" }
+    foreach ($x in $addedDisallowed) { Write-Host "  ADDED-DISALLOWED  $x" }
+}
+
+$json = $doc | ConvertTo-Json -Depth 6
+[System.IO.File]::WriteAllText($Out, $json, (New-Object System.Text.UTF8Encoding($false)))
+$per = @{}
+foreach ($e in $entries) { $per[$e.root] = 1 + [int]$per[$e.root] }
+Write-Host ("BYTECHECK {0}: hashed {1} files in {2} s ({3}); extra-root files {4}; wrote {5}" -f `
+    $Label, $entries.Count, $secs, (($per.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ", "), $extraEntries.Count, $Out)
+exit $exit

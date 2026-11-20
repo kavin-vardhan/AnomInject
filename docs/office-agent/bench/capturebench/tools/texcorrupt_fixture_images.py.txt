@@ -1,0 +1,553 @@
+"""texcorrupt_fixture_images.py - m53 F-SYN source images and the offline wrong-copy proofs (plan R12.1, R12.4).
+
+Plain Python 3, standard library only, deterministic, no editor. Writes every F-SYN source image (PNG, or DDS
+where a mip chain or a cube is needed) into --out, and texcorrupt_fixture_manifest.json beside them:
+  - per image: file, SHA-256, size, the import settings make_texcorrupt_fixture.py applies, and its role;
+  - the offline proofs: for every fault a row relies on (R12.4), the predicted per-texel error over the whole
+    region the row reads, computed from the exact bytes written here, with its minimum. A fault is relied on
+    only if that minimum is >= 32 levels (twice the in-leg 16-level threshold). Exit 1 if any is below.
+
+Per-texel error = max over channels of |wrong - right| in the 8-bit value the host samples, which is the
+statistic G-ID reads in the picture (per-pixel max-channel |d|).
+
+Usage: python texcorrupt_fixture_images.py --out <dir>
+Exit: 0 all relied-on proofs >= 32; 1 a proof below 32; 2 usage/IO error.
+"""
+
+import hashlib
+import json
+import math
+import os
+import struct
+import sys
+import zlib
+
+PROOF_FLOOR = 32
+CELL = 16
+
+# ---------------------------------------------------------------------------------------------- writers
+
+
+def png_bytes(w, h, ch, data):
+    """8-bit PNG, colour type 2 (RGB) or 6 (RGBA). data is row-major bytes, ch channels per texel."""
+    ctype = {3: 2, 4: 6}[ch]
+    stride = w * ch
+    raw = bytearray()
+    for y in range(h):
+        raw.append(0)
+        raw += data[y * stride:(y + 1) * stride]
+
+    def chunk(tag, payload):
+        return (struct.pack(">I", len(payload)) + tag + payload
+                + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF))
+
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, ctype, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(bytes(raw), 6)) + chunk(b"IEND", b""))
+
+
+def dds_bgra8(w, h, levels, cube_faces=None):
+    """Legacy DDS, 32-bit RGB masks (A8R8G8B8 -> B8G8R8A8), with a mip chain or six cube faces.
+    levels: list of RGBA row-major bytearrays (mip 0 first). cube_faces: list of 6 such lists."""
+    DDSD = 0x1 | 0x2 | 0x4 | 0x8 | 0x1000
+    faces = cube_faces if cube_faces is not None else [levels]
+    nmips = len(faces[0])
+    if nmips > 1:
+        DDSD |= 0x20000
+    caps = 0x1000
+    if nmips > 1 or cube_faces is not None:
+        caps |= 0x8
+    if nmips > 1:
+        caps |= 0x400000
+    caps2 = (0x200 | 0xFC00) if cube_faces is not None else 0
+    pf = struct.pack("<8I", 32, 0x40 | 0x1, 0, 32, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000)
+    hdr = struct.pack("<7I", 124, DDSD, h, w, w * 4, 0, nmips) + b"\x00" * 44 + pf + struct.pack("<5I", caps, caps2, 0, 0, 0)
+    body = bytearray()
+    for face in faces:
+        for rgba in face:
+            px = len(rgba) // 4
+            for i in range(px):
+                r, g, b, a = rgba[4 * i:4 * i + 4]
+                body += bytes((b, g, r, a))
+    return b"DDS " + hdr + bytes(body)
+
+
+# ---------------------------------------------------------------------------------------------- image helpers
+
+
+def cells(w, h, palette, cell=CELL):
+    """Row-major texels, a 'cell'-texel grid cycling through palette (tuples of equal length)."""
+    ch = len(palette[0])
+    per_row = []
+    ncx = (w + cell - 1) // cell
+    out = bytearray(w * h * ch)
+    for y in range(h):
+        cy = y // cell
+        row = bytearray()
+        for cx in range(ncx):
+            col = palette[(cx + 3 * cy) % len(palette)]
+            row += bytes(col) * min(cell, w - cx * cell)
+        out[y * w * ch:(y + 1) * w * ch] = row
+    return out, ch
+
+
+def solid(w, h, col):
+    return bytearray(bytes(col) * (w * h)), len(col)
+
+
+def texels(data, ch):
+    return [tuple(data[i:i + ch]) for i in range(0, len(data), ch)]
+
+
+def enc_normal(x, y):
+    z = math.sqrt(max(0.0, 1.0 - x * x - y * y))
+    return tuple(int(math.floor((v * 0.5 + 0.5) * 255.0 + 0.5)) for v in (x, y, z))
+
+
+def srgb_encode(c):
+    c = min(1.0, max(0.0, c))
+    return c * 12.92 if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
+
+
+def srgb_decode(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def q8(v):
+    return int(math.floor(min(1.0, max(0.0, v)) * 255.0 + 0.5))
+
+
+# ---------------------------------------------------------------------------------------------- palettes
+# Multi-channel colour and data: every channel in [48, 184] (inside the plan's [48, 192]) and |R - B| >= 96.
+RB = [(176, 56), (56, 176)]
+GS = [64, 112, 160, 184]
+PAL_RGB = [(r, g, b) for (r, b) in RB for g in GS]
+ALPHAS = [72, 104, 152, 184]          # in [64, 191], i.e. alpha in [0.25, 0.75]
+GREYS = [56, 104, 152, 184]           # one-channel and grayscale: [48, 184]
+
+
+def pal(offset, n=4):
+    return [PAL_RGB[(offset + 3 * i) % len(PAL_RGB)] for i in range(n)]
+
+
+def pal_rgba(offset):
+    return [tuple(list(c) + [ALPHAS[i % 4]]) for i, c in enumerate(pal(offset))]
+
+
+NORMALS_UN1 = [(0.35, 0.30), (-0.35, 0.10), (0.20, -0.35), (-0.25, -0.20)]
+NORMALS_NN1 = [(-0.30, 0.35), (0.35, -0.10), (-0.20, -0.30), (0.25, 0.25)]
+
+# ---------------------------------------------------------------------------------------------- the image set
+
+
+def S(**kw):
+    base = dict(compression="TC_DEFAULT", srgb=True, never_stream=True, mip_gen="TMGS_FROM_TEXTURE_GROUP",
+                lod_group="TEXTUREGROUP_WORLD", no_alpha=False, virtual=False, cinematic=0, alpha_coverage=False)
+    base.update(kw)
+    return base
+
+
+def build_set():
+    imgs = []
+
+    def add(name, kind, w, h, data, ch, settings, role, faults=(), fmt="png", levels=None, cube=None, meta=None):
+        imgs.append(dict(name=name, kind=kind, w=w, h=h, data=data, ch=ch, settings=settings, role=role,
+                         faults=list(faults), fmt=fmt, levels=levels, cube=cube, meta=meta or {}))
+
+    E = 128
+    # encoding rows (R12.4)
+    d, c = cells(E, E, pal(0)); add("T_TC_UC1", "colour_rgb", E, E, d, c, S(no_alpha=True), "U-C1 DXT1 sRGB", ["chanswap", "srgbtwice"])
+    d, c = cells(E, E, pal_rgba(1)); add("T_TC_UC2", "colour_rgba", E, E, d, c, S(), "U-C2 DXT5 sRGB alpha", ["chanswap", "srgbtwice", "alpha"])
+    d, c = cells(E, E, pal_rgba(2)); add("T_TC_UC3", "colour_rgba", E, E, d, c, S(compression="TC_BC7"), "U-C3 BC7 sRGB alpha", ["chanswap", "srgbtwice", "alpha"])
+    d, c = cells(E, E, pal(3)); add("T_TC_UC4", "colour_rgb", E, E, d, c, S(compression="TC_VECTOR_DISPLACEMENTMAP"), "U-C4 BGRA8 sRGB", ["chanswap", "srgbtwice"])
+    d, c = cells(E, E, [(g, g, g) for g in GREYS]); add("T_TC_UC5", "grey_srgb", E, E, d, c, S(compression="TC_GRAYSCALE"), "U-C5 BGRA8 sRGB from sRGB grayscale", ["srgbtwice"])
+    d, c = cells(E, E, pal(4)); add("T_TC_UD1", "data_rgb", E, E, d, c, S(compression="TC_MASKS", srgb=False, no_alpha=True), "U-D1 DXT1 linear (TC_Masks)", ["chanswap"])
+    d, c = cells(E, E, pal_rgba(5)); add("T_TC_UD2", "data_rgba", E, E, d, c, S(compression="TC_MASKS", srgb=False), "U-D2 DXT5 linear (TC_Masks) alpha", ["chanswap", "alpha"])
+    d, c = cells(E, E, pal_rgba(6)); add("T_TC_UD3", "data_rgba", E, E, d, c, S(compression="TC_BC7", srgb=False), "U-D3 BC7 linear alpha", ["chanswap", "alpha"])
+    d, c = cells(E, E, pal(7)); add("T_TC_UD4", "data_rgb", E, E, d, c, S(compression="TC_VECTOR_DISPLACEMENTMAP", srgb=False), "U-D4 BGRA8 linear", ["chanswap"])
+    d, c = cells(E, E, [(g, g, g, g) for g in GREYS]); add("T_TC_UD5", "one_channel", E, E, d, c, S(compression="TC_ALPHA", srgb=False), "U-D5 BC4 (TC_Alpha)", ["chanswap"])
+    d, c = cells(E, E, [(g, g, g) for g in GREYS]); add("T_TC_UD6", "one_channel", E, E, d, c, S(compression="TC_GRAYSCALE", srgb=False), "U-D6 G8 (TC_Grayscale, sRGB off)", ["chanswap"])
+    d, c = cells(E, E, [enc_normal(*n) for n in NORMALS_UN1]); add("T_TC_UN1", "normal", E, E, d, c, S(compression="TC_NORMALMAP", srgb=False, lod_group="TEXTUREGROUP_WORLD_NORMAL_MAP"), "U-N1 BC5 normal through the UV corruptor", ["normal", "chanswap"])
+    d, c = cells(E, E, [enc_normal(*n) for n in NORMALS_NN1]); add("T_TC_NN1", "normal", E, E, d, c, S(compression="TC_NORMALMAP", srgb=False, lod_group="TEXTUREGROUP_WORLD_NORMAL_MAP"), "N-N1 BC5 normal through the Normal corruptor", ["normal", "chanswap"])
+    d, c = cells(E, E, pal(2)); add("T_TC_Shared", "colour_rgb", E, E, d, c, S(no_alpha=True), "shared-sampler row (SSM_Wrap_WorldGroupSettings)", ["chanswap"])
+    # redraw inputs (G-RD)
+    d, c = cells(E, E, [(48, 96, 128), (128, 72, 48), (96, 128, 72), (72, 48, 112)]); add("T_TC_RedrawOpaque", "redraw_opaque", E, E, d, c, S(compression="TC_VECTOR_DISPLACEMENTMAP", srgb=False), "G-RD opaque BGRA8 linear, RGB in [48,128]", ["noclear"])
+    d, c = cells(E, E, pal_rgba(3)); add("T_TC_RedrawAlpha", "redraw_alpha", E, E, d, c, S(), "G-RD fractional-alpha sRGB DXT5", ["noclear"])
+
+    C = 64
+    # chain (a): authored per-mip solid colours, BGRA8 sRGB, TMGS_LeaveExistingMips (DDS)
+    mipcols = [(200, 40, 40), (40, 200, 40), (40, 40, 200), (200, 200, 40), (40, 200, 200), (200, 40, 200), (120, 120, 120)]
+    lv = []
+    for m in range(7):
+        s = max(1, C >> m)
+        dd, _ = solid(s, s, mipcols[m] + (255,))
+        lv.append(dd)
+    add("T_TC_ChainA", "chain_a", C, C, lv[0], 4, S(compression="TC_VECTOR_DISPLACEMENTMAP", mip_gen="TMGS_LEAVE_EXISTING_MIPS"),
+        "chain (a): authored per-mip colour chain", ["mipshift", "mipgen"], fmt="dds", levels=lv, meta={"mip_colours": mipcols})
+    # chain (b): one-texel checker 64/192, BGRA8 linear, engine box mips
+    dd = bytearray()
+    for y in range(C):
+        for x in range(C):
+            v = 64 if (x + y) % 2 == 0 else 192
+            dd += bytes((v, v, v))
+    add("T_TC_ChainB", "chain_b", C, C, dd, 3, S(compression="TC_VECTOR_DISPLACEMENTMAP", srgb=False, mip_gen="TMGS_SIMPLE_AVERAGE"),
+        "chain (b): one-texel checker, box chain", ["texelshift"])
+    # chain (c): engine-authored chains (identity Q rows; their mipgen reading is D, interpretation I5)
+    dd = bytearray()
+    for y in range(C):
+        for x in range(C):
+            on = ((x // 2) + (y // 4)) % 2
+            dd += bytes((56 + 128 * on, 184 - 96 * on, 104 + 48 * on))
+    add("T_TC_ChainCSharpen", "chain_c", C, C, dd, 3, S(mip_gen="TMGS_SHARPEN5", no_alpha=True), "chain (c): TMGS_Sharpen5", [])
+    add("T_TC_ChainCBlur", "chain_c", C, C, bytearray(dd), 3, S(mip_gen="TMGS_BLUR5", no_alpha=True), "chain (c): TMGS_Blur5", [])
+    dd = bytearray()
+    for y in range(C):
+        for x in range(C):
+            a = 230 if (x % 4 == 0 or y % 4 == 0) else 20
+            dd += bytes((176, 104, 56, a))
+    add("T_TC_ChainCAlphaCov", "chain_c_alpha", C, C, dd, 4, S(alpha_coverage=True), "chain (c): alpha-coverage scaling, sRGB DXT5", [])
+    # chain (d): BC5 one-texel checker, n.x = +-0.35, n.y = 0
+    dd = bytearray()
+    for y in range(C):
+        for x in range(C):
+            dd += bytes(enc_normal(0.35 if (x + y) % 2 == 0 else -0.35, 0.0))
+    add("T_TC_ChainD", "chain_d", C, C, dd, 3, S(compression="TC_NORMALMAP", srgb=False, lod_group="TEXTUREGROUP_WORLD_NORMAL_MAP"),
+        "chain (d): BC5 one-texel checker", ["texelshift"])
+
+    # binding targets (G-BIND)
+    d, c = solid(E, E, (176, 96, 56)); add("T_TC_LayerGlobal", "colour_rgb", E, E, d, c, S(no_alpha=True), "layer target: the GLOBAL 'Tex' (uniform, so a correct x2 tile leaves it unchanged)")
+    d, c = cells(E, E, pal(5)); add("T_TC_LayerLayer", "colour_rgb", E, E, d, c, S(no_alpha=True), "layer target: the LAYER 'Tex' (patterned)")
+    d, c = cells(E, E, pal(6)); add("T_TC_Alias", "colour_rgb", E, E, d, c, S(no_alpha=True), "alias target T (P defaults to it, switched off; an active constant samples it)")
+    d, c = cells(E, E, pal(7)); add("T_TC_Dead", "colour_rgb", E, E, d, c, S(no_alpha=True), "dead-binding target (parameter multiplied by 0)")
+    # runtime material, reasons
+    d, c = cells(E, E, pal(1)); add("T_TC_Albedo", "colour_rgb", E, E, d, c, S(no_alpha=True), "transformable albedo beside each producer's failing binding")
+    d, c = cells(E, E, pal(4)); add("T_TC_AssetMid", "colour_rgb", E, E, d, c, S(no_alpha=True), "asset-slot MID target's texture (IAI.Bench.TexCorruptAssetSlotMid)")
+    d, c = cells(256, 256, pal(2)); add("T_TC_VT", "colour_rgb", 256, 256, d, c, S(no_alpha=True, never_stream=False, virtual=True), "virtual_texture producer (streaming VT)")
+    faces = []
+    for fc in [(200, 40, 40), (40, 200, 40), (40, 40, 200), (200, 200, 40), (40, 200, 200), (200, 40, 200)]:
+        f, _ = solid(32, 32, fc + (255,))
+        faces.append([f])
+    add("T_TC_Cube", "cube", 32, 32, faces[0][0], 4, S(), "unsupported_type producer (cube parameter)", fmt="dds", cube=faces)
+    d, c = cells(256, 256, pal(3)); add("T_TC_UI256", "colour_rgb", 256, 256, d, c, S(no_alpha=True, lod_group="TEXTUREGROUP_UI"), "excluded_group producer (spatial 256^2 UI-group)")
+    d, c = solid(1, 1, (160, 104, 56)); add("T_TC_UI1x1", "colour_rgb", 1, 1, d, c, S(no_alpha=True, lod_group="TEXTUREGROUP_UI", mip_gen="TMGS_NO_MIPMAPS"), "non_spatial_exempt (1x1 UI-group)")
+    d, c = cells(E, E, pal(5)); add("T_TC_Half", "colour_rgb", E, E, d, c, S(compression="TC_HALF_FLOAT", srgb=False), "unsupported_encoding producer (TC_HalfFloat)")
+    d, c = cells(256, 256, pal(6)); add("T_TC_Cine", "colour_rgb", 256, 256, d, c, S(no_alpha=True, never_stream=False, cinematic=1), "runtime_lod_bias/cinematic producer (NumCinematicMipLevels 1)")
+    d, c = cells(2048, 2048, pal(7), cell=64); add("T_TC_Stream2k", "colour_rgb", 2048, 2048, d, c, S(no_alpha=True, never_stream=False), "not_fully_resident / streaming_budget producer (streamed 2048^2, placed far)")
+    d, c = cells(32, 32, pal(0), cell=8); add("T_TC_Small32A", "colour_rgb", 32, 32, d, c, S(no_alpha=True), "below_size_policy producer (32^2)")
+    d, c = cells(32, 32, pal(1), cell=8); add("T_TC_Small32B", "colour_rgb", 32, 32, d, c, S(no_alpha=True), "below_size_policy producer (32^2)")
+    for i in range(9):
+        d, c = cells(64, 64, pal(i), cell=16); add("T_TC_Nine%d" % (i + 1), "colour_rgb", 64, 64, d, c, S(no_alpha=True), "map_set_over_cap producer (9 parameter maps)")
+    for k, off in (("A", 2), ("B", 5)):
+        d, c = cells(4096, 4096, pal(off), cell=64); add("T_TC_Big4k" + k, "colour_rgb", 4096, 4096, d, c, S(no_alpha=True), "over_budget producer (two never-streamed 4096^2 of one class)")
+    d, c = cells(E, E, [enc_normal(*n) for n in NORMALS_UN1]); add("T_TC_NormalEmis", "normal", E, E, d, c, S(compression="TC_NORMALMAP", srgb=False, lod_group="TEXTUREGROUP_WORLD_NORMAL_MAP"), "normal_unconnected producer (normal map feeding Emissive)")
+    for img in dc_set():
+        imgs.append(img)
+    return imgs
+
+
+# ---------------------------------------------------------------------------------------------- 085-03 DC additions
+# The mode-oracle cells (m53 DC plan section 6, S2 plan R2.1 cut to tile / scramble / invert / green_flip), the
+# all-or-nothing producer TC_Mixed (DC plan section 7) and the m52 pair TC_M52Hold / TC_M52Share (S2 plan section 4 G5,
+# used by EXCL). Every entry carries dc=True: author mode (S1) never imports them, dcadd imports only them.
+
+ORACLE_LEVELS = [40, 100, 160, 220]
+ORACLE_N_SET = [(0.55, 0.20), (-0.55, 0.20), (0.55, -0.20), (-0.55, -0.20),
+                (0.20, 0.55), (-0.20, 0.55), (0.20, -0.55), (-0.20, -0.55), (0.0, 0.0)]
+ORACLE_N_CELLS = [0, 5, 2, 7, 4, 1, 6, 3, 8, 3, 0, 5, 6, 7, 2, 4]
+DC_TILE_N = 8
+DC_SCRAMBLE_K = 8
+
+
+def uv16_colour(cx, cy):
+    return (ORACLE_LEVELS[cx], ORACLE_LEVELS[cy], ORACLE_LEVELS[(cx + 2 * cy) % 4])
+
+
+def uv64_colour(k):
+    return (ORACLE_LEVELS[k % 4], ORACLE_LEVELS[(k // 4) % 4], ORACLE_LEVELS[k // 16])
+
+
+def grid_image(w, h, ncell, colour_of):
+    cell = w // ncell
+    out = bytearray(w * h * 3)
+    for y in range(h):
+        for x in range(w):
+            out[3 * (y * w + x):3 * (y * w + x) + 3] = bytes(colour_of(x // cell, y // cell))
+    return out, 3
+
+
+def dc_set():
+    imgs = []
+
+    def add(name, kind, w, h, data, ch, settings, role, meta=None):
+        imgs.append(dict(name=name, kind=kind, w=w, h=h, data=data, ch=ch, settings=settings, role=role, faults=[],
+                         fmt="png", levels=None, cube=None, meta=dict(meta or {}, dc=True)))
+
+    E = 128
+    bgra = S(compression="TC_VECTOR_DISPLACEMENTMAP", mip_gen="TMGS_SIMPLE_AVERAGE")
+    d, c = grid_image(E, E, 4, uv16_colour)
+    add("T_TC_OracleUV16", "oracle_uv", E, E, d, c, bgra, "DC mode oracle UV16: 4x4 cells of 32 texels, 16 colours (tile)",
+        meta=dict(ncell=4, cell_texels=32))
+    d, c = grid_image(E, E, 8, lambda cx, cy: uv64_colour(cy * 8 + cx))
+    add("T_TC_OracleUV64", "oracle_uv", E, E, d, c, bgra, "DC mode oracle UV64: 8x8 cells of 16 texels, 64 colours (scramble K=8)",
+        meta=dict(ncell=8, cell_texels=16))
+    nrm = S(compression="TC_NORMALMAP", srgb=False, lod_group="TEXTUREGROUP_WORLD_NORMAL_MAP")
+    d, c = grid_image(E, E, 4, lambda cx, cy: enc_normal(*ORACLE_N_SET[ORACLE_N_CELLS[cy * 4 + cx]]))
+    add("T_TC_OracleN", "oracle_n", E, E, d, c, nrm, "DC mode oracle N: BC5, 4x4 cells of 32 texels, the closed normal set",
+        meta=dict(ncell=4, cell_texels=32, normals=ORACLE_N_SET, cells=ORACLE_N_CELLS))
+    d, c = cells(E, E, [enc_normal(*n) for n in NORMALS_NN1])
+    add("T_TC_MixedN", "normal", E, E, d, c, nrm, "DC TC_Mixed normal-mapped slot (BC5)")
+    d, c = cells(E, E, pal(6))
+    add("T_TC_MixedC", "colour_rgb", E, E, d, c, S(no_alpha=True), "DC TC_Mixed colour-only slot (DXT1 sRGB)")
+    d, c = cells(1024, 1024, pal(3), cell=64)
+    add("T_TC_M52Shared", "colour_rgb", 1024, 1024, d, c, S(no_alpha=True, never_stream=False),
+        "DC m52 pair TC_M52Hold / TC_M52Share: streamed 1024^2, 64-texel cells, one texture on both tiles")
+    return imgs
+
+
+def tile_src_cell(u, v, ncell, n=DC_TILE_N):
+    su, sv = (u * n) % 1.0, (v * n) % 1.0
+    return min(int(su * ncell), ncell - 1), min(int(sv * ncell), ncell - 1)
+
+
+def scramble_src_cell(cx, cy, a_inv, b, k=DC_SCRAMBLE_K):
+    n = k * k
+    j = cy * k + cx
+    i = (a_inv * ((j - b) % n)) % n
+    return i % k, i // k
+
+
+def scramble_fwd_cell(cx, cy, a, b, k=DC_SCRAMBLE_K):
+    n = k * k
+    j = cy * k + cx
+    i = (a * j + b) % n
+    return i % k, i // k
+
+
+def dc_proofs(imgs):
+    """Offline, before the cook: (1) every oracle cell colour differs from every other by >= 60 in one channel at the
+    texel; (2) the closed normal set's encoded values differ pairwise by >= 44 in R or G; (3) every negative pair of
+    expectations (DC plan section 6) differs on >= 25 % of the kept sample positions."""
+    by = {i["name"]: i for i in imgs}
+    out = []
+
+    def sep(cols):
+        return min(max(abs(a - b) for a, b in zip(p, q)) for i, p in enumerate(cols) for q in cols[i + 1:])
+
+    c16 = [uv16_colour(cx, cy) for cy in range(4) for cx in range(4)]
+    c64 = [uv64_colour(k) for k in range(64)]
+    out.append(dict(image="T_TC_OracleUV16", fault="cell_separation", min=sep(c16), floor=60, relied_on=sep(c16) >= 60 and len(set(c16)) == 16))
+    out.append(dict(image="T_TC_OracleUV64", fault="cell_separation", min=sep(c64), floor=60, relied_on=sep(c64) >= 60 and len(set(c64)) == 64))
+    encs = [enc_normal(*n) for n in ORACLE_N_SET]
+    nsep = min(max(abs(p[0] - q[0]), abs(p[1] - q[1])) for i, p in enumerate(encs) for q in encs[i + 1:])
+    out.append(dict(image="T_TC_OracleN", fault="closed_set_encoded_separation", min=nsep, floor=44, relied_on=nsep >= 44))
+    closed = all((-x, -y) in ORACLE_N_SET and (x, -y) in ORACLE_N_SET for (x, y) in ORACLE_N_SET)
+    present = sorted(set(ORACLE_N_CELLS)) == list(range(len(ORACLE_N_SET)))
+    out.append(dict(image="T_TC_OracleN", fault="closed_under_invert_and_green_flip", min=int(closed and present), floor=1,
+                    relied_on=closed and present))
+    grid = [((x + 0.5) / 256.0, (y + 0.5) / 256.0) for y in range(256) for x in range(256)]
+
+    def frac_differ(fa, fb):
+        pts = [p for p in grid if fa(*p) is not None and fb(*p) is not None]
+        return sum(1 for p in pts if fa(*p) != fb(*p)) / float(len(pts))
+
+    ident16 = lambda u, v: (int(u * 4), int(v * 4))
+    rows = [("tile x8 vs x4", lambda u, v: tile_src_cell(u, v, 4, 8), lambda u, v: tile_src_cell(u, v, 4, 4)),
+            ("tile x8 vs x16", lambda u, v: tile_src_cell(u, v, 4, 8), lambda u, v: tile_src_cell(u, v, 4, 16)),
+            ("tile x8 vs identity", lambda u, v: tile_src_cell(u, v, 4, 8), ident16)]
+    for name, fa, fb in rows:
+        f = frac_differ(fa, fb)
+        out.append(dict(image="T_TC_OracleUV16", fault=name, min=round(f, 4), floor=0.25, relied_on=f >= 0.25))
+    worst = dict(ordinal_pm1=1.0, forward=1.0, identity=1.0)
+    import zlib
+    for seed in (777, 4242, 0):
+        for ordinal in range(0, 8):
+            a, b, ai = scramble_pair_py(seed, ordinal, DC_SCRAMBLE_K)
+            cells_all = [(cx, cy) for cy in range(8) for cx in range(8)]
+            exp = {c: scramble_src_cell(c[0], c[1], ai, b) for c in cells_all}
+            for other in (ordinal - 1, ordinal + 1):
+                if other < 0:
+                    continue
+                a2, b2, ai2 = scramble_pair_py(seed, other, DC_SCRAMBLE_K)
+                if (a2, b2) == (a, b):
+                    continue
+                f = sum(1 for c in cells_all if exp[c] != scramble_src_cell(c[0], c[1], ai2, b2)) / 64.0
+                worst["ordinal_pm1"] = min(worst["ordinal_pm1"], f)
+            if a != 1:
+                f = sum(1 for c in cells_all if exp[c] != scramble_fwd_cell(c[0], c[1], a, b)) / 64.0
+                worst["forward"] = min(worst["forward"], f)
+            f = sum(1 for c in cells_all if exp[c] != c) / 64.0
+            worst["identity"] = min(worst["identity"], f)
+    for k, f in worst.items():
+        out.append(dict(image="T_TC_OracleUV64", fault="scramble vs " + k, min=round(f, 4), floor=0.25, relied_on=f >= 0.25))
+    for name, ta, tb in (("invert vs green_flip", lambda x, y: (-x, -y), lambda x, y: (x, -y)),
+                         ("invert vs identity", lambda x, y: (-x, -y), lambda x, y: (x, y)),
+                         ("green_flip vs identity", lambda x, y: (x, -y), lambda x, y: (x, y))):
+        f = sum(1 for k in ORACLE_N_CELLS if ta(*ORACLE_N_SET[k]) != tb(*ORACLE_N_SET[k])) / float(len(ORACLE_N_CELLS))
+        out.append(dict(image="T_TC_OracleN", fault=name, min=round(f, 4), floor=0.25, relied_on=f >= 0.25))
+    for p in out:
+        p.setdefault("row", "DC mode oracle")
+        p.setdefault("texels_or_levels", 0)
+        p.setdefault("region", "offline expectation, cell level")
+        p.setdefault("max", p["min"])
+    return out
+
+
+SCRAMBLE_TAG = 0x53434D52
+
+
+def scramble_pair_py(seed, ordinal, k):
+    """Independent Python recomputation of TexCorruptPure::ScramblePair: CRC-32 (zlib) over 12 little-endian bytes
+    {seed, ordinal, 0x53434D52}; a = the (H >> 16) % phi(N)-th unit mod N; b = H % N, bumped to 1 when (a, b) = (1, 0)."""
+    import zlib
+    n = k * k
+    raw = struct.pack("<III", seed & 0xFFFFFFFF, ordinal & 0xFFFFFFFF, SCRAMBLE_TAG)
+    h = zlib.crc32(raw) & 0xFFFFFFFF
+    units = [a for a in range(1, n) if math.gcd(a, n) == 1]
+    a = units[(h >> 16) % len(units)]
+    b = h % n
+    if a == 1 and b == 0:
+        b = 1
+    return a, b, pow(a, -1, n)
+
+
+# ---------------------------------------------------------------------------------------------- the proofs
+
+
+def per_texel_errors(img, fault):
+    """Predicted per-texel max-channel error of the wrong copy against the identity copy, over the region
+    the row reads. Returns (errors, region description)."""
+    kind = img["kind"]
+    t = texels(img["data"], img["ch"])
+    if fault == "chanswap":
+        if kind == "one_channel":
+            return [p[0] for p in t], "mip 0, whole image: source decodes to (v,0,0,1); the swap moves v to B, the host reads R"
+        if kind == "normal":
+            errs = []
+            for p in t:
+                x, y = p[0] / 255.0 * 2 - 1, p[1] / 255.0 * 2 - 1
+                r, _, b = enc_normal(x, y)
+                errs.append(abs(r - b))
+            return errs, "mip 0, whole image: encoded n.x (R) against encoded n.z (B) rebuilt from the stored x,y"
+        return [abs(p[0] - p[2]) for p in t], "mip 0, whole image: |R - B|"
+    if fault == "srgbtwice":
+        return [max(abs(q8(srgb_encode(v / 255.0)) - v) for v in p[:3]) for p in t], \
+            "mip 0, whole image: stored sRGB byte v against sRGB-encode(v) written through the sRGB target"
+    if fault == "normal":
+        errs = []
+        for p in t:
+            x, y = p[0] / 255.0 * 2 - 1, p[1] / 255.0 * 2 - 1
+            z = math.sqrt(max(0.0, 1 - x * x - y * y))
+            right = [q8(v * 0.5 + 0.5) for v in (x, y, z)]
+            wrong = [q8(v) for v in (x, y, z)]
+            errs.append(max(abs(a - b) for a, b in zip(right, wrong)))
+        return errs, "mip 0, whole image: n written raw (UNORM clamps) against n*0.5+0.5"
+    if fault == "alpha":
+        return [p[3] for p in t], "mip 0, whole image: alpha channel, A = 0 (Opacity 1) against A = a"
+    if fault == "texelshift":
+        w, h = img["w"], img["h"]
+        errs = []
+        for y in range(h):
+            for x in range(w):
+                a = t[y * w + x]
+                b = t[y * w + (x + 1) % w]
+                errs.append(max(abs(i - j) for i, j in zip(a[:3], b[:3])))
+        return errs, "mip 0 (magnification), whole image: texel (x,y) against (x+1,y), U-only shift (082-05 A)"
+    if fault == "noclear":
+        if kind == "redraw_opaque":
+            return [max(min(v, 255 - v) for v in p[:3]) for p in t], \
+                "whole image, linear target, A = 1: a second composite gives clamp(2v); error min(v, 255-v)"
+        errs = []
+        for p in t:
+            a = p[3] / 255.0
+            rgb = [abs(q8(srgb_encode(min(1.0, srgb_decode(v / 255.0) * (1.0 + a)))) - v) for v in p[:3]]
+            errs.append(max(max(rgb), abs(q8(a * a) - p[3])))
+        return errs, "whole image, sRGB target: RGB = L + L*a re-encoded, A = a^2"
+    raise ValueError(fault)
+
+
+def chain_a_errors(img, fault):
+    cols = img["meta"]["mip_colours"]
+    M = len(cols)
+    rows = []
+    for m in range(M):
+        if fault == "mipshift":
+            src = min(m + 1, M - 1)
+            relied = m <= M - 2
+        else:
+            src = 0
+            relied = m >= 1
+        err = max(abs(a - b) for a, b in zip(cols[m], cols[src]))
+        rows.append(dict(level=m, reads_source_mip=src, error=err, relied_on=relied))
+    return rows
+
+
+def run_proofs(imgs):
+    out = []
+    for img in imgs:
+        for fault in img["faults"]:
+            if img["kind"] == "chain_a":
+                levels = chain_a_errors(img, fault)
+                relied = [r["error"] for r in levels if r["relied_on"]]
+                region = ("levels 0..M-2 (level M-1, 1x1, clamps to itself and reads 0; not relied on)" if fault == "mipshift"
+                          else "levels 1..M-1 (level 0 is drawn from mip 0 and reads 0; not relied on)")
+                out.append(dict(image=img["name"], row=img["role"], fault=fault, min=min(relied), max=max(relied),
+                                texels_or_levels=len(relied), region=region, per_level=levels,
+                                relied_on=min(relied) >= PROOF_FLOOR))
+                continue
+            errs, region = per_texel_errors(img, fault)
+            out.append(dict(image=img["name"], row=img["role"], fault=fault, min=min(errs), max=max(errs),
+                            texels_or_levels=len(errs), region=region, relied_on=min(errs) >= PROOF_FLOOR))
+    return out
+
+
+# ---------------------------------------------------------------------------------------------- main
+
+
+def main(argv):
+    if "--out" not in argv:
+        print("usage: texcorrupt_fixture_images.py --out <dir>")
+        return 2
+    out_dir = argv[argv.index("--out") + 1]
+    os.makedirs(out_dir, exist_ok=True)
+    imgs = build_set()
+    entries = []
+    for img in imgs:
+        if img["fmt"] == "dds":
+            if img["cube"] is not None:
+                payload = dds_bgra8(img["w"], img["h"], None, cube_faces=img["cube"])
+            else:
+                payload = dds_bgra8(img["w"], img["h"], img["levels"])
+        else:
+            payload = png_bytes(img["w"], img["h"], img["ch"], img["data"])
+        fn = img["name"] + "." + img["fmt"]
+        with open(os.path.join(out_dir, fn), "wb") as fh:
+            fh.write(payload)
+        entries.append(dict(name=img["name"], file=fn, sha256=hashlib.sha256(payload).hexdigest(), bytes=len(payload),
+                            width=img["w"], height=img["h"], channels=img["ch"], format=img["fmt"],
+                            mips_authored=(len(img["levels"]) if img["levels"] else (1 if img["fmt"] == "dds" else None)),
+                            cube=img["cube"] is not None, role=img["role"], settings=img["settings"],
+                            faults_assigned=img["faults"], meta=img["meta"], dc=bool(img["meta"].get("dc"))))
+    proofs = run_proofs(imgs) + dc_proofs(imgs)
+    kat = [(777, 0, 29, 13, 53), (777, 1, 9, 19, 57), (4242, 0, 47, 21, 15), (4242, 7, 37, 12, 45), (0, 0, 11, 29, 35),
+           (0xFFFFFFFF, 3, 1, 46, 1), (123456789, 42, 1, 46, 1)]
+    kat_ok = all(scramble_pair_py(s, o, 8) == (a, b, ai) for s, o, a, b, ai in kat)
+    proofs.append(dict(image="T_TC_OracleUV64", row="DC scramble pair recomputation", fault="scramble_pair_kat",
+                       min=int(kat_ok), max=int(kat_ok), texels_or_levels=len(kat), relied_on=kat_ok,
+                       region="the 7 C++ KAT vectors of texcorrupt_pure_test.cpp [17]"))
+    doc = dict(tool="texcorrupt_fixture_images.py", proof_floor=PROOF_FLOOR,
+               statistic="per-texel max-channel |wrong - right|, 8-bit, over the region the row reads",
+               images=entries, proofs=proofs,
+               all_relied_on=all(p["relied_on"] for p in proofs))
+    with open(os.path.join(out_dir, "texcorrupt_fixture_manifest.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(doc, fh, indent=1)
+    print("IMAGES %d written to %s" % (len(entries), out_dir))
+    for p in proofs:
+        print("PROOF %-20s %-11s min %4d max %4d over %6d %s  %s" % (
+            p["image"], p["fault"], p["min"], p["max"], p["texels_or_levels"],
+            "OK" if p["relied_on"] else "BELOW-%d" % PROOF_FLOOR, p["region"]))
+    bad = [p for p in proofs if not p["relied_on"]]
+    print("PROOFS %d, below %d: %d -> %s" % (len(proofs), PROOF_FLOOR, len(bad), "ALL RELIED-ON" if not bad else "STOP"))
+    return 0 if not bad else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

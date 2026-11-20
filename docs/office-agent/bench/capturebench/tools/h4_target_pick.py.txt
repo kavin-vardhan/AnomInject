@@ -1,0 +1,134 @@
+"""PF1 final - pick the H4 target against EVERY clause that can produce
+valid:false, not just the occlusion one.
+
+EvaluateSelectionProvenance short-circuits on the FIRST failing clause of
+IsComponentRenderableVisibleInternal, in this order:
+
+    C1  renderable  (SM/SK and IsVisible)
+    C2  poll radius (dist(pollOrigin, bounds.origin) - sphereRadius > GPollRadius)
+    C3  frustum
+    C4  occlusion            <- the ONLY clause H4 is about
+
+All four collapse to the same artifact string: valid:false, 0/0, coverage_pct -1,
+poll_distance -1. So a target that fails C2 produces H4's predicted CAUSE
+signature for a reason that has nothing to do with occlusion.
+
+MODEL VERIFICATION: poll_distance for StaticMeshActor_49 is banked as
+418.09228515625. The model below must reproduce that to the decimal before any
+other number it prints is trusted (G96 - a model is checked against a known
+answer first).
+"""
+
+import math
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import h4_recon as R
+
+EYE = (-1500.0, 0.0, 260.0)          # camera origin AND poll origin (spectator pawn)
+POLL_RADIUS_DEFAULT = 1800.0         # AnomalyViewport.cpp:30
+MIN_COVERAGE_PCT_DEFAULT = 6.0       # AnomalyViewport.cpp:34
+BANKED_49_POLL_DISTANCE = 418.09228515625
+
+
+def sphere_radius(e):
+    return math.sqrt(e[0] ** 2 + e[1] ** 2 + e[2] ** 2)
+
+
+def poll_distance(c, e, origin=EYE):
+    d = math.dist(origin, c)
+    return d - sphere_radius(e)
+
+
+def main():
+    targets = R.build_targets()
+    views = R.load_camera_samples(R.BANK)
+    modal = {"origin": EYE, "rot": (0.0, 0.0, 0.0), "fov": 90.0,
+             "aspect": 1.7777777910232544}
+
+    t49 = targets["StaticMeshActor_49"]
+    got = poll_distance(t49["c"], t49["e"])
+    print("MODEL CHECK  poll_distance(StaticMeshActor_49) = %.8f" % got)
+    print("             banked engine value               = %.8f" % BANKED_49_POLL_DISTANCE)
+    delta = abs(got - BANKED_49_POLL_DISTANCE)
+    print("             delta = %.6f  -> %s" % (delta, "OK" if delta < 1e-3 else "MODEL REJECTED"))
+    if delta >= 1e-3:
+        return 2
+
+    cand = [n for n in targets
+            if R.occlusion_samples(EYE, n, targets, "cube", True)[0] == 0]
+    cand.sort(key=lambda n: targets[n]["n"])
+
+    print()
+    print("=" * 92)
+    print("CANDIDATE SCREEN - every clause that can fabricate H4's cause signature")
+    print("=" * 92)
+    hdr = ("%-20s %-9s %8s %8s  %-9s %-8s %-8s %-7s" %
+           ("actor", "shape", "poll_d", "onscr%", "C2 pass", "C3 modal", "C4 occl", "cov%"))
+    print(hdr)
+    print("-" * 92)
+    rows = []
+    for n in cand:
+        t = targets[n]
+        pd = poll_distance(t["c"], t["e"])
+        c2 = pd <= POLL_RADIUS_DEFAULT
+        hits = sum(1 for v in views if R.on_screen(v, t["c"], t["e"]))
+        frac = 100.0 * hits / len(views)
+        rect = R.project_rect(modal, t["c"], t["e"])
+        if rect:
+            (mnx, mny), (mxx, mxy) = rect
+            w = min(mxx, 1.0) - max(mnx, 0.0)
+            h = min(mxy, 1.0) - max(mny, 0.0)
+            cov = max(0.0, w) * max(0.0, h) * 100.0
+            c3 = mxx > 0 and mnx < 1 and mxy > 0 and mny < 1
+        else:
+            cov, c3 = 0.0, False
+        occ = R.occlusion_samples(EYE, n, targets, "cube", True)[0] == 0
+        rows.append((n, pd, frac, c2, c3, occ, cov))
+        print("%-20s %-9s %8.1f %7.1f%%  %-9s %-8s %-8s %6.2f"
+              % (n, t["shape"], pd, frac, "YES" if c2 else "NO -> C2!",
+                 "in" if c3 else "OUT", "FULL" if occ else "-", cov))
+
+    print()
+    print("=" * 92)
+    print("ADMISSIBLE TARGETS - occluded AND inside the default poll radius AND >=94% on-screen")
+    print("=" * 92)
+    ok = [r for r in rows if r[3] and r[4] and r[5] and r[2] >= 94.0]
+    if not ok:
+        print("  NONE. Every fully-occluded target sits outside the default 1800 cm poll")
+        print("  radius, so on shipping defaults its valid:false would be clause C2,")
+        print("  not C4, and the run could not attribute the signature to occlusion.")
+    for r in ok:
+        print("  %-20s poll_d %.1f cm   on-screen %.1f%%   modal coverage %.2f%%"
+              % (r[0], r[1], r[2], r[6]))
+
+    print()
+    print("=" * 92)
+    print("WITH IAI.SetPollRadius 0 (sentinel = cull disabled, C2 removed)")
+    print("=" * 92)
+    ok0 = [r for r in rows if r[4] and r[5] and r[2] >= 94.0]
+    for r in ok0:
+        print("  %-20s on-screen %.1f%%   modal coverage %.2f%%   poll_d %.1f cm (ignored)"
+              % (r[0], r[2], r[6], r[1]))
+
+    print()
+    print("CONTROL StaticMeshActor_49:")
+    hits = sum(1 for v in views if R.on_screen(v, t49["c"], t49["e"]))
+    rect = R.project_rect(modal, t49["c"], t49["e"])
+    (mnx, mny), (mxx, mxy) = rect
+    cov = (min(mxx, 1.0) - max(mnx, 0.0)) * (min(mxy, 1.0) - max(mny, 0.0)) * 100.0
+    print("  poll_d %.1f cm (C2 pass)   on-screen %.1f%%   modal coverage %.2f%%"
+          % (got, 100.0 * hits / len(views), cov))
+    print("  banked engine coverage_pct = 7.7977337837219238")
+    print("  modal-pose bbox_px reproduced = %s"
+          % (tuple(round(x, 4) for x in
+                   (max(mnx, 0.0) * 1280, max(mny, 0.0) * 720,
+                    (min(mxx, 1.0) - max(mnx, 0.0)) * 1280,
+                    (min(mxy, 1.0) - max(mny, 0.0)) * 720)),))
+    print("  CALIB_BBOX                    = (0.0, 485.2, 306.1, 234.8)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

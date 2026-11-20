@@ -1,0 +1,24 @@
+$tools = "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools"
+Set-Location $tools
+
+# m49 phase B on the second host. Two legs only: Leg A repeated so LG-1/3/5/6/7 are re-read on a
+# real game with the new shader, and LG-9 because it is the only fixture in this project where a
+# target is UNMEASURABLE by construction - and PB-8 turns on target_drawn_pixels reading -1 rather
+# than 0 there. A Nanite target has no custom-depth silhouette (G134), so it has no drawn count
+# either; a 0 would assert "measured, and absent", which is the MEASURED_ZERO vs NOT_MEASURED
+# confusion m26 exists to prevent.
+#
+# Leg B (the CensusMaskDump differential) is NOT repeated: A2 answered it, phase B changes nothing
+# it measures, and re-running it would be a leg that can only agree with itself.
+
+Write-Host "##### LYRA LEG A (LG-1/3/5/6/7 + target_drawn_pixels on a real host) #####"
+& .\lyra_leg.ps1 -Label "PB8L_LEGA" -Map "/ShooterCore/Maps/L_ShooterGym" -Seed 4242 -MaxFrames 90
+Write-Host "LEGA exit=$LASTEXITCODE"
+
+Write-Host ""
+Write-Host "##### LYRA LG-9 (the unmeasurable-target fixture; PB-8's -1 reading) #####"
+& .\lyra_leg.ps1 -Label "PB8L_LG9" -Map "/ShooterMaps/Maps/L_Convolution_Blockout" -Seed 4242 -MaxFrames 90
+Write-Host "LG9 exit=$LASTEXITCODE"
+
+Write-Host ""
+Write-Host "##### M49 PHASE B LYRA CAMPAIGN DONE #####"

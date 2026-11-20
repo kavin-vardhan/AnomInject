@@ -1,0 +1,79 @@
+import sys, os, json, glob
+from PIL import Image
+
+MARKER_BAND = 0.20
+PAD = 0.04  # extra margin around the bbox, in normalised units
+
+
+def frame_lum_excluding(path, boxes):
+    im = Image.open(path).convert("L")
+    w, h = im.size
+    px = im.load()
+    y0 = int(h * MARKER_BAND)
+    excl = []
+    for b in boxes:
+        x1 = int(max(0.0, b[0] - PAD) * w)
+        yy1 = int(max(0.0, b[1] - PAD) * h)
+        x2 = int(min(1.0, b[2] + PAD) * w)
+        yy2 = int(min(1.0, b[3] + PAD) * h)
+        excl.append((x1, yy1, x2, yy2))
+    total = 0
+    n = 0
+    step = 3
+    for y in range(y0, h, step):
+        for x in range(0, w, step):
+            skip = False
+            for (a1, b1, a2, b2) in excl:
+                if a1 <= x <= a2 and b1 <= y <= b2:
+                    skip = True
+                    break
+            if skip:
+                continue
+            total += px[x, y]
+            n += 1
+    return (total / n) if n else 0.0, n
+
+
+def main():
+    d = sys.argv[1]
+    lab = os.path.join(d, "labels.jsonl")
+    rows = []
+    with open(lab, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+
+    print("idx,present,boxes,lum_excl_bbox,samples")
+    out = []
+    for r in rows:
+        idx = r.get("session_index", r.get("frame_index", -1))
+        img = os.path.join(d, r.get("image", ""))
+        if not os.path.exists(img):
+            continue
+        anoms = r.get("anomalies", []) or []
+        present = 1 if r.get("anomaly_present") else 0
+        boxes = []
+        for a in anoms:
+            bb = a.get("bbox_norm")
+            if bb and len(bb) == 4 and a.get("bbox_valid"):
+                x1, y1, x2, y2 = bb
+                boxes.append([min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)])
+        lum, n = frame_lum_excluding(img, boxes)
+        out.append((idx, present, len(boxes), lum))
+        print("%s,%d,%d,%.4f,%d" % (idx, present, len(boxes), lum, n))
+
+    pos = [o[3] for o in out if o[1] == 1]
+    neg = [o[3] for o in out if o[1] == 0]
+    if pos and neg:
+        mp = sum(pos) / len(pos)
+        mn = sum(neg) / len(neg)
+        print("# positive frames n=%d mean=%.4f" % (len(pos), mp))
+        print("# negative frames n=%d mean=%.4f" % (len(neg), mn))
+        print("# DELTA (pos-neg) = %.4f luminance levels" % (mp - mn))
+    else:
+        print("# insufficient split: pos=%d neg=%d" % (len(pos), len(neg)))
+
+
+if __name__ == "__main__":
+    main()

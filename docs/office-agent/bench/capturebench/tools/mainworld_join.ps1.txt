@@ -1,0 +1,104 @@
+<#
+Rebuild the ASSET <-> RUNTIME instance join for MainWorld.
+
+WHY. Two namespaces name the same actors: external actor FILES (opaque GUID
+basenames) and RUNTIME UAID names. A Trigger status established per FILE says
+nothing about a leg that targeted a runtime NAME until the two are joined. That
+gap produced a wrong answer on 2026-08-19 - a motion leg fired at a BOUND Stomper
+while the finding under test was about the unbound ones. See G122 and
+mainworld_instance_join.md.
+
+THE EXACT KEY. Every one-file-per-actor .uasset contains its own object path
+"...MainWorld:PersistentLevel.<Class>_C_UAID_<HEX>_<N>", and that trailing
+substring is exactly what IAI.ListActors prints and what "=<name>" matches.
+Nothing else joins: file basenames are opaque GUIDs, and actor LABELS do not
+exist in a cooked build.
+
+TRIGGER KEY, and it is NOT uniform across classes:
+  BP_Stomper / BP_MovingPlatform  scalar   'Trigger'
+  BP_Fan                          ARRAY    'Triggers' (+ TriggersActive/Needed)
+Keying a Fan on the scalar reads every instance as empty and contradicts its own
+reference signal. -Classes below carries the right key per class.
+
+UE serialises only NON-DEFAULT property values, so an ABSENT property means the
+instance left it at None => EMPTY. Present => BOUND.
+
+This script emits the ASSET half only. THE MOTION COLUMN IS HAND-MAINTAINED FROM
+MEASURED LEGS AND MUST NEVER BE INFERRED - an untested instance is UNTESTED, not
+"presumed moving", and the asset comment has already been refuted at runtime for
+one unbound Stomper.
+
+ASCII only (PowerShell 5.1 parses a .ps1 as ANSI without a BOM).
+
+Usage: powershell -File mainworld_join.ps1 [-Root <externalactors dir>]
+#>
+
+param(
+  [string]$Root = "D:\IntrusiveAnomalies\StackOBot\Content\__ExternalActors__\StackOBot\Maps\MainWorld"
+)
+
+# class -> the property name that actually gates that class
+$TriggerKey = @{
+  "BP_Stomper"        = "Trigger"
+  "BP_MovingPlatform" = "Trigger"
+  "BP_Fan"            = "Triggers"
+}
+
+if (-not (Test-Path $Root)) { Write-Output "FAIL: no external actor tree at $Root"; exit 2 }
+
+$rows = @()
+foreach ($f in Get-ChildItem $Root -Recurse -Filter "*.uasset") {
+  $b = [System.IO.File]::ReadAllBytes($f.FullName)
+  $j = ([regex]::Matches([System.Text.Encoding]::ASCII.GetString($b), "[\x20-\x7E]{3,}") |
+        ForEach-Object { $_.Value }) -join "`n"
+  $m = [regex]::Match($j, 'PersistentLevel\.((BP_[A-Za-z0-9_]+?)[0-9]*_C?_?UAID_[0-9A-F]+_\d+)')
+  if (-not $m.Success) { continue }
+  $runtime = $m.Groups[1].Value
+  $cls = $null
+  foreach ($k in $TriggerKey.Keys) { if ($runtime -like "$k*") { $cls = $k; break } }
+  if (-not $cls) { continue }
+  $key = $TriggerKey[$cls]
+  $bound = [regex]::IsMatch($j, "(?m)^$key$")
+  $refPlate  = $j -match 'BP_PressurePlate'
+  $refButton = $j -match 'BP_Button'
+  $rows += [pscustomobject]@{
+    Class = $cls; Runtime = $runtime; File = $f.BaseName
+    TriggerKey = $key
+    Trigger = $(if ($bound) { "BOUND" } else { "EMPTY" })
+    RefsTriggerActor = $(if ($refPlate -or $refButton) { "yes" } else { "no" })
+  }
+}
+
+Write-Output "=== MainWorld instance join (ASSET half) ==="
+Write-Output ("  external actor files scanned: {0}" -f (Get-ChildItem $Root -Recurse -Filter '*.uasset').Count)
+Write-Output ""
+foreach ($cls in ($rows.Class | Sort-Object -Unique)) {
+  $sel = $rows | Where-Object { $_.Class -eq $cls } | Sort-Object Runtime
+  Write-Output ("--- {0} : {1} placed  (trigger key '{2}') ---" -f $cls, $sel.Count, $TriggerKey[$cls])
+  Write-Output ("  {0,-52} {1,-24} {2,-7} {3}" -f "runtime UAID name","asset file","Trigger","refs a trigger actor")
+  foreach ($r in $sel) {
+    Write-Output ("  {0,-52} {1,-24} {2,-7} {3}" -f $r.Runtime, $r.File, $r.Trigger, $r.RefsTriggerActor)
+  }
+  $e = @($sel | Where-Object { $_.Trigger -eq "EMPTY" }).Count
+  Write-Output ("  => EMPTY {0} / BOUND {1}" -f $e, ($sel.Count - $e))
+  Write-Output ""
+}
+
+# CONSISTENCY CHECK, both directions (G96): a key that never disagrees with the
+# reference signal has not been shown to be the right key.
+Write-Output "=== KEY SANITY: does 'Trigger serialised' agree with 'references a trigger actor'? ==="
+$dis = @($rows | Where-Object {
+  ($_.Trigger -eq "BOUND" -and $_.RefsTriggerActor -eq "no") -or
+  ($_.Trigger -eq "EMPTY" -and $_.RefsTriggerActor -eq "yes") })
+if ($dis.Count -eq 0) {
+  Write-Output "  the two signals AGREE on every row."
+} else {
+  Write-Output ("  {0} DISAGREEMENT(S) - the trigger key is probably wrong for that class:" -f $dis.Count)
+  foreach ($d in $dis) { Write-Output ("    {0,-52} key='{1}' Trigger={2} refs={3}" -f $d.Runtime,$d.TriggerKey,$d.Trigger,$d.RefsTriggerActor) }
+  Write-Output "  (this is exactly how BP_Fan's ARRAY key was found - the scalar read 4-of-4 EMPTY"
+  Write-Output "   while 2 of 4 referenced a PressurePlate.)"
+}
+Write-Output ""
+Write-Output "MOTION IS NOT EMITTED HERE. It is hand-maintained in mainworld_instance_join.md"
+Write-Output "from measured legs. UNTESTED is not 'presumed moving'."
+exit 0

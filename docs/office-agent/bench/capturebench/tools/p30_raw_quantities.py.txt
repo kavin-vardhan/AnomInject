@@ -1,0 +1,71 @@
+"""P30 REPORTING ONLY - the two raw quantities behind each slice-1 target.
+
+Prints, per event: the mask's MEASURED pixel count and the label's CLAIMED
+coverage expressed as an AREA IN PIXELS, so drawn and claimed are in the same
+units.
+
+This tool computes NO ratio, NO threshold, and NO comparison verdict. It exists
+because a percentage hides the units and a ratio hides both quantities. What a
+veto rule should be, if any, is not a question this file touches.
+
+  claimed_px = coverage_pct / 100 * viewport_px
+
+Usage: python p30_raw_quantities.py
+"""
+
+import glob
+import json
+import os
+import re
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+
+TARGETS = [
+    ("StaticMeshActor_49  (Cube, control)", "P27_EXT_CTRL49"),
+    ("StaticMeshActor_73  (Cylinder, N-2)", "P28_N2_CYL73"),
+    ("InstancedFoliageActor_0_0_0  (H5)", "P28_H5_FOLIAGE"),
+    ("BP_SplineSpawn_C  (H5)", "P28_H5_SPLINE"),
+]
+
+ev_re = re.compile(r"M26S1 EVENT id=\S+ target=\S+ startFrame=(\d+) tag=\d+ state=(\S+) maxCount=(\d+) "
+                   r"viewportPx=(\d+)")
+
+
+def leg_log(label):
+    hits = glob.glob(os.path.join(BANK, label + "_try*", "_leg_game.log"))
+    return sorted(hits)[-1] if hits else None
+
+
+def leg_ann(label):
+    hits = glob.glob(os.path.join(BANK, label, "session_*", "annotation.json"))
+    return hits[0] if hits else None
+
+
+for name, label in TARGETS:
+    log, ann = leg_log(label), leg_ann(label)
+    if not log or not ann:
+        print("%-38s  (leg not found: %s)" % (name, label))
+        continue
+
+    events = []
+    for line in open(log, encoding="utf-8", errors="replace"):
+        m = ev_re.search(line)
+        if m:
+            events.append({"start": int(m.group(1)), "state": m.group(2),
+                           "measured_px": int(m.group(3)), "viewport_px": int(m.group(4))})
+
+    claims = [e.get("coverage_pct", -1.0) for e in json.load(open(ann, encoding="utf-8-sig"))["anomalies"]]
+
+    print("=" * 78)
+    print("%s      leg: %s" % (name, label))
+    print("  %-6s %-18s %14s %14s" % ("start", "state", "measured px", "claimed px"))
+    for i, e in enumerate(events):
+        vp = e["viewport_px"] or 921600
+        claimed = claims[i] / 100.0 * vp if i < len(claims) and claims[i] >= 0 else None
+        print("  %-6d %-18s %14d %14s" % (
+            e["start"], e["state"], e["measured_px"],
+            ("%d" % round(claimed)) if claimed is not None else "n/a"))
+    print("  viewport: %d px" % (events[0]["viewport_px"] if events else 921600))
+
+print()
+print("REPORTING ONLY. No ratio, no threshold, no comparison operator is computed here.")

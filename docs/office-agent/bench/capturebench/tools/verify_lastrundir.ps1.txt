@@ -1,0 +1,150 @@
+<#
+LastRunDir runtime verification - the S3a debt, discharged.
+
+THE DEBT: capture_stop / capture_status / ControlSnapshot read the finished
+session path through GetStatus AFTER a run ends. That path was implemented in
+S3a-3 but never exercised, because -ExecCmds fires at STARTUP ONLY and the
+packaged harness had no way to issue a post-run console command.
+
+THE ROUTE: a WebSocket client against the control server. Python's stdlib has no
+WebSocket client, so this reuses the EXISTING precedent - _ws-gate.ps1 already
+drives real WS commands through HandleMessage via
+System.Net.WebSockets.ClientWebSocket. This is that client, reduced to the one
+question the debt asks.
+
+WHAT IT ASSERTS, POST-RUN (the capture has already FINISHED before we ask):
+  1. capture_status returns running=false      - the run really is over
+  2. capture_status still carries a NON-EMPTY runDir
+  3. that runDir names the session directory that actually exists on disk (A62)
+
+TOKEN: read from the game's own DefaultGame.ini, never hardcoded here. This file
+is in git and the token is a shared secret, so a default value would put the
+secret in version control - and a KNOWN default is worse than none, because it
+keeps a placeholder token alive across every rotation (G112). Pass -Token to
+override.
+
+Usage: powershell -File verify_lastrundir.ps1 [-Token <t>] [-Url ws://127.0.0.1:8077]
+#>
+
+param(
+  [string]$Url = "ws://127.0.0.1:8077",
+  [string]$Token = "",
+  [int]$Frames = 30
+)
+
+$ErrorActionPreference = "Stop"
+
+if ($Token -eq "") {
+  $gameIni = "D:\IntrusiveAnomalies\StackOBot\Config\DefaultGame.ini"
+  if (-not (Test-Path $gameIni)) { throw "No -Token given and $gameIni not found." }
+  $m = [regex]::Match((Get-Content $gameIni -Raw), '(?m)^\s*Token\s*=\s*(\S+)\s*$')
+  if (-not $m.Success) {
+    throw "No -Token given and [AnomalyControlServer] Token is absent from $gameIni."
+  }
+  $Token = $m.Groups[1].Value
+  Write-Output "Token: read from DefaultGame.ini (length $($Token.Length))."
+  if ($Token.Length -lt 32) {
+    Write-Output "  WARNING: token is shorter than 32 chars - see PRE-DELIVERY-CHECKLIST section 1."
+  }
+  if ($Token -match 'TESTVALUE|CHANGEME|placeholder') {
+    throw "PLACEHOLDER TOKEN in $gameIni. Rotate it before running anything that could be cooked (G112)."
+  }
+}
+$staged = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+$outRoot = Split-Path $staged
+$label = "LRD_probe"
+
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 600
+if (Test-Path "$outRoot\$label") { Remove-Item "$outRoot\$label" -Recurse -Force }
+
+$cmds = "r.DefaultFeature.AutoExposure 0, IAI.Server.Start" +
+        ", IAI.Capture.SVE 1, IAI.Capture.Fps 30, IAI.Capture.Config 2 4 8 4 0" +
+        ", IAI.Capture.Start $label png 777 $Frames blinking StaticMeshActor_49"
+
+$p = Start-Process -FilePath $staged -PassThru -ArgumentList @(
+  "/Game/CaptureBenchGate/CB_GateLevel","-windowed","-ResX=1280","-ResY=720",
+  "-ExecCmds=`"$cmds`"","-unattended","-nosplash")
+
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class FgLrd {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static uint FgPid(){ uint x=0; GetWindowThreadProcessId(GetForegroundWindow(), out x); return x; }
+  public static void Force(IntPtr h){ ShowWindow(h,9); keybd_event(0x12,0,0,UIntPtr.Zero);
+    keybd_event(0x12,0,2,UIntPtr.Zero); SetForegroundWindow(h); }
+}
+"@
+$sh = New-Object -ComObject WScript.Shell
+for ($i=0; $i -lt 30; $i++) {
+  Start-Sleep -Milliseconds 400
+  try { $sh.AppActivate($p.Id) | Out-Null } catch {}
+  try { $p.Refresh(); if ($p.MainWindowHandle -ne 0) { [FgLrd]::Force($p.MainWindowHandle) } } catch {}
+  if ([FgLrd]::FgPid() -eq $p.Id) { break }
+}
+
+# Wait for the run to FINISH on disk before asking anything (A62).
+$deadline = (Get-Date).AddSeconds(90); $session = $null
+while ((Get-Date) -lt $deadline) {
+  $session = Get-ChildItem "$outRoot\$label" -Directory -EA SilentlyContinue |
+             Where-Object { Test-Path "$($_.FullName)\run_summary.json" } | Select-Object -First 1
+  if ($session) { break }
+  Start-Sleep -Seconds 1
+}
+if (-not $session) { Write-Output "FAIL: capture never finished; nothing to ask about."; Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force; exit 1 }
+Write-Output "capture FINISHED on disk: $($session.Name)"
+Start-Sleep -Seconds 3   # let the run fully wind down so the query is genuinely POST-run
+
+$ct = [System.Threading.CancellationToken]::None
+$ws = [System.Net.WebSockets.ClientWebSocket]::new()
+$ws.ConnectAsync([Uri]$Url, $ct).GetAwaiter().GetResult()
+function Send($o) {
+  $b = [System.Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Compress -Depth 10))
+  [void]$ws.SendAsync([System.ArraySegment[byte]]::new($b), [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $ct).GetAwaiter().GetResult()
+}
+function Recv([int]$ms = 4000) {
+  $buf = [byte[]]::new(262144); $mem = [System.IO.MemoryStream]::new()
+  try {
+    do {
+      $cts = [System.Threading.CancellationTokenSource]::new($ms)
+      $r = $ws.ReceiveAsync([System.ArraySegment[byte]]::new($buf), $cts.Token).GetAwaiter().GetResult()
+      $mem.Write($buf, 0, $r.Count)
+    } while (-not $r.EndOfMessage)
+  } catch { return $null }
+  $by = $mem.ToArray()
+  if ($by.Length -ge 4 -and $by[0] -eq 0x41 -and $by[1] -eq 0x49 -and $by[2] -eq 0x46 -and $by[3] -eq 0x31) { return "<AIF1 frame>" }
+  return [System.Text.Encoding]::UTF8.GetString($by)
+}
+
+Send @{ type = "hello"; token = $Token }   # AnomalyControlServerSubsystem.cpp:343 - the handshake is "hello", not "auth"
+$authReply = $null
+for ($i=0; $i -lt 6; $i++) { $m = Recv; if ($m -and $m -ne "<AIF1 frame>") { $authReply = $m; break } }
+Write-Output "auth reply: $authReply"
+
+Send @{ type = "capture_status" }
+$status = $null
+for ($i=0; $i -lt 12; $i++) {
+  $m = Recv
+  if ($m -and $m -ne "<AIF1 frame>" -and $m -match "capture") { $status = $m; break }
+}
+Write-Output "capture_status (POST-RUN): $status"
+try { [void]$ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure, "done", $ct).GetAwaiter().GetResult() } catch {}
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+
+if (-not $status) { Write-Output "FAIL: no capture_status reply"; exit 1 }
+$j = $status | ConvertFrom-Json
+$cap = if ($j.capture) { $j.capture } else { $j }
+$runDir = $cap.runDir
+Write-Output ""
+Write-Output "  running : $($cap.running)   (expect False - the run is over)"
+Write-Output "  runDir  : $runDir"
+$nonEmpty = -not [string]::IsNullOrWhiteSpace($runDir)
+$namesIt  = $nonEmpty -and ($runDir -match [regex]::Escape($session.Name))
+Write-Output "  non-empty POST-run          : $nonEmpty"
+Write-Output "  names the finished session  : $namesIt"
+if ($nonEmpty -and $namesIt) { Write-Output "`nLastRunDir VERIFIED"; exit 0 }
+Write-Output "`nLastRunDir NOT VERIFIED"; exit 1

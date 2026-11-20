@@ -1,0 +1,171 @@
+"""Q-4 - does any moving platform's PATH cross the line between the camera and a
+SELECTABLE target? Geometry only, from measured quantities. NO test is run.
+
+WHAT THIS USES, AND WHY NOT THE OBVIOUS FIELDS. Two annotation fields look like
+they answer this and do not:
+
+  affected_objects.nodes[].bounds  is Actor->GetComponentsBoundingBox(TRUE) -
+      the WHOLE actor including non-colliding components. For BP_MovingPlatform
+      it reports a 42m x 26m x 17m box centred ~2.2 km from the actor, because
+      the Blueprint carries spline / control-point components. The projector and
+      the occlusion trace use only SM/SK Component->Bounds. DIFFERENT QUANTITY.
+
+  affected_objects.nodes[].global_position  is the ACTOR ORIGIN. For Blueprint
+      actors that place meshes at offsets (BP_SplineSpawn) the rendered geometry
+      is somewhere else entirely. Fine for a plain StaticMeshActor, misleading
+      for a Blueprint.
+
+So this works from what the projector and the selector themselves produce:
+  labels.jsonl  bbox_px            the SM/SK union rect, i.e. what the label IS
+  selection_provenance poll_distance   dist(pollOrigin, B.Origin) - B.SphereRadius
+                                       for the first renderable-visible COMPONENT
+
+An occluder can occlude a target only if their screen rects OVERLAP and the
+occluder is NEARER. Both are read, neither is assumed.
+
+FULL occlusion - which is what path (a) needs, 9 of 9 rays blocked - additionally
+requires the occluder's rect to CONTAIN the target's. Overlap alone gives partial
+occlusion, which is a different and much weaker condition.
+
+ASCII only. Read-only. Prints geometry; declares nothing.
+"""
+
+import glob
+import json
+import math
+import os
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+CAM = (3073.76, 4335.69, 1634.48)
+CAM_YAW_DEG = -39.999
+HFOV_DEG = 90.0
+
+
+def modal_bbox_and_poll(leg):
+    dirs = glob.glob(os.path.join(BANK, leg, "session_*"))
+    if not dirs:
+        return None
+    s = dirs[0]
+    boxes, name = {}, None
+    with open(os.path.join(s, "labels.jsonl")) as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            for a in r.get("anomalies", []):
+                name = a.get("target_name")
+                if a.get("bbox_valid"):
+                    k = tuple(round(v) for v in a["bbox_px"])
+                    boxes[k] = boxes.get(k, 0) + 1
+    pd = []
+    p = os.path.join(s, "selection_provenance.json")
+    if os.path.exists(p):
+        pd = [e["poll_distance"] for e in json.load(open(p)).get("events", [])
+              if e.get("poll_distance", -1) > 0]
+    pos = None
+    ann = os.path.join(s, "annotation.json")
+    if os.path.exists(ann):
+        evs = json.load(open(ann)).get("anomalies", [])
+        if evs:
+            pos = evs[0]["affected_objects"]["nodes"][0]["global_position"]
+    if not boxes:
+        return {"name": name, "rect": None, "poll": pd, "pos": pos}
+    modal = max(boxes.items(), key=lambda kv: kv[1])[0]
+    return {"name": name, "rect": modal, "poll": pd, "pos": pos}
+
+
+def rect_span(r):
+    x, y, w, h = r
+    return (x, x + w, y, y + h)
+
+
+def overlap(a, b):
+    ax0, ax1, ay0, ay1 = rect_span(a)
+    bx0, bx1, by0, by1 = rect_span(b)
+    ox = max(0, min(ax1, bx1) - max(ax0, bx0))
+    oy = max(0, min(ay1, by1) - max(ay0, by0))
+    return ox, oy
+
+
+def contains(outer, inner):
+    ox0, ox1, oy0, oy1 = rect_span(outer)
+    ix0, ix1, iy0, iy1 = rect_span(inner)
+    return ox0 <= ix0 and ox1 >= ix1 and oy0 <= iy0 and oy1 >= iy1
+
+
+def bearing(pos):
+    if pos is None:
+        return None, None
+    d = (pos[0] - CAM[0], pos[1] - CAM[1], pos[2] - CAM[2])
+    r = math.sqrt(d[0] ** 2 + d[1] ** 2 + d[2] ** 2)
+    hr = math.sqrt(d[0] ** 2 + d[1] ** 2)
+    y = math.radians(CAM_YAW_DEG)
+    fwd = (math.cos(y), math.sin(y))
+    if hr == 0:
+        return r, None
+    dot = max(-1.0, min(1.0, (d[0] * fwd[0] + d[1] * fwd[1]) / hr))
+    return r, math.degrees(math.acos(dot))
+
+
+LEGS = {
+    "PLATFORM (moves)": "MW_MW_PLAT_FREE",
+    "SM_Ramp2":         "MW_MW_Q3_RAMP",
+    "RoomBuilderSquare":"MW_MW_Q3_ROOM",
+    "BP_SpawnPad":      "MW_MW_Q3_PAD",
+    "BP_SplineSpawn":   "MW_MW_Q3_SPLINE",
+}
+
+print("=" * 96)
+print("Q-4 GEOMETRY - camera (%.2f, %.2f, %.2f) yaw %.3f deg, hFOV %.0f, 1280x720"
+      % (CAM[0], CAM[1], CAM[2], CAM_YAW_DEG, HFOV_DEG))
+print("=" * 96)
+data = {}
+print("  %-20s %-26s %-16s %-11s %s" % ("actor", "modal bbox_px", "poll_dist cm", "range cm", "bearing off-axis"))
+for label, leg in LEGS.items():
+    d = modal_bbox_and_poll(leg)
+    if d is None:
+        print("  %-20s LEG NOT BANKED" % label)
+        continue
+    data[label] = d
+    r, ang = bearing(d["pos"])
+    pol = ("%.1f..%.1f" % (min(d["poll"]), max(d["poll"]))) if d["poll"] else "(sentinel -1)"
+    print("  %-20s %-26s %-16s %-11s %s"
+          % (label, str(d["rect"]), pol,
+             ("%.0f" % r) if r else "-",
+             ("%.1f deg" % ang) if ang is not None else "-"))
+
+print()
+print("=" * 96)
+print("PAIRWISE: can the PLATFORM occlude each selectable target?")
+print("=" * 96)
+plat = data.get("PLATFORM (moves)")
+if not plat or not plat["rect"]:
+    raise SystemExit("no platform rect")
+print("  platform rect %s  poll_distance %.1f..%.1f cm"
+      % (str(plat["rect"]), min(plat["poll"]), max(plat["poll"])))
+print()
+print("  %-20s %-14s %-16s %-14s %s" % ("target", "rect overlap", "platform nearer?", "contains?", "verdict"))
+for label, d in data.items():
+    if label.startswith("PLATFORM") or not d["rect"]:
+        continue
+    ox, oy = overlap(plat["rect"], d["rect"])
+    tgt_pd = min(d["poll"]) if d["poll"] else None
+    nearer = (max(plat["poll"]) < tgt_pd) if tgt_pd is not None else None
+    cont = contains(plat["rect"], d["rect"])
+    if ox <= 0 or oy <= 0:
+        v = "NO - rects do not overlap"
+    elif nearer is False:
+        v = "NO - platform is FARTHER; the target occludes IT"
+    elif nearer is None:
+        v = "UNDECIDED - target poll_distance is the -1 sentinel"
+    elif not cont:
+        v = "PARTIAL AT MOST - overlap but no containment"
+    else:
+        v = "possible FULL occlusion"
+    print("  %-20s %-14s %-16s %-14s %s"
+          % (label, "%dx%d px" % (ox, oy),
+             ("yes" if nearer else ("no" if nearer is False else "?")),
+             ("yes" if cont else "no"), v))
+print()
+print("NOTE: 'contains' is the FULL-occlusion condition (9 of 9 rays blocked).")
+print("Overlap without containment is PARTIAL occlusion and is a different thing.")

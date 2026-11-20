@@ -1,0 +1,163 @@
+"""
+P-C9 cost extractor - census ON vs OFF, A,B,B,A after a declared discard leg.
+
+REPORTS. DOES NOT GATE. There is no threshold in this file and none must ever be
+added to it (journal 209). Its only judgement is G169's, and G169 is a statement
+about the INSTRUMENT, not about the build: a difference not larger than the
+within-build spread across positions is "BELOW THE RESOLUTION OF THIS INSTRUMENT",
+never "no cost".
+
+Why A,B,B,A and not A,B,A,B (G186): warm-up makes earlier legs slower, so in
+A,B,A,B the A side occupies the earlier mean position and the reading is biased
+toward "B is not slower" - which would hide the very cost the measurement exists
+to size. A,B,B,A balances the positions, and one leg declared a DISCARD BEFORE IT
+RUNS absorbs the cold start.
+
+THREE NORMALISATIONS, because they answer different questions:
+  per CAPTURED frame  - what the capture pipeline costs per delivered image
+  per ENGINE frame    - what the hook costs the running game (journal 059 §1);
+                        engine frames come from run.json start_frame and
+                        run_summary end_frame, NOT from the label count
+  per MEGAPIXEL       - the only basis on which another resolution can be
+                        discussed at all, and even then any cross-resolution
+                        figure is an EXTRAPOLATION and is labelled one
+
+Resolution is read from the leg's own banked _leg_geometry.json, never assumed -
+this ran at 1920x1080 and the m35 tool it descends from had 1280x720 hardcoded.
+
+PACING. A paced leg holds every tick to >= 1/VideoFps of wall, so a sub-budget
+hook is absorbed by the pacer and the leg CANNOT size it (journal 061 finding 1,
+measured: median t_wall delta 0.03334 on all five paced legs). Pacing-OFF legs are
+the measuring instrument. A paced pair is still worth reading, but it answers a
+DIFFERENT question - "is it absorbed at the shipped frame rate" - and this tool
+labels which question a leg answered rather than mixing them.
+"""
+
+import json
+import re
+import statistics
+import sys
+from pathlib import Path
+
+COST_RE = re.compile(
+    r"Census: CYCLE (\d+) COST tagBlockMs=([\d.]+) overTicks=(\d+) perTickMs=([\d.]+) flagFlips=(\d+)"
+)
+
+
+def leg_metrics(bank_dir):
+    d = Path(bank_dir)
+    session = next(p for p in d.iterdir() if p.is_dir())
+    geo = json.loads((d / "_leg_geometry.json").read_text(encoding="utf-8-sig"))
+    res_x, res_y = int(geo["res_x"]), int(geo["res_y"])
+    mp = res_x * res_y / 1_000_000.0
+
+    tw = []
+    with open(session / "labels.jsonl", encoding="utf-8") as f:
+        for line in f:
+            tw.append(json.loads(line)["t_wall"])
+    tw.sort()
+    n = len(tw)
+    span = tw[-1] - tw[0]
+    per_cap_ms = span / (n - 1) * 1000.0
+    deltas = [(tw[i + 1] - tw[i]) * 1000.0 for i in range(n - 1)]
+
+    rs = json.loads((session / "run_summary.json").read_text(encoding="utf-8"))
+    rj = json.loads((session / "run.json").read_text(encoding="utf-8"))
+    engine_frames = int(rs["end_frame"]) - int(rj["start_frame"])
+    per_eng_ms = (span / engine_frames * 1000.0) if engine_frames > 0 else float("nan")
+
+    cycles = []
+    log = d / "_leg_game.log"
+    if log.exists():
+        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = COST_RE.search(line)
+            if m:
+                cycles.append(
+                    {"ms": float(m.group(2)), "ticks": int(m.group(3)),
+                     "perTickMs": float(m.group(4)), "flips": int(m.group(5))}
+                )
+
+    return {
+        "res": f"{res_x}x{res_y}", "mp": mp, "paced": int(geo.get("pace", 1)),
+        "captured": n, "engine_frames": engine_frames,
+        "per_cap_ms": per_cap_ms, "per_eng_ms": per_eng_ms,
+        "per_mp_ms": per_cap_ms / mp, "median_delta_ms": statistics.median(deltas),
+        "sustained": rs.get("sustained_wall_fps"), "speed_ratio": rs.get("speed_ratio"),
+        "game_ratio": rs.get("game_clock_speed_ratio"),
+        "census_cycles": cycles,
+    }
+
+
+def selftest():
+    line = ("[x][ 1]LogAnomalyCapture: Census: CYCLE 7 COST tagBlockMs=0.4210 overTicks=5 "
+            "perTickMs=0.0842 flagFlips=132 (GAME-THREAD QUEUING COST ONLY ...)")
+    m = COST_RE.search(line)
+    checks = [
+        ("cost line parsed", m is not None),
+        ("cycle number", m and m.group(1) == "7"),
+        ("ms", m and abs(float(m.group(2)) - 0.4210) < 1e-9),
+        ("ticks", m and m.group(3) == "5"),
+        ("flips", m and m.group(5) == "132"),
+        ("a non-cost line is NOT matched", COST_RE.search("Census: CYCLE 7 DONE ticks=5") is None),
+    ]
+    for name, ok in checks:
+        print(f"  selftest {'OK  ' if ok else 'FAIL'} {name}")
+    return all(ok for _, ok in checks)
+
+
+def main():
+    print("== SELFTEST (known-answer fixture) ==")
+    if not selftest():
+        print("EXTRACTOR BROKEN - refusing to report numbers")
+        return 3
+    print("selftest OK\n")
+
+    legs = []
+    for spec in sys.argv[1:]:
+        name, path = spec.split("=", 1)
+        m = leg_metrics(path)
+        legs.append((name, m))
+        pace = "PACED (absorbs sub-budget cost)" if m["paced"] else "PACING OFF (measuring)"
+        print(f"{name}  [{m['res']} {pace}]")
+        print(f"    captured={m['captured']} engineFrames={m['engine_frames']}  "
+              f"perCapturedFrame={m['per_cap_ms']:.4f} ms  perEngineFrame={m['per_eng_ms']:.4f} ms  "
+              f"perMP={m['per_mp_ms']:.4f} ms/MP  medianDelta={m['median_delta_ms']:.4f} ms")
+        print(f"    sustained_wall_fps={m['sustained']}  speed_ratio={m['speed_ratio']}  "
+              f"game_clock_speed_ratio={m['game_ratio']}")
+        if m["census_cycles"]:
+            ms = [c["ms"] for c in m["census_cycles"]]
+            pt = [c["perTickMs"] for c in m["census_cycles"]]
+            fl = [c["flips"] for c in m["census_cycles"]]
+            print(f"    census cycles={len(ms)}  tagBlockMs/cycle min={min(ms):.4f} "
+                  f"median={statistics.median(ms):.4f} max={max(ms):.4f} total={sum(ms):.4f}")
+            print(f"    perTickMs min={min(pt):.4f} median={statistics.median(pt):.4f} max={max(pt):.4f}  "
+                  f"flagFlips/cycle min={min(fl)} median={int(statistics.median(fl))} max={max(fl)} total={sum(fl)}")
+        else:
+            print("    census cycles: none (census OFF on this leg)")
+
+    for key, label in (("per_cap_ms", "per CAPTURED frame"), ("per_eng_ms", "per ENGINE frame")):
+        a = [m for n, m in legs if n.startswith("A")]
+        b = [m for n, m in legs if n.startswith("B")]
+        if len(a) != 2 or len(b) != 2:
+            continue
+        a_mean = sum(x[key] for x in a) / 2
+        b_mean = sum(x[key] for x in b) / 2
+        a_spread = abs(a[0][key] - a[1][key])
+        b_spread = abs(b[0][key] - b[1][key])
+        diff = b_mean - a_mean
+        worst = max(a_spread, b_spread)
+        print(f"\n== {label} ==")
+        print(f"  A (census OFF) mean={a_mean:.4f} ms  spread={a_spread:.4f}")
+        print(f"  B (census ON ) mean={b_mean:.4f} ms  spread={b_spread:.4f}")
+        print(f"  B-A = {diff:+.4f} ms   within-build spread max = {worst:.4f} ms")
+        if abs(diff) <= worst:
+            print("  READING (G169): the difference is NOT larger than the within-build spread")
+            print("                  => BELOW THE RESOLUTION OF THIS INSTRUMENT. Never 'no cost'.")
+        else:
+            print("  READING: the difference EXCEEDS the within-build spread. NUMBERS ONLY -")
+            print("           no threshold, no gate, and no value is recommended here.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

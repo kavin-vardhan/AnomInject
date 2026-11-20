@@ -1,0 +1,57 @@
+import sys, os, glob
+from PIL import Image
+
+NUM_REF = 2
+NUM_BITS = 12
+NUM_CELLS = NUM_REF + NUM_BITS
+SPAN = 0.90
+
+
+def decode(path, top_frac=None):
+    im = Image.open(path).convert("L")
+    w, h = im.size
+    px = im.load()
+
+    band_rows = range(int(h * 0.02), int(h * 0.30))
+    best = None
+    for y in band_rows:
+        vals = []
+        for i in range(NUM_CELLS):
+            cf = -SPAN + (2.0 * SPAN) * ((i + 0.5) / NUM_CELLS)
+            x = int((cf * 0.5 + 0.5) * w)
+            x = max(0, min(w - 1, x))
+            s = [px[max(0, min(w - 1, x + dx)), y] for dx in (-3, 0, 3)]
+            vals.append(sum(s) / len(s))
+        spread = vals[0] - vals[1]
+        if best is None or spread > best[0]:
+            best = (spread, y, vals)
+
+    spread, y, vals = best
+    if spread < 40:
+        return None, y, spread, vals
+
+    white_ref, black_ref = vals[0], vals[1]
+    mid = (white_ref + black_ref) / 2.0
+    bits = [1 if vals[NUM_REF + b] > mid else 0 for b in range(NUM_BITS)]
+    value = sum(bit << b for b, bit in enumerate(bits))
+    return value, y, spread, vals
+
+
+def main():
+    d = sys.argv[1]
+    files = sorted(glob.glob(os.path.join(d, "*.png")))
+    if not files:
+        print("no pngs in", d)
+        return
+    print("file,decoded_low12,row,spread")
+    ok = 0
+    for f in files:
+        v, y, spread, _ = decode(f)
+        print("%s,%s,%d,%.1f" % (os.path.basename(f), "NONE" if v is None else v, y, spread))
+        if v is not None:
+            ok += 1
+    print("# decoded %d/%d" % (ok, len(files)))
+
+
+if __name__ == "__main__":
+    main()

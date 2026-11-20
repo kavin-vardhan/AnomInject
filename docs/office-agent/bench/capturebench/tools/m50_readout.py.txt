@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""m50 gate readout - one row per leg, plus the P-C7 v3 key deltas.
+
+Reports, per leg:
+  ownerViol   TAG-OWNER VIOLATION lines (G1; the verdict)
+  exh         TAG-POOL EXHAUSTED lines (G6; must be 0)
+  headStop    census batches cut short to keep event headroom (a READING, not gated)
+  overtaken   census tagOvertaken (a READING)
+  multi       multi-component tag-instances (the PROXY, reported not gated)
+  rsKeys      run_summary key count
+  unmAdm      unmeasurable_targets_admitted
+  vetoed      vetoed_events
+  fires       census_fires_partial_fallback / census_fires_unseen_candidates
+"""
+
+import glob
+import json
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from m50_tag_owner import components_for_session, parse_log  # noqa: E402
+
+
+def sess(d):
+    c = sorted(glob.glob(os.path.join(d, "session_*")))
+    return c[-1] if c else d
+
+
+def load(d, name):
+    p = os.path.join(d, name)
+    if not os.path.isfile(p):
+        return None
+    with open(p, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+RE_HEAD = re.compile(r"censusHeadroomStops = (\d+)")
+
+
+def row(legdir):
+    s = sess(legdir)
+    ev = parse_log(s)
+    rs = load(s, "run_summary.json") or {}
+    ann = load(s, "annotation.json") or {}
+    comps = components_for_session(s)
+    multi = sum(1 for c in comps if c[2] > 1)
+
+    head = 0
+    p = os.path.join(s, "anomaly_log.txt")
+    if os.path.isfile(p):
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = RE_HEAD.search(line)
+                if m:
+                    head = int(m.group(1))
+
+    return {
+        "leg": os.path.basename(legdir),
+        "ownerViol": len(ev["owner_violations"]),
+        "ownerTotal": ev["owner_violation_total"],
+        "ownerFrames": len(ev["tag_owners"]),
+        "exh": ev["exhausted"],
+        "headStop": head,
+        "overtaken": len(ev["overtaken"]),
+        "multi": multi,
+        "tagInst": len(comps),
+        "rsKeys": len(rs),
+        "unmAdm": rs.get("unmeasurable_targets_admitted"),
+        "vetoed": rs.get("vetoed_events"),
+        "firesPartial": rs.get("census_fires_partial_fallback"),
+        "firesUnseen": rs.get("census_fires_unseen_candidates"),
+        "events": len(ann.get("anomalies", []) or []),
+        "annKeys": len(ann),
+        "session": s,
+    }
+
+
+def main():
+    legs = sys.argv[1:]
+    if not legs:
+        print(__doc__)
+        return 2
+    hdr = ("leg", "ownerViol", "ownerFrames", "exh", "headStop", "overtaken",
+           "multi/tagInst", "rsKeys", "unmAdm", "vetoed", "firesP/U", "events")
+    print("%-18s %9s %11s %4s %8s %9s %13s %6s %6s %6s %8s %6s" % hdr)
+    bad = 0
+    for leg in legs:
+        r = row(leg)
+        if r["ownerViol"]:
+            bad += r["ownerViol"]
+        print("%-18s %9d %11d %4d %8d %9d %13s %6d %6s %6s %8s %6d" % (
+            r["leg"], r["ownerViol"], r["ownerFrames"], r["exh"], r["headStop"],
+            r["overtaken"], "%d/%d" % (r["multi"], r["tagInst"]), r["rsKeys"],
+            r["unmAdm"], r["vetoed"],
+            "%s/%s" % (r["firesPartial"], r["firesUnseen"]), r["events"]))
+    print("TOTAL TAG-OWNER VIOLATIONS = %d" % bad)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

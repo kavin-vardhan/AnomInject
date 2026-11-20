@@ -1,0 +1,263 @@
+#include "CaptureBenchProbe.h"
+
+#if CAPTURE_BENCH
+
+#include "CaptureBenchLog.h"
+
+#include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "EngineUtils.h"
+#include "GameFramework/Actor.h"
+#include "Kismet/GameplayStatics.h"
+#include "HAL/IConsoleManager.h"
+#include "HAL/PlatformTime.h"
+#include "HAL/PlatformProcess.h"
+#include "CoreGlobals.h"
+#include "RenderingThread.h"
+#include "RHICommandList.h"
+#include "Misc/ScopeLock.h"
+
+namespace CaptureBenchProbe
+{
+	static TAutoConsoleVariable<int32> CVarProbe(
+		TEXT("CaptureBench.Probe"), 0,
+		TEXT("1 = log I1/I2/I7/I8 probe rows (game-tick order, counters, view identity, matrices)."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<int32> CVarStallGameMs(
+		TEXT("CaptureBench.Stall.GameMs"), 0,
+		TEXT("Busy-wait N ms on the GAME thread each world tick. Deterministic starvation lever."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<int32> CVarStallRenderMs(
+		TEXT("CaptureBench.Stall.RenderMs"), 0,
+		TEXT("Busy-wait N ms on the RENDER thread each capture pass. Deterministic starvation lever."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<int32> CVarRingCapacity(
+		TEXT("CaptureBench.Probe.RingCapacity"), 8,
+		TEXT("Key-ring capacity. Small values force wrap for the I9 loud-failure proof."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<FString> CVarOpenMap(
+		TEXT("CaptureBench.OpenMap"), TEXT(""),
+		TEXT("Map to 'open' after CaptureBench.OpenMapAfter seconds. Defeats a title's startup menu redirect."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<float> CVarOpenMapAfter(
+		TEXT("CaptureBench.OpenMapAfter"), 8.0f,
+		TEXT("Seconds after first world tick before issuing the deferred open."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<int32> CVarForceMiss(
+		TEXT("CaptureBench.Probe.ForceMiss"), 0,
+		TEXT("1 = corrupt every published key so every lookup misses (I9 loud-failure proof)."),
+		ECVF_Default);
+
+	static FCriticalSection RingCS;
+	static TArray<FRingEntry> Ring;
+	static uint64 PublishSerial = 0;
+
+	static FThreadSafeCounter Published;
+	static FThreadSafeCounter Consumed;
+	static FThreadSafeCounter Missed;
+	static FThreadSafeCounter Wrapped;
+	static FThreadSafeCounter RenderPasses;
+	static FThreadSafeCounter RenderStallFires;
+	static FThreadSafeCounter GameStallFires;
+
+	static FDelegateHandle TickStartHandle;
+	static FDelegateHandle PostActorTickHandle;
+	static uint64 LastLoggedTickFrame = 0;
+	static double FirstTickWall = -1.0;
+	static bool bOpenMapIssued = false;
+
+	bool IsEnabled() { return CVarProbe.GetValueOnAnyThread() != 0; }
+	int32 GetRingCapacity() { return FMath::Max(1, CVarRingCapacity.GetValueOnAnyThread()); }
+
+	static void BusyWaitMs(double Ms)
+	{
+		if (Ms <= 0.0)
+		{
+			return;
+		}
+		const double End = FPlatformTime::Seconds() + (Ms / 1000.0);
+		while (FPlatformTime::Seconds() < End)
+		{
+			FPlatformProcess::Sleep(0.0f);
+		}
+	}
+
+	static void OnWorldTickStart(UWorld* World, ELevelTick TickType, float Dt)
+	{
+		if (!World || TickType != LEVELTICK_All)
+		{
+			return;
+		}
+		if (IsEnabled())
+		{
+			UE_LOG(LogCaptureBench, Display, TEXT("PROBE,tickstart,gfc=%llu,gfn=%u"),
+				(unsigned long long)GFrameCounter, GFrameNumber);
+		}
+
+		const double GameMs = (double)CVarStallGameMs.GetValueOnGameThread();
+		if (GameMs > 0.0)
+		{
+			BusyWaitMs(GameMs);
+			GameStallFires.Increment();
+		}
+
+		const double RenderMs = (double)CVarStallRenderMs.GetValueOnGameThread();
+		if (RenderMs > 0.0)
+		{
+			ENQUEUE_RENDER_COMMAND(CaptureBenchRenderStall)(
+				[RenderMs](FRHICommandListImmediate&)
+				{
+					BusyWaitMs(RenderMs);
+					const int32 N = RenderStallFires.Increment();
+					if ((N % 60) == 0)
+					{
+						UE_LOG(LogCaptureBench, Display,
+							TEXT("PROBE,renderstall,fired=%d,ms=%.1f"), N, RenderMs);
+					}
+				});
+		}
+	}
+
+	static void OnWorldPostActorTick(UWorld* World, ELevelTick TickType, float Dt)
+	{
+		if (!World || TickType != LEVELTICK_All)
+		{
+			return;
+		}
+		if (IsEnabled())
+		{
+			int32 NumActors = 0;
+			for (TActorIterator<AActor> It(World); It; ++It) { ++NumActors; }
+			UE_LOG(LogCaptureBench, Display,
+				TEXT("PROBE,postactortick,gfc=%llu,gfn=%u,level=%s,actors=%d"),
+				(unsigned long long)GFrameCounter, GFrameNumber, *World->GetMapName(), NumActors);
+		}
+		LastLoggedTickFrame = GFrameCounter;
+
+		const FString OpenMap = CVarOpenMap.GetValueOnGameThread();
+		if (!OpenMap.IsEmpty() && !bOpenMapIssued)
+		{
+			if (FirstTickWall < 0.0)
+			{
+				FirstTickWall = FPlatformTime::Seconds();
+			}
+			else if (FPlatformTime::Seconds() - FirstTickWall >= (double)CVarOpenMapAfter.GetValueOnGameThread())
+			{
+				bOpenMapIssued = true;
+				UE_LOG(LogCaptureBench, Display, TEXT("PROBE,openmap,issuing 'open %s' (current level=%s)"),
+					*OpenMap, *World->GetMapName());
+				UGameplayStatics::OpenLevel(World, FName(*OpenMap));
+			}
+		}
+	}
+
+	void Register()
+	{
+		if (!TickStartHandle.IsValid())
+		{
+			TickStartHandle = FWorldDelegates::OnWorldTickStart.AddStatic(&OnWorldTickStart);
+		}
+		if (!PostActorTickHandle.IsValid())
+		{
+			PostActorTickHandle = FWorldDelegates::OnWorldPostActorTick.AddStatic(&OnWorldPostActorTick);
+		}
+	}
+
+	void Unregister()
+	{
+		if (TickStartHandle.IsValid())
+		{
+			FWorldDelegates::OnWorldTickStart.Remove(TickStartHandle);
+			TickStartHandle.Reset();
+		}
+		if (PostActorTickHandle.IsValid())
+		{
+			FWorldDelegates::OnWorldPostActorTick.Remove(PostActorTickHandle);
+			PostActorTickHandle.Reset();
+		}
+	}
+
+	void ResetCounters()
+	{
+		Published.Reset();
+		Consumed.Reset();
+		Missed.Reset();
+		Wrapped.Reset();
+		RenderPasses.Reset();
+		FScopeLock Lock(&RingCS);
+		Ring.Reset();
+		PublishSerial = 0;
+	}
+
+	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter)
+	{
+		const int32 Cap = GetRingCapacity();
+		const bool bForceMiss = CVarForceMiss.GetValueOnGameThread() != 0;
+
+		FRingEntry E;
+		E.FamilyFrameNumber = bForceMiss ? (FamilyFrameNumber ^ 0x5A5A5A5Au) : FamilyFrameNumber;
+		E.GameFrameCounter = GameFrameCounter;
+		E.bValid = true;
+
+		FScopeLock Lock(&RingCS);
+		E.Serial = ++PublishSerial;
+		Ring.Add(E);
+		while (Ring.Num() > Cap)
+		{
+			Ring.RemoveAt(0);
+			Wrapped.Increment();
+		}
+		Published.Increment();
+	}
+
+	bool LookupKey(uint32 FamilyFrameNumber, FRingEntry& Out)
+	{
+		{
+			FScopeLock Lock(&RingCS);
+			for (int32 i = Ring.Num() - 1; i >= 0; --i)
+			{
+				if (Ring[i].bValid && Ring[i].FamilyFrameNumber == FamilyFrameNumber)
+				{
+					Out = Ring[i];
+					Consumed.Increment();
+					return true;
+				}
+			}
+		}
+		Missed.Increment();
+		UE_LOG(LogCaptureBench, Warning,
+			TEXT("PROBE,MISS,familyFrame=%u — no key in ring; frame would be DROPPED, never labelled by guess."),
+			FamilyFrameNumber);
+		return false;
+	}
+
+	void NoteRenderPass() { RenderPasses.Increment(); }
+
+	void StallRenderThread()
+	{
+	}
+
+	void LogStallCounters()
+	{
+		UE_LOG(LogCaptureBench, Display,
+			TEXT("PROBE,stallcounters,gameStallFired=%d,renderStallFired=%d,gameMs=%d,renderMs=%d"),
+			GameStallFires.GetValue(), RenderStallFires.GetValue(),
+			CVarStallGameMs.GetValueOnGameThread(), CVarStallRenderMs.GetValueOnGameThread());
+	}
+
+	void LogCounters()
+	{
+		UE_LOG(LogCaptureBench, Display,
+			TEXT("PROBE,counters,published=%d,consumed=%d,missed=%d,wrapped=%d,renderPasses=%d,ringCap=%d"),
+			Published.GetValue(), Consumed.GetValue(), Missed.GetValue(),
+			Wrapped.GetValue(), RenderPasses.GetValue(), GetRingCapacity());
+	}
+}
+
+#endif

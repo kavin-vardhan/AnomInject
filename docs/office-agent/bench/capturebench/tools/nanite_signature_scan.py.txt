@@ -1,0 +1,94 @@
+"""T-1: classify a StaticMesh .uasset's Nanite status from its serialised name table.
+
+EVIDENCE, NOT A MEASUREMENT - the confidence claim travels with the tool.
+
+WHAT IT READS
+-------------
+UE tagged-property serialisation writes a property's NAME into the package name
+table only when the value differs from the class default. On a UStaticMesh:
+
+    FMeshNaniteSettings::bEnabled defaults to FALSE.
+
+So 'NaniteSettings' + 'bEnabled' both present is evidence the struct was written
+with a non-default sub-field and that bEnabled was one of them.
+
+STATED WEAKNESSES (do not drop these when quoting a result)
+-----------------------------------------------------------
+1. 'NaniteSettings' can serialise because a DIFFERENT sub-field is non-default
+   (PositionPrecision, FallbackRelativeError, ...) while bEnabled stays false.
+2. 'bEnabled' is a generic name and could belong to another object in the same
+   package.
+
+Neither weakness survives a DIFFERENTIAL result: if some meshes carry the pair
+and others do not, and the split matches independently measured behaviour, the
+signature is doing real work. That is why this tool always prints the whole set
+and never a single verdict.
+
+Usage: python nanite_signature_scan.py <file-or-dir> [...]
+"""
+
+import os
+import sys
+
+TOKENS = [
+    b"NaniteSettings",
+    b"bEnabled",
+    b"FallbackRelativeError",
+    b"PositionPrecision",
+    b"KeepPercentTriangles",
+    b"TrimRelativeError",
+]
+
+
+def scan(path):
+    with open(path, "rb") as f:
+        raw = f.read()
+    hits = {t.decode(): (raw.find(t) >= 0) for t in TOKENS}
+    nanite = hits["NaniteSettings"] and hits["bEnabled"]
+    return hits, nanite, len(raw)
+
+
+def collect(arg):
+    if os.path.isdir(arg):
+        out = []
+        for root, _dirs, files in os.walk(arg):
+            for n in files:
+                if n.lower().endswith(".uasset"):
+                    out.append(os.path.join(root, n))
+        return sorted(out)
+    return [arg]
+
+
+def main():
+    targets = []
+    for a in sys.argv[1:]:
+        targets.extend(collect(a))
+    if not targets:
+        print("no .uasset inputs")
+        return
+
+    print("%-34s %-9s %-9s %-7s %s" % ("asset", "Nanite?", "NaniteSet", "bEnab", "other non-default nanite sub-fields"))
+    print("-" * 110)
+    for p in targets:
+        try:
+            hits, nanite, size = scan(p)
+        except Exception as e:
+            print("%-34s ERROR %s" % (os.path.basename(p), e))
+            continue
+        others = [k for k in ("FallbackRelativeError", "PositionPrecision",
+                              "KeepPercentTriangles", "TrimRelativeError") if hits[k]]
+        print("%-34s %-9s %-9s %-7s %s" % (
+            os.path.basename(p),
+            "NANITE" if nanite else "plain",
+            "yes" if hits["NaniteSettings"] else "-",
+            "yes" if hits["bEnabled"] else "-",
+            ", ".join(others) if others else "-"))
+
+    print()
+    print("READ THIS WITH THE RESULT: presence of the NaniteSettings+bEnabled pair is")
+    print("EVIDENCE of Nanite-enabled, not a measurement. It is load-bearing only as a")
+    print("DIFFERENTIAL across a set whose measured behaviour is already known.")
+
+
+if __name__ == "__main__":
+    main()

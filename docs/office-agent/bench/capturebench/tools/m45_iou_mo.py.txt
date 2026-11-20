@@ -1,0 +1,29 @@
+import json, os, sys
+from PIL import Image
+def rows(s):
+    out={}
+    for line in open(os.path.join(s,"labels.jsonl"),encoding="utf-8"):
+        line=line.strip()
+        if line: j=json.loads(line); out[j["session_index"]]=j
+    return out
+def mset(p):
+    im=Image.open(p).convert("L"); w,h=im.size; px=im.load(); s=set()
+    for y in range(h):
+        for x in range(w):
+            if px[x,y]!=0: s.add((x,y))
+    im.close(); return s
+hid_s, vis_s, label = sys.argv[1], sys.argv[2], sys.argv[3]
+Rh, Rv = rows(hid_s), rows(vis_s)
+ah=json.load(open(os.path.join(hid_s,"annotation.json"),encoding="utf-8"))
+av=json.load(open(os.path.join(vis_s,"annotation.json"),encoding="utf-8"))
+he=[e for e in ah["anomalies"] if e["anomaly_type"]=="missing_object"][0]
+ve=[e for e in av["anomalies"] if e["affected_objects"]["nodes"][0]["name"]=="StaticMeshActor_73"
+    and e["anomaly_type"]=="corrupted_texture"][0]
+hi=he["affected_frames"]["frame_indices"][0]; vi=ve["affected_frames"]["frame_indices"][0]
+A=mset(os.path.join(hid_s,"target_mask","frame_%05d.png"%hi))
+B=mset(os.path.join(vis_s,"target_mask","frame_%05d.png"%vi))
+dv=(tuple(a-b for a,b in zip(Rh[hi]["view"]["origin"],Rv[vi]["view"]["origin"])),
+    tuple(a-b for a,b in zip(Rh[hi]["view"]["rot"],Rv[vi]["view"]["rot"])))
+print("=== M45-G3 missing_object : %s ==="%label)
+print("  hidden si=%d (%d px) vs visible si=%d (%d px)  IoU=%.4f  cameraDelta=%s"
+      %(hi,len(A),vi,len(B),len(A&B)/float(len(A|B)),dv))

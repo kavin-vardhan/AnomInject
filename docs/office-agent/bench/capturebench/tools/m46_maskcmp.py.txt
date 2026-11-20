@@ -1,0 +1,26 @@
+import os,sys
+from PIL import Image
+a,b=sys.argv[1],sys.argv[2]
+shapeSame=shapeDiff=valSame=valDiff=0
+worst=None
+for f in sorted(os.listdir(os.path.join(a,"target_mask"))):
+    pa=os.path.join(a,"target_mask",f); pb=os.path.join(b,"target_mask",f)
+    if not os.path.isfile(pb): continue
+    ia=Image.open(pa).convert("L"); ib=Image.open(pb).convert("L")
+    A=set(); B=set(); VA={}; VB={}
+    wa,ha=ia.size; pxa=ia.load(); pxb=ib.load()
+    for y in range(ha):
+        for x in range(wa):
+            va=pxa[x,y]; vb=pxb[x,y]
+            if va: A.add((x,y)); VA[va]=VA.get(va,0)+1
+            if vb: B.add((x,y)); VB[vb]=VB.get(vb,0)+1
+    ia.close(); ib.close()
+    if A==B: shapeSame+=1
+    else:
+        shapeDiff+=1
+        if worst is None: worst=(f,len(A),len(B),len(A^B))
+    if VA==VB: valSame+=1
+    else: valDiff+=1
+print("silhouette (non-zero pixel SET) identical=%d differing=%d"%(shapeSame,shapeDiff))
+print("per-tag histogram identical=%d differing=%d"%(valSame,valDiff))
+if worst: print("first shape difference: %s  ctl=%d px  new=%d px  symmetric-diff=%d px"%worst)

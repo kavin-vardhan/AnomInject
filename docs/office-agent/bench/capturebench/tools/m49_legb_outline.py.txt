@@ -1,0 +1,103 @@
+﻿import json, os, sys, re, collections
+from PIL import Image
+import math
+
+THRESH = 8
+
+def jl(p):
+    out = []
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+def lum(path):
+    return Image.open(path).convert("L")
+
+def diffstats(a, b):
+    pa, pb = a.load(), b.load()
+    w, h = a.size
+    tot = 0
+    n_over = 0
+    mx = 0
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            d = abs(pa[x, y] - pb[x, y])
+            tot += d
+            if d >= THRESH: n_over += 1
+            if d > mx: mx = d
+    n = (h + 1) // 2 * ((w + 1) // 2)
+    return tot / float(n), mx, n_over, n
+
+def census_arm_frames(logpath):
+    """engine frame prefix [fff] = GFrameCounter % 1000 on each census ARM line."""
+    arms = []
+    if not os.path.isfile(logpath): return arms
+    with open(logpath, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if "Census: ARM cycle=" in line:
+                m = re.search(r"\]\[\s*(\d+)\]", line)
+                if m: arms.append(int(m.group(1)))
+    return arms
+
+def main(sess):
+    rows = jl(os.path.join(sess, "labels.jsonl"))
+    log = os.path.join(sess, "anomaly_log.txt")
+    arms = set(census_arm_frames(log))
+    print("=== LEG B : HOST-STENCIL-READER ARTIFACT  %s ===" % os.path.basename(sess))
+    print("census ARM lines joined by engine frame prefix (GFrameCounter %% 1000): %d distinct" % len(arms))
+
+    neg = [r for r in rows if not r.get("anomaly_present")]
+    print("captured rows=%d  negative (anomaly_present=false) rows=%d" % (len(rows), len(neg)))
+
+    pairs_arm, pairs_ctl = [], []
+    for a, b in zip(rows, rows[1:]):
+        if a.get("anomaly_present") or b.get("anomaly_present"):
+            continue
+        va, vb = a["view"], b["view"]
+        if va["origin"] != vb["origin"] or va["rot"] != vb["rot"]:
+            continue
+        fa, fb = a["frame_index"] % 1000, b["frame_index"] % 1000
+        span = set()
+        k = fa
+        for _ in range(40):
+            k = (k + 1) % 1000
+            span.add(k)
+            if k == fb: break
+        armed = bool(span & arms)
+        (pairs_arm if armed else pairs_ctl).append((a, b))
+
+    print("pose-identical consecutive NEGATIVE pairs: census-ARM-between=%d  no-ARM=%d"
+          % (len(pairs_arm), len(pairs_ctl)))
+    if not pairs_arm and not pairs_ctl:
+        print("NO USABLE PAIR - say so; do not fabricate one.")
+        return
+
+    def report(name, pairs):
+        if not pairs:
+            print("  %-22s (none)" % name); return None
+        vals = []
+        for a, b in pairs:
+            ia = lum(os.path.join(sess, a["image"].replace("/", os.sep)))
+            ib = lum(os.path.join(sess, b["image"].replace("/", os.sep)))
+            m, mx, no, n = diffstats(ia, ib)
+            vals.append((a["session_index"], b["session_index"], m, mx, no, 100.0 * no / n))
+        mean = sum(v[2] for v in vals) / len(vals)
+        worst = max(vals, key=lambda v: v[2])
+        print("  %-22s n=%-3d mean|d|=%.5f  max-pair mean|d|=%.5f at si %d->%d (max px d=%d, %.4f%% px >= %d)"
+              % (name, len(vals), mean, worst[2], worst[0], worst[1], worst[3], worst[5], THRESH))
+        return vals
+
+    va = report("census-ARM-between", pairs_arm)
+    vc = report("control (no ARM)", pairs_ctl)
+    if va and vc:
+        ma = sum(v[2] for v in va) / len(va)
+        mc = sum(v[2] for v in vc) / len(vc)
+        print("  RATIO arm/control = %.4f  (1.0 = the census tagging moves nothing measurable)"
+              % (ma / mc if mc else float('nan')))
+
+if __name__ == "__main__":
+    main(sys.argv[1])

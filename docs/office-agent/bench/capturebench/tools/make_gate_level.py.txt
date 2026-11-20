@@ -1,0 +1,172 @@
+import sys
+
+import unreal
+
+LEVEL_PATH = "/Game/CaptureBenchGate/CB_GateLevel"
+
+# FROZEN INSTRUMENTS. This script DELETES the asset at LEVEL_PATH before authoring
+# (see the delete-first block below), so running it unmodified against one of these
+# destroys a verified instrument rather than rebuilding it. Every banked gate leg,
+# every A54 calibration and every I10/HF/M23 result cites CB_GateLevel; the level
+# took weeks to converge (black level, exposure pin, cost model - G87-G89) and is
+# not reproducible from this script alone, because the convergence lives in the
+# capture config and the banked baselines, not in the geometry.
+FROZEN_LEVEL_PATHS = {
+    "/Game/CaptureBenchGate/CB_GateLevel",
+}
+OVERRIDE_FLAG = "--allow-overwrite-frozen"
+
+# Set True here, or pass --allow-overwrite-frozen on the command line, to authorise
+# overwriting a frozen level. Default is refuse.
+ALLOW_OVERWRITE_FROZEN = False
+
+if LEVEL_PATH in FROZEN_LEVEL_PATHS and not (
+        ALLOW_OVERWRITE_FROZEN or OVERRIDE_FLAG in sys.argv):
+    raise RuntimeError(
+        "CB_GATE_LEVEL_REFUSED: refusing to author over the FROZEN gate level '%s'.\n"
+        "  This script DELETES the asset at LEVEL_PATH before authoring. Running it here\n"
+        "  would destroy the verified instrument that every banked gate leg, every A54\n"
+        "  calibration and every I10/HF/M23 result is measured against. The level is not\n"
+        "  recoverable from this script alone - its convergence lives in the banked\n"
+        "  baselines, not in the geometry.\n"
+        "  To build a SIBLING level (the normal case): change LEVEL_PATH to a new path.\n"
+        "  It is unaffected by this guard and nothing frozen is touched.\n"
+        "  To deliberately rebuild the frozen level: pass %s, or set\n"
+        "  ALLOW_OVERWRITE_FROZEN = True in this file. Re-bank first - the archive step\n"
+        "  wipes Saved (G92) - and expect every prior gate result to need re-baselining."
+        % (LEVEL_PATH, OVERRIDE_FLAG))
+
+GRID = 12
+SPACING = 200.0
+BASE_Z = 0.0
+NUM_SKELETAL = 4
+NUM_POINT_LIGHTS = 3
+
+les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+
+# Rebuilding from scratch: new_level refuses if the asset exists, so clear it first.
+if unreal.EditorAssetLibrary.does_asset_exist(LEVEL_PATH):
+    unreal.EditorAssetLibrary.delete_asset(LEVEL_PATH)
+
+les.new_level(LEVEL_PATH)
+
+cube = unreal.load_asset("/Engine/BasicShapes/Cube")
+sphere = unreal.load_asset("/Engine/BasicShapes/Sphere")
+cylinder = unreal.load_asset("/Engine/BasicShapes/Cylinder")
+cone = unreal.load_asset("/Engine/BasicShapes/Cone")
+shapes = [cube, sphere, cylinder, cone]
+
+mat = unreal.load_asset("/Engine/BasicShapes/BasicShapeMaterial")
+
+
+def spawn_sm(mesh, loc, scale, name_hint):
+    a = eas.spawn_actor_from_class(unreal.StaticMeshActor, loc, unreal.Rotator(0, 0, 0))
+    a.set_actor_scale3d(scale)
+    comp = a.static_mesh_component
+    comp.set_static_mesh(mesh)
+    if mat:
+        comp.set_material(0, mat)
+    comp.set_mobility(unreal.ComponentMobility.STATIC)
+    a.set_actor_label(name_hint)
+    return a
+
+
+# Deterministic floor. Grid material on purpose: the targets use the plain white
+# BasicShapeMaterial, so a white floor made them white-on-white and unreadable for
+# a pixel oracle. The grid gives the floor its own texture and contrast.
+floor = spawn_sm(cube, unreal.Vector(0, 0, -50), unreal.Vector(40, 40, 1), "CB_Floor")
+grid_mat = unreal.load_asset("/Engine/EngineMaterials/WorldGridMaterial")
+if grid_mat:
+    floor.static_mesh_component.set_material(0, grid_mat)
+
+# Deterministic grid of anomaly targets. No randomness anywhere.
+n = 0
+for iy in range(GRID):
+    for ix in range(GRID):
+        x = (ix - (GRID - 1) / 2.0) * SPACING
+        y = (iy - (GRID - 1) / 2.0) * SPACING
+        mesh = shapes[(ix + iy) % len(shapes)]
+        z = BASE_Z + 60.0 + ((ix * 7 + iy * 13) % 5) * 25.0
+        spawn_sm(mesh, unreal.Vector(x, y, z), unreal.Vector(1.2, 1.2, 1.2),
+                 "CB_Target_%02d" % n)
+        n += 1
+
+# Skeletal targets (skinning cost is real GPU work, not just draw calls)
+skm = unreal.load_asset("/Game/StackOBot/Characters/Bot/Meshes/SKM_Bot")
+if skm:
+    for i in range(NUM_SKELETAL):
+        sk = eas.spawn_actor_from_class(
+            unreal.SkeletalMeshActor,
+            unreal.Vector(-300.0 + i * 200.0, -520, 90),
+            unreal.Rotator(0, 0, 0))
+        sk.skeletal_mesh_component.set_skeletal_mesh(skm)
+        sk.set_actor_label("CB_Target_Skeletal_%02d" % i)
+
+# LIGHTING: fully DYNAMIC (MOVABLE) so the level renders with NO lighting build.
+# A script-authored level is never opened in the editor, so nothing is ever baked;
+# static/stationary lights + unbuilt lighting render BLACK. Movable also gives us
+# real dynamic-shadow GPU cost, which is the load the gate needs.
+sun = eas.spawn_actor_from_class(unreal.DirectionalLight,
+                                 unreal.Vector(0, 0, 900),
+                                 unreal.Rotator(-45, 35, 0))
+sun.set_actor_label("CB_Sun")
+sun.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+sun.light_component.set_editor_property("intensity", 1.8)
+sun.light_component.set_editor_property("cast_shadows", True)
+sun.light_component.set_editor_property("dynamic_shadow_distance_movable_light", 4000.0)
+
+sky = eas.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 900),
+                                 unreal.Rotator(0, 0, 0))
+sky.set_actor_label("CB_SkyLight")
+sky.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+sky.light_component.set_editor_property("intensity", 1.0)
+
+# Sky so the background is not a void (max_lum was literally 0 without this)
+atmo = eas.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0),
+                                  unreal.Rotator(0, 0, 0))
+atmo.set_actor_label("CB_SkyAtmosphere")
+
+# Movable shadow-casting point lights at FIXED positions: GPU cost, still deterministic
+for i in range(NUM_POINT_LIGHTS):
+    ang = (i * 90) * 3.14159265 / 180.0
+    px = 700.0 * unreal.MathLibrary.cos(ang)
+    py = 700.0 * unreal.MathLibrary.sin(ang)
+    pl = eas.spawn_actor_from_class(unreal.PointLight,
+                                    unreal.Vector(px, py, 420),
+                                    unreal.Rotator(0, 0, 0))
+    pl.set_actor_label("CB_PointLight_%02d" % i)
+    pl.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    pl.light_component.set_editor_property("intensity", 2500.0)
+    pl.light_component.set_editor_property("attenuation_radius", 1200.0)
+    pl.light_component.set_editor_property("cast_shadows", True)
+
+# Stationary player start, framing the grid head-on
+ps = eas.spawn_actor_from_class(unreal.PlayerStart,
+                                unreal.Vector(-1500, 0, 260),
+                                unreal.Rotator(0, 0, 0))
+ps.set_actor_label("CB_PlayerStart")
+
+les.save_current_level()
+
+# N3 - post-rebuild assertion. The exit-255 trap presented as SUCCESS while leaving
+# the old umap in place; delete-first fixed that cause but not the shape. Assert the
+# asset exists and that the actor count matches what we just authored, and fail
+# LOUDLY on mismatch so a stale level can never be cooked silently.
+expected = 1 + n + (NUM_SKELETAL if skm else 0) + 2 + 1 + NUM_POINT_LIGHTS + 1
+actual_actors = eas.get_all_level_actors()
+actual = len(actual_actors)
+
+if not unreal.EditorAssetLibrary.does_asset_exist(LEVEL_PATH):
+    raise RuntimeError("CB_GATE_LEVEL_FAILED asset does not exist after save: %s" % LEVEL_PATH)
+
+cb = len([a for a in actual_actors if a.get_actor_label().startswith("CB_")])
+if cb != expected:
+    raise RuntimeError(
+        "CB_GATE_LEVEL_FAILED actor-count mismatch: authored %d CB_ actors, found %d "
+        "(total in level %d). Refusing to report success on a level that is not what "
+        "this script just built." % (expected, cb, actual))
+
+unreal.log("CB_GATE_LEVEL_SAVED %s cb_actors=%d total_actors=%d grid=%d spacing=%.1f "
+           "skeletal=%d pointlights=%d"
+           % (LEVEL_PATH, cb, actual, GRID, SPACING, NUM_SKELETAL, NUM_POINT_LIGHTS))

@@ -1,0 +1,135 @@
+﻿import json, sys, os, collections
+try:
+    from PIL import Image
+except Exception:
+    Image = None
+
+def load_jsonl(p):
+    out=[]
+    with open(p,'r',encoding='utf-8') as f:
+        for line in f:
+            line=line.strip()
+            if line: out.append(json.loads(line))
+    return out
+
+def png_counts(path):
+    im = Image.open(path).convert('L')
+    c = collections.Counter(im.getdata())
+    return c
+
+def run(sess):
+    ann=json.load(open(os.path.join(sess,'annotation.json'),'r',encoding='utf-8'))
+    labs=load_jsonl(os.path.join(sess,'labels.jsonl'))
+    rs=json.load(open(os.path.join(sess,'run_summary.json'),'r',encoding='utf-8'))
+    labs.sort(key=lambda r: r['session_index'])
+    byidx={r['session_index']: r for r in labs}
+
+    print('=== %s ===' % os.path.basename(sess))
+    print('label_schema=%s frames_condition_lost=%s observable_frames=%s observable_min_pixels=%s'
+          % (ann.get('label_schema'), rs.get('frames_condition_lost'),
+             rs.get('observable_frames'), rs.get('observable_min_pixels')))
+    print('LG-3 keys: readers=%s names=%s'
+          % (rs.get('census_host_pp_customdepth_readers'),
+             json.dumps(rs.get('census_host_pp_customdepth_reader_names'))))
+
+    # (a) ONSET-JOIN: per fire, its FIRST fire-active captured frame must carry its own tag
+    first={}
+    order=[]
+    for r in labs:
+        for a in r.get('anomalies',[]):
+            k=(a['id'], a.get('target_name'), a.get('start_frame'))
+            if k not in first:
+                first[k]=(r['session_index'],a); order.append(k)
+    fail_a=0; zeros_other=0
+    for k in order:
+        si,a=first[k]
+        ok = a.get('mask_value') not in (0,None)
+        if not ok: fail_a+=1
+        print('  (a) first-ACTIVE  %-18s %-20s si=%-3d mask_value=%-5s target_pixels=%-8s observable=%-6s mask_state=%-10s %s'
+              % (a['id'], a.get('target_name'), si, a.get('mask_value'), a.get('target_pixels'),
+                 a.get('observable'), byidx[si].get('mask_state'), 'OK' if ok else '<<< ZERO'))
+    for r in labs:
+        for a in r.get('anomalies',[]):
+            k=(a['id'], a.get('target_name'), a.get('start_frame'))
+            if first[k][0]==r['session_index']: continue
+            if a.get('mask_value') in (0,None): zeros_other+=1
+    print('  (a) A1-ONSET-JOIN: first-active frames with mask_value 0 = %d of %d ; other rows with 0 = %d'
+          % (fail_a, len(order), zeros_other))
+
+    # (b) first LABELLED frame of every annotation event
+    fail_b=0; nb=0
+    for i,ev in enumerate(ann.get('anomalies',[])):
+        fi = ev.get('affected_frames',{}).get('frame_indices') or []
+        inj = ev.get('injected_frames',{}).get('frame_indices') or []
+        idxs = inj if inj else fi
+        if not idxs: continue
+        si=min(idxs); nb+=1
+        row=byidx.get(si); ent=None
+        if row:
+            for a in row.get('anomalies',[]):
+                if a['id']==ev.get('anomaly_type') or a.get('target_name')==ev.get('object_name'):
+                    ent=a; break
+            if ent is None and row.get('anomalies'): ent=row['anomalies'][0]
+        mv = ent.get('mask_value') if ent else None
+        tp = ent.get('target_pixels') if ent else None
+        ok = (mv not in (0,None)) and (tp is not None and tp>=0)
+        if not ok: fail_b+=1
+        print('  (b) first-LABELLED %-18s si=%-3d mask_value=%-5s target_pixels=%-8s observable=%-6s %s'
+              % (ev.get('anomaly_type'), si, mv, tp, ent.get('observable') if ent else None,
+                 'OK' if ok else '<<< FAIL'))
+    print('  (b) LG-1/A1-ONSET-JOIN(labelled): failing = %d of %d' % (fail_b, nb))
+
+    # (c) TARGET-PIXELS TIE: every measured row's target_pixels == PNG count of its mask_value
+    tie_ok=0; tie_bad=0; tie_skip=0
+    if Image is not None:
+        for r in labs:
+            mf=r.get('mask_file')
+            for a in r.get('anomalies',[]):
+                tp=a.get('target_pixels'); mv=a.get('mask_value')
+                if tp is None or tp<0 or not mv:
+                    tie_skip+=1; continue
+                if not mf:
+                    if tp == 0 and r.get('mask_state') == 'empty':
+                        tie_ok+=1
+                        continue
+                    tie_bad+=1
+                    print('  (c) TIE MISMATCH si=%s target_pixels=%s mask_file null mask_state=%s'
+                          % (r['session_index'],tp,r.get('mask_state')))
+                    continue
+                p=os.path.join(sess,mf.replace('/',os.sep))
+                c=png_counts(p)
+                if c.get(mv,0)==tp: tie_ok+=1
+                else:
+                    tie_bad+=1
+                    print('  (c) TIE MISMATCH si=%s tag=%s label=%s png=%s' % (r['session_index'],mv,tp,c.get(mv,0)))
+    print('  (c) TARGET-PIXELS TIE: MATCH %d  MISMATCH %d  (skipped unmeasured %d)' % (tie_ok,tie_bad,tie_skip))
+
+    # OBS-1
+    bad=0
+    print('  OBS-1:')
+    for i,ev in enumerate(ann.get('anomalies',[])):
+        afi=ev.get('affected_frames',{}).get('frame_indices') or []
+        inji=ev.get('injected_frames',{}).get('frame_indices') or []
+        d=sorted(set(inji)^set(afi))
+        if d: bad+=1
+        print('    idx=%d %-18s obs=%-3s unmeas=%-3s meas=%-5s aff=%-30s inj=%-30s %s'
+              % (i,ev.get('anomaly_type'),ev.get('observable_frame_count'),
+                 ev.get('unmeasured_frame_count'),ev.get('observability_measured'),
+                 str(afi),str(inji),'OK' if not d else 'DELTA %s'%d))
+    print('  OBS-1 RESULT: %d event(s) with delta != 0 (pass = 0)' % bad)
+
+    c=collections.Counter(); tpmin=None
+    for r in labs:
+        for a in r.get('anomalies',[]):
+            c[str(a.get('observable'))]+=1
+            tp=a.get('target_pixels')
+            if isinstance(tp,int) and tp>=0: tpmin=tp if tpmin is None else min(tpmin,tp)
+    print('  observable census: %s ; min measured target_pixels=%s' % (dict(c),tpmin))
+    return fail_a, fail_b, tie_bad, bad
+
+tot=[0,0,0,0]
+for s in sys.argv[1:]:
+    r=run(s)
+    tot=[a+b for a,b in zip(tot,r)]
+print('\nTOTAL across %d session(s): onset-active-zeros=%d  labelled-fail=%d  tie-mismatch=%d  obs1-delta=%d'
+      % (len(sys.argv)-1, tot[0],tot[1],tot[2],tot[3]))

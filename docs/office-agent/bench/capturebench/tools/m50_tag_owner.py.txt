@@ -1,0 +1,644 @@
+#!/usr/bin/env python3
+"""m50 step 0 - the stencil-ownership diagnosis, and m50's SINGLE-OWNER gate.
+
+Two readings, deliberately kept apart, because one is a proxy and the other is the verdict.
+
+  COMPONENTS (a PROXY)
+      For every delivered target_mask/frame_NNNNN.png, for every non-zero stencil value
+      present, count 4-connected components. More than one component means that value
+      carries more than one blob on that frame. A legitimately disjoint silhouette reads
+      exactly the same way, so this NEVER decides anything on its own - it only finds the
+      frames worth joining. This reproduces journal 074 SS4's "22 of 448 (4.9 %)".
+
+  OWNERSHIP (the VERDICT)
+      Rebuild, per stencil value, WHO held it and WHEN, from the run log's own lines, and
+      assert exactly one owner per value per frame. On a binary carrying m50 step 0's
+      instrument the census prints its ARM tag SET, its RELEASE tag set and the ledger's
+      EventClaimed at the same tick, so the join is exact. On an older binary the census
+      only prints first..last of the arm, which is a summary and not an enumeration
+      (G249) - this tool REFUSES to classify such a log rather than guessing, and says so.
+
+Usage
+  m50_tag_owner.py --components <legdir> [<legdir> ...]
+  m50_tag_owner.py --classify   <legdir> [<legdir> ...]
+  m50_tag_owner.py --gate       <legdir> [<legdir> ...]     (single-owner gate; exit 1 on violation)
+  m50_tag_owner.py --selftest
+
+A <legdir> is either a bank leg directory (containing session_*/) or a session directory.
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+
+import numpy as np
+from PIL import Image
+from scipy import ndimage
+
+RE_PREFIX = re.compile(r"^\[[^\]]*\]\[\s*(\d+)\]")
+
+RE_CENSUS_ARM_RANGE = re.compile(
+    r"Census: ARM cycle=(\d+) batch id=(\d+) size=(\d+) tags=(\d+)\.\.(\d+)")
+RE_CENSUS_ARM_SET = re.compile(
+    r"Census: ARM-SET id=(\d+) tick=(\d+) tags=\[([^\]]*)\] eventClaimed=\[([^\]]*)\] censusClaimed=\[([^\]]*)\]")
+RE_CENSUS_ARM_MAP = re.compile(r"Census: ARM-MAP id=(\d+) \[([^\]]*)\]")
+RE_CENSUS_RELEASE = re.compile(
+    r"Census: RELEASE id=(\d+) tick=(\d+) tags=\[([^\]]*)\] restored=(\d+) overtaken=(\d+)")
+RE_EVENT_ARM = re.compile(
+    r"M23 ARM id=(\d+) target=(\S+) tag=(\d+) taggedComponents=(\d+)")
+RE_EVENT_ALLOC = re.compile(
+    r"M36 event tag allocator tick=(\d+) assigned=(\d+) skipped=(\d+)")
+RE_EVENT_ALLOC_OLD = re.compile(
+    r"M36 event tag allocator skipped (\d+) reserved/claimed value\(s\) and assigned (\d+)\.")
+RE_OVERTAKEN = re.compile(r"Census: TAG-OVERTAKEN '([^']+)' tag=(\d+)")
+RE_EXHAUSTED = re.compile(r"M36 TAG-POOL EXHAUSTED")
+RE_EXHAUSTED_REASSIGN = re.compile(
+    r"M36 TAG-POOL EXHAUSTED tick=(\d+).*Re-assigning (\d+)")
+RE_EXHAUSTED_REASSIGN_OLD = re.compile(
+    r"M36 TAG-POOL EXHAUSTED - .*Re-assigning (\d+)")
+RE_FORCED = re.compile(
+    r"FORCED-COLLISION at si=(\d+) tick=(\d+) value=(\d+) actor='([^']+)'")
+RE_TAG_OWNERS = re.compile(
+    r"TAG-OWNERS si=(-?\d+) tick=(\d+) values=(\d+) shared=(\d+) \[([^\]]*)\]")
+RE_TAG_OWNER_VIOL = re.compile(r"TAG-OWNER VIOLATION si=(-?\d+) tick=(\d+) - (.*)$")
+RE_TAG_OWNER_TOTAL = re.compile(r"TAG-OWNER VIOLATIONS = (\d+)")
+
+
+def parse_int_list(s):
+    s = s.strip()
+    if not s:
+        return []
+    return [int(x) for x in s.replace(" ", "").split(",") if x != ""]
+
+
+def resolve_session(path):
+    if os.path.isdir(os.path.join(path, "target_mask")):
+        return path
+    subs = sorted(d for d in os.listdir(path) if d.startswith("session_"))
+    if not subs:
+        return None
+    return os.path.join(path, subs[-1])
+
+
+def load_labels(session):
+    p = os.path.join(session, "labels.jsonl")
+    rows = []
+    if not os.path.isfile(p):
+        return rows
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    pass
+    return rows
+
+
+def si_to_frame_index(session):
+    out = {}
+    for r in load_labels(session):
+        si = r.get("session_index")
+        fi = r.get("frame_index")
+        if si is not None and fi is not None:
+            out[int(si)] = int(fi)
+    return out
+
+
+def components_for_session(session):
+    """[(si, value, ncomp, [sizes desc])] for every non-zero value in every mask PNG."""
+    mdir = os.path.join(session, "target_mask")
+    out = []
+    if not os.path.isdir(mdir):
+        return out
+    for name in sorted(os.listdir(mdir)):
+        m = re.match(r"frame_(\d+)\.png$", name)
+        if not m:
+            continue
+        si = int(m.group(1))
+        arr = np.array(Image.open(os.path.join(mdir, name)))
+        if arr.ndim == 3:
+            arr = arr[:, :, 0]
+        for v in sorted(int(x) for x in np.unique(arr) if x != 0):
+            mask = (arr == v)
+            lab, n = ndimage.label(mask)
+            sizes = sorted(
+                (int(s) for s in ndimage.sum(mask, lab, range(1, n + 1))), reverse=True)
+            out.append((si, v, n, sizes))
+    return out
+
+
+def parse_log(session):
+    """Ownership events from the run log. Returns a dict, and whether the log is classifiable."""
+    p = os.path.join(session, "anomaly_log.txt")
+    ev = {
+        "census_arm_set": [],     # (tick, batch_id, tags[], eventClaimed[], censusClaimed[])
+        "census_arm_range": [],   # (tick, batch_id, lo, hi, size)
+        "census_arm_map": {},     # batch_id -> {tag: actor}
+        "census_release": [],     # (tick, batch_id, tags[], restored, overtaken)
+        "event_arm": [],          # (tick, req_id, target, tag)
+        "event_alloc": [],        # (tick_or_None, tag, skipped)
+        "overtaken": [],          # (tick, actor, tag)
+        "exhausted": 0,
+        "exhausted_reassign": [],  # (tick, value)
+        "forced": [],             # (si, tick, value, actor)
+        "tag_owners": {},         # si -> {tick, shared, owners{value: [actors]}}
+        "owner_violations": [],   # (si, tick, detail)
+        "owner_violation_total": None,
+        "has_owner_instrument": False,
+        "has_set_instrument": False,
+        "path": p,
+    }
+    if not os.path.isfile(p):
+        return ev
+    with open(p, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            pm = RE_PREFIX.match(line)
+            tick = int(pm.group(1)) if pm else None
+
+            m = RE_CENSUS_ARM_SET.search(line)
+            if m:
+                ev["has_set_instrument"] = True
+                ev["census_arm_set"].append((int(m.group(2)), int(m.group(1)),
+                                             parse_int_list(m.group(3)),
+                                             parse_int_list(m.group(4)),
+                                             parse_int_list(m.group(5))))
+                continue
+            m = RE_CENSUS_ARM_MAP.search(line)
+            if m:
+                mp = {}
+                for pair in m.group(2).split(","):
+                    pair = pair.strip()
+                    if "=" in pair:
+                        k, val = pair.split("=", 1)
+                        try:
+                            mp[int(k)] = val
+                        except ValueError:
+                            pass
+                ev["census_arm_map"][int(m.group(1))] = mp
+                continue
+            m = RE_CENSUS_RELEASE.search(line)
+            if m:
+                ev["census_release"].append((int(m.group(2)), int(m.group(1)),
+                                             parse_int_list(m.group(3)),
+                                             int(m.group(4)), int(m.group(5))))
+                continue
+            m = RE_CENSUS_ARM_RANGE.search(line)
+            if m:
+                ev["census_arm_range"].append((tick, int(m.group(2)), int(m.group(4)),
+                                               int(m.group(5)), int(m.group(3))))
+                continue
+            m = RE_EVENT_ARM.search(line)
+            if m:
+                ev["event_arm"].append((tick, int(m.group(1)), m.group(2), int(m.group(3))))
+                continue
+            m = RE_EVENT_ALLOC.search(line)
+            if m:
+                ev["event_alloc"].append((int(m.group(1)), int(m.group(2)), int(m.group(3))))
+                continue
+            m = RE_EVENT_ALLOC_OLD.search(line)
+            if m:
+                ev["event_alloc"].append((tick, int(m.group(2)), int(m.group(1))))
+                continue
+            m = RE_OVERTAKEN.search(line)
+            if m:
+                ev["overtaken"].append((tick, m.group(1), int(m.group(2))))
+                continue
+            m = RE_FORCED.search(line)
+            if m:
+                ev["forced"].append((int(m.group(1)), int(m.group(2)),
+                                     int(m.group(3)), m.group(4)))
+                continue
+            m = RE_TAG_OWNERS.search(line)
+            if m:
+                owners = {}
+                for pair in m.group(5).split(","):
+                    pair = pair.strip()
+                    if "=" in pair:
+                        k, val = pair.split("=", 1)
+                        try:
+                            owners[int(k)] = [x for x in val.split("|") if x]
+                        except ValueError:
+                            pass
+                ev["tag_owners"][int(m.group(1))] = {
+                    "tick": int(m.group(2)), "shared": int(m.group(4)), "owners": owners}
+                ev["has_owner_instrument"] = True
+                continue
+            m = RE_TAG_OWNER_VIOL.search(line)
+            if m:
+                ev["owner_violations"].append((int(m.group(1)), int(m.group(2)), m.group(3).strip()))
+                continue
+            m = RE_TAG_OWNER_TOTAL.search(line)
+            if m:
+                ev["owner_violation_total"] = int(m.group(1))
+                continue
+            if RE_EXHAUSTED.search(line):
+                ev["exhausted"] += 1
+                m = RE_EXHAUSTED_REASSIGN.search(line)
+                if m:
+                    ev["event_alloc"].append((int(m.group(1)), int(m.group(2)), -1))
+                    ev["exhausted_reassign"].append((int(m.group(1)), int(m.group(2))))
+                else:
+                    m = RE_EXHAUSTED_REASSIGN_OLD.search(line)
+                    if m:
+                        ev["event_alloc"].append((tick, int(m.group(1)), -1))
+                        ev["exhausted_reassign"].append((tick, int(m.group(1))))
+    return ev
+
+
+def census_intervals(ev):
+    """value -> [(arm_tick, rel_tick_or_None, batch_id, actor_or_None)] from the SET instrument."""
+    out = {}
+    open_by_batch = {}
+    for tick, bid, tags, _ec, _cc in ev["census_arm_set"]:
+        mp = ev["census_arm_map"].get(bid, {})
+        for t in tags:
+            rec = [tick, None, bid, mp.get(t)]
+            out.setdefault(t, []).append(rec)
+            open_by_batch.setdefault(bid, {})[t] = rec
+    for tick, bid, tags, _r, _o in ev["census_release"]:
+        for t in tags:
+            rec = open_by_batch.get(bid, {}).get(t)
+            if rec is not None and rec[1] is None:
+                rec[1] = tick
+    return out
+
+
+def event_intervals(ev):
+    """value -> [(alloc_tick, last_arm_tick, target)] - EventClaimed is never released mid-run."""
+    out = {}
+    first_target = {}
+    last_tick = {}
+    for tick, _rid, target, tag in ev["event_arm"]:
+        first_target.setdefault(tag, target)
+        if tick is not None:
+            last_tick[tag] = tick
+    for tick, tag, _sk in ev["event_alloc"]:
+        out.setdefault(tag, []).append([tick, last_tick.get(tag), first_target.get(tag)])
+    for tag, target in first_target.items():
+        if tag not in out:
+            out[tag] = [[None, last_tick.get(tag), target]]
+    return out
+
+
+LOST_AFTER_TICKS = 8
+
+
+def classify_session(session, verbose=True):
+    ev = parse_log(session)
+    comps = components_for_session(session)
+    si2fi = si_to_frame_index(session)
+    multi = [c for c in comps if c[2] > 1]
+
+    res = {
+        "session": session,
+        "tag_instances": len(comps),
+        "multi": len(multi),
+        "rows": [],
+        "owner_rows": [],
+        "classifiable": ev["has_set_instrument"],
+        "has_owner_instrument": ev["has_owner_instrument"],
+        "owner_violations": ev["owner_violations"],
+        "owner_violation_total": ev["owner_violation_total"],
+        "owner_frames": len(ev["tag_owners"]),
+        "exhausted": ev["exhausted"],
+        "overtaken": len(ev["overtaken"]),
+        "forced": ev["forced"],
+    }
+
+    for si, tick, detail in ev["owner_violations"]:
+        res["owner_rows"].append({"si": si, "tick": tick, "detail": detail})
+
+    cens = census_intervals(ev) if ev["has_set_instrument"] else {}
+    evts = event_intervals(ev)
+    overtaken_tags = set(t for _tk, _a, t in ev["overtaken"])
+    forced_by_si = {}
+    for si, tick, value, actor in ev["forced"]:
+        forced_by_si.setdefault((si, value), []).append(actor)
+
+    for si, v, n, sizes in multi:
+        fi = si2fi.get(si)
+        row = {"si": si, "frame_index": fi, "value": v, "ncomp": n, "sizes": sizes,
+               "branch": "UNCLASSIFIED", "detail": ""}
+
+        if (si, v) in forced_by_si:
+            row["branch"] = "FORCED"
+            row["detail"] = "the IAI.Bench.ForceStencilCollision lever fired here: " + \
+                ", ".join(forced_by_si[(si, v)])
+            res["rows"].append(row)
+            continue
+
+        if not ev["has_set_instrument"]:
+            hits = [t for t, val in ev["exhausted_reassign"] if val == v and t <= (fi or -1)]
+            if hits:
+                row["branch"] = "D1"
+                row["detail"] = ("TAG-POOL EXHAUSTED re-issued value %d at tick(s) %s, before this "
+                                 "frame. That line NAMES the value it re-issued, so it is an "
+                                 "enumeration and not a summary - G249 does not apply to it, and "
+                                 "the join stands without the ARM-SET instrument" %
+                                 (v, ",".join(str(t) for t in hits)))
+            else:
+                row["branch"] = "NOT-CLASSIFIABLE"
+                row["detail"] = ("this run log prints the census ARM as a RANGE, not a set (G249), "
+                                 "and no TAG-POOL EXHAUSTED line names this value; no ownership "
+                                 "verdict is available from it")
+            res["rows"].append(row)
+            continue
+
+        owners = []
+        for arm, rel, bid, actor in cens.get(v, []):
+            if fi is None:
+                continue
+            if arm <= fi and (rel is None or fi < rel):
+                owners.append(("census", arm, rel, actor, bid))
+        ev_owner = None
+        for alloc, last_arm, target in evts.get(v, []):
+            if fi is None or alloc is None:
+                continue
+            if alloc <= fi:
+                ev_owner = ("event", alloc, None, target, None)
+        if ev_owner:
+            owners.append(ev_owner)
+
+        exhausted_v = [t for t, val in ev["exhausted_reassign"] if val == v and t <= (fi or -1)]
+
+        if len(owners) >= 2:
+            row["branch"] = "D1"
+            row["detail"] = "SIMULTANEOUS owners at frame %s: %s%s" % (
+                fi, "; ".join("%s(%s) arm=%s rel=%s" % (o[0], o[3], o[1], o[2]) for o in owners),
+                (" | TAG-POOL EXHAUSTED re-issued this value at tick(s) %s"
+                 % ",".join(str(t) for t in exhausted_v)) if exhausted_v else "")
+        else:
+            recent_rel = []
+            for arm, rel, bid, actor in cens.get(v, []):
+                if rel is not None and fi is not None and 0 <= fi - rel <= LOST_AFTER_TICKS:
+                    recent_rel.append((rel, actor))
+            if exhausted_v:
+                row["branch"] = "D1"
+                row["detail"] = ("TAG-POOL EXHAUSTED re-issued this value at tick(s) %s - the event "
+                                 "allocator took a value it had just proven was NOT free"
+                                 % ",".join(str(t) for t in exhausted_v))
+            elif recent_rel:
+                row["branch"] = "D2"
+                row["detail"] = "value released at tick(s) %s, within %d ticks of frame %s (%s)" % (
+                    ",".join(str(r) for r, _ in recent_rel), LOST_AFTER_TICKS, fi,
+                    ",".join(str(a) for _, a in recent_rel))
+            elif v in overtaken_tags:
+                row["branch"] = "D4"
+                row["detail"] = "value appears in a TAG-OVERTAKEN line; no restore was performed for it"
+            elif len(owners) == 1:
+                row["branch"] = "SINGLE-OWNER"
+                row["detail"] = ("exactly one owner (%s '%s') - the extra component is that owner's "
+                                 "own disjoint silhouette, not a collision" % (owners[0][0], owners[0][3]))
+            else:
+                row["branch"] = "NO-OWNER"
+                row["detail"] = "no owner found for value %d at frame %s" % (v, fi)
+        res["rows"].append(row)
+
+    if verbose:
+        print("== %s" % session)
+        print("   OWNERSHIP (the verdict): instrument=%s frames=%d violations=%d runSummaryTotal=%s"
+              % (res["has_owner_instrument"], res["owner_frames"],
+                 len(res["owner_violations"]), res["owner_violation_total"]))
+        for r in res["owner_rows"]:
+            print("      si=%-3d tick=%-6d %s" % (r["si"], r["tick"], r["detail"]))
+        print("   COMPONENTS (a proxy): tag-instances=%d  multi-component=%d  exhausted=%d  "
+              "tagOvertaken=%d  arm-set-instrument=%s"
+              % (res["tag_instances"], res["multi"], res["exhausted"], res["overtaken"],
+                 res["classifiable"]))
+        for r in res["rows"]:
+            print("      si=%-3d fi=%-6s value=%-3d ncomp=%d sizes=%s  %s :: %s"
+                  % (r["si"], r["frame_index"], r["value"], r["ncomp"],
+                     r["sizes"][:4], r["branch"], r["detail"]))
+    return res
+
+
+def gate_session(session):
+    """The SINGLE-OWNER gate.
+
+    THE VERDICT is the product's own per-frame TAG-OWNERS map: one stencil value, one
+    actor, on every captured frame. It is read from FAnomalyStencilTagLedger's tag map
+    rather than from allocator bookkeeping, so it sees a collision HOWEVER it was
+    produced - including one manufactured by a lever that bypasses the allocator, which
+    is exactly what an ownership-log join could NOT see.
+
+    A run log with no TAG-OWNERS line cannot be gated and says so; it is not a pass.
+    The connected-component reading is reported beside the verdict as the proxy it is.
+    """
+    res = classify_session(session, verbose=False)
+    if not res["has_owner_instrument"]:
+        return res, [{"si": -1, "tick": -1,
+                      "detail": "NO TAG-OWNERS INSTRUMENT in this run log - the gate CANNOT RUN "
+                                "on this session and this is not a pass"}]
+    viol = list(res["owner_rows"])
+    if res["owner_violation_total"] is not None and \
+            res["owner_violation_total"] != len(res["owner_rows"]):
+        viol.append({"si": -1, "tick": -1,
+                     "detail": "run-end total (%d) disagrees with the per-frame violation lines (%d)"
+                               % (res["owner_violation_total"], len(res["owner_rows"]))})
+    return res, viol
+
+
+def selftest():
+    """Prove both directions on synthetic masks before any verdict is read (A53/G96)."""
+    import tempfile
+    ok = True
+    with tempfile.TemporaryDirectory() as td:
+        s = os.path.join(td, "session_selftest")
+        os.makedirs(os.path.join(s, "target_mask"))
+        a = np.zeros((40, 60), dtype=np.uint8)
+        a[5:15, 5:15] = 223
+        Image.fromarray(a).save(os.path.join(s, "target_mask", "frame_00000.png"))
+        b = np.zeros((40, 60), dtype=np.uint8)
+        b[5:15, 5:15] = 223
+        b[25:35, 40:50] = 223
+        Image.fromarray(b).save(os.path.join(s, "target_mask", "frame_00001.png"))
+        c = np.zeros((40, 60), dtype=np.uint8)
+        c[5:15, 5:15] = 223
+        c[25:35, 40:50] = 201
+        Image.fromarray(c).save(os.path.join(s, "target_mask", "frame_00002.png"))
+        comps = components_for_session(s)
+        got = {(si, v): n for si, v, n, _ in comps}
+        exp = {(0, 223): 1, (1, 223): 2, (2, 223): 1, (2, 201): 1}
+        if got != exp:
+            ok = False
+            print("FAIL components: got %s expected %s" % (got, exp))
+        else:
+            print("PASS components: one blob -> 1, two blobs of the SAME value -> 2, "
+                  "two blobs of DIFFERENT values -> 1 each")
+        sizes = [z for si, v, n, z in comps if si == 1][0]
+        if sizes != [100, 100]:
+            ok = False
+            print("FAIL sizes: got %s" % sizes)
+        else:
+            print("PASS sizes: %s" % sizes)
+
+        log = os.path.join(s, "anomaly_log.txt")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("[t][  1]LogAnomalyCapture: Census: ARM-SET id=7 tick=1 tags=[200,201,223] "
+                    "eventClaimed=[] censusClaimed=[200,201,223]\n")
+            f.write("[t][  1]LogAnomalyCapture: Census: ARM-MAP id=7 [200=A, 201=B, 223=C]\n")
+            f.write("[t][  2]LogAnomalyCapture: Census: RELEASE id=7 tick=2 tags=[200,201,223] "
+                    "restored=3 overtaken=0 requeued=0\n")
+            f.write("[t][  3]LogAnomalyCapture: Capture(mask): M36 event tag allocator tick=3 "
+                    "assigned=223 skipped=0\n")
+            f.write("[t][  3]LogAnomalyCapture: Capture(mask): M23 ARM id=3 target=T1 tag=223 "
+                    "taggedComponents=1 rCustomDepth_gameThread=3 armIndex=1\n")
+        with open(os.path.join(s, "labels.jsonl"), "w", encoding="utf-8") as f:
+            for si, fi in ((0, 0), (1, 3), (2, 9)):
+                f.write(json.dumps({"session_index": si, "frame_index": fi}) + "\n")
+        res = classify_session(s, verbose=False)
+        rows = {r["si"]: r["branch"] for r in res["rows"]}
+        if rows.get(1) != "D2":
+            ok = False
+            print("FAIL classify: si=1 read %s, expected D2 (released tick 2, frame 3, "
+                  "inside the %d-tick window)" % (rows.get(1), LOST_AFTER_TICKS))
+        else:
+            print("PASS classify: a value re-issued 1 tick after release reads D2")
+
+        with open(log, "a", encoding="utf-8") as f:
+            pass
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("[t][  1]LogAnomalyCapture: Census: ARM-SET id=7 tick=1 tags=[200,201,223] "
+                    "eventClaimed=[223] censusClaimed=[200,201,223]\n")
+            f.write("[t][  1]LogAnomalyCapture: Census: ARM-MAP id=7 [200=A, 201=B, 223=C]\n")
+            f.write("[t][  0]LogAnomalyCapture: Capture(mask): M36 event tag allocator tick=0 "
+                    "assigned=223 skipped=0\n")
+            f.write("[t][  0]LogAnomalyCapture: Capture(mask): M23 ARM id=0 target=T1 tag=223 "
+                    "taggedComponents=1 rCustomDepth_gameThread=3 armIndex=1\n")
+        res = classify_session(s, verbose=False)
+        rows = {r["si"]: r["branch"] for r in res["rows"]}
+        if rows.get(1) != "D1":
+            ok = False
+            print("FAIL classify: si=1 read %s, expected D1 (census and event hold 223 "
+                  "at the same tick)" % rows.get(1))
+        else:
+            print("PASS classify: simultaneous census+event ownership reads D1")
+
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("[t][  1]LogAnomalyCapture: Census: ARM cycle=1 batch id=7 size=3 "
+                    "tags=200..223 pendingBefore=0 flagFlips=3 queueLeft=0\n")
+        res = classify_session(s, verbose=False)
+        rows = {r["si"]: r["branch"] for r in res["rows"]}
+        if rows.get(1) != "NOT-CLASSIFIABLE":
+            ok = False
+            print("FAIL classify: a range-only log read %s, expected NOT-CLASSIFIABLE"
+                  % rows.get(1))
+        else:
+            print("PASS classify: a range-only (pre-m50) log REFUSES to classify (G249)")
+
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("[t][  0]LogAnomalyCapture: Capture(mask): TAG-OWNERS si=0 tick=0 values=2 "
+                    "shared=0 [200=A, 223=T1]\n")
+            f.write("[t][  3]LogAnomalyCapture: Capture(mask): TAG-OWNERS si=1 tick=3 values=2 "
+                    "shared=0 [200=A, 223=T1]\n")
+            f.write("[t][  9]LogAnomalyCapture: Capture(mask): TAG-OWNERS si=2 tick=9 values=2 "
+                    "shared=0 [200=A, 223=T1]\n")
+            f.write("[t][  9]LogAnomalyCapture: Capture(m50): TAG-OWNER VIOLATIONS = 0\n")
+        _res, viol = gate_session(s)
+        if viol:
+            ok = False
+            print("FAIL gate: a clean ownership log read %d violation(s)" % len(viol))
+        else:
+            print("PASS gate: a clean ownership log reads 0 violations, even though si=1 "
+                  "has two components of one value (the proxy alone would have failed it)")
+
+        with open(log, "a", encoding="utf-8") as f:
+            f.write("[t][  3]LogAnomalyCapture: Warning: Capture(mask): TAG-OWNER VIOLATION si=1 "
+                    "tick=3 - 223 carried by T1 AND Intruder.\n")
+        _res, viol = gate_session(s)
+        if len(viol) != 2:
+            ok = False
+            print("FAIL gate: expected 2 (the violation + the run-end total disagreeing), got %d"
+                  % len(viol))
+        else:
+            print("PASS gate: a forced collision is REPORTED, and the run-end total disagreeing "
+                  "with the per-frame lines is itself flagged")
+
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("[t][  1]LogAnomalyCapture: Census: ARM cycle=1 batch id=7 size=3 "
+                    "tags=200..223 pendingBefore=0 flagFlips=3 queueLeft=0\n")
+        _res, viol = gate_session(s)
+        if len(viol) != 1 or "CANNOT RUN" not in viol[0]["detail"]:
+            ok = False
+            print("FAIL gate: a log with no TAG-OWNERS line should REFUSE, got %s" % viol)
+        else:
+            print("PASS gate: a log with no TAG-OWNERS instrument REFUSES rather than passing")
+
+    print("SELFTEST %s" % ("PASS" if ok else "FAIL"))
+    return 0 if ok else 1
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--components", nargs="*", default=None)
+    ap.add_argument("--classify", nargs="*", default=None)
+    ap.add_argument("--gate", nargs="*", default=None)
+    ap.add_argument("--selftest", action="store_true")
+    a = ap.parse_args()
+
+    if a.selftest:
+        return selftest()
+
+    if a.components is not None:
+        total = 0
+        multi_total = 0
+        for leg in a.components:
+            s = resolve_session(leg)
+            if not s:
+                print("%-16s NO SESSION" % os.path.basename(leg))
+                continue
+            comps = components_for_session(s)
+            multi = [c for c in comps if c[2] > 1]
+            total += len(comps)
+            multi_total += len(multi)
+            print("%-16s tag-instances=%-4d multi=%-3d %s" % (
+                os.path.basename(leg), len(comps), len(multi),
+                "; ".join("si=%d v=%d n=%d %s" % (si, v, n, z[:3]) for si, v, n, z in multi)))
+        pct = (100.0 * multi_total / total) if total else 0.0
+        print("TOTAL tag-instances=%d multi-component=%d (%.1f %%)" % (total, multi_total, pct))
+        return 0
+
+    if a.classify is not None:
+        for leg in a.classify:
+            s = resolve_session(leg)
+            if not s:
+                print("%-16s NO SESSION" % os.path.basename(leg))
+                continue
+            classify_session(s)
+        return 0
+
+    if a.gate is not None:
+        bad = 0
+        frames = 0
+        multi = 0
+        exhausted = 0
+        for leg in a.gate:
+            s = resolve_session(leg)
+            if not s:
+                print("%-20s NO SESSION -> GATE CANNOT RUN" % os.path.basename(leg))
+                bad += 1
+                continue
+            res, viol = gate_session(s)
+            frames += res["owner_frames"]
+            multi += res["multi"]
+            exhausted += res["exhausted"]
+            bad += len(viol)
+            print("%-20s ownerFrames=%-4d violations=%-3d exhausted=%-2d multiComp(proxy)=%-3d %s" % (
+                os.path.basename(leg), res["owner_frames"], len(viol), res["exhausted"],
+                res["multi"], "; ".join("si=%s %s" % (r["si"], r["detail"][:90]) for r in viol)))
+        print("SINGLE-OWNER GATE: %d violation(s) over %d owner-checked frame(s) -> %s"
+              % (bad, frames, "FAIL" if bad else "PASS"))
+        print("  beside it, REPORTED not gated: TAG-POOL EXHAUSTED=%d, multi-component tag-instances=%d"
+              % (exhausted, multi))
+        return 1 if bad else 0
+
+    ap.print_help()
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

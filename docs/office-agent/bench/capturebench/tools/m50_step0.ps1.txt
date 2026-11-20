@@ -1,0 +1,30 @@
+param([string]$Only = "")
+
+$ErrorActionPreference = "Continue"
+$tools = "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools"
+$AAOFF = "r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0, r.ReflectionMethod 0"
+$GECFG = "IAI.Capture.Config 2 4 8 14 0"
+
+# m50 STEP 0 - the diagnosis legs, on the instrumented binary. No fix exists yet.
+#
+# Two NATURAL legs reproduce the exact A1G_* recipe that showed the defect, and two LEVER
+# legs force the mechanism the banked-data join already named, so the instrumented
+# classification does not depend on the census happening to exhaust the pool by chance.
+$legs = @(
+  @{ L="S0_BL_NAT";   A="blinking";        X="$AAOFF, $GECFG" }
+  @{ L="S0_MO_NAT";   A="missing_object";  X="$AAOFF, $GECFG" }
+  @{ L="S0_POOL8_BL"; A="blinking";        X="$AAOFF, IAI.Bench.TagPoolLimit 8, $GECFG" }
+  @{ L="S0_FORCE_BL"; A="blinking";        X="$AAOFF, IAI.Bench.ForceTagCollision 26, $GECFG" }
+)
+
+foreach ($leg in $legs) {
+  if ($Only -ne "" -and $leg.L -notlike $Only) { continue }
+  Write-Host ""
+  Write-Host ("##### LEG " + $leg.L + " #####")
+  Set-Location $tools
+  & .\run_leg.ps1 -Label $leg.L -BankPrefix "M50S0_" -Anomaly $leg.A -Target "StaticMeshActor_49" `
+      -Seed 777 -MaxFrames 90 -ExtraExecCmds $leg.X -MaxAttempts 4 -RequireModalRotZero 2>&1 |
+    Select-Object -Last 12
+}
+Write-Host ""
+Write-Host "##### STEP 0 CAMPAIGN DONE #####"

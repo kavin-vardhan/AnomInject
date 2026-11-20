@@ -1,0 +1,524 @@
+"""A54 canonical certification oracle, the +/-1 positive control, and the A56 gate.
+
+=======================================================================
+CERTIFIED SCOPE - READ BEFORE USING THIS TOOL FOR ANYTHING
+=======================================================================
+CERTIFIED AT VideoFps 30 ONLY, against two banked controls:
+    R30  (M23\\R30_regress)        12/12 decidable ALIGNED, margins to 2.4%
+    HF1 pre-fix (I10HF\\HF1_nat120) ALIGNED = 0
+
+MARGIN SCALE IS **NOT** REPRODUCED ABOVE 30 fps. It is regime-dependent:
+    x0.98 where the signal is sharp (30 fps)
+    x2.04 - x2.05 where the signal is spread (60 fps / 120 fps)
+
+    VERDICTS reproduce at every tested regime.
+    MARGINS DO NOT.
+
+ANY USE ABOVE 30 fps REQUIRES RE-GATING FIRST. Margins drive A55 decidability
+annotations, so an unre-gated run above 30 fps produces verdicts that are right
+and confidences that are wrong - see P7, and see the note below on why that is
+the dangerous shape rather than the harmless one.
+
+*** P8 - TAU IS NOT CAMERA-POSE INVARIANT. FALSE ABSENT IS REACHABLE. ***
+TAU is an ABSOLUTE luminance difference, but the size of that difference depends
+on WHERE THE CAMERA CAME TO REST (A47 bifurcation), because the rest pose sets
+the bbox and the background behind the target.
+
+    I10 L6 (modal pose)      hidden-minus-visible  +0.1126   -> ALIGNED
+    I10 L3 (bifurcated pose) hidden-minus-visible  -0.0383   -> ABSENT (FALSE)
+
+L3's hide is REAL, PERFECTLY ALIGNED and PERFECTLY SEPARATED - claimed frames
+0.8153-0.8180, non-claimed 0.8531-0.8559, ZERO overlap, every claimed frame on
+the low side. The oracle calls it ABSENT purely because 0.0383 < TAU.
+
+THIS FAILS IN THE DANGEROUS DIRECTION. A50 treats ABSENT as reproduction of the
+defect, so a false ABSENT reads as EVIDENCE OF A DEFECT THAT IS NOT THERE.
+
+Do NOT read an ABSENT from this tool as a defect until the leg's camera pose has
+been checked against the calibration pose. A56 as written does NOT catch this -
+it only asks whether a leg is self-consistent, not whether it matches the pose
+TAU was calibrated on.
+=======================================================================
+
+This block lives IN THE FILE on purpose. The original oracle was lost precisely
+by living in prose. -> G106.
+=======================================================================
+
+WHY THIS FILE EXISTS
+--------------------
+Every certified frame-alignment result this project holds (I10, m23) was graded
+by scripts that were never committed. The results are not wrong; they were
+NOT REPRODUCIBLE. An analysis instrument that grades a certified result is a
+COMMITTED ARTIFACT - see the gotcha logged with this file.
+
+THE RULE THIS IMPLEMENTS (A54 canonical, event-flank form)
+----------------------------------------------------------
+For each labelled event the oracle asks: WHERE DO THE PIXELS ACTUALLY SIT?
+
+  claimed set C   the event's frame_indices from annotation.json
+  flanks          the two NON-CLAIMED frames flanking the EVENT:
+                  (min(C) - 1) and (max(C) + 1)
+  score(s)        | mean_luma(C + s) - mean_luma(flanks) |
+                  luminance in [0,1], measured ONLY inside the target bbox (A35)
+
+A54 v1 scored each frame against its own +/-2 neighbours. That is UNEVALUABLE on
+a contiguous claimed set - which is exactly the P3b fabrication shape it had to
+judge - so it was amended to event-flank neighbours. TAU and the classification
+rules were NOT changed by that amendment.
+
+  THE FLANKS MOVE WITH THE HYPOTHESIS. score(s) asks "if the event really
+  occupied C+s, how much does it stand out from ITS OWN flanks?" - so the
+  reference for shift s is (min(C)+s-1) and (max(C)+s+1).
+
+  That is what gives the statistic its discriminating power, and it is worth
+  stating because the opposite choice is superficially more attractive. Under a
+  WRONG shift the reference itself swallows a genuinely-hidden frame, so the
+  contrast collapses toward zero; under the RIGHT shift the reference is clean
+  and the contrast is full. Fixed flanks instead leave a wrong shift scoring
+  half the right one - the instrument still ranks correctly but every margin
+  halves, and it reproduces NEITHER the published R30 median (0.10737) NOR its
+  12/12 decidability. Verified both ways against the bank before this was fixed.
+
+  verdict   ABSENT              if score(best) <= TAU
+            ALIGNED             if best shift == 0
+            SHIFTED(best)       otherwise
+  margin    score(best) - score(runner-up)          <- A55's DECIDING margin
+            A verdict is ANNOTATED decidable/undecidable against a floor.
+            It is NEVER reclassified (A55).
+
+  TRUNCATED events - those clipped by the frame cap, detected structurally as
+  "the trailing flank frame does not exist" - are excluded from the counts
+  (A50 addendum), not silently dropped.
+
+A35: whole-frame scoring is WRONG here and the reason is not pedantic - hiding
+an object removes its cast shadow, which brightens pixels OUTSIDE the bbox.
+
+A47/A56: the bbox is the leg's MODAL bbox, taken once per leg. The camera rest
+position bifurcates run to run, so no bbox is transferable BETWEEN legs.
+
+TAU IS FROZEN AT 0.04684. Do not tune it. Tuning a threshold after seeing the
+results is building the ruler to fit the object.
+
+Usage:
+  python a54_oracle.py <session_dir> [--shift N] [--floor F] [--json]
+
+  --shift N   POSITIVE CONTROL: displace every claimed set by N frames before
+              scoring, simulating an N-frame labelling error. A sound oracle
+              must degrade decisively. If it does not, the oracle was BLIND on
+              that leg and its ALIGNED verdicts mean nothing.
+  --floor F   decidability floor for the A55 annotation (default 0.06371, the
+              Construction-A p99 from journal 034; --floor 0.00026 is B).
+
+Exit: 0 all counted events ALIGNED · 1 one or more non-ALIGNED · 2 not
+      A54-certifiable (A56 failed) or unreadable.
+"""
+
+import glob
+import json
+import os
+import sys
+
+from PIL import Image
+
+TAU = 0.04684
+FLOOR_A = 0.06371
+
+# The canonical hypothesis space is the IMMEDIATE neighbourhood: -1, 0, +1.
+# Recovered by reproduction, not by preference - scoring -2..+2 as well makes
+# shift +/-2 the runner-up (it scores ~0.0596 against shift 0's ~0.1101 on R30,
+# because a 2-frame displacement lands the claimed set entirely on visible
+# frames while dragging one hidden frame into its reference). That halves every
+# margin to ~0.0505 and reproduces NEITHER the published R30 median (0.10737)
+# nor its 12/12 decidability. With +/-1 only, the runner-up is the collapsed
+# +/-1 score (~0.0028) and both published figures reproduce.
+SHIFTS = (-1, 0, 1)
+
+A56_MIN_MODAL = 0.90
+A56_MAX_DISTINCT = 3
+
+# ---------------------------------------------------------------------------
+# A47 SETTLE WINDOW. Outcome-independent, mechanical, no per-leg judgement.
+#
+#   Drop leading frames until view.rot has been STABLE for SETTLE_K CONSECUTIVE
+#   frames, where "stable" means every component within SETTLE_TOL_DEG of the
+#   leg's MODAL rotation. The analysis window runs from there to the end.
+#
+# THESE TWO CONSTANTS ARE FROZEN. They are chosen ONCE and applied to EVERY leg
+# identically. There is no per-leg override, and there is no path in this file
+# that adjusts them from a result.
+#
+#   SETTLE_TOL_DEG = 0.5   the gate level's settled rotations repeat EXACTLY
+#                          ((0,0,0), or (353.95, 9.56)); 0.5 deg sits far below
+#                          any real camera motion and far above float noise.
+#   SETTLE_K       = 5     the shortest published ramp length in the record
+#                          (5 frames at 116 ms/frame), so the rule cannot be
+#                          accused of being longer than the phenomenon.
+#
+# DISCLOSURE, because the discipline is worth more than the appearance of it:
+# L3's rotation series was already observed in the previous turn (60 frames at
+# the modal rotation at the end of a 90-frame leg), so it was ALREADY KNOWN that
+# a stability rule would start L3 near frame 30. The constants are not tuned to
+# that - with 60 trailing stable frames ANY K in 3..10 gives the same answer, so
+# the choice is insensitive to the prior observation. Stated rather than hidden.
+# ---------------------------------------------------------------------------
+SETTLE_TOL_DEG = 0.5
+SETTLE_K = 5
+
+# ---------------------------------------------------------------------------
+# B1 - A56 POSE-MATCH PRECONDITION (P8 / G107).
+#
+# A56 as originally written asks only whether a leg is SELF-CONSISTENT. It never
+# asks the question TAU actually depends on: IS THIS LEG'S CAMERA POSE THE POSE
+# TAU WAS CALIBRATED ON? TAU is an ABSOLUTE luminance difference, so the A47
+# rest pose - which sets both the bbox and the background behind the target -
+# sets the SCALE of the quantity being thresholded.
+#
+# This precondition DOES NOT MAKE ANY LEG PASS. It converts a bifurcated leg
+# from a FALSE "ABSENT" (which A50 reads as reproduction of the defect - the
+# dangerous direction) into an honest "NOT-CERTIFIABLE". TAU and the A54
+# definition are UNTOUCHED.
+#
+#   CALIB_BBOX is the modal-pose bbox every calibration leg was measured on:
+#   R30, HF1 pre-fix, I10 L1/L2/L4/L5/L6, and the S3b Stage 1 leg all report it
+#   to the decimal. SCOPED to 1280x720 / CB_GateLevel / StaticMeshActor_49 - the
+#   S3b matrix config. A different resolution or target needs its own value.
+#
+#   POSE_TOL_PX = 8.0 on every component of [x, y, w, h]. FROZEN.
+#     ~2.6% of the calibration width and ~3.4% of its height: far above any
+#     sub-pixel or rounding jitter (the modal legs agree EXACTLY, jitter 0.0),
+#     and ~7x below the smallest observed pose difference (L3 differs by 55.4 px
+#     on its closest component, 128.1 px on width). Wide separation in BOTH
+#     directions, which is what a precondition that must not fire spuriously
+#     needs.
+#
+# DISCLOSURE, same standard as SETTLE_K: both bboxes had already been observed
+# when this constant was chosen. It is insensitive to that - any tolerance in
+# (0, 55) separates them identically.
+# ---------------------------------------------------------------------------
+CALIB_BBOX = (0.0, 485.2, 306.1, 234.8)
+POSE_TOL_PX = 8.0
+
+
+def pose_match(modal_bbox):
+    """B1. True when this leg's modal bbox is the pose TAU was calibrated on."""
+    if modal_bbox is None:
+        return False
+    return all(abs(a - b) <= POSE_TOL_PX for a, b in zip(modal_bbox, CALIB_BBOX))
+
+
+def load_session(sdir):
+    ann = json.load(open(os.path.join(sdir, "annotation.json")))
+    rows = [json.loads(l) for l in open(os.path.join(sdir, "labels.jsonl")) if l.strip()]
+    frames = {}
+    for f in glob.glob(os.path.join(sdir, "Actual_Frames", "*.png")):
+        base = os.path.basename(f)
+        digits = "".join(c for c in base if c.isdigit())
+        if digits:
+            frames[int(digits)] = f
+    return ann, rows, frames
+
+
+def settle_window(rows):
+    """A47 settle window. Returns (start_index, modal_rot, n_frames_dropped).
+
+    start_index is None when the leg never settles for SETTLE_K consecutive
+    frames - which is itself a reportable condition, not a silent pass."""
+    series = []
+    for r in rows:
+        v = r.get("view", {})
+        rot = v.get("rot")
+        if rot is None:
+            return 0, None, 0
+        series.append((r.get("session_index"), tuple(round(float(c), 2) for c in rot)))
+    if not series:
+        return 0, None, 0
+
+    counts = {}
+    for _, rot in series:
+        counts[rot] = counts.get(rot, 0) + 1
+    modal = max(counts.items(), key=lambda kv: kv[1])[0]
+
+    def stable(rot):
+        return all(abs(a - b) <= SETTLE_TOL_DEG for a, b in zip(rot, modal))
+
+    run = 0
+    for pos, (idx, rot) in enumerate(series):
+        if stable(rot):
+            run += 1
+            if run >= SETTLE_K:
+                start_pos = pos - SETTLE_K + 1
+                return series[start_pos][0], modal, start_pos
+        else:
+            run = 0
+    return None, modal, len(series)
+
+
+def a56_check(rows, start=None):
+    """Camera-certifiability. Gates the PIXEL oracle only - annotation-shape
+    evidence is camera-independent and survives an A56 failure."""
+    boxes = {}
+    for r in rows:
+        if start is not None and (r.get("session_index") or 0) < start:
+            continue
+        for a in r.get("anomalies", []):
+            if a.get("bbox_valid"):
+                key = tuple(round(float(x), 1) for x in a["bbox_px"])
+                boxes[key] = boxes.get(key, 0) + 1
+    total = sum(boxes.values())
+    if not total:
+        return None, 0, 0, 0.0, False
+    ranked = sorted(boxes.items(), key=lambda kv: -kv[1])
+    modal, count = ranked[0]
+    coverage = float(count) / float(total)
+    ok = (coverage >= A56_MIN_MODAL
+          and len(boxes) <= A56_MAX_DISTINCT
+          and pose_match(modal))
+    return modal, total, len(boxes), coverage, ok
+
+
+def mean_luma_in_bbox(path, bbox, cache):
+    if path in cache:
+        return cache[path]
+    x, y, w, h = bbox
+    im = Image.open(path).convert("L")
+    W, H = im.size
+    x0 = max(0, int(round(x)))
+    y0 = max(0, int(round(y)))
+    x1 = min(W, int(round(x + w)))
+    y1 = min(H, int(round(y + h)))
+    if x1 <= x0 or y1 <= y0:
+        cache[path] = None
+        return None
+    crop = im.crop((x0, y0, x1, y1))
+    px = list(crop.getdata())
+    val = (sum(px) / float(len(px))) / 255.0
+    cache[path] = val
+    return val
+
+
+def score_event(claimed, frames, bbox, cache):
+    """Returns {shift: score} plus the shift-0 flank reference.
+
+    Unevaluable (None) when the shift-0 flanks do not both exist - that is the
+    structural TRUNCATED test: an event clipped by the frame cap has no trailing
+    flank frame to measure against."""
+    first, last = min(claimed), max(claimed)
+    if (first - 1) not in frames or (last + 1) not in frames:
+        return None, None
+
+    scores, ref0 = {}, None
+    for s in SHIFTS:
+        idx = [c + s for c in claimed]
+        fl_lo, fl_hi = first + s - 1, last + s + 1
+        if any(i not in frames for i in idx) or fl_lo not in frames or fl_hi not in frames:
+            continue
+        ref_vals = [mean_luma_in_bbox(frames[i], bbox, cache) for i in (fl_lo, fl_hi)]
+        vals = [mean_luma_in_bbox(frames[i], bbox, cache) for i in idx]
+        if any(v is None for v in ref_vals) or any(v is None for v in vals):
+            continue
+        ref = sum(ref_vals) / len(ref_vals)
+        if s == 0:
+            ref0 = ref
+        scores[s] = abs(sum(vals) / len(vals) - ref)
+    return (scores or None), ref0
+
+
+def run(sdir, shift=0, floor=FLOOR_A, as_json=False, settle=True):
+    ann, rows, frames = load_session(sdir)
+
+    if settle:
+        w_start, w_modal_rot, w_dropped = settle_window(rows)
+    else:
+        w_start, w_modal_rot, w_dropped = 0, None, 0
+
+    modal, nbox, ndistinct, coverage, a56_ok = a56_check(rows, w_start)
+
+    last_idx = max(frames) if frames else 0
+    report = {
+        "session": os.path.basename(sdir.rstrip("\\/")),
+        "tau": TAU,
+        "floor": floor,
+        "applied_shift": shift,
+        "settle": {"enabled": settle, "K": SETTLE_K, "tol_deg": SETTLE_TOL_DEG,
+                   "modal_rot": w_modal_rot, "window_start": w_start,
+                   "frames_dropped": w_dropped,
+                   "window": (None if w_start is None else "%d..%d" % (w_start, last_idx))},
+        "a56": {"modal_bbox": modal, "bbox_rows": nbox, "distinct": ndistinct,
+                "modal_coverage": round(coverage, 4), "certifiable": a56_ok,
+                "pose_match": pose_match(modal)},
+        "events": [],
+    }
+
+    if settle and w_start is None:
+        report["verdict"] = "NEVER-SETTLES"
+        emit(report, as_json)
+        return 2
+
+    if not a56_ok:
+        report["verdict"] = "NOT-A54-CERTIFIABLE"
+        emit(report, as_json)
+        return 2
+
+    cache = {}
+    counts = {"ALIGNED": 0, "ABSENT": 0, "TRUNCATED": 0, "PRE_SETTLE": 0}
+    shifted_n = 0
+    margins = []
+
+    for i, ev in enumerate(ann.get("anomalies", [])):
+        claimed = list(ev["affected_frames"].get("frame_indices") or [])
+        rec = {"event": i, "type": ev.get("anomaly_type"),
+               "claimed": claimed, "manifested": ev.get("manifested")}
+
+        if not claimed:
+            rec["outcome"] = "ABSENT"
+            rec["note"] = "no claimed frames"
+            counts["ABSENT"] += 1
+            report["events"].append(rec)
+            continue
+
+        claimed = [c + shift for c in claimed]
+        rec["scored"] = claimed
+
+        if settle and w_start is not None and (min(claimed) - 1) < w_start:
+            rec["outcome"] = "PRE-SETTLE"
+            rec["note"] = "event or its leading flank precedes the A47 settle window"
+            counts["PRE_SETTLE"] += 1
+            report["events"].append(rec)
+            continue
+
+        scores, ref = score_event(claimed, frames, modal, cache)
+        if scores is None:
+            rec["outcome"] = "TRUNCATED"
+            rec["note"] = "a flank frame does not exist (clipped by the frame cap)"
+            counts["TRUNCATED"] += 1
+            report["events"].append(rec)
+            continue
+
+        ordered = sorted(scores.items(), key=lambda kv: -kv[1])
+        best_s, best_v = ordered[0]
+        runner = ordered[1][1] if len(ordered) > 1 else 0.0
+        margin = best_v - runner
+
+        if best_v <= TAU:
+            outcome = "ABSENT"
+            counts["ABSENT"] += 1
+        elif best_s == 0:
+            outcome = "ALIGNED"
+            counts["ALIGNED"] += 1
+        else:
+            outcome = "SHIFTED(%+d)" % best_s
+            shifted_n += 1
+
+        margins.append(abs(margin))
+        rec.update({
+            "outcome": outcome,
+            "flank_ref": round(ref, 6),
+            "scores": {str(k): round(v, 6) for k, v in sorted(scores.items())},
+            "best_shift": best_s,
+            "best_score": round(best_v, 6),
+            "margin": round(margin, 6),
+            "decidable": bool(margin > floor),
+        })
+        report["events"].append(rec)
+
+    counted = counts["ALIGNED"] + counts["ABSENT"] + shifted_n
+    margins.sort()
+    report["summary"] = {
+        "events_total": len(report["events"]),
+        "events_counted": counted,
+        "TRUNCATED_excluded": counts["TRUNCATED"],
+        "PRE_SETTLE_excluded": counts["PRE_SETTLE"],
+        "ALIGNED": counts["ALIGNED"],
+        "SHIFTED": shifted_n,
+        "ABSENT": counts["ABSENT"],
+        "non_aligned": shifted_n + counts["ABSENT"],
+        "median_abs_margin": round(margins[len(margins) // 2], 6) if margins else None,
+        "decidable": sum(1 for e in report["events"] if e.get("decidable")),
+    }
+    report["verdict"] = "ALL-ALIGNED" if (counted and report["summary"]["non_aligned"] == 0) \
+        else "NON-ALIGNED-PRESENT"
+
+    emit(report, as_json)
+    return 0 if report["verdict"] == "ALL-ALIGNED" else 1
+
+
+def emit(report, as_json):
+    if as_json:
+        print(json.dumps(report, indent=1))
+        return
+    a = report["a56"]
+    w = report["settle"]
+    print("session            : %s" % report["session"])
+    print("TAU (frozen)       : %.5f     floor: %.5f     applied shift: %+d"
+          % (report["tau"], report["floor"], report["applied_shift"]))
+    if w["enabled"]:
+        print("A47 settle (K=%d, tol=%.1f deg) : window %s   dropped %d   modal rot %s"
+              % (w["K"], w["tol_deg"], w["window"], w["frames_dropped"], w["modal_rot"]))
+    if report.get("verdict") == "NEVER-SETTLES":
+        print("\nVERDICT            : NEVER-SETTLES (no %d consecutive stable frames)" % w["K"])
+        return
+    print("A56                : modal %.1f%% of %d bbox rows, %d distinct -> %s"
+          % (100.0 * a["modal_coverage"], a["bbox_rows"], a["distinct"],
+             "CERTIFIABLE" if a["certifiable"] else "NOT CERTIFIABLE"))
+    print("     modal bbox    : %s" % (a["modal_bbox"],))
+    print("     B1 pose-match : %s   (calib %s, tol %.1f px)"
+          % ("YES" if a["pose_match"] else "NO - BIFURCATED POSE",
+             CALIB_BBOX, POSE_TOL_PX))
+    if not a["certifiable"]:
+        print("\nVERDICT            : %s" % report["verdict"])
+        if not a["pose_match"]:
+            print("  -> P8: this leg's camera settled in a pose TAU was NOT calibrated on.")
+            print("     The pixel oracle DOES NOT RUN. It is declining to judge, NOT")
+            print("     reporting ABSENT - an ABSENT here would read as a defect (A50).")
+        print("  -> Annotation-shape evidence is camera-independent and still stands.")
+        return
+    print("")
+    print("  ev  outcome        best  score     margin     dec   claimed")
+    for e in report["events"]:
+        if e["outcome"] == "TRUNCATED":
+            print("  %-3d TRUNCATED      -     -          -          -     %s"
+                  % (e["event"], e["claimed"]))
+        elif "scores" not in e:
+            print("  %-3d %-14s -     -          -          -     %s"
+                  % (e["event"], e["outcome"], e["claimed"]))
+        else:
+            print("  %-3d %-14s %+d    %.6f   %.6f   %-5s %s"
+                  % (e["event"], e["outcome"], e["best_shift"], e["best_score"],
+                     e["margin"], "yes" if e["decidable"] else "NO", e["claimed"]))
+    s = report["summary"]
+    print("")
+    print("counted %d  (TRUNCATED excl %d, PRE-SETTLE excl %d)   ALIGNED %d  SHIFTED %d  ABSENT %d"
+          % (s["events_counted"], s["TRUNCATED_excluded"], s["PRE_SETTLE_excluded"],
+             s["ALIGNED"], s["SHIFTED"], s["ABSENT"]))
+    print("median |margin| %s     decidable %d/%d"
+          % (s["median_abs_margin"], s["decidable"], s["events_counted"]))
+    print("VERDICT            : %s" % report["verdict"])
+
+
+def main():
+    args = [a for a in sys.argv[1:]]
+    if not args:
+        print(__doc__)
+        return 2
+    sdir = args[0]
+    shift, floor, as_json, settle = 0, FLOOR_A, False, True
+    i = 1
+    while i < len(args):
+        if args[i] == "--shift":
+            shift = int(args[i + 1]); i += 2
+        elif args[i] == "--floor":
+            floor = float(args[i + 1]); i += 2
+        elif args[i] == "--json":
+            as_json = True; i += 1
+        elif args[i] == "--no-settle":
+            settle = False; i += 1
+        else:
+            i += 1
+    if not os.path.isdir(sdir):
+        print("no such session dir: %s" % sdir)
+        return 2
+    return run(sdir, shift, floor, as_json, settle)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

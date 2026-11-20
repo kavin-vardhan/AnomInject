@@ -1,0 +1,19 @@
+param([Parameter(Mandatory=$true)][string]$Label, [string]$Prefix = "M50R_")
+
+# G7 / G8 - the unmeasurable-admission gate and its BEFORE picture.
+#
+# MainWorld, targeted fire at SM_Ramp2 (the established known-Nanite control, journal 045
+# PART TWENTY-SIX), with the CENSUS ON so the custom-depth pass runs for OTHER actors.
+# That leg condition is not decoration: with the census off a lone Nanite target produces
+# no pass at all and lands NOT_MEASURED for a different reason, so a pass there would have
+# tested nothing (G135).
+#
+# B1's pose gate is NOT APPLICABLE on MainWorld - CALIB_BBOX is StaticMeshActor_49's bbox
+# on CB_GateLevel (G117) - so -RequireModalRotZero is deliberately NOT passed and that is
+# declared here rather than discovered in the readout.
+
+$tools = "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools"
+Set-Location $tools
+& .\run_leg.ps1 -Label $Label -BankPrefix $Prefix -Anomaly "blinking" -Target "SM_Ramp2" `
+    -Seed 777 -MaxFrames 90 -Map "/Game/StackOBot/Maps/MainWorld" `
+    -ExtraExecCmds "IAI.Capture.Config 2 4 8 14 0" -MaxAttempts 3 2>&1 | Select-Object -Last 6

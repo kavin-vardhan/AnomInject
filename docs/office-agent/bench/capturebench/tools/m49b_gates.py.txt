@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""m49 phase B gate reader - PB-1 .. PB-4, one row per leg.
+
+PB-1 hide-class    : every LABELLED hide-class row must read target_drawn_pixels == 0 while
+                     target_pixels > 0. Violations are listed, never summarised away.
+PB-2 texture-class : every LABELLED texture-class row must read
+                     |target_drawn_pixels - target_pixels| <= 1% of target_pixels. The EXACT
+                     difference is reported, because the prediction is exact equality and a
+                     non-zero difference inside the band is still a finding.
+PB-3 control       : the MaskPairingProbe tag (ReservedStencilMax = 255) is an opaque spawned
+                     actor outside the anomaly path; on every armed frame with count > 0 it must
+                     read drawn == count. Read from the DRAWN-DIST log line, and the whole
+                     distribution over census tags is printed as the broad reading.
+PB-4 can-fail      : with IAI.Bench.HideOmitDepthPassSilencing on, a hide-class leg MUST read
+                     target_drawn_pixels > 0 on labelled frames and frames_drawn_unexpected > 0.
+                     Without this firing, PB-1's zeros are blindness rather than a reading (G96).
+
+A row is LABELLED for its event when the target mask was armed for it; the labels row carries
+that as target_pixels >= 0 together with the event being active. The hide/texture split is by
+anomaly id, matching AnomalyCaptureSubsystem's ResolveAnomalyActiveSource table.
+"""
+
+import glob
+import json
+import os
+import re
+import sys
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+
+HIDE_IDS = {"blinking", "missing_object"}
+TEXTURE_IDS = {"missing_texture", "corrupted_texture", "lighting_mismatch", "lod_corruption"}
+PROBE_TAG = 255
+
+RE_DIST = re.compile(r"DRAWN-DIST id=(\d+) tags=(\d+) subsetViolations=(\d+) \[([^\]]*)\]")
+
+
+def sess(bank_name):
+    c = glob.glob(os.path.join(BANK, bank_name, "session_*"))
+    if not c:
+        c = glob.glob(os.path.join(bank_name, "session_*")) or [bank_name]
+    return sorted(c)[-1]
+
+
+def jl(p):
+    out = []
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+
+def read_dist(sdir):
+    """Return (frames, probe_ok, probe_seen, subset_violations, sample) from the run log."""
+    frames = 0
+    probe_ok = 0
+    probe_seen = 0
+    subset = 0
+    sample = ""
+    for name in ("anomaly_log.txt", "anomaly_log_excerpt.txt"):
+        p = os.path.join(sdir, name)
+        if not os.path.isfile(p):
+            continue
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = RE_DIST.search(line)
+                if not m:
+                    continue
+                frames += 1
+                subset += int(m.group(3))
+                body = m.group(4).strip()
+                if not sample:
+                    sample = body
+                for ent in body.split():
+                    try:
+                        tag, cd = ent.split(":")
+                        cnt, drawn = cd.split("/")
+                        if int(tag) == PROBE_TAG and int(cnt) > 0:
+                            probe_seen += 1
+                            if int(cnt) == int(drawn):
+                                probe_ok += 1
+                    except ValueError:
+                        pass
+        break
+    return frames, probe_ok, probe_seen, subset, sample
+
+
+def row(leg):
+    sdir = sess(leg)
+    rows = jl(os.path.join(sdir, "labels.jsonl"))
+    rs = json.load(open(os.path.join(sdir, "run_summary.json"), encoding="utf-8"))
+
+    hide_rows = hide_bad = 0
+    tex_rows = tex_bad = 0
+    tex_maxdiff = 0
+    unmeasured = 0
+    bad_examples = []
+    drawn_pos_hide = 0
+
+    for r in rows:
+        for a in r.get("anomalies", []):
+            aid = a.get("id")
+            px = a.get("target_pixels", -1)
+            dp = a.get("target_drawn_pixels", -1)
+            if px < 0:
+                continue
+            if dp < 0:
+                unmeasured += 1
+                continue
+            if aid in HIDE_IDS:
+                if px <= 0:
+                    continue
+                hide_rows += 1
+                if dp > 0:
+                    hide_bad += 1
+                    drawn_pos_hide += 1
+                    if len(bad_examples) < 5:
+                        bad_examples.append("si=%d %s px=%d drawn=%d" % (r["session_index"], aid, px, dp))
+            elif aid in TEXTURE_IDS:
+                if px <= 0:
+                    continue
+                tex_rows += 1
+                d = abs(dp - px)
+                tex_maxdiff = max(tex_maxdiff, d)
+                if d > 0.01 * px:
+                    tex_bad += 1
+                    if len(bad_examples) < 5:
+                        bad_examples.append("si=%d %s px=%d drawn=%d" % (r["session_index"], aid, px, dp))
+
+    frames, probe_ok, probe_seen, subset, sample = read_dist(sdir)
+
+    return {
+        "leg": leg,
+        "hide_rows": hide_rows, "hide_bad": hide_bad,
+        "tex_rows": tex_rows, "tex_bad": tex_bad, "tex_maxdiff": tex_maxdiff,
+        "unmeasured": unmeasured,
+        "drawn_unexpected": rs.get("frames_drawn_unexpected"),
+        "drawn_measured": rs.get("target_drawn_pixels_measured"),
+        "exp_dip": rs.get("frames_exposure_dip"),
+        "exp_supp": rs.get("frames_exposure_dip_suppressed"),
+        "dist_frames": frames, "probe_ok": probe_ok, "probe_seen": probe_seen,
+        "subset": subset, "sample": sample,
+        "examples": bad_examples,
+    }
+
+
+if __name__ == "__main__":
+    legs = sys.argv[1:]
+    print("%-22s %10s %10s %10s %10s %8s %8s %8s %8s" %
+          ("leg", "hideRows", "hideBAD", "texRows", "texMaxDiff", "unmeas", "drawnUnx", "expDip", "expSupp"))
+    rc = 0
+    rowsout = []
+    for leg in legs:
+        try:
+            d = row(leg)
+        except Exception as e:
+            print("%-22s ERROR %s" % (leg, e))
+            rc = 1
+            continue
+        rowsout.append(d)
+        print("%-22s %10d %10d %10d %10d %8d %8s %8s %8s" %
+              (d["leg"], d["hide_rows"], d["hide_bad"], d["tex_rows"], d["tex_maxdiff"],
+               d["unmeasured"], d["drawn_unexpected"], d["exp_dip"], d["exp_supp"]))
+        for ex in d["examples"]:
+            print("      ! %s" % ex)
+    print()
+    for d in rowsout:
+        print("%-22s DRAWN-DIST frames=%d subsetViolations=%d probe(tag %d) ok=%d of %d"
+              % (d["leg"], d["dist_frames"], d["subset"], PROBE_TAG, d["probe_ok"], d["probe_seen"]))
+        if d["sample"]:
+            print("      first frame distribution (tag:count/drawn): %s" % d["sample"])
+    print()
+    tot_hide = sum(d["hide_rows"] for d in rowsout)
+    tot_hide_bad = sum(d["hide_bad"] for d in rowsout)
+    tot_tex = sum(d["tex_rows"] for d in rowsout)
+    tot_tex_bad = sum(d["tex_bad"] for d in rowsout)
+    tot_subset = sum(d["subset"] for d in rowsout)
+    print("PB-1 hide-class   : %d rows, %d violating  -> %s" %
+          (tot_hide, tot_hide_bad, "PASS" if tot_hide_bad == 0 and tot_hide > 0 else "*** CHECK ***"))
+    print("PB-2 texture-class: %d rows, %d outside 1%%, max abs diff %d -> %s" %
+          (tot_tex, tot_tex_bad, max([d["tex_maxdiff"] for d in rowsout] or [0]),
+           "PASS" if tot_tex_bad == 0 and tot_tex > 0 else "*** CHECK ***"))
+    print("subset invariant  : %d violations across all legs (MUST be 0)" % tot_subset)
+    sys.exit(rc)

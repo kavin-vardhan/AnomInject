@@ -1,0 +1,226 @@
+"""CURE MEASUREMENT - a DISTRIBUTION SKETCH to inform a threshold design.
+
+⛔ NOT A CERTIFICATION. Nothing is graded, no A54 verdict is produced or implied,
+and n is small and stated as small. The purpose is to find out whether a cure
+threshold CAN separate H5-shaped targets from legitimate ones before anyone picks
+a number.
+
+WHAT IS NOT AVAILABLE, AND IT MATTERS FOR THE CURE:
+  (a) THE SELECTION BOUNDS EXTENT IN WORLD UNITS IS NOT RECOVERABLE FROM ANY
+      ARTIFACT. The guards use SM/SK Component->Bounds; annotation's node.bounds
+      is Actor->GetComponentsBoundingBox(TRUE), a DIFFERENT quantity (P6), and
+      poll_distance is dist(pollOrigin, B.Origin) - B.SphereRadius - one equation
+      in two unknowns. So the quantity every guard is computed from IS NOT
+      RECORDED. That is a finding about the cure, not a gap in this tool.
+      The usable ON-SCREEN proxies are:
+        coverage_pct    provenance: projected area of CollectRenderableVisibleUnion
+                        - the SELECTION bounds, projected
+        coverage_ratio  annotation: mean clamped projected area from
+                        ProjectActorBoundsToScreenRect - the LABEL rect
+  (c) MARKER CONTAMINATION (G125). A leg captured with CaptureBench.Marker ON has
+      two grid cells near the top edge carrying ~0.15-0.18 of pure instrument
+      signal. Such rows are marked MARKER-ON and are EXCLUDED from every
+      conclusion rather than silently mixed.
+
+GOOD vs BAD is decided by the OUTCOME (did hiding it produce a visible change,
+correctly located?), and the question then asked is whether any quantity
+AVAILABLE BEFORE THE HIDE predicts it. A cure must decide before hiding, so a
+discriminator that needs the measurement is not a discriminator.
+
+Usage: python cure_measurement_table.py [--bank <dir>]
+"""
+
+import argparse
+import glob
+import json
+import os
+
+from PIL import Image
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+GRID = 8
+
+
+def leg_rows(sdir):
+    ann = json.load(open(os.path.join(sdir, "annotation.json")))
+    rows = [json.loads(l) for l in open(os.path.join(sdir, "labels.jsonl")) if l.strip()]
+    prov = None
+    p = os.path.join(sdir, "selection_provenance.json")
+    if os.path.exists(p):
+        prov = json.load(open(p))
+    frames = {}
+    for f in glob.glob(os.path.join(sdir, "Actual_Frames", "*.png")):
+        d = "".join(c for c in os.path.basename(f) if c.isdigit())
+        if d:
+            frames[int(d)] = f
+    return ann, rows, prov, frames
+
+
+def marker_on(sdir):
+    """_leg_geometry.json does not record the marker, so read the leg dir name's
+    sibling geometry file when present and otherwise assume ON (the harness
+    default). Conservative: a row wrongly marked MARKER-ON is only excluded."""
+    for cand in (os.path.join(os.path.dirname(sdir.rstrip("\\/")), "_leg_geometry.json"),):
+        if os.path.exists(cand):
+            try:
+                g = json.load(open(cand, encoding="utf-8-sig"))
+            except Exception:
+                continue
+            lbl = (g.get("label") or "")
+            if "NOMARK" in lbl.upper() or lbl.upper().startswith("CM_"):
+                return False
+    base = os.path.basename(os.path.dirname(sdir.rstrip("\\/"))).upper()
+    return not ("NOMARK" in base or base.startswith("CM_"))
+
+
+def measure(sdir):
+    ann, rows, prov, frames = leg_rows(sdir)
+    tgt = None
+    boxes = {}
+    nvalid = ntot = 0
+    for r in rows:
+        for a in r.get("anomalies", []):
+            tgt = a.get("target_name")
+            ntot += 1
+            if a.get("bbox_valid"):
+                nvalid += 1
+                boxes[tuple(round(v, 1) for v in a["bbox_px"])] = \
+                    boxes.get(tuple(round(v, 1) for v in a["bbox_px"]), 0) + 1
+    if not ann.get("anomalies"):
+        return None
+    ev0 = ann["anomalies"][0]
+    nd = ev0["affected_objects"]["nodes"][0]
+    out = {
+        "target": tgt or nd.get("name"),
+        "level": "MainWorld" if "MainWorld" in nd.get("path", "") else "CB_GateLevel",
+        "comp": nd.get("component_class"), "asset": nd.get("asset_name"),
+        "cov_ratio": ev0.get("coverage_ratio"), "cov_pct": ev0.get("coverage_pct"),
+        "events": len(ann["anomalies"]), "bbox_valid": "%d/%d" % (nvalid, ntot),
+        "marker_on": marker_on(sdir),
+        "poll": None, "occ": None, "rect_frac": None,
+        "whole_mean": None, "peak_in": None, "peak_out": None,
+    }
+    if prov and prov.get("events"):
+        pv = [e["poll_distance"] for e in prov["events"]]
+        real = [v for v in pv if v != -1]
+        out["poll"] = min(real) if real else "sentinel"
+        out["occ"] = "%s/%s" % (prov["events"][0]["occlusion_samples_passed"],
+                                prov["events"][0]["occlusion_samples_total"])
+    if not boxes or not frames:
+        return out
+    modal = max(boxes.items(), key=lambda kv: kv[1])[0]
+    x, y, w, h = modal
+    im0 = Image.open(next(iter(frames.values())))
+    W, H = im0.size
+    out["rect_frac"] = (w * h) / float(W * H)
+    out["bbox"] = modal
+
+    cache = {}
+
+    def L(p):
+        if p not in cache:
+            cache[p] = Image.open(p).convert("L")
+        return cache[p]
+
+    def mean(im, box=None):
+        if box:
+            im = im.crop(box)
+        px = list(im.getdata())
+        return (sum(px) / float(len(px))) / 255.0
+
+    box = (max(0, int(x)), max(0, int(y)), min(W, int(x + w)), min(H, int(y + h)))
+    diffs = []
+    grid = [[0.0] * GRID for _ in range(GRID)]
+    n = 0
+    for ev in ann["anomalies"]:
+        cl = sorted(ev["affected_frames"].get("frame_indices") or [])
+        if not cl:
+            continue
+        lo, hi = min(cl), max(cl)
+        fl = [f for f in (lo - 1, hi + 1) if f in frames]
+        cf = [f for f in cl if f in frames]
+        if not cf or not fl:
+            continue
+        diffs.append(sum(mean(L(frames[f])) for f in cf) / len(cf)
+                     - sum(mean(L(frames[f])) for f in fl) / len(fl))
+        ic, iff = L(frames[cf[0]]), L(frames[fl[0]])
+        for gy in range(GRID):
+            for gx in range(GRID):
+                c = (gx * W // GRID, gy * H // GRID, (gx + 1) * W // GRID, (gy + 1) * H // GRID)
+                grid[gy][gx] += abs(mean(ic.crop(c)) - mean(iff.crop(c)))
+        n += 1
+    if n:
+        out["whole_mean"] = sum(abs(d) for d in diffs) / len(diffs)
+        ins, outs = [], []
+        for gy in range(GRID):
+            for gx in range(GRID):
+                c0, c1 = gx * W // GRID, (gx + 1) * W // GRID
+                r0, r1 = gy * H // GRID, (gy + 1) * H // GRID
+                v = grid[gy][gx] / n
+                if not (c1 <= box[0] or c0 >= box[2] or r1 <= box[1] or r0 >= box[3]):
+                    ins.append(v)
+                else:
+                    outs.append(v)
+        out["peak_in"] = max(ins) if ins else 0.0
+        out["peak_out"] = max(outs) if outs else 0.0
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--bank", default=BANK)
+    args = ap.parse_args()
+    results = []
+    skipped = []
+    for sdir in sorted(glob.glob(os.path.join(args.bank, "*", "session_*"))):
+        if not os.path.exists(os.path.join(sdir, "annotation.json")):
+            continue
+        if not os.path.exists(os.path.join(sdir, "Actual_Frames")):
+            continue
+        try:
+            r = measure(sdir)
+        except Exception as e:
+            # ⛔ NEVER SWALLOW. A silently dropped leg reads as a leg that does not
+            # exist, and the first time this fired it was hiding SEVEN ZERO-BYTE
+            # PNGs in a banked session. Report the skip and the reason.
+            skipped.append((os.path.basename(os.path.dirname(sdir.rstrip("\\/"))),
+                            type(e).__name__, str(e)[:110]))
+            continue
+        if r:
+            r["leg"] = os.path.basename(os.path.dirname(sdir.rstrip("\\/")))
+            results.append(r)
+
+    clean = [r for r in results if not r["marker_on"] and r["whole_mean"] is not None]
+    dirty = [r for r in results if r["marker_on"]]
+
+    print("=" * 126)
+    print("CURE MEASUREMENT - DISTRIBUTION SKETCH. n is SMALL. Nothing graded.")
+    print("=" * 126)
+    print("  legs read %d   MARKER-OFF (usable for pixel figures) %d   MARKER-ON (excluded from conclusions) %d"
+          % (len(results), len(clean), len(dirty)))
+    print()
+    print("  %-16s %-13s %-34s %-9s %-9s %-8s %-6s %-9s %-9s"
+          % ("leg", "level", "target/comp", "rect%", "cov_pct", "poll", "occ", "whole|d|", "peakIn/Out"))
+    for r in sorted(clean, key=lambda r: -(r["whole_mean"] or 0)):
+        pol = ("%.1f" % r["poll"]) if isinstance(r["poll"], float) else str(r["poll"])
+        print("  %-16s %-13s %-34s %-9s %-9s %-8s %-6s %-9s %s"
+              % (r["leg"][:16], r["level"], (r["target"] or "")[:20] + "/" + (r["comp"] or "")[:13],
+                 "%.1f" % (100 * r["rect_frac"]) if r["rect_frac"] else "-",
+                 ("%.2f" % r["cov_pct"]) if r["cov_pct"] is not None else "-",
+                 pol, r["occ"] or "-",
+                 "%.5f" % r["whole_mean"],
+                 "%.4f/%.4f" % (r["peak_in"], r["peak_out"])))
+    print()
+    print("  MARKER-ON legs present in the bank (pixel figures NOT reported for these): %d" % len(dirty))
+    print()
+    if skipped:
+        print("  SKIPPED LEGS AND WHY (never silently dropped):")
+        for leg, kind, msg in skipped:
+            print("    %-30s %-26s %s" % (leg, kind, msg))
+    else:
+        print("  no legs skipped.")
+    return results, clean
+
+
+if __name__ == "__main__":
+    main()

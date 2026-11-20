@@ -1,0 +1,25 @@
+$tools = "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools"
+Set-Location $tools
+
+Write-Host "##### LYRA LEG A (LG-1/3/4/5/6/7/8 + the translucent-only exclusion counter) #####"
+& .\lyra_leg.ps1 -Label "A2L_LEGA" -Map "/ShooterCore/Maps/L_ShooterGym" -Seed 4242 -MaxFrames 90
+Write-Host "LEGA exit=$LASTEXITCODE"
+
+Write-Host ""
+Write-Host "##### LYRA LEG B (census mask dump; the tag-vs-untag differential) #####"
+# 200 frames so there are enough pose-matched consecutive NEGATIVE pairs to make >=5 treatment and
+# >=5 control pairs possible at all. Fewer frames is what made 073's reading powerless.
+& .\lyra_leg.ps1 -Label "A2L_LEGB" -Map "/ShooterCore/Maps/L_ShooterGym" -Seed 4242 -MaxFrames 200 `
+  -ExtraExecCmds "IAI.Bench.CensusMaskDump 60"
+Write-Host "LEGB exit=$LASTEXITCODE"
+
+Write-Host ""
+Write-Host "##### LYRA LG-9 (Nanite reach; REPORT-ONLY by pre-declaration) #####"
+# /ShooterMaps/ is derived from the plugin folder's own name (G238's correct derivation route);
+# the host records no path for this map, so the derivation is CONFIRMED from the engine's own
+# 'Bringing World ... up for play' line, never from the picture (G87).
+& .\lyra_leg.ps1 -Label "A2L_LG9" -Map "/ShooterMaps/Maps/L_Convolution_Blockout" -Seed 4242 -MaxFrames 90
+Write-Host "LG9 exit=$LASTEXITCODE"
+
+Write-Host ""
+Write-Host "##### LYRA CAMPAIGN DONE #####"

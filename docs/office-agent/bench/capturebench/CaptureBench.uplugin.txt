@@ -1,0 +1,25 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Capture Bench",
+	"Description": "Test plugin: SceneViewExtension-based final-color capture (the ExportTextures/DumpML method) with a benchmarking harness to mathematically compare it against the backbuffer-readback capture method.",
+	"Category": "Testing",
+	"CreatedBy": "",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": true,
+	"EnabledByDefault": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "CaptureBench",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

@@ -1,0 +1,87 @@
+"""
+m47b_swap_sign.py - which way does the swap material move the pixels?
+
+The m43 target mask exists ONLY on frames labelled for that event (m44), so the
+target's CLEAN luminance cannot be read from it. This holds the target's bbox FIXED
+- taken as the modal bbox over the labelled frames - and reads that same rectangle on
+every frame, labelled and clean alike.
+
+Run it on an AE-OFF leg and the exposure is pinned, so the difference is the material
+swap and nothing else. That is what decides the SIGN, and the sign decides which way a
+title's auto-exposure will move: a swap material BRIGHTER than what it replaces makes
+eye adaptation pull the rest of the scene DOWN while the anomaly is up.
+
+    python m47b_swap_sign.py <session_dir>
+
+Read-only.
+"""
+
+import json
+import os
+import sys
+from collections import Counter
+
+import numpy as np
+from PIL import Image
+
+
+def main(session):
+    rows = []
+    with open(os.path.join(session, "labels.jsonl"), "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    rows.sort(key=lambda r: r["session_index"])
+
+    boxes = Counter()
+    for r in rows:
+        for a in (r.get("anomalies") or []):
+            if a.get("bbox_valid") and a.get("bbox_px"):
+                boxes[tuple(int(round(v)) for v in a["bbox_px"])] += 1
+    if not boxes:
+        print("no valid bbox in this session - cannot fix a region")
+        return 1
+    box, n = boxes.most_common(1)[0]
+    print("modal bbox %s  (on %d of %d labelled rows, %d distinct)"
+          % (str(box), n, sum(boxes.values()), len(boxes)))
+
+    # bbox_px IS [x, y, WIDTH, HEIGHT] - AnomalyLabelWriter.cpp:95 emits
+    # {X0, Y0, X1-X0, Y1-Y0}. Read as (x0,y0,x1,y1) it degenerates to a 1-pixel strip
+    # on this fixture ((0,485,306,235) -> y1<y0) and returns a confident wrong number.
+    # Checked against the source before any verdict was read from this tool (G142).
+    x0, y0, bw, bh = box
+    x1, y1 = x0 + bw, y0 + bh
+    lab_v, clean_v = [], []
+    for r in rows:
+        img = os.path.join(session, r["image"].replace("/", os.sep))
+        if not os.path.exists(img):
+            continue
+        a = np.asarray(Image.open(img).convert("L"), dtype=np.float64)
+        h, w = a.shape
+        cx0 = max(0, min(w - 1, x0)); cx1 = max(cx0 + 1, min(w, x1))
+        cy0 = max(0, min(h - 1, y0)); cy1 = max(cy0 + 1, min(h, y1))
+        v = float(a[cy0:cy1, cx0:cx1].mean())
+        (lab_v if (r.get("anomalies") or []) else clean_v).append(v)
+
+    if not lab_v or not clean_v:
+        print("need both labelled and clean frames: lab=%d clean=%d" % (len(lab_v), len(clean_v)))
+        return 1
+
+    ml = sum(lab_v) / len(lab_v)
+    mc = sum(clean_v) / len(clean_v)
+    print("  region lum, ANOMALOUS frames : mean=%.3f  min=%.3f  max=%.3f  (n=%d)"
+          % (ml, min(lab_v), max(lab_v), len(lab_v)))
+    print("  region lum, CLEAN frames     : mean=%.3f  min=%.3f  max=%.3f  (n=%d)"
+          % (mc, min(clean_v), max(clean_v), len(clean_v)))
+    print("  DELTA (anomalous - clean) = %+.3f levels  (%+.1f%%)"
+          % (ml - mc, 100.0 * (ml - mc) / mc if mc else float("nan")))
+    print("  => the swap material is %s than what it replaces"
+          % ("BRIGHTER" if ml > mc else "DARKER"))
+    print("     A BRIGHTER swap makes eye adaptation pull the REST of the scene DOWN")
+    print("     while the anomaly is applied; a DARKER swap pushes it UP.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1]))

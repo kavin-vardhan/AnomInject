@@ -1,0 +1,140 @@
+"""LG-9: Nanite reach on Lyra. REPORT-ONLY by pre-declaration.
+
+It does NOT ask whether the pixels were measured - on a Nanite target they structurally cannot be
+(G134, and the 5.1 custom-depth pass has no Nanite path). It asks whether m49's UNMEASURED FALLBACK
+fires and SAYS SO: observability_measured false, affected_frames falling back to the injected subset,
+and the OBSERVABILITY UNMEASURED warning present in the run's own log.
+
+It also prints, per event, whether the target's mesh assets carry the Nanite signature, using the
+same offline asset scan as nanite_signature_scan.py - stated as EVIDENCE, not a runtime read.
+
+Usage: python m49_lg9_nanite.py <session-dir> [content-root ...]
+"""
+
+import json
+import os
+import sys
+import glob
+
+
+NANITE_NEEDLE = b"NaniteSettings"
+
+
+def read_json(p):
+    with open(p, "r", encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def read_rows(p):
+    rows = []
+    if not os.path.isfile(p):
+        return rows
+    for line in open(p, encoding="utf-8-sig"):
+        line = line.strip()
+        if line:
+            rows.append(json.loads(line))
+    rows.sort(key=lambda r: r["session_index"])
+    return rows
+
+
+def asset_index(roots):
+    idx = {}
+    for root in roots:
+        for dirpath, _dirs, files in os.walk(root):
+            for fn in files:
+                if fn.endswith(".uasset"):
+                    idx.setdefault(fn[:-7], os.path.join(dirpath, fn))
+    return idx
+
+
+def has_nanite(path):
+    try:
+        with open(path, "rb") as f:
+            return NANITE_NEEDLE in f.read()
+    except Exception:
+        return None
+
+
+def main():
+    sess = sys.argv[1]
+    cands = sorted(glob.glob(os.path.join(sess, "session_*")))
+    if cands:
+        sess = cands[-1]
+    roots = sys.argv[2:] or [r"E:\UEProjects\LyraStarterGame\Content",
+                             r"E:\UEProjects\LyraStarterGame\Plugins"]
+    print("session:", sess)
+
+    idx = asset_index(roots)
+    print("offline asset index: %d .uasset names" % len(idx))
+
+    an = read_json(os.path.join(sess, "annotation.json"))
+    rs = read_json(os.path.join(sess, "run_summary.json"))
+    rows = read_rows(os.path.join(sess, "labels.jsonl"))
+
+    print("")
+    print("run_summary: census_unmeasurable_nanite = %s | census_candidates = %s | "
+          "translucent_only_excluded_targets = %s"
+          % (rs.get("census_unmeasurable_nanite"), rs.get("census_candidates"),
+             rs.get("translucent_only_excluded_targets")))
+    print("run_summary: target_mask measured/hidden_blank/unavailable = %s/%s/%s"
+          % (rs.get("target_mask_frames_measured"), rs.get("target_mask_frames_hidden_blank"),
+             rs.get("target_mask_frames_unavailable")))
+
+    print("")
+    print("%-3s %-18s %-30s %-9s %-6s %-6s %-6s %-7s %s"
+          % ("ev", "type", "target(asset)", "nanite?", "inj", "aff", "unmeas", "obsm", "tp values"))
+    nanite_events = 0
+    fallback_events = 0
+    for i, e in enumerate(an.get("anomalies", [])):
+        node = e["affected_objects"]["nodes"][0]
+        asset = node.get("asset_name") or ""
+        p = idx.get(asset)
+        nan = has_nanite(p) if p else None
+        nan_s = {True: "YES", False: "no", None: "unknown"}[nan]
+        if nan is True:
+            nanite_events += 1
+        inj = e["injected_frames"]["frame_indices"]
+        aff = e["affected_frames"]["frame_indices"]
+        obsm = e.get("observability_measured")
+        if obsm is False:
+            fallback_events += 1
+        tps = set()
+        states = set()
+        for r in rows:
+            if r["session_index"] in inj:
+                for a in r.get("anomalies", []):
+                    if a.get("target_name") == node.get("name"):
+                        tps.add(a.get("target_pixels"))
+                        states.add(r.get("mask_state"))
+        print("%-3d %-18s %-30s %-9s %-6d %-6d %-6s %-7s %s  mask_state=%s"
+              % (i, e["anomaly_type"], (node.get("name", "?") + "(" + asset + ")")[:30], nan_s,
+                 len(inj), len(aff), e.get("unmeasured_frame_count"), str(obsm),
+                 sorted(tps)[:5], sorted(states)))
+        if obsm is False:
+            print("      FALLBACK: affected_frames == injected_frames ? %s" % (aff == inj))
+
+    print("")
+    print("events whose target asset carries the Nanite signature : %d of %d"
+          % (nanite_events, len(an.get("anomalies", []))))
+    print("events with observability_measured == false (fallback) : %d" % fallback_events)
+
+    lg = os.path.join(sess, "anomaly_log.txt")
+    if os.path.isfile(lg):
+        n = 0
+        for line in open(lg, encoding="utf-8-sig", errors="replace"):
+            if "OBSERVABILITY UNMEASURED" in line:
+                n += 1
+                if n <= 3:
+                    print("  LOG:", line.strip()[:200])
+        print("OBSERVABILITY UNMEASURED warnings in the run log: %d" % n)
+    else:
+        print("no anomaly_log.txt in this session")
+
+    if nanite_events == 0:
+        print("")
+        print("LG-9: NOT EXERCISED - no fire landed on a target whose asset carries the Nanite "
+              "signature. Reported as not exercised, never as passed.")
+
+
+if __name__ == "__main__":
+    main()

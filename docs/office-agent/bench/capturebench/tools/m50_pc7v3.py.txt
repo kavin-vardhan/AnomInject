@@ -1,0 +1,99 @@
+import json, os, sys, glob
+
+DECLARED_LABEL_ANOM = set()
+DECLARED_ANN_EVENT  = set()
+DECLARED_ANN_ROOT   = set()
+DECLARED_AFFECTED   = set()
+DECLARED_RUNSUM     = {"unmeasurable_targets_admitted"}
+RUN_UNIQUE = {"t_wall", "session_id", "start_time_utc", "speed_ratio", "sustained_wall_fps",
+              "stamped_fps", "game_clock_speed_ratio", "end_frame", "start_frame",
+              "ticks_msec", "shader_prewarm_ms", "video"}
+
+def jl(p):
+    out = []
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+def sess(bank_name):
+    return glob.glob(os.path.join(r"D:\IntrusiveAnomalies\_bench_sessions_bank", bank_name, "session_*"))[0]
+
+def compare(a_name, b_name):
+    A, B = sess(a_name), sess(b_name)
+    print("=== P-C7 v3 : A=%s  B=%s ===" % (a_name, b_name))
+    la, lb = jl(os.path.join(A, "labels.jsonl")), jl(os.path.join(B, "labels.jsonl"))
+    print("rows A=%d B=%d" % (len(la), len(lb)))
+
+    ka = set(); kb = set(); aa = set(); ab = set()
+    for r in la:
+        ka |= set(r.keys())
+        for x in r.get("anomalies", []): aa |= set(x.keys())
+    for r in lb:
+        kb |= set(r.keys())
+        for x in r.get("anomalies", []): ab |= set(x.keys())
+    print("labels top-level keys: added=%s removed=%s" % (sorted(kb - ka), sorted(ka - kb)))
+    added_anom = ab - aa
+    print("labels anomaly keys  : added=%s removed=%s  DECLARED-ONLY=%s"
+          % (sorted(added_anom), sorted(aa - ab), added_anom == DECLARED_LABEL_ANOM or added_anom <= DECLARED_LABEL_ANOM))
+
+    # value comparison on SHARED fields, keyed by session_index
+    ia = {r["session_index"]: r for r in la}
+    ib = {r["session_index"]: r for r in lb}
+    shared_si = sorted(set(ia) & set(ib))
+    diffs = {}
+    for si in shared_si:
+        ra, rb = ia[si], ib[si]
+        for k in (ka & kb):
+            if k in RUN_UNIQUE or k == "anomalies":
+                continue
+            if ra.get(k) != rb.get(k):
+                diffs.setdefault(k, 0)
+                diffs[k] += 1
+        for x, y in zip(ra.get("anomalies", []), rb.get("anomalies", [])):
+            for k in (aa & ab):
+                if x.get(k) != y.get(k):
+                    diffs.setdefault("anomalies." + k, 0)
+                    diffs["anomalies." + k] += 1
+    print("shared session_index count=%d ; differing shared fields: %s"
+          % (len(shared_si), diffs if diffs else "NONE - byte-identical on every shared field"))
+
+    ana = json.load(open(os.path.join(A, "annotation.json"), encoding="utf-8"))
+    anb = json.load(open(os.path.join(B, "annotation.json"), encoding="utf-8"))
+    ra_added = set(anb.keys()) - set(ana.keys())
+    print("annotation root keys : added=%s removed=%s DECLARED-ONLY=%s"
+          % (sorted(ra_added), sorted(set(ana.keys()) - set(anb.keys())), ra_added <= DECLARED_ANN_ROOT))
+    ea = set(); eb = set(); fa = set(); fb = set()
+    for e in ana["anomalies"]:
+        ea |= set(e.keys()); fa |= set(e.get("affected_frames", {}).keys())
+    for e in anb["anomalies"]:
+        eb |= set(e.keys()); fb |= set(e.get("affected_frames", {}).keys())
+    print("annotation event keys: added=%s removed=%s DECLARED-ONLY=%s"
+          % (sorted(eb - ea), sorted(ea - eb), (eb - ea) <= DECLARED_ANN_EVENT))
+    print("affected_frames keys : added=%s removed=%s DECLARED-ONLY=%s"
+          % (sorted(fb - fa), sorted(fa - fb), (fb - fa) <= DECLARED_AFFECTED))
+    print("events A=%d B=%d" % (len(ana["anomalies"]), len(anb["anomalies"])))
+    fi_bad = 0
+    for i, (x, y) in enumerate(zip(ana["anomalies"], anb["anomalies"])):
+        fx = x.get("affected_frames", {}).get("frame_indices")
+        fy = y.get("affected_frames", {}).get("frame_indices")
+        same = (fx == fy)
+        if not same: fi_bad += 1
+        print("   ev%d %-18s A=%s B=%s %s" % (i, x.get("anomaly_type"), fx, fy, "SAME" if same else "*** DIFFERS ***"))
+    print("frame_indices identical value-for-value on %d of %d events"
+          % (len(ana["anomalies"]) - fi_bad, len(ana["anomalies"])))
+
+    sa = json.load(open(os.path.join(A, "run_summary.json"), encoding="utf-8"))
+    sb = json.load(open(os.path.join(B, "run_summary.json"), encoding="utf-8"))
+    add = set(sb) - set(sa)
+    print("run_summary keys %d -> %d : added=%s removed=%s DECLARED-ONLY=%s"
+          % (len(sa), len(sb), sorted(add), sorted(set(sa) - set(sb)), add <= DECLARED_RUNSUM))
+    print()
+    return fi_bad, sorted(added_anom), sorted(add)
+
+if __name__ == "__main__":
+    for i in range(1, len(sys.argv), 2):
+        compare(sys.argv[i], sys.argv[i+1])

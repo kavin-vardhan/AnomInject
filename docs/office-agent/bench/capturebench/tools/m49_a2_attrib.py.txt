@@ -1,0 +1,87 @@
+"""Attribute every differing SHARED field that P-C7 v3 reports, rather than waving at it."""
+import json
+import os
+import sys
+import glob
+
+
+def jl(p):
+    out = []
+    for line in open(p, encoding="utf-8"):
+        line = line.strip()
+        if line:
+            out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+
+def sess(name):
+    return glob.glob(os.path.join(r"D:\IntrusiveAnomalies\_bench_sessions_bank", name, "session_*"))[0]
+
+
+def attrib(a_name, b_name):
+    A, B = sess(a_name), sess(b_name)
+    la = {r["session_index"]: r for r in jl(os.path.join(A, "labels.jsonl"))}
+    lb = {r["session_index"]: r for r in jl(os.path.join(B, "labels.jsonl"))}
+    shared = sorted(set(la) & set(lb))
+    print("=== %s -> %s ===" % (a_name, b_name))
+
+    for key in ("frame_index", "t"):
+        deltas = set()
+        for si in shared:
+            deltas.add(round(lb[si][key] - la[si][key], 6))
+        if len(deltas) == 1 and deltas != {0} and deltas != {0.0}:
+            print("  %-12s delta is a SINGLE CONSTANT %s on %d of %d rows -> m41 startup variance"
+                  % (key, deltas.pop(), len(shared), len(shared)))
+        elif deltas not in ({0}, {0.0}):
+            print("  %-12s *** MULTIPLE DELTAS *** %s" % (key, sorted(deltas)[:8]))
+
+    sf = set()
+    for si in shared:
+        for x, y in zip(la[si].get("anomalies", []), lb[si].get("anomalies", [])):
+            sf.add(y["start_frame"] - x["start_frame"])
+    if sf and sf != {0}:
+        print("  start_frame  deltas: %s %s" % (sorted(sf), "SINGLE CONSTANT" if len(sf) == 1 else "*** MULTIPLE ***"))
+
+    tp_rows = []
+    for si in shared:
+        for x, y in zip(la[si].get("anomalies", []), lb[si].get("anomalies", [])):
+            if x.get("target_pixels") != y.get("target_pixels"):
+                tp_rows.append((si, x.get("target_pixels"), y.get("target_pixels"),
+                                x.get("mask_value"), y.get("mask_value"),
+                                x.get("mask_state") if "mask_state" in la[si] else la[si].get("mask_state"),
+                                lb[si].get("mask_state")))
+    if tp_rows:
+        print("  target_pixels differing on %d row(s):" % len(tp_rows))
+        for (si, xa, xb, ma, mb, sa, sb) in tp_rows:
+            print("     si=%-4d A tp=%-8s (mask_value %s, %s)   B tp=%-8s (mask_value %s, %s)"
+                  % (si, xa, ma, sa, xb, mb, sb))
+        both_neg = all(xa == -1 or xb == -1 for (si, xa, xb, *_rest) in tp_rows)
+        print("     every differing row has at least one side UNMEASURED (-1): %s" % both_neg)
+
+    ed = []
+    for si in shared:
+        if la[si].get("exposure_dip") != lb[si].get("exposure_dip"):
+            ed.append((si, la[si].get("exposure_dip"), lb[si].get("exposure_dip")))
+    if ed:
+        print("  exposure_dip differing on %d row(s): %s"
+              % (len(ed), [(s, a, b) for (s, a, b) in ed[:10]]))
+
+    mv = []
+    for si in shared:
+        for x, y in zip(la[si].get("anomalies", []), lb[si].get("anomalies", [])):
+            if x.get("mask_value") != y.get("mask_value"):
+                mv.append((x.get("mask_value"), y.get("mask_value")))
+    if mv:
+        pairs = sorted(set(mv))
+        a_side = [p[0] for p in pairs]
+        b_side = [p[1] for p in pairs]
+        bijective = len(set(a_side)) == len(a_side) and len(set(b_side)) == len(b_side)
+        print("  mask_value differing on %d row(s); distinct (A->B) map: %s ; BIJECTIVE=%s"
+              % (len(mv), pairs, bijective))
+    print("")
+
+
+if __name__ == "__main__":
+    for i in range(1, len(sys.argv), 2):
+        attrib(sys.argv[i], sys.argv[i + 1])

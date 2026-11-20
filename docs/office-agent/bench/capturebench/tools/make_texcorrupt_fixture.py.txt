@@ -1,0 +1,1670 @@
+"""make_texcorrupt_fixture.py - m53 F-SYN fixture level (plan R12.1, N2 "additive only").
+
+Editor Python, launched like make_gate_level.py:
+  UnrealEditor-Cmd.exe <uproject> -run=pythonscript -script="<this file>"            (author)
+  UnrealEditor-Cmd.exe <uproject> -run=pythonscript -script="<this file>" -AllowCommandletRendering
+      with TEXCORRUPT_FIXTURE_MODE=verify                                              (verify, saves nothing)
+
+Environment:
+  TEXCORRUPT_FIXTURE_SRC   folder written by texcorrupt_fixture_images.py (images + texcorrupt_fixture_manifest.json)
+  TEXCORRUPT_FIXTURE_OUT   folder for texcorrupt_fixture_actors.json / texcorrupt_fixture_verify.json
+  TEXCORRUPT_FIXTURE_MODE  "author" (default), "verify", or "slots" (082-06d: re-set ONLY the four duplicated meshes'
+                           asset slots in an existing fixture and save those four packages; run WITHOUT rendering),
+                           or "normals" (082-07c: make ONLY the four normal-family readout materials Default Lit with
+                           the Tex normal map connected into Normal as well as Emissive; save those four packages),
+                           or "masked" (082-07f: recompile ONLY M_TC_Masked so its saved bCanMaskedBeAssumedOpaque is
+                           recomputed with OpacityMask connected, and GetBlendMode() returns Masked; save that package),
+                           or "dcfix" (089-02b: linearise M_TC_OracleN's readout and empty TC_Mixed's component
+                           override array; save those two packages) / "dcfixverify" (read both back, saves nothing)
+  TEXCORRUPT_FIXTURE_ALLOW_OVERWRITE=1  same as passing --allow-overwrite-texcorrupt-fixture
+
+Author mode imports the manifest's images with its settings, creates the readout/binding/reason materials,
+duplicates the meshes it must change into the folder, builds /Game/CaptureBenchTexCorrupt/CB_TexCorruptLevel and
+saves ONLY packages under /Game/CaptureBenchTexCorrupt/. It REFUSES if the folder exists, unless given
+--allow-overwrite-texcorrupt-fixture, which deletes only inside that folder. It asserts every path it creates
+starts with the folder, references engine content without saving it, and before exiting lists the dirty packages:
+any dirty package outside the folder FAILS the run and is not saved (the m47 lesson).
+
+Author mode runs WITHOUT -AllowCommandletRendering on purpose: with rendering, the editor creates render state for
+the skeletal fixture and auto-sets bUsedWithSkeletalMesh on its material (the G49 class the fixture exists to hold).
+Verify mode compiles every fixture material (rendering on) and loads no level. It also reads the four duplicated
+meshes' asset slots back from disk (it never saves, so every load is from the saved bytes) and proves the slot_empty,
+host_mid asset_slot, nanite_override and default_material_path producers; any failed expectation fails the run.
+"""
+
+import hashlib
+import json
+import math
+import os
+import sys
+
+import unreal
+
+ROOT = "/Game/CaptureBenchTexCorrupt"
+LEVEL_PATH = ROOT + "/CB_TexCorruptLevel"
+TEX_DIR = ROOT + "/Textures"
+MAT_DIR = ROOT + "/Materials"
+MESH_DIR = ROOT + "/Meshes"
+OVERRIDE_FLAG = "--allow-overwrite-texcorrupt-fixture"
+
+ZC = 500.0              # eye height: the PlayerStart location is the spectator's eye (CB_GateLevel precedent)
+WALL = 1000.0           # depth of the facing tiles
+FAR = 4000.0            # depth of the minification planes
+STREAM_FAR = 30000.0    # depth of the streamed 2048^2 target
+SCREEN_W, SCREEN_H = 1280.0, 720.0
+MASK_CLIP = 0.5         # M_TC_Masked's opacity-mask clip value
+
+MEL = unreal.MaterialEditingLibrary
+EAL = unreal.EditorAssetLibrary
+TOOLS = unreal.AssetToolsHelpers.get_asset_tools()
+PLANE = "/Engine/BasicShapes/Plane"
+CUBE = "/Engine/BasicShapes/Cube"
+SKEL_CUBE = "/Engine/EngineMeshes/SkeletalCube"
+
+CREATED = []
+
+
+def log(msg):
+    unreal.log("[texcorrupt-fixture] " + msg)
+
+
+def fail(msg):
+    unreal.log_error("[texcorrupt-fixture] FAILED: " + msg)
+    raise RuntimeError("TEXCORRUPT_FIXTURE_FAILED: " + msg)
+
+
+def in_root(path):
+    if not (path == ROOT or path.startswith(ROOT + "/")):
+        fail("refusing to create '%s' outside %s/" % (path, ROOT))
+    return path
+
+
+def created(path):
+    in_root(path)
+    CREATED.append(path)
+    return path
+
+
+def save(path):
+    in_root(path)
+    if not EAL.save_asset(path, only_if_is_dirty=False):
+        fail("save failed for " + path)
+
+
+def env(name, default=None):
+    v = os.environ.get(name)
+    return v if v else default
+
+
+# ---------------------------------------------------------------------------------------------- guard
+
+
+def folder_on_disk():
+    return os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_content_dir()), "CaptureBenchTexCorrupt")
+
+
+def guard():
+    allow = OVERRIDE_FLAG in sys.argv or env("TEXCORRUPT_FIXTURE_ALLOW_OVERWRITE") == "1"
+    disk = folder_on_disk()
+    exists = os.path.isdir(disk) or EAL.does_directory_exist(ROOT)
+    if exists and not allow:
+        fail("TEXCORRUPT_FIXTURE_REFUSED: %s already exists (%s). This tool deletes before authoring; pass %s to delete "
+             "ONLY inside that folder and rebuild." % (ROOT, disk, OVERRIDE_FLAG))
+    if exists:
+        log("override given: deleting %s only" % ROOT)
+        if EAL.does_directory_exist(ROOT) and not EAL.delete_directory(ROOT):
+            fail("could not delete " + ROOT)
+        if os.path.isdir(disk) and any(files for _, _, files in os.walk(disk)):
+            fail("%s still holds files after the delete" % disk)
+
+
+# ---------------------------------------------------------------------------------------------- textures
+
+TC = unreal.TextureCompressionSettings
+TMGS = unreal.TextureMipGenSettings
+TG = unreal.TextureGroup
+ST = unreal.MaterialSamplerType
+
+
+def sampler_for(tex):
+    if isinstance(tex, unreal.TextureCube):
+        return None
+    cs = tex.get_editor_property("compression_settings")
+    srgb = tex.get_editor_property("srgb")
+    vt = isinstance(tex, unreal.Texture2D) and tex.get_editor_property("virtual_texture_streaming")
+    if cs == TC.TC_NORMALMAP:
+        return ST.SAMPLERTYPE_VIRTUAL_NORMAL if vt else ST.SAMPLERTYPE_NORMAL
+    if cs in (TC.TC_GRAYSCALE, TC.TC_DISPLACEMENTMAP):
+        if vt:
+            return ST.SAMPLERTYPE_VIRTUAL_GRAYSCALE if srgb else ST.SAMPLERTYPE_VIRTUAL_LINEAR_GRAYSCALE
+        return ST.SAMPLERTYPE_GRAYSCALE if srgb else ST.SAMPLERTYPE_LINEAR_GRAYSCALE
+    if cs == TC.TC_ALPHA:
+        return ST.SAMPLERTYPE_VIRTUAL_ALPHA if vt else ST.SAMPLERTYPE_ALPHA
+    if cs == TC.TC_MASKS:
+        return ST.SAMPLERTYPE_VIRTUAL_MASKS if vt else ST.SAMPLERTYPE_MASKS
+    if vt:
+        return ST.SAMPLERTYPE_VIRTUAL_COLOR if srgb else ST.SAMPLERTYPE_VIRTUAL_LINEAR_COLOR
+    return ST.SAMPLERTYPE_COLOR if srgb else ST.SAMPLERTYPE_LINEAR_COLOR
+
+
+def import_textures(src, manifest, dc=False):
+    texs = {}
+    for e in manifest["images"]:
+        if bool(e.get("dc")) != dc:
+            continue
+        fp = os.path.join(src, e["file"])
+        with open(fp, "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+        if digest != e["sha256"]:
+            fail("%s hash %s does not match the manifest %s" % (e["file"], digest[:16], e["sha256"][:16]))
+        path = created(TEX_DIR + "/" + e["name"])
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", fp)
+        task.set_editor_property("destination_path", TEX_DIR)
+        task.set_editor_property("destination_name", e["name"])
+        task.set_editor_property("automated", True)
+        task.set_editor_property("replace_existing", False)
+        task.set_editor_property("save", False)
+        TOOLS.import_asset_tasks([task])
+        tex = unreal.load_asset(path)
+        if tex is None:
+            fail("import produced nothing for " + e["file"])
+        s = e["settings"]
+        if e["cube"]:
+            if not isinstance(tex, unreal.TextureCube):
+                fail("%s imported as %s, not TextureCube" % (e["name"], tex.get_class().get_name()))
+            tex.set_editor_property("srgb", bool(s["srgb"]))
+            tex.set_editor_property("never_stream", bool(s["never_stream"]))
+        else:
+            if not isinstance(tex, unreal.Texture2D):
+                fail("%s imported as %s, not Texture2D" % (e["name"], tex.get_class().get_name()))
+            if e["format"] == "dds" and tex.get_editor_property("mip_gen_settings") != TMGS.TMGS_LEAVE_EXISTING_MIPS:
+                fail("%s: the DDS chain was not kept (mip_gen %s)" % (e["name"], tex.get_editor_property("mip_gen_settings")))
+            tex.set_editor_property("compression_settings", getattr(TC, s["compression"]))
+            tex.set_editor_property("srgb", bool(s["srgb"]))
+            tex.set_editor_property("lod_group", getattr(TG, s["lod_group"]))
+            tex.set_editor_property("mip_gen_settings", getattr(TMGS, s["mip_gen"]))
+            tex.set_editor_property("compression_no_alpha", bool(s["no_alpha"]))
+            tex.set_editor_property("never_stream", bool(s["never_stream"]))
+            tex.set_editor_property("num_cinematic_mip_levels", int(s["cinematic"]))
+            tex.set_editor_property("virtual_texture_streaming", bool(s["virtual"]))
+            if s["alpha_coverage"]:
+                tex.set_editor_property("do_scale_mips_for_alpha_coverage", True)
+                tex.set_editor_property("alpha_coverage_thresholds", unreal.Vector4(0.0, 0.0, 0.0, 0.5))
+        save(path)
+        texs[e["name"]] = tex
+    log("imported %d textures" % len(texs))
+    return texs
+
+
+# ---------------------------------------------------------------------------------------------- material helpers
+
+
+def new_material(name, blend=unreal.BlendMode.BLEND_OPAQUE, shading=unreal.MaterialShadingModel.MSM_UNLIT):
+    path = created(MAT_DIR + "/" + name)
+    mat = TOOLS.create_asset(name, MAT_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("blend_mode", blend)
+    mat.set_editor_property("shading_model", shading)
+    mat.set_editor_property("two_sided", True)
+    return mat, path
+
+
+def tsp(mat, pname, tex, uv=None, x=-700, y=0, sampler_source=unreal.SamplerSourceMode.SSM_FROM_TEXTURE_ASSET):
+    e = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, x, y)
+    e.set_editor_property("parameter_name", pname)
+    e.set_editor_property("texture", tex)
+    st = sampler_for(tex)
+    if st is not None:
+        e.set_editor_property("sampler_type", st)
+    e.set_editor_property("sampler_source", sampler_source)
+    if uv is not None and not MEL.connect_material_expressions(uv, "", e, "UVs"):
+        fail("UV not connected into %s" % pname)
+    return e
+
+
+def custom(mat, desc, code, inputs, out_type, x=-250, y=0):
+    e = MEL.create_material_expression(mat, unreal.MaterialExpressionCustom, x, y)
+    e.set_editor_property("description", desc)
+    e.set_editor_property("code", code)
+    e.set_editor_property("output_type", out_type)
+    ins = []
+    for name, _ in inputs:
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", name)
+        ins.append(ci)
+    e.set_editor_property("inputs", ins)
+    for name, (src, pin) in inputs:
+        if not MEL.connect_material_expressions(src, pin, e, name):
+            fail("could not connect %s into %s" % (name, desc))
+    return e
+
+
+F3 = unreal.CustomMaterialOutputType.CMOT_FLOAT3
+F2 = unreal.CustomMaterialOutputType.CMOT_FLOAT2
+
+
+def emissive(mat, e, pin=""):
+    if not MEL.connect_material_property(e, pin, unreal.MaterialProperty.MP_EMISSIVE_COLOR):
+        fail("emissive not connected")
+
+
+def uv_node(mat, kind="plain", x=-1100, y=0):
+    tc = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, x, y)
+    if kind == "tile2":
+        tc.set_editor_property("u_tiling", 2.0)
+        tc.set_editor_property("v_tiling", 2.0)
+        return tc
+    if kind == "swap":
+        return custom(mat, "RefSwapUV", "return UV.yx;", [("UV", (tc, ""))], F2, x + 250, y)
+    return tc
+
+
+def connect_normal(mat, s):
+    """082-07c: a normal-family readout is Lit and feeds the sample into Normal as well as the Emissive readout, so
+    the material passes the feature's A3 rule (Root->IsPropertyConnected(MP_Normal)) and Normal actually shades."""
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    if not MEL.connect_material_property(s, "RGB", unreal.MaterialProperty.MP_NORMAL):
+        fail("normal not connected")
+
+
+def readout(name, tex, kind, uvkind="plain", sampler_source=unreal.SamplerSourceMode.SSM_FROM_TEXTURE_ASSET):
+    blend = unreal.BlendMode.BLEND_MASKED if kind == "masked" else unreal.BlendMode.BLEND_OPAQUE
+    mat, path = new_material(name, blend)
+    uv = uv_node(mat, uvkind)
+    s = tsp(mat, "Tex", tex, uv, sampler_source=sampler_source)
+    if kind == "rgb":
+        emissive(mat, s)
+    elif kind == "normal":
+        emissive(mat, custom(mat, "NormalReadout", "return N.rgb * 0.5 + 0.5;", [("N", (s, "RGBA"))], F3))
+        connect_normal(mat, s)
+    elif kind == "alpha_split":
+        tc = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1100, 300)
+        emissive(mat, custom(mat, "AlphaSplitReadout",
+                             "float3 a = lerp(float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0), S.a);\n"
+                             "return lerp(S.rgb, a, step(0.5, UV.x));",
+                             [("S", (s, "RGBA")), ("UV", (tc, ""))], F3))
+    elif kind == "masked":
+        emissive(mat, s)
+        mat.set_editor_property("opacity_mask_clip_value", MASK_CLIP)
+        if not MEL.connect_material_property(s, "A", unreal.MaterialProperty.MP_OPACITY_MASK):
+            fail("opacity mask not connected")
+        MEL.recompile_material(mat)
+        if str(mat.get_blend_mode()) != str(unreal.BlendMode.BLEND_MASKED):
+            fail("%s effective blend mode %s after the OpacityMask connection" % (name, mat.get_blend_mode()))
+    else:
+        fail("unknown readout kind " + kind)
+    save(path)
+    return mat
+
+
+def combine(name, samples, blend=unreal.BlendMode.BLEND_OPAQUE, usage=None, extra=None):
+    """One material sampling several texture parameters (name -> texture); Emissive = their mean."""
+    mat, path = new_material(name, blend)
+    uv = uv_node(mat)
+    exprs = []
+    for i, (pname, tex) in enumerate(samples):
+        if isinstance(tex, unreal.TextureCube):
+            e = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameterCube, -700, i * 250)
+            e.set_editor_property("parameter_name", pname)
+            e.set_editor_property("texture", tex)
+            v = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -1000, i * 250)
+            v.set_editor_property("constant", unreal.LinearColor(0.3, 0.5, 0.8, 0.0))
+            if not MEL.connect_material_expressions(v, "", e, "UVs"):
+                fail("cube direction not connected")
+        else:
+            e = tsp(mat, pname, tex, uv, y=i * 250)
+        exprs.append(e)
+    names = ["S%d" % i for i in range(len(exprs))]
+    code = "return (" + " + ".join("%s.rgb" % n for n in names) + ") / %d.0;" % len(names)
+    emissive(mat, custom(mat, "MeanOfSamples", code, [(n, (e, "RGBA")) for n, e in zip(names, exprs)], F3))
+    if blend == unreal.BlendMode.BLEND_TRANSLUCENT:
+        c = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -250, 400)
+        c.set_editor_property("r", 0.5)
+        MEL.connect_material_property(c, "", unreal.MaterialProperty.MP_OPACITY)
+    for k, v in (usage or {}).items():
+        mat.set_editor_property(k, v)
+    if extra:
+        extra(mat)
+    save(path)
+    return mat
+
+
+# ---------------------------------------------------------------------------------------------- binding materials
+
+
+def layer_material(tex_global, tex_layer):
+    fpath = created(MAT_DIR + "/ML_TC_Layer")
+    fn = TOOLS.create_asset("ML_TC_Layer", MAT_DIR, unreal.MaterialFunctionMaterialLayer,
+                            unreal.MaterialFunctionMaterialLayerFactory())
+    t = MEL.create_material_expression_in_function(fn, unreal.MaterialExpressionTextureSampleParameter2D, -600, 0)
+    t.set_editor_property("parameter_name", "Tex")
+    t.set_editor_property("texture", tex_layer)
+    t.set_editor_property("sampler_type", sampler_for(tex_layer))
+    mk = MEL.create_material_expression_in_function(fn, unreal.MaterialExpressionMakeMaterialAttributes, -300, 0)
+    out = MEL.create_material_expression_in_function(fn, unreal.MaterialExpressionFunctionOutput, 0, 0)
+    if not (MEL.connect_material_expressions(t, "", mk, "EmissiveColor") and MEL.connect_material_expressions(mk, "", out, "")):
+        fail("layer function graph not connected")
+    MEL.update_material_function(fn, None)
+    save(fpath)
+
+    mat, path = new_material("M_TC_Layer")
+    lay = MEL.create_material_expression(mat, unreal.MaterialExpressionMaterialAttributeLayers, -900, 200)
+    dl = lay.get_editor_property("default_layers")
+    txt = dl.export_text()
+    if "Layers=(None)" not in txt:
+        fail("unexpected default layer stack text: " + txt)
+    if not dl.import_text(txt.replace("Layers=(None)", 'Layers=("%s")' % fn.get_path_name())):
+        fail("could not set the layer stack")
+    lay.set_editor_property("default_layers", dl)
+    brk = MEL.create_material_expression(mat, unreal.MaterialExpressionBreakMaterialAttributes, -600, 200)
+    if not MEL.connect_material_expressions(lay, "", brk, ""):
+        fail("layer stack not connected")
+    uv = uv_node(mat)
+    g = tsp(mat, "Tex", tex_global, uv, y=-200)
+    tc = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -600, 500)
+    c = custom(mat, "LayerSplit", "return lerp(G, L, step(0.5, UV.x));",
+               [("G", (g, "")), ("L", (brk, "EmissiveColor")), ("UV", (tc, ""))], F3)
+    emissive(mat, c)
+    save(path)
+    log("layer stack: %s" % lay.get_editor_property("default_layers").export_text())
+    return mat
+
+
+def alias_material(tex):
+    mat, path = new_material("M_TC_Alias")
+    uv = uv_node(mat)
+    p = tsp(mat, "P", tex, uv, y=-200)
+    k = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -700, 200)
+    k.set_editor_property("texture", tex)
+    k.set_editor_property("sampler_type", sampler_for(tex))
+    MEL.connect_material_expressions(uv, "", k, "UVs")
+    sw = MEL.create_material_expression(mat, unreal.MaterialExpressionStaticSwitch, -300, 0)
+    sw.set_editor_property("default_value", False)
+    ok_t = MEL.connect_material_expressions(p, "", sw, "True") or MEL.connect_material_expressions(p, "", sw, "A")
+    ok_f = MEL.connect_material_expressions(k, "", sw, "False") or MEL.connect_material_expressions(k, "", sw, "B")
+    if not (ok_t and ok_f):
+        fail("alias switch not connected (true=%s false=%s)" % (ok_t, ok_f))
+    emissive(mat, sw)
+    save(path)
+    return mat
+
+
+def dead_material(tex):
+    mat, path = new_material("M_TC_Dead")
+    uv = uv_node(mat)
+    s = tsp(mat, "Tex", tex, uv)
+    c = custom(mat, "DeadBinding", "return S.rgb * 0.0 + float3(0.30, 0.55, 0.25);", [("S", (s, "RGBA"))], F3)
+    emissive(mat, c)
+    save(path)
+    return mat
+
+
+def constant_material(name, rgb, usage=None):
+    mat, path = new_material(name)
+    c = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -300, 0)
+    c.set_editor_property("constant", unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0))
+    emissive(mat, c)
+    for k, v in (usage or {}).items():
+        mat.set_editor_property(k, v)
+    save(path)
+    return mat
+
+
+# ---------------------------------------------------------------------------------------------- meshes
+
+
+def dup_mesh(src, name):
+    path = created(MESH_DIR + "/" + name)
+    srcobj = unreal.load_asset(src)
+    if srcobj is None:
+        fail("could not load " + src)
+    m = EAL.duplicate_loaded_asset(srcobj, path)
+    if m is None:
+        fail("could not duplicate %s to %s" % (src, path))
+    return m, path
+
+
+# The four duplicated meshes and the asset-slot material each must carry (None = an empty slot). 082-06 G310: UE's
+# Python returns array struct elements BY COPY, so editing them in a for-loop and writing the array back saves the
+# UNMODIFIED array. Static slots go through UStaticMesh::SetMaterial; skeletal slots through a newly built list.
+MESH_SLOTS = [
+    (MESH_DIR + "/SM_TC_PlaneNoMat", None, "slot_empty"),
+    (MESH_DIR + "/SM_TC_PlaneAssetMid", MAT_DIR + "/M_TC_AssetMid", "host_mid where=asset_slot"),
+    (MESH_DIR + "/SM_TC_CubeNanite", MAT_DIR + "/M_TC_NaniteBase", "nanite_override"),
+    (MESH_DIR + "/SK_TC_Cube", MAT_DIR + "/M_TC_SkelNoUsage", "default_material_path"),
+]
+
+# The normal-family readout materials and the normal map each samples as "Tex" (082-07c). 082-07b: the readout sent
+# the normal map into Emissive only, so every normal target was refused normal_unconnected at V1 and no normal row ran.
+NORMAL_READOUTS = [
+    (MAT_DIR + "/M_TC_UN1", TEX_DIR + "/T_TC_UN1"),
+    (MAT_DIR + "/M_TC_NN1", TEX_DIR + "/T_TC_NN1"),
+    (MAT_DIR + "/M_TC_ChainD", TEX_DIR + "/T_TC_ChainD"),
+    (MAT_DIR + "/M_TC_NormalEmis", TEX_DIR + "/T_TC_NormalEmis"),
+]
+# 085-03 DC: the two DC normal readouts. Listed only when they exist, so verify of a pre-DC fixture is unchanged.
+DC_NORMAL_READOUTS = [
+    (MAT_DIR + "/M_TC_OracleN", TEX_DIR + "/T_TC_OracleN"),
+    (MAT_DIR + "/M_TC_MixedN", TEX_DIR + "/T_TC_MixedN"),
+]
+
+
+def pkg_of(obj):
+    return obj.get_path_name().split(".")[0] if obj is not None else None
+
+
+def slot_list(mesh):
+    arr = mesh.get_editor_property("static_materials" if isinstance(mesh, unreal.StaticMesh) else "materials")
+    return [(str(s.get_editor_property("material_slot_name")), pkg_of(s.get_editor_property("material_interface")))
+            for s in arr]
+
+
+def set_static_slot(mesh, mat):
+    n = len(mesh.get_editor_property("static_materials"))
+    if n == 0:
+        fail("%s has no material slots" % mesh.get_path_name())
+    for i in range(n):
+        mesh.set_material(i, mat)
+    got = slot_list(mesh)
+    if any(p != pkg_of(mat) for _, p in got):
+        fail("%s slots are %s after SetMaterial, wanted %s" % (mesh.get_path_name(), got, pkg_of(mat)))
+
+
+def set_skeletal_slots(sk, mat):
+    old = list(sk.get_editor_property("materials"))
+    if not old:
+        fail("%s has no material slots" % sk.get_path_name())
+    new = []
+    for entry in old:
+        entry.set_editor_property("material_interface", mat)
+        new.append(entry)
+    sk.set_editor_property("materials", new)
+    got = slot_list(sk)
+    if any(p != pkg_of(mat) for _, p in got):
+        fail("%s slots are %s after set, wanted %s" % (sk.get_path_name(), got, pkg_of(mat)))
+
+
+def apply_slot(mesh, mat):
+    if isinstance(mesh, unreal.StaticMesh):
+        set_static_slot(mesh, mat)
+    else:
+        set_skeletal_slots(mesh, mat)
+
+
+def disk_file(path):
+    rel = path[len("/Game/"):] + ".uasset"
+    return os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_content_dir()), *rel.split("/"))
+
+
+def sha256_file(fp):
+    with open(fp, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+# ---------------------------------------------------------------------------------------------- layout
+
+
+def world_at(px, py, depth):
+    return (depth, (px - SCREEN_W / 2) * depth / (SCREEN_W / 2), ZC - (py - SCREEN_H / 2) * depth / (SCREEN_W / 2))
+
+
+def cm_of_px(px, depth):
+    return px * depth / (SCREEN_W / 2)
+
+
+EAS = None
+ACTORS = []
+
+
+def spawn(label, cls, loc, rot, scale, mesh=None, mat_override=None, extra=None):
+    a = EAS.spawn_actor_from_class(cls, unreal.Vector(*loc), rot)
+    if a is None:
+        fail("could not spawn " + label)
+    a.set_actor_label(label)
+    a.set_editor_property("tags", [unreal.Name(label)])
+    a.set_actor_scale3d(unreal.Vector(*scale))
+    if isinstance(a, unreal.StaticMeshActor):
+        comp = a.static_mesh_component
+        comp.set_mobility(unreal.ComponentMobility.MOVABLE)
+        comp.set_static_mesh(mesh)
+        if mat_override is not None:
+            comp.set_material(0, mat_override)
+    elif isinstance(a, unreal.SkeletalMeshActor):
+        comp = a.skeletal_mesh_component
+        comp.set_skeletal_mesh(mesh)
+    ACTORS.append(dict(label=label, name=a.get_name(), cls=a.get_class().get_name(),
+                       location=[round(v, 2) for v in loc], mesh=mesh.get_path_name() if mesh else None,
+                       material_override=mat_override.get_path_name() if mat_override else None, **(extra or {})))
+    return a
+
+
+FACING = unreal.Rotator(pitch=90.0, yaw=0.0, roll=0.0)
+
+
+def tile(label, mat, px, py, size_px, depth=WALL, mesh=None, override=True, role=""):
+    x, y, z = world_at(px, py, depth)
+    s = cm_of_px(size_px, depth) / 100.0
+    plane = mesh or unreal.load_asset(PLANE)
+    return spawn(label, unreal.StaticMeshActor, (x, y, z), FACING, (s, s, 1.0), plane, mat if override else None,
+                 {"role": role, "screen_px": [px, py, size_px], "depth": depth})
+
+
+def row_x(n, size, gap):
+    total = n * size + (n - 1) * gap
+    x0 = (SCREEN_W - total) / 2 + size / 2
+    return [x0 + i * (size + gap) for i in range(n)]
+
+
+# ---------------------------------------------------------------------------------------------- author
+
+
+def author(src, out):
+    global EAS
+    guard()
+    with open(os.path.join(src, "texcorrupt_fixture_manifest.json"), "r", encoding="utf-8") as fh:
+        manifest = json.load(fh)
+    if not manifest.get("all_relied_on"):
+        fail("the manifest's offline proofs are not all >= 32; the fixture is not built on an unproven fault")
+    T = import_textures(src, manifest)
+    roles = {e["name"]: e["role"] for e in manifest["images"]}
+
+    M = {}
+    for n, kind in [("UC1", "rgb"), ("UC2", "alpha_split"), ("UC3", "alpha_split"), ("UC4", "rgb"), ("UC5", "rgb"),
+                    ("UD1", "rgb"), ("UD2", "alpha_split"), ("UD3", "alpha_split"), ("UD4", "rgb"), ("UD5", "rgb"),
+                    ("UD6", "rgb"), ("UN1", "normal"), ("NN1", "normal")]:
+        M[n] = readout("M_TC_" + n, T["T_TC_" + n], kind)
+    M["Masked"] = readout("M_TC_Masked", T["T_TC_UC2"], "masked")
+    M["Shared"] = readout("M_TC_Shared", T["T_TC_Shared"], "rgb",
+                          sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
+    M["RedrawOpaque"] = readout("M_TC_RedrawOpaque", T["T_TC_RedrawOpaque"], "rgb")
+    M["RedrawAlpha"] = readout("M_TC_RedrawAlpha", T["T_TC_RedrawAlpha"], "alpha_split")
+    chains = [("ChainA", "rgb"), ("ChainB", "rgb"), ("ChainCSharpen", "rgb"), ("ChainCBlur", "rgb"),
+              ("ChainCAlphaCov", "alpha_split"), ("ChainD", "normal")]
+    for n, kind in chains:
+        M[n] = readout("M_TC_" + n, T["T_TC_" + n], kind)
+    refs = []
+    for n in ("ChainA", "ChainB"):
+        for bug in ("tile2", "swap"):
+            key = "Ref%s_%s" % (bug.capitalize(), n)
+            M[key] = readout("M_TC_" + key, T["T_TC_" + n], "rgb", uvkind=bug)
+            refs.append(key)
+
+    albedo = T["T_TC_Albedo"]
+    M["Layer"] = layer_material(T["T_TC_LayerGlobal"], T["T_TC_LayerLayer"])
+    M["Alias"] = alias_material(T["T_TC_Alias"])
+    M["Dead"] = dead_material(T["T_TC_Dead"])
+    M["AssetMid"] = readout("M_TC_AssetMid", T["T_TC_AssetMid"], "rgb")
+    M["Translucent"] = combine("M_TC_Translucent", [("Albedo", albedo)], blend=unreal.BlendMode.BLEND_TRANSLUCENT)
+    M["VT"] = combine("M_TC_VT", [("VTex", T["T_TC_VT"]), ("Albedo", albedo)])
+    M["Cube"] = combine("M_TC_Cube", [("CubeTex", T["T_TC_Cube"]), ("Albedo", albedo)])
+    M["UIGroup"] = combine("M_TC_UIGroup", [("UIMask", T["T_TC_UI256"]), ("Albedo", albedo)])
+    M["UI1x1"] = combine("M_TC_UI1x1", [("UIConst", T["T_TC_UI1x1"]), ("Albedo", albedo)])
+    M["Half"] = combine("M_TC_Half", [("HalfTex", T["T_TC_Half"]), ("Albedo", albedo)])
+    M["Cine"] = combine("M_TC_Cine", [("CineTex", T["T_TC_Cine"]), ("Albedo", albedo)])
+    M["Stream2k"] = combine("M_TC_Stream2k", [("BigStream", T["T_TC_Stream2k"]), ("Albedo", albedo)])
+    M["Small"] = combine("M_TC_Small", [("SmallA", T["T_TC_Small32A"]), ("SmallB", T["T_TC_Small32B"])])
+    M["Nine"] = combine("M_TC_Nine", [("Map%d" % i, T["T_TC_Nine%d" % i]) for i in range(1, 10)])
+    M["Big"] = combine("M_TC_Big", [("BigA", T["T_TC_Big4kA"]), ("BigB", T["T_TC_Big4kB"])])
+    M["NormalEmis"] = readout("M_TC_NormalEmis", T["T_TC_NormalEmis"], "normal")
+    M["NaniteOverride"] = constant_material("M_TC_NaniteOverride", (0.8, 0.1, 0.8), {"used_with_nanite": True})
+
+    def set_nanite_override(mat):
+        no = mat.get_editor_property("nanite_override_material")
+        no.set_editor_property("override_material_ref", M["NaniteOverride"])
+        mat.set_editor_property("nanite_override_material", no)
+
+    M["NaniteBase"] = combine("M_TC_NaniteBase", [("Tex", albedo)], usage={"used_with_nanite": True}, extra=set_nanite_override)
+    M["SkelNoUsage"] = combine("M_TC_SkelNoUsage", [("Tex", albedo)], usage={"used_with_skeletal_mesh": False})
+
+    sm_nomat, p1 = dup_mesh(PLANE, "SM_TC_PlaneNoMat")
+    set_static_slot(sm_nomat, None)
+    save(p1)
+    sm_assetmid, p2 = dup_mesh(PLANE, "SM_TC_PlaneAssetMid")
+    set_static_slot(sm_assetmid, M["AssetMid"])
+    save(p2)
+    sm_nanite, p3 = dup_mesh(CUBE, "SM_TC_CubeNanite")
+    set_static_slot(sm_nanite, M["NaniteBase"])
+    ns = sm_nanite.get_editor_property("nanite_settings")
+    ns.set_editor_property("enabled", True)
+    sm_nanite.set_editor_property("nanite_settings", ns)
+    save(p3)
+    sk, p4 = dup_mesh(SKEL_CUBE, "SK_TC_Cube")
+    set_skeletal_slots(sk, M["SkelNoUsage"])
+    save(p4)
+
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    created(LEVEL_PATH)
+    if not les.new_level(LEVEL_PATH):
+        fail("new_level refused " + LEVEL_PATH)
+
+    rowA = ["UC1", "UC2", "UC3", "UC4", "UC5", "UD1", "UD2", "UD3", "UD4", "UD5", "UD6", "UN1", "NN1",
+            "Masked", "Shared", "RedrawOpaque", "RedrawAlpha"]
+    for label, px in zip(rowA, row_x(len(rowA), 64, 8)):
+        tile("TC_" + label, M[label], px, 40, 64, role="encoding/alpha/shared/redraw row")
+
+    geo = [n for n, _ in chains] + refs
+    for label, px in zip(geo, row_x(len(geo), 120, 6)):
+        tile("TC_%s_Mag" % label, M[label], px, 136, 120, role="G-ID-M magnification")
+    graze_x = row_x(len(geo), 110, 9)
+    h = 250.0
+    for label, px in zip(geo, graze_x):
+        mid = 1200.0
+        x, y, _ = world_at(px, 0, WALL)
+        spawn("TC_%s_Grazing" % label, unreal.StaticMeshActor, (mid, y, ZC + h), unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0),
+              (4.0, 1.2, 1.0), unreal.load_asset(PLANE), M[label],
+              {"role": "G-ID-M grazing (ceiling strip X 1000..1400, 250 cm above the eye)", "depth": mid})
+    for label, px in zip(geo, row_x(len(geo), 16, 40)):
+        tile("TC_%s_Far" % label, M[label], px, 332, 16, depth=FAR, role="G-ID-M minification")
+    for i, label in enumerate(geo):
+        yy = (i - (len(geo) - 1) / 2.0) * 80.0
+        spawn("TC_%s_Transition" % label, unreal.StaticMeshActor, (3600.0, yy, ZC - 400.0),
+              unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0), (56.0, 0.6, 1.0), unreal.load_asset(PLANE), M[label],
+              {"role": "G-ID-M mip transitions (floor strip X 800..6400)", "depth": 3600.0})
+
+    rowD = [("Layer", None), ("Alias", None), ("Dead", None), ("AssetMid", sm_assetmid), ("Translucent", None),
+            ("VT", None), ("Cube", None), ("UIGroup", None), ("Nanite", sm_nanite), ("Skeletal", sk), ("UI1x1", None),
+            ("Half", None), ("Cine", None), ("Small", None), ("Nine", None), ("Big", None),
+            ("SlotEmpty", sm_nomat), ("NormalEmis", None)]
+    for (label, mesh), px in zip(rowD, row_x(len(rowD), 56, 10)):
+        if label == "Skeletal":
+            x, y, z = world_at(px, 286, WALL)
+            try:
+                b = sk.get_bounds()
+                ext = max(b.box_extent.x, b.box_extent.y, b.box_extent.z, 1.0)
+                oz = b.origin.z
+            except Exception as exc:
+                log("skeletal bounds unavailable (%s); assuming a 100 cm cube" % exc)
+                ext, oz = 50.0, 0.0
+            s = cm_of_px(44, WALL) / (2.0 * ext)
+            spawn("TC_Skeletal", unreal.SkeletalMeshActor, (x, y, z - oz * s), unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0),
+                  (s, s, s), sk, None, {"role": "default_material_path producer (G49 class)", "screen_px": [px, 286, 56]})
+        elif label == "Nanite":
+            x, y, z = world_at(px, 286, WALL)
+            s = cm_of_px(44, WALL) / 100.0
+            spawn("TC_Nanite", unreal.StaticMeshActor, (x, y, z), unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0), (s, s, s),
+                  sm_nanite, None, {"role": "nanite_override producer", "screen_px": [px, 286, 56]})
+        elif mesh is not None:
+            tile("TC_" + label, None, px, 286, 56, mesh=mesh, override=False, role="asset-slot material (no override)")
+        else:
+            tile("TC_" + label, M[label], px, 286, 56, role="binding / reason producer")
+    x, y, z = world_at(640, 356, STREAM_FAR)
+    spawn("TC_Stream2k", unreal.StaticMeshActor, (x, y, z), FACING, (1.0, 1.0, 1.0), unreal.load_asset(PLANE), M["Stream2k"],
+          {"role": "not_fully_resident / streaming_budget producer, streamed 2048^2 placed far", "depth": STREAM_FAR})
+    spawn("TC_NoMesh", unreal.TargetPoint, (0.0, 0.0, ZC - 900.0), unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0), (1.0, 1.0, 1.0),
+          None, None, {"role": "no_mesh producer (no static or skinned mesh component)"})
+
+    sun = EAS.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 2000), unreal.Rotator(pitch=-45.0, yaw=35.0, roll=0.0))
+    sun.set_actor_label("TC_Sun")
+    sun.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    sun.light_component.set_editor_property("intensity", 1.8)
+    sky = EAS.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 2000), unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0))
+    sky.set_actor_label("TC_SkyLight")
+    sky.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    atmo = EAS.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0), unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0))
+    atmo.set_actor_label("TC_SkyAtmosphere")
+    ps = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, 0, ZC), unreal.Rotator(pitch=0.0, yaw=0.0, roll=0.0))
+    ps.set_actor_label("TC_PlayerStart")
+
+    if not les.save_current_level():
+        fail("save_current_level failed")
+    for p in CREATED:
+        if not EAL.does_asset_exist(p):
+            fail("not on disk after save: " + p)
+    if M["SkelNoUsage"].get_editor_property("used_with_skeletal_mesh"):
+        fail("M_TC_SkelNoUsage gained bUsedWithSkeletalMesh; the default_material_path fixture is void")
+
+    dirty = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
+    dirty += [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
+    outside = [p for p in dirty if not (p == ROOT or p.startswith(ROOT + "/"))]
+    inside = [p for p in dirty if p not in outside]
+    listed = sorted(str(a) for a in EAL.list_assets(ROOT, recursive=True, include_folder=False))
+    stray = [a for a in listed if not a.startswith(ROOT + "/")]
+    doc = dict(level=LEVEL_PATH, eye=[0.0, 0.0, ZC], screen=[SCREEN_W, SCREEN_H], hfov_deg=90.0,
+               actors=ACTORS, assets=listed, created=CREATED, dirty_outside=outside, dirty_inside=inside,
+               texture_roles=roles)
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_actors.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(doc, fh, indent=1)
+    log("dirty packages outside %s: %s ; inside: %s" % (ROOT, outside, inside))
+    if outside:
+        fail("dirty packages OUTSIDE the fixture folder (not saved): %s" % outside)
+    if inside:
+        fail("fixture packages left dirty after save: %s" % inside)
+    if stray:
+        fail("assets listed outside the folder: %s" % stray)
+    log("TEXCORRUPT-FIXTURE-AUTHORED OK level=%s actors=%d assets=%d textures=%d materials=%d"
+        % (LEVEL_PATH, len(ACTORS), len(listed), len(T), sum(1 for a in listed if "/Materials/" in a)))
+
+
+# ---------------------------------------------------------------------------------------------- slots (082-06d)
+
+
+def fix_slots(out):
+    """Re-author ONLY the four duplicated meshes' asset slots (082-06d). Loads the existing fixture, sets the slots,
+    saves those four packages and nothing else, then reads each saved .uasset's bytes back from disk and requires the
+    expected material package name in it. The full slot proof is verify mode, run as a separate process."""
+    if not EAL.does_directory_exist(ROOT):
+        fail("%s does not exist; slots mode edits an existing fixture only" % ROOT)
+    report = dict(meshes=[])
+    for mesh_path, mat_path, producer in MESH_SLOTS:
+        mesh = unreal.load_asset(mesh_path)
+        if mesh is None:
+            fail("could not load " + mesh_path)
+        mat = None
+        if mat_path is not None:
+            mat = unreal.load_asset(mat_path)
+            if mat is None:
+                fail("could not load " + mat_path)
+        before = slot_list(mesh)
+        fp = disk_file(mesh_path)
+        sha_before = sha256_file(fp)
+        apply_slot(mesh, mat)
+        save(mesh_path)
+        with open(fp, "rb") as fh:
+            raw = fh.read()
+        name_hit = None if mat_path is None else (mat_path.encode("ascii") in raw)
+        if mat_path is not None and not name_hit:
+            fail("%s saved, but %s is not in its bytes on disk" % (fp, mat_path))
+        row = dict(mesh=mesh_path, producer=producer, want=mat_path, before=before, after_in_memory=slot_list(mesh),
+                   file=fp, sha256_before=sha_before, sha256_after=hashlib.sha256(raw).hexdigest(),
+                   material_name_in_saved_bytes=name_hit,
+                   worldgrid_name_in_saved_bytes=b"WorldGridMaterial" in raw)
+        report["meshes"].append(row)
+        log("SLOTS %s %s -> %s (disk name hit %s, sha %s -> %s)" % (mesh_path, before, row["after_in_memory"], name_hit,
+                                                                   sha_before[:12], row["sha256_after"][:12]))
+    dirty = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
+    dirty += [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
+    report["dirty_after"] = dirty
+    skel = unreal.load_asset(MAT_DIR + "/M_TC_SkelNoUsage")
+    report["skel_material_used_with_skeletal_mesh_in_memory"] = skel.get_editor_property("used_with_skeletal_mesh")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_slots.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(report, fh, indent=1)
+    if dirty:
+        fail("packages left dirty after the slot saves (not saved): %s" % dirty)
+    if report["skel_material_used_with_skeletal_mesh_in_memory"]:
+        fail("M_TC_SkelNoUsage gained bUsedWithSkeletalMesh; the default_material_path fixture is void")
+    log("TEXCORRUPT-FIXTURE-SLOTS OK meshes=%d" % len(report["meshes"]))
+
+
+def slot_proofs(report):
+    """Read the four duplicated meshes back (this process did not save them, so the load is from disk) and prove each
+    refusal-reason producer. Every failed expectation is a problem."""
+    proofs = []
+
+    def need(ok, what):
+        if not ok:
+            report["problems"].append("slot proof: " + what)
+        return bool(ok)
+
+    for mesh_path, mat_path, producer in MESH_SLOTS:
+        mesh = unreal.load_asset(mesh_path)
+        fp = disk_file(mesh_path)
+        row = dict(mesh=mesh_path, producer=producer, want=mat_path, file_sha256=sha256_file(fp) if os.path.isfile(fp) else None)
+        if not need(mesh is not None, "%s did not load" % mesh_path):
+            proofs.append(row)
+            continue
+        slots = slot_list(mesh)
+        row["slots"] = slots
+        ok = need(len(slots) >= 1 and all(p == mat_path for _, p in slots),
+                  "%s slots %s, wanted every slot = %s" % (mesh_path, slots, mat_path))
+        if producer == "host_mid where=asset_slot":
+            m = unreal.load_asset(mat_path)
+            tex = MEL.get_material_default_texture_parameter_value(m, "Tex") if m else None
+            row["material_Tex"] = pkg_of(tex)
+            ok = need(pkg_of(tex) == TEX_DIR + "/T_TC_AssetMid", "M_TC_AssetMid Tex = %s" % pkg_of(tex)) and ok
+        elif producer == "nanite_override":
+            en = mesh.get_editor_property("nanite_settings").get_editor_property("enabled")
+            m = unreal.load_asset(mat_path)
+            txt = m.get_editor_property("nanite_override_material").export_text() if m else ""
+            unw = m.get_editor_property("used_with_nanite") if m else None
+            row.update(nanite_enabled=en, nanite_override_text=txt, base_used_with_nanite=unw)
+            ok = need(en is True, "SM_TC_CubeNanite Nanite enabled = %s" % en) and ok
+            ok = need(unw is True, "M_TC_NaniteBase used_with_nanite = %s" % unw) and ok
+            ok = need((MAT_DIR + "/M_TC_NaniteOverride") in txt and "bEnableOverride=False" not in txt,
+                      "M_TC_NaniteBase nanite override = %s" % txt) and ok
+        elif producer == "default_material_path":
+            m = unreal.load_asset(mat_path)
+            flag = m.get_editor_property("used_with_skeletal_mesh") if m else None
+            row["material_used_with_skeletal_mesh"] = flag
+            ok = need(flag is False, "M_TC_SkelNoUsage used_with_skeletal_mesh = %s" % flag) and ok
+        row["proven"] = ok
+        proofs.append(row)
+        log("SLOTPROOF %s %s slots=%s %s" % (producer, mesh_path, slots, "PROVEN" if ok else "NOT PROVEN"))
+    report["slot_proofs"] = proofs
+
+
+# ---------------------------------------------------------------------------------------------- normals (082-07c)
+
+
+def is_normal_map(tex):
+    return isinstance(tex, unreal.Texture2D) and tex.get_editor_property("compression_settings") == TC.TC_NORMALMAP
+
+
+def normal_state(mat):
+    """What the feature's V1 A2/A3 rules and this fixture depend on, read from a loaded material."""
+    en = MEL.get_material_property_input_node(mat, unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    nn = MEL.get_material_property_input_node(mat, unreal.MaterialProperty.MP_NORMAL)
+    tex = MEL.get_material_default_texture_parameter_value(mat, "Tex")
+    return dict(
+        shading_model=str(mat.get_editor_property("shading_model")),
+        blend=str(mat.get_editor_property("blend_mode")),
+        texture_params=[str(n) for n in MEL.get_texture_parameter_names(mat)],
+        tex=pkg_of(tex), tex_is_normal_map=is_normal_map(tex),
+        tex_srgb=tex.get_editor_property("srgb") if tex else None,
+        emissive_node=(en.get_class().get_name() + ":" + str(en.get_editor_property("description"))
+                       if isinstance(en, unreal.MaterialExpressionCustom) else (en.get_class().get_name() if en else None)),
+        normal_node=nn.get_class().get_name() if nn else None,
+        normal_node_param=str(nn.get_editor_property("parameter_name")) if isinstance(nn, unreal.MaterialExpressionTextureSampleParameter2D) else None,
+        normal_node_output=MEL.get_material_property_input_node_output_name(mat, unreal.MaterialProperty.MP_NORMAL) if nn else None,
+        normal_connected=nn is not None)
+
+
+def fix_normals(out):
+    """Re-author ONLY the four normal-family readout materials in place (082-07c): the existing Tex sampler (the one
+    feeding the NormalReadout emissive node) is also connected into Normal and the shading model becomes Default Lit.
+    Nothing else in the graph changes. Saves those four packages and nothing else."""
+    if not EAL.does_directory_exist(ROOT):
+        fail("%s does not exist; normals mode edits an existing fixture only" % ROOT)
+    report = dict(materials=[])
+    for mat_path, tex_path in NORMAL_READOUTS:
+        mat = unreal.load_asset(mat_path)
+        if not isinstance(mat, unreal.Material):
+            fail("could not load material " + mat_path)
+        fp = disk_file(mat_path)
+        sha_before = sha256_file(fp)
+        before = normal_state(mat)
+        if before["tex"] != tex_path or not before["tex_is_normal_map"]:
+            fail("%s Tex = %s (normal map %s), wanted %s" % (mat_path, before["tex"], before["tex_is_normal_map"], tex_path))
+        en = MEL.get_material_property_input_node(mat, unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+        if not (isinstance(en, unreal.MaterialExpressionCustom) and str(en.get_editor_property("description")) == "NormalReadout"):
+            fail("%s emissive is fed by %s, not the NormalReadout node" % (mat_path, before["emissive_node"]))
+        ins = [e for e in MEL.get_inputs_for_material_expression(mat, en) if e is not None]
+        samplers = [e for e in ins if isinstance(e, unreal.MaterialExpressionTextureSampleParameter2D)
+                    and str(e.get_editor_property("parameter_name")) == "Tex"]
+        if len(samplers) != 1:
+            fail("%s NormalReadout inputs %s, wanted one Tex sampler" % (mat_path, [e.get_class().get_name() for e in ins]))
+        connect_normal(mat, samplers[0])
+        MEL.recompile_material(mat)
+        save(mat_path)
+        with open(fp, "rb") as fh:
+            raw = fh.read()
+        after = normal_state(mat)
+        row = dict(material=mat_path, file=fp, sha256_before=sha_before, sha256_after=hashlib.sha256(raw).hexdigest(),
+                   before=before, after_in_memory=after)
+        report["materials"].append(row)
+        log("NORMALS %s shading %s -> %s, normal %s -> %s (%s.%s), sha %s -> %s" % (
+            mat_path, before["shading_model"], after["shading_model"], before["normal_connected"], after["normal_connected"],
+            after["normal_node_param"], after["normal_node_output"], sha_before[:12], row["sha256_after"][:12]))
+        if not after["normal_connected"] or after["normal_node_param"] != "Tex":
+            fail("%s Normal is not fed by the Tex sampler after the edit" % mat_path)
+    dirty = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
+    dirty += [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
+    report["dirty_after"] = dirty
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_normals.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(report, fh, indent=1)
+    if dirty:
+        fail("packages left dirty after the normal saves (not saved): %s" % dirty)
+    log("TEXCORRUPT-FIXTURE-NORMALS OK materials=%d" % len(report["materials"]))
+
+
+def normal_proofs(report, assets):
+    """Read every fixture material back (this process saves nothing, so the load is from disk). Each NORMAL_READOUTS
+    material must be Default Lit with Normal fed by its Tex normal-map sampler and the NormalReadout emissive kept; and
+    no other fixture material or instance may bind a normal map (every normal-family target is covered)."""
+    wanted = dict(NORMAL_READOUTS)
+    proofs = []
+
+    def need(ok, what):
+        if not ok:
+            report["problems"].append("normal proof: " + what)
+        return bool(ok)
+
+    for mat_path, tex_path in NORMAL_READOUTS:
+        mat = unreal.load_asset(mat_path)
+        fp = disk_file(mat_path)
+        row = dict(material=mat_path, want_tex=tex_path, file_sha256=sha256_file(fp) if os.path.isfile(fp) else None)
+        if not need(isinstance(mat, unreal.Material), "%s did not load" % mat_path):
+            proofs.append(row)
+            continue
+        st = normal_state(mat)
+        row.update(st)
+        ok = need(st["normal_connected"] and st["normal_node_param"] == "Tex", "%s MP_Normal fed by %s/%s" % (
+            mat_path, st["normal_node"], st["normal_node_param"]))
+        ok = need(st["shading_model"].endswith("MSM_DEFAULT_LIT") or "DEFAULT_LIT" in st["shading_model"],
+                  "%s shading model %s" % (mat_path, st["shading_model"])) and ok
+        ok = need(st["emissive_node"] == "MaterialExpressionCustom:NormalReadout",
+                  "%s emissive fed by %s" % (mat_path, st["emissive_node"])) and ok
+        ok = need(st["texture_params"] == ["Tex"], "%s texture params %s" % (mat_path, st["texture_params"])) and ok
+        ok = need(st["tex"] == tex_path and st["tex_is_normal_map"] and st["tex_srgb"] is False,
+                  "%s Tex = %s normal_map=%s srgb=%s" % (mat_path, st["tex"], st["tex_is_normal_map"], st["tex_srgb"])) and ok
+        row["proven"] = ok
+        proofs.append(row)
+        log("NORMALPROOF %s shading=%s normal<-%s.%s emissive<-%s tex=%s %s" % (
+            mat_path, st["shading_model"], st["normal_node_param"], st["normal_node_output"], st["emissive_node"], st["tex"],
+            "PROVEN" if ok else "NOT PROVEN"))
+    others = []
+    for a in assets:
+        pkg = a.split(".")[0]
+        if pkg in wanted:
+            continue
+        obj = unreal.load_asset(a)
+        bound = []
+        if isinstance(obj, unreal.Material):
+            for n in MEL.get_texture_parameter_names(obj):
+                t = MEL.get_material_default_texture_parameter_value(obj, n)
+                if is_normal_map(t):
+                    bound.append((str(n), pkg_of(t)))
+        elif isinstance(obj, unreal.MaterialInstanceConstant):
+            for v in obj.get_editor_property("texture_parameter_values"):
+                t = v.get_editor_property("parameter_value")
+                if is_normal_map(t):
+                    bound.append((str(v.get_editor_property("parameter_info").get_editor_property("name")), pkg_of(t)))
+        if bound:
+            others.append(dict(asset=pkg, normal_bindings=bound))
+    need(not others, "normal maps bound outside NORMAL_READOUTS: %s" % others)
+    report["normal_proofs"] = proofs
+    report["normal_bindings_outside_readouts"] = others
+
+
+# ---------------------------------------------------------------------------------------------- masked (082-07f)
+
+MASKED_MATERIAL = MAT_DIR + "/M_TC_Masked"
+MASKED_TEX = TEX_DIR + "/T_TC_UC2"
+MASKED_TEX_FILE = "T_TC_UC2.png"
+# The sky behind the TC_Masked tile, per channel [min, max]: measured beside the tile (1,792 px on each of si 15/20/40/60/90)
+# in 082-07e's null leg M53S1_NULL_MASKED_A1. It is the only input of the MASKED proof that is not from the source image.
+BG_SKY_BOX = ((12, 36), (27, 46), (47, 69))
+MP = unreal.MaterialProperty
+
+
+def blend_name(v):
+    return str(v).split(".")[-1].split(":")[0].strip("<> ")
+
+
+def masked_state(mat):
+    """What the TC_Masked row depends on, read from a loaded material. effective_blend is UMaterial::GetBlendMode(), which
+    returns Opaque for a Masked material whose saved bCanMaskedBeAssumedOpaque is true (082-07f G323)."""
+    om = MEL.get_material_property_input_node(mat, MP.MP_OPACITY_MASK)
+    em = MEL.get_material_property_input_node(mat, MP.MP_EMISSIVE_COLOR)
+    tex = MEL.get_material_default_texture_parameter_value(mat, "Tex")
+
+    def param(n):
+        return str(n.get_editor_property("parameter_name")) if isinstance(n, unreal.MaterialExpressionTextureSampleParameter2D) else None
+
+    return dict(
+        raw_blend=blend_name(mat.get_editor_property("blend_mode")), effective_blend=blend_name(mat.get_blend_mode()),
+        shading_model=str(mat.get_editor_property("shading_model")), clip=mat.get_editor_property("opacity_mask_clip_value"),
+        opacity_mask_node=om.get_class().get_name() if om else None, opacity_mask_param=param(om),
+        opacity_mask_output=MEL.get_material_property_input_node_output_name(mat, MP.MP_OPACITY_MASK) if om else None,
+        emissive_node=em.get_class().get_name() if em else None, emissive_param=param(em),
+        emissive_output=MEL.get_material_property_input_node_output_name(mat, MP.MP_EMISSIVE_COLOR) if em else None,
+        same_sampler=(om is not None and em is not None and om.get_path_name() == em.get_path_name()),
+        texture_params=[str(n) for n in MEL.get_texture_parameter_names(mat)], tex=pkg_of(tex),
+        tex_compression=str(tex.get_editor_property("compression_settings")) if tex else None,
+        tex_no_alpha=tex.get_editor_property("compression_no_alpha") if tex else None)
+
+
+def masked_problems(st):
+    bad = []
+    if st["raw_blend"] != "BLEND_MASKED":
+        bad.append("raw blend %s" % st["raw_blend"])
+    if st["effective_blend"] != "BLEND_MASKED":
+        bad.append("effective blend (GetBlendMode) %s" % st["effective_blend"])
+    if abs(float(st["clip"]) - MASK_CLIP) > 1e-6:
+        bad.append("clip %s" % st["clip"])
+    if not (st["opacity_mask_param"] == "Tex" and st["opacity_mask_output"] == "A"):
+        bad.append("OpacityMask fed by %s/%s.%s" % (st["opacity_mask_node"], st["opacity_mask_param"], st["opacity_mask_output"]))
+    if not (st["emissive_param"] == "Tex" and st["emissive_output"] == "RGB" and st["same_sampler"]):
+        bad.append("Emissive fed by %s/%s.%s (same sampler %s)" % (st["emissive_node"], st["emissive_param"],
+                                                                   st["emissive_output"], st["same_sampler"]))
+    if st["texture_params"] != ["Tex"] or st["tex"] != MASKED_TEX or st["tex_no_alpha"] is not False:
+        bad.append("Tex %s params %s no_alpha %s" % (st["tex"], st["texture_params"], st["tex_no_alpha"]))
+    return bad
+
+
+def fix_masked(out):
+    """Re-author ONLY M_TC_Masked in place (082-07f). Its graph is right (OpacityMask <- Tex.A, clip 0.5), but the author
+    path set the blend mode and the clip value (each runs PostEditChangeProperty, which recomputes
+    bCanMaskedBeAssumedOpaque) BEFORE OpacityMask was connected, and never ran it again. The saved flag is therefore true
+    and UMaterial::GetBlendMode() returns Opaque: the tile never clips. RecompileMaterial runs PostEditChange with the
+    input connected, so the flag becomes false. Nothing else in the graph changes. Saves that one package only."""
+    if not EAL.does_directory_exist(ROOT):
+        fail("%s does not exist; masked mode edits an existing fixture only" % ROOT)
+    mat = unreal.load_asset(MASKED_MATERIAL)
+    if not isinstance(mat, unreal.Material):
+        fail("could not load material " + MASKED_MATERIAL)
+    fp = disk_file(MASKED_MATERIAL)
+    sha_before = sha256_file(fp)
+    before = masked_state(mat)
+    graph_bad = [p for p in masked_problems(before) if not p.startswith("effective blend")]
+    if graph_bad:
+        fail("%s graph is not the one this mode fixes: %s" % (MASKED_MATERIAL, graph_bad))
+    report = dict(material=MASKED_MATERIAL, file=fp, sha256_before=sha_before, before=before)
+    if before["effective_blend"] == "BLEND_MASKED":
+        report["note"] = "already Masked in effect; nothing saved"
+    else:
+        MEL.recompile_material(mat)
+        after_mem = masked_state(mat)
+        if after_mem["effective_blend"] != "BLEND_MASKED":
+            fail("%s effective blend still %s after RecompileMaterial" % (MASKED_MATERIAL, after_mem["effective_blend"]))
+        save(MASKED_MATERIAL)
+        with open(fp, "rb") as fh:
+            raw = fh.read()
+        report.update(after_in_memory=after_mem, sha256_after=hashlib.sha256(raw).hexdigest())
+    dirty = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
+    dirty += [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
+    report["dirty_after"] = dirty
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_masked.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(report, fh, indent=1)
+    log("MASKED %s effective blend %s -> %s, sha %s -> %s" % (
+        MASKED_MATERIAL, before["effective_blend"], report.get("after_in_memory", before)["effective_blend"],
+        sha_before[:12], report.get("sha256_after", sha_before)[:12]))
+    if dirty:
+        fail("packages left dirty after the masked save (not saved): %s" % dirty)
+    log("TEXCORRUPT-FIXTURE-MASKED OK")
+
+
+def blend_proofs(report, assets):
+    """Every fixture material's effective blend mode (GetBlendMode) must equal its authored one."""
+    rows = []
+    for a in assets:
+        obj = unreal.load_asset(a)
+        if isinstance(obj, unreal.Material):
+            raw, eff = blend_name(obj.get_editor_property("blend_mode")), blend_name(obj.get_blend_mode())
+            rows.append(dict(material=pkg_of(obj), raw=raw, effective=eff))
+            if raw != eff:
+                report["problems"].append("blend proof: %s authored %s but GetBlendMode() = %s" % (pkg_of(obj), raw, eff))
+    report["blend_proofs"] = rows
+
+
+def masked_proofs(report):
+    mat = unreal.load_asset(MASKED_MATERIAL)
+    fp = disk_file(MASKED_MATERIAL)
+    row = dict(material=MASKED_MATERIAL, file_sha256=sha256_file(fp) if os.path.isfile(fp) else None)
+    if not isinstance(mat, unreal.Material):
+        report["problems"].append("masked proof: %s did not load" % MASKED_MATERIAL)
+    else:
+        st = masked_state(mat)
+        row.update(st)
+        bad = masked_problems(st)
+        row["proven"] = not bad
+        for b in bad:
+            report["problems"].append("masked proof: %s %s" % (MASKED_MATERIAL, b))
+        log("MASKEDPROOF %s raw=%s effective=%s clip=%s opacity_mask<-%s.%s emissive<-%s.%s tex=%s %s" % (
+            MASKED_MATERIAL, st["raw_blend"], st["effective_blend"], st["clip"], st["opacity_mask_param"],
+            st["opacity_mask_output"], st["emissive_param"], st["emissive_output"], st["tex"], "PROVEN" if not bad else "NOT PROVEN"))
+    report["masked_proof"] = row
+
+
+def read_png(fp):
+    """8-bit RGB / RGBA, non-interlaced PNG -> (w, h, rows of (r, g, b, a)). UE's Python has no imaging library."""
+    import struct
+    import zlib
+    with open(fp, "rb") as fh:
+        b = fh.read()
+    if b[:8] != b"\x89PNG\r\n\x1a\n":
+        fail("%s is not a PNG" % fp)
+    i, idat, hdr = 8, b"", None
+    while i < len(b):
+        n, t = struct.unpack(">I4s", b[i:i + 8])
+        body = b[i + 8:i + 8 + n]
+        if t == b"IHDR":
+            hdr = struct.unpack(">IIBBBBB", body)
+        elif t == b"IDAT":
+            idat += body
+        elif t == b"IEND":
+            break
+        i += 12 + n
+    w, h, depth, ctype, _, _, inter = hdr
+    if depth != 8 or ctype not in (2, 6) or inter != 0:
+        fail("%s: unsupported PNG (depth %d, colour type %d, interlace %d)" % (fp, depth, ctype, inter))
+    bpp = 4 if ctype == 6 else 3
+    raw = zlib.decompress(idat)
+    stride, p, prev, rows = w * bpp, 0, bytearray(w * bpp), []
+    for _ in range(h):
+        f, line = raw[p], bytearray(raw[p + 1:p + 1 + stride])
+        p += 1 + stride
+        for x in range(stride):
+            a = line[x - bpp] if x >= bpp else 0
+            up = prev[x]
+            c = prev[x - bpp] if x >= bpp else 0
+            if f == 1:
+                line[x] = (line[x] + a) & 255
+            elif f == 2:
+                line[x] = (line[x] + up) & 255
+            elif f == 3:
+                line[x] = (line[x] + ((a + up) >> 1)) & 255
+            elif f == 4:
+                pa, pb, pc = abs(up - c), abs(a - c), abs(a + up - 2 * c)
+                line[x] = (line[x] + (a if pa <= pb and pa <= pc else (up if pb <= pc else c))) & 255
+            elif f != 0:
+                fail("%s: bad PNG filter %d" % (fp, f))
+        rows.append([tuple(line[x * bpp:(x + 1) * bpp]) + ((255,) if bpp == 3 else ()) for x in range(w)])
+        prev = line
+    return w, h, rows
+
+
+def box_distance(rgb, box):
+    """min over every colour in the per-channel box of max-channel |rgb - colour| (the box is a product, so the minimum is
+    the largest per-channel distance to its interval)."""
+    return max(0 if lo <= v <= hi else min(abs(v - lo), abs(v - hi)) for v, (lo, hi) in zip(rgb, box))
+
+
+def masked_offline_proof(src, floor):
+    """The MASKED row's alpha wrong copy (DbgOpaque: the copy is written with Opacity 1, so its stored A = 0) against the
+    right copy (A = a). The host clips where A < MASK_CLIP. A texel group CROSSES the clip under the fault when the right
+    copy draws it (a >= clip) and the wrong copy clips it (0 < clip); there the wrong copy shows the sky. Predicted min |d|
+    = min over the crossing groups of the worst-case (over BG_SKY_BOX) max-channel distance of the texel's stored sRGB
+    colour to the sky. Groups clipped in both read 0 and are not relied on; per-frame max is what G-ID reads."""
+    w, h, rows = read_png(os.path.join(src, MASKED_TEX_FILE))
+    groups = {}
+    for row in rows:
+        for r, g, b, a in row:
+            e = groups.setdefault(a, dict(alpha=a, rgb=set(), texels=0))
+            e["rgb"].add((r, g, b))
+            e["texels"] += 1
+    out = []
+    for a, e in sorted(groups.items()):
+        drawn_right = a / 255.0 >= MASK_CLIP
+        drawn_wrong = 0.0 >= MASK_CLIP
+        crossing = drawn_right and not drawn_wrong
+        d = min(box_distance(c, BG_SKY_BOX) for c in e["rgb"])
+        out.append(dict(alpha=a, alpha_f=round(a / 255.0, 4), fraction=round(e["texels"] / float(w * h), 4),
+                        rgb=sorted(e["rgb"]), right_copy="drawn" if drawn_right else "clipped",
+                        alpha_fault="drawn" if drawn_wrong else "clipped", crosses_clip=crossing,
+                        min_d_vs_sky=d if crossing else 0))
+    crossing = [g for g in out if g["crosses_clip"]]
+    mn = min(g["min_d_vs_sky"] for g in crossing) if crossing else 0
+    proof = dict(image=MASKED_TEX_FILE, row="MASKED (TC_Masked, M_TC_Masked, clip %.2f)" % MASK_CLIP, fault="alpha",
+                 groups=out, crossing_alphas=[g["alpha"] for g in crossing], clipped_in_null=[g["alpha"] for g in out
+                                                                                            if g["right_copy"] == "clipped"],
+                 sky_box=BG_SKY_BOX, min=mn, proof_floor=floor, relied_on=mn >= floor,
+                 region="stored sRGB colour of each crossing texel against the worst-case sky in BG_SKY_BOX, max channel")
+    log("MASKED OFFLINE: crossing alphas %s (clipped in the null: %s), predicted min |d| %d vs floor %d -> %s" % (
+        proof["crossing_alphas"], proof["clipped_in_null"], mn, floor, "RELIED ON" if proof["relied_on"] else "NOT PROVEN"))
+    return proof
+
+
+def tileprobe_offline_proof(src, tile_n=2):
+    """G-BIND (3): IAI.Bench.TexCorruptTileProbe 2 draws the copy as the source's mip 1 repeated 2x2 (UvScale 2), so copy
+    texel (x, y) = mip1[x mod W/2][y mod H/2]. The layer half must show >= 1 pixel with d >= 16 and the global half none.
+    mip 1 is the 2x2 box mean in bytes (exact on cells aligned to even texels)."""
+    res = {}
+    for key, name in (("layer", "T_TC_LayerLayer.png"), ("global", "T_TC_LayerGlobal.png")):
+        w, h, rows = read_png(os.path.join(src, name))
+        mw, mh = w // tile_n, h // tile_n
+        mip = [[tuple((rows[2 * y][2 * x][k] + rows[2 * y][2 * x + 1][k] + rows[2 * y + 1][2 * x][k] + rows[2 * y + 1][2 * x + 1][k] + 2) // 4
+                      for k in range(3)) for x in range(mw)] for y in range(mh)]
+        ds = [max(abs(mip[y % mh][x % mw][k] - rows[y][x][k]) for k in range(3)) for y in range(h) for x in range(w)]
+        res[key] = dict(image=name, distinct_rgb=len({r[:3] for row in rows for r in row}), max_d=max(ds),
+                        texels_ge_16=sum(1 for v in ds if v >= 16), texels=len(ds))
+    ok = res["layer"]["texels_ge_16"] >= 1 and res["global"]["max_d"] <= 2 and res["global"]["distinct_rgb"] == 1
+    proof = dict(row="G-BIND (3) TC_Layer tile probe", fault="tile_probe_2", layer=res["layer"], global_=res["global"],
+                 relied_on=ok, region="the whole image of each half's texture, max channel, bytes")
+    log("TILEPROBE OFFLINE: layer max d %d (%d of %d texels >= 16), global max d %d (%d colours) -> %s" % (
+        res["layer"]["max_d"], res["layer"]["texels_ge_16"], res["layer"]["texels"], res["global"]["max_d"],
+        res["global"]["distinct_rgb"], "RELIED ON" if ok else "NOT PROVEN"))
+    return proof
+
+
+def offline_proofs(report, src):
+    with open(os.path.join(src, "texcorrupt_fixture_manifest.json"), "r", encoding="utf-8") as fh:
+        floor = int(json.load(fh).get("proof_floor", 32))
+    report["offline_masked"] = masked_offline_proof(src, floor)
+    report["offline_tileprobe"] = tileprobe_offline_proof(src)
+    if not report["offline_masked"]["relied_on"]:
+        report["problems"].append("offline MASKED proof: min %d < floor %d" % (report["offline_masked"]["min"], floor))
+    if not report["offline_tileprobe"]["relied_on"]:
+        report["problems"].append("offline tile-probe proof failed: %s" % report["offline_tileprobe"])
+
+
+# ---------------------------------------------------------------------------------------------- verify
+
+
+def verify(out):
+    report = dict(materials=[], textures=[], problems=[])
+    assets = sorted(str(a) for a in EAL.list_assets(ROOT, recursive=True, include_folder=False))
+    for a in assets:
+        obj = unreal.load_asset(a)
+        if isinstance(obj, unreal.Material):
+            st = MEL.get_statistics(obj)
+            ok = st.num_pixel_shader_instructions > 0 and st.num_samplers >= 0
+            row = dict(path=a, ps=st.num_pixel_shader_instructions, samplers=st.num_samplers,
+                       texture_params=[str(n) for n in MEL.get_texture_parameter_names(obj)],
+                       blend=str(obj.get_editor_property("blend_mode")),
+                       used_with_skeletal_mesh=obj.get_editor_property("used_with_skeletal_mesh"),
+                       used_with_nanite=obj.get_editor_property("used_with_nanite"), compiled=ok)
+            report["materials"].append(row)
+            if not ok:
+                report["problems"].append("material did not compile: " + a)
+        elif isinstance(obj, (unreal.Texture2D, unreal.TextureCube)):
+            row = dict(path=a, cls=obj.get_class().get_name(), srgb=obj.get_editor_property("srgb"),
+                       compression=str(obj.get_editor_property("compression_settings")),
+                       never_stream=obj.get_editor_property("never_stream"),
+                       mip_gen=str(obj.get_editor_property("mip_gen_settings")),
+                       lod_group=str(obj.get_editor_property("lod_group")))
+            if isinstance(obj, unreal.Texture2D):
+                row.update(size=[obj.blueprint_get_size_x(), obj.blueprint_get_size_y()],
+                           virtual=obj.get_editor_property("virtual_texture_streaming"),
+                           cinematic=obj.get_editor_property("num_cinematic_mip_levels"),
+                           alpha_coverage=obj.get_editor_property("do_scale_mips_for_alpha_coverage"))
+            report["textures"].append(row)
+    src = env("TEXCORRUPT_FIXTURE_SRC")
+    if src:
+        with open(os.path.join(src, "texcorrupt_fixture_manifest.json"), "r", encoding="utf-8") as fh:
+            man = {e["name"]: e for e in json.load(fh)["images"]}
+        for row in report["textures"]:
+            name = row["path"].split("/")[-1].split(".")[0]
+            e = man.get(name)
+            if e is None:
+                report["problems"].append("texture not in the manifest: " + name)
+                continue
+            s = e["settings"]
+            want = dict(srgb=bool(s["srgb"]), never_stream=bool(s["never_stream"]))
+            if not e["cube"]:
+                want.update(compression=s["compression"], mip_gen=s["mip_gen"], lod_group=s["lod_group"],
+                            virtual=bool(s["virtual"]), cinematic=int(s["cinematic"]), alpha_coverage=bool(s["alpha_coverage"]))
+            for k, v in want.items():
+                got = row[k]
+                if isinstance(v, str):
+                    got = got.split(".")[-1].split(":")[0]
+                if got != v:
+                    report["problems"].append("%s %s is %s, manifest says %s" % (name, k, got, v))
+        report["manifest_checked"] = len(man)
+    slot_proofs(report)
+    for row in DC_NORMAL_READOUTS:
+        if EAL.does_asset_exist(row[0]) and row not in NORMAL_READOUTS:
+            NORMAL_READOUTS.append(row)
+    normal_proofs(report, assets)
+    blend_proofs(report, assets)
+    masked_proofs(report)
+    dc_proofs(report)
+    if src:
+        offline_proofs(report, src)
+    else:
+        report["problems"].append("TEXCORRUPT_FIXTURE_SRC not set: the offline MASKED and tile-probe proofs cannot run")
+    skel = unreal.load_asset(MAT_DIR + "/M_TC_SkelNoUsage")
+    if skel is None or skel.get_editor_property("used_with_skeletal_mesh"):
+        report["problems"].append("M_TC_SkelNoUsage missing or carries bUsedWithSkeletalMesh")
+    dirty = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
+    report["dirty"] = dirty
+    report["asset_count"] = len(assets)
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_verify.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(report, fh, indent=1)
+    for m in report["materials"]:
+        log("VERIFY material %s ps=%d samplers=%d params=%s %s" % (m["path"], m["ps"], m["samplers"], m["texture_params"],
+                                                                   "OK" if m["compiled"] else "FAILED"))
+    if report["problems"]:
+        fail("verify: " + " | ".join(report["problems"]))
+    log("TEXCORRUPT-FIXTURE-VERIFIED OK materials=%d textures=%d assets=%d dirty=%s" % (
+        len(report["materials"]), len(report["textures"]), len(assets), dirty))
+
+
+# ---------------------------------------------------------------------------------------------- dcadd (085-03)
+
+DC_TEXTURES = ["T_TC_OracleUV16", "T_TC_OracleUV64", "T_TC_OracleN", "T_TC_MixedN", "T_TC_MixedC", "T_TC_M52Shared"]
+DC_MATERIALS = ["M_TC_OracleUV16", "M_TC_OracleUV64", "M_TC_OracleN", "M_TC_MixedN", "M_TC_MixedC", "M_TC_M52Shared"]
+DC_MESH = MESH_DIR + "/SM_TC_Mixed"
+TRANSIENT = []
+DC_ACTORS = ["TC_OracleUV16", "TC_OracleUV64", "TC_OracleN", "TC_Mixed", "TC_M52Hold", "TC_M52Share"]
+DC_LAYOUT = {
+    "TC_OracleUV16": (76, 478, 128),
+    "TC_OracleUV64": (228, 478, 128),
+    "TC_M52Hold": (76, 612, 120),
+    "TC_M52Share": (224, 612, 120),
+    "TC_OracleN": (1052, 478, 128),
+    "TC_Mixed": (1204, 478, 64),
+}
+
+
+def dc_paths():
+    return [TEX_DIR + "/" + n for n in DC_TEXTURES] + [MAT_DIR + "/" + n for n in DC_MATERIALS] + [DC_MESH]
+
+
+def zero_const(mat, prop, y):
+    c = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -250, y)
+    c.set_editor_property("r", 0.0)
+    if not MEL.connect_material_property(c, "", prop):
+        fail("constant 0 not connected into %s" % prop)
+
+
+def merge_two_slot_mesh(left_mat, right_mat):
+    """SM_TC_Mixed: one static mesh with exactly two sections on two slots (slot 0 the normal-mapped material, slot 1
+    the colour-only one), built from an explicit mesh description: two 100 cm quads side by side along Y in the XY
+    plane (the engine Plane's frame), each with its own polygon group and full 0..1 UVs. The asset is a duplicate of
+    the engine Plane (so it carries a source model and build settings) whose geometry is replaced; the full build
+    recomputes normals and tangents. The merge route was tried first and collapsed both halves into one slot."""
+    unreal.SystemLibrary.execute_console_command(None, "Module Load StaticMeshEditor")
+    mesh, path = dup_mesh(PLANE, "SM_TC_Mixed")
+    try:
+        desc = unreal.StaticMesh.create_static_mesh_description(mesh)
+    except TypeError:
+        desc = mesh.create_static_mesh_description()
+    if desc is None:
+        fail("create_static_mesh_description returned None")
+    slot_names = ["SlotNormal", "SlotColour"]
+    groups = []
+    for name in slot_names:
+        pg = desc.create_polygon_group()
+        desc.set_polygon_group_material_slot_name(pg, name)
+        groups.append(pg)
+    for pg, (y0, y1) in zip(groups, ((-100.0, 0.0), (0.0, 100.0))):
+        corners = [(-50.0, y0, 0.0, 0.0, 1.0), (50.0, y0, 0.0, 0.0, 0.0), (50.0, y1, 0.0, 1.0, 0.0), (-50.0, y1, 0.0, 1.0, 1.0)]
+        vis = []
+        for x, y, z, u, v in corners:
+            vid = desc.create_vertex()
+            desc.set_vertex_position(vid, unreal.Vector(x, y, z))
+            vi = desc.create_vertex_instance(vid)
+            desc.set_vertex_instance_uv(vi, unreal.Vector2D(u, v), 0)
+            vis.append(vi)
+        desc.create_triangle(pg, [vis[0], vis[1], vis[2]])
+        desc.create_triangle(pg, [vis[0], vis[2], vis[3]])
+    mats = [unreal.StaticMaterial(material_interface=left_mat, material_slot_name=slot_names[0]),
+            unreal.StaticMaterial(material_interface=right_mat, material_slot_name=slot_names[1])]
+    mesh.set_editor_property("static_materials", mats)
+    mesh.build_from_static_mesh_descriptions([desc])
+    ns = mesh.get_editor_property("nanite_settings")
+    if ns.get_editor_property("enabled"):
+        ns.set_editor_property("enabled", False)
+        mesh.set_editor_property("nanite_settings", ns)
+    slots = slot_list(mesh)
+    want = [pkg_of(left_mat), pkg_of(right_mat)]
+    if [p for _, p in slots] != want:
+        fail("SM_TC_Mixed slots %s, wanted %s" % (slots, want))
+    nsec = mesh.get_num_sections(0)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    sec_slots = [sme.get_lod_material_slot(mesh, 0, s) for s in range(nsec)]
+    b = mesh.get_bounding_box()
+    ext = [round(v, 2) for v in ((b.max.x - b.min.x) / 2, (b.max.y - b.min.y) / 2, (b.max.z - b.min.z) / 2)]
+    log("SM_TC_Mixed sections=%d section_slots=%s half_extent=%s slots=%s" % (nsec, sec_slots, ext, slots))
+    if nsec != 2 or sorted(sec_slots) != [0, 1]:
+        fail("SM_TC_Mixed has %d section(s) on slots %s, wanted 2 sections on slots [0, 1]" % (nsec, sec_slots))
+    if ext != [50.0, 100.0, 0.0]:
+        fail("SM_TC_Mixed half-extent %s, wanted [50, 100, 0]" % ext)
+    save(path)
+    return mesh
+
+
+def dc_add(src, out):
+    """085-03: add the DC cells to the existing fixture. Saves only the new packages and CB_TexCorruptLevel."""
+    global EAS
+    if not EAL.does_directory_exist(ROOT):
+        fail("%s does not exist; dcadd edits an existing fixture only" % ROOT)
+    allow = OVERRIDE_FLAG in sys.argv or env("TEXCORRUPT_FIXTURE_ALLOW_OVERWRITE") == "1"
+    present = [p for p in dc_paths() if EAL.does_asset_exist(p)]
+    if present and not allow:
+        fail("TEXCORRUPT_FIXTURE_REFUSED: DC assets already exist %s; pass %s to delete ONLY those and re-add" % (present, OVERRIDE_FLAG))
+    for p in present:
+        if not EAL.delete_asset(p):
+            fail("could not delete " + p)
+    with open(os.path.join(src, "texcorrupt_fixture_manifest.json"), "r", encoding="utf-8") as fh:
+        manifest = json.load(fh)
+    if not manifest.get("all_relied_on"):
+        fail("the manifest's offline proofs (S1 and DC) are not all relied on")
+    dc_names = sorted(e["name"] for e in manifest["images"] if e.get("dc"))
+    if dc_names != sorted(DC_TEXTURES):
+        fail("manifest DC images %s != %s" % (dc_names, sorted(DC_TEXTURES)))
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    if not les.load_level(LEVEL_PATH):
+        fail("load_level refused " + LEVEL_PATH)
+    stale = [a for a in EAS.get_all_level_actors() if a.get_actor_label() in DC_ACTORS or a.get_actor_label().startswith("TC_DC_MergeTmp")]
+    if stale and not allow:
+        fail("DC actors already in the level: %s" % [a.get_actor_label() for a in stale])
+    for a in stale:
+        EAS.destroy_actor(a)
+    T = import_textures(src, manifest, dc=True)
+    M = {}
+    M["OracleUV16"] = readout("M_TC_OracleUV16", T["T_TC_OracleUV16"], "rgb")
+    M["OracleUV64"] = readout("M_TC_OracleUV64", T["T_TC_OracleUV64"], "rgb")
+    M["M52Shared"] = readout("M_TC_M52Shared", T["T_TC_M52Shared"], "rgb")
+    mat, path = new_material("M_TC_OracleN")
+    s = tsp(mat, "Tex", T["T_TC_OracleN"], uv_node(mat))
+    emissive(mat, custom(mat, "NormalReadout", "return N.rgb * 0.5 + 0.5;", [("N", (s, "RGBA"))], F3))
+    connect_normal(mat, s)
+    zero_const(mat, unreal.MaterialProperty.MP_BASE_COLOR, 300)
+    zero_const(mat, unreal.MaterialProperty.MP_SPECULAR, 400)
+    MEL.recompile_material(mat)
+    save(path)
+    M["OracleN"] = mat
+    M["MixedN"] = readout("M_TC_MixedN", T["T_TC_MixedN"], "normal")
+    mat, path = new_material("M_TC_MixedC", shading=unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    emissive(mat, tsp(mat, "Tex", T["T_TC_MixedC"], uv_node(mat)))
+    save(path)
+    M["MixedC"] = mat
+    mixed = merge_two_slot_mesh(M["MixedN"], M["MixedC"])
+    for label in ("TC_OracleUV16", "TC_OracleUV64", "TC_M52Hold", "TC_M52Share", "TC_OracleN"):
+        px, py, size = DC_LAYOUT[label]
+        key = {"TC_M52Hold": "M52Shared", "TC_M52Share": "M52Shared"}.get(label, label[3:])
+        tile(label, M[key], px, py, size, role="DC " + {"TC_OracleUV16": "mode oracle tile", "TC_OracleUV64": "mode oracle scramble",
+                                                          "TC_OracleN": "mode oracle normal", "TC_M52Hold": "m52 target (EXCL)",
+                                                          "TC_M52Share": "m52 co-sharer"}[label])
+    px, py, size = DC_LAYOUT["TC_Mixed"]
+    tile("TC_Mixed", None, px, py, size, mesh=mixed, override=False,
+         role="DC all-or-nothing producer: one component, two Default-Lit slots (normal-mapped + colour-only)")
+    ACTORS[-1]["screen_px"] = [px, py, size * 2, size]
+    if not les.save_current_level():
+        fail("save_current_level failed")
+    for p in CREATED:
+        if not EAL.does_asset_exist(p):
+            fail("not on disk after save: " + p)
+    dirty = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
+    dirty += [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
+    outside = [p for p in dirty if not (p == ROOT or p.startswith(ROOT + "/"))]
+    transient = [p for p in dirty if p in TRANSIENT]
+    inside = [p for p in dirty if p not in outside and p not in TRANSIENT]
+    on_disk = [p for p in TRANSIENT if os.path.isfile(disk_file(p))]
+    if on_disk:
+        fail("a transient merge helper reached the disk: %s" % on_disk)
+    doc = dict(level=LEVEL_PATH, eye=[0.0, 0.0, ZC], screen=[SCREEN_W, SCREEN_H], hfov_deg=90.0, actors=ACTORS,
+               created=CREATED, dirty_outside=outside, dirty_inside=inside, transient_unsaved=transient, layout=DC_LAYOUT)
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_dc_actors.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(doc, fh, indent=1)
+    if outside:
+        fail("dirty packages OUTSIDE the fixture folder (not saved): %s" % outside)
+    if inside:
+        fail("fixture packages left dirty after save: %s" % inside)
+    log("TEXCORRUPT-FIXTURE-DCADD OK level=%s actors=%d created=%d" % (LEVEL_PATH, len(ACTORS), len(CREATED)))
+
+
+def dc_proofs(report):
+    """Read the DC assets back from disk: the oracle normal readout's BaseColor and Specular are constant 0, SM_TC_Mixed
+    has exactly two Default-Lit slots (one normal-mapped, one colour-only), T_TC_M52Shared is streamed 1024^2."""
+    if not EAL.does_asset_exist(MAT_DIR + "/M_TC_OracleN"):
+        report["dc"] = "absent (pre-DC fixture)"
+        return
+    rows = {}
+
+    def need(ok, what):
+        if not ok:
+            report["problems"].append("dc proof: " + what)
+        return bool(ok)
+
+    on = unreal.load_asset(MAT_DIR + "/M_TC_OracleN")
+    for prop, key in ((unreal.MaterialProperty.MP_BASE_COLOR, "base_color"), (unreal.MaterialProperty.MP_SPECULAR, "specular")):
+        n = MEL.get_material_property_input_node(on, prop)
+        v = n.get_editor_property("r") if isinstance(n, unreal.MaterialExpressionConstant) else None
+        rows["oracle_n_" + key] = v
+        need(v == 0.0, "M_TC_OracleN %s input is %s, wanted Constant 0" % (key, v))
+    mesh = unreal.load_asset(DC_MESH)
+    slots = slot_list(mesh) if isinstance(mesh, unreal.StaticMesh) else []
+    rows["mixed_slots"] = slots
+    need(sorted(p for _, p in slots) == sorted([MAT_DIR + "/M_TC_MixedC", MAT_DIR + "/M_TC_MixedN"]),
+         "SM_TC_Mixed slots %s" % slots)
+    for m in ("M_TC_MixedC", "M_TC_MixedN"):
+        mat = unreal.load_asset(MAT_DIR + "/" + m)
+        sm = str(mat.get_editor_property("shading_model")) if mat else None
+        rows[m + "_shading"] = sm
+        need(sm is not None and "DEFAULT_LIT" in sm, "%s shading %s" % (m, sm))
+    st = normal_state(unreal.load_asset(MAT_DIR + "/M_TC_MixedC"))
+    rows["mixed_c_normal_connected"] = st["normal_connected"]
+    need(not st["normal_connected"], "M_TC_MixedC has Normal connected (it must be colour-only)")
+    t = unreal.load_asset(TEX_DIR + "/T_TC_M52Shared")
+    rows["m52_never_stream"] = t.get_editor_property("never_stream") if t else None
+    try:
+        ar = unreal.AssetRegistryHelpers.get_asset_registry()
+        ad = ar.get_asset_by_object_path(TEX_DIR + "/T_TC_M52Shared.T_TC_M52Shared")
+        dim = ad.get_tag_value("Dimensions")
+        if isinstance(dim, tuple):
+            dim = dim[-1]
+        rows["m52_dimensions_tag"] = str(dim)
+        rows["m52_size"] = [int(v) for v in str(dim).lower().split("x")]
+    except Exception as exc:
+        rows["m52_size_read_error"] = str(exc)
+        rows["m52_size"] = None
+    rows["m52_resident_size_in_commandlet"] = [t.blueprint_get_size_x(), t.blueprint_get_size_y()] if t else None
+    need(t is not None and not t.get_editor_property("never_stream") and rows["m52_size"] == [1024, 1024],
+         "T_TC_M52Shared never_stream %s size %s" % (rows["m52_never_stream"], rows["m52_size"]))
+    report["dc_proofs"] = rows
+    log("DCPROOF %s" % json.dumps(rows, default=str))
+
+
+# ---------------------------------------------------------------------------------------------- dcfix (089-02b)
+
+ORACLE_N_CODE_OLD = "return N.rgb * 0.5 + 0.5;"
+ORACLE_N_CODE_NEW = "return pow(N.rgb * 0.5 + 0.5, 2.2);"
+
+
+def oracle_n_readout():
+    mat = unreal.load_asset(MAT_DIR + "/M_TC_OracleN")
+    if not isinstance(mat, unreal.Material):
+        fail("M_TC_OracleN is missing")
+    node = MEL.get_material_property_input_node(mat, unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    if not isinstance(node, unreal.MaterialExpressionCustom):
+        fail("M_TC_OracleN emissive input is %s, wanted the NormalReadout Custom node" % type(node).__name__)
+    return mat, node
+
+
+def dc_actor_slots(eas):
+    rows = {}
+    for a in eas.get_all_level_actors():
+        lab = a.get_actor_label()
+        if lab not in DC_ACTORS or not isinstance(a, unreal.StaticMeshActor):
+            continue
+        comp = a.static_mesh_component
+        rows[lab] = dict(name=a.get_name(), mesh=pkg_of(comp.get_editor_property("static_mesh")),
+                         override=[pkg_of(m) for m in comp.get_editor_property("override_materials")],
+                         resolved=[pkg_of(comp.get_material(i)) for i in range(comp.get_num_materials())])
+    return rows
+
+
+def dc_fix(out):
+    """089-02b: two edits to the DC cells and nothing else. (1) M_TC_OracleN's emissive readout is linearised to
+    pow(N * 0.5 + 0.5, 2.2), so with the tonemapper show flag off (gamma only) the displayed bytes are the encoded
+    normal (the P-ORC diagnosis: the filmic curve compressed the readout to 13.5 levels between cells). (2) TC_Mixed's
+    component override array is emptied: the night's logs read its slot 0 as raw=BasicShapeMaterial(len 1), so slot 0
+    resolved to a textureless engine material and every decision refused no_textures; with no override slot 0
+    resolves to M_TC_MixedN. Saves M_TC_OracleN and CB_TexCorruptLevel only; any other dirty package FAILS."""
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    rep = dict(level=LEVEL_PATH, mode="dcfix")
+    mat, node = oracle_n_readout()
+    code = node.get_editor_property("code").strip()
+    rep["oracle_n_code_before"] = code
+    if code == ORACLE_N_CODE_OLD:
+        node.set_editor_property("code", ORACLE_N_CODE_NEW)
+        MEL.recompile_material(mat)
+        save(MAT_DIR + "/M_TC_OracleN")
+        rep["oracle_n_saved"] = True
+    elif code != ORACLE_N_CODE_NEW:
+        fail("M_TC_OracleN readout is %r, wanted %r or %r" % (code, ORACLE_N_CODE_OLD, ORACLE_N_CODE_NEW))
+    if not les.load_level(LEVEL_PATH):
+        fail("load_level refused " + LEVEL_PATH)
+    before = dc_actor_slots(eas)
+    rep["dc_slots_before"] = before
+    mixed = [a for a in eas.get_all_level_actors() if a.get_actor_label() == "TC_Mixed"]
+    if len(mixed) != 1:
+        fail("TC_Mixed actors in the level: %d" % len(mixed))
+    comp = mixed[0].static_mesh_component
+    if list(comp.get_editor_property("override_materials")):
+        comp.set_editor_property("override_materials", [])
+        rep["mixed_override_cleared"] = True
+        if not les.save_current_level():
+            fail("save_current_level failed")
+    after = dc_actor_slots(eas)
+    rep["dc_slots_after"] = after
+    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    if [k for k in changed if k != "TC_Mixed"]:
+        fail("DC actors other than TC_Mixed changed: %s" % changed)
+    want = [MAT_DIR + "/M_TC_MixedN", MAT_DIR + "/M_TC_MixedC"]
+    if after["TC_Mixed"]["override"] or after["TC_Mixed"]["resolved"] != want:
+        fail("TC_Mixed after the fix: override %s resolved %s, wanted [] and %s" % (after["TC_Mixed"]["override"], after["TC_Mixed"]["resolved"], want))
+    dirty = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
+    dirty += [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
+    rep["dirty_after_save"] = dirty
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_dcfix.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(rep, fh, indent=1)
+    if dirty:
+        fail("packages left dirty after the dcfix save: %s" % dirty)
+    log("TEXCORRUPT-FIXTURE-DCFIX OK %s" % json.dumps(dict(oracle=rep.get("oracle_n_saved", False), mixed=rep.get("mixed_override_cleared", False))))
+
+
+def dc_fix_verify(out):
+    """Read the dcfix result back from disk in a fresh process: M_TC_OracleN's readout is linearised; TC_Mixed has no
+    component override and resolves slot 0 to M_TC_MixedN, slot 1 to M_TC_MixedC; M_TC_MixedC stays colour-only
+    (Normal unconnected, one texture parameter); every other DC actor's slots are listed. Saves nothing."""
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    rep = dict(level=LEVEL_PATH, mode="dcfixverify", problems=[])
+    _, node = oracle_n_readout()
+    rep["oracle_n_code"] = node.get_editor_property("code").strip()
+    if rep["oracle_n_code"] != ORACLE_N_CODE_NEW:
+        rep["problems"].append("M_TC_OracleN readout %r" % rep["oracle_n_code"])
+    if not les.load_level(LEVEL_PATH):
+        fail("load_level refused " + LEVEL_PATH)
+    rep["dc_slots"] = dc_actor_slots(eas)
+    mx = rep["dc_slots"].get("TC_Mixed") or {}
+    if mx.get("override") or mx.get("resolved") != [MAT_DIR + "/M_TC_MixedN", MAT_DIR + "/M_TC_MixedC"]:
+        rep["problems"].append("TC_Mixed %s" % mx)
+    st = normal_state(unreal.load_asset(MAT_DIR + "/M_TC_MixedC"))
+    rep["mixed_c_normal_connected"] = st["normal_connected"]
+    if st["normal_connected"]:
+        rep["problems"].append("M_TC_MixedC has Normal connected")
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "texcorrupt_fixture_dcfixverify.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(rep, fh, indent=1, default=str)
+    if rep["problems"]:
+        fail("dcfixverify: " + " | ".join(rep["problems"]))
+    log("TEXCORRUPT-FIXTURE-DCFIXVERIFY OK %s" % json.dumps(mx))
+
+
+def main():
+    src = env("TEXCORRUPT_FIXTURE_SRC")
+    out = env("TEXCORRUPT_FIXTURE_OUT", src)
+    mode = env("TEXCORRUPT_FIXTURE_MODE", "author")
+    if mode == "dcfix":
+        dc_fix(out)
+        return
+    if mode == "dcfixverify":
+        dc_fix_verify(out)
+        return
+    if mode == "dcadd":
+        if not src:
+            fail("TEXCORRUPT_FIXTURE_SRC is not set")
+        dc_add(src, out)
+        return
+    if mode == "verify":
+        verify(out)
+        return
+    if mode == "slots":
+        fix_slots(out or env("TEXCORRUPT_FIXTURE_OUT"))
+        return
+    if mode == "normals":
+        fix_normals(out or env("TEXCORRUPT_FIXTURE_OUT"))
+        return
+    if mode == "masked":
+        fix_masked(out or env("TEXCORRUPT_FIXTURE_OUT"))
+        return
+    if not src:
+        fail("TEXCORRUPT_FIXTURE_SRC is not set")
+    author(src, out)
+
+
+main()

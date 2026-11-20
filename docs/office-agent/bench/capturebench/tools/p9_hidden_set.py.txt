@@ -1,0 +1,589 @@
+"""P9 hidden-set reader - reports the OBSERVED hidden set, not a displacement.
+
+=======================================================================
+WHY THIS TOOL EXISTS, AND WHY A54 IS NOT ENOUGH
+=======================================================================
+a54_oracle.py answers "is the claimed set DISPLACED, and by how much?" Its
+entire hypothesis space is a uniform shift:
+
+    a54_oracle.py:135      SHIFTS = (-1, 0, 1)
+
+P9's signature is a SET DIFFERENCE IN TWO DIRECTIONS AT ONCE - one claimed
+frame observed visible AND one unclaimed frame observed hidden - which no
+shift can express. On the transcribed Bates instance (claimed {42,43,47,48},
+observed {42,43,44,48}) three of four claimed frames really are hidden, so
+A54's score(0) stays far above TAU while score(+/-1) collapses, and A54
+returns ALIGNED.
+
+*** SO A54 BLESSES A P9 EVENT. IT FAILS TOWARD "CLEAN". ***
+
+An A54 ALIGNED must NEVER be reported as "P9 not reproduced". A54 keeps a
+role here - it rules out P1 - but the set comparison is this tool's job.
+
+TAU IS NOT USED ANYWHERE IN THIS FILE. TAU is an absolute luminance
+difference and is known NOT to be camera-pose invariant (that is P8, and it
+fails toward ABSENT). Every constant below is RELATIVE and WITHIN-EVENT.
+
+=======================================================================
+THE METHOD
+=======================================================================
+Per labelled event, with claimed set C from annotation.json:
+
+  window W   [min(C) - FLANK .. max(C) + FLANK], every frame classified -
+             an UNCLAIMED frame observed HIDDEN is half of P9's signature,
+             so scoring only the claimed frames cannot see it.
+  anchor     the FLANK frames on each side ANCHOR THE VISIBLE CLUSTER. The
+             hidden cluster is the other one. This removes the polarity
+             guess - the reader never decides which cluster means "hidden".
+  luma       mean luminance inside THAT EVENT's bbox only (A35: hiding an
+             object removes its cast shadow OUTSIDE the box, so whole-frame
+             scoring is wrong here).
+  split      1-D two-means over W, seeded at the anchor mean (visible) and
+             at the window value farthest from it (hidden).
+
+ANCHOR CHECK. All 2*FLANK anchor frames must land in the SAME cluster. If
+they do not, the window's edges are not all visible - a blinking hidden
+phase can reach a flank - and the polarity would INVERT, turning a clean
+read into a confident wrong answer. Such an event is UNDECIDABLE (anchor
+unreliable). It is never guessed.
+
+=======================================================================
+SIGN CONVENTION FOR k - READ THIS, IT IS OPPOSITE TO A54's
+=======================================================================
+    residual(k) = symmetric_difference(H + k, C)
+
+k is the displacement OF THE CLAIM relative to the OBSERVATION. A claim that
+is one frame late reads k = +1 ("the labels are one frame late").
+
+a54_oracle.py's internal best_s is the opposite sign: it displaces the
+CLAIMED set, so the same defect reads SHIFTED(-1) there. Both are correct in
+their own frame; they are stated here so nobody reconciles them by guessing.
+
+=======================================================================
+CLASSIFICATION - IN THIS ORDER
+=======================================================================
+Preconditions first, because an event with no valid split has no sets to
+compare. These land UNDECIDABLE and are NEVER reported as a P9 absence:
+    - A56 failed for this event (modal-crop < A56_MIN_MODAL, or more than
+      A56_MAX_DISTINCT boxes)
+    - anchor check failed
+    - separation below SEP_RATIO * within-cluster spread
+    - any frame's margin below MARGIN_FLOOR
+
+Then, for every event that HAS a valid split:
+    1. k = 0 and residual empty                  -> ALIGNED
+    2. k != 0 and residual empty                 -> SHIFTED(k). P1 CLASS,
+                                                    NOT P9.
+    3. residual non-empty at EVERY k, classify at k = 0:
+         differences in BOTH directions          -> P9-SHAPE
+         differences in ONE direction            -> ONE-DIRECTIONAL
+                                                    (own class; no new
+                                                    P-number without chat)
+
+The best-k residual is REPORTED AS DATA alongside every verdict, ALIGNED
+ones included.
+
+=======================================================================
+B1 / CALIB_BBOX IS NOT APPLIED AND IS NOT AVAILABLE
+=======================================================================
+CALIB_BBOX is scoped to CB_GateLevel's StaticMeshActor_49 (G117). The P9
+legs run on MainWorld. This tool DECLARES the pose gate NOT APPLICABLE. It
+never reports "passed". The bbox is per EVENT and A56 is evaluated per
+event, which is also what makes the auto-pool legs readable at all - there
+the target differs from event to event and a leg-modal box means nothing.
+
+=======================================================================
+THE EVENT -> ROWS JOIN, AND A CORRECTION TO THE PREDICTIONS FILE
+=======================================================================
+The predictions file (2026-09-02) specifies the join as
+
+    anomalies[].id == anomaly_type  AND  target_name == nodes[primary].name
+
+THE FIRST CONJUNCT IS FALSE IN THE DATA AND IS NOT USED. Measured on the
+banked control M23\\R30_regress: annotation.json carries
+anomaly_type = "blink" while the labels.jsonl rows carry id = "blinking".
+The two vocabularies differ by design (the client-facing mapping), so
+requiring equality would join nothing and land EVERY event UNDECIDABLE.
+
+That failure is SAFE - undecidable, never a wrong answer - which is why
+this is a defect correction and not a loosened gate. The join used here is
+target name + window overlap. Recorded in journal 067; the predictions file
+is NOT edited.
+
+=======================================================================
+WHEN SHIFTED(k) IS REACHABLE AT ALL - A LIMIT OF THIS INSTRUMENT
+=======================================================================
+The window is derived from the CLAIM, so a uniformly shifted claim slides
+the window too, and the flanks move onto frames the shift displaced them
+onto. On a fixture whose hidden runs sit FLUSH against the claim boundary,
+any non-zero shift puts a genuinely hidden frame under a flank and the
+anchor guard refuses - correctly, because the polarity cannot be trusted.
+
+    SHIFTED(k) IS REACHABLE ONLY WHEN THE WINDOW SLACK IS >= |k| -
+    that is, when at least |k| visible frames separate the claim boundary
+    from the nearest true hidden frame on that side.
+
+THIS IS A DIVISION OF LABOUR, NOT A HOLE. Measured on M23\\R30_regress,
+whose hidden runs are flush:
+  - THIS READER never certifies SHIFTED on flush geometry. An
+    anchor-refusal that NAMES A HIDDEN FLANK is itself the P1-suggestive
+    signature, and it is reported as such.
+  - a54_oracle.py IS the constant-shift instrument, and its A53 positive
+    control already discharges that direction: R30_regress --shift 1 reads
+    12/12 SHIFTED(-1) with every margin collapsing 0.105 -> 0.050. That run
+    is CITED as the companion proof; it is not re-run here.
+  - --d-unit proves this file's own SHIFTED/P9 branch logic on literal
+    sets, since (d) cannot reach that branch through pixels.
+
+=======================================================================
+CONSTANTS - CALIBRATED FROM TWO KNOWN-ANSWER POPULATIONS, THEN FROZEN
+=======================================================================
+FLANK, MARGIN_FLOOR and KMAX were frozen in the predictions file before any
+control ran and are unchanged.
+
+SEP_RATIO WAS RE-FROZEN AT 5.0 AFTER THE FIRST CONTROL RUN, and the reason
+it is calibration rather than post-hoc re-thresholding is that TWO
+KNOWN-ANSWER POPULATIONS set it - the same pattern by which A54's TAU was
+frozen from its controls:
+
+    known-ABSENT  (I10HF\\HF1_nat120)  sep/spread tops out at   2.54
+    known-ALIGNED (M23\\R30_regress)   sep/spread bottoms at    8.96
+
+    5.0 is near the geometric middle, sqrt(2.54 * 8.96) = 4.77:
+    ~2.0x above the ABSENT maximum and ~1.8x below the ALIGNED minimum,
+    deliberately biased AWAY FROM THE DANGEROUS DIRECTION, which is
+    publishing a confident set on noise.
+
+THE RATIO FORM IS CONFIRMED BY THE SAME DATA, and this is the part worth
+keeping: the ABSOLUTE separations OVERLAP (a known-ABSENT event reaches
+0.080 while a known-ALIGNED event sits at 0.105), while the RATIOS are
+cleanly disjoint (2.54 against 8.96). The normalisation by within-cluster
+spread is doing the discriminating work, not the raw separation - which is
+also why TAU, an absolute difference, is the wrong tool here (P8).
+
+*** FROZEN. NEVER RETUNED AFTER ANY LEG. *** A leg event landing near 5.0
+gets its margins REPORTED and ANNOTATED; it is never reclassified (A55 /
+A57). A control that fails on these values is a HARD STOP and a reported
+result, not a reason to edit this block.
+
+The predictions file is NOT edited for this - the derivation lives here and
+in journal 067, the same annotation route used for the join correction.
+
+Usage:
+  python p9_hidden_set.py <session_dir> [--json] [--synth-move] [--synth-shift N]
+  python p9_hidden_set.py --d-unit
+
+  --synth-move    CONTROL (c): move each event's LAST claimed frame forward
+                  by one. Injects exactly the P9 shape. Every counted event
+                  must read P9-SHAPE with one missing and one extra.
+  --synth-shift N CONTROL (d): add N to every claimed index. Injects a
+                  CONSTANT SHIFT. Every counted event must read SHIFTED(N)
+                  with an EMPTY residual, and NEVER P9-SHAPE.
+
+  (c) and (d) are a LOAD-BEARING PAIR. One proves the reader SEES the
+  shape; the other proves it does not MISTAKE P1 FOR IT. A reader with only
+  (a), (b) and (c) could pass by calling every disagreement P9 - and
+  keeping P1 and P9 apart is the entire discriminating job.
+
+Exit: 0 all counted events ALIGNED
+      1 one or more non-ALIGNED
+      2 unreadable, or nothing counted
+"""
+
+import argparse
+import glob
+import json
+import os
+import sys
+
+from PIL import Image
+
+FLANK = 2
+SEP_RATIO = 5.0
+MARGIN_FLOOR = 0.5
+KMAX = 6
+
+A56_MIN_MODAL = 0.90
+A56_MAX_DISTINCT = 3
+
+
+def load_session(sdir):
+    ann = json.load(open(os.path.join(sdir, "annotation.json")))
+    rows = [json.loads(l) for l in open(os.path.join(sdir, "labels.jsonl")) if l.strip()]
+
+    frames = {}
+    for r in rows:
+        img = r.get("image")
+        idx = r.get("session_index")
+        if img is None or idx is None:
+            continue
+        p = os.path.join(sdir, img.replace("/", os.sep))
+        if os.path.isfile(p):
+            frames[int(idx)] = p
+    if not frames:
+        for f in glob.glob(os.path.join(sdir, "Actual_Frames", "*.png")):
+            digits = "".join(c for c in os.path.basename(f) if c.isdigit())
+            if digits:
+                frames[int(digits)] = f
+
+    events = ann.get("anomalies", ann.get("events", []))
+    return ann, rows, frames, events
+
+
+def event_target(ev):
+    objs = ev.get("affected_objects", {})
+    nodes = objs.get("nodes", [])
+    if not nodes:
+        return None
+    i = objs.get("primary_index", 0)
+    if not isinstance(i, int) or i < 0 or i >= len(nodes):
+        i = 0
+    return nodes[i].get("name")
+
+
+def event_bbox_a56(rows, target, lo, hi):
+    """Per-EVENT modal bbox and per-EVENT A56. Join is target name + window."""
+    boxes = {}
+    for r in rows:
+        si = r.get("session_index")
+        if si is None or si < lo or si > hi:
+            continue
+        for a in r.get("anomalies", []):
+            if a.get("target_name") != target:
+                continue
+            if not a.get("bbox_valid"):
+                continue
+            key = tuple(round(float(x), 1) for x in a["bbox_px"])
+            boxes[key] = boxes.get(key, 0) + 1
+    total = sum(boxes.values())
+    if not total:
+        return None, 0, 0, 0.0, False
+    ranked = sorted(boxes.items(), key=lambda kv: -kv[1])
+    modal, count = ranked[0]
+    coverage = float(count) / float(total)
+    ok = coverage >= A56_MIN_MODAL and len(boxes) <= A56_MAX_DISTINCT
+    return modal, total, len(boxes), coverage, ok
+
+
+def mean_luma_in_bbox(path, bbox, cache):
+    key = (path, bbox)
+    if key in cache:
+        return cache[key]
+    x, y, w, h = bbox
+    im = Image.open(path).convert("L")
+    W, H = im.size
+    x0, y0 = max(0, int(round(x))), max(0, int(round(y)))
+    x1, y1 = min(W, int(round(x + w))), min(H, int(round(y + h)))
+    if x1 <= x0 or y1 <= y0:
+        cache[key] = None
+        return None
+    px = list(im.crop((x0, y0, x1, y1)).getdata())
+    val = (sum(px) / float(len(px))) / 255.0
+    cache[key] = val
+    return val
+
+
+def two_means(values, seed_vis, seed_hid):
+    cv, ch = seed_vis, seed_hid
+    for _ in range(50):
+        vis = [v for v in values if abs(v - cv) <= abs(v - ch)]
+        hid = [v for v in values if abs(v - cv) > abs(v - ch)]
+        if not vis or not hid:
+            return cv, ch, vis, hid
+        ncv, nch = sum(vis) / len(vis), sum(hid) / len(hid)
+        if abs(ncv - cv) < 1e-12 and abs(nch - ch) < 1e-12:
+            break
+        cv, ch = ncv, nch
+    vis = [v for v in values if abs(v - cv) <= abs(v - ch)]
+    hid = [v for v in values if abs(v - cv) > abs(v - ch)]
+    return cv, ch, vis, hid
+
+
+def spread(xs):
+    return (max(xs) - min(xs)) if xs else 0.0
+
+
+def residual(observed, claimed, k):
+    shifted = set(f + k for f in observed)
+    return shifted.symmetric_difference(claimed)
+
+
+def best_shift(observed, claimed):
+    best = None
+    for k in range(-KMAX, KMAX + 1):
+        n = len(residual(observed, claimed, k))
+        if best is None or n < best[1] or (n == best[1] and abs(k) < abs(best[0])):
+            best = (k, n)
+    return best
+
+
+def classify(observed, claimed):
+    """The SHIFTED / P9 / ONE-DIRECTIONAL branch, on sets alone.
+
+    Split out so --d-unit can exercise it with literal sets and no pixels.
+    On flush geometry the anchor guard refuses before this is ever reached
+    through a real leg, which is exactly why it needs its own proof."""
+    Hs, Cs = set(observed), set(claimed)
+    k, n = best_shift(Hs, Cs)
+    out = {
+        "claimed": sorted(Cs),
+        "observed": sorted(Hs),
+        "missing": sorted(Cs - Hs),
+        "extra": sorted(Hs - Cs),
+        "best_k": k,
+        "best_k_residual": sorted(residual(Hs, Cs, k)),
+        "residual_by_k": {kk: len(residual(Hs, Cs, kk))
+                          for kk in range(-KMAX, KMAX + 1)},
+    }
+    if n == 0 and k == 0:
+        out["outcome"] = "ALIGNED"
+    elif n == 0:
+        out["outcome"] = "SHIFTED(%+d)" % k
+    elif out["missing"] and out["extra"]:
+        out["outcome"] = "P9-SHAPE"
+    elif out["missing"] or out["extra"]:
+        out["outcome"] = "ONE-DIRECTIONAL"
+    else:
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = "residual non-empty at every k but empty at k=0 - unreachable, report it"
+    return out
+
+
+D_UNIT_CASES = [
+    ("(i)   uniform +1", [4, 5, 9, 10], [5, 6, 10, 11], "SHIFTED(+1)", True),
+    ("(ii)  Bates pair", [42, 43, 44, 48], [42, 43, 47, 48], "P9-SHAPE", False),
+    ("(iii) one-direction", [4, 5, 9, 10], [4, 5, 9], "ONE-DIRECTIONAL", False),
+]
+
+
+def run_d_unit():
+    print("D-UNIT - the SHIFTED / P9 branch on LITERAL SETS, no pixels.")
+    print("Required because control (d) cannot reach this branch through pixels:")
+    print("on flush geometry the anchor guard refuses first, and correctly.")
+    print("constants     : KMAX=%d" % KMAX)
+    print("")
+    ok = True
+    for name, observed, claimed, expect, expect_empty_residual in D_UNIT_CASES:
+        r = classify(observed, claimed)
+        empty = len(r["best_k_residual"]) == 0
+        nonzero_all = all(v > 0 for v in r["residual_by_k"].values())
+        good = (r["outcome"] == expect) and (empty == expect_empty_residual)
+        if expect == "P9-SHAPE":
+            good = good and nonzero_all
+        ok = ok and good
+        print("  %-20s observed=%-22s claimed=%-22s" % (name, observed, claimed))
+        print("      -> %-16s k=%+d  residual@bestk=%s  missing=%s  extra=%s"
+              % (r["outcome"], r["best_k"], r["best_k_residual"],
+                 r["missing"], r["extra"]))
+        print("      expected %-16s residual empty=%s   %s"
+              % (expect, expect_empty_residual, "PASS" if good else "*** FAIL ***"))
+        if expect == "P9-SHAPE":
+            print("      residual size by k (-6..+6): %s"
+                  % [r["residual_by_k"][kk] for kk in range(-KMAX, KMAX + 1)])
+            print("      non-empty at EVERY k: %s" % nonzero_all)
+        print("")
+    print("D-UNIT VERDICT: %s" % ("PASS 3/3" if ok else "FAIL"))
+    return 0 if ok else 1
+
+
+def read_event(ev, rows, frames, cache):
+    out = {
+        "target": event_target(ev),
+        "anomaly_type": ev.get("anomaly_type"),
+        "claimed": sorted(ev.get("affected_frames", {}).get("frame_indices", [])),
+    }
+    C = out["claimed"]
+    if not ev.get("manifested", True) or not C:
+        out["outcome"] = "NOT-MANIFESTED"
+        return out
+    if out["target"] is None:
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = "no primary node name to join on"
+        return out
+
+    lo, hi = min(C) - FLANK, max(C) + FLANK
+    out["window"] = [lo, hi]
+
+    missing_frames = [f for f in range(lo, hi + 1) if f not in frames]
+    if missing_frames:
+        out["outcome"] = "TRUNCATED"
+        out["why"] = "window frames absent: %s" % missing_frames[:6]
+        return out
+
+    bbox, nrows, ndistinct, coverage, a56_ok = event_bbox_a56(rows, out["target"], lo, hi)
+    out["a56"] = {"rows": nrows, "distinct": ndistinct,
+                  "modal_coverage": round(coverage, 4), "ok": bool(a56_ok)}
+    out["bbox"] = list(bbox) if bbox else None
+    if bbox is None:
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = "no valid bbox row joined to this event"
+        return out
+    if not a56_ok:
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = ("A56 failed per event (modal %.3f, %d distinct)"
+                      % (coverage, ndistinct))
+        return out
+
+    luma = {}
+    for f in range(lo, hi + 1):
+        v = mean_luma_in_bbox(frames[f], bbox, cache)
+        if v is None:
+            out["outcome"] = "UNDECIDABLE"
+            out["why"] = "bbox degenerate on frame %d" % f
+            return out
+        luma[f] = v
+
+    anchors = [f for f in (list(range(lo, lo + FLANK)) + list(range(hi - FLANK + 1, hi + 1)))]
+    anchor_mean = sum(luma[f] for f in anchors) / float(len(anchors))
+    far = max(luma.values(), key=lambda v: abs(v - anchor_mean))
+
+    values = list(luma.values())
+    cv, ch, vis, hid = two_means(values, anchor_mean, far)
+    if not vis or not hid:
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = "no two-cluster split (all frames on one side)"
+        out["sep"] = 0.0
+        return out
+
+    sep = abs(ch - cv)
+    sp = max(spread(vis), spread(hid))
+    out["sep"] = round(sep, 6)
+    out["spread"] = round(sp, 6)
+    out["sep_over_spread"] = round(sep / sp, 3) if sp > 0 else None
+
+    if sp > 0 and sep < SEP_RATIO * sp:
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = ("separation %.6f below SEP_RATIO %.1f x spread %.6f"
+                      % (sep, SEP_RATIO, sp))
+        return out
+
+    mid = (cv + ch) / 2.0
+    half = sep / 2.0
+    margins = {f: (abs(luma[f] - mid) / half if half > 0 else 0.0) for f in luma}
+    out["min_margin"] = round(min(margins.values()), 4)
+    if out["min_margin"] < MARGIN_FLOOR:
+        weak = sorted(f for f in margins if margins[f] < MARGIN_FLOOR)
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = ("margin below MARGIN_FLOOR %.2f on frame(s) %s"
+                      % (MARGIN_FLOOR, weak[:6]))
+        return out
+
+    hidden_is_high = ch > cv
+
+    anchor_hidden = [f for f in anchors if (luma[f] > mid) == hidden_is_high]
+    if anchor_hidden:
+        out["outcome"] = "UNDECIDABLE"
+        out["why"] = ("anchor unreliable - flank frame(s) %s read HIDDEN, so the window's "
+                      "edges are not all visible and the polarity cannot be trusted"
+                      % anchor_hidden)
+        return out
+
+    observed = sorted(f for f in luma
+                      if (luma[f] > mid) == hidden_is_high)
+    out.update(classify(observed, C))
+    return out
+
+
+def apply_synth(events, move, shift):
+    for ev in events:
+        af = ev.get("affected_frames", {})
+        idx = sorted(af.get("frame_indices", []))
+        if not idx:
+            continue
+        if shift:
+            idx = [i + shift for i in idx]
+        if move:
+            last = idx[-1]
+            if (last + 1) not in idx:
+                idx = idx[:-1] + [last + 1]
+        af["frame_indices"] = idx
+        if idx:
+            af["start_frame"], af["end_frame"] = idx[0], idx[-1]
+            af["frame_count"] = len(idx)
+    return events
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("session_dir", nargs="?")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--synth-move", action="store_true")
+    ap.add_argument("--synth-shift", type=int, default=0)
+    ap.add_argument("--d-unit", action="store_true")
+    args = ap.parse_args()
+
+    if args.d_unit:
+        return run_d_unit()
+    if not args.session_dir:
+        print("UNREADABLE: a session_dir is required unless --d-unit is given")
+        return 2
+
+    try:
+        ann, rows, frames, events = load_session(args.session_dir)
+    except Exception as exc:
+        print("UNREADABLE: %s" % exc)
+        return 2
+
+    synth = None
+    if args.synth_move or args.synth_shift:
+        events = apply_synth(events, args.synth_move, args.synth_shift)
+        synth = ("move-last+1" if args.synth_move else "") + \
+                (" shift%+d" % args.synth_shift if args.synth_shift else "")
+        synth = synth.strip()
+
+    cache = {}
+    results = [read_event(ev, rows, frames, cache) for ev in events]
+
+    report = {
+        "session": os.path.basename(os.path.abspath(args.session_dir)),
+        "synthetic": synth,
+        "constants": {"FLANK": FLANK, "SEP_RATIO": SEP_RATIO,
+                      "MARGIN_FLOOR": MARGIN_FLOOR, "KMAX": KMAX},
+        "b1_pose_gate": "NOT APPLICABLE (CALIB_BBOX is scoped to CB_GateLevel/StaticMeshActor_49, G117)",
+        "events": results,
+    }
+
+    counted = [r for r in results
+               if r["outcome"] in ("ALIGNED", "P9-SHAPE", "ONE-DIRECTIONAL")
+               or r["outcome"].startswith("SHIFTED")]
+    tally = {}
+    for r in results:
+        key = "SHIFTED" if r["outcome"].startswith("SHIFTED") else r["outcome"]
+        tally[key] = tally.get(key, 0) + 1
+    report["summary"] = {"events": len(results), "counted": len(counted), "tally": tally}
+
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print("session       : %s" % report["session"])
+        if synth:
+            print("SYNTHETIC     : %s   (this is a CONTROL, not a leg)" % synth)
+        print("constants     : FLANK=%d SEP_RATIO=%.1f MARGIN_FLOOR=%.2f KMAX=%d   (TAU is NOT used)"
+              % (FLANK, SEP_RATIO, MARGIN_FLOOR, KMAX))
+        print("B1 pose gate  : NOT APPLICABLE (G117) - declared, never 'passed'")
+        print("k convention  : residual(k) = symdiff(observed + k, claimed); "
+              "k>0 means the CLAIM is late. Opposite sign to a54_oracle's best_s.")
+        print("")
+        print("  ev  outcome          k   claimed                    observed                   missing    extra      sep/spr  minMrg")
+        for i, r in enumerate(results):
+            if "best_k" not in r:
+                print("  %-3d %-16s %-3s %-26s %s" %
+                      (i, r["outcome"], "-", str(r.get("claimed", "")),
+                       r.get("why", "")))
+                continue
+            print("  %-3d %-16s %-3s %-26s %-26s %-10s %-10s %-8s %s" %
+                  (i, r["outcome"], "%+d" % r["best_k"],
+                   str(r["claimed"]), str(r["observed"]),
+                   str(r["missing"]), str(r["extra"]),
+                   str(r.get("sep_over_spread")), r.get("min_margin")))
+        print("")
+        print("summary       : %d event(s), %d counted, %s"
+              % (len(results), len(counted), tally))
+
+    if not counted:
+        return 2
+    return 0 if tally.get("ALIGNED", 0) == len(counted) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

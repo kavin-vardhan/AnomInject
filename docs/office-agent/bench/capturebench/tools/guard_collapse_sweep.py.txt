@@ -1,0 +1,149 @@
+"""G124 GENERALISATION TEST - how many NON-FOLIAGE selectable actors have a bounds
+sphere large enough that the poll-radius cull cannot fire?
+
+Owner ruling adopted: InstancedFoliageActor is DROPPED FROM THE INVESTIGATION.
+That makes this the generalisation test rather than a foliage re-measurement.
+
+⚠ SCOPE OF THAT RULING, NARROW AND ON THE RECORD: it applies to the
+INVESTIGATION, not to selection and not to any cure. NOTHING is excluded from the
+selector and a class blacklist is NOT a fix. G124's mechanism is AGGREGATE /
+OVERSIZED BOUNDS, not foliage-as-a-class: blacklisting InstancedFoliageActor
+would leave the identical hole open for every other actor whose bounds sphere
+exceeds the poll radius, while looking closed.
+
+THE DECIDING QUANTITY, and why node.bounds cannot supply it:
+  the poll cull is   dist(pollOrigin, B.Origin) - B.SphereRadius > GPollRadius
+  on the FIRST RENDERABLE-VISIBLE COMPONENT's bounds. selection_provenance's
+  poll_distance IS that expression, so a NEGATIVE poll_distance means the
+  component's bounds sphere already contains the poll origin - the cull can never
+  fire for that actor from anywhere in the level.
+  node.bounds is GetComponentsBoundingBox(TRUE), the WHOLE ACTOR, and is a
+  DIFFERENT quantity - measured: BP_MovingPlatform's whole-actor box implies a
+  ~2620 cm sphere while its MEASURED poll_distance is +1370..1450. So the
+  whole-actor box does NOT drive the cull and must not be substituted for it.
+
+Reads banked data only. NO RUNS.
+
+Usage: python guard_collapse_sweep.py [--bank <dir>]
+"""
+
+import argparse
+import glob
+import json
+import math
+import os
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+POLL_RADIUS = 1800.0
+MIN_COVERAGE_PCT = 6.0
+FOLIAGE = "InstancedFoliageActor"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--bank", default=BANK)
+    args = ap.parse_args()
+
+    per_target = {}
+    for ann_path in glob.glob(os.path.join(args.bank, "**", "annotation.json"), recursive=True):
+        sdir = os.path.dirname(ann_path)
+        try:
+            ann = json.load(open(ann_path))
+        except Exception:
+            continue
+        prov = None
+        p = os.path.join(sdir, "selection_provenance.json")
+        if os.path.exists(p):
+            try:
+                prov = json.load(open(p))
+            except Exception:
+                prov = None
+        rows = []
+        lp = os.path.join(sdir, "labels.jsonl")
+        if os.path.exists(lp):
+            for line in open(lp):
+                if line.strip():
+                    rows.append(json.loads(line))
+        for i, ev in enumerate(ann.get("anomalies", [])):
+            nodes = ev.get("affected_objects", {}).get("nodes", [])
+            if not nodes:
+                continue
+            n = nodes[0]
+            name = n.get("name", "")
+            e = n.get("bounds", {}).get("extent", [0, 0, 0])
+            rec = per_target.setdefault(name, {
+                "comp": n.get("component_class", ""), "asset": n.get("asset_name", ""),
+                "path": n.get("path", ""), "actor_extent": e,
+                "poll": [], "cov_pct": [], "occ": [], "rect_frac": [], "legs": set()})
+            rec["legs"].add(os.path.relpath(sdir, args.bank).split(os.sep)[0])
+            rec["cov_pct"].append(ev.get("coverage_pct"))
+            if prov and i < len(prov.get("events", [])):
+                pe = prov["events"][i]
+                rec["poll"].append(pe.get("poll_distance"))
+                rec["occ"].append("%s/%s" % (pe.get("occlusion_samples_passed"),
+                                             pe.get("occlusion_samples_total")))
+        for r in rows:
+            for a in r.get("anomalies", []):
+                nm = a.get("target_name")
+                if nm in per_target and a.get("bbox_valid"):
+                    bx = a["bbox_px"]
+                    W = r.get("width", 1280); H = r.get("height", 720)
+                    per_target[nm]["rect_frac"].append((bx[2] * bx[3]) / float(W * H))
+
+    print("=" * 116)
+    print("GUARD-COLLAPSE SWEEP - banked data only. FOLIAGE EXCLUDED per the owner ruling.")
+    print("poll radius %.0f cm | coverage floor %.0f%%" % (POLL_RADIUS, MIN_COVERAGE_PCT))
+    print("=" * 116)
+    print("  %-44s %-30s %11s %9s %7s %8s"
+          % ("actor", "component_class", "poll_dist", "cov_pct", "occ", "rect%"))
+    negatives = []
+    shown = 0
+    for name, r in sorted(per_target.items()):
+        if FOLIAGE in name:
+            continue
+        shown += 1
+        pv = [x for x in r["poll"] if x is not None]
+        real = [x for x in pv if x > -1e8 and x != -1]
+        pstr = ("%.1f..%.1f" % (min(real), max(real))) if real else ("sentinel -1" if pv else "n/a")
+        cov = [c for c in r["cov_pct"] if c is not None and c >= 0]
+        cstr = ("%.2f..%.2f" % (min(cov), max(cov))) if cov else "-1"
+        occ = sorted(set(r["occ"])) if r["occ"] else []
+        ostr = (",".join(occ))[:7] if occ else "-"
+        rf = r["rect_frac"]
+        rstr = ("%.1f" % (100.0 * max(rf))) if rf else "-"
+        flag = ""
+        if real and min(real) < 0:
+            flag = "  <== NEGATIVE: cull can NEVER fire"
+            negatives.append((name, min(real), r["comp"]))
+        print("  %-44s %-30s %11s %9s %7s %8s%s"
+              % (name[:44], r["comp"][:30], pstr, cstr, ostr, rstr, flag))
+
+    print()
+    print("=" * 116)
+    print("THE QUESTION: how many NON-FOLIAGE selectable actors have a bounds sphere")
+    print("large enough that the poll-radius cull cannot fire?")
+    print("=" * 116)
+    print("  non-foliage actors with banked evidence : %d" % shown)
+    print("  of those, with a NEGATIVE poll_distance  : %d" % len(negatives))
+    if negatives:
+        for nm, v, c in negatives:
+            print("    %-46s %.1f   %s" % (nm, v, c))
+        print()
+        print("  => the cull is WEAK BY CONSTRUCTION for this class of actor and G124")
+        print("     GENERALISES beyond foliage.")
+    else:
+        print()
+        print("  => ZERO. The collapse is currently OBSERVED only on foliage.")
+        print("     ⚠ That makes the OBSERVATION foliage-specific. It does NOT make the")
+        print("     MECHANISM foliage-specific - the mechanism is oversized bounds, and")
+        print("     nothing in the filter is aware of foliage as a class. The difference")
+        print("     matters: a fix that blacklists foliage would leave the hole open.")
+    print()
+    print("  ALSO NOTE - actors whose poll_distance is the -1 SENTINEL are NOT evidence")
+    print("  either way: provenance returned valid:false at that anchor, so no distance")
+    print("  was ever computed. They are UNMEASURED, not small.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

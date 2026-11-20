@@ -1,0 +1,100 @@
+import json
+import os
+import sys
+from PIL import Image, ImageChops
+
+THRESH = 8
+
+
+def load_rows(session):
+    rows = []
+    with open(os.path.join(session, "labels.jsonl"), "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    rows.sort(key=lambda r: r["session_index"])
+    return rows
+
+
+def mask_content(session):
+    d = os.path.join(session, "target_mask")
+    out = {}
+    if not os.path.isdir(d):
+        return out
+    for name in os.listdir(d):
+        if not name.endswith(".png"):
+            continue
+        idx = int(name[len("frame_"):-len(".png")])
+        im = Image.open(os.path.join(d, name)).convert("L")
+        out[idx] = im.getextrema()[1] > 0
+        im.close()
+    return out
+
+
+def frame_path(session, idx):
+    return os.path.join(session, "Actual_Frames", "frame_%05d.png" % idx)
+
+
+def pct_changed(session, ref_idx, idx):
+    a_path, b_path = frame_path(session, ref_idx), frame_path(session, idx)
+    if not (os.path.isfile(a_path) and os.path.isfile(b_path)):
+        return None
+    a = Image.open(a_path).convert("RGB")
+    b = Image.open(b_path).convert("RGB")
+    diff = ImageChops.difference(a, b).convert("L")
+    hist = diff.histogram()
+    total = a.size[0] * a.size[1]
+    changed = sum(hist[THRESH:])
+    a.close()
+    b.close()
+    diff.close()
+    return 100.0 * changed / total
+
+
+def main(session, label):
+    ann = json.load(open(os.path.join(session, "annotation.json"), "r", encoding="utf-8"))
+    rows = load_rows(session)
+    have = mask_content(session)
+    total_files = len(have)
+    nonblank = sum(1 for v in have.values() if v)
+
+    print("=== %s ===" % label)
+    print("captured rows=%d  mask files=%d  non-blank=%d  blank=%d"
+          % (len(rows), total_files, nonblank, total_files - nonblank))
+    print("%-18s %-22s %-28s %6s %6s %5s" %
+          ("type", "target", "labelled", "1stLbl", "1stMsk", "delta"))
+    events = []
+    for e in ann["anomalies"]:
+        idx = list(e["affected_frames"]["frame_indices"])
+        if not idx:
+            continue
+        first = idx[0]
+        content = [i for i in idx if have.get(i, False)]
+        fm = content[0] if content else None
+        events.append((e, first, fm))
+        print("%-18s %-22s %-28s %6d %6s %5s" % (
+            e["anomaly_type"], e["affected_objects"]["nodes"][0]["name"],
+            ",".join(str(i) for i in idx), first,
+            str(fm) if fm is not None else "NONE",
+            str(fm - first) if fm is not None else "n/a"))
+
+    print()
+    print("--- ONSET: %% pixels differing >%d/255 from a clean reference (firstLabel-2) ---" % THRESH)
+    print("%-18s %-22s %8s %8s %8s %8s %8s" %
+          ("type", "target", "n-1", "n", "n+1", "n+2", "n+3"))
+    for e, first, fm in events:
+        ref = first - 2
+        if ref < 0:
+            continue
+        cells = []
+        for off in (-1, 0, 1, 2, 3):
+            v = pct_changed(session, ref, first + off)
+            cells.append("  n/a  " if v is None else "%7.3f" % v)
+        print("%-18s %-22s %s" % (
+            e["anomaly_type"], e["affected_objects"]["nodes"][0]["name"], " ".join(cells)))
+    print()
+
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2])

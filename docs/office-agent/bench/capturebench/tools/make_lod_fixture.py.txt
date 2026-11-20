@@ -1,0 +1,231 @@
+import json
+import os
+import traceback
+
+import unreal
+
+ROOT = "/Game/AnomalyFixtures"
+LEVEL_PATH = ROOT + "/CB_LodFixture"
+OUT = os.environ.get("IAI_LODFIX_OUT", "")
+REBUILD = os.environ.get("IAI_LODFIX_REBUILD") == "1"
+
+SCALE = 4.6
+PLAYER_START = (0.0, 0.0, 200.0)
+POINT_LIGHTS = ((450.0, -340.0, 520.0), (450.0, 340.0, 520.0), (450.0, 0.0, 640.0))
+POINT_INTENSITY = 400.0
+TARGETS = (
+    ("N", "CB_LodFix_N", (850.0, -340.0, 200.0), False),
+    ("D", "CB_LodFix_D", (850.0, 340.0, 200.0), True),
+)
+LOD0_COLOR = (1.0, 0.45, 0.02)
+LOD1_COLOR = (0.02, 0.08, 0.8)
+ROUGHNESS = 0.55
+SCREEN_SIZES = [1.0, 0.05]
+LOD0_SOURCE = "/Engine/BasicShapes/Sphere"
+LOD1_SOURCE = "/Engine/BasicShapes/Cube"
+GRID = "/Engine/EngineMaterials/WorldGridMaterial"
+
+EAL = unreal.EditorAssetLibrary
+MEL = unreal.MaterialEditingLibrary
+TOOLS = unreal.AssetToolsHelpers.get_asset_tools()
+unreal.SystemLibrary.execute_console_command(None, "Module Load StaticMeshEditor")
+SME = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+LES = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+EAS = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+
+res = dict(ok=False, level=LEVEL_PATH, root=ROOT, errors=[], materials={}, meshes={}, actors={}, player_start=None,
+           params=dict(scale=SCALE, player_start=PLAYER_START, targets=[(v, n, p, d) for v, n, p, d in TARGETS],
+                       lod0_color=LOD0_COLOR, lod1_color=LOD1_COLOR, roughness=ROUGHNESS, screen_sizes=SCREEN_SIZES,
+                       lod0_source=LOD0_SOURCE, lod1_source=LOD1_SOURCE))
+
+
+class Fail(Exception):
+    pass
+
+
+def fail(msg):
+    raise Fail(msg)
+
+
+def vec(v):
+    return [float(v.x), float(v.y), float(v.z)]
+
+
+def save(path):
+    if not EAL.save_asset(path, only_if_is_dirty=False):
+        fail("save_asset failed: " + path)
+
+
+def make_material(name, color, dithered):
+    path = ROOT + "/" + name
+    mat = TOOLS.create_asset(name, ROOT, unreal.Material, unreal.MaterialFactoryNew())
+    if mat is None:
+        fail("create_asset returned None: " + path)
+    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_OPAQUE)
+    col = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -400, 0)
+    col.set_editor_property("constant", unreal.LinearColor(color[0], color[1], color[2], 1.0))
+    if not MEL.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR):
+        fail("connect base colour failed: " + path)
+    rough = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -400, 200)
+    rough.set_editor_property("r", ROUGHNESS)
+    if not MEL.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS):
+        fail("connect roughness failed: " + path)
+    mat.set_editor_property("dithered_lod_transition", bool(dithered))
+    MEL.recompile_material(mat)
+    save(path)
+    got = bool(mat.get_editor_property("dithered_lod_transition"))
+    if got != bool(dithered):
+        fail("dithered_lod_transition read back %s, wanted %s: %s" % (got, dithered, path))
+    res["materials"][name] = dict(path=path, color=list(color), dithered_lod_transition=got)
+    return mat
+
+
+def slot_map(mesh):
+    out = []
+    for lod in range(SME.get_lod_count(mesh)):
+        out.append([int(SME.get_lod_material_slot(mesh, lod, sec)) for sec in range(mesh.get_num_sections(lod))])
+    return out
+
+
+def make_mesh(variant, mat0, mat1):
+    name = "SM_LodFix_" + variant
+    path = ROOT + "/" + name
+    mesh = EAL.duplicate_asset(LOD0_SOURCE, path)
+    if mesh is None:
+        fail("duplicate_asset returned None: " + path)
+    cube = unreal.load_asset(LOD1_SOURCE)
+    if cube is None:
+        fail("missing " + LOD1_SOURCE)
+    idx = SME.set_lod_from_static_mesh(mesh, 1, cube, 0, False)
+    if idx != 1 or SME.get_lod_count(mesh) != 2:
+        fail("set_lod_from_static_mesh returned %s, lod count %s: %s" % (idx, SME.get_lod_count(mesh), path))
+    smap = slot_map(mesh)
+    nmat = SME.get_number_materials(mesh)
+    if smap[1] and smap[1][0] == smap[0][0]:
+        mesh.add_material(mat1)
+        nmat = SME.get_number_materials(mesh)
+        SME.set_lod_material_slot(mesh, nmat - 1, 1, 0)
+        smap = slot_map(mesh)
+    if len(smap) != 2 or len(smap[0]) != 1 or len(smap[1]) != 1 or smap[0][0] == smap[1][0]:
+        fail("per-LOD section-to-slot map is not one distinct slot per LOD: %s (%s)" % (smap, path))
+    mesh.set_material(smap[0][0], mat0)
+    mesh.set_material(smap[1][0], mat1)
+    ns = mesh.get_editor_property("nanite_settings")
+    if bool(ns.enabled):
+        ns.enabled = False
+        SME.set_nanite_settings(mesh, ns, True)
+    if not SME.set_lod_screen_sizes(mesh, SCREEN_SIZES):
+        fail("set_lod_screen_sizes refused: " + path)
+    save(path)
+    slots = []
+    for sm in mesh.get_editor_property("static_materials"):
+        mi = sm.get_editor_property("material_interface")
+        slots.append(dict(slot_name=str(sm.get_editor_property("material_slot_name")), material=mi.get_path_name() if mi else None))
+    rec = dict(path=path, lods=int(SME.get_lod_count(mesh)), screen_sizes=[float(x) for x in SME.get_lod_screen_sizes(mesh)],
+               triangles=[int(mesh.get_num_triangles(i)) for i in range(SME.get_lod_count(mesh))],
+               section_slots=slot_map(mesh), slots=slots, nanite=bool(mesh.get_editor_property("nanite_settings").enabled))
+    res["meshes"][name] = rec
+    return mesh
+
+
+def spawn_static(mesh, loc, scale, label, mat=None, name=None):
+    a = EAS.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*loc), unreal.Rotator(0, 0, 0))
+    a.set_actor_scale3d(unreal.Vector(*scale))
+    comp = a.static_mesh_component
+    comp.set_static_mesh(mesh)
+    if mat is not None:
+        comp.set_material(0, mat)
+    comp.set_mobility(unreal.ComponentMobility.STATIC)
+    a.set_actor_label(label)
+    if name:
+        try:
+            a.rename(name)
+        except Exception as ex:
+            res["errors"].append("rename %s: %s" % (name, ex))
+    return a
+
+
+def main():
+    if EAL.does_directory_exist(ROOT) and EAL.does_directory_have_assets(ROOT):
+        if not REBUILD:
+            fail("REFUSED: %s already holds assets; set IAI_LODFIX_REBUILD=1 to delete and rebuild them" % ROOT)
+        if not EAL.delete_directory(ROOT):
+            fail("delete_directory failed: " + ROOT)
+    mats = {}
+    for dv in (False, True):
+        tag = "D" if dv else "N"
+        mats[(0, dv)] = make_material("M_LodFix_L0_" + tag, LOD0_COLOR, dv)
+        mats[(1, dv)] = make_material("M_LodFix_L1_" + tag, LOD1_COLOR, dv)
+    meshes = {}
+    for variant, _, _, dv in TARGETS:
+        meshes[variant] = make_mesh(variant, mats[(0, dv)], mats[(1, dv)])
+
+    if not LES.new_level(LEVEL_PATH):
+        fail("new_level refused " + LEVEL_PATH)
+    cube = unreal.load_asset(LOD1_SOURCE)
+    grid = unreal.load_asset(GRID)
+    spawn_static(cube, (1200.0, 0.0, -80.0), (40.0, 40.0, 1.0), "CB_LodFix_Floor", grid)
+    spawn_static(cube, (1900.0, 0.0, 400.0), (1.0, 40.0, 18.0), "CB_LodFix_Backdrop", grid)
+    for variant, name, loc, _ in TARGETS:
+        a = spawn_static(meshes[variant], loc, (SCALE, SCALE, SCALE), name, None, name)
+        a.static_mesh_component.set_editor_property("cast_shadow", False)
+    sun = EAS.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 1000), unreal.Rotator(roll=0.0, pitch=-40.0, yaw=20.0))
+    sun.set_actor_label("CB_LodFix_Sun")
+    sun.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    sun.light_component.set_editor_property("intensity", 2.0)
+    sun.light_component.set_editor_property("cast_shadows", True)
+    sky = EAS.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 900), unreal.Rotator(0, 0, 0))
+    sky.set_actor_label("CB_LodFix_SkyLight")
+    sky.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    sky.light_component.set_editor_property("intensity", 1.0)
+    atmo = EAS.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    for i, p in enumerate(POINT_LIGHTS):
+        pl = EAS.spawn_actor_from_class(unreal.PointLight, unreal.Vector(*p), unreal.Rotator(roll=0.0, pitch=0.0, yaw=0.0))
+        pl.set_actor_label("CB_LodFix_Point_%02d" % i)
+        pl.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+        pl.light_component.set_editor_property("intensity", POINT_INTENSITY)
+        pl.light_component.set_editor_property("attenuation_radius", 1200.0)
+        pl.light_component.set_editor_property("cast_shadows", True)
+    atmo.set_actor_label("CB_LodFix_SkyAtmosphere")
+    ps = EAS.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(*PLAYER_START), unreal.Rotator(0, 0, 0))
+    ps.set_actor_label("CB_LodFix_PlayerStart")
+    if not LES.save_current_level():
+        fail("save_current_level failed")
+    if not EAL.does_asset_exist(LEVEL_PATH):
+        fail("level does not exist after save: " + LEVEL_PATH)
+    actors = EAS.get_all_level_actors()
+    cb = [a for a in actors if a.get_actor_label().startswith("CB_LodFix_")]
+    if len(cb) != 2 + len(TARGETS) + 4 + len(POINT_LIGHTS):
+        fail("actor-count mismatch: %d CB_LodFix_ actors of %d" % (len(cb), len(actors)))
+    for a in cb:
+        rec = dict(name=a.get_name(), label=a.get_actor_label(), cls=a.get_class().get_name(), location=vec(a.get_actor_location()),
+                   rotation=[float(a.get_actor_rotation().pitch), float(a.get_actor_rotation().yaw), float(a.get_actor_rotation().roll)],
+                   scale=vec(a.get_actor_scale3d()))
+        if isinstance(a, unreal.StaticMeshActor):
+            c = a.static_mesh_component
+            m = c.get_editor_property("static_mesh")
+            rec.update(mesh=m.get_path_name() if m else None, mobility=str(c.get_editor_property("mobility")),
+                       cast_shadow=bool(c.get_editor_property("cast_shadow")))
+        res["actors"][a.get_actor_label()] = rec
+    for _, name, _, _ in TARGETS:
+        if res["actors"][name]["name"] != name:
+            fail("target runtime name %s != %s" % (res["actors"][name]["name"], name))
+    res["player_start"] = res["actors"]["CB_LodFix_PlayerStart"]
+    res["ok"] = True
+
+
+try:
+    main()
+except Fail as ex:
+    res["errors"].append(str(ex))
+except Exception:
+    res["errors"].append(traceback.format_exc())
+if OUT:
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    with open(OUT, "w", encoding="utf-8") as f:
+        json.dump(res, f, indent=1)
+unreal.log("CB_LODFIX_%s level=%s meshes=%d materials=%d actors=%d errors=%d" % (
+    "SAVED" if res["ok"] else "FAILED", LEVEL_PATH, len(res["meshes"]), len(res["materials"]), len(res["actors"]), len(res["errors"])))
+for e in res["errors"]:
+    unreal.log_warning("CB_LODFIX_ERROR " + e.replace("\n", " | ")[:600])

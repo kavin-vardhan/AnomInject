@@ -1,0 +1,115 @@
+"""
+080-06 G-A / G-B: is the NON-deferred path byte-unchanged by the veto-arm gate?
+
+A bare A/B is not sound on a MainWorld leg with no B1 pose gate. So:
+
+  1. a SAME-BINARY control pair (A1 vs A2) establishes the run-unique set EMPIRICALLY;
+  2. the CROSS-BINARY difference set (A1 vs B1) must be a SUBSET of it.
+
+Any field that differs across binaries but NOT within the control pair is an EXTRA and FAILS.
+That is the G-S3a-1 / P-C7 v2 method and it is stricter than "they look the same".
+
+Compared per event, keyed by (anomaly id, target, ordinal): the M23 ARM request-id OFFSETS from
+the record's StartFrame (absolute ids are GFrameCounter and carry startup variance), the M26S1
+EVENT state / maxCount / arms / resolved and all eight buckets, plus run_summary.vetoed_events.
+
+Exit 0 = subset holds, 2 = an extra field, 3 = vacuous.
+"""
+
+import glob
+import json
+import os
+import re
+import sys
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+
+ARM_RE = re.compile(r"M23 ARM id=(\d+) target=(\S+) tag=(\d+)")
+EVT_RE = re.compile(r"M26S1 EVENT id=(\S+) target=(\S+) startFrame=(\d+) tag=(\d+) state=(\S+) "
+                    r"maxCount=(-?\d+) viewportPx=(\d+) pctOfFrame=(\S+) arms=(\d+) resolved=(\d+) "
+                    r"framesDiscarded=(\d+) framesResidual=(\d+) framesUnconfirmed=(\d+) "
+                    r"framesNoPass=(\d+) framesContributed=(\d+) probeArms=(\d+) "
+                    r"skippedHidden=(\d+) collisions=(\d+) tagFailed=(\d+)")
+
+
+def session_of(label):
+    hits = glob.glob(os.path.join(BANK, label, "session_*"))
+    return sorted(hits)[-1] if hits else None
+
+
+def fields(label):
+    sess = session_of(label)
+    if not sess:
+        return None
+    with open(os.path.join(sess, "anomaly_log.txt"), "r", encoding="utf-8",
+              errors="replace") as f:
+        text = f.read()
+    arms_by_tag = {}
+    for line in text.splitlines():
+        m = ARM_RE.search(line)
+        if m:
+            arms_by_tag.setdefault(int(m.group(3)), []).append(int(m.group(1)))
+    out = {}
+    seen = {}
+    for line in text.splitlines():
+        m = EVT_RE.search(line)
+        if not m:
+            continue
+        aid, tgt, start, tag = m.group(1), m.group(2), int(m.group(3)), int(m.group(4))
+        n = seen.get((aid, tgt), 0)
+        seen[(aid, tgt)] = n + 1
+        key = f"{aid}|{tgt}|#{n}"
+        out[key + "/state"] = m.group(5)
+        out[key + "/maxCount"] = int(m.group(6))
+        for i, name in enumerate(["arms", "resolved", "framesDiscarded", "framesResidual",
+                                  "framesUnconfirmed", "framesNoPass", "framesContributed",
+                                  "probeArms", "skippedHidden", "collisions", "tagFailed"], 9):
+            out[key + "/" + name] = int(m.group(i))
+        offs = sorted(t - start for t in arms_by_tag.get(tag, [])) if tag else []
+        out[key + "/armOffsets"] = str(offs)
+    rs = os.path.join(sess, "run_summary.json")
+    if os.path.exists(rs):
+        with open(rs, "r", encoding="utf-8") as f:
+            j = json.load(f)
+        for k in ("vetoed_events", "non_manifested_events", "total_frames", "positive_frames"):
+            if k in j:
+                out["run_summary/" + k] = j[k]
+    return out
+
+
+def diff(a, b):
+    keys = set(a) | set(b)
+    return {k for k in keys if a.get(k, "<absent>") != b.get(k, "<absent>")}
+
+
+def main():
+    a1, a2, b1, name = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+    fa1, fa2, fb1 = fields(a1), fields(a2), fields(b1)
+    if not (fa1 and fa2 and fb1):
+        print(f"{name}: missing a leg")
+        sys.exit(3)
+    if not fa1:
+        print(f"{name}: no events -> VACUOUS (G146)")
+        sys.exit(3)
+    run_unique = diff(fa1, fa2)
+    cross = diff(fa1, fb1)
+    extras = cross - run_unique
+    print(f"=== {name} ===")
+    print(f"  fields compared        : {len(set(fa1) | set(fb1))}")
+    print(f"  run-unique set (A1^A2) : {len(run_unique)}")
+    for k in sorted(run_unique)[:10]:
+        print(f"      {k}: {fa1.get(k)} vs {fa2.get(k)}")
+    print(f"  cross-binary (A1^B1)   : {len(cross)}")
+    for k in sorted(cross)[:10]:
+        print(f"      {k}: {fa1.get(k)} vs {fb1.get(k)}")
+    print(f"  EXTRAS (cross - runUnique) = {len(extras)}")
+    for k in sorted(extras):
+        print(f"      EXTRA {k}: A1={fa1.get(k)} B1={fb1.get(k)}")
+    if not fa1:
+        sys.exit(3)
+    print(f"  VERDICT {name}: {'SUBSET - PASS' if not extras else 'EXTRA FIELD - FAIL'}")
+    sys.exit(0 if not extras else 2)
+
+
+if __name__ == "__main__":
+    main()

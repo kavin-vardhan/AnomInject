@@ -1,0 +1,131 @@
+"""PF2 continued - EXPLAIN the 21 banked valid:false records.
+
+Why this matters more than it looks. H4's pre-declared CAUSE signature is
+`selection_provenance` -> valid:false with 0/0 samples, and it is pre-declared as
+UNIQUE TO H4. The bank already contains that exact string 21 times, on
+StaticMeshActor_49, which is provably unoccluded on all 9 rays. So either the
+signature is not unique, or those 21 have a different explanation that can be
+excluded by construction on the H4 run.
+
+EvaluateSelectionProvenance (AnomalyViewport.cpp:540-576) returns false, leaving
+the struct at its defaults (valid false, 0/0, coverage_pct -1, poll_distance -1),
+on any of:
+    A  !World || !Actor
+    B  !GetActiveViewInfo(World, View)            - no PC / no view
+    C  CollectRenderableVisibleUnion -> nullptr, which is
+       IsComponentRenderableVisibleInternal failing on EVERY component:
+         C1  !IsRenderableComponent          (not SM/SK, or !IsVisible())
+         C2  poll-radius reject              (dist - r > GPollRadius, default 1800)
+         C3  !IsInFrustum                    <- ROTATION-DEPENDENT
+         C4  !IsUnoccluded                   <- THE H4 BRANCH
+
+This script separates C3 from C4 for every banked false record, by recomputing
+the frustum test at that frame's ACTUAL camera rotation from labels.jsonl.
+"""
+
+import glob
+import json
+import math
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import h4_recon as R
+
+BANK = R.BANK
+
+
+def in_frustum(view, c, e):
+    """IsInFrustum uses sphere-then-box against the 5-plane frustum. A box whose
+    projected rect misses the screen entirely is out; this reproduces the
+    decision with the same projection the engine builds, which is sufficient to
+    separate 'rotated away' from 'occluded'."""
+    rect = R.project_rect(view, c, e)
+    if rect is None:
+        return False, None
+    (mnx, mny), (mxx, mxy) = rect
+    hit = mxx > 0.0 and mnx < 1.0 and mxy > 0.0 and mny < 1.0
+    return hit, ((mnx, mny), (mxx, mxy))
+
+
+def main():
+    targets = R.build_targets()
+    rows_out = []
+
+    for pv in sorted(glob.glob(os.path.join(BANK, "**", "selection_provenance.json"),
+                               recursive=True)):
+        d = json.load(open(pv))
+        sdir = os.path.dirname(pv)
+        rel = os.path.relpath(pv, BANK)
+        falses = [e for e in d.get("events", []) if e.get("valid") is False]
+        if not falses:
+            continue
+
+        lpath = os.path.join(sdir, "labels.jsonl")
+        if not os.path.exists(lpath):
+            print("  %s : no labels.jsonl" % rel)
+            continue
+        rows = {}
+        for line in open(lpath):
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            rows[r.get("session_index")] = r
+
+        print("=" * 74)
+        print(rel)
+        summ = json.load(open(os.path.join(sdir, "run_summary.json")))
+        print("  fps=%s paced=%s ratio=%.4f capture_path=%s frames=%s"
+              % (summ.get("stamped_fps"), summ.get("paced"),
+                 summ.get("speed_ratio", -1), summ.get("capture_path", "(absent)"),
+                 summ.get("total_frames")))
+        # leg-wide rotation picture
+        allrot = {}
+        for r in rows.values():
+            rt = tuple(round(float(x), 2) for x in r["view"]["rot"])
+            allrot[rt] = allrot.get(rt, 0) + 1
+        print("  leg rotations: %s"
+              % ", ".join("%s x%d" % (k, v) for k, v in
+                          sorted(allrot.items(), key=lambda kv: -kv[1])[:4]))
+
+        for ev in falses:
+            ai = ev.get("anchor_index")
+            tgt = ev.get("target")
+            row = rows.get(ai)
+            if row is None:
+                print("    anchor %-4s : NO label row at that session_index" % ai)
+                continue
+            v = row["view"]
+            view = {"origin": tuple(v["origin"]), "rot": tuple(v["rot"]),
+                    "fov": v.get("fovDeg", 90.0), "aspect": v.get("aspect", 16 / 9)}
+            t = targets[tgt]
+            fr, rect = in_frustum(view, t["c"], t["e"])
+            occ_pass, _ = R.occlusion_samples(view["origin"], tgt, targets, "aabb", True)
+            lab = row.get("anomalies", [])
+            bbv = [a.get("bbox_valid") for a in lab if a.get("target_name") == tgt]
+            print("    anchor %-4s rot=%-22s view_valid=%-5s | in_frustum=%-5s "
+                  "occ_rays_clear=%d/9 | label_rows_bbox_valid=%s"
+                  % (ai, tuple(round(float(x), 2) for x in v["rot"]),
+                     v.get("valid"), fr, occ_pass, bbv or "(no label this frame)"))
+            rows_out.append((rel, ai, fr, occ_pass, v.get("valid"), bool(bbv)))
+
+    print()
+    print("=" * 74)
+    print("VERDICT ACROSS ALL BANKED valid:false RECORDS")
+    print("=" * 74)
+    n = len(rows_out)
+    out_of_frustum = sum(1 for r in rows_out if not r[2])
+    occluded = sum(1 for r in rows_out if r[3] == 0)
+    view_invalid = sum(1 for r in rows_out if r[4] is not True)
+    labelled = sum(1 for r in rows_out if r[5])
+    print("  records explained                     : %d" % n)
+    print("  ...where the target was OUT OF FRUSTUM: %d" % out_of_frustum)
+    print("  ...where the target was FULLY OCCLUDED: %d" % occluded)
+    print("  ...where view.valid was not true      : %d" % view_invalid)
+    print("  ...that STILL carried a label row     : %d" % labelled)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

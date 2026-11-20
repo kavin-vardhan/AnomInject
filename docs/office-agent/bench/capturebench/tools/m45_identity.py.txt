@@ -1,0 +1,27 @@
+import json, os, sys
+from PIL import Image, ImageChops
+def load(s):
+    r={}
+    for line in open(os.path.join(s,"labels.jsonl"),encoding="utf-8"):
+        line=line.strip()
+        if line:
+            j=json.loads(line); r[j["session_index"]]=j
+    return r
+def cmp(a,b,label):
+    ra,rb=load(a),load(b)
+    tot=0; nd=0; worst=0.0; worst_i=-1; sumpct=0.0
+    hidden_worst=0.0
+    for i in sorted(set(ra)&set(rb)):
+        pa=os.path.join(a,"Actual_Frames","frame_%05d.png"%i)
+        pb=os.path.join(b,"Actual_Frames","frame_%05d.png"%i)
+        if not(os.path.isfile(pa) and os.path.isfile(pb)): continue
+        ia=Image.open(pa).convert("RGB"); ib=Image.open(pb).convert("RGB")
+        d=ImageChops.difference(ia,ib).convert("L"); h=d.histogram()
+        n=ia.size[0]*ia.size[1]
+        pct=100.0*sum(h[8:])/n
+        ia.close(); ib.close(); d.close()
+        tot+=1; sumpct+=pct
+        if pct>0: nd+=1
+        if pct>worst: worst=pct; worst_i=i
+    print("%-28s frames=%3d  any-diff=%3d  mean%%>8=%.4f  worst%%=%.4f @si=%d"%(label,tot,nd,sumpct/max(tot,1),worst,worst_i))
+cmp(sys.argv[1],sys.argv[2],sys.argv[3])

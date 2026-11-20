@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""
+resolution_delta.py - the S4 resolution-delta reader.
+
+SCOPE (frozen; read this before trusting any number it prints)
+  Reports FOUR rects for one capture session and the deltas between them:
+
+    1. PNG            the ACTUAL delivered image, read from the file header.
+                      This is ground truth - it is the thing the client gets.
+    2. labels.jsonl   the width/height the label writer stamped per frame, and
+                      therefore the space bbox_px is expressed in.
+                      ABSENT on a delivery-mode leg (suppressed by design).
+    3. annotation     video.resolution. Sourced from GetViewportSize(), NOT from
+                      the grabbed frame, so this is the rect that can silently
+                      disagree with the delivered pixels.
+    4. run.json       viewport. Same source as 3; ABSENT on a delivery leg.
+
+  It does NOT grade anything. It reports rects and deltas. Frame/label
+  ALIGNMENT is a54_oracle.py's job and pose admissibility is check_pose.py's;
+  a disagreement here is a REPORTING defect, an ALIGNMENT failure is a
+  different and worse thing, and conflating them is how a Case B gets
+  mistaken for a Case C.
+
+  This file is committed because it grades nothing but is READ when grading
+  (G106: an instrument that a certified result depends on is a committed
+  artifact, and prose is not a spec).
+
+USAGE
+  python resolution_delta.py <session_dir> [<session_dir> ...]
+
+EXIT
+  0  every session read, all deltas zero
+  1  at least one session has a non-zero delta   (a FINDING, not an error)
+  2  a session could not be read
+"""
+
+import json
+import os
+import struct
+import sys
+
+
+def png_size(path):
+    """Width/height from the IHDR chunk. No decode, no PIL dependency."""
+    with open(path, "rb") as f:
+        head = f.read(24)
+    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG: %s" % path)
+    w, h = struct.unpack(">II", head[16:24])
+    return int(w), int(h)
+
+
+def first_frame(session):
+    d = os.path.join(session, "Actual_Frames")
+    if not os.path.isdir(d):
+        return None
+    names = sorted(n for n in os.listdir(d) if n.lower().endswith(".png"))
+    return os.path.join(d, names[0]) if names else None
+
+
+def read_json(session, name):
+    p = os.path.join(session, name)
+    if not os.path.isfile(p):
+        return None
+    with open(p, "r", encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def read_first_label(session):
+    p = os.path.join(session, "labels.jsonl")
+    if not os.path.isfile(p):
+        return None
+    with open(p, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                return json.loads(line)
+    return None
+
+
+def label_sizes(session):
+    """Every DISTINCT (w,h) across labels.jsonl. More than one is itself a finding."""
+    p = os.path.join(session, "labels.jsonl")
+    if not os.path.isfile(p):
+        return None
+    seen = set()
+    with open(p, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            seen.add((r.get("width"), r.get("height")))
+    return sorted(seen)
+
+
+def fmt(rect):
+    return "(absent)" if rect is None else "%dx%d" % rect
+
+
+def report(session):
+    print("=" * 78)
+    print("SESSION: %s" % session)
+
+    geom = None
+    sib = os.path.join(os.path.dirname(session.rstrip("\\/")), "_leg_geometry.json")
+    for cand in (os.path.join(session, "_leg_geometry.json"), sib):
+        if os.path.isfile(cand):
+            with open(cand, "r", encoding="utf-8-sig") as f:
+                geom = json.load(f)
+            break
+    if geom:
+        print("  launched: %sx%s %s | OS scale %s%% | sve=%s delivery=%s | extra=%r"
+              % (geom.get("res_x"), geom.get("res_y"), geom.get("window_mode"),
+                 geom.get("os_scale_pct"), geom.get("sve"), geom.get("delivery"),
+                 geom.get("extra_execcmds", "")))
+        if geom.get("geometry_note"):
+            print("  note    : %s" % geom["geometry_note"])
+    else:
+        print("  launched: (no _leg_geometry.json - geometry UNKNOWN, do not infer it)")
+
+    fr = first_frame(session)
+    if fr is None:
+        print("  ERROR: no Actual_Frames/*.png")
+        return 2
+    png = png_size(fr)
+
+    summary = read_json(session, "run_summary.json") or {}
+    delivery = bool(summary.get("delivery_mode"))
+    path = summary.get("capture_path", "(absent -> pre-S4 build, or backbuffer)")
+
+    ann = read_json(session, "annotation.json")
+    ann_rect = None
+    if ann:
+        res = (ann.get("video") or {}).get("resolution")
+        if isinstance(res, list) and len(res) == 2:
+            ann_rect = (int(res[0]), int(res[1]))
+
+    run = read_json(session, "run.json")
+    run_rect = None
+    if run:
+        vp = run.get("viewport")
+        if isinstance(vp, list) and len(vp) == 2:
+            run_rect = (int(vp[0]), int(vp[1]))
+
+    lab = read_first_label(session)
+    lab_rect = None
+    if lab:
+        lab_rect = (int(lab["width"]), int(lab["height"]))
+    sizes = label_sizes(session)
+
+    print("  capture_path      : %s" % path)
+    print("  delivery_mode     : %s" % delivery)
+    print("  1 PNG (delivered) : %s   <- ground truth" % fmt(png))
+    print("  2 labels.jsonl    : %s%s"
+          % (fmt(lab_rect),
+             "   [suppressed by delivery mode]" if (lab_rect is None and delivery) else ""))
+    print("  3 annotation      : %s   <- GetViewportSize()" % fmt(ann_rect))
+    print("  4 run.json        : %s%s"
+          % (fmt(run_rect),
+             "   [suppressed by delivery mode]" if (run_rect is None and delivery) else ""))
+
+    if sizes is not None and len(sizes) > 1:
+        print("  !! labels.jsonl reports MORE THAN ONE size across frames: %s" % (sizes,))
+
+    bad = False
+    for name, rect in (("labels.jsonl", lab_rect), ("annotation", ann_rect), ("run.json", run_rect)):
+        if rect is None:
+            continue
+        dw, dh = rect[0] - png[0], rect[1] - png[1]
+        flag = "OK" if (dw == 0 and dh == 0) else "** NON-ZERO **"
+        print("  delta PNG -> %-13s dW=%+d dH=%+d   %s" % (name, dw, dh, flag))
+        if dw or dh:
+            bad = True
+
+    if bad:
+        print("  FINDING: a reported resolution disagrees with the delivered pixels.")
+        print("           This is a REPORTING delta. It says NOTHING about frame/label")
+        print("           alignment - run a54_oracle.py for that, under check_pose.py.")
+    return 1 if bad else 0
+
+
+def main(argv):
+    if len(argv) < 2:
+        print(__doc__)
+        return 2
+    worst = 0
+    for s in argv[1:]:
+        try:
+            worst = max(worst, report(s))
+        except Exception as e:
+            print("  ERROR reading %s: %s" % (s, e))
+            worst = 2
+    print("=" * 78)
+    print({0: "ALL DELTAS ZERO", 1: "NON-ZERO DELTA FOUND (a finding)", 2: "READ ERROR"}[worst])
+    return worst
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

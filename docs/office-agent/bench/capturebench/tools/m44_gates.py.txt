@@ -1,0 +1,169 @@
+import json
+import os
+import sys
+from PIL import Image, ImageChops
+
+THRESH = 8
+
+
+def rows(session):
+    out = []
+    with open(os.path.join(session, "labels.jsonl"), "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+
+def mask_files(session):
+    d = os.path.join(session, "target_mask")
+    out = {}
+    if not os.path.isdir(d):
+        return out
+    for name in os.listdir(d):
+        if name.endswith(".png"):
+            idx = int(name[len("frame_"):-len(".png")])
+            im = Image.open(os.path.join(d, name)).convert("L")
+            out[idx] = im.getextrema()[1]
+            im.close()
+    return out
+
+
+def pct_changed(session, ref_idx, idx):
+    a = os.path.join(session, "Actual_Frames", "frame_%05d.png" % ref_idx)
+    b = os.path.join(session, "Actual_Frames", "frame_%05d.png" % idx)
+    if not (os.path.isfile(a) and os.path.isfile(b)):
+        return None
+    ia = Image.open(a).convert("RGB")
+    ib = Image.open(b).convert("RGB")
+    diff = ImageChops.difference(ia, ib).convert("L")
+    hist = diff.histogram()
+    total = ia.size[0] * ia.size[1]
+    changed = sum(hist[THRESH:])
+    ia.close(); ib.close(); diff.close()
+    return 100.0 * changed / total
+
+
+def main(session, label):
+    ann = json.load(open(os.path.join(session, "annotation.json"), "r", encoding="utf-8"))
+    rs = json.load(open(os.path.join(session, "run_summary.json"), "r", encoding="utf-8"))
+    R = rows(session)
+    files = mask_files(session)
+    fails = []
+
+    print("=== %s ===" % label)
+    print("captured rows=%d  mask PNGs on disk=%d" % (len(R), len(files)))
+
+    # ---- G2: no blank PNGs
+    blanks = sorted(i for i, mx in files.items() if mx == 0)
+    print("G2 blank PNGs: %d %s" % (len(blanks), "PASS" if not blanks else "FAIL " + str(blanks)))
+    if blanks:
+        fails.append("G2")
+
+    # ---- G3: count identity
+    st = {}
+    for r in R:
+        st[r.get("mask_state", "<absent>")] = st.get(r.get("mask_state", "<absent>"), 0) + 1
+    present = st.get("present", 0)
+    empty = st.get("empty", 0)
+    unmeas = st.get("unmeasured", 0)
+    ok3a = present == len(files)
+    ok3b = present + empty + unmeas == len(R)
+    print("G3 states present=%d empty=%d unmeasured=%d | present==PNGs %s | sum==rows %s -> %s"
+          % (present, empty, unmeas, ok3a, ok3b, "PASS" if ok3a and ok3b else "FAIL"))
+    if not (ok3a and ok3b):
+        fails.append("G3")
+
+    # mask_file non-null iff present
+    bad = [r["session_index"] for r in R
+           if (r.get("mask_file") is not None) != (r.get("mask_state") == "present")]
+    print("G3b mask_file non-null iff present: %s" % ("PASS" if not bad else "FAIL " + str(bad)))
+    if bad:
+        fails.append("G3b")
+
+    # run_summary reconcile
+    print("G3c run_summary measured=%s hidden_blank=%s unavailable=%s (states %d/%d/%d) -> %s"
+          % (rs.get("target_mask_frames_measured"), rs.get("target_mask_frames_hidden_blank"),
+             rs.get("target_mask_frames_unavailable"), present, empty, unmeas,
+             "PASS" if (rs.get("target_mask_frames_measured") == present
+                        and rs.get("target_mask_frames_hidden_blank") == empty) else "CHECK"))
+
+    # ---- G1 + G7 per event
+    print()
+    print("%-18s %-22s %-30s %6s %6s %5s %s" %
+          ("type", "target", "labelled", "1stLbl", "1stMsk", "delta", "G7"))
+    events = []
+    for e in ann["anomalies"]:
+        idx = list(e["affected_frames"]["frame_indices"])
+        if not idx:
+            continue
+        first = idx[0]
+        content = sorted(i for i in idx if files.get(i, 0) > 0)
+        # G7: every frame with a mask file must be labelled for SOME event; per-event we
+        # check that this event's tag does not appear on a frame it does not claim.
+        fm = content[0] if content else None
+        delta = (fm - first) if fm is not None else None
+        events.append((e, first, fm, idx))
+        print("%-18s %-22s %-30s %6d %6s %5s" % (
+            e["anomaly_type"], e["affected_objects"]["nodes"][0]["name"],
+            ",".join(str(i) for i in idx), first,
+            str(fm) if fm is not None else "NONE",
+            str(delta) if delta is not None else "n/a"))
+
+    # ---- G7 globally: a mask file may exist only on a frame labelled anomalous
+    #
+    # SCHEMA v2 (m49): affected_frames is now the OBSERVABLE subset, which is strictly contained in
+    # the injected subset. The target mask is armed on every frame the event is INJECTED on
+    # (IsFireLabelledThisFrame), so a frame that is injected but NOT observable legitimately carries
+    # a mask file. Keying G7 on affected_frames therefore reports those as "stray" on a build that
+    # is behaving correctly - measured on m49-A2's OBS-3 leg, stray=5, all five inside the injected
+    # window of the event whose visual condition the lever had deliberately taken away.
+    #
+    # injected_frames IS the set m44's G7 always meant by "labelled for that event" - it is the
+    # pre-m49 affected_frames, unchanged. Keying on it RESTORES the original predicate; it does not
+    # loosen it. (Keying on the observable subset would be a NEW and stricter predicate that the
+    # code was never designed to satisfy.) v1 sessions have no injected_frames and fall back.
+    labelled_any = set()
+    for e in ann["anomalies"]:
+        inj = e.get("injected_frames")
+        if inj and "frame_indices" in inj:
+            labelled_any.update(inj["frame_indices"])
+        else:
+            labelled_any.update(e["affected_frames"]["frame_indices"])
+    stray = sorted(i for i in files.keys() if i not in labelled_any)
+    print()
+    print("G7 mask frames subset of labelled frames: files=%d labelled=%d stray=%d %s"
+          % (len(files), len(labelled_any), len(stray), "PASS" if not stray else "FAIL " + str(stray)))
+    if stray:
+        fails.append("G7")
+
+    # ---- G1 delta
+    nonhidden = [(e, f, m) for (e, f, m, _i) in events if m is not None]
+    bad1 = [(e["anomaly_type"], f, m) for (e, f, m) in nonhidden if m != f]
+    print("G1 delta==0 on all events with a mask: %d/%d %s"
+          % (len(nonhidden) - len(bad1), len(nonhidden), "PASS" if not bad1 else "FAIL " + str(bad1)))
+    if bad1:
+        fails.append("G1")
+
+    # ---- G1 picture onset
+    print()
+    print("ONSET %% pixels >%d/255 vs clean ref (firstLabel-2): n-1 / n / n+1" % THRESH)
+    for e, first, fm, idx in events:
+        ref = first - 2
+        if ref < 0:
+            continue
+        cells = [pct_changed(session, ref, first + o) for o in (-1, 0, 1)]
+        print("  %-18s %-22s %s" % (
+            e["anomaly_type"], e["affected_objects"]["nodes"][0]["name"],
+            " ".join("n/a" if c is None else "%7.3f" % c for c in cells)))
+
+    print()
+    print("RESULT %s: %s" % (label, "ALL PASS" if not fails else "FAILED " + ",".join(sorted(set(fails)))))
+    print()
+    return 0 if not fails else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1], sys.argv[2]))

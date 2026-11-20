@@ -1,0 +1,111 @@
+import json
+import os
+import sys
+import glob
+
+
+def sess(bank_dir):
+    cands = sorted(glob.glob(os.path.join(bank_dir, "session_*")))
+    if cands:
+        return cands[-1]
+    return bank_dir
+
+
+def load_rows(d):
+    p = os.path.join(d, "labels.jsonl")
+    if not os.path.exists(p):
+        return []
+    out = []
+    for line in open(p, encoding="utf-8"):
+        line = line.strip()
+        if line:
+            out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+
+def readout(bank_dir):
+    d = sess(bank_dir)
+    print("=" * 78)
+    print("LEG", os.path.basename(bank_dir), "->", os.path.basename(d))
+
+    rs_p = os.path.join(d, "run_summary.json")
+    rs = json.load(open(rs_p, encoding="utf-8")) if os.path.exists(rs_p) else {}
+    print("  run_summary keys:", len(rs))
+    for k in ("translucent_only_excluded_targets", "pattern_excluded_targets",
+              "observable_frames", "frames_condition_lost", "observable_min_pixels",
+              "speed_ratio", "census_unmeasurable_nanite"):
+        if k in rs:
+            print("    %-36s = %s" % (k, rs[k]))
+        else:
+            print("    %-36s = <absent>" % k)
+
+    an_p = os.path.join(d, "annotation.json")
+    an = json.load(open(an_p, encoding="utf-8")) if os.path.exists(an_p) else {}
+    print("  label_schema:", an.get("label_schema"))
+    obs1_fail = 0
+    for i, e in enumerate(an.get("anomalies", [])):
+        aff = e["affected_frames"]["frame_indices"]
+        inj = e["injected_frames"]["frame_indices"]
+        same = "OK" if aff == inj else "DIFF"
+        if aff != inj:
+            obs1_fail += 1
+        print("    ev%-2d %-18s bbox_source=%-9s obsm=%-5s aff=%s inj=%s %s"
+              % (i, e["anomaly_type"], e.get("bbox_source"),
+                 e.get("observability_measured"), aff, inj, same))
+        print("           observable=%s unmeasured=%s"
+              % (e.get("observable_frame_count"), e.get("unmeasured_frame_count")))
+    print("  OBS-1 events with affected != injected:", obs1_fail)
+
+    rows = load_rows(d)
+    tot = 0
+    drawn = 0
+    tp_pos = 0
+    drawn_when_tp_pos = 0
+    drawn_when_tp_nonpos = 0
+    outside = 0
+    for r in rows:
+        W = r.get("width", 0)
+        H = r.get("height", 0)
+        for a in r.get("anomalies", []):
+            tot += 1
+            b = a.get("bbox_drawn_px")
+            tp = a.get("target_pixels", -1)
+            if b is not None:
+                drawn += 1
+                if b[0] < 0 or b[1] < 0 or b[0] + b[2] > W or b[1] + b[3] > H:
+                    outside += 1
+            if tp is not None and tp > 0:
+                tp_pos += 1
+                if b is not None:
+                    drawn_when_tp_pos += 1
+            else:
+                if b is not None:
+                    drawn_when_tp_nonpos += 1
+    print("  anomaly rows: %d | bbox_drawn_px non-null: %d | target_pixels>0: %d"
+          % (tot, drawn, tp_pos))
+    print("  drawn-box present when target_pixels>0 : %d of %d" % (drawn_when_tp_pos, tp_pos))
+    print("  drawn-box present when target_pixels<=0: %d  (must be 0)" % drawn_when_tp_nonpos)
+    print("  drawn boxes outside the frame rect     : %d  (must be 0)" % outside)
+
+    mm_p = os.path.join(d, "mask_map.json")
+    if os.path.exists(mm_p):
+        mm = json.load(open(mm_p, encoding="utf-8"))
+        print("  mask_map entries:", len(mm.get("entries", [])))
+        seen = {}
+        collide = 0
+        for e in mm.get("entries", []):
+            print("    value=%-4s event=%-28s first=%-4s last=%s"
+                  % (e["mask_value"], e["event_id"], e["first_frame"], e["last_frame"]))
+            key = e["mask_value"]
+            rng = (e["first_frame"], e["last_frame"])
+            if key in seen and seen[key] == rng and rng != (-1, -1):
+                collide += 1
+            seen[key] = rng
+        print("  reused values sharing an IDENTICAL range (the pre-A2 defect):", collide)
+    return rs, an, rows
+
+
+if __name__ == "__main__":
+    for arg in sys.argv[1:]:
+        readout(arg)

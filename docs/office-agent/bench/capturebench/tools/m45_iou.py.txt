@@ -1,0 +1,45 @@
+import json, os, sys
+from PIL import Image
+def rows(s):
+    out={}
+    for line in open(os.path.join(s,"labels.jsonl"),encoding="utf-8"):
+        line=line.strip()
+        if line:
+            j=json.loads(line); out[j["session_index"]]=j
+    return out
+def maskset(path, tag=None):
+    im=Image.open(path).convert("L"); w,h=im.size; px=im.load()
+    s=set()
+    for y in range(h):
+        for x in range(w):
+            v=px[x,y]
+            if v!=0 and (tag is None or v==tag): s.add((x,y))
+    im.close(); return s
+def iou(a,b):
+    if not a and not b: return None
+    return len(a&b)/float(len(a|b))
+def view(r): return (tuple(r["view"]["origin"]), tuple(r["view"]["rot"]))
+sess=sys.argv[1]; label=sys.argv[2]
+R=rows(sess)
+ann=json.load(open(os.path.join(sess,"annotation.json"),encoding="utf-8"))
+byTarget={}
+for e in ann["anomalies"]:
+    n=e["affected_objects"]["nodes"][0]["name"]
+    byTarget.setdefault(n,[]).append(e)
+print("=== M45-G3 IoU : %s ==="%label)
+for tgt,evs in byTarget.items():
+    hid=[e for e in evs if e["anomaly_type"] in ("blinking","blink","missing_object")]
+    vis=[e for e in evs if e["anomaly_type"] not in ("blinking","blink","missing_object")]
+    if not hid or not vis: continue
+    for he in hid:
+        hi=he["affected_frames"]["frame_indices"][0]
+        ve=vis[0]; vi=ve["affected_frames"]["frame_indices"][0]
+        ph=os.path.join(sess,"target_mask","frame_%05d.png"%hi)
+        pv=os.path.join(sess,"target_mask","frame_%05d.png"%vi)
+        if not(os.path.isfile(ph) and os.path.isfile(pv)):
+            print("  %-20s hidden si=%d vs visible si=%d : MISSING FILE"%(tgt,hi,vi)); continue
+        A=maskset(ph); B=maskset(pv)
+        v=iou(A,B)
+        dv = (tuple(a-b for a,b in zip(view(R[hi])[0],view(R[vi])[0])), tuple(a-b for a,b in zip(view(R[hi])[1],view(R[vi])[1])))
+        print("  %-20s hidden si=%-3d (%s, %d px) vs visible si=%-3d (%s, %d px)  IoU=%.4f  cameraDelta=%s"
+              %(tgt,hi,he["anomaly_type"],len(A),vi,ve["anomaly_type"],len(B),v,dv))

@@ -1,0 +1,49 @@
+param([string]$Only = "")
+
+$ErrorActionPreference = "Continue"
+$tools = "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools"
+$AAOFF = "r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0, r.ReflectionMethod 0"
+$GECFG = "IAI.Capture.Config 2 4 8 14 0"
+$SYN   = "IAI.Bench.SynthTickOrder 1"
+
+$legs = @()
+
+# --- G-EDGE 8 legs, both orders: G1/G3/G4/G5/G6/G10's B-side against the banked A2G_* pairs ---
+foreach ($t in @(@("MT","missing_texture"), @("CT","corrupted_texture"), @("MO","missing_object"), @("BL","blinking"))) {
+  $legs += @{ L="$($t[0])_NAT"; P="M50G_"; A=$t[1]; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $GECFG"; MR=$true }
+  $legs += @{ L="$($t[0])_SYN"; P="M50G_"; A=$t[1]; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, $GECFG"; MR=$true }
+}
+
+# --- OBS-1 inertness + auto-pool, both orders (G5) ---
+$legs += @{ L="F_NAT"; P="M50F_"; A=""; T=""; S=4242; F=90; X=""; MR=$true }
+$legs += @{ L="F_SYN"; P="M50F_"; A=""; T=""; S=4242; F=90; X=$SYN; MR=$true }
+
+# --- MASK-PICTURE-PAIRING, 100% and SP50, both orders (G5) ---
+$legs += @{ L="F_PAIR_NAT";      P="M50F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1"; MR=$false }
+$legs += @{ L="F_PAIR_SYN";      P="M50F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, $SYN"; MR=$false }
+$legs += @{ L="F_PAIR_NAT_SP50"; P="M50F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, r.ScreenPercentage 50"; MR=$false }
+$legs += @{ L="F_PAIR_SYN_SP50"; P="M50F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, $SYN, r.ScreenPercentage 50"; MR=$false }
+
+# --- G2, the can-fail lever, both orders. Without it G1 is blindness, not a pass. ---
+$legs += @{ L="G2_FORCE_NAT"; P="M50X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.ForceTagCollision 26, $GECFG"; MR=$true }
+$legs += @{ L="G2_FORCE_SYN"; P="M50X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, IAI.Bench.ForceTagCollision 26, $GECFG"; MR=$true }
+
+# --- G6, the headroom under a deliberately narrow pool: the exhaustion path must NOT be reached,
+#     and if it is, the new behaviour (no tag issued, event admitted unmeasured) must be visible. ---
+$legs += @{ L="G6_POOL8";  P="M50X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.TagPoolLimit 8, $GECFG"; MR=$true }
+$legs += @{ L="G6_POOL12"; P="M50X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.TagPoolLimit 12, $GECFG"; MR=$true }
+
+foreach ($leg in $legs) {
+  if ($Only -ne "" -and $leg.L -notlike $Only) { continue }
+  Write-Host ""
+  Write-Host ("##### LEG " + $leg.L + " #####")
+  Set-Location $tools
+  $a = @{
+    Label = $leg.L; BankPrefix = $leg.P; Anomaly = $leg.A; Target = $leg.T
+    Seed = $leg.S; MaxFrames = $leg.F; ExtraExecCmds = $leg.X; MaxAttempts = 4
+  }
+  if ($leg.MR) { & .\run_leg.ps1 @a -RequireModalRotZero 2>&1 | Select-Object -Last 4 }
+  else         { & .\run_leg.ps1 @a 2>&1 | Select-Object -Last 4 }
+}
+Write-Host ""
+Write-Host "##### M50 CAMPAIGN DONE #####"

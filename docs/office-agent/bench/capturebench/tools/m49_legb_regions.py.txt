@@ -1,0 +1,71 @@
+﻿import json, os, sys
+from PIL import Image, ImageFilter, ImageChops
+THRESH = 8
+def jl(p):
+    o=[]
+    for l in open(p,encoding='utf-8'):
+        l=l.strip()
+        if l: o.append(json.loads(l))
+    o.sort(key=lambda r:r['session_index']); return o
+
+def region_stats(diff, mask):
+    """mask: PIL 'L' image, 255 inside region. returns (px, mean|d|, pct>=THRESH)"""
+    m = mask.point(lambda v: 255 if v else 0)
+    n = sum(m.histogram()[255:])
+    if n == 0: return (0, 0.0, 0.0)
+    # PIL multiply is a*b/255, so the mask must be 0/255 (not 0/1) to act as a stencil.
+    sel = ImageChops.multiply(diff, m)
+    h = sel.histogram()
+    tot = sum(i*h[i] for i in range(1,256))
+    over = sum(h[i] for i in range(THRESH,256))
+    return (n, tot/float(n), 100.0*over/n)
+
+def main(sess, ring=6):
+    rows = jl(os.path.join(sess,'labels.jsonl'))
+    ann  = json.load(open(os.path.join(sess,'annotation.json'),encoding='utf-8'))
+    byidx = {r['session_index']: r for r in rows}
+    print('=== LEG B part 2 : THREE-REGION DECOMPOSITION (ring=%d px) ===' % ring)
+    print('  INTERIOR = the mask silhouette (CONFOUNDED by the anomaly itself)')
+    print('  RING     = dilate(silhouette,%d) minus silhouette -- the OUTLINE-DIAGNOSTIC region' % ring)
+    print('  AMBIENT  = the rest of the frame -- the CONTROL')
+    print('  An outline artifact reads RING >> AMBIENT. RING ~= AMBIENT means no outline was drawn.')
+    done = 0
+    for ev in ann['anomalies']:
+        idxs = (ev.get('injected_frames',{}) or {}).get('frame_indices') or []
+        if not idxs: continue
+        first = min(idxs); before = first - 1
+        ra, rb = byidx.get(before), byidx.get(first)
+        if not ra or not rb: continue
+        if ra['view']['origin'] != rb['view']['origin'] or ra['view']['rot'] != rb['view']['rot']:
+            print('  %-18s si %d->%d  SKIPPED: camera moved between the pair' % (ev.get('anomaly_type'),before,first)); continue
+        mf = rb.get('mask_file')
+        if not mf:
+            print('  %-18s si %d->%d  SKIPPED: no mask on the first labelled frame' % (ev.get('anomaly_type'),before,first)); continue
+        mv = None
+        for a in rb.get('anomalies',[]):
+            if a.get('mask_value'): mv = a['mask_value']; break
+        m = Image.open(os.path.join(sess, mf.replace('/',os.sep))).convert('L')
+        sil = m.point(lambda v, t=mv: 255 if v == t else 0)
+        if sum(sil.histogram()[255:]) == 0:
+            print('  %-18s si %d->%d  SKIPPED: empty silhouette' % (ev.get('anomaly_type'),before,first)); continue
+        dil = sil.filter(ImageFilter.MaxFilter(2*ring+1))
+        ringmask = ImageChops.subtract(dil, sil)
+        amb = ImageChops.invert(dil)
+        ia = Image.open(os.path.join(sess, ra['image'].replace('/',os.sep))).convert('L').resize(m.size)
+        ib = Image.open(os.path.join(sess, rb['image'].replace('/',os.sep))).convert('L').resize(m.size)
+        diff = ImageChops.difference(ia, ib)
+        print('  %-18s si %d->%d  tag=%s' % (ev.get('anomaly_type'), before, first, mv))
+        out = {}
+        for name, msk in (('INTERIOR',sil),('RING',ringmask),('AMBIENT',amb)):
+            n, mean, pct = region_stats(diff, msk)
+            out[name] = mean
+            print('      %-9s px=%-9d mean|d|=%8.4f   %%px>=%d = %7.4f%%' % (name,n,mean,THRESH,pct))
+        if out['AMBIENT'] > 0:
+            print('      RING/AMBIENT = %.4f   (1.0 = the ring is indistinguishable from the control)'
+                  % (out['RING']/out['AMBIENT']))
+        done += 1
+    if done == 0:
+        print('  NO USABLE EVENT PAIR in this leg - say so; do not fabricate one.')
+
+if __name__ == '__main__':
+    main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 6)

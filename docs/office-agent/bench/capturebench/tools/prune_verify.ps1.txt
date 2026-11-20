@@ -1,0 +1,95 @@
+# prune_verify.ps1 - Part Twelve, Task 2.
+# Verify-before-delete pass over the exe-side leg dirs.
+# Matching is BY SESSION ID (Part Six method: directory-name matching missed nine last time),
+# and a match is only VERIFIED when the full per-file {relative path -> size} manifest is equal.
+# 7-bit ASCII only (PowerShell 5.1 parses .ps1 as ANSI without a BOM).
+# READ-ONLY: this script deletes nothing. It writes a report.
+
+$ErrorActionPreference = 'Stop'
+
+$BankRoot = 'D:\IntrusiveAnomalies\_bench_sessions_bank'
+$ExeRoot  = 'D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64'
+$OutDir   = '<USERPROFILE>\AppData\Local\Temp\claude\D--IntrusiveAnomalies-StackOBot\<uuid>\scratchpad'
+
+function Get-Manifest([string]$Root) {
+    # relative-path -> size, sorted, joined. Empty string if no files.
+    $files = Get-ChildItem $Root -Recurse -File -ErrorAction SilentlyContinue
+    if (-not $files) { return @{ Count = 0; Bytes = 0; Sig = '' } }
+    $rows = foreach ($f in $files) {
+        '{0}|{1}' -f $f.FullName.Substring($Root.Length).TrimStart('\'), $f.Length
+    }
+    $sorted = $rows | Sort-Object
+    $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+    return @{ Count = $files.Count; Bytes = [int64]$bytes; Sig = ($sorted -join "`n") }
+}
+
+# ---- Index the bank by session id (every dir anywhere under the bank named session_*) ----
+Write-Host 'Indexing bank...'
+$BankSessions = @{}
+$bankDirs = Get-ChildItem $BankRoot -Recurse -Directory -Filter 'session_*' -ErrorAction SilentlyContinue
+foreach ($d in $bankDirs) {
+    $m = Get-Manifest $d.FullName
+    if (-not $BankSessions.ContainsKey($d.Name)) { $BankSessions[$d.Name] = @() }
+    $BankSessions[$d.Name] += ,@{ Path = $d.FullName; Count = $m.Count; Bytes = $m.Bytes; Sig = $m.Sig }
+}
+Write-Host ("  bank session_* dirs: {0} (distinct ids: {1})" -f $bankDirs.Count, $BankSessions.Keys.Count)
+
+# ---- Walk the exe-side leg dirs ----
+Write-Host 'Walking exe-side leg dirs...'
+$rows = @()
+$legDirs = Get-ChildItem $ExeRoot -Directory -ErrorAction SilentlyContinue
+foreach ($leg in $legDirs) {
+    $sessions = Get-ChildItem $leg.FullName -Recurse -Directory -Filter 'session_*' -ErrorAction SilentlyContinue
+    $legManifest = Get-Manifest $leg.FullName
+
+    if (-not $sessions -or $sessions.Count -eq 0) {
+        $rows += [pscustomobject]@{
+            LegDir = $leg.Name; SessionId = '(none)'; Verdict = 'NO-SESSION-DIR'
+            ExeFiles = $legManifest.Count; ExeBytes = $legManifest.Bytes
+            BankPath = ''; Detail = 'leg dir contains no session_* dir'
+        }
+        continue
+    }
+
+    foreach ($s in $sessions) {
+        $m = Get-Manifest $s.FullName
+        # Bytes in the leg dir that are NOT inside this session dir (logs etc) - reported, never deleted blind.
+        $verdict = 'UNVERIFIED-NO-BANK-MATCH'; $bankPath = ''; $detail = ''
+        if ($BankSessions.ContainsKey($s.Name)) {
+            $cands = $BankSessions[$s.Name]
+            $exact = $cands | Where-Object { $_.Sig -eq $m.Sig -and $_.Count -eq $m.Count -and $_.Bytes -eq $m.Bytes }
+            if ($exact) {
+                $verdict = 'VERIFIED-DUPLICATE'
+                $bankPath = ($exact | Select-Object -First 1).Path
+                $detail = 'manifest identical (per-file path+size)'
+            } else {
+                $verdict = 'UNVERIFIED-CONTENT-DIFFERS'
+                $bankPath = ($cands | Select-Object -First 1).Path
+                $c0 = ($cands | Select-Object -First 1)
+                $detail = ('id matches but manifest differs: exe {0} files/{1} B vs bank {2} files/{3} B' -f $m.Count, $m.Bytes, $c0.Count, $c0.Bytes)
+            }
+        } else {
+            $detail = 'session id not present anywhere in the bank'
+        }
+
+        $rows += [pscustomobject]@{
+            LegDir = $leg.Name; SessionId = $s.Name; Verdict = $verdict
+            ExeFiles = $m.Count; ExeBytes = $m.Bytes
+            BankPath = $bankPath; Detail = $detail
+        }
+    }
+}
+
+$rows | Export-Csv -Path (Join-Path $OutDir 'prune_report.csv') -NoTypeInformation -Encoding UTF8
+
+Write-Host ''
+Write-Host '=== SUMMARY BY VERDICT ==='
+$rows | Group-Object Verdict | ForEach-Object {
+    $b = ($_.Group | Measure-Object -Property ExeBytes -Sum).Sum
+    '{0,-28} {1,4} rows  {2,10:N2} GB' -f $_.Name, $_.Count, ($b/1GB)
+}
+Write-Host ''
+Write-Host '=== NON-VERIFIED ROWS (these stay) ==='
+$rows | Where-Object { $_.Verdict -ne 'VERIFIED-DUPLICATE' } |
+    Select-Object LegDir, SessionId, Verdict, ExeFiles, @{n='MB';e={[math]::Round($_.ExeBytes/1MB,1)}}, Detail |
+    Format-Table -AutoSize | Out-String -Width 220 | Write-Host

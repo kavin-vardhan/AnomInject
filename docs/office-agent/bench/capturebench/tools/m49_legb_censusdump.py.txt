@@ -1,0 +1,295 @@
+"""Leg B, redone on the census mask dump.
+
+THE QUESTION: does the host's post-process custom-depth reader (Lyra's MPP_Outline) draw
+anything on OUR stencil tags?
+
+WHY THIS DESIGN AND NOT THE 073 ONE. Session 073 measured the ring around an ANOMALY's own
+silhouette, on a pair that differed in BOTH tagging and appearance, so it could not separate an
+outline from the anomaly's own neighbourhood response - and it said so. The census is the only
+thing in this system that tags a NON-ANOMALOUS object, so with IAI.Bench.CensusMaskDump the pair
+can differ in the TAG ALONE:
+
+    frame A: anomaly_present == false, actor X carries a census stencil tag
+    frame B: anomaly_present == false, actor X carries no tag
+    view.origin and view.rot identical on A and B
+
+Regions come from X's own dumped silhouette on A:
+    INTERIOR = silhouette eroded by 2 px
+    RING(r)  = (silhouette dilated by r) minus silhouette
+    AMBIENT  = everything outside the dilation by 24 px
+
+VERDICTS, pre-declared in docs/predictions/2026-09-04-m49-phase-a2.md section 3.5:
+    DRAWS        RING(2) >= 3x the CONTROL band AND decays into the control band by r ~ 12
+    DOES NOT     RING ~ AMBIENT ~ control band at every r
+    UNDECIDABLE  anything else, including a strong ring that does NOT decay
+
+KNOWN-ANSWER SELF TEST (-selftest): a synthetic pair with a deliberate 3 px bright ring must read
+DRAWS, and an identical pair with no ring must read DOES NOT. Without that, a reading of 0.0000
+everywhere is indistinguishable from a broken instrument - which is exactly what happened in 073,
+where PIL's ImageChops.multiply (a*b/255) annihilated the stencil and returned 0.0000 in every
+region INCLUDING the interior of a missing_texture onset.
+"""
+
+import json
+import os
+import sys
+import glob
+
+from PIL import Image, ImageFilter
+import numpy as np
+
+
+def load_rows(sess):
+    rows = []
+    p = os.path.join(sess, "labels.jsonl")
+    for line in open(p, encoding="utf-8"):
+        line = line.strip()
+        if line:
+            rows.append(json.loads(line))
+    rows.sort(key=lambda r: r["session_index"])
+    return rows
+
+
+def load_dump(sess):
+    p = os.path.join(sess, "census_mask", "census_mask_map.jsonl")
+    if not os.path.exists(p):
+        return []
+    out = []
+    for line in open(p, encoding="utf-8"):
+        line = line.strip()
+        if line:
+            out.append(json.loads(line))
+    return out
+
+
+def gray(path):
+    return np.asarray(Image.open(path).convert("L"), dtype=np.float64)
+
+
+def dilate(mask_bool, r):
+    if r <= 0:
+        return mask_bool
+    im = Image.fromarray((mask_bool * 255).astype(np.uint8))
+    im = im.filter(ImageFilter.MaxFilter(2 * r + 1))
+    return np.asarray(im, dtype=np.uint8) > 127
+
+
+def erode(mask_bool, r):
+    if r <= 0:
+        return mask_bool
+    im = Image.fromarray((mask_bool * 255).astype(np.uint8))
+    im = im.filter(ImageFilter.MinFilter(2 * r + 1))
+    return np.asarray(im, dtype=np.uint8) > 127
+
+
+def region_stats(diff, mask):
+    n = int(mask.sum())
+    if n == 0:
+        return None
+    vals = diff[mask]
+    return {"n": n, "mean": float(vals.mean()), "max": float(vals.max()),
+            "pct_ge8": float((vals >= 8).mean() * 100.0)}
+
+
+def measure_pair(img_a, img_b, sil, rings=(2, 6, 12, 20)):
+    diff = np.abs(img_a - img_b)
+    out = {}
+    interior = erode(sil, 2)
+    out["INTERIOR"] = region_stats(diff, interior)
+    far = dilate(sil, 24)
+    out["AMBIENT"] = region_stats(diff, ~far)
+    for r in rings:
+        ring = dilate(sil, r) & (~sil)
+        out["RING%d" % r] = region_stats(diff, ring)
+    out["WHOLE"] = region_stats(diff, np.ones_like(sil, dtype=bool))
+    return out
+
+
+def pose_key(row):
+    v = row["view"]
+    return (tuple(round(x, 3) for x in v["origin"]), tuple(round(x, 3) for x in v["rot"]))
+
+
+def frame_path(sess, row):
+    return os.path.join(sess, row["image"].replace("/", os.sep))
+
+
+def run(sess, min_pairs=5):
+    rows = load_rows(sess)
+    by_gfc = {}
+    for r in rows:
+        by_gfc[int(r["frame_index"])] = r
+    dumps = load_dump(sess)
+    print("captured rows: %d | census dump batches: %d" % (len(rows), len(dumps)))
+    if not dumps:
+        print("NO CENSUS DUMP - the reading is UNRUNNABLE, not a null.")
+        return
+
+    # tag -> the set of arm ticks it was live on, and the actor it belonged to
+    tagged_ticks = {}
+    for d in dumps:
+        for t in d["tags"]:
+            tagged_ticks.setdefault(t["actor"], []).append((int(d["arm_tick"]), d, t))
+
+    negatives = [r for r in rows if not r.get("anomaly_present")]
+    print("negative captured frames: %d" % len(negatives))
+
+    by_pose = {}
+    for r in negatives:
+        by_pose.setdefault(pose_key(r), []).append(r)
+    pose_groups = {k: v for k, v in by_pose.items() if len(v) >= 2}
+    print("pose groups with >=2 negative frames: %d (largest %d)"
+          % (len(pose_groups), max([len(v) for v in pose_groups.values()] or [0])))
+
+    treatment = []
+    control = []
+    for key, group in pose_groups.items():
+        group = sorted(group, key=lambda r: r["session_index"])
+        gfcs = set(int(r["frame_index"]) for r in group)
+        for actor, entries in tagged_ticks.items():
+            armed_here = [(t, d, tg) for (t, d, tg) in entries
+                          if t in gfcs and tg["count"] > 0]
+            if not armed_here:
+                continue
+            for (t, d, tg) in armed_here:
+                a_row = by_gfc[t]
+                partners = [r for r in group
+                            if int(r["frame_index"]) not in
+                            set(x[0] for x in entries)]
+                if not partners:
+                    continue
+                partners.sort(key=lambda r: abs(r["session_index"] - a_row["session_index"]))
+                b_row = partners[0]
+                treatment.append((actor, a_row, b_row, d, tg))
+
+    for key, group in pose_groups.items():
+        group = sorted(group, key=lambda r: r["session_index"])
+        all_tagged_gfc = set(t for e in tagged_ticks.values() for (t, _, _) in e)
+        clean = [r for r in group if int(r["frame_index"]) not in all_tagged_gfc]
+        for i in range(len(clean) - 1):
+            control.append((clean[i], clean[i + 1]))
+
+    print("TREATMENT pairs (tagged vs untagged, pose-matched, both negative): %d" % len(treatment))
+    print("CONTROL   pairs (untagged vs untagged, pose-matched, both negative): %d" % len(control))
+
+    rings = (2, 6, 12, 20)
+    ctrl_ring = {r: [] for r in rings}
+    ctrl_amb = []
+    for (a, b) in control:
+        pa, pb = frame_path(sess, a), frame_path(sess, b)
+        if not (os.path.exists(pa) and os.path.exists(pb)):
+            continue
+        ia, ib = gray(pa), gray(pb)
+        diff = np.abs(ia - ib)
+        ctrl_amb.append(float(diff.mean()))
+        for r in rings:
+            ctrl_ring[r].append(float(diff.mean()))
+    if ctrl_amb:
+        print("CONTROL whole-frame mean |d| : n=%d  mean=%.4f  max=%.4f"
+              % (len(ctrl_amb), float(np.mean(ctrl_amb)), float(np.max(ctrl_amb))))
+
+    agg = {("RING%d" % r): [] for r in rings}
+    agg["INTERIOR"] = []
+    agg["AMBIENT"] = []
+    used = 0
+    for (actor, a_row, b_row, d, tg) in treatment:
+        pa, pb = frame_path(sess, a_row), frame_path(sess, b_row)
+        mp = os.path.join(sess, d["file"].replace("/", os.sep))
+        if not (os.path.exists(pa) and os.path.exists(pb) and os.path.exists(mp)):
+            continue
+        ia, ib = gray(pa), gray(pb)
+        m = np.asarray(Image.open(mp).convert("L"))
+        sil = (m == tg["value"])
+        if sil.sum() < 50:
+            continue
+        if ia.shape != sil.shape:
+            continue
+        st = measure_pair(ia, ib, sil, rings)
+        used += 1
+        print("  pair actor=%-34s siA=%-4d siB=%-4d tag=%-4d px=%-7d"
+              % (actor, a_row["session_index"], b_row["session_index"], tg["value"], int(sil.sum())))
+        for k in ["INTERIOR"] + ["RING%d" % r for r in rings] + ["AMBIENT", "WHOLE"]:
+            s = st.get(k)
+            if s:
+                print("      %-9s n=%-8d mean=%8.4f  max=%7.2f  pct>=8=%6.2f%%"
+                      % (k, s["n"], s["mean"], s["max"], s["pct_ge8"]))
+                if k in agg:
+                    agg[k].append(s["mean"])
+
+    print("")
+    print("=== AGGREGATE over %d usable treatment pairs ===" % used)
+    for k in ["INTERIOR"] + ["RING%d" % r for r in rings] + ["AMBIENT"]:
+        if agg.get(k):
+            print("  %-9s mean of means = %.4f  (n=%d)" % (k, float(np.mean(agg[k])), len(agg[k])))
+
+    ctrl_band = float(np.mean(ctrl_amb)) if ctrl_amb else None
+    print("  CONTROL band (whole-frame mean |d| over control pairs) = %s"
+          % ("%.4f" % ctrl_band if ctrl_band is not None else "<none>"))
+
+    print("")
+    if used < min_pairs or len(control) < min_pairs:
+        print("VERDICT: NO POWER - fewer than %d usable pairs on one side "
+              "(treatment=%d control=%d). No verdict is offered." % (min_pairs, used, len(control)))
+        return
+    r2 = float(np.mean(agg["RING2"])) if agg.get("RING2") else None
+    r12 = float(np.mean(agg["RING12"])) if agg.get("RING12") else None
+    amb = float(np.mean(agg["AMBIENT"])) if agg.get("AMBIENT") else None
+    if r2 is None or ctrl_band is None:
+        print("VERDICT: UNDECIDABLE - a region could not be measured.")
+        return
+    if r2 >= 3.0 * ctrl_band and r12 is not None and r12 <= 1.5 * ctrl_band:
+        print("VERDICT: DRAWS - RING(2)=%.4f is >=3x the control band %.4f and decays to "
+              "RING(12)=%.4f, inside 1.5x the band." % (r2, ctrl_band, r12))
+    elif r2 <= 1.5 * ctrl_band and (amb is None or abs(r2 - amb) <= 0.5 * ctrl_band):
+        print("VERDICT: DOES NOT DRAW - RING(2)=%.4f sits inside the control band %.4f "
+              "and is indistinguishable from AMBIENT=%s."
+              % (r2, ctrl_band, "%.4f" % amb if amb is not None else "?"))
+    else:
+        print("VERDICT: UNDECIDABLE - RING(2)=%.4f, RING(12)=%s, AMBIENT=%s, control band=%.4f. "
+              "A ring that is strong AND does not decay is consistent with something other than "
+              "a thin outline; no mechanism is asserted (G120)."
+              % (r2, "%.4f" % r12 if r12 is not None else "?",
+                 "%.4f" % amb if amb is not None else "?", ctrl_band))
+
+
+def selftest():
+    print("=== SELFTEST: the instrument must be able to say DRAWS and DOES NOT ===")
+    H, W = 240, 320
+    base = np.full((H, W), 60.0)
+    base[::7, :] += 3.0
+    sil = np.zeros((H, W), dtype=bool)
+    sil[80:160, 100:200] = True
+
+    a_no = base.copy()
+    a_no[sil] = 200.0
+    b_no = base.copy()
+    b_no[sil] = 200.0
+    st = measure_pair(a_no, b_no, sil)
+    print("no-ring pair : RING2 mean=%.4f  AMBIENT mean=%.4f"
+          % (st["RING2"]["mean"], st["AMBIENT"]["mean"]))
+    ok_a = st["RING2"]["mean"] < 0.001
+
+    a_ring = base.copy()
+    a_ring[sil] = 200.0
+    ring3 = dilate(sil, 3) & (~sil)
+    a_ring[ring3] = 255.0
+    b_ring = base.copy()
+    b_ring[sil] = 200.0
+    st2 = measure_pair(a_ring, b_ring, sil)
+    print("ring pair    : RING2 mean=%.4f  RING6 mean=%.4f  RING12 mean=%.4f  AMBIENT mean=%.4f"
+          % (st2["RING2"]["mean"], st2["RING6"]["mean"], st2["RING12"]["mean"],
+             st2["AMBIENT"]["mean"]))
+    ok_b = st2["RING2"]["mean"] > 50.0 and st2["RING12"]["mean"] < st2["RING2"]["mean"] / 2.0
+    ok_c = st2["AMBIENT"]["mean"] < 0.001
+
+    print("SELFTEST %s  (silent-on-no-ring=%s, loud-on-ring=%s, ambient-clean=%s)"
+          % ("PASS" if (ok_a and ok_b and ok_c) else "*** FAIL ***", ok_a, ok_b, ok_c))
+    return 0 if (ok_a and ok_b and ok_c) else 1
+
+
+if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        sys.exit(selftest())
+    for a in sys.argv[1:]:
+        cands = sorted(glob.glob(os.path.join(a, "session_*")))
+        run(cands[-1] if cands else a)

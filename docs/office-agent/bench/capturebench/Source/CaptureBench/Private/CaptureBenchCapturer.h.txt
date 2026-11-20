@@ -1,0 +1,175 @@
+#pragma once
+
+#include "CoreMinimal.h"
+
+#if CAPTURE_BENCH
+
+#include "RHIGPUReadback.h"
+#include "RHIResources.h"
+#include "PixelFormat.h"
+#include "HAL/ThreadSafeCounter.h"
+#include "Containers/Ticker.h"
+#include <atomic>
+
+class SWindow;
+class UWorld;
+
+enum class ECaptureBenchMode : uint8
+{
+	SVE,
+	Backbuffer
+};
+
+struct FCaptureBenchInFlight
+{
+	uint64 FrameIndex = 0;
+	uint32 SubmitRTFrame = 0;
+	TUniquePtr<FRHIGPUTextureReadback> Readback;
+	FIntRect Rect;
+	EPixelFormat Format = PF_Unknown;
+};
+
+struct FCaptureBenchCapturedFrame
+{
+	uint64 FrameIndex = 0;
+	int32 Width = 0;
+	int32 Height = 0;
+	EPixelFormat Format = PF_Unknown;
+	int32 BytesPerPixel = 0;
+	TArray<uint8> RawBytes;
+};
+
+class FCaptureBenchWriter : public TSharedFromThis<FCaptureBenchWriter, ESPMode::ThreadSafe>
+{
+public:
+	void Enqueue(const FString& OutputDir, FCaptureBenchCapturedFrame&& Frame);
+	void FlushPending(double TimeoutSeconds);
+	void Reset();
+
+	int32 GetWritten() const { return Written.GetValue(); }
+	int32 GetDropped() const { return Dropped.GetValue(); }
+	int32 GetPending() const { return Pending.GetValue(); }
+
+	int64 GetBytesWritten() const;
+	double GetEncodeSecondsTotal() const;
+
+private:
+	FThreadSafeCounter Written;
+	FThreadSafeCounter Dropped;
+	FThreadSafeCounter Pending;
+
+	mutable FCriticalSection StatCS;
+	int64 BytesWritten = 0;
+	double EncodeSecondsTotal = 0.0;
+};
+
+struct FCaptureBenchMetrics
+{
+	int32 Enqueued = 0;
+	int32 EnqueueFailed = 0;
+
+	bool bHaveFirst = false;
+	uint32 FirstSubmitRTFrame = 0;
+	uint32 LastSubmitRTFrame = 0;
+
+	int64 GapFramesTotal = 0;
+	int32 GapEvents = 0;
+	int32 MaxGap = 0;
+
+	double HookSecondsTotal = 0.0;
+	double HookSecondsMax = 0.0;
+
+	int32 Drained = 0;
+	int64 LatencyFramesTotal = 0;
+	int32 LatencyFramesMax = 0;
+	double CopySecondsTotal = 0.0;
+	double CopySecondsMax = 0.0;
+
+	int32 LastWidth = 0;
+	int32 LastHeight = 0;
+	EPixelFormat LastFormat = PF_Unknown;
+
+	bool bHaveLastHash = false;
+	uint32 LastHash = 0;
+	int32 DupConsecutive = 0;
+	TSet<uint32> DistinctHashes;
+
+	double LumSum = 0.0;
+	double LumSqSum = 0.0;
+	int64 LumSamples = 0;
+	int64 ClippedHiSamples = 0;
+	double MinFrameLum = 1e9;
+	double MinFrameSd = 1e9;
+	int32 BlackFrames = 0;
+	int32 FlatFrames = 0;
+
+	double StartWall = 0.0;
+	double StopWall = 0.0;
+
+	void Reset() { *this = FCaptureBenchMetrics(); }
+};
+
+class FCaptureBenchCapturer : public TSharedFromThis<FCaptureBenchCapturer, ESPMode::ThreadSafe>
+{
+public:
+	FCaptureBenchCapturer();
+	~FCaptureBenchCapturer();
+
+	bool BeginRun(ECaptureBenchMode InMode, UWorld* World, const FString& OutDir, int32 InMaxFrames);
+	void RequestStop();
+
+	bool IsRunning() const { return bRunning; }
+	bool WantsCapture() const { return bCapturing.load(); }
+	ECaptureBenchMode GetMode() const { return Mode; }
+
+	void SetWriteToDisk(bool bInWrite) { bWriteToDisk.store(bInWrite); }
+	bool GetWriteToDisk() const { return bWriteToDisk.load(); }
+
+	uint64 NextFrameIndex() { return (uint64)FrameCounter.Increment(); }
+
+	bool ShouldCaptureThisRTFrame_RenderThread(uint32 RTFrame);
+	void SubmitInFlight_RenderThread(FCaptureBenchInFlight&& Item, double HookSeconds);
+
+	void LogStatus() const;
+
+private:
+	void RegisterBackbufferHook();
+	void UnregisterBackbufferHook();
+	void OnBackBufferReadyToPresent_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
+
+	bool GameTick(float Dt);
+	void EnqueueDrain();
+	void Drain_RenderThread();
+	void FinalizeAndLog();
+	void LogSummary() const;
+
+	ECaptureBenchMode Mode = ECaptureBenchMode::SVE;
+	FString OutputDir;
+	int32 MaxFrames = 0;
+
+	bool bRunning = false;
+	std::atomic<bool> bCapturing{ false };
+	std::atomic<bool> bReachedCap{ false };
+	std::atomic<bool> bWriteToDisk{ true };
+	bool bStopRequested = false;
+
+	uint32 LastConsideredRTFrame = 0;
+	bool bHaveConsidered = false;
+
+	FThreadSafeCounter FrameCounter;
+
+	mutable FCriticalSection QueueCS;
+	TArray<FCaptureBenchInFlight> InFlight;
+
+	FCaptureBenchMetrics Metrics;
+
+	TSharedRef<FCaptureBenchWriter, ESPMode::ThreadSafe> Writer;
+
+	SWindow* TargetWindow = nullptr;
+	FIntRect TargetRect;
+
+	FDelegateHandle BackBufferHandle;
+	FTSTicker::FDelegateHandle TickerHandle;
+};
+
+#endif

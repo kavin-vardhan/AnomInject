@@ -1,0 +1,256 @@
+<#
+072 LYRA-FIXTURE leg runner.
+
+Why this is a THIRD runner and not a flag on run_leg.ps1 / run_leg_editor.ps1:
+
+  - run_leg.ps1        drives the STAGED PACKAGED StackOBot build.
+  - run_leg_editor.ps1 drives the StackOBot EDITOR target.
+  - this one          drives the LYRA EDITOR target, a different .uproject on a
+                      different volume, and it starts the capture over the CONTROL
+                      SERVER rather than from -ExecCmds.
+
+That last difference is the whole point and is NOT a stylistic choice.
+-ExecCmds fires at STARTUP ONLY. On StackOBot's CB_GateLevel the world is up almost
+immediately, so starting the capture from -ExecCmds and letting the focus gate hold
+the first frame is fine. Lyra is not that: it resolves a GameFeature Experience,
+activates game feature plugins, spawns bots and possesses a pawn, and it shows a
+CommonLoadingScreen while it does. A capture armed at startup would either film the
+load or ride out the focus gate's 30 s safety timeout and START anyway, mid-load.
+So: launch with IAI.Server.Start only, wait until the world is genuinely up, THEN
+send capture_start over the WebSocket. The WS client idiom is lifted from
+verify_lastrundir.ps1 (the same reason applies there - it too needed to talk to a
+running process that -ExecCmds could not reach).
+
+Deliberately absent, stated rather than implied:
+  - no AA pinning and no exposure pinning. This is a HOST-SHAPED leg, not an
+    identity arbiter. Lyra's own defaults (TSR, Lumen, auto-exposure ON) are the
+    subject. Pinning them would delete the thing we came to see (G228 territory).
+  - no A63 focus-timeout retry loop and no B1 pose gate: CALIB_BBOX is frozen
+    against the StackOBot packaged fixture and has no meaning here.
+  - no banking inside the script; banking is a separate, verified copy.
+This runner produces a READING. Every claim built on it says which leg it came from.
+#>
+
+param(
+  [Parameter(Mandatory=$true)][string]$Label,
+  [string]$Map = "/ShooterMaps/Maps/L_ShooterGym",
+  [int]$Seed = 4242,
+  [int]$MaxFrames = 90,
+  [int]$ResX = 1920,
+  [int]$ResY = 1080,
+  [int]$SettleSec = 45,
+  [int]$WaitSec = 900,
+  [string]$ExtraExecCmds = "",
+  [string]$Anomaly = "",
+  [string]$Target = "",
+  [string]$Url = "ws://127.0.0.1:8077"
+)
+
+$ErrorActionPreference = "Stop"
+
+$editor  = "D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealEditor.exe"
+$project = "E:\UEProjects\LyraStarterGame\LyraStarterGame.uproject"
+$outRoot = "E:\UEProjects\_lyra_legs"
+$dir     = Join-Path $outRoot $Label
+$log     = Join-Path $outRoot "$Label.log"
+
+if (-not ([System.Management.Automation.PSTypeName]'Win32FgLyra').Type) {
+  Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32FgLyra {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static uint FgPid() { uint pid = 0; GetWindowThreadProcessId(GetForegroundWindow(), out pid); return pid; }
+  public static void Force(IntPtr h) {
+    ShowWindow(h, 9);
+    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+    keybd_event(0x12, 0, 2, UIntPtr.Zero);
+    SetForegroundWindow(h);
+    BringWindowToTop(h);
+  }
+}
+"@
+}
+
+Get-Process -Name "UnrealEditor" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 1200
+
+# G238, second half: a runner that DELETES the previous run's output destroys the evidence of the
+# run that just failed. Session 072's attempt-2 log - which held the map error, the plugin's clean
+# init lines and a Lyra shutdown callstack - survived only because it had already been read into a
+# report. ARCHIVE, NEVER DELETE. The archive suffix is the previous artifact's own write time, so
+# repeated runs cannot collide and nothing is ever overwritten.
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$archiveRoot = Join-Path $outRoot "_archive"
+New-Item -ItemType Directory -Force -Path $archiveRoot | Out-Null
+if (Test-Path $dir) {
+  $was = (Get-Item $dir).LastWriteTime.ToString("yyyyMMdd-HHmmss")
+  $to  = Join-Path $archiveRoot "$Label`_$was"
+  if (Test-Path $to) { $to = Join-Path $archiveRoot "$Label`_$was`_$stamp" }
+  Move-Item $dir $to -Force
+  Write-Host "ARCHIVED previous leg dir -> $to"
+}
+if (Test-Path $log) {
+  $wasL = (Get-Item $log).LastWriteTime.ToString("yyyyMMdd-HHmmss")
+  $toL  = Join-Path $archiveRoot "$Label`_$wasL.log"
+  if (Test-Path $toL) { $toL = Join-Path $archiveRoot "$Label`_$wasL`_$stamp.log" }
+  Move-Item $log $toL -Force
+  Write-Host "ARCHIVED previous leg log -> $toL"
+}
+New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+# A48 echo: a bare cvar name prints its EFFECTIVE value. Emitted so the leg's
+# render configuration is read off its OWN log, never inferred from what was passed.
+$cmds = @(
+  "r.DefaultFeature.AutoExposure",
+  "r.EyeAdaptationQuality",
+  "r.AntiAliasingMethod",
+  "r.ScreenPercentage",
+  "r.CustomDepth",
+  "r.Nanite",
+  "IAI.Capture.SVE 1",
+  "IAI.Capture.Delivery 0",
+  "IAI.Capture.Pace 1",
+  "IAI.Capture.Fps 30",
+  "IAI.Capture.Config 2 4 8 4 0",
+  "IAI.Capture.RunLog 1"
+)
+if ($ExtraExecCmds -ne "") { $cmds += $ExtraExecCmds }
+$cmds += "IAI.Server.Start"
+$cmdline = ($cmds -join ", ")
+
+$launchArgs = @($project, $Map, "-game", "-windowed", "-ResX=$ResX", "-ResY=$ResY",
+                "-ExecCmds=`"$cmdline`"", "-unattended", "-nosplash",
+                "-abslog=$log")
+
+Write-Host "[lyra] launching '$Label'  map=$Map  ${ResX}x$ResY  seed=$Seed  frames=$MaxFrames"
+$p = Start-Process -FilePath $editor -PassThru -ArgumentList $launchArgs
+
+function Read-Log { if (Test-Path $log) { Get-Content $log -Raw -EA SilentlyContinue } else { "" } }
+
+# --- phase 1: wait for the control server to announce itself -------------------
+$token = $null
+$deadline = (Get-Date).AddSeconds($WaitSec)
+while ((Get-Date) -lt $deadline) {
+  if ($p.HasExited) { Write-Host "[lyra] process exited during startup (code $($p.ExitCode))"; break }
+  $t = Read-Log
+  $m = [regex]::Match($t, 'Control server token:\s*(\S+)\s*\(')
+  if ($m.Success) { $token = $m.Groups[1].Value; break }
+  try {
+    $p.Refresh()
+    if ($p.MainWindowHandle -ne 0 -and [Win32FgLyra]::FgPid() -ne $p.Id) { [Win32FgLyra]::Force($p.MainWindowHandle) }
+  } catch {}
+  Start-Sleep -Milliseconds 700
+}
+if (-not $token) {
+  Write-Host "[lyra] FAIL: control server never announced a token. See $log"
+  Get-Process -Id $p.Id -EA SilentlyContinue | Stop-Process -Force
+  exit 2
+}
+Write-Host "[lyra] control server up; token length $($token.Length)"
+
+# --- phase 2: wait for the world, then settle ---------------------------------
+# 'Bringing World ... up for play' is the map actually entering play (G87's rule:
+# judge by the level NAME in the log, never by the picture).
+$worldUp = $false
+while ((Get-Date) -lt $deadline) {
+  if ($p.HasExited) { break }
+  $t = Read-Log
+  if ($t -match 'Bringing World .*up for play') { $worldUp = $true; break }
+  Start-Sleep -Milliseconds 700
+}
+Write-Host "[lyra] world_up=$worldUp ; settling ${SettleSec}s (experience activation, bot spawn, shader compile)"
+
+$settleEnd = (Get-Date).AddSeconds($SettleSec)
+while ((Get-Date) -lt $settleEnd) {
+  if ($p.HasExited) { break }
+  try {
+    $p.Refresh()
+    if ($p.MainWindowHandle -ne 0 -and [Win32FgLyra]::FgPid() -ne $p.Id) { [Win32FgLyra]::Force($p.MainWindowHandle) }
+  } catch {}
+  Start-Sleep -Milliseconds 800
+}
+
+if ($p.HasExited) {
+  Write-Host "[lyra] FAIL: process exited before capture_start (code $($p.ExitCode)). See $log"
+  exit 3
+}
+
+# --- phase 3: start the capture over the control server -----------------------
+$ct = [System.Threading.CancellationToken]::None
+$ws = [System.Net.WebSockets.ClientWebSocket]::new()
+try {
+  $ws.ConnectAsync([Uri]$Url, $ct).GetAwaiter().GetResult()
+} catch {
+  Write-Host "[lyra] FAIL: WS connect to $Url failed: $($_.Exception.Message)"
+  Get-Process -Id $p.Id -EA SilentlyContinue | Stop-Process -Force
+  exit 4
+}
+function Send($o) {
+  $b = [System.Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Compress -Depth 10))
+  [void]$ws.SendAsync([System.ArraySegment[byte]]::new($b), [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $ct).GetAwaiter().GetResult()
+}
+function Recv([int]$ms = 4000) {
+  $buf = [byte[]]::new(262144); $mem = [System.IO.MemoryStream]::new()
+  try {
+    do {
+      $cts = [System.Threading.CancellationTokenSource]::new($ms)
+      $r = $ws.ReceiveAsync([System.ArraySegment[byte]]::new($buf), $cts.Token).GetAwaiter().GetResult()
+      $mem.Write($buf, 0, $r.Count)
+    } while (-not $r.EndOfMessage)
+  } catch { return $null }
+  $by = $mem.ToArray()
+  if ($by.Length -ge 4 -and $by[0] -eq 0x41 -and $by[1] -eq 0x49 -and $by[2] -eq 0x46 -and $by[3] -eq 0x31) { return "<AIF1 frame>" }
+  return [System.Text.Encoding]::UTF8.GetString($by)
+}
+
+Send @{ type = "hello"; token = $token }
+$auth = $null
+for ($i=0; $i -lt 8; $i++) { $m = Recv; if ($m -and $m -ne "<AIF1 frame>") { $auth = $m; break } }
+Write-Host "[lyra] auth reply: $auth"
+
+# auto-pool: 'anomaly' and 'target' are deliberately OMITTED (bTargetedMode needs BOTH).
+# Passing BOTH switches the run to TARGETED mode, which bypasses the auto-pool picker entirely -
+# stated here because a leg that is targeted says nothing about selection (G140 does not apply).
+if ($Anomaly -ne "" -and $Target -ne "") {
+  Send @{ type = "capture_start"; dir = $dir; format = "png"; seed = $Seed; maxFrames = $MaxFrames;
+          anomaly = $Anomaly; target = $Target }
+  Write-Host "[lyra] capture_start sent (TARGETED $Anomaly -> $Target, dir=$dir)"
+} else {
+  Send @{ type = "capture_start"; dir = $dir; format = "png"; seed = $Seed; maxFrames = $MaxFrames }
+  Write-Host "[lyra] capture_start sent (auto-pool, dir=$dir)"
+}
+
+# --- phase 4: wait for run_summary.json --------------------------------------
+function Test-Summary { @(Get-ChildItem (Join-Path $dir "session_*\run_summary.json") -EA SilentlyContinue).Count -gt 0 }
+while ((Get-Date) -lt $deadline) {
+  if ($p.HasExited) { break }
+  if (Test-Summary) { break }
+  try {
+    $p.Refresh()
+    if ($p.MainWindowHandle -ne 0 -and [Win32FgLyra]::FgPid() -ne $p.Id) { [Win32FgLyra]::Force($p.MainWindowHandle) }
+  } catch {}
+  Start-Sleep -Milliseconds 700
+}
+
+$ok = Test-Summary
+if ($ok) { Start-Sleep -Seconds 6 }   # let the async writer's tail flush (the CM_SPLINE zero-byte-PNG lesson)
+try { [void]$ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure, "done", $ct).GetAwaiter().GetResult() } catch {}
+Get-Process -Id $p.Id -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 800
+
+$sessions = @(Get-ChildItem $dir -Directory -EA SilentlyContinue | Where-Object { $_.Name -like "session_*" })
+Write-Host "[lyra] leg '$Label' summary_written=$ok world_up=$worldUp session_dirs=$($sessions.Count)"
+if ($sessions.Count -gt 0) {
+  $s = $sessions[0].FullName
+  Write-Host "[lyra]   -> $s"
+  Write-Host "[lyra]   frames on disk: $(@(Get-ChildItem (Join-Path $s 'Actual_Frames') -Filter *.png -EA SilentlyContinue).Count)"
+}
+Write-Host "[lyra]   log: $log"
+if ($ok) { exit 0 } else { exit 1 }

@@ -1,0 +1,190 @@
+"""H5 class-(ii) measurement - WHERE does the pixel change actually happen?
+
+NOT an A54 verdict. A54 cannot run here: TAU, CALIB_BBOX and POSE_TOL_PX are
+scoped to CB_GateLevel / StaticMeshActor_49 / 1280x720 (G117), and this is
+MainWorld. B1 is NOT APPLICABLE. Everything below is a RAW SERIES reported as a
+raw series, per the H4 precedent.
+
+WHY A BBOX-ONLY READING CANNOT ANSWER THIS. A35 says score inside the bbox,
+because hiding an object also removes its cast shadow OUTSIDE the bbox. That is
+the right rule when the label points at the object. Class (ii)'s predicted
+failure is that the label does NOT point at the object: an aggregate component's
+Bounds cover the whole cluster, so the emitted bbox can be large and in the wrong
+place while the drawn pixels that vanish are a small or differently-located
+subset. A bbox-only reading is blind to exactly that, so this tool measures:
+
+  IN-BBOX      mean luma inside the emitted bbox, claimed vs flank
+  WHOLE-FRAME  mean luma over every pixel, claimed vs flank
+  GRID         the frame split into cells, each cell's |claimed - flank| change,
+               so the LOCATION of the change can be compared against the
+               LOCATION of the label
+
+The grid is the discriminator. If the largest-changing cells sit outside the
+emitted bbox, the label points somewhere the change is not.
+
+Usage: python h5_pixel_change.py <session_dir> [--grid 8]
+"""
+
+import argparse
+import glob
+import json
+import os
+
+from PIL import Image
+
+
+def load(sdir):
+    ann = json.load(open(os.path.join(sdir, "annotation.json")))
+    rows = [json.loads(l) for l in open(os.path.join(sdir, "labels.jsonl")) if l.strip()]
+    frames = {}
+    for f in glob.glob(os.path.join(sdir, "Actual_Frames", "*.png")):
+        d = "".join(c for c in os.path.basename(f) if c.isdigit())
+        if d:
+            frames[int(d)] = f
+    prov = None
+    p = os.path.join(sdir, "selection_provenance.json")
+    if os.path.exists(p):
+        prov = json.load(open(p))
+    return ann, rows, frames, prov
+
+
+def luma(path, cache):
+    if path not in cache:
+        cache[path] = Image.open(path).convert("L")
+    return cache[path]
+
+
+def mean_in(im, box=None):
+    if box:
+        x0, y0, x1, y1 = box
+        W, H = im.size
+        x0 = max(0, min(W, int(round(x0)))); x1 = max(0, min(W, int(round(x1))))
+        y0 = max(0, min(H, int(round(y0)))); y1 = max(0, min(H, int(round(y1))))
+        if x1 <= x0 or y1 <= y0:
+            return None
+        im = im.crop((x0, y0, x1, y1))
+    px = list(im.getdata())
+    return (sum(px) / float(len(px))) / 255.0
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("session")
+    ap.add_argument("--grid", type=int, default=8)
+    args = ap.parse_args()
+    ann, rows, frames, prov = load(args.session)
+
+    tgt = None
+    boxes = {}
+    n_rows = n_valid = 0
+    for r in rows:
+        for a in r.get("anomalies", []):
+            tgt = a.get("target_name")
+            n_rows += 1
+            if a.get("bbox_valid"):
+                n_valid += 1
+                k = tuple(round(v, 1) for v in a["bbox_px"])
+                boxes[k] = boxes.get(k, 0) + 1
+    print("=" * 92)
+    print("H5 CLASS-(ii) MEASUREMENT - RAW SERIES, NOT A VERDICT")
+    print("=" * 92)
+    print("  session   : %s" % os.path.basename(args.session.rstrip("\\/")))
+    print("  target    : %s" % tgt)
+    print("  label rows: %d   bbox_valid TRUE: %d" % (n_rows, n_valid))
+    if not boxes:
+        print("  NO VALID BBOX - nothing to measure inside.")
+        return 1
+    modal, cnt = max(boxes.items(), key=lambda kv: kv[1])
+    x, y, w, h = modal
+    box = (x, y, x + w, y + h)
+    im0 = Image.open(next(iter(frames.values())))
+    W, H = im0.size
+    print("  modal bbox: %s on %d/%d rows  -> covers %.1f%% of the %dx%d frame"
+          % (str(modal), cnt, n_valid, 100.0 * (w * h) / (W * H), W, H))
+
+    ev0 = ann["anomalies"][0]
+    nd = ev0["affected_objects"]["nodes"][0]
+    print("  node      : asset=%s  component_class=%s" % (nd.get("asset_name"), nd.get("component_class")))
+    print("  node.pos  : %s" % (nd.get("global_position"),))
+    print("  node.bnds : origin %s extent %s" % (nd["bounds"]["origin"], nd["bounds"]["extent"]))
+    print("  coverage  : ratio %.8f   pct %s" % (ev0.get("coverage_ratio", -1), ev0.get("coverage_pct")))
+    print("  manifested: %s   events %d" % (ev0.get("manifested"), len(ann["anomalies"])))
+    if prov:
+        e = prov["events"][0]
+        print("  provenance: valid=%s  samples %s/%s  poll_distance %.1f  coverage_pct %s"
+              % (e["valid"], e["occlusion_samples_passed"], e["occlusion_samples_total"],
+                 e["poll_distance"], e["coverage_pct"]))
+
+    cache = {}
+    print()
+    print("  %-4s %-26s %-26s %-12s %s" % ("ev", "IN-BBOX claimed/flank", "WHOLE-FRAME claimed/flank",
+                                           "d in-bbox", "d whole-frame"))
+    gi = args.grid
+    grid_acc = [[0.0] * gi for _ in range(gi)]
+    n_ev = 0
+    for i, ev in enumerate(ann["anomalies"]):
+        claimed = sorted(ev["affected_frames"].get("frame_indices") or [])
+        if not claimed:
+            continue
+        lo, hi = min(claimed), max(claimed)
+        flanks = [f for f in (lo - 1, hi + 1) if f in frames]
+        cf = [f for f in claimed if f in frames]
+        if not cf or not flanks:
+            continue
+        cb = [mean_in(luma(frames[f], cache), box) for f in cf]
+        fb = [mean_in(luma(frames[f], cache), box) for f in flanks]
+        cw = [mean_in(luma(frames[f], cache)) for f in cf]
+        fw = [mean_in(luma(frames[f], cache)) for f in flanks]
+        cb = [v for v in cb if v is not None]; fb = [v for v in fb if v is not None]
+        if not cb or not fb:
+            continue
+        mcb, mfb = sum(cb) / len(cb), sum(fb) / len(fb)
+        mcw, mfw = sum(cw) / len(cw), sum(fw) / len(fw)
+        print("  %-4d %-26s %-26s %+12.6f %+.6f"
+              % (i, "%.6f / %.6f" % (mcb, mfb), "%.6f / %.6f" % (mcw, mfw), mcb - mfb, mcw - mfw))
+        # grid: accumulate |claimed - flank| per cell
+        ic = luma(frames[cf[0]], cache); iff = luma(frames[flanks[0]], cache)
+        for gy in range(gi):
+            for gx in range(gi):
+                cell = (gx * W // gi, gy * H // gi, (gx + 1) * W // gi, (gy + 1) * H // gi)
+                a1 = mean_in(ic.crop(cell)); a2 = mean_in(iff.crop(cell))
+                grid_acc[gy][gx] += abs(a1 - a2)
+        n_ev += 1
+
+    if n_ev == 0:
+        print("  no measurable events")
+        return 1
+
+    print()
+    print("=" * 92)
+    print("GRID: mean |claimed - flank| luma per cell, averaged over %d events" % n_ev)
+    print("The '#' marks cells overlapping the emitted bbox. The QUESTION is whether")
+    print("the largest changes sit INSIDE those cells or somewhere else.")
+    print("=" * 92)
+    peak = max(max(r) for r in grid_acc) or 1e-12
+    for gy in range(gi):
+        line = "  "
+        for gx in range(gi):
+            cx0, cy0 = gx * W // gi, gy * H // gi
+            cx1, cy1 = (gx + 1) * W // gi, (gy + 1) * H // gi
+            inbox = not (cx1 <= box[0] or cx0 >= box[2] or cy1 <= box[1] or cy0 >= box[3])
+            v = grid_acc[gy][gx] / n_ev
+            line += "%7.4f%s" % (v, "#" if inbox else " ")
+        print(line)
+    print()
+    print("  peak cell change %.6f   (peak/whole-frame scale reference below)" % (peak / n_ev))
+    inside = [grid_acc[gy][gx] / n_ev for gy in range(gi) for gx in range(gi)
+              if not ((gx + 1) * W // gi <= box[0] or gx * W // gi >= box[2]
+                      or (gy + 1) * H // gi <= box[1] or gy * H // gi >= box[3])]
+    outside = [grid_acc[gy][gx] / n_ev for gy in range(gi) for gx in range(gi)
+               if ((gx + 1) * W // gi <= box[0] or gx * W // gi >= box[2]
+                   or (gy + 1) * H // gi <= box[1] or gy * H // gi >= box[3])]
+    print("  cells INSIDE the bbox : n=%d  mean %.6f  max %.6f"
+          % (len(inside), (sum(inside) / len(inside)) if inside else 0, max(inside) if inside else 0))
+    print("  cells OUTSIDE the bbox: n=%d  mean %.6f  max %.6f"
+          % (len(outside), (sum(outside) / len(outside)) if outside else 0, max(outside) if outside else 0))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

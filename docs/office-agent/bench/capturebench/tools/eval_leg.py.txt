@@ -1,0 +1,141 @@
+"""S3b per-leg checklist. Runs the approved steps in the approved order.
+
+  A48  effective config echoed from the ARTIFACT, never from what was requested
+  A31  four validity conditions: ratio band, luminance >= 2.0/255,
+       flatness sd >= 5.0, clip <= 35% of pixels >= 250
+  A45  marker decodes as a STRICTLY INCREASING series; frame_index - marker == 0
+  A10  frame-number <-> GFrameCounter 1:1, per regime
+  A56  camera-certifiability INCLUDING B1's pose-match precondition
+  POS  in-leg positive control: a synthetic +/-1 shift must degrade DECISIVELY.
+       Reported BEFORE the verdict. A leg whose control does not degrade is
+       INVALID - the oracle was blind on it and its ALIGNED verdicts mean nothing.
+  A54  the certification verdict, TAU frozen, A50 taxonomy, A55 margins
+
+Usage: python eval_leg.py <session_dir> <band_lo> <band_hi> [band_name]
+       band_lo/hi may be "none" for the pacing-off category, which has no band.
+"""
+
+import glob
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import a54_oracle as O
+from decode_marker import decode
+
+
+def main():
+    S = sys.argv[1]
+    lo = None if sys.argv[2].lower() == "none" else float(sys.argv[2])
+    hi = None if sys.argv[3].lower() == "none" else float(sys.argv[3])
+    band = sys.argv[4] if len(sys.argv) > 4 else "?"
+
+    ann, rows, frames = O.load_session(S)
+    run = json.load(open(os.path.join(S, "run.json")))
+    rs = json.load(open(os.path.join(S, "run_summary.json")))
+
+    print("=" * 74)
+    print("LEG %s   band=%s" % (os.path.basename(S), band))
+    print("=" * 74)
+
+    print("\n-- A48 EFFECTIVE CONFIG (read back from the artifact) --")
+    for k in ("capture_path", "target_fps", "paced", "delivery_mode", "content_clock",
+              "speed_ratio", "total_frames", "positive_frames", "non_manifested_events",
+              "key_ring_published", "key_ring_consumed", "key_ring_missed",
+              "key_ring_wrapped", "key_ring_corrupted"):
+        if k in rs:
+            print("   %-22s %s" % (k, rs[k]))
+    print("   %-22s %s" % ("mode/anomaly/target", "%s / %s / %s"
+                           % (run.get("mode"), run.get("target_anomaly"), run.get("target_actor"))))
+    print("   %-22s %s   (A63: must be small; harness enforced)" % ("start_frame", run.get("start_frame")))
+
+    print("\n-- A31 VALIDITY --")
+    # A40 BAND READING RULE. The bands are stated to 2 d.p. ([1.00-1.02],
+    # [1.15-1.35], >=2.80), so the comparison is made at the band's OWN stated
+    # precision. Applied identically to every leg and every band.
+    #
+    # R5's "read at 4 s.f." wording does NOT generalise and is superseded here:
+    # it gives 1.0000 for Stage 1's 0.99999935 but 0.9999 for a leg at
+    # 0.99991396, which would put a textbook nominal leg out of band on 0.009%
+    # of float/pacing noise. 2 d.p. is the band's own precision and captures the
+    # ruling's intent ("float noise, not a regime") for every value, not just
+    # the one it was written against.
+    ratio = float(rs["speed_ratio"])
+    ratio_read = round(ratio, 2)
+    ok_ratio = True if lo is None else (lo <= ratio_read <= hi)
+    print("   achieved ratio         %.6f  -> reads %.2f   band [%s,%s]  -> %s"
+          % (ratio, ratio_read, lo, hi, "IN BAND" if ok_ratio else "OUT OF BAND"))
+
+    idx = sorted(frames)
+    sel = idx[::max(1, len(idx) // 12)][:12]
+    lum, sd, clip = [], [], []
+    for i in sel:
+        im = O.Image.open(frames[i]).convert("L")
+        px = list(im.resize((160, 90)).getdata())
+        n = len(px)
+        m = sum(px) / n
+        v = (sum((q - m) ** 2 for q in px) / n) ** 0.5
+        lum.append(m)
+        sd.append(v)
+        clip.append(100.0 * sum(1 for q in px if q >= 250) / n)
+    ok_lum = min(lum) >= 2.0
+    ok_sd = min(sd) >= 5.0
+    ok_clip = max(clip) <= 35.0
+    print("   luminance mean         %.2f .. %.2f   (>= 2.0)        -> %s"
+          % (min(lum), max(lum), "OK" if ok_lum else "FAIL"))
+    print("   flatness sd            %.2f .. %.2f   (>= 5.0)        -> %s"
+          % (min(sd), max(sd), "OK" if ok_sd else "FAIL"))
+    print("   clip %% px >= 250       %.2f .. %.2f   (<= 35%%)        -> %s"
+          % (min(clip), max(clip), "OK" if ok_clip else "FAIL"))
+    a31 = ok_ratio and ok_lum and ok_sd and ok_clip
+    print("   A31 -> %s" % ("VALID" if a31 else "INVALID"))
+
+    print("\n-- A45 MARKER / A10 IDENTITY --")
+    dec, bad = {}, 0
+    for i in idx:
+        v, y, spread, _ = decode(frames[i])
+        if v is None:
+            bad += 1
+        dec[i] = v
+    series = [dec[i] for i in idx if dec[i] is not None]
+    inc = all(b > a for a, b in zip(series, series[1:]))
+    diffs = set()
+    for r in rows:
+        i = r.get("session_index")
+        if i in dec and dec[i] is not None:
+            diffs.add(int(r["frame_index"]) - dec[i])
+    print("   decoded                %d/%d   undecodable %d" % (len(series), len(idx), bad))
+    print("   strictly increasing    %s   (A45)" % ("YES" if inc else "NO"))
+    print("   frame_index - marker   %s   (A10: must be {0})" % sorted(diffs))
+    a45 = inc and bad == 0 and diffs == {0}
+
+    print("\n-- A56 CAMERA-CERTIFIABILITY (incl. B1 pose-match) --")
+    start, modal_rot, dropped = O.settle_window(rows)
+    bbox, nbox, ndist, cov, ok56 = O.a56_check(rows, start)
+    print("   settle window          %s..%s   dropped %d   modal rot %s"
+          % (start, max(idx), dropped, modal_rot))
+    print("   modal bbox             %s" % (bbox,))
+    print("   modal coverage         %.1f%% of %d rows, %d distinct" % (100 * cov, nbox, ndist))
+    print("   B1 pose-match          %s" % ("YES" if O.pose_match(bbox) else "NO - BIFURCATED"))
+    print("   A56 -> %s" % ("CERTIFIABLE" if ok56 else "NOT CERTIFIABLE"))
+
+    print("\n-- IN-LEG POSITIVE CONTROL (reported BEFORE the verdict) --")
+    if not ok56:
+        print("   not run - leg is not A54-certifiable")
+    else:
+        for sh in (+1, -1):
+            print("   --- synthetic %+d shift:" % sh)
+            O.run(S, sh, O.FLOOR_A, False, True)
+
+    print("\n-- A54 VERDICT --")
+    rc = O.run(S, 0, O.FLOOR_A, False, True)
+    print("\nA31 %s | A45/A10 %s | A56 %s"
+          % ("VALID" if a31 else "INVALID",
+             "OK" if a45 else "FAIL",
+             "CERTIFIABLE" if ok56 else "NOT CERTIFIABLE"))
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

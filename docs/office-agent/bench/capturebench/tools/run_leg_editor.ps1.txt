@@ -1,0 +1,128 @@
+<#
+m47 EDITOR-TARGET leg runner.
+
+run_leg.ps1 drives the STAGED PACKAGED build. This one drives the EDITOR target
+(UnrealEditor.exe ... -game), because the owner's shader-readiness observations are
+"editor build only, never in a packaged build" and a packaged leg structurally cannot
+show them: a cooked build carries precompiled shader maps, so the on-demand
+compile-at-draw-time path is never entered.
+
+It is deliberately SMALLER than run_leg.ps1 and shares none of its gates:
+  - no A63 focus-timeout retry loop (a leg is reported with its start_frame and read
+    as-is; an editor leg has no banked control to be comparable WITH, so A63's
+    comparability precondition has nothing to protect here),
+  - no B1 pose gate (CALIB_BBOX is frozen against the packaged fixture),
+  - no banking.
+Those omissions are stated rather than implied. This runner produces a READING, and
+every claim built on it says which leg it came from.
+
+Focus IS forced, for the same reason run_leg.ps1 forces it: the capture's focus gate
+holds the first frame until the game window has foreground focus, and a leg that rides
+the 30 s timeout wastes wall clock.
+#>
+
+param(
+  [Parameter(Mandatory=$true)][string]$Label,
+  [string]$Anomaly = "corrupted_texture",
+  [string]$Target = "StaticMeshActor_49",
+  [int]$Prewarm = 0,
+  [int]$Seed = 777,
+  [int]$MaxFrames = 90,
+  [int]$ResX = 1280,
+  [int]$ResY = 720,
+  [int]$Marker = 0,
+  [int]$AutoExposure = 0,
+  [string]$ExtraExecCmds = "",
+  [string[]]$ExtraLaunchArgs = @(),
+  [string]$Map = "/Game/CaptureBenchGate/CB_GateLevel",
+  [int]$WaitSec = 420
+)
+
+$ErrorActionPreference = "Stop"
+
+$editor  = "D:\UESource\UnrealEngine\Engine\Binaries\Win64\UnrealEditor.exe"
+$project = "D:\IntrusiveAnomalies\StackOBot\StackOBot.uproject"
+$outRoot = "D:\IntrusiveAnomalies\_m47_legs"
+$dir     = Join-Path $outRoot $Label
+
+if (-not ([System.Management.Automation.PSTypeName]'Win32FgM47').Type) {
+  Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Win32FgM47 {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static uint FgPid() { uint pid = 0; GetWindowThreadProcessId(GetForegroundWindow(), out pid); return pid; }
+  public static void Force(IntPtr h) {
+    ShowWindow(h, 9);
+    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+    keybd_event(0x12, 0, 2, UIntPtr.Zero);
+    SetForegroundWindow(h);
+    BringWindowToTop(h);
+  }
+}
+"@
+}
+
+Get-Process -Name "UnrealEditor","StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 800
+
+if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
+
+$cmds = @()
+if ($AutoExposure -eq 0) { $cmds += "r.DefaultFeature.AutoExposure 0"; $cmds += "r.EyeAdaptationQuality 0" }
+# A48 ECHO (m47b): a bare cvar name prints its EFFECTIVE value. Emitted on BOTH sides so the
+# AE state of a leg is read off its own log, never inferred from the switch that was passed.
+$cmds += "r.DefaultFeature.AutoExposure"
+$cmds += "r.EyeAdaptationQuality"
+$cmds += "r.DefaultFeature.AutoExposure.Method"
+$cmds += "r.DefaultFeature.AutoExposure.Bias"
+$cmds += "r.DefaultFeature.AutoExposure.ExtendDefaultLuminanceRange"
+$cmds += "r.EyeAdaptation.MethodOverride"
+$cmds += "CaptureBench.Marker $Marker"
+$cmds += "IAI.Capture.SVE 1"
+$cmds += "IAI.Capture.Delivery 0"
+$cmds += "IAI.Capture.Pace 1"
+$cmds += "IAI.Capture.Fps 30"
+$cmds += "IAI.Capture.Config 2 4 8 4 0"
+$cmds += "IAI.Capture.ShaderPrewarm $Prewarm"
+if ($ExtraExecCmds -ne "") { $cmds += $ExtraExecCmds }
+$cmds += "IAI.Capture.Start $dir png $Seed $MaxFrames $Anomaly $Target"
+$cmdline = ($cmds -join ", ")
+
+$launchArgs = @($project, $Map, "-game", "-windowed", "-ResX=$ResX", "-ResY=$ResY",
+                "-ExecCmds=`"$cmdline`"", "-unattended", "-nosplash",
+                "-abslog=$outRoot\$Label.log") + $ExtraLaunchArgs
+
+Write-Host "[m47] launching EDITOR leg '$Label' (anomaly=$Anomaly target=$Target prewarm=$Prewarm ae=$AutoExposure marker=$Marker)"
+$p = Start-Process -FilePath $editor -PassThru -ArgumentList $launchArgs
+
+$deadline = (Get-Date).AddSeconds($WaitSec)
+$focused = $false
+function Test-Summary { @(Get-ChildItem (Join-Path $dir "session_*\run_summary.json") -EA SilentlyContinue).Count -gt 0 }
+while ((Get-Date) -lt $deadline) {
+  if ($p.HasExited) { break }
+  if (Test-Summary) { break }
+  try {
+    $p.Refresh()
+    if ($p.MainWindowHandle -ne 0) {
+      if ([Win32FgM47]::FgPid() -ne $p.Id) { [Win32FgM47]::Force($p.MainWindowHandle) }
+      else { $focused = $true }
+    }
+  } catch {}
+  Start-Sleep -Milliseconds 500
+}
+
+$ok = Test-Summary
+if ($ok) { Start-Sleep -Seconds 4 }
+Get-Process -Id $p.Id -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 600
+
+$sessions = @(Get-ChildItem $dir -Directory -EA SilentlyContinue | Where-Object { $_.Name -like "session_*" })
+Write-Host "[m47] leg '$Label' summary_written=$ok focus_held=$focused session_dirs=$($sessions.Count)"
+if ($sessions.Count -gt 0) { Write-Host "[m47]   -> $($sessions[0].FullName)" }

@@ -1,0 +1,39 @@
+using UnrealBuildTool;
+using System.IO;
+
+public class CaptureBench : ModuleRules
+{
+	public CaptureBench(ReadOnlyTargetRules Target) : base(Target)
+	{
+		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+
+		PublicDependencyModuleNames.AddRange(new string[]
+		{
+			"Core",
+			"CoreUObject",
+			"Engine"
+		});
+
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PublicDefinitions.Add("CAPTURE_BENCH=1");
+
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"RenderCore",
+				"RHI",
+				"Renderer",
+				"Slate",
+				"SlateCore",
+				"ApplicationCore",
+				"ImageWrapper"
+			});
+
+			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
+		}
+		else
+		{
+			PublicDefinitions.Add("CAPTURE_BENCH=0");
+		}
+	}
+}

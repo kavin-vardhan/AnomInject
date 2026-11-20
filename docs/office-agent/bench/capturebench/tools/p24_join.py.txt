@@ -1,0 +1,124 @@
+"""P24 join: per armed frame, M23 PASS extent (DUMMY/REAL) x M24 ENDFRAME hidden sample.
+
+Grades NOTHING. It prints the joined per-frame table, the per-event positional
+pattern, the P1/P2/R-A/R-B tallies as defined in p24_fault2_predeclared.md, and
+the M26S1 EVENT summary lines verbatim. Attribution belongs to the reader and to
+the pre-declared branch table, not to this script.
+
+Usage: python p24_join.py <path-to-_leg_game.log>
+"""
+
+import re
+import sys
+
+LOG = sys.argv[1]
+
+pass_re = re.compile(
+    r"M23 PASS id=(\d+) rCustomDepth_renderThread=(-?\d+) customStencilExtent=(\d+)x(\d+)")
+endframe_re = re.compile(
+    r"M24 ENDFRAME id=(\d+) target=(\S+) tag=(\d+) hiddenAtArm=(\d) hiddenAtEndOfFrame=(\d)"
+    r"(?:[^\r\n]*?probe=(\d))?")
+discard_re = re.compile(r"M24 FRAME DISCARDED id=(\d+)")
+event_re = re.compile(r"M26S1 (?:EVENT|SUMMARY|NOT_MEASURED|PROBE ARM|PROBE RESULT|RESIDUAL|UNCONFIRMED).*")
+
+passes = {}
+hidden = {}
+discards = set()
+events = []
+
+for line in open(LOG, encoding="utf-8", errors="replace"):
+    m = pass_re.search(line)
+    if m:
+        i = int(m.group(1))
+        passes[i] = {
+            "mode": int(m.group(2)),
+            "ext": (int(m.group(3)), int(m.group(4))),
+        }
+        continue
+    m = endframe_re.search(line)
+    if m:
+        hidden[int(m.group(1))] = {
+            "target": m.group(2),
+            "tag": int(m.group(3)),
+            "hiddenArm": int(m.group(4)),
+            "hiddenEof": int(m.group(5)),
+            "probe": int(m.group(6)) if m.group(6) else 0,
+        }
+        continue
+    m = discard_re.search(line)
+    if m:
+        discards.add(int(m.group(1)))
+        continue
+    m = event_re.search(line)
+    if m:
+        events.append(m.group(0).strip())
+
+ids = sorted(set(passes) | set(hidden))
+groups = []
+for i in ids:
+    if groups and i - groups[-1][-1] <= 8:
+        groups[-1].append(i)
+    else:
+        groups.append([i])
+
+print("=== P24 JOIN: %d armed frames with a PASS record, %d with an ENDFRAME sample ==="
+      % (len(passes), len(hidden)))
+print()
+print("%-8s %-6s %-12s %-6s %-10s %-9s %s" %
+      ("id", "mode", "extent", "kind", "hiddenEof", "discarded", "P1/P2"))
+
+p1_viol = []
+p2_viol = []
+unjoined = []
+for i in ids:
+    p = passes.get(i)
+    h = hidden.get(i)
+    ext = "%dx%d" % p["ext"] if p else "(no pass)"
+    kind = "-"
+    if p:
+        kind = "DUMMY" if p["ext"] == (1, 1) else "REAL"
+    heof = str(h["hiddenEof"]) if h else "(none)"
+    verdict = ""
+    if h and h.get("probe"):
+        verdict = "PROBE (expected DUMMY+hidden; excluded from violation tallies)"
+    elif p and h:
+        if kind == "DUMMY" and h["hiddenEof"] == 0:
+            verdict = "R-A VIOLATION"
+            p1_viol.append(i)
+        elif kind == "REAL" and h["hiddenEof"] == 1:
+            verdict = "R-B VIOLATION"
+            p2_viol.append(i)
+        else:
+            verdict = "consistent"
+    else:
+        unjoined.append(i)
+        verdict = "UNJOINED"
+    print("%-8d %-6s %-12s %-6s %-10s %-9s %s" %
+          (i, p["mode"] if p else "-", ext, kind, heof,
+           "yes" if i in discards else "", verdict))
+
+print()
+print("=== per-event positional pattern (grouped by id gaps > 8) ===")
+for g in groups:
+    kinds = []
+    heofs = []
+    for i in g:
+        p = passes.get(i)
+        h = hidden.get(i)
+        kinds.append("D" if (p and p["ext"] == (1, 1)) else ("R" if p else "?"))
+        heofs.append(str(h["hiddenEof"]) if h else "?")
+    print("  ids=%s  kind=%s  hiddenEof=%s" % (g, "".join(kinds), "".join(heofs)))
+
+print()
+print("=== tallies against the pre-declared table ===")
+n_dummy = sum(1 for i in ids if passes.get(i, {}).get("ext") == (1, 1))
+n_real = sum(1 for i in ids if i in passes and passes[i]["ext"] != (1, 1))
+print("  DUMMY frames: %d   REAL frames: %d" % (n_dummy, n_real))
+print("  R-A violations (dummy but visible at end of frame): %d %s" % (len(p1_viol), p1_viol))
+print("  R-B violations (real but hidden at end of frame):   %d %s" % (len(p2_viol), p2_viol))
+print("  unjoined ids (one side missing):                    %d %s" % (len(unjoined), unjoined))
+
+print()
+print("=== M26S1 event summaries, verbatim ===")
+for e in events:
+    print("  " + e)

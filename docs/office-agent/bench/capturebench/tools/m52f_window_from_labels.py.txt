@@ -1,0 +1,108 @@
+"""
+Validate that labels.jsonl's per-row stuck_mip.held reconstructs annotation.json's
+injected_frames EXACTLY, on every event the veto did NOT delete.
+
+Why this exists: a VETOED event is removed from annotation.json before it is written, so its
+injected_frames does not exist in that artifact at all. Checking "does every arm lie inside the
+labelled window" against annotation.json alone therefore cannot judge a vetoed event - and the
+vetoed event is precisely the one the gate is about. labels.jsonl is written (delivery OFF) and
+the veto does NOT retro-edit it (L3), so it still carries the vetoed event's rows.
+
+Before using held as the window, it is proved against the known answer: on every SURVIVING event,
+{si : held} must equal injected_frames exactly. If it does not, held is NOT the window and this
+route is abandoned rather than patched (A53 / G142: prove a checker against a known answer before
+its verdict is read).
+
+Exit 0 = held reconstructs the window on every surviving event, 2 = it does not.
+"""
+
+import json
+import os
+import sys
+
+
+def load(session):
+    rows = []
+    with open(os.path.join(session, "labels.jsonl"), "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    with open(os.path.join(session, "annotation.json"), "r", encoding="utf-8") as f:
+        ann = json.load(f)
+    return rows, ann
+
+
+def held_windows(rows, anomaly_id):
+    """mask_value -> (target, {si where held}, {si where the row exists})"""
+    out = {}
+    for r in rows:
+        si = r.get("session_index")
+        for a in (r.get("anomalies") or []):
+            if a.get("id") != anomaly_id:
+                continue
+            mv = a.get("mask_value")
+            if not mv:
+                continue
+            e = out.setdefault(mv, dict(target=a.get("target_name", ""), held=set(), rows=set(),
+                                        tp={}))
+            e["rows"].add(si)
+            e["tp"][si] = a.get("target_pixels")
+            if a.get("stuck_mip.held") is True:
+                e["held"].add(si)
+    return out
+
+
+def main():
+    session = sys.argv[1]
+    anomaly_id = sys.argv[2] if len(sys.argv) > 2 else "stuck_low_mip"
+    rows, ann = load(session)
+    wins = held_windows(rows, anomaly_id)
+
+    ann_events = [e for e in ann.get("anomalies", []) if e.get("anomaly_type") == anomaly_id]
+    ann_by_start = {}
+    for e in ann_events:
+        nodes = e.get("affected_objects", {}).get("nodes", [])
+        tgt = nodes[0].get("name", "") if nodes else ""
+        inj = set(e.get("injected_frames", {}).get("frame_indices", []) or [])
+        # key on (target, min injected) is ambiguous for empty sets; key on target + order
+        ann_by_start.setdefault(tgt, []).append(inj)
+
+    print(f"=== held-vs-injected, {os.path.basename(session)} ===")
+    matched, mismatched, unmatched = 0, 0, 0
+    for mv in sorted(wins):
+        w = wins[mv]
+        cands = ann_by_start.get(w["target"], [])
+        hit = None
+        for inj in cands:
+            if inj and inj == w["held"]:
+                hit = inj
+                break
+        if hit is not None:
+            matched += 1
+            cands.remove(hit)
+            print(f"  tag={mv} {w['target'][:46]:46} held={len(w['held'])} == injected  MATCH")
+        else:
+            near = [inj for inj in cands if inj and (inj & w["held"])]
+            if near:
+                mismatched += 1
+                print(f"  tag={mv} {w['target'][:46]:46} held={sorted(w['held'])} "
+                      f"injected={sorted(near[0])}  MISMATCH")
+            else:
+                unmatched += 1
+                print(f"  tag={mv} {w['target'][:46]:46} held={sorted(w['held'])} "
+                      f"-> NO surviving annotation event (VETOED or non-manifested)")
+    print(f"  matched={matched} mismatched={mismatched} noSurvivingEvent={unmatched}")
+    if matched == 0:
+        print("  VACUOUS - no surviving event to prove the route against (G146)")
+        sys.exit(2)
+    if mismatched:
+        print("  held does NOT reconstruct injected_frames - route ABANDONED, not patched.")
+        sys.exit(2)
+    print(f"  OK - held reconstructs injected_frames EXACTLY on {matched} surviving event(s), "
+          f"so it is a sound window for the {unmatched} event(s) the veto removed.")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

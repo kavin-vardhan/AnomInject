@@ -1,0 +1,103 @@
+import sys
+from pathlib import Path
+
+from PIL import Image
+
+
+NEAR_BLACK = 3.0
+COLLAPSE_EDGE_WIDTH = 16
+COLLAPSE_RUN = 8
+COLLAPSE_EPS = 0.05
+
+
+def column_stats(path):
+    img = Image.open(path).convert("L")
+    w, h = img.size
+    px = list(img.getdata())
+    means = []
+    for x in range(w):
+        s = 0
+        for y in range(h):
+            s += px[y * w + x]
+        means.append(s / h)
+    return w, h, means
+
+
+def collapsed_band(means):
+    w = len(means)
+    for label, band in (("left", means[:COLLAPSE_EDGE_WIDTH]), ("right", means[-COLLAPSE_EDGE_WIDTH:])):
+        run = 0
+        for i in range(1, len(band)):
+            if abs(band[i] - band[i - 1]) < COLLAPSE_EPS:
+                run += 1
+                if run >= COLLAPSE_RUN:
+                    return label
+            else:
+                run = 0
+    return None
+
+
+def report(path, label):
+    w, h, means = column_stats(path)
+    near_black = sum(1 for m in means if m < NEAR_BLACK)
+    left = means[0]
+    right = means[-1]
+    band = collapsed_band(means)
+    print(f"[{label}] {Path(path).name} {w}x{h} nearBlackCols={near_black} "
+          f"leftColMean={left:.2f} rightColMean={right:.2f} minColMean={min(means):.2f} "
+          f"collapsedEdgeBand={band or 'none'}")
+    return {"w": w, "h": h, "near_black": near_black, "left": left, "right": right,
+            "min": min(means), "band": band}
+
+
+def main():
+    if len(sys.argv) < 3:
+        print("usage: m35_gm8_column_check.py <knownGoodFrame> <frameUnderTest> [moreFrames...]")
+        return 2
+
+    known = sys.argv[1]
+
+    print("== KNOWN-ANSWER PROOF (owner datum: 0 near-black cols, left ~50 min 5.0, right ~87, no collapsed band) ==")
+    k = report(known, "known")
+    ok = (k["near_black"] == 0 and k["left"] >= 5.0 and k["band"] is None)
+    if not ok:
+        print("CHECKER NOT PROVEN: the known-good frame does not reproduce the owner datum - "
+              "no verdict may be read on any other frame.")
+        return 3
+    print("known-answer reproduced: PROOF (positive half) OK")
+
+    print("== PROOF IT CAN FAIL (G96): synthetic 40px black pillar pasted onto the known frame ==")
+    img = Image.open(known).convert("L")
+    w, h = img.size
+    bar = Image.new("L", (40, h), 0)
+    img.paste(bar, (0, 0))
+    tmp = Path(known).with_name("_gm8_synth_pillar.png")
+    img.save(tmp)
+    s = report(str(tmp), "synth")
+    tmp.unlink()
+    if s["near_black"] < 30:
+        print("CHECKER BLIND: the synthetic pillar was not reported - no verdict may be read.")
+        return 3
+    print(f"synthetic pillar reported ({s['near_black']} near-black cols): PROOF (negative half) OK")
+
+    rc = 0
+    print("== VERDICT FRAMES ==")
+    for f in sys.argv[2:]:
+        r = report(f, "test")
+        bad = []
+        if r["near_black"] != 0:
+            bad.append(f"nearBlackCols={r['near_black']}")
+        if r["left"] < 5.0:
+            bad.append(f"leftColMean={r['left']:.2f}")
+        if r["band"]:
+            bad.append(f"collapsedEdgeBand={r['band']}")
+        if bad:
+            print(f"  FAIL: {Path(f).name}: " + ", ".join(bad))
+            rc = 1
+        else:
+            print(f"  PASS: {Path(f).name}: no pillar columns, edges alive, no collapsed band")
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

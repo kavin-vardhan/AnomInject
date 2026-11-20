@@ -1,0 +1,20 @@
+#pragma once
+
+#include "CoreMinimal.h"
+
+#if CAPTURE_BENCH
+
+class UWorld;
+
+namespace CaptureBenchMarker
+{
+	static constexpr int32 NumRefCells = 2;
+	static constexpr int32 NumDataBits = 12;
+	static constexpr int32 NumCells = NumRefCells + NumDataBits;
+
+	void Register();
+	void Unregister();
+	bool IsEnabled();
+}
+
+#endif

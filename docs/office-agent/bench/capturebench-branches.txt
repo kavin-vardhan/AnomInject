@@ -1,0 +1,16 @@
+CaptureBench (local-only repo, no remote). `git branch -vv` on 2026-11-20:
+
+  m56-gates 1978cd8 tools(m56): 095-06b S6, N6, N9, CB-N1 - comparator scope and intended difference, settle content check, zero-byte frames
+  m57-gates 4ca8524 tools(m59): 095-14 - fixture options pair_cube (CB_LodPair) and minlod1 (CB_LodFix_MinLod1)
+* master    e64d6f9 tools(m53): 089-02b dcfix mode - linearise the normal oracle readout, empty TC_Mixed's component override
+
+Untracked files at that time (`git status --short`):
+
+?? tools/m079_shift_recovery.py
+?? tools/m36_scrub_hostname.py
+?? tools/m38_gate3_abort.ps1
+?? tools/m45_identity.py
+?? tools/m45_iou.py
+?? tools/m45_iou_mo.py
+?? tools/m46_maskcmp.py
+?? tools/measure_label_offset.csv

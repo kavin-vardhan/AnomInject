@@ -1,0 +1,755 @@
+#include "CaptureBenchCapturer.h"
+
+#if CAPTURE_BENCH
+
+#include "CaptureBenchLog.h"
+
+#include "RenderingThread.h"
+#include "RHI.h"
+#include "RHICommandList.h"
+#include "RHIResources.h"
+#include "PixelFormat.h"
+#include "CoreGlobals.h"
+
+#include "HAL/FileManager.h"
+#include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
+#include "Async/Async.h"
+#include "Modules/ModuleManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SWindow.h"
+#include "Widgets/SViewport.h"
+#include "Rendering/SlateRenderer.h"
+#include "Layout/WidgetPath.h"
+#include "Layout/ArrangedChildren.h"
+#include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+
+static constexpr double GCaptureBenchLuminanceFloor = 2.0;
+static constexpr double GCaptureBenchFlatnessFloor = 5.0;
+static constexpr double GCaptureBenchClipCeilingPct = 35.0;
+
+namespace
+{
+	bool ComputeGameViewportCapture(UWorld* World, SWindow*& OutWindow, FIntRect& OutRect)
+	{
+		OutWindow = nullptr;
+		OutRect = FIntRect(0, 0, 0, 0);
+
+		UGameViewportClient* GVC = World ? World->GetGameViewport() : nullptr;
+		if (!GVC || !FSlateApplication::IsInitialized())
+		{
+			return false;
+		}
+
+		TSharedPtr<SViewport> ViewportWidget = GVC->GetGameViewportWidget();
+		if (!ViewportWidget.IsValid())
+		{
+			return false;
+		}
+
+		TSharedPtr<SWindow> Window = FSlateApplication::Get().FindWidgetWindow(ViewportWidget.ToSharedRef());
+		if (!Window.IsValid())
+		{
+			return false;
+		}
+		OutWindow = Window.Get();
+
+		const FGeometry InnerWindowGeometry = Window->GetWindowGeometryInWindow();
+		FArrangedChildren JustWindow(EVisibility::Visible);
+		JustWindow.AddWidget(FArrangedWidget(Window.ToSharedRef(), InnerWindowGeometry));
+
+		FWidgetPath WidgetPath(Window.ToSharedRef(), JustWindow);
+		if (!WidgetPath.ExtendPathTo(FWidgetMatcher(ViewportWidget.ToSharedRef()), EVisibility::Visible))
+		{
+			return false;
+		}
+
+		const FArrangedWidget ArrangedWidget =
+			WidgetPath.FindArrangedWidget(ViewportWidget.ToSharedRef()).Get(FArrangedWidget::GetNullWidget());
+		const FVector2D Position = ArrangedWidget.Geometry.GetAbsolutePosition();
+		const FVector2D Size = ArrangedWidget.Geometry.GetAbsoluteSize();
+
+		OutRect = FIntRect(
+			FMath::RoundToInt(Position.X),
+			FMath::RoundToInt(Position.Y),
+			FMath::RoundToInt(Position.X + Size.X),
+			FMath::RoundToInt(Position.Y + Size.Y));
+
+		return OutRect.Width() > 0 && OutRect.Height() > 0;
+	}
+
+	bool ConvertTightToBGRA(EPixelFormat Format, int32 BytesPerPixel, const TArray<uint8>& RawBytes,
+		int32 W, int32 H, TArray<FColor>& OutPixels)
+	{
+		OutPixels.SetNumUninitialized(W * H);
+		const uint8* Base = RawBytes.GetData();
+
+		for (int32 i = 0; i < W * H; ++i)
+		{
+			const uint8* P = Base + (int64)i * BytesPerPixel;
+			FColor& Out = OutPixels[i];
+
+			switch (Format)
+			{
+			case PF_B8G8R8A8:
+				Out = FColor(P[2], P[1], P[0], 255);
+				break;
+			case PF_R8G8B8A8:
+				Out = FColor(P[0], P[1], P[2], 255);
+				break;
+			case PF_A2B10G10R10:
+			{
+				const uint32 V = *reinterpret_cast<const uint32*>(P);
+				const uint8 R = (uint8)(((V >> 0) & 0x3FF) >> 2);
+				const uint8 G = (uint8)(((V >> 10) & 0x3FF) >> 2);
+				const uint8 B = (uint8)(((V >> 20) & 0x3FF) >> 2);
+				Out = FColor(R, G, B, 255);
+				break;
+			}
+			case PF_FloatRGBA:
+			{
+				const FFloat16* H16 = reinterpret_cast<const FFloat16*>(P);
+				auto ToByte = [](const FFloat16& In) -> uint8
+				{
+					return (uint8)FMath::Clamp(FMath::RoundToInt(In.GetFloat() * 255.0f), 0, 255);
+				};
+				Out = FColor(ToByte(H16[0]), ToByte(H16[1]), ToByte(H16[2]), 255);
+				break;
+			}
+			default:
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
+void FCaptureBenchWriter::Reset()
+{
+	Written.Reset();
+	Dropped.Reset();
+	FScopeLock Lock(&StatCS);
+	BytesWritten = 0;
+	EncodeSecondsTotal = 0.0;
+}
+
+int64 FCaptureBenchWriter::GetBytesWritten() const
+{
+	FScopeLock Lock(&StatCS);
+	return BytesWritten;
+}
+
+double FCaptureBenchWriter::GetEncodeSecondsTotal() const
+{
+	FScopeLock Lock(&StatCS);
+	return EncodeSecondsTotal;
+}
+
+void FCaptureBenchWriter::Enqueue(const FString& OutputDir, FCaptureBenchCapturedFrame&& Frame)
+{
+	Pending.Increment();
+
+	TSharedRef<FCaptureBenchWriter, ESPMode::ThreadSafe> Self = AsShared();
+	Async(EAsyncExecution::ThreadPool, [Self, Dir = OutputDir, F = MoveTemp(Frame)]() mutable
+	{
+		const double T0 = FPlatformTime::Seconds();
+		bool bOk = false;
+
+		TArray<FColor> Pixels;
+		if (F.Width > 0 && F.Height > 0 && F.BytesPerPixel > 0
+			&& F.RawBytes.Num() >= (int64)F.Width * F.Height * F.BytesPerPixel
+			&& ConvertTightToBGRA(F.Format, F.BytesPerPixel, F.RawBytes, F.Width, F.Height, Pixels))
+		{
+			IImageWrapperModule& Module = FModuleManager::GetModuleChecked<IImageWrapperModule>("ImageWrapper");
+			TSharedPtr<IImageWrapper> Wrapper = Module.CreateImageWrapper(EImageFormat::PNG);
+			if (Wrapper.IsValid() && Wrapper->SetRaw(Pixels.GetData(), (int64)Pixels.Num() * sizeof(FColor),
+				F.Width, F.Height, ERGBFormat::BGRA, 8))
+			{
+				const TArray64<uint8>& Png = Wrapper->GetCompressed();
+				const FString Path = FPaths::Combine(Dir, FString::Printf(TEXT("frame_%09llu.png"), F.FrameIndex));
+				if (FFileHelper::SaveArrayToFile(Png, *Path))
+				{
+					bOk = true;
+					FScopeLock Lock(&Self->StatCS);
+					Self->BytesWritten += Png.Num();
+					Self->EncodeSecondsTotal += (FPlatformTime::Seconds() - T0);
+				}
+			}
+		}
+
+		if (bOk)
+		{
+			Self->Written.Increment();
+		}
+		else
+		{
+			Self->Dropped.Increment();
+		}
+		Self->Pending.Decrement();
+	});
+}
+
+void FCaptureBenchWriter::FlushPending(double TimeoutSeconds)
+{
+	const double Start = FPlatformTime::Seconds();
+	while (Pending.GetValue() > 0)
+	{
+		if (FPlatformTime::Seconds() - Start > TimeoutSeconds)
+		{
+			UE_LOG(LogCaptureBench, Warning, TEXT("Writer flush timed out with %d job(s) pending."), Pending.GetValue());
+			break;
+		}
+		FPlatformProcess::Sleep(0.002f);
+	}
+}
+
+FCaptureBenchCapturer::FCaptureBenchCapturer()
+	: Writer(MakeShared<FCaptureBenchWriter, ESPMode::ThreadSafe>())
+{
+}
+
+FCaptureBenchCapturer::~FCaptureBenchCapturer()
+{
+	UnregisterBackbufferHook();
+	if (TickerHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+		TickerHandle.Reset();
+	}
+}
+
+bool FCaptureBenchCapturer::BeginRun(ECaptureBenchMode InMode, UWorld* World, const FString& OutDir, int32 InMaxFrames)
+{
+	if (bRunning)
+	{
+		UE_LOG(LogCaptureBench, Warning, TEXT("A run was still active — finalizing it before starting the new one."));
+		FinalizeAndLog();
+		if (TickerHandle.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+			TickerHandle.Reset();
+		}
+	}
+
+	TargetWindow = nullptr;
+	TargetRect = FIntRect(0, 0, 0, 0);
+	if (InMode == ECaptureBenchMode::Backbuffer)
+	{
+		if (!ComputeGameViewportCapture(World, TargetWindow, TargetRect))
+		{
+			UE_LOG(LogCaptureBench, Warning,
+				TEXT("BeginRun(backbuffer) failed: could not resolve the game viewport window/rect. Is a Play session active?"));
+			return false;
+		}
+		UE_LOG(LogCaptureBench, Display, TEXT("Backbuffer target: window=%p rect=%dx%d at (%d,%d)"),
+			TargetWindow, TargetRect.Width(), TargetRect.Height(), TargetRect.Min.X, TargetRect.Min.Y);
+	}
+
+	Mode = InMode;
+	OutputDir = OutDir;
+	MaxFrames = InMaxFrames;
+
+	IFileManager::Get().MakeDirectory(*OutputDir, true);
+	FModuleManager::Get().LoadModule(TEXT("ImageWrapper"));
+
+	Metrics.Reset();
+	FrameCounter.Reset();
+	Writer->Reset();
+
+	bReachedCap.store(false);
+	bStopRequested = false;
+	bHaveConsidered = false;
+	LastConsideredRTFrame = 0;
+
+	Metrics.StartWall = FPlatformTime::Seconds();
+	bCapturing.store(true);
+	bRunning = true;
+
+	if (Mode == ECaptureBenchMode::Backbuffer)
+	{
+		RegisterBackbufferHook();
+	}
+
+	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+		FTickerDelegate::CreateSP(this, &FCaptureBenchCapturer::GameTick));
+
+	return true;
+}
+
+void FCaptureBenchCapturer::RequestStop()
+{
+	if (!bRunning)
+	{
+		return;
+	}
+	bCapturing.store(false);
+	bStopRequested = true;
+}
+
+bool FCaptureBenchCapturer::ShouldCaptureThisRTFrame_RenderThread(uint32 RTFrame)
+{
+	if (!bCapturing.load() || bReachedCap.load())
+	{
+		return false;
+	}
+	if (bHaveConsidered && RTFrame == LastConsideredRTFrame)
+	{
+		return false;
+	}
+	bHaveConsidered = true;
+	LastConsideredRTFrame = RTFrame;
+	return true;
+}
+
+void FCaptureBenchCapturer::SubmitInFlight_RenderThread(FCaptureBenchInFlight&& Item, double HookSeconds)
+{
+	const uint32 RTFrame = Item.SubmitRTFrame;
+
+	if (!Metrics.bHaveFirst)
+	{
+		Metrics.bHaveFirst = true;
+		Metrics.FirstSubmitRTFrame = RTFrame;
+	}
+	else
+	{
+		const int64 Delta = (int64)RTFrame - (int64)Metrics.LastSubmitRTFrame;
+		if (Delta > 1)
+		{
+			const int32 Gap = (int32)(Delta - 1);
+			Metrics.GapFramesTotal += Gap;
+			Metrics.GapEvents++;
+			Metrics.MaxGap = FMath::Max(Metrics.MaxGap, Gap);
+		}
+	}
+	Metrics.LastSubmitRTFrame = RTFrame;
+
+	Metrics.Enqueued++;
+	Metrics.HookSecondsTotal += HookSeconds;
+	Metrics.HookSecondsMax = FMath::Max(Metrics.HookSecondsMax, HookSeconds);
+
+	{
+		FScopeLock Lock(&QueueCS);
+		InFlight.Add(MoveTemp(Item));
+	}
+
+	if (MaxFrames > 0 && Metrics.Enqueued >= MaxFrames)
+	{
+		bReachedCap.store(true);
+		bCapturing.store(false);
+	}
+}
+
+void FCaptureBenchCapturer::RegisterBackbufferHook()
+{
+	if (BackBufferHandle.IsValid() || !FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+	if (FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer())
+	{
+		BackBufferHandle = Renderer->OnBackBufferReadyToPresent().AddRaw(
+			this, &FCaptureBenchCapturer::OnBackBufferReadyToPresent_RenderThread);
+	}
+}
+
+void FCaptureBenchCapturer::UnregisterBackbufferHook()
+{
+	if (BackBufferHandle.IsValid() && FSlateApplication::IsInitialized())
+	{
+		if (FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer())
+		{
+			Renderer->OnBackBufferReadyToPresent().Remove(BackBufferHandle);
+		}
+	}
+	BackBufferHandle.Reset();
+}
+
+void FCaptureBenchCapturer::OnBackBufferReadyToPresent_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer)
+{
+	if (Mode != ECaptureBenchMode::Backbuffer || !BackBuffer.IsValid())
+	{
+		return;
+	}
+	if (&SlateWindow != TargetWindow)
+	{
+		return;
+	}
+
+	const int32 BBW = (int32)BackBuffer->GetSizeX();
+	const int32 BBH = (int32)BackBuffer->GetSizeY();
+	FIntRect Rect = TargetRect;
+	Rect.Min.X = FMath::Clamp(Rect.Min.X, 0, BBW);
+	Rect.Min.Y = FMath::Clamp(Rect.Min.Y, 0, BBH);
+	Rect.Max.X = FMath::Clamp(Rect.Max.X, 0, BBW);
+	Rect.Max.Y = FMath::Clamp(Rect.Max.Y, 0, BBH);
+	if (Rect.Width() <= 0 || Rect.Height() <= 0)
+	{
+		return;
+	}
+
+	const uint32 RTFrame = GFrameNumberRenderThread;
+	if (!ShouldCaptureThisRTFrame_RenderThread(RTFrame))
+	{
+		return;
+	}
+
+	const double T0 = FPlatformTime::Seconds();
+
+	FCaptureBenchInFlight Item;
+	Item.FrameIndex = NextFrameIndex();
+	Item.SubmitRTFrame = RTFrame;
+	Item.Rect = Rect;
+	Item.Format = BackBuffer->GetFormat();
+	Item.Readback = MakeUnique<FRHIGPUTextureReadback>(TEXT("CaptureBenchBackbufferReadback"));
+
+	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	Item.Readback->EnqueueCopy(RHICmdList, BackBuffer.GetReference(),
+		FResolveRect(Rect.Min.X, Rect.Min.Y, Rect.Max.X, Rect.Max.Y));
+
+	const double HookSeconds = FPlatformTime::Seconds() - T0;
+	SubmitInFlight_RenderThread(MoveTemp(Item), HookSeconds);
+}
+
+void FCaptureBenchCapturer::EnqueueDrain()
+{
+	TWeakPtr<FCaptureBenchCapturer, ESPMode::ThreadSafe> WeakSelf = AsShared();
+	ENQUEUE_RENDER_COMMAND(CaptureBenchDrain)(
+		[WeakSelf](FRHICommandListImmediate& RHICmdList)
+		{
+			if (TSharedPtr<FCaptureBenchCapturer, ESPMode::ThreadSafe> Self = WeakSelf.Pin())
+			{
+				Self->Drain_RenderThread();
+			}
+		});
+}
+
+void FCaptureBenchCapturer::Drain_RenderThread()
+{
+	TArray<FCaptureBenchInFlight> Ready;
+	{
+		FScopeLock Lock(&QueueCS);
+		for (int32 i = InFlight.Num() - 1; i >= 0; --i)
+		{
+			if (InFlight[i].Readback.IsValid() && InFlight[i].Readback->IsReady())
+			{
+				Ready.Add(MoveTemp(InFlight[i]));
+				InFlight.RemoveAt(i);
+			}
+		}
+	}
+
+	Ready.Sort([](const FCaptureBenchInFlight& A, const FCaptureBenchInFlight& B)
+	{
+		return A.FrameIndex < B.FrameIndex;
+	});
+
+	for (FCaptureBenchInFlight& Item : Ready)
+	{
+		int32 RowPitchInPixels = 0;
+		int32 BufferHeight = 0;
+		void* Src = Item.Readback->Lock(RowPitchInPixels, &BufferHeight);
+		if (Src && RowPitchInPixels > 0)
+		{
+			const double T0 = FPlatformTime::Seconds();
+
+			const int32 W = Item.Rect.Width();
+			const int32 H = Item.Rect.Height();
+			const int32 BPP = GPixelFormats[Item.Format].BlockBytes;
+
+			FCaptureBenchCapturedFrame Frame;
+			Frame.FrameIndex = Item.FrameIndex;
+			Frame.Width = W;
+			Frame.Height = H;
+			Frame.Format = Item.Format;
+			Frame.BytesPerPixel = BPP;
+			Frame.RawBytes.SetNumUninitialized((int64)W * H * BPP);
+
+			const uint8* Base = static_cast<const uint8*>(Src);
+			for (int32 y = 0; y < H; ++y)
+			{
+				const uint8* SrcRow = Base + ((int64)(Item.Rect.Min.Y + y) * RowPitchInPixels + Item.Rect.Min.X) * BPP;
+				FMemory::Memcpy(Frame.RawBytes.GetData() + (int64)y * W * BPP, SrcRow, (int64)W * BPP);
+			}
+
+			Item.Readback->Unlock();
+
+			uint32 Hash = 0;
+			double FrameLumSum = 0.0;
+			double FrameLumSqSum = 0.0;
+			int64 FrameLumSamples = 0;
+			int64 FrameClippedHi = 0;
+			{
+				const int32 Total = W * H;
+				const int32 Stride = FMath::Max(1, Total / 8192);
+				const int32 MarkerBandRows = (int32)(H * 0.20f);
+				const uint8* Bytes = Frame.RawBytes.GetData();
+				for (int32 i = 0; i < Total; i += Stride)
+				{
+					const uint8* P = Bytes + (int64)i * BPP;
+					const uint32 Px = *reinterpret_cast<const uint32*>(P);
+					Hash = HashCombine(Hash, Px);
+
+					if ((i / FMath::Max(1, W)) >= MarkerBandRows)
+					{
+						const double Lum = 0.114 * P[0] + 0.587 * P[1] + 0.299 * P[2];
+						FrameLumSum += Lum;
+						FrameLumSqSum += Lum * Lum;
+						if (Lum >= 250.0) { ++FrameClippedHi; }
+						++FrameLumSamples;
+					}
+				}
+			}
+			if (FrameLumSamples > 0)
+			{
+				const double Inv = 1.0 / (double)FrameLumSamples;
+				const double FrameLum = FrameLumSum * Inv;
+				const double FrameVar = FMath::Max(0.0, (FrameLumSqSum * Inv) - (FrameLum * FrameLum));
+				const double FrameSd = FMath::Sqrt(FrameVar);
+
+				Metrics.LumSum += FrameLumSum;
+				Metrics.LumSqSum += FrameLumSqSum;
+				Metrics.LumSamples += FrameLumSamples;
+				Metrics.ClippedHiSamples += FrameClippedHi;
+				Metrics.MinFrameLum = FMath::Min(Metrics.MinFrameLum, FrameLum);
+				Metrics.MinFrameSd = FMath::Min(Metrics.MinFrameSd, FrameSd);
+				if (FrameLum < GCaptureBenchLuminanceFloor) { ++Metrics.BlackFrames; }
+				if (FrameSd < GCaptureBenchFlatnessFloor) { ++Metrics.FlatFrames; }
+			}
+			if (Metrics.bHaveLastHash && Hash == Metrics.LastHash)
+			{
+				Metrics.DupConsecutive++;
+			}
+			Metrics.bHaveLastHash = true;
+			Metrics.LastHash = Hash;
+			Metrics.DistinctHashes.Add(Hash);
+
+			const double CopySeconds = FPlatformTime::Seconds() - T0;
+
+			Metrics.Drained++;
+			const int32 Latency = (int32)((int64)GFrameNumberRenderThread - (int64)Item.SubmitRTFrame);
+			Metrics.LatencyFramesTotal += Latency;
+			Metrics.LatencyFramesMax = FMath::Max(Metrics.LatencyFramesMax, Latency);
+			Metrics.CopySecondsTotal += CopySeconds;
+			Metrics.CopySecondsMax = FMath::Max(Metrics.CopySecondsMax, CopySeconds);
+			Metrics.LastWidth = W;
+			Metrics.LastHeight = H;
+			Metrics.LastFormat = Item.Format;
+
+			if (bWriteToDisk.load())
+			{
+				Writer->Enqueue(OutputDir, MoveTemp(Frame));
+			}
+		}
+		else if (Src)
+		{
+			Item.Readback->Unlock();
+		}
+	}
+}
+
+bool FCaptureBenchCapturer::GameTick(float Dt)
+{
+	if (!bRunning)
+	{
+		return false;
+	}
+
+	EnqueueDrain();
+
+	if (bCapturing.load() && Metrics.Enqueued == 0
+		&& (FPlatformTime::Seconds() - Metrics.StartWall) > 30.0)
+	{
+		UE_LOG(LogCaptureBench, Error,
+			TEXT("ABORT: no frames captured in 30s (mode=%s). The hook never fired — nothing to measure."),
+			(Mode == ECaptureBenchMode::SVE) ? TEXT("SVE") : TEXT("Backbuffer"));
+		bCapturing.store(false);
+		bStopRequested = true;
+	}
+
+	const bool bDoneCapturing = bStopRequested || bReachedCap.load();
+	if (bDoneCapturing)
+	{
+		int32 Remaining = 0;
+		{
+			FScopeLock Lock(&QueueCS);
+			Remaining = InFlight.Num();
+		}
+		if (Remaining == 0 && Writer->GetPending() == 0)
+		{
+			FinalizeAndLog();
+			TickerHandle.Reset();
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void FCaptureBenchCapturer::FinalizeAndLog()
+{
+	if (!bRunning)
+	{
+		return;
+	}
+
+	bCapturing.store(false);
+
+	for (int32 Attempt = 0; Attempt < 128; ++Attempt)
+	{
+		EnqueueDrain();
+		FlushRenderingCommands();
+
+		int32 Remaining = 0;
+		{
+			FScopeLock Lock(&QueueCS);
+			Remaining = InFlight.Num();
+		}
+		if (Remaining == 0)
+		{
+			break;
+		}
+		FPlatformProcess::Sleep(0.002f);
+	}
+
+	Writer->FlushPending(15.0);
+
+	Metrics.StopWall = FPlatformTime::Seconds();
+
+	UnregisterBackbufferHook();
+	FlushRenderingCommands();
+
+	LogSummary();
+
+	bRunning = false;
+}
+
+void FCaptureBenchCapturer::LogSummary() const
+{
+	const double Wall = FMath::Max(Metrics.StopWall - Metrics.StartWall, 1e-6);
+	const int64 RenderSpan = Metrics.bHaveFirst
+		? ((int64)Metrics.LastSubmitRTFrame - (int64)Metrics.FirstSubmitRTFrame + 1)
+		: 0;
+	const int32 Captured = Metrics.Enqueued;
+	const double Coverage = RenderSpan > 0 ? (100.0 * Captured / RenderSpan) : 0.0;
+	const double CapFps = Captured / Wall;
+	const double RenderFps = RenderSpan > 0 ? RenderSpan / Wall : 0.0;
+	const double MeanHookMs = Captured > 0 ? 1000.0 * Metrics.HookSecondsTotal / Captured : 0.0;
+	const double MaxHookMs = 1000.0 * Metrics.HookSecondsMax;
+	const double MeanLat = Metrics.Drained > 0 ? (double)Metrics.LatencyFramesTotal / Metrics.Drained : 0.0;
+	const double MeanCopyMs = Metrics.Drained > 0 ? 1000.0 * Metrics.CopySecondsTotal / Metrics.Drained : 0.0;
+	const double MaxCopyMs = 1000.0 * Metrics.CopySecondsMax;
+
+	const int32 Written = Writer->GetWritten();
+	const int32 Dropped = Writer->GetDropped();
+	const int64 Bytes = Writer->GetBytesWritten();
+	const double EncTotal = Writer->GetEncodeSecondsTotal();
+	const double MeanEncMs = Written > 0 ? 1000.0 * EncTotal / Written : 0.0;
+	const double MB = Bytes / (1024.0 * 1024.0);
+	const double MBps = MB / Wall;
+	const int32 Bpp = (Metrics.LastWidth > 0) ? GPixelFormats[Metrics.LastFormat].BlockBytes : 0;
+
+	const TCHAR* ModeStr = (Mode == ECaptureBenchMode::SVE) ? TEXT("SVE(PostProcess)") : TEXT("Backbuffer");
+
+	UE_LOG(LogCaptureBench, Display, TEXT("================ CaptureBench summary ================"));
+	UE_LOG(LogCaptureBench, Display, TEXT("Method                 : %s"), ModeStr);
+	UE_LOG(LogCaptureBench, Display, TEXT("Output dir             : %s"), *OutputDir);
+	UE_LOG(LogCaptureBench, Display, TEXT("Frame size             : %d x %d (fmt=%d, %d bpp)"),
+		Metrics.LastWidth, Metrics.LastHeight, (int32)Metrics.LastFormat, Bpp);
+	UE_LOG(LogCaptureBench, Display, TEXT("Wall time              : %.3f s"), Wall);
+	UE_LOG(LogCaptureBench, Display, TEXT("Rendered frames (span) : %lld  (rtframe %u..%u)"),
+		RenderSpan, Metrics.FirstSubmitRTFrame, Metrics.LastSubmitRTFrame);
+	UE_LOG(LogCaptureBench, Display, TEXT("Captured frames        : %d   (readback drained %d)"), Captured, Metrics.Drained);
+	UE_LOG(LogCaptureBench, Display, TEXT("Write to disk          : %s"), bWriteToDisk.load() ? TEXT("ON (PNG)") : TEXT("OFF (capture-only)"));
+	UE_LOG(LogCaptureBench, Display, TEXT("Frame coverage         : %.2f %%  (gaps: %d events, %lld frames missed, max run %d)"),
+		Coverage, Metrics.GapEvents, Metrics.GapFramesTotal, Metrics.MaxGap);
+	UE_LOG(LogCaptureBench, Display, TEXT("Captured FPS           : %.2f   (render FPS ~ %.2f)"), CapFps, RenderFps);
+	UE_LOG(LogCaptureBench, Display, TEXT("RT hook cost / frame   : mean %.4f ms, max %.4f ms"), MeanHookMs, MaxHookMs);
+	UE_LOG(LogCaptureBench, Display, TEXT("GPU->CPU readback lat. : mean %.2f frames, max %d frames"), MeanLat, Metrics.LatencyFramesMax);
+	UE_LOG(LogCaptureBench, Display, TEXT("RT copy-out / frame    : mean %.4f ms, max %.4f ms"), MeanCopyMs, MaxCopyMs);
+	UE_LOG(LogCaptureBench, Display, TEXT("Disk written / dropped : %d / %d   (%.1f MB, %.1f MB/s, mean encode %.2f ms)"),
+		Written, Dropped, MB, MBps, MeanEncMs);
+	const int32 Distinct = Metrics.DistinctHashes.Num();
+	const TCHAR* ContentVerdict =
+		(Distinct <= 1) ? TEXT("INCONCLUSIVE - scene static, no motion to detect staleness")
+		: (Metrics.DupConsecutive == 0) ? TEXT("no repeated content")
+		: TEXT("REPEATED CONTENT DETECTED");
+	UE_LOG(LogCaptureBench, Display, TEXT("Content identity      : %d distinct / %d captured, %d consecutive dupes  [%s]"),
+		Distinct, Metrics.Drained, Metrics.DupConsecutive, ContentVerdict);
+
+	const double MeanLum = Metrics.LumSamples > 0 ? (Metrics.LumSum / (double)Metrics.LumSamples) : 0.0;
+	const double MinLum = Metrics.LumSamples > 0 ? Metrics.MinFrameLum : 0.0;
+	const double OverallVar = Metrics.LumSamples > 0
+		? FMath::Max(0.0, (Metrics.LumSqSum / (double)Metrics.LumSamples) - (MeanLum * MeanLum)) : 0.0;
+	const double OverallSd = FMath::Sqrt(OverallVar);
+	const double ClipPct = Metrics.LumSamples > 0
+		? (100.0 * (double)Metrics.ClippedHiSamples / (double)Metrics.LumSamples) : 0.0;
+
+	const bool bLumFail = (Metrics.LumSamples == 0) || (MeanLum < GCaptureBenchLuminanceFloor) || (Metrics.BlackFrames > 0);
+	const bool bFlatFail = (Metrics.LumSamples > 0) && ((OverallSd < GCaptureBenchFlatnessFloor) || (Metrics.FlatFrames > 0));
+	const bool bClipFail = (Metrics.LumSamples > 0) && (ClipPct > GCaptureBenchClipCeilingPct);
+	const bool bContentFail = bLumFail || bFlatFail || bClipFail;
+
+	UE_LOG(LogCaptureBench, Display,
+		TEXT("Luminance (non-marker): mean %.3f (floor %.1f), sd %.3f (floor %.1f), clipped-white %.2f%% (ceiling %.1f%%)"),
+		MeanLum, GCaptureBenchLuminanceFloor, OverallSd, GCaptureBenchFlatnessFloor, ClipPct, GCaptureBenchClipCeilingPct);
+	UE_LOG(LogCaptureBench, Display,
+		TEXT("                       min-frame lum %.3f, min-frame sd %.3f, black frames %d, flat frames %d"),
+		MinLum, Metrics.LumSamples > 0 ? Metrics.MinFrameSd : 0.0, Metrics.BlackFrames, Metrics.FlatFrames);
+
+	if (bLumFail)
+	{
+		UE_LOG(LogCaptureBench, Error,
+			TEXT("LUMINANCE FLOOR FAILED — the scene rendered NOTHING (mean %.3f < %.1f, %d black frame(s)). ")
+			TEXT("Note the marker can still decode on a black frame — decode success is NOT proof of rendering."),
+			MeanLum, GCaptureBenchLuminanceFloor, Metrics.BlackFrames);
+	}
+	if (bFlatFail)
+	{
+		UE_LOG(LogCaptureBench, Error,
+			TEXT("FLATNESS FLOOR FAILED — the frame carries no usable variation (sd %.3f < %.1f, %d flat frame(s))."),
+			OverallSd, GCaptureBenchFlatnessFloor, Metrics.FlatFrames);
+	}
+	if (bClipFail)
+	{
+		UE_LOG(LogCaptureBench, Error,
+			TEXT("CLIP CEILING FAILED — %.2f%% of the frame is blown to white (ceiling %.1f%%). ")
+			TEXT("Targets are not reliably distinguishable, so a pixel-based oracle cannot be trusted here."),
+			ClipPct, GCaptureBenchClipCeilingPct);
+	}
+	if (bContentFail)
+	{
+		UE_LOG(LogCaptureBench, Error,
+			TEXT("THIS LEG IS INVALID: timing, coverage and frame-identity results from it are meaningless."));
+	}
+	UE_LOG(LogCaptureBench, Display, TEXT("LEG VALIDITY          : %s"),
+		bContentFail ? TEXT("INVALID (content check)") : TEXT("valid (content checks passed)"));
+	UE_LOG(LogCaptureBench, Display, TEXT("CSV,%s,%d,%d,%lld,%d,%.2f,%d,%lld,%d,%.3f,%.2f,%.4f,%.4f,%.2f,%.4f,%d,%d,%d"),
+		ModeStr, Metrics.LastWidth, Metrics.LastHeight, RenderSpan, Captured, Coverage,
+		Metrics.GapEvents, Metrics.GapFramesTotal, Metrics.MaxGap,
+		Wall, RenderFps, MeanHookMs, MaxHookMs, MeanLat, MeanCopyMs,
+		bWriteToDisk.load() ? 1 : 0, Distinct, Metrics.DupConsecutive);
+	UE_LOG(LogCaptureBench, Display, TEXT("======================================================"));
+}
+
+void FCaptureBenchCapturer::LogStatus() const
+{
+	int32 Remaining = 0;
+	{
+		FScopeLock Lock(&QueueCS);
+		Remaining = InFlight.Num();
+	}
+	UE_LOG(LogCaptureBench, Display,
+		TEXT("Status: running=%d capturing=%d mode=%s enqueued=%d inflight=%d writerPending=%d written=%d dropped=%d"),
+		bRunning ? 1 : 0, bCapturing.load() ? 1 : 0,
+		(Mode == ECaptureBenchMode::SVE) ? TEXT("SVE") : TEXT("Backbuffer"),
+		Metrics.Enqueued, Remaining, Writer->GetPending(), Writer->GetWritten(), Writer->GetDropped());
+}
+
+#endif

@@ -1,0 +1,183 @@
+"""
+m36 S2 census gate reader.
+
+Reads a packaged leg's log + session artifacts and answers, PER CYCLE and PER FIRE,
+what the census said about a named actor. It reports; it does not decide a milestone.
+
+WHY IT SELF-PROVES BEFORE EVERY VERDICT (standing rule): a reader that silently fails
+to find its subject reports "never measured zero" and "never eligible" for the SAME
+reason it reports nothing at all - absence of evidence rendered as evidence. So every
+invocation first runs --selftest against a synthetic fixture whose answers are known,
+and refuses to print a verdict if the fixture does not come back exactly right.
+
+Two log lines carry the per-candidate truth, and the distinction matters:
+
+  Census: CYCLE <n> DRAWN-COVERAGE histogram ... | Name=<px>(<pct>%) ...
+      every candidate the census MEASURED that cycle. px==0 is MEASURED_ZERO.
+      (The listing cap is 512; a "(+N more)" tail means the line truncated and any
+      absence read from it is NOT a reading. That is checked, not assumed.)
+
+  Census: CYCLE <n> NOT-MEASURED n=<k> | Name=<VERDICT>(measured <t>x) ...
+      every candidate the census did NOT measure, with the reason - nanite,
+      translucent, hidden, tag_failed, not_yet_measured. "measured 0x" is the
+      positive evidence that no census tag was ever spent on it.
+
+An actor absent from BOTH lines in a cycle was not a candidate that cycle at all,
+which is a THIRD state and is reported as such rather than folded into either.
+"""
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+HIST_RE = re.compile(r"Census: CYCLE (\d+) DRAWN-COVERAGE histogram (.*)$")
+NOTM_RE = re.compile(r"Census: CYCLE (\d+) NOT-MEASURED n=(\d+) \|(.*)$")
+ENTRY_RE = re.compile(r"([A-Za-z0-9_]+)=(\d+)\(([\d.]+)%\)")
+NOTM_ENTRY_RE = re.compile(r"([A-Za-z0-9_]+)=([A-Z_]+\([a-z_]+\))\(measured (\d+)x\)")
+FIRE_RE = re.compile(
+    r"Auto\.Fire: CENSUS '([^']+)' -> (\S+) \(reason=(\S+) ageTicks=(-?\d+) drawnPct=(-?[\d.]+)\)"
+)
+TRUNC_RE = re.compile(r"\(\+(\d+) more\)")
+
+
+def parse_log(text):
+    cycles = {}
+    fires = []
+    for line in text.splitlines():
+        m = HIST_RE.search(line)
+        if m:
+            n = int(m.group(1))
+            body = m.group(2)
+            c = cycles.setdefault(n, {"measured": {}, "not_measured": {}, "hist_trunc": 0, "notm_trunc": 0})
+            t = TRUNC_RE.search(body)
+            if t:
+                c["hist_trunc"] = int(t.group(1))
+            for name, px, pct in ENTRY_RE.findall(body):
+                c["measured"][name] = (int(px), float(pct))
+            continue
+        m = NOTM_RE.search(line)
+        if m:
+            n = int(m.group(1))
+            body = m.group(3)
+            c = cycles.setdefault(n, {"measured": {}, "not_measured": {}, "hist_trunc": 0, "notm_trunc": 0})
+            t = TRUNC_RE.search(body)
+            if t:
+                c["notm_trunc"] = int(t.group(1))
+            for name, verdict, times in NOTM_ENTRY_RE.findall(body):
+                c["not_measured"][name] = (verdict, int(times))
+            continue
+        m = FIRE_RE.search(line)
+        if m:
+            fires.append(
+                {
+                    "actor": m.group(1),
+                    "decision": m.group(2),
+                    "reason": m.group(3),
+                    "age": int(m.group(4)),
+                    "pct": float(m.group(5)),
+                }
+            )
+    return cycles, fires
+
+
+FIXTURE = "\n".join(
+    [
+        "LogAnomalyCapture: Census: CYCLE 1 DRAWN-COVERAGE histogram zero=1 (0,1]=0 | Cube=1000(5.000%) Dark=0(0.000%)",
+        "LogAnomalyCapture: Census: CYCLE 1 NOT-MEASURED n=2 | Ramp=NOT_MEASURABLE(nanite)(measured 0x) Glass=EXCLUDED(translucent)(measured 0x)",
+        "LogAnomalyCapture: Census: CYCLE 2 DRAWN-COVERAGE histogram zero=1 | Cube=1010(5.050%) Dark=0(0.000%) (+7 more)",
+        "LogAnomalyCapture: Census: CYCLE 2 NOT-MEASURED n=0 | (none)",
+        "LogAnomaly: Verbose: Auto.Fire: CENSUS 'Cube' -> ELIGIBLE (reason=measured_nonzero ageTicks=3 drawnPct=5.000)",
+        "LogAnomaly: Verbose: Auto.Fire: CENSUS 'Ramp' -> FALLBACK-bounds (reason=nanite ageTicks=-1 drawnPct=-1.000)",
+    ]
+)
+
+
+def selftest():
+    cycles, fires = parse_log(FIXTURE)
+    checks = [
+        ("two cycles parsed", sorted(cycles) == [1, 2]),
+        ("Cube measured nonzero in c1", cycles[1]["measured"].get("Cube") == (1000, 5.0)),
+        ("Dark measured ZERO in c1", cycles[1]["measured"].get("Dark") == (0, 0.0)),
+        ("Ramp not-measured nanite, 0 tags", cycles[1]["not_measured"].get("Ramp") == ("NOT_MEASURABLE(nanite)", 0)),
+        ("Glass not-measured translucent", cycles[1]["not_measured"].get("Glass") == ("EXCLUDED(translucent)", 0)),
+        ("absent actor really absent", "Nope" not in cycles[1]["measured"] and "Nope" not in cycles[1]["not_measured"]),
+        ("c1 histogram NOT truncated", cycles[1]["hist_trunc"] == 0),
+        ("c2 histogram truncation SEEN", cycles[2]["hist_trunc"] == 7),
+        ("two fires parsed", len(fires) == 2),
+        ("fire decision read", fires[0]["decision"] == "ELIGIBLE" and fires[1]["reason"] == "nanite"),
+    ]
+    bad = [n for n, ok in checks if not ok]
+    for n, ok in checks:
+        print(f"  selftest {'OK  ' if ok else 'FAIL'} {n}")
+    return not bad
+
+
+def report(log_path, session_dir, actors):
+    cycles, fires = parse_log(Path(log_path).read_text(encoding="utf-8", errors="replace"))
+    print(f"cycles with per-candidate lines: {len(cycles)}   fire-time census decisions: {len(fires)}")
+
+    trunc = [n for n, c in cycles.items() if c["hist_trunc"] or c["notm_trunc"]]
+    if trunc:
+        print(f"  !! TRUNCATED listings in cycles {trunc} - ABSENCE IS NOT READABLE from those cycles")
+    else:
+        print("  all per-candidate listings complete (no '(+N more)' tail) - absence is a reading")
+
+    for actor in actors:
+        print(f"\n-- {actor}")
+        meas = {n: c["measured"][actor] for n, c in cycles.items() if actor in c["measured"]}
+        notm = {n: c["not_measured"][actor] for n, c in cycles.items() if actor in c["not_measured"]}
+        absent = [n for n in cycles if actor not in cycles[n]["measured"] and actor not in cycles[n]["not_measured"]]
+        print(f"   measured in {len(meas)}/{len(cycles)} cycles, not-measured in {len(notm)}, absent from {len(absent)}")
+        if meas:
+            pxs = sorted({v[0] for v in meas.values()})
+            pcts = sorted({v[1] for v in meas.values()})
+            print(f"   drawn px range {pxs[0]}..{pxs[-1]}   pct range {pcts[0]:.3f}..{pcts[-1]:.3f}")
+            print(f"   MEASURED_ZERO cycles: {sum(1 for v in meas.values() if v[0] == 0)} / {len(meas)}")
+        if notm:
+            verdicts = sorted({v[0] for v in notm.values()})
+            times = sorted({v[1] for v in notm.values()})
+            print(f"   not-measured verdicts: {verdicts}   timesMeasured seen: {times}")
+        f = [x for x in fires if x["actor"] == actor]
+        if f:
+            dec = {}
+            for x in f:
+                dec[(x["decision"], x["reason"])] = dec.get((x["decision"], x["reason"]), 0) + 1
+            print(f"   fire-time decisions ({len(f)}): " + ", ".join(f"{d}/{r} x{c}" for (d, r), c in sorted(dec.items())))
+        else:
+            print("   fire-time decisions: NONE (actor was never a selection candidate at a fire tick)")
+
+    if session_dir:
+        d = Path(session_dir)
+        ann = json.loads((d / "annotation.json").read_text(encoding="utf-8"))
+        fired = [e["affected_objects"]["nodes"][0]["name"] for e in ann.get("anomalies", []) if e.get("affected_objects", {}).get("nodes")]
+        print(f"\nfired targets ({len(fired)} events): " + ", ".join(f"{n}x{fired.count(n)}" for n in sorted(set(fired))))
+        for actor in actors:
+            print(f"   '{actor}' fired on: {fired.count(actor)}")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--log")
+    ap.add_argument("--session")
+    ap.add_argument("--actors", nargs="*", default=[])
+    ap.add_argument("--selftest-only", action="store_true")
+    a = ap.parse_args()
+
+    print("== SELFTEST (known-answer fixture) ==")
+    if not selftest():
+        print("CHECKER BROKEN - refusing to report a verdict")
+        return 3
+    print("selftest OK\n")
+    if a.selftest_only:
+        return 0
+    if not a.log:
+        print("no --log given")
+        return 2
+    report(a.log, a.session, a.actors)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

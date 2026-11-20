@@ -1,0 +1,159 @@
+"""
+m47_lum_table.py - the A1/A2 correlation table.
+
+Per captured frame of one session, joins:
+    session_index
+    shader_jobs_pending   (labels.jsonl, m47; absent => 0)
+    frame_lum             whole-frame mean luminance, 0..255
+    target_lum            mean luminance inside the target region
+    region                where target_lum came from: 'mask' (m43 target mask, exact
+                          silhouette) or 'bbox' (labels.jsonl bbox_px) or '-' (neither)
+    labelled              whether this frame carries an anomaly row
+
+Read-only. Prints one row per frame plus a per-event first-frame summary.
+
+WHY target_lum PREFERS THE MASK. The m43 target mask is the drawn silhouette of the
+anomaly target in that exact frame, so it excludes background the bbox would include.
+On a small or thin target the bbox is mostly background and its mean luminance barely
+moves; the mask's does. Falling back to the bbox is stated per row, never silent.
+"""
+
+import json
+import os
+import sys
+
+from PIL import Image
+
+R, G, B = 0.2126, 0.7152, 0.0722
+
+
+def luma_stats(rgb_img):
+    px = rgb_img.convert("RGB").load()
+    w, h = rgb_img.size
+    return px, w, h
+
+
+def frame_mean(path):
+    im = Image.open(path).convert("L")
+    hist = im.histogram()
+    n = sum(hist)
+    if n == 0:
+        return 0.0
+    return sum(i * c for i, c in enumerate(hist)) / float(n)
+
+
+def region_mean_from_mask(frame_path, mask_path, values):
+    fr = Image.open(frame_path).convert("L")
+    mk = Image.open(mask_path).convert("L")
+    if mk.size != fr.size:
+        mk = mk.resize(fr.size, Image.NEAREST)
+    fp = fr.load()
+    mp = mk.load()
+    w, h = fr.size
+    want = set(int(v) for v in values if int(v) > 0)
+    tot = 0
+    n = 0
+    for y in range(h):
+        for x in range(w):
+            m = mp[x, y]
+            if m and (not want or m in want):
+                tot += fp[x, y]
+                n += 1
+    return (tot / float(n), n) if n else (None, 0)
+
+
+def region_mean_from_bbox(frame_path, bbox):
+    # bbox_px IS [x, y, WIDTH, HEIGHT] - AnomalyLabelWriter.cpp:95 emits {X0,Y0,X1-X0,Y1-Y0}.
+    # This previously unpacked it as (x0,y0,x1,y1), which on the bench fixture's
+    # (0, 485, 306, 235) gives y1 < y0 and degenerates to an empty/1-pixel strip.
+    # LATENT ONLY: every m47 leg resolved region='mask', so this fallback never ran and
+    # no m47 number came through here. Corrected at m47b, stated rather than quietly fixed.
+    x0, y0, bw, bh = [int(round(v)) for v in bbox]
+    x1, y1 = x0 + bw, y0 + bh
+    if x1 <= x0 or y1 <= y0:
+        return None, 0
+    fr = Image.open(frame_path).convert("L")
+    w, h = fr.size
+    x0 = max(0, min(w - 1, x0)); x1 = max(x0 + 1, min(w, x1))
+    y0 = max(0, min(h - 1, y0)); y1 = max(y0 + 1, min(h, y1))
+    crop = fr.crop((x0, y0, x1, y1))
+    hist = crop.histogram()
+    n = sum(hist)
+    if n == 0:
+        return None, 0
+    return sum(i * c for i, c in enumerate(hist)) / float(n), n
+
+
+def main(session):
+    rows = []
+    with open(os.path.join(session, "labels.jsonl"), "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    rows.sort(key=lambda r: r["session_index"])
+
+    print("%-4s %-8s %-9s %-10s %-7s %-9s %s"
+          % ("si", "pending", "frame_lum", "target_lum", "region", "labelled", "image"))
+
+    out = []
+    for r in rows:
+        si = r["session_index"]
+        pending = int(r.get("shader_jobs_pending", 0))
+        img = os.path.join(session, r["image"].replace("/", os.sep))
+        if not os.path.exists(img):
+            continue
+        flum = frame_mean(img)
+
+        anoms = r.get("anomalies") or []
+        labelled = len(anoms) > 0
+        tlum, region, npx = None, "-", 0
+
+        mask_file = r.get("mask_file")
+        if mask_file:
+            mp = os.path.join(session, mask_file.replace("/", os.sep))
+            if os.path.exists(mp):
+                vals = [a.get("mask_value", 0) for a in anoms]
+                tlum, npx = region_mean_from_mask(img, mp, vals)
+                if tlum is not None:
+                    region = "mask"
+        if tlum is None and anoms:
+            bb = anoms[0].get("bbox_px")
+            if bb and anoms[0].get("bbox_valid"):
+                tlum, npx = region_mean_from_bbox(img, bb)
+                if tlum is not None:
+                    region = "bbox"
+
+        out.append((si, pending, flum, tlum, region, labelled, npx))
+        print("%-4d %-8d %-9.3f %-10s %-7s %-9s %s"
+              % (si, pending, flum,
+                 ("%.3f" % tlum) if tlum is not None else "-",
+                 region, "yes" if labelled else "no", r["image"]))
+
+    print()
+    print("whole-frame luminance: min=%.3f  max=%.3f  mean=%.3f"
+          % (min(o[2] for o in out), max(o[2] for o in out),
+             sum(o[2] for o in out) / len(out)))
+    lab = [o for o in out if o[5] and o[3] is not None]
+    if lab:
+        print("labelled-frame target luminance: min=%.3f  max=%.3f  mean=%.3f  (n=%d)"
+              % (min(o[3] for o in lab), max(o[3] for o in lab),
+                 sum(o[3] for o in lab) / len(lab), len(lab)))
+
+    print()
+    print("EVENT FIRST FRAMES (a labelled frame whose predecessor was not labelled):")
+    prev = False
+    for o in out:
+        if o[5] and not prev:
+            same = [q for q in out if q[5] and q[3] is not None]
+            mean_lab = (sum(q[3] for q in same) / len(same)) if same else float("nan")
+            print("  si=%-4d pending=%-6d frame_lum=%-8.3f target_lum=%-8s region=%-5s "
+                  "event_mean_target_lum=%.3f"
+                  % (o[0], o[1], o[2],
+                     ("%.3f" % o[3]) if o[3] is not None else "-", o[4], mean_lab))
+        prev = o[5]
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1]))

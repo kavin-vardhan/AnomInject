@@ -1,0 +1,83 @@
+"""P29 G-9: delivery orthogonality for slice 2, on a POSE-MATCHED OFF/ON pair.
+
+TWO PARTS, and the second is the one the ruling asks for:
+
+  SUBSET TEST     the test pair's difference set must be a SUBSET of the
+                  run-unique set (established empirically from a same-config
+                  control pair) plus delivery_mode. EXTRAS must be 0.
+  INVARIANT CORE  asserted POSITIVELY - mask.provided per event, depth.provided,
+                  the three m26 run_summary fields, and the event count must be
+                  IDENTICAL across delivery modes. Absence from a diff list is
+                  not an assertion; this compares them and says so.
+
+A63 NOTE: a delivery-mode session has no run.json, so subset_gate.py's
+start_frame precondition is UNDECIDABLE on it by construction (A60). The harness
+enforces A63 for delivery legs by the LIVE focus measurement instead, which
+run_leg.ps1 already applies before accepting the leg.
+
+A64 NOTE: B1 passing on each leg is NOT sufficient. The two legs must be POSE
+MATCHED to each other - P27 measured that within-B1-tolerance pose differences
+move mask counts. coverage_ratio is the pose indicator for a delivery leg, which
+cannot be pose-gated from its artifact.
+
+Usage: python p29_g9_check.py <ctrlA> <ctrlB> <testOFF> <testON>
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from compare_sessions import flat, load  # noqa: E402
+
+A, B, T_OFF, T_ON = sys.argv[1:5]
+
+
+def diffset(x, y, name):
+    fx = flat(load(os.path.join(x, name)))
+    fy = flat(load(os.path.join(y, name)))
+    return {k for k in set(fx) | set(fy) if fx.get(k) != fy.get(k)}
+
+
+ctrl = diffset(A, B, "annotation.json") | diffset(A, B, "run_summary.json")
+test = diffset(T_OFF, T_ON, "annotation.json") | diffset(T_OFF, T_ON, "run_summary.json")
+allowed = ctrl | {"/delivery_mode"}
+extras = sorted(test - allowed)
+
+print("=== SUBSET TEST ===")
+print("  control-pair run-unique fields :", len(ctrl))
+print("  test-pair difference fields    :", len(test))
+print("  EXTRAS (must be 0)             :", len(extras), extras)
+
+fa = flat(load(os.path.join(T_OFF, "annotation.json")))
+fd = flat(load(os.path.join(T_ON, "annotation.json")))
+ra = flat(load(os.path.join(T_OFF, "run_summary.json")))
+rd = flat(load(os.path.join(T_ON, "run_summary.json")))
+
+print()
+print("=== INVARIANT CORE, ASSERTED POSITIVELY ===")
+mk = sorted(k for k in fa if "/mask/" in k)
+bad = [k for k in mk if fa.get(k) != fd.get(k)]
+print("  mask.provided keys compared    :", len(mk))
+print("  mask.provided IDENTICAL        :", not bad, "| mismatches:", bad)
+print("     values OFF:", sorted({str(fa[k]) for k in mk}),
+      "| ON:", sorted({str(fd[k]) for k in mk}))
+
+dk = sorted(k for k in fa if "/depth/" in k)
+print("  depth.provided IDENTICAL       :", all(fa.get(k) == fd.get(k) for k in dk),
+      "| values:", sorted({str(fa[k]) for k in dk}))
+
+for f in ("/mask_probe_arms", "/mask_residual_discards", "/mask_nopass_discards"):
+    print("  %-30s OFF=%s ON=%s identical=%s" %
+          (f, ra.get(f), rd.get(f), ra.get(f) == rd.get(f)))
+
+ea = len(load(os.path.join(T_OFF, "annotation.json"))["anomalies"])
+eb = len(load(os.path.join(T_ON, "annotation.json"))["anomalies"])
+print("  event COUNT IDENTICAL          :", ea == eb, "(%d vs %d)" % (ea, eb))
+
+ka = set(fa) | set(flat(load(os.path.join(T_OFF, "run_summary.json"))))
+kb = set(fd) | set(flat(load(os.path.join(T_ON, "run_summary.json"))))
+print("  key SET identical both modes   :", ka == kb,
+      "| only-OFF:", sorted(ka - kb), "| only-ON:", sorted(kb - ka))
+
+print()
+print("PASS requires: EXTRAS 0 AND every invariant-core line reading identical=True.")

@@ -1,0 +1,108 @@
+"""P31 slice-3 veto check: what the veto removed, and what it must NOT have.
+
+Joins the log's per-event measured state against the events that SURVIVED into
+annotation.json, and prints the pre-declared expectation for each.
+
+THE RULE UNDER TEST - zero-only:
+    veto  <=>  manifested AND State == MEASURED_ZERO
+  NOT_MEASURED is never vetoed. MEASURED_NONZERO is never vetoed, however small
+  a fraction of its claimed extent it is. There is no ratio and no threshold.
+
+Prints the A-1 disjointness check (vetoed_events vs non_manifested_events) and
+G-11's before/after counts.
+
+Usage: python p31_veto_check.py <banked_leg_try_dir>
+"""
+
+import glob
+import json
+import os
+import re
+import sys
+
+LEG = sys.argv[1]
+
+log = None
+for cand in glob.glob(os.path.join(LEG, "_leg_game.log")) + \
+        glob.glob(os.path.join(LEG, "**", "_leg_game.log"), recursive=True):
+    log = cand
+    break
+
+ann_path = None
+for cand in glob.glob(os.path.join(LEG, "**", "annotation.json"), recursive=True):
+    ann_path = cand
+    break
+rs_path = None
+for cand in glob.glob(os.path.join(LEG, "**", "run_summary.json"), recursive=True):
+    rs_path = cand
+    break
+
+if not ann_path or not log:
+    print("missing annotation.json or _leg_game.log under", LEG)
+    sys.exit(2)
+
+ev_re = re.compile(r"M26S1 EVENT id=(\S+) target=(\S+) startFrame=(\d+) tag=\d+ state=(\S+) ")
+veto_re = re.compile(r"M26S3 VETO id=(\S+) target=(\S+) startFrame=(\d+) state=(\S+)")
+g11_re = re.compile(r"M26S3 G-11 countedEventsBefore=(\d+) countedEventsAfter=(\d+) "
+                    r"vetoedEvents=(\d+) nonManifestedEvents=(\d+)")
+
+measured, vetoed, g11 = [], [], None
+for line in open(log, encoding="utf-8", errors="replace"):
+    m = ev_re.search(line)
+    if m:
+        measured.append((m.group(1), m.group(3), m.group(4)))
+        continue
+    m = veto_re.search(line)
+    if m:
+        vetoed.append((m.group(1), m.group(3), m.group(4)))
+        continue
+    m = g11_re.search(line)
+    if m:
+        g11 = tuple(int(x) for x in m.groups())
+
+ann = json.load(open(ann_path, encoding="utf-8-sig"))
+survived = ann.get("anomalies", [])
+rs = json.load(open(rs_path, encoding="utf-8-sig")) if rs_path else {}
+
+print("leg:", os.path.basename(os.path.normpath(LEG)))
+print("measured events (log): %d | vetoed (log): %d | survived (annotation): %d"
+      % (len(measured), len(vetoed), len(survived)))
+print()
+
+vset = {(a, b) for a, b, _ in vetoed}
+print("%-4s %-18s %-18s %-10s %s" % ("#", "state", "startFrame", "vetoed?", "expected"))
+print("-" * 78)
+bad = 0
+for anom_id, start, state in measured:
+    was = (anom_id, start) in vset
+    should = (state == "MEASURED_ZERO")
+    verdict = "ok" if was == should else "*** MISMATCH ***"
+    if was != should:
+        bad += 1
+    print("%-4s %-18s %-18s %-10s %s   %s" % (
+        anom_id[:4], state, start, "YES" if was else "no",
+        "veto" if should else "keep", verdict))
+
+print()
+print("=== the rule's own guards ===")
+nz_vetoed = [v for v in vetoed if v[2] == "MEASURED_NONZERO"]
+nm_vetoed = [v for v in vetoed if v[2] == "NOT_MEASURED"]
+print("  MEASURED_NONZERO vetoed (must be 0 - a ratio would show here):", len(nz_vetoed), nz_vetoed)
+print("  NOT_MEASURED     vetoed (must be 0 - the admit bias):        ", len(nm_vetoed), nm_vetoed)
+print("  rule mismatches (must be 0):", bad)
+
+print()
+print("=== G-11 / A-1 ===")
+if g11:
+    before, after, vev, nonman = g11
+    print("  countedEventsBefore=%d countedEventsAfter=%d vetoedEvents=%d nonManifestedEvents=%d"
+          % (before, after, vev, nonman))
+    print("  before - vetoed == after :", before - vev == after)
+    print("  vetoed + nonManifested <= before (disjoint, no double-count):", vev + nonman <= before)
+    print("  counted events after veto >= 3 :", after >= 3,
+          "  <- a CERTIFYING leg below 3 is INVALID; a DEMONSTRATION leg may legitimately be 0")
+else:
+    print("  (no G-11 line found)")
+print("  run_summary vetoed_events:", rs.get("vetoed_events"),
+      "| non_manifested_events:", rs.get("non_manifested_events"))
+print("  annotation survived == before - vetoed :", len(survived) == (g11[0] - g11[2]) if g11 else "n/a")

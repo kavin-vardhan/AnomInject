@@ -1,0 +1,82 @@
+"""A63/B1 leg-validity probe for the harness. Reads ONLY camera pose.
+
+Exit 0 = modal pose, leg is A54-certifiable.
+Exit 1 = bifurcated pose (or no usable bbox rows) -> INVALID, re-run.
+
+Pose is fixed at run start and is INDEPENDENT of the anomaly outcome, so this is
+a "how it ran" discard, not a "what it showed" one - the same class as a focus
+timeout, and A63's principle covers it. Nothing in this file reads a verdict,
+a score, or any claimed frame.
+"""
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import a54_oracle as O
+
+S = sys.argv[1]
+
+# DELIVERY LEGS: labels.jsonl is suppressed, so view.rot and bbox_px do not
+# exist and the camera pose is UNKNOWABLE FROM THE ARTIFACT. The pose gate
+# therefore cannot run, and that is a structural consequence of delivery mode,
+# not a harness failure.
+#
+# This is consistent with A56's own scope - the pose gate constrains the PIXEL
+# oracle, and a delivery leg has no pixel oracle to constrain. Annotation-shape
+# evidence is camera-independent and stands regardless.
+#
+# ⚠ But pose still CONFOUNDS the paired comparison, because annotation.json
+# carries camera-dependent fields (coverage_ratio, coverage_pct, the camera
+# block). A bifurcated delivery leg would differ from its modal OFF pair in
+# those fields and could be misread as a DELIVERY divergence. So the harness
+# reports coverage_ratio as an observed pose INDICATOR - a discriminator for the
+# comparison to use, never a gate.
+if not os.path.exists(os.path.join(S, "labels.jsonl")):
+    ann = json.load(open(os.path.join(S, "annotation.json")))
+    cov = [round(e.get("coverage_ratio", -1), 6) for e in ann.get("anomalies", [])]
+    print("DELIVERY leg: labels.jsonl suppressed -> pose NOT CHECKABLE from the "
+          "artifact. coverage_ratio per event (pose indicator) = %s" % cov)
+    sys.exit(0)
+
+rows = [json.loads(l) for l in open(os.path.join(S, "labels.jsonl")) if l.strip()]
+start, modal_rot, dropped = O.settle_window(rows)
+bbox, nbox, ndist, cov, ok = O.a56_check(rows, start)
+
+print("settle_start=%s dropped=%s modal_rot=%s bbox=%s rows=%d distinct=%d modal=%.1f%% pose_match=%s"
+      % (start, dropped, modal_rot, bbox, nbox, ndist, 100.0 * cov, O.pose_match(bbox)))
+
+# REPORTING ONLY - no verdict, no exit code, no definition depends on anything
+# below. B1's pose gate compares a PIXEL bbox against CALIB_BBOX, frozen at
+# 1280x720, so an off-calibration RESOLUTION fails it for a reason that has
+# nothing to do with pose. The gate fails SAFE either way, but a label that
+# names a cause it has not established still misleads - so print the numbers
+# that separate the two causes and let the reader attribute.
+if not O.pose_match(bbox) and bbox is None:
+    # A leg with NO bbox rows in the settle window is not a pose failure and has
+    # no ratio to print. It happens whenever the target never projects on screen
+    # - e.g. an off-calibration level where the camera settles looking elsewhere.
+    # The detail block below assumes a bbox exists and raised TypeError here,
+    # killing the HARNESS from a block whose own header says REPORTING ONLY.
+    print("  NO BBOX ROWS IN THE SETTLE WINDOW (reporting only):")
+    print("    the target never projected on screen after settle, so there is no")
+    print("    measured bbox to compare against CALIB_BBOX. This is NOT a pose")
+    print("    reading and NOT a pose failure - B1 simply has nothing to judge.")
+elif not O.pose_match(bbox):
+    ratio = tuple(
+        (round(m / c, 4) if c else None) for m, c in zip(bbox, O.CALIB_BBOX)
+    )
+    print("  B1 FAIL DETAIL (reporting only):")
+    print("    measured bbox = %s" % (bbox,))
+    print("    CALIB_BBOX    = %s   tol %.1f px" % (O.CALIB_BBOX, O.POSE_TOL_PX))
+    print("    ratio m/CALIB = %s   (x, y, w, h; None where CALIB is 0)" % (ratio,))
+    print("    modal_rot=%s distinct=%d modal=%.1f%%" % (modal_rot, ndist, 100.0 * cov))
+    print("    DISCRIMINATOR:")
+    print("      uniform ratio matching the RESOLUTION ratio, with modal_rot")
+    print("      stable and distinct=1  =>  RESOLUTION SCOPE, not pose.")
+    print("      non-uniform ratio with modal_rot displaced and a collapsed bbox")
+    print("      width  =>  genuine A47 bifurcation (see M4b attempt 1:")
+    print("      modal_rot 354.16/18.18, bbox width 16.9).")
+
+sys.exit(0 if ok else 1)

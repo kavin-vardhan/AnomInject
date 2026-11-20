@@ -1,0 +1,171 @@
+import json
+import sys
+from pathlib import Path
+
+RUN_UNIQUE_ANNOTATION = {
+    "/session_id",
+    "/video/path",
+}
+RUN_UNIQUE_RUNSUMMARY = {
+    "/session_id",
+    "/speed_ratio",
+    "/game_clock_speed_ratio",
+    "/sustained_wall_fps",
+    "/stamped_fps",
+    "/end_frame",
+    "/start_frame",
+}
+
+
+def flatten(obj, prefix=""):
+    out = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out.update(flatten(v, f"{prefix}/{k}"))
+    elif isinstance(obj, list):
+        out[prefix] = f"<list:{len(obj)}>"
+        for i, v in enumerate(obj):
+            out.update(flatten(v, f"{prefix}[{i}]"))
+    else:
+        out[prefix] = obj
+    return out
+
+
+def keyset(obj, prefix=""):
+    out = set()
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out.add(f"{prefix}/{k}")
+            out |= keyset(v, f"{prefix}/{k}")
+    elif isinstance(obj, list):
+        for v in obj:
+            out |= keyset(v, prefix + "[]")
+    return out
+
+
+def event_key(ev):
+    tgt = ""
+    nodes = ev.get("affected_objects", {}).get("nodes", [])
+    if nodes:
+        tgt = nodes[0].get("name", "")
+    return (
+        tgt,
+        ev.get("anomaly_type", ""),
+        ev.get("affected_frames", {}).get("start_frame", None),
+        ev.get("affected_frames", {}).get("end_frame", None),
+        tuple(ev.get("affected_frames", {}).get("frame_indices", [])),
+        ev.get("manifested", None),
+    )
+
+
+def load(session_dir):
+    d = Path(session_dir)
+    ann = json.loads((d / "annotation.json").read_text(encoding="utf-8"))
+    rs = json.loads((d / "run_summary.json").read_text(encoding="utf-8"))
+    frames = sorted(p.name for p in (d / "Actual_Frames").glob("frame_*.png"))
+    return ann, rs, frames
+
+
+def compare(a_dir, b_dir, label):
+    ann_a, rs_a, fr_a = load(a_dir)
+    ann_b, rs_b, fr_b = load(b_dir)
+    failures = []
+
+    ks_a = keyset(ann_a)
+    ks_b = keyset(ann_b)
+    if ks_a != ks_b:
+        failures.append(f"annotation KEYSET differs: only_a={sorted(ks_a - ks_b)} only_b={sorted(ks_b - ks_a)}")
+    else:
+        print(f"[{label}] annotation keyset IDENTICAL ({len(ks_a)} keys)")
+
+    ev_a = [event_key(e) for e in ann_a.get("anomalies", [])]
+    ev_b = [event_key(e) for e in ann_b.get("anomalies", [])]
+    if ev_a != ev_b:
+        failures.append(f"EVENT SET differs: a={ev_a} b={ev_b}")
+    else:
+        print(f"[{label}] event set IDENTICAL ({len(ev_a)} events)")
+
+    rk_a = keyset(rs_a)
+    rk_b = keyset(rs_b)
+    if rk_a != rk_b:
+        failures.append(f"run_summary KEYSET differs: only_a={sorted(rk_a - rk_b)} only_b={sorted(rk_b - rk_a)}")
+    else:
+        print(f"[{label}] run_summary keyset IDENTICAL ({len(rk_a)} keys)")
+
+    census_keys = [k for k in (rk_a | rk_b) if "census" in k.lower()]
+    if census_keys:
+        failures.append(f"census_* keys PRESENT (S1 must not emit them): {sorted(census_keys)}")
+    else:
+        print(f"[{label}] no census_* keys in either run_summary (S1 contract)")
+
+    fa = flatten(rs_a)
+    fb = flatten(rs_b)
+    diffs = []
+    for k in sorted(set(fa) | set(fb)):
+        base = k.split("[")[0]
+        if base in RUN_UNIQUE_RUNSUMMARY or any(base.startswith(u) for u in RUN_UNIQUE_RUNSUMMARY):
+            continue
+        if fa.get(k) != fb.get(k):
+            diffs.append((k, fa.get(k), fb.get(k)))
+    if diffs:
+        failures.append(f"run_summary VALUE diffs outside the run-unique set: {diffs}")
+    else:
+        print(f"[{label}] run_summary values identical outside the declared run-unique set")
+
+    if len(fr_a) != len(fr_b):
+        failures.append(f"frame COUNT differs: {len(fr_a)} vs {len(fr_b)}")
+    else:
+        print(f"[{label}] frame count identical ({len(fr_a)})")
+
+    return failures
+
+
+def main():
+    if len(sys.argv) != 3:
+        print("usage: m36_s1_pc7_check.py <sessionDirA> <sessionDirB>")
+        return 2
+
+    a_dir, b_dir = sys.argv[1], sys.argv[2]
+
+    print("== KNOWN-ANSWER PROOF 1: A vs A must PASS ==")
+    self_fail = compare(a_dir, a_dir, "self")
+    if self_fail:
+        print("CHECKER BROKEN: A-vs-A reported differences:")
+        for f in self_fail:
+            print("  " + f)
+        return 3
+    print("self-comparison clean: PROOF 1 OK")
+
+    print("== KNOWN-ANSWER PROOF 2: A vs perturbed-A must FAIL ==")
+    ann_a, rs_a, fr_a = load(a_dir)
+    import copy, tempfile, os, shutil
+    tmp = Path(tempfile.mkdtemp(prefix="pc7_perturb_"))
+    (tmp / "Actual_Frames").mkdir()
+    ann_p = copy.deepcopy(ann_a)
+    ann_p["__pc7_perturbation__"] = True
+    if ann_p.get("anomalies"):
+        ann_p["anomalies"] = ann_p["anomalies"][1:]
+    (tmp / "annotation.json").write_text(json.dumps(ann_p), encoding="utf-8")
+    (tmp / "run_summary.json").write_text(json.dumps(rs_a), encoding="utf-8")
+    for name in fr_a:
+        (tmp / "Actual_Frames" / name).write_bytes(b"x")
+    perturb_fail = compare(a_dir, str(tmp), "perturb")
+    shutil.rmtree(tmp)
+    if not perturb_fail:
+        print("CHECKER BROKEN: perturbed comparison reported no differences (blind checker, G96)")
+        return 3
+    print(f"perturbed comparison reported {len(perturb_fail)} difference(s): PROOF 2 OK")
+
+    print("== P-C7 VERDICT COMPARISON: A vs B ==")
+    failures = compare(a_dir, b_dir, "pair")
+    if failures:
+        print("P-C7 FAIL:")
+        for f in failures:
+            print("  " + f)
+        return 1
+    print("P-C7 PASS: census-OFF artifacts identical outside the declared run-unique set")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

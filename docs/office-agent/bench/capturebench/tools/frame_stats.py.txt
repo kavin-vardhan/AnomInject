@@ -1,0 +1,46 @@
+import sys, os, glob, math
+from PIL import Image
+
+MARKER_BAND = 0.20
+
+
+def stats(path):
+    im = Image.open(path).convert("L")
+    w, h = im.size
+    crop = im.crop((0, int(h * MARKER_BAND), w, h))
+    px = list(crop.getdata())
+    n = len(px)
+    mean = sum(px) / n
+    var = sum((v - mean) ** 2 for v in px) / n
+    sd = math.sqrt(var)
+    lo = min(px)
+    hi = max(px)
+    clipped_hi = sum(1 for v in px if v >= 250) * 100.0 / n
+    clipped_lo = sum(1 for v in px if v <= 5) * 100.0 / n
+    return mean, sd, lo, hi, clipped_hi, clipped_lo
+
+
+def main():
+    d = sys.argv[1]
+    label = sys.argv[2] if len(sys.argv) > 2 else os.path.basename(d)
+    files = sorted(glob.glob(os.path.join(d, "*.png")))
+    if not files:
+        print("%s,NO_PNGS" % label)
+        return
+    ms, ss = [], []
+    for f in files:
+        mean, sd, lo, hi, chi, clo = stats(f)
+        ms.append(mean)
+        ss.append(sd)
+    n = len(ms)
+    mean_of_means = sum(ms) / n
+    spread = max(ms) - min(ms)
+    mean_sd = sum(ss) / n
+    m0, s0, lo0, hi0, chi0, clo0 = stats(files[0])
+    print("%s: frames=%d mean=%.3f sd=%.3f | frame-to-frame mean spread=%.3f | "
+          "min=%d max=%d clipped_white=%.2f%% clipped_black=%.2f%%"
+          % (label, n, mean_of_means, mean_sd, spread, lo0, hi0, chi0, clo0))
+
+
+if __name__ == "__main__":
+    main()

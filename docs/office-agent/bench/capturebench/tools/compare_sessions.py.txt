@@ -1,0 +1,136 @@
+"""Compare two capture sessions field by field.
+
+This is the differ that produced the S3a gate results (journals 039 / 041). It is
+kept verbatim in behaviour so later runs are comparable with the accepted ones -
+if you change the diff logic, previous verdicts stop being reproducible.
+
+What it compares:
+  annotation.json / run_summary.json / run.json   flattened, field by field
+  labels.jsonl                                     line by line, then field by field
+  Actual_Frames/                                   names + SHA-256 per file
+
+Usage:
+  python compare_sessions.py <sessionA> <sessionB> [label]
+
+Note on frame bytes: two runs of the SAME binary differ on all frames, because
+A47's camera-rotation bifurcation moves everything downstream of camera pose.
+Byte equality of frames is NOT a usable identity check between runs - see
+journal 041.
+"""
+
+import hashlib
+import json
+import os
+import sys
+
+
+def load(path):
+    with open(path, "r", encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def flat(obj, prefix=""):
+    """Flatten nested JSON to {path: scalar}. Lists get [i] suffixes."""
+    out = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out.update(flat(v, prefix + "/" + str(k)))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            out.update(flat(v, prefix + "[%d]" % i))
+    else:
+        out[prefix] = obj
+    return out
+
+
+def diff_json(path_a, path_b):
+    fa, fb = flat(load(path_a)), flat(load(path_b))
+    out = []
+    for k in sorted(set(fa) | set(fb)):
+        va, vb = fa.get(k, "<absent>"), fb.get(k, "<absent>")
+        if va != vb:
+            out.append((k, va, vb))
+    return out
+
+
+def sha(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        h.update(f.read())
+    return h.hexdigest()
+
+
+def frames(session):
+    d = os.path.join(session, "Actual_Frames")
+    if not os.path.isdir(d):
+        return [], []
+    names = sorted(os.listdir(d))
+    return names, [sha(os.path.join(d, n)) for n in names]
+
+
+def diff_labels(a, b):
+    pa, pb = os.path.join(a, "labels.jsonl"), os.path.join(b, "labels.jsonl")
+    if not (os.path.exists(pa) and os.path.exists(pb)):
+        return [("<labels.jsonl missing on one side>", os.path.exists(pa), os.path.exists(pb))]
+    la = open(pa, encoding="utf-8-sig").read().splitlines()
+    lb = open(pb, encoding="utf-8-sig").read().splitlines()
+    if len(la) != len(lb):
+        return [("<line count>", len(la), len(lb))]
+    out = []
+    for i, (x, y) in enumerate(zip(la, lb)):
+        if x == y:
+            continue
+        fx, fy = flat(json.loads(x)), flat(json.loads(y))
+        for k in sorted(set(fx) | set(fy)):
+            if fx.get(k) != fy.get(k):
+                out.append(("line%d%s" % (i, k), fx.get(k), fy.get(k)))
+    return out
+
+
+def main():
+    if len(sys.argv) < 3:
+        print(__doc__)
+        return 2
+    a, b = sys.argv[1], sys.argv[2]
+    label = sys.argv[3] if len(sys.argv) > 3 else "session comparison"
+
+    print("=" * 78)
+    print(label)
+    print("  A:", os.path.basename(a))
+    print("  B:", os.path.basename(b))
+
+    for name in ("annotation.json", "run_summary.json", "run.json"):
+        pa, pb = os.path.join(a, name), os.path.join(b, name)
+        if not (os.path.exists(pa) and os.path.exists(pb)):
+            print("  %-20s MISSING on one side (delivery-mode session?)" % name)
+            continue
+        d = diff_json(pa, pb)
+        print("  %-20s byte-identical=%-5s differing-fields=%d"
+              % (name, sha(pa) == sha(pb), len(d)))
+        for k, va, vb in d[:14]:
+            print("        %-46s %s  ->  %s" % (k, va, vb))
+        if len(d) > 14:
+            print("        ... %d more" % (len(d) - 14))
+
+    ld = diff_labels(a, b)
+    print("  %-20s differing-fields=%d" % ("labels.jsonl", len(ld)))
+    seen = set()
+    for k, va, vb in ld:
+        base = k.split("/", 1)[-1]
+        if base in seen:
+            continue
+        seen.add(base)
+        print("        (first of kind) /%-36s %s  ->  %s" % (base, va, vb))
+
+    na, ha = frames(a)
+    nb, hb = frames(b)
+    print("  %-20s countA=%d countB=%d namesEqual=%s bytesEqual=%s"
+          % ("Actual_Frames", len(na), len(nb), na == nb, ha == hb))
+    if na == nb and ha != hb:
+        print("        differing frame images: %d of %d"
+              % (sum(1 for x, y in zip(ha, hb) if x != y), len(ha)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

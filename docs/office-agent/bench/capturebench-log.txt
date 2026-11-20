@@ -1,0 +1,93 @@
+CaptureBench full commit log, all branches, newest first (`git log --all --date=short`):
+
+4ca8524 2026-11-14  (m57-gates) tools(m59): 095-14 - fixture options pair_cube (CB_LodPair) and minlod1 (CB_LodFix_MinLod1)
+773aef7 2026-11-14  tools(m57): 095-14 predictions AMENDMENT 2 - down-pop off by default; C4 expects one up-pop and nothing on the retreat
+490964f 2026-11-14  tools(m56): 095-14 - G5 also compares annotation node identity; the m59 texture-node rename is the one intended difference
+ac719f6 2026-11-14  tools(m57): 095-13 predictions AMENDMENT 1 - worked clip and gate numbers for the fixed bench paths
+8cce410 2026-11-14  tools(m57): 095-13 S7 - L3 accepts a lod_not_armable refusal as the tried path on the still leg
+4946ad8 2026-11-14  tools(m57): 095-13 S8, B2 - the fixture script is atomic, its options work in separate runs, the second pair moves
+0bc7e32 2026-11-14  tools(m57): 095-13 S7 - the lod readout cannot pass with nothing checked; L5 reads lod_unconfirmed; L6 pairs reverts
+253275c 2026-11-14  tools(m57): 095-13 B6 - the clip script builds its clip from the files the overlay tool really writes
+e75584d 2026-11-14  tools(m57): 095-13 B4, B5 - the null-pair check reads [x, y, w, h], refuses unequal legs and cannot pass on nothing
+9eb8ca6 2026-11-14  tools(m57): 095-10 fixture options, null-pair and readout checks, clip script, frozen predictions
+1978cd8 2026-11-14  (m56-gates) tools(m56): 095-06b S6, N6, N9, CB-N1 - comparator scope and intended difference, settle content check, zero-byte frames
+4c9b1ae 2026-11-14  tools(m56): 095-06b B1 - run_leg never stops a process by name
+1d1e119 2026-11-13  tools(m56): 095-05b continuity check, non-settle comparator, a54 settle flank rule, run_leg schedule predictions
+e64d6f9 2026-09-30  (HEAD -> master) tools(m53): 089-02b dcfix mode - linearise the normal oracle readout, empty TC_Mixed's component override
+e66b461 2026-09-30  tools(m52): 089-02a LOD fixture lights - sun pitch -40 by keyword (Rotator is roll, pitch, yaw), three 400 cd point lights
+8f8b7f3 2026-09-29  tools(m53): 085-03 DC fixture cells - dcadd mode (mode-oracle tiles, TC_Mixed two-slot producer, m52 pair) with offline and read-back proofs
+05adeee 2026-09-29  tools(m52): 084-08b bench-only lod_popping fixture authoring tool
+2c5ec56 2026-09-28  fix(m53): 082-07f TC_Masked never clipped - recompile after the OpacityMask connection, a masked mode, blend and masked read-back proofs, offline MASKED and tile-probe proofs
+41ef8b9 2026-09-27  fix(m53): 082-07c normal-family readouts connect Normal - Default Lit, Tex into Normal and Emissive, a normals mode and a disk read-back proof
+47d6fff 2026-09-27  fix(m53): 082-06d fixture slot bug - asset slots set through SetMaterial / a new skeletal list, a slots mode, and a disk read-back proof
+8e53dea 2026-09-27  tools(m53): 082-06 F-SYN fixture - the image generator with offline wrong-copy proofs, the fixture level tool, the byte check
+b2ca764 2026-09-20  feat(tools): 080-06 veto-arm-window gate, subset comparator, and the held-vs-injected window proof
+472a409 2026-09-06  fix(m49b): P-C7 v3 comparator obeys P-C7 v2 - absolute counters as CONSTANT DELTAS, mask_value by BIJECTIVITY
+4c1c788 2026-09-06  tools(m49b): phase B gate readers, campaign and P-C7 v3 comparator
+f35949e 2026-09-04  tools: m50 - the stencil single-owner gate, the step-0 diagnosis, and the campaign scripts
+3b67de1 2026-09-04  tools(074): m49 A2 harness - G7 re-keyed for schema v2, lyra_leg archives its log, and the census-dump Leg B instrument
+ebab804 2026-09-04  tools(073): m49 A1 readout, P-C7 v3 comparator, and the two Leg-B host-stencil instruments
+1c09275 2026-09-04  tools(072): Lyra fixture leg runner and readout
+6b04c50 2026-09-03  tools(m44): the pairing gate refuses a fixture it cannot see, and its recipe is now part of it
+d0d8643 2026-09-03  tools(m47b): auto-exposure switch, the A48 echo, and the dip instruments
+1496fcc 2026-09-03  tools(m47): editor-target leg runner + the shader-readiness luminance table
+eea1a31 2026-09-03  tools: m44_pairing_probe keys on tag 255 (ReservedStencilMax) - 250 collided with the allocator
+d9dc096 2026-09-03  tools: m44_pairing_probe - mask centroid vs picture centroid for the bench probe
+dc05f0b 2026-09-03  tools: m44_gates - the onset/subset/count gate the m43 gate set was missing
+3f955dc 2026-09-03  tools: m44_onset_table - first-label vs first-mask, and the pixel-onset table
+dcc056a 2026-09-02  tools(harness): write a LogAnomaly excerpt into the bank before anything can relaunch, and a switch for the Verbose toggle lines
+d0b5d7e 2026-09-02  tools(harness): -LetterboxedFixture - declare B1 not applicable on a constrained view, and make the switch prove it
+4319a9e 2026-09-02  fix(harness): freeze SEP_RATIO from controls; add d-unit classifier checks
+14b8bca 2026-09-02  fix(harness): the P9 reader crashed on its own anchor guard, and the guard was right
+02452ae 2026-09-02  tools(harness): the P9 hidden-set reader - it reports the OBSERVED set, and it is gated by a pair of synthetic controls that keep P1 and P9 apart
+28249c5 2026-09-01  tools(harness): P-C9 cost extractor - A,B,B,A with three normalisations and a self-proving parser
+e8ff25d 2026-09-01  tools(harness): m36 S2 gate instruments - an A47 rotation gate for auto-pool legs, and a self-proving census reader
+9d9fa15 2026-08-31  tools(harness): m35 home-gate instruments - the G-M8 column checker (proven both ways against a known answer before any verdict is read) and the G-M6 A,B,B,A prior extractor (per-frame and per-MP, within-build spread beside the difference, extrapolations labelled)
+a952c23 2026-08-31  tools(harness): m36 S1 checkers - the P-C7 control-pair comparator (self-proving: A-vs-A must pass, A-vs-perturbed-A must fail, before any verdict is read) and the census A44 token scanner (both encodings)
+c6c13fc 2026-08-21  tools(harness): CB_LodCalib gains a near wall for the camera_clipping label calibration
+eed49c8 2026-08-21  tools(harness): CB_LodCalib - a distance ladder for calibrating LOD-pop visibility
+f51ed51 2026-08-20  tools(harness): p31_veto_check.py - what the veto removed and what it must not have, with the zero-only rule and A-1 disjointness checked explicitly
+043b110 2026-08-20  tools(harness): pre-declare slice 3 - the zero-only veto rule, per-leg predictions, the foliage guard, and the empty-annotation consequence - before implementation
+d2a67b7 2026-08-20  tools(harness): p30_raw_quantities.py - measured vs claimed pixel AREAS for the four slice-1 targets; computes no ratio, threshold or comparison by construction
+c34b34b 2026-08-20  tools(harness): p29_g9_check.py - delivery orthogonality with the invariant core asserted POSITIVELY, not inferred from absence in a diff list
+6d83442 2026-08-20  tools(harness): p29_map_check.py - join annotation mask.provided against the logged measurement state, with the pre-declared expectation printed per event
+e36beb3 2026-08-20  tools(harness): pre-declare slice 2 - the mapping, the known-answer set, the gates and the failure branches - before implementation and before any leg
+2c2e60a 2026-08-20  tools(harness): pre-declare the replacement N-2 control and THE H5 legs - branches, the deciding quantity, and the required bucket reporting - before any leg runs
+ad87052 2026-08-20  tools(harness): nanite_signature_scan.py - the T-1 classifier, with its confidence claim and both weaknesses printed beside every run
+3fdea29 2026-08-20  tools(harness): pre-declare T-1 (Nanite status of the target set) and the T-2 extent-precondition predictions, before any asset is read
+ead6ccb 2026-08-20  tools(harness): p24_join handles the P26 line shapes - hiddenAtArm capture, probe frames excluded from violation tallies, new M26S1 lines listed
+84106bd 2026-08-20  tools(harness): pre-declare the fault-(ii) fix gate - per-leg predictions, F-6 mapping, failure branches - before the fixed build exists
+3419ea5 2026-08-20  tools(harness): p24_join.py - per-armed-frame join of pass extent x end-of-frame hidden sample, tallied against the pre-declared table
+cb299aa 2026-08-20  tools(harness): pre-declare the fault-(ii) diagnosis branches and refuters before any measurement
+2537a2d 2026-08-20  tools(harness): pre-declare the M-1..M-3 cvar measurement branches
+6428282 2026-08-20  tools(harness): pre-declare the D-1..D-5 diagnosis implications, with refuters
+972840d 2026-08-19  tools(harness): pre-declare the slice-1 validation branches before any leg runs
+ee9ecc1 2026-08-19  tools(harness): pre-declare the Part Fourteen branch tables before measuring
+e20fd97 2026-08-19  tools(harness): prune_verify.ps1 - match banked sessions by ID, and by manifest before deleting
+e564538 2026-08-19  tools(harness): a flush-wait that stops the harness truncating its own captures, and no more silent skips
+ea32132 2026-08-19  tools(harness): two banked-data sweeps - traceability, and the G124 generalisation test
+873862a 2026-08-19  tools(harness): h5_pixel_change.py - measure WHERE the change is, not just how much
+30f853a 2026-08-19  tools(harness): the namespace join, and geometry that reads what the projector actually uses
+5a38f4a 2026-08-19  tools(harness): -Map, a MainWorld recon probe, and a REPORTING-ONLY block that could kill the harness
+88c424b 2026-08-19  tools(harness): verify_cooked_maps.ps1 - read the cooked map set back OUT OF THE ARTIFACT
+f74291a 2026-08-19  tools(harness): H4 targeting parameter, the result reader, and the A48 echoes
+eef5a4e 2026-08-19  tools(harness): H4 pre-flight recon - a signature that already occurs is not a discriminator
+bb79012 2026-08-19  tools(harness): a gate that fails safe still misleads if its label names a cause it has not established
+b626c5c 2026-08-19  tools(harness): read the token from the game ini; bank geometry for EVERY attempt
+15d0106 2026-08-19  tools(harness): S4-0 - launch geometry as a leg variable, and the resolution-delta reader
+0f89212 2026-08-18  tools(harness): delivery-leg A63 route, pose indicator, and LastRunDir verification
+992e5fb 2026-08-18  tools(harness): A63 self-enforcing leg harness, per-leg checklist, B1 pose gate
+b4d84a8 2026-08-18  tools(oracle): B1 - A56 gains a pose-match precondition (P8)
+7771f06 2026-08-18  tools(oracle): frozen scope header, A47 settle window, and the P8 false-ABSENT warning
+8b226e3 2026-08-18  tools(oracle): rebuild and commit the A54 canonical oracle, the +/-1 positive control and the A56 gate
+a0cd40b 2026-08-18  tools(gate): land the session comparator and the A63 subset gate
+8dad64e 2026-08-18  tools(gate-level): refuse to author over the frozen CB_GateLevel without an explicit override
+163dd12 2026-08-16  feat(probe): A41 render-lever rebuild + execution counters (NOT YET WORKING)
+eef0019 2026-08-06  tools: compare_traces.py - A30 Test 2 control-run comparator
+e46fc6d 2026-08-06  tools: exposure_shift.py - A30 Test 2 analyzer (bbox-excluded luminance)
+88d2bc4 2026-08-06  feat(gate): A31 flatness+clip checks, N3 self-check, converged gate level
+54bf5a1 2026-08-06  feat(probe): A25 luminance floor + gate-level dynamic lighting re-author
+10267cb 2026-08-06  feat(probe): level-name logging + deferred map travel (A12 item 2, A18 attempt)
+de03d58 2026-08-06  feat(marker): I4 in-scene frame-identity oracle + decoder
+a56db6f 2026-08-05  feat(probe): S2b instrumentation - key ring, frame-order probe, stall levers
+a457dfc 2026-08-05  chore: initial commit - CaptureBench S1 harness as-shipped

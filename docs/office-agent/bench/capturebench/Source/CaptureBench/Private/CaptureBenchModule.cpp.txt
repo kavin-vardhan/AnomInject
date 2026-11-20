@@ -1,0 +1,338 @@
+#include "CoreMinimal.h"
+#include "Modules/ModuleManager.h"
+#include "CaptureBenchLog.h"
+
+DEFINE_LOG_CATEGORY(LogCaptureBench);
+
+#if CAPTURE_BENCH
+
+#include "CaptureBenchCapturer.h"
+#include "CaptureBenchSceneViewExtension.h"
+#include "CaptureBenchProbe.h"
+#include "CaptureBenchMarker.h"
+#include "SceneViewExtension.h"
+#include "HAL/IConsoleManager.h"
+#include "Misc/Paths.h"
+#include "Misc/DateTime.h"
+#include "Misc/CoreDelegates.h"
+#include "Containers/Ticker.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+#include "HAL/PlatformMisc.h"
+#include "HAL/PlatformTime.h"
+
+class FCaptureBenchModule : public IModuleInterface
+{
+public:
+	virtual void StartupModule() override
+	{
+		Capturer = MakeShared<FCaptureBenchCapturer, ESPMode::ThreadSafe>();
+
+		StartCmd = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("CaptureBench.Start"),
+			TEXT("Start a capture-bench run. Usage: CaptureBench.Start <sve|backbuffer> [maxFrames] [outDir]"),
+			FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(this, &FCaptureBenchModule::HandleStart),
+			ECVF_Default);
+
+		StopCmd = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("CaptureBench.Stop"),
+			TEXT("Stop the active capture-bench run and log the summary."),
+			FConsoleCommandDelegate::CreateRaw(this, &FCaptureBenchModule::HandleStop),
+			ECVF_Default);
+
+		StatusCmd = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("CaptureBench.Status"),
+			TEXT("Log the current capture-bench status."),
+			FConsoleCommandDelegate::CreateRaw(this, &FCaptureBenchModule::HandleStatus),
+			ECVF_Default);
+
+		WriteCmd = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("CaptureBench.Write"),
+			TEXT("Toggle disk writing for the NEXT run. Usage: CaptureBench.Write <0|1>. 0 = capture+readback only (isolates the capture hook from PNG encode)."),
+			FConsoleCommandWithArgsDelegate::CreateRaw(this, &FCaptureBenchModule::HandleWrite),
+			ECVF_Default);
+
+		CaptureBenchProbe::Register();
+		CaptureBenchMarker::Register();
+
+		ProbeCmd = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("CaptureBench.Probe.Report"),
+			TEXT("Log the probe counters (published/consumed/missed/wrapped) and reset them with arg 1."),
+			FConsoleCommandWithArgsDelegate::CreateRaw(this, &FCaptureBenchModule::HandleProbeReport),
+			ECVF_Default);
+
+		ProbeSveCmd = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("CaptureBench.Probe.Arm"),
+			TEXT("Create the SceneViewExtension so probe rows are emitted without starting a capture run."),
+			FConsoleCommandDelegate::CreateRaw(this, &FCaptureBenchModule::HandleProbeArm),
+			ECVF_Default);
+
+		MatrixCmd = IConsoleManager::Get().RegisterConsoleCommand(
+			TEXT("CaptureBench.Matrix"),
+			TEXT("Run the full A/B matrix unattended: sve/W1, backbuffer/W1, sve/W0, backbuffer/W0. Usage: CaptureBench.Matrix [frames] [exitWhenDone 0|1] [startDelaySec] [label]"),
+			FConsoleCommandWithArgsDelegate::CreateRaw(this, &FCaptureBenchModule::HandleMatrix),
+			ECVF_Default);
+	}
+
+	virtual void ShutdownModule() override
+	{
+		if (Capturer.IsValid() && Capturer->IsRunning())
+		{
+			Capturer->RequestStop();
+		}
+
+		if (StartCmd) { IConsoleManager::Get().UnregisterConsoleObject(StartCmd); StartCmd = nullptr; }
+		if (StopCmd) { IConsoleManager::Get().UnregisterConsoleObject(StopCmd); StopCmd = nullptr; }
+		if (StatusCmd) { IConsoleManager::Get().UnregisterConsoleObject(StatusCmd); StatusCmd = nullptr; }
+		if (WriteCmd) { IConsoleManager::Get().UnregisterConsoleObject(WriteCmd); WriteCmd = nullptr; }
+		if (MatrixCmd) { IConsoleManager::Get().UnregisterConsoleObject(MatrixCmd); MatrixCmd = nullptr; }
+		if (ProbeCmd) { IConsoleManager::Get().UnregisterConsoleObject(ProbeCmd); ProbeCmd = nullptr; }
+		if (ProbeSveCmd) { IConsoleManager::Get().UnregisterConsoleObject(ProbeSveCmd); ProbeSveCmd = nullptr; }
+		CaptureBenchProbe::Unregister();
+		CaptureBenchMarker::Unregister();
+
+		if (MatrixTicker.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(MatrixTicker);
+			MatrixTicker.Reset();
+		}
+
+		SceneViewExtension.Reset();
+		Capturer.Reset();
+	}
+
+private:
+	void EnsureSceneViewExtension()
+	{
+		if (!SceneViewExtension.IsValid())
+		{
+			SceneViewExtension = FSceneViewExtensions::NewExtension<FCaptureBenchSceneViewExtension>(Capturer);
+		}
+	}
+
+	void HandleStart(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!Capturer.IsValid())
+		{
+			return;
+		}
+
+		ECaptureBenchMode Mode = ECaptureBenchMode::SVE;
+		if (Args.Num() >= 1)
+		{
+			if (Args[0].Equals(TEXT("backbuffer"), ESearchCase::IgnoreCase) || Args[0].Equals(TEXT("bb"), ESearchCase::IgnoreCase))
+			{
+				Mode = ECaptureBenchMode::Backbuffer;
+			}
+		}
+
+		int32 MaxFrames = 0;
+		if (Args.Num() >= 2)
+		{
+			MaxFrames = FCString::Atoi(*Args[1]);
+		}
+
+		FString OutDir;
+		if (Args.Num() >= 3)
+		{
+			OutDir = Args[2];
+		}
+		else
+		{
+			const FString ModeName = (Mode == ECaptureBenchMode::SVE) ? TEXT("sve") : TEXT("backbuffer");
+			OutDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("CaptureBench"),
+				ModeName + TEXT("_") + FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")));
+		}
+
+		if (Mode == ECaptureBenchMode::SVE)
+		{
+			EnsureSceneViewExtension();
+		}
+
+		if (Capturer->BeginRun(Mode, World, OutDir, MaxFrames))
+		{
+			UE_LOG(LogCaptureBench, Display, TEXT("CaptureBench started: mode=%s maxFrames=%d dir=%s"),
+				(Mode == ECaptureBenchMode::SVE) ? TEXT("SVE") : TEXT("Backbuffer"), MaxFrames, *OutDir);
+		}
+	}
+
+	void HandleStop()
+	{
+		if (Capturer.IsValid())
+		{
+			Capturer->RequestStop();
+		}
+	}
+
+	void HandleStatus()
+	{
+		if (Capturer.IsValid())
+		{
+			Capturer->LogStatus();
+		}
+	}
+
+	static UWorld* ResolveGameWorld()
+	{
+		if (!GEngine)
+		{
+			return nullptr;
+		}
+		for (const FWorldContext& Ctx : GEngine->GetWorldContexts())
+		{
+			if ((Ctx.WorldType == EWorldType::Game || Ctx.WorldType == EWorldType::PIE) && Ctx.World())
+			{
+				return Ctx.World();
+			}
+		}
+		return nullptr;
+	}
+
+	void HandleMatrix(const TArray<FString>& Args)
+	{
+		if (!Capturer.IsValid() || MatrixTicker.IsValid())
+		{
+			UE_LOG(LogCaptureBench, Warning, TEXT("Matrix ignored: already running or no capturer."));
+			return;
+		}
+
+		MatrixFrames = (Args.Num() >= 1) ? FCString::Atoi(*Args[0]) : 300;
+		bMatrixExit = (Args.Num() >= 2) ? (FCString::Atoi(*Args[1]) != 0) : false;
+		const double StartDelay = (Args.Num() >= 3) ? FCString::Atod(*Args[2]) : 8.0;
+		MatrixLabel = (Args.Num() >= 4) ? Args[3] : TEXT("run");
+		bMatrixW0Only = (Args.Num() >= 5) ? (FCString::Atoi(*Args[4]) != 0) : false;
+
+		MatrixIndex = bMatrixW0Only ? 2 : 0;
+		MatrixNextStart = FPlatformTime::Seconds() + StartDelay;
+
+		UE_LOG(LogCaptureBench, Display,
+			TEXT("MATRIX BEGIN label=%s frames=%d startDelay=%.1fs exitWhenDone=%d w0only=%d"),
+			*MatrixLabel, MatrixFrames, StartDelay, bMatrixExit ? 1 : 0, bMatrixW0Only ? 1 : 0);
+
+		MatrixTicker = FTSTicker::GetCoreTicker().AddTicker(
+			FTickerDelegate::CreateRaw(this, &FCaptureBenchModule::MatrixTick));
+	}
+
+	bool MatrixTick(float Dt)
+	{
+		if (!Capturer.IsValid())
+		{
+			MatrixTicker.Reset();
+			return false;
+		}
+		if (Capturer->IsRunning())
+		{
+			return true;
+		}
+		if (FPlatformTime::Seconds() < MatrixNextStart)
+		{
+			return true;
+		}
+
+		static const ECaptureBenchMode Modes[4] =
+		{
+			ECaptureBenchMode::SVE, ECaptureBenchMode::Backbuffer,
+			ECaptureBenchMode::SVE, ECaptureBenchMode::Backbuffer
+		};
+		static const bool Writes[4] = { true, true, false, false };
+
+		if (MatrixIndex >= 4)
+		{
+			UE_LOG(LogCaptureBench, Display, TEXT("MATRIX COMPLETE label=%s"), *MatrixLabel);
+			MatrixTicker.Reset();
+			if (bMatrixExit)
+			{
+				FPlatformMisc::RequestExit(false);
+			}
+			return false;
+		}
+
+		UWorld* World = ResolveGameWorld();
+		if (!World || !World->GetGameViewport())
+		{
+			return true;
+		}
+
+		const ECaptureBenchMode Mode = Modes[MatrixIndex];
+		const bool bWrite = Writes[MatrixIndex];
+
+		if (Mode == ECaptureBenchMode::SVE)
+		{
+			EnsureSceneViewExtension();
+		}
+
+		const FString ModeName = (Mode == ECaptureBenchMode::SVE) ? TEXT("sve") : TEXT("backbuffer");
+		const FString OutDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("CaptureBench"),
+			FString::Printf(TEXT("%s_%s_w%d"), *MatrixLabel, *ModeName, bWrite ? 1 : 0));
+
+		UE_LOG(LogCaptureBench, Display, TEXT("MATRIX ROW %d/4 label=%s mode=%s write=%d"),
+			MatrixIndex + 1, *MatrixLabel, *ModeName, bWrite ? 1 : 0);
+
+		Capturer->SetWriteToDisk(bWrite);
+		if (!Capturer->BeginRun(Mode, World, OutDir, MatrixFrames))
+		{
+			UE_LOG(LogCaptureBench, Warning, TEXT("MATRIX ROW %d failed to start; skipping."), MatrixIndex + 1);
+		}
+
+		MatrixIndex++;
+		MatrixNextStart = FPlatformTime::Seconds() + 2.0;
+		return true;
+	}
+
+	void HandleProbeReport(const TArray<FString>& Args)
+	{
+		CaptureBenchProbe::LogCounters();
+		CaptureBenchProbe::LogStallCounters();
+		if (Args.Num() >= 1 && FCString::Atoi(*Args[0]) != 0)
+		{
+			CaptureBenchProbe::ResetCounters();
+			UE_LOG(LogCaptureBench, Display, TEXT("PROBE,counters reset"));
+		}
+	}
+
+	void HandleProbeArm()
+	{
+		EnsureSceneViewExtension();
+		UE_LOG(LogCaptureBench, Display, TEXT("PROBE,sve armed (probe rows will emit while CaptureBench.Probe=1)"));
+	}
+
+	void HandleWrite(const TArray<FString>& Args)
+	{
+		if (!Capturer.IsValid())
+		{
+			return;
+		}
+		const bool bWrite = (Args.Num() >= 1) ? (FCString::Atoi(*Args[0]) != 0) : true;
+		Capturer->SetWriteToDisk(bWrite);
+		UE_LOG(LogCaptureBench, Display, TEXT("CaptureBench.Write = %d (applies to the next run)"), bWrite ? 1 : 0);
+	}
+
+	TSharedPtr<FCaptureBenchCapturer, ESPMode::ThreadSafe> Capturer;
+	TSharedPtr<FCaptureBenchSceneViewExtension, ESPMode::ThreadSafe> SceneViewExtension;
+
+	IConsoleCommand* StartCmd = nullptr;
+	IConsoleCommand* StopCmd = nullptr;
+	IConsoleCommand* StatusCmd = nullptr;
+	IConsoleCommand* WriteCmd = nullptr;
+	IConsoleCommand* MatrixCmd = nullptr;
+	IConsoleCommand* ProbeCmd = nullptr;
+	IConsoleCommand* ProbeSveCmd = nullptr;
+
+	FTSTicker::FDelegateHandle MatrixTicker;
+	int32 MatrixIndex = 0;
+	int32 MatrixFrames = 300;
+	bool bMatrixExit = false;
+	bool bMatrixW0Only = false;
+	double MatrixNextStart = 0.0;
+	FString MatrixLabel;
+};
+
+IMPLEMENT_MODULE(FCaptureBenchModule, CaptureBench)
+
+#else
+
+class FCaptureBenchModule : public IModuleInterface {};
+IMPLEMENT_MODULE(FCaptureBenchModule, CaptureBench)
+
+#endif

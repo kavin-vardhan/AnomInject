@@ -1,0 +1,56 @@
+import sys, os, glob
+from PIL import Image
+
+MARKER_BAND = 0.20
+STEP = 3
+
+
+def trace(d):
+    files = sorted(glob.glob(os.path.join(d, "Actual_Frames", "*.png")))
+    out = []
+    for f in files:
+        im = Image.open(f).convert("L")
+        w, h = im.size
+        px = im.load()
+        y0 = int(h * MARKER_BAND)
+        tot = 0
+        n = 0
+        for y in range(y0, h, STEP):
+            for x in range(0, w, STEP):
+                tot += px[x, y]
+                n += 1
+        out.append(tot / n if n else 0.0)
+    return out
+
+
+def main():
+    anom_dir, ctl_dir = sys.argv[1], sys.argv[2]
+    event_frames = set(int(v) for v in sys.argv[3].split(",")) if len(sys.argv) > 3 else set()
+
+    a = trace(anom_dir)
+    c = trace(ctl_dir)
+    n = min(len(a), len(c))
+    print("idx,anomaly,control,delta,is_event")
+    off_deltas = []
+    on_deltas = []
+    for i in range(n):
+        d = a[i] - c[i]
+        ev = 1 if i in event_frames else 0
+        print("%d,%.4f,%.4f,%.4f,%d" % (i, a[i], c[i], d, ev))
+        (on_deltas if ev else off_deltas).append(d)
+
+    def stats(v, label):
+        if not v:
+            print("# %s: none" % label)
+            return
+        m = sum(v) / len(v)
+        mx = max(abs(x) for x in v)
+        sd = (sum((x - m) ** 2 for x in v) / len(v)) ** 0.5
+        print("# %s: n=%d mean=%.4f sd=%.4f max|d|=%.4f" % (label, len(v), m, sd, mx))
+
+    stats(off_deltas, "NON-EVENT frames (divergence here = exposure effect)")
+    stats(on_deltas, "EVENT frames (divergence here is expected/physical)")
+
+
+if __name__ == "__main__":
+    main()

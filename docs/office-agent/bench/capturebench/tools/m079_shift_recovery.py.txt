@@ -1,0 +1,560 @@
+#!/usr/bin/env python3
+"""Scorer v3 CHARACTERISATION for 079-13 consistency observations.
+
+Fixed planned keys: every original run-edge x13 label perturbation/variant cells on
+three masked sessions. A gate READING/UNASSESSABLE run contributes no scored cells;
+its keys remain in an explicit unscored ledger, so the denominator cannot shrink.
+Scored classes: recovered, wrong, no-transition, unassessable(reason), unsupported(reason).
+An offset recovery is agreement with an injected perturbation, not label correctness.
+
+Regional motion is a reading; no cap is derived or applied. --markdown publishes
+per-session tables and every wrong recovery with the competing peaks. Supply
+--previous-cells to retain each earlier wrong cell's current status.
+Use --selftest for run-level eligibility, denominator and characterisation checks.
+"""
+
+import argparse
+import copy
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+TOOLS = os.environ.get("IAI_VERIFIER_TOOLS", r"D:\IntrusiveAnomalies\StackOBot\Plugins\AnomalyInjector\tools")
+if TOOLS not in sys.path:
+    sys.path.insert(0, TOOLS)
+import verify_capture as vc
+
+OUTCOMES = ("recovered", "wrong", "no-transition", "unassessable", "unsupported")
+
+# (which, delta) - "both" is v1's whole-window move; the other two are new (Codex required them).
+PERTURBATIONS = [("both", 0), ("onset", 1), ("onset", -1), ("end", 1), ("end", -1),
+                 ("both", 1), ("both", -1)]
+VARIANTS = ["annotation", "coherent"]
+
+
+def session_of(bank, name):
+    d = os.path.join(bank, name)
+    if not os.path.isdir(d):
+        return None
+    for c in sorted(os.listdir(d)):
+        if c.startswith("session_"):
+            return os.path.join(d, c)
+    return None
+
+
+def junction(src, dst):
+    subprocess.run(["cmd", "/c", "mklink", "/J", os.path.abspath(dst), os.path.abspath(src)],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+
+def runs_of(idx):
+    return vc._runs_of(idx)
+
+
+def shift_runs(idx, which, delta):
+    """Move each contiguous RUN's onset, end, or both. Returns None if the shape would change.
+
+    A run that would vanish, or two runs that would merge, changes the COHORT and therefore the
+    denominator - so the perturbation is UNSUPPORTED rather than silently rescored. v2.1 keeps
+    its cells with that reason instead of dropping them (Codex 079-07 F4).
+    """
+    runs = runs_of(idx)
+    out = []
+    for a, b in runs:
+        if which == "both":
+            na, nb = a + delta, b + delta
+        elif which == "onset":
+            na, nb = a + delta, b
+        else:
+            na, nb = a, b + delta
+        if nb < na:
+            return None
+        out.append((na, nb))
+    flat = sorted(set(k for a, b in out for k in range(a, b + 1)))
+    if len(runs_of(flat)) != len(runs):
+        return None
+    return flat, out
+
+
+def source_index(k, orig_runs, new_runs, which, delta):
+    """Which ORIGINAL frame's per-frame label payload belongs at shifted frame k (coherent only)."""
+    for (oa, ob), (na, nb) in zip(orig_runs, new_runs):
+        if na <= k <= nb:
+            if which == "both":
+                return k - delta
+            return min(max(k, oa), ob)
+    return None
+
+
+def shadow(src, dst, which, delta, variant, mlo):
+    """A shadow session whose LABELS are moved; frames junctioned, never copied, never modified.
+
+    Returns None when the shadow was built, or a STRING saying why the perturbation is
+    UNSUPPORTED. v2 returned None for failure and the destination for success, and the sweep
+    skipped the whole session/variant on a None - which silently shrank the denominator (Codex
+    079-07 F4): a one-frame run cannot take onset+1 or end-1, and in v2 that discarded 8 of its
+    26 planned cells, and could discard the other runs of the same session with it. The sense of
+    the return is inverted deliberately, so that "nothing to say" means success and every failure
+    has to carry a reason.
+    """
+    os.makedirs(dst, exist_ok=True)
+    for sub in ("Actual_Frames", "target_mask"):
+        p = os.path.join(src, sub)
+        if os.path.isdir(p):
+            junction(p, os.path.join(dst, sub))
+    for name in ("run_summary.json",):
+        p = os.path.join(src, name)
+        if os.path.isfile(p):
+            shutil.copy2(p, os.path.join(dst, name))
+
+    with open(os.path.join(src, "annotation.json"), "r", encoding="utf-8-sig") as fh:
+        ann = json.load(fh)
+
+    rows = []
+    with open(os.path.join(src, "labels.jsonl"), "r", encoding="utf-8-sig") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    by_index = {}
+    for r in rows:
+        si = r.get("session_index")
+        if si is not None:
+            by_index[int(si)] = r
+
+    moved = []
+    for ev in ann.get("anomalies") or []:
+        af = ev.get("affected_frames") or {}
+        idx = af.get("frame_indices")
+        if not isinstance(idx, list) or not idx:
+            continue
+        idx = [int(v) for v in idx]
+        got = shift_runs(idx, which, delta)
+        if got is None:
+            return ("unsupported(%s%+d would remove or merge a run of event %s)"
+                    % (which, delta, mlo.event_node_name(ev) or "?"))
+        flat, new_runs = got
+        af["frame_indices"] = flat
+        af["start_frame"] = flat[0]
+        af["end_frame"] = flat[-1]
+        af["frame_count"] = len(flat)
+        moved.append((mlo.event_node_name(ev), idx, runs_of(idx), new_runs, flat))
+
+    if variant == "coherent":
+        # Entries are matched STRICTLY on target_name. mlo.match_label_entry falls back to "the
+        # only entry on the row" when nothing matches, which is right for the gate and wrong here:
+        # used to DELETE, it would strip every other event's entry as well. Measured - it left
+        # 2 of 16 cohort cells alive on A2L_LEGA before this was fixed.
+        new_rows = dict((k, copy.deepcopy(r)) for k, r in by_index.items())
+        for node, orig_idx, orig_runs, new_runs, flat in moved:
+            if not node:
+                return "unsupported(coherent variant needs a node name and this event has none)"
+            have = 0
+            for k in orig_idx:
+                r = new_rows.get(k)
+                if not r:
+                    continue
+                keep = [e for e in (r.get("anomalies") or [])
+                        if str(e.get("target_name") or "") != node]
+                have += len(r.get("anomalies") or []) - len(keep)
+                r["anomalies"] = keep
+            if not have:
+                return ("unsupported(coherent variant found no per-frame entry for %s to move)"
+                        % node)
+            for k in flat:
+                if k not in new_rows:
+                    continue
+                s = source_index(k, orig_runs, new_runs, which, delta)
+                src_row = by_index.get(s) if s is not None else None
+                if src_row is None:
+                    continue
+                for e in (src_row.get("anomalies") or []):
+                    if str(e.get("target_name") or "") != node:
+                        continue
+                    new_rows[k]["anomalies"].append(copy.deepcopy(e))
+                    if src_row.get("mask_file") is not None:
+                        new_rows[k]["mask_file"] = src_row.get("mask_file")
+                        new_rows[k]["mask_state"] = src_row.get("mask_state")
+                    break
+        for k, r in new_rows.items():
+            present = bool(r.get("anomalies"))
+            if "anomaly_present" in r:
+                r["anomaly_present"] = present
+            if "visible_positive" in r:
+                r["visible_positive"] = present
+        out_rows = [new_rows[k] for k in sorted(new_rows)]
+    else:
+        out_rows = rows
+
+    with open(os.path.join(dst, "labels.jsonl"), "w", encoding="utf-8") as fh:
+        for r in out_rows:
+            fh.write(json.dumps(r) + "\n")
+    with open(os.path.join(dst, "annotation.json"), "w", encoding="utf-8") as fh:
+        json.dump(ann, fh)
+    return None
+
+
+def cohort_of(src, mlo):
+    """S1: the FIXED denominator - every (event, run ordinal, edge) of the UNSHIFTED session."""
+    with open(os.path.join(src, "annotation.json"), "r", encoding="utf-8-sig") as fh:
+        ann = json.load(fh)
+    cells = []
+    for i, ev in enumerate(ann.get("anomalies") or []):
+        idxs, derived = mlo.event_indices(ev)
+        if not idxs or derived or not bool(ev.get("manifested", True)):
+            continue
+        for ordinal, (a, b) in enumerate(runs_of([int(v) for v in idxs])):
+            for kind in ("onset", "end"):
+                cells.append({"event": i, "ordinal": ordinal, "kind": kind, "run": (a, b)})
+    return cells
+
+
+def expected_offset(kind, which, delta):
+    if which == "both":
+        return -delta
+    if which == kind:
+        return -delta
+    return 0
+
+
+def run_cell(src, root, name, which, delta, variant, mlo, cohort, excluded=None):
+    """Return scored cells only. Ineligible run keys remain in the unscored ledger."""
+    dst = os.path.join(root, "%s__%s%+d__%s" % (name, which, delta, variant))
+    unsupported = shadow(src, dst, which, delta, variant, mlo)
+    detail = []
+    if unsupported is None:
+        code, lines = vc.label_pixel_gate(dst, 8, 4, 1, quiet=True, out_detail=detail)
+        if code == 3:
+            raise RuntimeError("gate could not run: " + " | ".join(lines))
+    got = {(r["event"], r["ordinal"], r["kind"]): r for r in detail}
+    out = []
+    for cell in cohort:
+        rec = got.get((cell["event"], cell["ordinal"], cell["kind"]))
+        want = expected_offset(cell["kind"], which, delta)
+        row = dict(cell)
+        row.update(session=name, which=which, delta=delta, variant=variant,
+                   expected=want, m_edge=None,
+                   tau=None, offset=None, outcome="unassessable", scored=True,
+                   reason="edge not produced by gate", run_outcome=None, nominal=None,
+                   selected=None, peaks=[], available_peaks=[], consumed_peaks=[], tie_peaks=[],
+                   assignment_inversion=None, motion_caveat=False)
+        if rec is not None:
+            row.update(nominal=rec["nominal"], selected=rec["best_k"], peaks=rec["peak_values"],
+                       available_peaks=rec["available_peaks"], consumed_peaks=rec["consumed_peaks"],
+                       tie_peaks=rec["tie_peaks"], assignment_inversion=rec["assignment_inversion"],
+                       motion_caveat=rec["run_motion_caveat"])
+        if unsupported is not None:
+            row.update(outcome="unsupported", reason=unsupported)
+        elif rec is None or not rec["run_eligible"]:
+            if rec is not None:
+                row.update(m_edge=rec["m_edge"], tau=rec["tau"], run_outcome=rec["run_outcome"],
+                           reason=rec["run_outcome"] + ": " + rec["run_reason"] +
+                                  ("; " + rec["reason"] if rec["reason"] else ""))
+            row["scored"] = False
+            if excluded is not None:
+                excluded.append(row)
+            continue
+        else:
+            row.update(m_edge=rec["m_edge"], tau=rec["tau"], offset=rec["offset"],
+                       run_outcome=rec["run_outcome"])
+            if rec["observation"] == vc.O_TRANSITION:
+                row.update(outcome="recovered" if rec["offset"] == want else "wrong", reason=None)
+            elif rec["observation"] == vc.O_NONE:
+                row.update(outcome="no-transition", reason="no local peak in labelled window")
+            else:
+                row.update(outcome="unassessable", reason=rec["reason"])
+        out.append(row)
+    return out
+
+
+def cohort_keys(bank, names, mlo):
+    """S1/F4: the IMMUTABLE eligibility denominator, published BEFORE anything is scored.
+
+    Every (session, event, run ordinal, edge, perturbation, variant) that the sweep will report
+    on. It is printed first so that a shrunken table is visible as a shrunken table rather than
+    as a better recovery rate - which is the failure Codex found in v2, where an unsupported
+    perturbation removed a whole session/variant from the denominator on its way past.
+    """
+    keys = []
+    per_session = {}
+    for name in names:
+        src = session_of(bank, name)
+        if not src:
+            per_session[name] = 0
+            continue
+        cohort = cohort_of(src, mlo)
+        n = 0
+        for c in cohort:
+            for which, delta in PERTURBATIONS:
+                for variant in VARIANTS:
+                    if delta == 0 and variant == "coherent":
+                        continue
+                    keys.append((name, c["event"], c["ordinal"], c["kind"], which, delta, variant))
+                    n += 1
+        per_session[name] = n
+    return keys, per_session
+
+
+def table(cells, title, excluded=(), planned=None):
+    from collections import Counter
+    total = planned if planned is not None else len(cells) + len(excluded)
+    counts = Counter(c["outcome"] for c in cells)
+    print("\n" + title)
+    print("PLANNED %d = SCORED %d + UNSCORED %d" % (total, len(cells), len(excluded)))
+    for name in OUTCOMES:
+        print("  %-15s %4d (%.1f%% of planned)" % (name, counts[name], 100.0 * counts[name] / max(1, total)))
+    reasons = Counter(c["reason"] for c in list(cells) + list(excluded) if c["reason"])
+    print("  unscored run keys %d; READING/UNASSESSABLE runs supply ZERO scored cells" % len(excluded))
+    for reason, n in reasons.most_common():
+        print("    %s x%d" % (reason, n))
+    for c in cells:
+        if c["outcome"] == "wrong":
+            print("  WRONG %s event%d run%s %s %s%+d/%s expected%+d observed%+d m_edge=%s peaks=%s" %
+                  (c["session"], c["event"], c["run"], c["kind"], c["which"], c["delta"],
+                   c["variant"], c["expected"], c["offset"], c["m_edge"], peak_text(c)))
+    keep = sorted({(c["session"], c["event"], c["ordinal"], c["kind"])
+                   for c in cells if c["outcome"] == "recovered"})
+    print("POSITIVE SUPPORT: %d original edges: %s" % (len(keep), keep))
+    print("NO-TRANSITION is an observation; it is not a refusal or a recovered offset.")
+
+
+def cell_key(c):
+    return tuple(c[k] for k in ("session", "event", "ordinal", "kind", "which", "delta", "variant"))
+
+
+def reconcile(planned, cells, excluded):
+    keys = [cell_key(c) for c in list(cells) + list(excluded)]
+    if len(keys) != len(set(keys)) or set(keys) != set(planned):
+        raise RuntimeError("scored plus unscored keys do not reconcile with the immutable denominator")
+
+
+def sweep(bank, names, root, mlo, excluded=None):
+    cells = []
+    ledger = excluded if excluded is not None else []
+    for name in names:
+        src = session_of(bank, name)
+        if not src:
+            raise RuntimeError("missing nominated session: " + name)
+        cohort = cohort_of(src, mlo)
+        for which, delta in PERTURBATIONS:
+            for variant in VARIANTS:
+                if delta == 0 and variant == "coherent":
+                    continue
+                before = len(ledger)
+                got = run_cell(src, root, name, which, delta, variant, mlo, cohort, ledger)
+                cells.extend(got)
+                print("  %s %s%+d/%s scored%d unscored%d" %
+                      (name, which, delta, variant, len(got), len(ledger) - before), flush=True)
+    return cells
+
+
+def cleanup(root):
+    """Remove only this scratch root, unlinking junctions before recursive cleanup."""
+    import pathlib
+    import stat
+    path = pathlib.Path(root).absolute()
+    if not path.name.startswith("m079_shift_") or path.is_symlink():
+        raise RuntimeError("refusing unexpected scratch cleanup: " + str(path))
+    for current, dirs, _files in os.walk(path, followlinks=False):
+        for name in list(dirs):
+            child = pathlib.Path(current) / name
+            if not child.absolute().is_relative_to(path):
+                raise RuntimeError("scratch path escapes root")
+            if child.is_symlink():
+                child.unlink()
+                dirs.remove(name)
+            elif getattr(child.lstat(), "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                os.rmdir(child)
+                dirs.remove(name)
+    shutil.rmtree(path)
+
+
+def selftest():
+    """Prove eligibility, immutable unsupported keys and prior-cell reconciliation."""
+    mlo = vc._offset_module()
+    root = tempfile.mkdtemp(prefix="m079_shift_")
+    try:
+        source = vc._codex08_fixture(root, "bbox_only", mask_mode="none")
+        excluded = []
+        got = run_cell(source, os.path.join(root, "shadows"), "mixed", "both", 0, "annotation",
+                       mlo, cohort_of(source, mlo), excluded)
+        assert got == [] and len(excluded) == 2
+        assert all(c["run_outcome"] == vc.R_READING for c in excluded)
+        partial = vc._codex08_fixture(root, "missing_boundary", missing_masks=(67,))
+        partial_excluded = []
+        got = run_cell(partial, os.path.join(root, "shadows"), "partial", "both", 0, "annotation",
+                       mlo, cohort_of(partial, mlo), partial_excluded)
+        assert len(got) == 2 and not partial_excluded
+        assert [c["outcome"] for c in got] == ["recovered", "unassessable"]
+        bank = os.path.join(root, "tiny")
+        vc._codex07_fixture(bank, "TINY/session_one", runs=((10, 10),), mask="patch")
+        planned, _ = cohort_keys(bank, ["TINY"], mlo)
+        omitted = []
+        cells = sweep(bank, ["TINY"], os.path.join(root, "tiny_shadows"), mlo, omitted)
+        reconcile(planned, cells, omitted)
+        assert len(planned) == 26 and sum(c["outcome"] == "unsupported" for c in cells) == 8
+        old = dict(cells[0], outcome="wrong")
+        compared = compare_previous({"guard_off": [old]}, cells, omitted)
+        assert len(compared) == 1 and cell_key(compared[0]["after"]) == cell_key(old)
+        assert len({cell_key(c) for c in cells + omitted}) == 26
+        print("SCORER SELFTEST: OK; bbox_only scored0/unscored2; missing_boundary partial has2 cells; tiny26 keys incl8 unsupported; prior-cell status retained")
+        return 0
+    finally:
+        cleanup(root)
+
+
+def peak_text(cell):
+    return ", ".join("%d d=%.8f%s" % (p["k"], p["d"],
+                     " [used earlier]" if p["k"] in cell["consumed_peaks"] else "")
+                     for p in cell["peaks"]) or "none"
+
+
+def compare_previous(previous, cells, excluded):
+    """Keep every formerly wrong key, including those that are now unscored."""
+    current = {cell_key(c): c for c in cells + excluded}
+    old = previous.get("cells", previous.get("guard_off", []))
+    result = []
+    for before in old:
+        if before["outcome"] == "wrong":
+            key = cell_key(before)
+            if key not in current:
+                raise RuntimeError("previous wrong cell absent from the planned cohort: %s" % (key,))
+            result.append({"before": before, "after": current[key]})
+    return result
+
+
+def write_characterisation(result, path):
+    """Publish all measured classes and known wrong recoveries, without a verdict."""
+    from collections import Counter
+    from pathlib import Path
+    def md_table(head, rows):
+        def line(values):
+            return "| " + " | ".join(str(v).replace("|", "/").replace("\n", " ") for v in values) + " |"
+        return "\n".join([line(head), line(["---"] * len(head)), *(line(r) for r in rows)])
+    def identity(c):
+        return "%s event%d run%d %s %s%+d/%s" % (c["session"], c["event"], c["ordinal"],
+                                                c["kind"], c["which"], c["delta"], c["variant"])
+    cells, excluded = result["cells"], result["unscored"]
+    parts = ["# Verifier characterisation — 079-13",
+             "This is a measured limitation record, not label approval. Recovery compares an observed offset "
+             "with an injected label perturbation; it does not establish cause or correctness of the original label. "
+             "Regional motion remains a reading. Values above the historical 0.42 marker add a caveat. "
+             "Threshold, region, baseline and input-coverage refusals remain.",
+             "Each original run edge has 13 perturbation/variant keys. Every planned key remains in either the "
+             "scored or unscored ledger. READING/UNASSESSABLE runs contribute zero scored cells. "
+             "Rates use each session's planned denominator, not only the observed subset.",
+             "## Per-session readings"]
+    rows = []
+    for name in list(result["per_session"]) + ["TOTAL"]:
+        selected = cells if name == "TOTAL" else [c for c in cells if c["session"] == name]
+        omitted = excluded if name == "TOTAL" else [c for c in excluded if c["session"] == name]
+        counts = Counter(c["outcome"] for c in selected)
+        planned = result["planned"] if name == "TOTAL" else result["per_session"][name]
+        support = len({(c["session"], c["event"], c["ordinal"], c["kind"])
+                       for c in selected if c["outcome"] == "recovered"})
+        rows.append([name, planned, len(selected), len(omitted), *(counts[k] for k in OUTCOMES), support])
+    parts.append(md_table(["Session", "Planned", "Scored", "Unscored", *OUTCOMES, "Positive original edges"], rows))
+    wrong = [c for c in cells if c["outcome"] == "wrong"]
+    wrong_by_outcome = Counter(c["run_outcome"] for c in wrong)
+    parts += ["## Every wrong recovery — known limitations",
+              "Expected/observed values are offsets relative to the shifted label. All window peaks are listed; "
+              "[used earlier] marks peaks excluded before this edge's choice. Nearest candidates win; "
+              "equidistant candidates prefer larger d, then earlier frame. Thus a nearer unrelated peak can "
+              "still beat a stronger intended transition. One-sided prominence admits plateau edges and "
+              "adjacent changes. Different regions may yield out-of-order assignments, which are disclosed.",
+              "**%d of the %d scored cells read CONSISTENT while carrying a known one-frame label shift — "
+              "a CONSISTENT run does not confirm the label.** The Run outcome column below records, for every "
+              "wrong recovery, what the run containing it reported: %s."
+              % (wrong_by_outcome.get("CONSISTENT", 0), len(cells),
+                 ", ".join("%s %d" % (k, v) for k, v in sorted(wrong_by_outcome.items())))]
+    if wrong:
+        parts.append(md_table(["Cell", "Run outcome", "Label", "Selected", "Expected", "Observed", "m_edge", "Competing peaks"],
+            [[identity(c), c["run_outcome"], c["nominal"], c["selected"], c["expected"], c["offset"], c["m_edge"], peak_text(c)] for c in wrong]))
+    else:
+        parts.append("No wrong recovery was observed in this cohort. This does not establish a general guarantee.")
+    parts.append("## Previously wrong cells after R8/R9")
+    prior = result.get("previous_wrong_cells", [])
+    if prior:
+        parts.append(md_table(["Cell", "Previous expected / observed", "Current status", "Expected", "Observed", "m_edge", "Competing peaks"],
+            [[identity(r["after"]), "%s / %s" % (r["before"]["expected"], r["before"]["offset"]),
+              r["after"]["outcome"] if r["after"]["scored"] else "unscored: " + str(r["after"]["run_outcome"]),
+              r["after"]["expected"], r["after"]["offset"], r["after"]["m_edge"], peak_text(r["after"])] for r in prior]))
+    else:
+        parts.append("No prior wrong-cell ledger was supplied.")
+    parts.append("## Coverage reasons")
+    parts.append(md_table(["Unscored reason", "Keys"], Counter(c["reason"] for c in excluded).most_common()))
+    parts += ["## Provenance and disposition",
+              "Verifier SHA256 of the repository blob (LF): `%s`. The same file in a working copy with CRLF "
+              "endings hashes `%s` — the two differ only by line endings, so quote the LF value when comparing "
+              "against git. Scorer SHA256: `%s`. Immutable planned keys: %d. "
+              "The JSON ledger contains every scored and unscored key, candidate strengths and tie/ordering diagnostics."
+              % (result.get("verifier_sha256_lf", "n/a"), result["verifier_sha256"],
+                 result["scorer_sha256"], result["planned"]),
+              "Independently reviewed in 079-14 against its own fixtures; no blocking finding. "
+              "Client/Section G, campaign and release holds remain; this document does not release them."]
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n\n".join(parts) + "\n", encoding="utf-8")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--bank", default=r"D:\IntrusiveAnomalies\_bench_sessions_bank")
+    ap.add_argument("--sessions", nargs="*", default=["A2L_LEGA", "LYRA_SMOKE_01", "A1L_LEGA"])
+    ap.add_argument("--json")
+    ap.add_argument("--markdown", help="write the measured characterisation document to this path")
+    ap.add_argument("--previous-cells", help="prior JSON ledger whose wrong cells must be re-listed")
+    ap.add_argument("--selftest", action="store_true")
+    args = ap.parse_args()
+    if not hasattr(vc, "HIGH_REGIONAL_CHANGE_MARKER"):
+        ap.error("scorer v3 characterisation needs the 079-13 verifier; set IAI_VERIFIER_TOOLS to its tools directory")
+    if args.selftest:
+        return selftest()
+    mlo = vc._offset_module()
+    planned, per_session = cohort_keys(args.bank, args.sessions, mlo)
+    if any(session_of(args.bank, n) is None for n in args.sessions):
+        raise RuntimeError("nominated session missing; denominator was not established")
+    print("IMMUTABLE PLANNED COHORT BEFORE SCORING: %d keys" % len(planned), flush=True)
+    print("Per session: %s; each original run-edge has 13 perturbation/variant combinations" % per_session)
+    print("Every planned key is reconciled as scored OR unscored; unscored keys never shrink the denominator.")
+    root = tempfile.mkdtemp(prefix="m079_shift_")
+    try:
+        excluded = []
+        cells = sweep(args.bank, args.sessions, root, mlo, excluded)
+        reconcile(planned, cells, excluded)
+        for name in args.sessions:
+            table([c for c in cells if c["session"] == name], "CHARACTERISATION " + name,
+                  [c for c in excluded if c["session"] == name], per_session[name])
+        table(cells, "CHARACTERISATION TOTAL", excluded, len(planned))
+        with open(vc.__file__, "rb") as fh:
+            verifier_bytes = fh.read()
+        verifier_sha256 = hashlib.sha256(verifier_bytes).hexdigest()
+        verifier_sha256_lf = hashlib.sha256(verifier_bytes.replace(b"\r\n", b"\n")).hexdigest()
+        with open(__file__, "rb") as fh:
+            scorer_sha256 = hashlib.sha256(fh.read()).hexdigest()
+        result = {"version": 3, "purpose": "characterisation", "verifier_sha256": verifier_sha256,
+                  "verifier_sha256_lf": verifier_sha256_lf,
+                  "scorer_sha256": scorer_sha256, "planned": len(planned), "per_session": per_session,
+                  "cells": cells, "unscored": excluded, "previous_wrong_cells": []}
+        if args.previous_cells:
+            with open(args.previous_cells, encoding="utf-8-sig") as fh:
+                result["previous_wrong_cells"] = compare_previous(json.load(fh), cells, excluded)
+        if args.json:
+            with open(args.json, "w", encoding="utf-8") as fh:
+                json.dump(result, fh, indent=2)
+                fh.write("\n")
+            print("wrote " + args.json)
+        if args.markdown:
+            write_characterisation(result, args.markdown)
+            print("wrote " + args.markdown)
+        return 0
+    finally:
+        cleanup(root)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

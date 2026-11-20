@@ -1,0 +1,67 @@
+param([string]$Only = "")
+
+# m49 phase B campaign. Every payload here is DERIVED FROM THE BANKED LEG IT IS COMPARED AGAINST
+# (G184): the G-EDGE legs reproduce M50G_*'s recorded config exactly (seed 777, settle 2 / pre 4 /
+# positive 8 / post 14, cap 90, targeted blinking|missing_object|missing_texture|corrupted_texture on
+# StaticMeshActor_49, AA-off arbiter), the auto-pool legs reproduce M50F_F_*'s (seed 4242, post 4),
+# the pairing legs reproduce M50F_F_PAIR_*'s (cap 40), and the AE-ON leg reproduces PB5C_AEON_A's.
+#
+# EVERY leg here is POST-COOK ONLY. The phase B .usf source hash and the reduce parameter struct both
+# change, so a code-only hot-swap produces a build that cannot start (G129/G131). There is no
+# pre-cook half of this campaign and the predictions file says so rather than leaving it to be found.
+
+$ErrorActionPreference = "Continue"
+$tools = "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools"
+$AAOFF = "r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0, r.ReflectionMethod 0"
+$GECFG = "IAI.Capture.Config 2 4 8 14 0"
+$SYN   = "IAI.Bench.SynthTickOrder 1"
+
+$legs = @()
+
+# --- PB-1 / PB-2 / PB-5a / PB-5b / PB-6 / PB-7: the 8 G-EDGE legs, both orders ---
+foreach ($t in @(@("MT","missing_texture"), @("CT","corrupted_texture"), @("MO","missing_object"), @("BL","blinking"))) {
+  $legs += @{ L="$($t[0])_NAT"; P="PB1G_"; A=$t[1]; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $GECFG"; MR=$true; AE=0 }
+  $legs += @{ L="$($t[0])_SYN"; P="PB1G_"; A=$t[1]; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, $GECFG"; MR=$true; AE=0 }
+}
+
+# --- OBS-1 inertness + auto-pool regression, both orders ---
+$legs += @{ L="F_NAT"; P="PB1F_"; A=""; T=""; S=4242; F=90; X=""; MR=$true; AE=0 }
+$legs += @{ L="F_SYN"; P="PB1F_"; A=""; T=""; S=4242; F=90; X=$SYN; MR=$true; AE=0 }
+
+# --- PB-3 + MASK-PICTURE-PAIRING, 100% and SP50, both orders. The probe actor is the untouched
+#     opaque control: outside the anomaly path entirely, so drawn == count on every armed frame. ---
+$legs += @{ L="F_PAIR_NAT";      P="PB1F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1"; MR=$false; AE=0 }
+$legs += @{ L="F_PAIR_SYN";      P="PB1F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, $SYN"; MR=$false; AE=0 }
+$legs += @{ L="F_PAIR_NAT_SP50"; P="PB1F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, r.ScreenPercentage 50"; MR=$false; AE=0 }
+$legs += @{ L="F_PAIR_SYN_SP50"; P="PB1F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, $SYN, r.ScreenPercentage 50"; MR=$false; AE=0 }
+
+# --- PB-4, THE CAN-FAIL LEVER. Without it PB-1's zeros are blindness, not a reading (G96), and the
+#     lever changes the WORLD rather than the detector, so the shader meets an input its own
+#     instrumentation never produced (G252). ---
+$legs += @{ L="PB4_OMITDEPTH_NAT"; P="PB1X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.HideOmitDepthPassSilencing 1, $GECFG"; MR=$true; AE=0 }
+$legs += @{ L="PB4_OMITDEPTH_SYN"; P="PB1X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, IAI.Bench.HideOmitDepthPassSilencing 1, $GECFG"; MR=$true; AE=0 }
+
+# --- m50 regression: the collision lever must still fire, the headroom must still hold ---
+$legs += @{ L="G2_FORCE_NAT"; P="PB1X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.ForceTagCollision 26, $GECFG"; MR=$true; AE=0 }
+$legs += @{ L="G2_FORCE_SYN"; P="PB1X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, IAI.Bench.ForceTagCollision 26, $GECFG"; MR=$true; AE=0 }
+$legs += @{ L="G6_POOL8";     P="PB1X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.TagPoolLimit 8, $GECFG"; MR=$true; AE=0 }
+$legs += @{ L="G6_POOL12";    P="PB1X_"; A="blinking"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.TagPoolLimit 12, $GECFG"; MR=$true; AE=0 }
+
+# --- PB-5c B-side: the m48 AE-ON smoke, exposure NOT pinned. Its A-side ran PRE-COOK on A159EDFD. ---
+$legs += @{ L="AEON_B"; P="PB5C_"; A="corrupted_texture"; T="StaticMeshActor_49"; S=777; F=90; X=""; MR=$false; AE=1 }
+
+foreach ($leg in $legs) {
+  if ($Only -ne "" -and $leg.L -notlike $Only) { continue }
+  Write-Host ""
+  Write-Host ("##### LEG " + $leg.L + " #####")
+  Set-Location $tools
+  $a = @{
+    Label = $leg.L; BankPrefix = $leg.P; Anomaly = $leg.A; Target = $leg.T
+    Seed = $leg.S; MaxFrames = $leg.F; ExtraExecCmds = $leg.X; MaxAttempts = 4
+    AutoExposure = $leg.AE
+  }
+  if ($leg.MR) { & .\run_leg.ps1 @a -RequireModalRotZero 2>&1 | Select-Object -Last 4 }
+  else         { & .\run_leg.ps1 @a 2>&1 | Select-Object -Last 4 }
+}
+Write-Host ""
+Write-Host "##### M49 PHASE B CAMPAIGN DONE #####"

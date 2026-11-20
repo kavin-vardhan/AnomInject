@@ -1,0 +1,409 @@
+"""H4 pre-flight PF1/PF3 reproduction - occlusion + on-screen + shadow, offline.
+
+DOES NOT TRUST THE RECON FIGURES IN JOURNAL 036. It rebuilds them from the two
+things that are frozen and readable without an editor:
+
+  1. CB_GateLevel's geometry, which is fully deterministic in
+     CaptureBench/tools/make_gate_level.py (12x12 grid, no randomness anywhere).
+  2. The camera samples actually banked in _bench_sessions_bank - every
+     annotation.json event's camera block on a CB_GateLevel session.
+
+No MCP bridge is used, so A59 does not apply: nothing here reads a live editor
+and there is no second-project ambiguity to resolve (G97).
+
+KNOWN-ANSWER CONTROL ON THIS SCRIPT ITSELF (G96). The occlusion model must
+reproduce the answer already banked for StaticMeshActor_49: valid true,
+occlusion_samples_passed 9 of 9. A model that cannot reproduce a known answer
+certifies nothing about the unknown ones, so that check runs FIRST and the
+script refuses to print a candidate table if it fails.
+
+MODELS, and why the reported one is the conservative one:
+  aabb   every target treated as its own AABB. UPPER BOUND on occlusion -
+         spheres/cylinders/cones do not fill their AABB, so this over-occludes.
+  cube   only cube targets (and the floor) occlude. For a box the collision
+         primitive IS the AABB, so this row needs no approximation of curved
+         collision. RIGOROUS FLOOR - the number to trust.
+
+Engine correspondence, read from source rather than assumed:
+  IsUnoccluded          AnomalyViewport.cpp:109-144  9 rays (bounds centre + 8
+                        AABB corners), ECC_Visibility, owner ignored, returns
+                        unoccluded on the FIRST clear ray => "fully occluded"
+                        means 9 of 9 blocked.
+  ProjectActorBounds-   AnomalyViewport.cpp:653-685  bounds union of SM/SK
+  ToScreenRect          components, ProjectBoxToNormalizedRect, then
+                        rect-intersects-screen. NO trace, NO poll radius, NO
+                        coverage floor.
+  BuildViewProjection-  AnomalyViewport.cpp:76-92    FMinimalViewInfo with
+  Matrix                bConstrainAspectRatio false =>
+                        XScale = 1/tan(FOV/2), YScale = aspect * XScale.
+
+Usage:  python h4_recon.py [--bank <dir>]
+"""
+
+import argparse
+import glob
+import json
+import math
+import os
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+
+GRID = 12
+SPACING = 200.0
+HALF_EXTENT = 60.0          # 100-unit primitive, uniform scale 1.2
+FLOOR_CENTRE = (0.0, 0.0, -50.0)
+FLOOR_EXTENT = (2000.0, 2000.0, 50.0)   # cube scale (40,40,1) on 100-unit box
+
+SHAPES = ("cube", "sphere", "cylinder", "cone")
+
+# CB_Sun: DirectionalLight, Rotator(pitch -45, yaw 35, roll 0), movable, shadowed.
+SUN_ROT = (-45.0, 35.0, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# level model
+# ---------------------------------------------------------------------------
+
+def build_targets():
+    """Returns {actor_name: dict} for the 144 grid targets.
+
+    Name mapping verified in journal 036 on three independent banked data points
+    (_49, _73, _85): StaticMeshActor_K <=> grid spawn index n = K-1; the floor
+    takes _0.
+    """
+    out = {}
+    n = 0
+    for iy in range(GRID):
+        for ix in range(GRID):
+            x = (ix - (GRID - 1) / 2.0) * SPACING
+            y = (iy - (GRID - 1) / 2.0) * SPACING
+            z = 60.0 + ((ix * 7 + iy * 13) % 5) * 25.0
+            out["StaticMeshActor_%d" % (n + 1)] = {
+                "n": n, "ix": ix, "iy": iy,
+                "label": "CB_Target_%02d" % n,
+                "shape": SHAPES[(ix + iy) % 4],
+                "c": (x, y, z),
+                "e": (HALF_EXTENT, HALF_EXTENT, HALF_EXTENT),
+            }
+            n += 1
+    return out
+
+
+def box_corners(c, e):
+    return [(c[0] + sx * e[0], c[1] + sy * e[1], c[2] + sz * e[2])
+            for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
+
+
+def sample_points(c, e):
+    """The engine's 9 samples: bounds centre then the 8 AABB corners."""
+    return [c] + box_corners(c, e)
+
+
+# ---------------------------------------------------------------------------
+# occlusion
+# ---------------------------------------------------------------------------
+
+def seg_hits_aabb(p0, p1, c, e, eps=1e-6):
+    """Slab test for the SEGMENT p0->p1 against an axis-aligned box."""
+    tmin, tmax = 0.0, 1.0
+    for i in range(3):
+        d = p1[i] - p0[i]
+        lo, hi = c[i] - e[i], c[i] + e[i]
+        if abs(d) < eps:
+            if p0[i] < lo - eps or p0[i] > hi + eps:
+                return False
+        else:
+            t1 = (lo - p0[i]) / d
+            t2 = (hi - p0[i]) / d
+            if t1 > t2:
+                t1, t2 = t2, t1
+            tmin = max(tmin, t1)
+            tmax = min(tmax, t2)
+            if tmin > tmax:
+                return False
+    return tmax >= tmin
+
+
+def occlusion_samples(eye, name, targets, model, include_floor):
+    """Returns (passed, total) with the engine's early-out semantics ignored -
+    we want the full 9-sample count, which is what the provenance sidecar
+    reports for a target that survives selection."""
+    t = targets[name]
+    occ = []
+    for other, o in targets.items():
+        if other == name:
+            continue                       # the engine ignores the owner
+        if model == "cube" and o["shape"] != "cube":
+            continue
+        occ.append((o["c"], o["e"]))
+    if include_floor:
+        occ.append((FLOOR_CENTRE, FLOOR_EXTENT))
+
+    passed = 0
+    for s in sample_points(t["c"], t["e"]):
+        if not any(seg_hits_aabb(eye, s, c, e) for c, e in occ):
+            passed += 1
+    return passed, 9
+
+
+# ---------------------------------------------------------------------------
+# projection - mirrors BuildViewProjectionMatrix + ProjectBoxToNormalizedRect
+# ---------------------------------------------------------------------------
+
+def basis(pitch, yaw, roll):
+    p, y, r = map(math.radians, (pitch, yaw, roll))
+    sp, cp = math.sin(p), math.cos(p)
+    sy, cy = math.sin(y), math.cos(y)
+    sr, cr = math.sin(r), math.cos(r)
+    fwd = (cp * cy, cp * sy, sp)
+    right = (sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp)
+    up = (-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp)
+    return fwd, right, up
+
+
+def project_rect(view, c, e):
+    """ProjectBoxToNormalizedRect, unclamped. Returns (min, max) or None."""
+    fwd, right, up = basis(*view["rot"])
+    o = view["origin"]
+    xs = 1.0 / math.tan(math.radians(max(0.001, view["fov"])) / 2.0)
+    ys = view["aspect"] * xs
+
+    mnx = mny = 1e30
+    mxx = mxy = -1e30
+    n_front = 0
+    for p in box_corners(c, e):
+        d = (p[0] - o[0], p[1] - o[1], p[2] - o[2])
+        w = d[0] * fwd[0] + d[1] * fwd[1] + d[2] * fwd[2]
+        if w <= 1e-8:
+            continue
+        cx = (d[0] * right[0] + d[1] * right[1] + d[2] * right[2]) * xs
+        cy = (d[0] * up[0] + d[1] * up[1] + d[2] * up[2]) * ys
+        sx = (cx / w) * 0.5 + 0.5
+        sy = 1.0 - ((cy / w) * 0.5 + 0.5)
+        mnx, mxx = min(mnx, sx), max(mxx, sx)
+        mny, mxy = min(mny, sy), max(mxy, sy)
+        n_front += 1
+    if n_front == 0:
+        return None
+    return (mnx, mny), (mxx, mxy)
+
+
+def on_screen(view, c, e):
+    r = project_rect(view, c, e)
+    if r is None:
+        return False
+    (mnx, mny), (mxx, mxy) = r
+    return mxx > 0.0 and mnx < 1.0 and mxy > 0.0 and mny < 1.0
+
+
+# ---------------------------------------------------------------------------
+# banked camera samples
+# ---------------------------------------------------------------------------
+
+def load_camera_samples(bank):
+    views = []
+    seen_levels = {}
+    for ann_path in glob.glob(os.path.join(bank, "**", "annotation.json"), recursive=True):
+        try:
+            ann = json.load(open(ann_path))
+        except Exception:
+            continue
+        for ev in ann.get("anomalies", []):
+            nodes = ev.get("affected_objects", {}).get("nodes", [])
+            path = nodes[0].get("path", "") if nodes else ""
+            if "CB_GateLevel" not in path:
+                continue
+            cam = ev.get("camera", {})
+            pos = cam.get("global_position")
+            rot = cam.get("rotation")
+            if not pos or rot is None:
+                continue
+            seen_levels["CB_GateLevel"] = seen_levels.get("CB_GateLevel", 0) + 1
+            views.append({
+                "origin": tuple(float(v) for v in pos),
+                "rot": tuple(float(v) for v in rot),
+                "fov": float(cam.get("fov_deg", 90.0)),
+                "aspect": float(cam.get("aspect", 16.0 / 9.0)),
+                "src": os.path.basename(os.path.dirname(ann_path)),
+            })
+    return views
+
+
+# ---------------------------------------------------------------------------
+# PF3 - cast shadow
+# ---------------------------------------------------------------------------
+
+def shadow_footprint(c, e, light_dir):
+    """Where the target's silhouette lands on the floor plane z = 0.
+
+    Projects the 8 AABB corners along the light direction onto z = 0 and returns
+    the axis-aligned span. This is a BOUND on the umbra, not the umbra - it is
+    used only to answer "does this target throw shadow into pixels the camera
+    can see", which is a caveat on the phrase "contributes no pixels", not a
+    gate.
+    """
+    if light_dir[2] >= -1e-6:
+        return None                     # light does not point downward
+    pts = []
+    for p in box_corners(c, e):
+        t = (0.0 - p[2]) / light_dir[2]
+        if t < 0:
+            continue
+        pts.append((p[0] + light_dir[0] * t, p[1] + light_dir[1] * t, 0.0))
+    if not pts:
+        return None
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    cx, cy = (min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0
+    ex, ey = (max(xs) - min(xs)) / 2.0, (max(ys) - min(ys)) / 2.0
+    return (cx, cy, 0.5), (ex, ey, 0.5)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--bank", default=BANK)
+    args = ap.parse_args()
+
+    targets = build_targets()
+    views = load_camera_samples(args.bank)
+    print("=" * 74)
+    print("PF1 / PF3 RECON - rebuilt from make_gate_level.py + the bank")
+    print("=" * 74)
+    print("targets modelled          : %d" % len(targets))
+    print("banked gate camera samples: %d  (from %d banked sessions)"
+          % (len(views), len({v["src"] for v in views})))
+
+    origins = {v["origin"] for v in views}
+    print("distinct eye positions    : %s" % (sorted(origins),))
+    rots = {}
+    for v in views:
+        rots[v["rot"]] = rots.get(v["rot"], 0) + 1
+    modal_rot, modal_n = max(rots.items(), key=lambda kv: kv[1])
+    print("distinct camera rotations : %d   modal %s on %d/%d (%.1f%%)"
+          % (len(rots), modal_rot, modal_n, len(views), 100.0 * modal_n / len(views)))
+
+    if len(origins) != 1:
+        print("\n!! eye position is NOT invariant across the bank - the occlusion")
+        print("   argument in journal 036 3.1 does not hold as written. HALT.")
+        return 2
+    eye = next(iter(origins))
+
+    # -------- known-answer control on THIS script (G96) ---------------------
+    print()
+    print("-" * 74)
+    print("KNOWN-ANSWER CONTROL ON THE MODEL ITSELF")
+    print("-" * 74)
+    banked = {}
+    for pv in glob.glob(os.path.join(args.bank, "**", "selection_provenance.json"),
+                        recursive=True):
+        try:
+            d = json.load(open(pv))
+        except Exception:
+            continue
+        for ev in d.get("events", []):
+            key = ev.get("target")
+            banked.setdefault(key, []).append(
+                (ev.get("valid"), ev.get("occlusion_samples_passed"),
+                 ev.get("occlusion_samples_total")))
+    for tgt, obs in sorted(banked.items()):
+        uniq = sorted(set(obs))
+        for model in ("aabb", "cube"):
+            for fl in (True, False):
+                if tgt not in targets:
+                    continue
+                p, t = occlusion_samples(eye, tgt, targets, model, fl)
+                print("  %-20s banked=%s   model=%-4s floor=%-5s -> %d/%d"
+                      % (tgt, uniq, model, fl, p, t))
+        print("  %-20s bounds %s extent %s shape=%s"
+              % (tgt, targets[tgt]["c"], targets[tgt]["e"], targets[tgt]["shape"]))
+
+    # -------- occlusion sweep ----------------------------------------------
+    print()
+    print("-" * 74)
+    print("OCCLUSION SWEEP  (fully occluded = 9 of 9 rays blocked)")
+    print("-" * 74)
+    results = {}
+    for model in ("aabb", "cube"):
+        for fl in (True, False):
+            full = [n for n in targets
+                    if occlusion_samples(eye, n, targets, model, fl)[0] == 0]
+            results[(model, fl)] = full
+            onscr = [n for n in full
+                     if sum(1 for v in views
+                            if on_screen(v, targets[n]["c"], targets[n]["e"]))
+                     > 0.5 * len(views)]
+            print("  model=%-4s floor=%-5s  fully occluded %3d/144   "
+                  "on-screen on a majority of samples: %d"
+                  % (model, fl, len(full), len(onscr)))
+
+    floor_set = results[("cube", True)]
+    print()
+    print("  RIGOROUS FLOOR (cube occluders + level floor) = %d targets:" % len(floor_set))
+
+    # -------- candidate table ----------------------------------------------
+    print()
+    print("-" * 74)
+    print("CANDIDATE TABLE - on-screen fraction over ALL banked camera samples")
+    print("-" * 74)
+    print("  %-20s %-9s %-22s %7s %8s  %s"
+          % ("actor", "shape", "position", "occ 9s", "onscreen", "note"))
+    cand = sorted(floor_set, key=lambda n: targets[n]["n"])
+    for n in cand:
+        t = targets[n]
+        hits = sum(1 for v in views if on_screen(v, t["c"], t["e"]))
+        p, _ = occlusion_samples(eye, n, targets, "cube", True)
+        pa, _ = occlusion_samples(eye, n, targets, "aabb", True)
+        print("  %-20s %-9s %-22s %3d/%-3d %4d/%-4d %5.1f%%"
+              % (n, t["shape"], "(%g,%g,%g)" % t["c"], p, pa,
+                 hits, len(views), 100.0 * hits / len(views)))
+
+    # -------- control ------------------------------------------------------
+    print()
+    print("-" * 74)
+    print("CONTROL - StaticMeshActor_49 (B1's CALIB_BBOX reference target)")
+    print("-" * 74)
+    t = targets["StaticMeshActor_49"]
+    hits = sum(1 for v in views if on_screen(v, t["c"], t["e"]))
+    p, tot = occlusion_samples(eye, "StaticMeshActor_49", targets, "cube", True)
+    pa, _ = occlusion_samples(eye, "StaticMeshActor_49", targets, "aabb", True)
+    print("  position %s extent %s shape=%s" % (t["c"], t["e"], t["shape"]))
+    print("  occlusion  cube-model %d/%d   aabb-model %d/%d   (banked engine: 9/9)"
+          % (p, tot, pa, tot))
+    print("  on-screen  %d/%d = %.1f%%" % (hits, len(views), 100.0 * hits / len(views)))
+
+    # -------- PF3 shadow ---------------------------------------------------
+    print()
+    print("-" * 74)
+    print("PF3 - CAST SHADOW (A35). Property of the target, NOT a gate.")
+    print("-" * 74)
+    fwd, _, _ = basis(*SUN_ROT)
+    print("  CB_Sun direction (Rotator%s) = (%.4f, %.4f, %.4f)" % (SUN_ROT,) + "" if False else
+          "  CB_Sun direction (Rotator %s) = (%.4f, %.4f, %.4f)"
+          % (SUN_ROT, fwd[0], fwd[1], fwd[2]))
+    modal_view = {"origin": eye, "rot": modal_rot, "fov": 90.0,
+                  "aspect": 16.0 / 9.0}
+    for n in cand + ["StaticMeshActor_49"]:
+        t = targets[n]
+        fp = shadow_footprint(t["c"], t["e"], fwd)
+        if fp is None:
+            print("  %-20s no downward sun component" % n)
+            continue
+        sc, se = fp
+        vis = on_screen(modal_view, sc, se)
+        # is the shadow patch itself reachable by the camera, or hidden behind
+        # the same occluder that hides the target?
+        blocked = 0
+        occ = [(o["c"], o["e"]) for k, o in targets.items()
+               if o["shape"] == "cube" and k != n]
+        for s in sample_points(sc, se):
+            if any(seg_hits_aabb(eye, s, c, e) for c, e in occ):
+                blocked += 1
+        print("  %-20s shadow centre (%.0f,%.0f) half-extent (%.0f,%.0f)  "
+              "on-screen(modal)=%-5s  occluded %d/9"
+              % (n, sc[0], sc[1], se[0], se[1], vis, blocked))
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

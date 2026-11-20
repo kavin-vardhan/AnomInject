@@ -1,0 +1,95 @@
+"""P29 slice-2 mapping check: annotation mask.provided vs the log's measured state.
+
+Grades nothing on its own. It joins, per event, the artifact's mask.provided
+against the M26S2 MAP line's internal state, and prints the pre-declared
+expectation so the reader attributes.
+
+THE MAPPING UNDER TEST
+    NOT_MEASURED     -> false   (never measured; MUST ADMIT)
+    MEASURED_ZERO    -> true    (measured; slice 3 may act on it)
+    MEASURED_NONZERO -> true
+
+The two zeros must never share a representation. MEASURED_ZERO reading false, or
+NOT_MEASURED reading true, is a HALT condition (p29 F-1 / F-2).
+
+Usage: python p29_map_check.py <banked_leg_dir>
+"""
+
+import glob
+import json
+import os
+import re
+import sys
+
+LEG = sys.argv[1]
+
+log = None
+for cand in glob.glob(os.path.join(LEG, "**", "_leg_game.log"), recursive=True) + \
+        glob.glob(os.path.join(LEG, "_leg_game.log")):
+    log = cand
+    break
+
+ann_path = None
+for cand in glob.glob(os.path.join(LEG, "**", "annotation.json"), recursive=True):
+    ann_path = cand
+    break
+
+if not ann_path:
+    print("no annotation.json under", LEG)
+    sys.exit(2)
+
+ann = json.load(open(ann_path, encoding="utf-8-sig"))
+events = ann.get("anomalies", [])
+
+map_re = re.compile(
+    r"M26S2 MAP id=(\S+) target=(\S+) startFrame=(\d+) state=(\S+) -> mask\.provided=(true|false)")
+norec_re = re.compile(r"M26S2 MAP id=(\S+) target=(\S+) startFrame=(\d+) - NO MASK RECORD")
+
+states = []
+if log and os.path.exists(log):
+    for line in open(log, encoding="utf-8", errors="replace"):
+        m = map_re.search(line)
+        if m:
+            states.append((m.group(4), m.group(5)))
+            continue
+        m = norec_re.search(line)
+        if m:
+            states.append(("(no record)", "false"))
+
+print("leg:", os.path.basename(os.path.normpath(LEG)))
+print("annotation events:", len(events), "| M26S2 MAP lines:", len(states))
+print()
+print("%-4s %-18s %-24s %-10s %-10s %s" %
+      ("ev", "measured state", "target", "provided", "expected", "verdict"))
+print("-" * 96)
+
+EXPECT = {
+    "MEASURED_ZERO": "true",
+    "MEASURED_NONZERO": "true",
+    "NOT_MEASURED": "false",
+    "(no record)": "false",
+}
+
+bad = 0
+for i, e in enumerate(events):
+    provided = "true" if e.get("mask", {}).get("provided") else "false"
+    node = e.get("affected_objects", {}).get("nodes", [{}])[0].get("name", "?")
+    state = states[i][0] if i < len(states) else "(no log line)"
+    exp = EXPECT.get(state, "?")
+    if exp == "?":
+        verdict = "UNKNOWN STATE"
+    elif exp == provided:
+        verdict = "ok"
+    else:
+        verdict = "*** MISMATCH ***"
+        bad += 1
+    print("%-4d %-18s %-24s %-10s %-10s %s" % (i, state, node[:24], provided, exp, verdict))
+
+print()
+depth_bad = [i for i, e in enumerate(events) if e.get("depth", {}).get("provided") is not False]
+mask_keys = set()
+for e in events:
+    mask_keys |= set(e.get("mask", {}).keys())
+print("mask sub-keys present:", sorted(mask_keys), "(must be exactly ['provided'])")
+print("depth.provided not false on events:", depth_bad, "(must be empty)")
+print("mapping mismatches:", bad, "(must be 0)")

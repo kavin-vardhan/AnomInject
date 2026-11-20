@@ -1,0 +1,325 @@
+"""H4 result reader - reports the quantities the branch table names, and NOTHING ELSE.
+
+⛔ THIS FILE PRODUCES NO VERDICT. It does not classify a leg, it does not call
+a54_oracle.run(), and it never prints ALIGNED / SHIFTED / ABSENT. The branch is
+decided by a human against a table restated verbatim beforehand. Everything here
+is a reading.
+
+WHAT "LABEL EMITTED" MEANS, and this had to be settled from source BEFORE the run
+because the three candidate meanings do not agree:
+
+  annotation.json anomalies[].frame_indices
+      For a HIDE-TYPE anomaly (blinking, missing_object - IsHideTypeAnomaly),
+      frame_indices comes from Ev.HiddenByIndex, which AnomalyCaptureSubsystem.cpp
+      :1616-1618 populates UNCONDITIONALLY, OUTSIDE the projector guard.
+      => NOT PROJECTOR-GATED. The event is emitted whether or not the projector
+         ever fired, so its presence CANNOT refute H4.
+
+  annotation.json anomalies[].coverage_ratio        <- PROJECTOR-GATED
+      CoverageSum/CoverageCount, accumulated at :1610-1613 only inside
+      `if (ProjectActorBoundsToScreenRect(...))`. Zero iff the projector never fired.
+
+  labels.jsonl anomalies[].bbox_valid               <- PROJECTOR-GATED
+  labels.jsonl visible_positive                     <- PROJECTOR-GATED
+      AnomalyLabelWriter.cpp:64-66,89. bbox_valid IS the projector's return value.
+
+So THE H4 QUANTITY IS bbox_valid / coverage_ratio, not the presence of an event.
+A hide-type event on a fully occluded target is labelled positive REGARDLESS; the
+question H4 asks is whether the PROJECTOR also hands it a box.
+
+THE C3/C4 DISCRIMINATOR (G116), which is why the anchor row is read at all:
+    provenance valid:false + 0/0 AND bbox_valid FALSE -> clause C3 (frustum);
+        both paths agree, and this is the incumbent producer of all 21 banked cases
+    provenance valid:false + 0/0 AND bbox_valid TRUE  -> clause C4 (occlusion);
+        the paths DIVERGE - never yet observed in 780 banked records
+
+Usage: python h4_read.py <occluded_leg_dir> [--control <control_leg_dir>]
+"""
+
+import argparse
+import glob
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import a54_oracle as O
+
+
+def load(sdir):
+    """run_leg.ps1 writes the capture artifacts INSIDE the session dir but the
+    leg-level artifacts (_leg_geometry.json, _leg_game.log) BESIDE it, in the
+    bank leg dir - and the log only in the per-attempt dir. Search all three
+    rather than reporting None for a file that is banked."""
+    d = {"dir": sdir}
+    parent = os.path.dirname(sdir.rstrip("\\/"))
+    hunt = [sdir, parent] + sorted(glob.glob(parent + "_try*"))
+
+    def find(name):
+        for base in hunt:
+            p = os.path.join(base, name)
+            if os.path.exists(p):
+                return p
+        return None
+
+    for name in ("annotation.json", "run_summary.json", "run.json",
+                 "selection_provenance.json", "_leg_geometry.json"):
+        p = find(name)
+        d[name] = json.load(open(p, encoding="utf-8-sig")) if p else None
+    lp = os.path.join(sdir, "labels.jsonl")
+    d["rows"] = [json.loads(l) for l in open(lp) if l.strip()] if os.path.exists(lp) else []
+    d["frames"] = {}
+    for f in glob.glob(os.path.join(sdir, "Actual_Frames", "*.png")):
+        digits = "".join(c for c in os.path.basename(f) if c.isdigit())
+        if digits:
+            d["frames"][int(digits)] = f
+    # the log lives in the per-attempt dirs; prefer the one whose session matches
+    d["log"] = None
+    for base in sorted(glob.glob(parent + "_try*")) + [parent, sdir]:
+        p = os.path.join(base, "_leg_game.log")
+        if os.path.exists(p):
+            d["log"] = p
+            break
+    return d
+
+
+def hdr(t):
+    print()
+    print("=" * 78)
+    print(t)
+    print("=" * 78)
+
+
+def report_leg(d, title):
+    hdr(title)
+    g = d["_leg_geometry.json"] or {}
+    s = d["run_summary.json"] or {}
+    r = d["run.json"] or {}
+    print("  dir              : %s" % d["dir"])
+    print("  target / anomaly : %s / %s   (run.json says %s / %s)"
+          % (g.get("target"), g.get("anomaly"),
+             r.get("target_actor"), r.get("target_anomaly")))
+    print("  geometry         : %sx%s %s, OS scale %s%%"
+          % (g.get("res_x"), g.get("res_y"), g.get("window_mode"), g.get("os_scale_pct")))
+    print("  B1 pose gate     : %s  (CALIB_BBOX is scoped to %s - G117)"
+          % ("APPLIES" if g.get("b1_pose_gate_applies") else "NOT APPLICABLE",
+             g.get("b1_calib_target")))
+    print("  capture_path     : %s        <- must be 'sve' (m25 default, not forced)"
+          % s.get("capture_path"))
+    print("  content_clock    : %s        <- asserted POSITIVELY" % s.get("content_clock"))
+    print("  fps / paced      : stamped %s target %s paced %s ratio %.4f"
+          % (s.get("stamped_fps"), s.get("target_fps"), s.get("paced"),
+             s.get("speed_ratio", -1)))
+    print("  delivery_mode    : %s        <- must be False or provenance is not written"
+          % s.get("delivery_mode"))
+    print("  frames           : total %s positive %s bursts %s zero-match %s"
+          % (s.get("total_frames"), s.get("positive_frames"),
+             s.get("bursts_done"), s.get("zero_match_bursts")))
+    print("  non_manifested   : %s" % s.get("non_manifested_events"))
+
+    # ---- pose, target-independent ----------------------------------------
+    start, modal_rot, dropped = O.settle_window(d["rows"])
+    print("  A47 settle       : start %s  modal_rot %s  dropped %s"
+          % (start, modal_rot, dropped))
+    d["_modal_rot"] = modal_rot
+    d["_settle_start"] = start
+
+    # ---- A48 echo 1: behavioural -----------------------------------------
+    print("  A48 echo 1 (log) :", end=" ")
+    if d["log"]:
+        hits = [l.strip() for l in open(d["log"], encoding="utf-8", errors="replace")
+                if "matched" in l and "actor(s)" in l]
+        if hits:
+            for h in sorted(set(hits)):
+                print("\n      %s" % h[h.find("LogAnomaly"):].strip())
+            print("      -> 'matched 0' would BE the scoping-ON signature; "
+                  "matched >=1 on a fully occluded target is only possible with scoping OFF")
+        else:
+            print("no 'matched N actor(s)' line found in the banked log")
+    else:
+        print("NO BANKED LOG - A48 echo 1 unavailable")
+
+    # ---- projector census -------------------------------------------------
+    tgt = g.get("target") or r.get("target_actor")
+    n_rows = n_bbox = n_vis = 0
+    boxes = {}
+    for row in d["rows"]:
+        for a in row.get("anomalies", []):
+            if a.get("target_name") != tgt:
+                continue
+            n_rows += 1
+            if a.get("bbox_valid"):
+                n_bbox += 1
+                boxes[tuple(round(float(x), 1) for x in a["bbox_px"])] = \
+                    boxes.get(tuple(round(float(x), 1) for x in a["bbox_px"]), 0) + 1
+        if row.get("visible_positive"):
+            n_vis += 1
+    print("  PROJECTOR CENSUS : label rows for %s = %d | bbox_valid TRUE = %d | "
+          "visible_positive rows = %d" % (tgt, n_rows, n_bbox, n_vis))
+    if boxes:
+        modal_box, cnt = max(boxes.items(), key=lambda kv: kv[1])
+        print("                     distinct bboxes %d, modal %s on %d/%d"
+              % (len(boxes), modal_box, cnt, n_bbox))
+        d["_modal_bbox"] = modal_box
+    else:
+        d["_modal_bbox"] = None
+        print("                     NO VALID BBOX ON ANY FRAME "
+              "(the projector never emitted a box for this target)")
+
+    # ---- annotation events -------------------------------------------------
+    ann = d["annotation.json"] or {}
+    evs = ann.get("anomalies", [])
+    print("  ANNOTATION       : %d event(s)" % len(evs))
+    for i, ev in enumerate(evs):
+        af = ev.get("affected_frames", {})
+        print("    ev%-2d manifested=%-5s frames=%-3d cov_ratio=%.8f cov_pct=%s  %s"
+              % (i, ev.get("manifested"), len(af.get("frame_indices") or []),
+                 ev.get("coverage_ratio", -1), ev.get("coverage_pct"),
+                 (af.get("frame_indices") or [])[:8]))
+
+    # ---- provenance + the C3/C4 discriminator ------------------------------
+    prov = d["selection_provenance.json"]
+    if prov is None:
+        print("  PROVENANCE       : selection_provenance.json ABSENT "
+              "(delivery mode suppresses it) - H4's cause signal is UNAVAILABLE")
+        d["_prov"] = []
+        return
+    by_idx = {row.get("session_index"): row for row in d["rows"]}
+    # C1 EXCLUSION, read from the artifact. IsRenderableComponent requires
+    # Component->IsVisible(), so if an anchor frame landed inside the blink's
+    # HIDDEN phase, clause C1 could produce valid:false for a reason that is not
+    # occlusion. annotation.json's frame_indices IS the hidden set for a
+    # hide-type anomaly, so this is directly checkable.
+    hidden_all = set()
+    for ev in (d["annotation.json"] or {}).get("anomalies", []):
+        hidden_all.update(ev.get("affected_frames", {}).get("frame_indices") or [])
+    print("  PROVENANCE + CLAUSE DISCRIMINATION (G116):")
+    print("    C1 excluded per-anchor below (anchor in the blink's hidden set?);")
+    print("    C2 is NOT decidable from the artifact - the projector has no radius")
+    print("       test, so bbox_valid cannot speak to it. It is excluded by the")
+    print("       certified poll-distance model plus the live pollRadius read-back.")
+    print("    C3 excluded by bbox_valid TRUE. C4 is what remains.")
+    print("    anchor  valid  samples  cov_pct   poll_d    bbox_valid  anchor_hidden -> clause")
+    out = []
+    for ev in prov.get("events", []):
+        ai = ev.get("anchor_index")
+        row = by_idx.get(ai)
+        bv = None
+        if row:
+            for a in row.get("anomalies", []):
+                if a.get("target_name") == ev.get("target"):
+                    bv = a.get("bbox_valid")
+        anchor_hidden = ai in hidden_all
+        if ev.get("valid"):
+            clause = "-- (selection succeeded)"
+        elif anchor_hidden:
+            clause = "C1 POSSIBLE - anchor is a hidden frame; NOT attributable"
+        elif bv is True:
+            clause = "C4 OCCLUSION  <== DIVERGENCE"
+        elif bv is False:
+            clause = "C3 frustum (incumbent)"
+        else:
+            clause = "?? no label row at anchor"
+        print("    %-7s %-6s %d/%-6d %-9s %-9s %-11s %-13s %s"
+              % (ai, ev.get("valid"), ev.get("occlusion_samples_passed", -1),
+                 ev.get("occlusion_samples_total", -1),
+                 round(ev.get("coverage_pct", -99), 4),
+                 round(ev.get("poll_distance", -99), 1), bv, anchor_hidden, clause))
+        out.append({"anchor": ai, "valid": ev.get("valid"), "bbox_valid": bv,
+                    "anchor_hidden": anchor_hidden,
+                    "clause": clause, "coverage_pct": ev.get("coverage_pct")})
+    d["_prov"] = out
+    n_c4 = sum(1 for o in out if o["clause"].startswith("C4"))
+    n_ok = sum(1 for o in out if o["valid"])
+    print("    => %d/%d events read C4 DIVERGENCE, %d/%d read selection-succeeded"
+          % (n_c4, len(out), n_ok, len(out)))
+
+
+def raw_series(d, title):
+    """RAW IN-BBOX LUMINANCE SERIES. Ruling 3, option (a).
+
+    ⛔ THIS IS A SERIES, NOT A VERDICT. No A54 classification is produced, TAU is
+    printed only as a SCALE REFERENCE and is NOT applied as a threshold, and no
+    shift search is performed. A54 cannot run on this leg at all (G117), and
+    manufacturing a verdict-shaped number here would be exactly the substitution
+    A60 forbids.
+
+    A35: the bbox is the claim's scope. Hiding an object also removes its CAST
+    SHADOW, which brightens pixels OUTSIDE the bbox - deliberately not measured
+    here, because H4 is about whether the projector boxes a target contributing no
+    pixels WITHIN ITS OWN BBOX, and the client's complaint is a labelled box
+    around nothing.
+    """
+    hdr(title)
+    bbox = d.get("_modal_bbox")
+    if bbox is None:
+        print("  NOT COMPUTABLE - the projector emitted no bbox for this target, so there")
+        print("  is no 'inside its own bbox' region to measure. That absence is itself the")
+        print("  reading the branch table asks for; it is not a failure of this tool.")
+        return
+    print("  modal bbox (px)  : %s" % (bbox,))
+    print("  TAU %.5f is printed BELOW AS A SCALE REFERENCE ONLY. It is NOT applied."
+          % O.TAU)
+    ann = d["annotation.json"] or {}
+    cache = {}
+    for i, ev in enumerate(ann.get("anomalies", [])):
+        claimed = sorted(ev.get("affected_frames", {}).get("frame_indices") or [])
+        if not claimed:
+            print("  ev%-2d no claimed frames" % i)
+            continue
+        lo, hi = min(claimed), max(claimed)
+        flanks = [f for f in (lo - 1, hi + 1) if f in d["frames"]]
+        cv = [O.mean_luma_in_bbox(d["frames"][f], bbox, cache)
+              for f in claimed if f in d["frames"]]
+        fv = [O.mean_luma_in_bbox(d["frames"][f], bbox, cache) for f in flanks]
+        cv = [v for v in cv if v is not None]
+        fv = [v for v in fv if v is not None]
+        if not cv or not fv:
+            print("  ev%-2d frames missing; series not computable" % i)
+            continue
+        mc, mf = sum(cv) / len(cv), sum(fv) / len(fv)
+        overlap = not (max(cv) < min(fv) or min(cv) > max(fv))
+        print("  ev%-2d claimed n=%d [%.6f..%.6f] mean %.6f | flanks n=%d "
+              "[%.6f..%.6f] mean %.6f | diff %+.6f | ranges %s"
+              % (i, len(cv), min(cv), max(cv), mc, len(fv), min(fv), max(fv), mf,
+                 mc - mf, "OVERLAP" if overlap else "disjoint"))
+
+
+def compare(occ, ctrl):
+    hdr("INTER-LEG modal_rot POSE MATCH - A64-style DISCRIMINATOR, NEVER A GATE")
+    a, b = occ.get("_modal_rot"), ctrl.get("_modal_rot")
+    print("  occluded leg modal_rot : %s" % (a,))
+    print("  control  leg modal_rot : %s" % (b,))
+    print("  SETTLE_TOL_DEG (frozen): %.1f" % O.SETTLE_TOL_DEG)
+    if a is None or b is None:
+        print("  -> one leg never settles; not comparable")
+        return
+    dd = [abs(x - y) for x, y in zip(a, b)]
+    print("  per-component |delta|  : %s" % ([round(x, 3) for x in dd],))
+    within = all(x <= O.SETTLE_TOL_DEG for x in dd)
+    print("  within tolerance       : %s" % within)
+    print("  ⛔ REPORTED, NOT CONDITIONED ON. No branch depends on this line.")
+    print("     modal_rot is TARGET-INDEPENDENT (it reads view.rot only), which is")
+    print("     what makes it usable across legs where a pixel bbox is not (the")
+    print("     oracle's own note: 'no bbox is transferable BETWEEN legs').")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("occluded")
+    ap.add_argument("--control", default=None)
+    args = ap.parse_args()
+
+    occ = load(args.occluded)
+    report_leg(occ, "OCCLUDED LEG")
+    raw_series(occ, "OCCLUDED LEG - RAW IN-BBOX LUMINANCE SERIES (NOT AN A54 VERDICT)")
+
+    if args.control:
+        ctrl = load(args.control)
+        report_leg(ctrl, "CONTROL LEG")
+        compare(occ, ctrl)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

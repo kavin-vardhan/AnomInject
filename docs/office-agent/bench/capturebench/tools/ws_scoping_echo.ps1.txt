@@ -1,0 +1,212 @@
+<#
+A48 ECHO 2 (CORROBORATING) - read viewportScoping, pollRadius and
+minScreenCoverage back off the LIVE SUBSYSTEM over the control server.
+
+RANKING, per the ruling. Echo 1 is PRIMARY and lives in each measurement leg's
+own banked log: "blinking: matched N actor(s) for '=<Actor>'". That one is
+BEHAVIOURAL - on a fully occluded target, matched >= 1 is only possible if the
+occlusion-aware selection path did not run, and matched 0 IS the scoping-ON false
+null. A setter echoing its own argument would not satisfy A48; this does.
+
+Echo 2 is this file: ControlSnapshot's session block
+(ControlSnapshot.cpp:209-217) reports IsViewportScopingEnabled() - a read of the
+live member, independent of any command. It also carries pollRadius and
+minScreenCoverage, which is why this probe is worth its own launch: the poll
+radius is what admits StaticMeshActor_100 (1031.9 cm) and culls
+StaticMeshActor_11 (2543.7 cm) BEFORE occlusion is ever consulted, and that
+number should be read back rather than assumed from the source default.
+
+⛔ IF THE TWO ECHOES DISAGREE, HALT. Do not pick the convenient one.
+
+This runs as a SEPARATE probe launch so the two measurement legs stay exactly as
+run_leg.ps1 produces them - no IAI.Server.Start in their ExecCmds, no extra work
+on the thread under test. Nothing here writes to the bank.
+
+TOKEN: read from the game's own DefaultGame.ini, never hardcoded (G112), same
+precedent as verify_lastrundir.ps1.
+
+Usage: powershell -File ws_scoping_echo.ps1 [-Target StaticMeshActor_100]
+#>
+
+param(
+  [string]$Url = "ws://127.0.0.1:8077",
+  [string]$Token = "",
+  [string]$Target = "StaticMeshActor_100",
+  [string]$Anomaly = "blinking"
+)
+
+$ErrorActionPreference = "Stop"
+
+# ⚠ THE TOKEN IS READ FROM THE BINARY UNDER TEST, NOT FROM THE SOURCE INI.
+#
+# First attempt read D:\...\StackOBot\Config\DefaultGame.ini - the file a
+# developer edits - and the server REJECTED it. The staged build was cooked
+# BEFORE the token rotation and still enforces the PLACEHOLDER it was cooked
+# with, which its own startup log states plainly:
+#
+#   "=== Control server token: TESTVALUE123 (from DefaultGame.ini
+#      [AnomalyControlServer] Token) ==="
+#
+# The parenthetical is what makes this dangerous to read casually: the binary
+# says "from DefaultGame.ini", and it means the COOKED one, which is a different
+# file from the one on disk in the project. So G112's placeholder guard - which
+# verify_lastrundir.ps1 and the first draft of this file both apply to the SOURCE
+# ini - validates an artifact that is not the one enforcing anything. A build
+# cooked before a rotation keeps the placeholder and the guard stays silent.
+#
+# A44's principle: prove the artifact under test is the one you think it is. The
+# token is therefore taken from the RUNNING PROCESS's own log line. That is a
+# read-back, not a hardcoded secret, and it is the same discipline A48 demands of
+# every other effective value in this harness.
+$gameIni = "D:\IntrusiveAnomalies\StackOBot\Config\DefaultGame.ini"
+$srcToken = ""
+if (Test-Path $gameIni) {
+  $m = [regex]::Match((Get-Content $gameIni -Raw), '(?m)^\s*Token\s*=\s*(\S+)\s*$')
+  if ($m.Success) { $srcToken = $m.Groups[1].Value }
+}
+
+$staged = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+$outRoot = Split-Path $staged
+$label = "H4_WSECHO"
+
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 600
+if (Test-Path "$outRoot\$label") { Remove-Item "$outRoot\$label" -Recurse -Force }
+
+# Same shipping defaults as the measurement legs: viewport scoping is NOT set.
+$cmds = "r.DefaultFeature.AutoExposure 0, IAI.Server.Start" +
+        ", IAI.Capture.Fps 30, IAI.Capture.Config 2 4 8 4 0" +
+        ", IAI.Capture.Start $label png 777 40 $Anomaly $Target"
+
+$p = Start-Process -FilePath $staged -PassThru -ArgumentList @(
+  "/Game/CaptureBenchGate/CB_GateLevel","-windowed","-ResX=1280","-ResY=720",
+  "-ExecCmds=`"$cmds`"","-unattended","-nosplash")
+
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class FgWse {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static uint FgPid(){ uint x=0; GetWindowThreadProcessId(GetForegroundWindow(), out x); return x; }
+  public static void Force(IntPtr h){ ShowWindow(h,9); keybd_event(0x12,0,0,UIntPtr.Zero);
+    keybd_event(0x12,0,2,UIntPtr.Zero); SetForegroundWindow(h); }
+}
+"@
+$sh = New-Object -ComObject WScript.Shell
+for ($i=0; $i -lt 40; $i++) {
+  Start-Sleep -Milliseconds 400
+  try { $sh.AppActivate($p.Id) | Out-Null } catch {}
+  try { $p.Refresh(); if ($p.MainWindowHandle -ne 0) { [FgWse]::Force($p.MainWindowHandle) } } catch {}
+  if ([FgWse]::FgPid() -eq $p.Id) { break }
+}
+
+Start-Sleep -Seconds 6   # let the run get past the focus gate and fire at least once
+
+# ---- token read-back from the process under test --------------------------
+$log = "$outRoot\..\..\Saved\Logs\StackOBot.log"
+$liveToken = ""
+for ($i = 0; $i -lt 20 -and $liveToken -eq ""; $i++) {
+  if (Test-Path $log) {
+    $lm = Select-String -Path $log -Pattern 'Control server token:\s*(\S+)\s*\(' | Select-Object -Last 1
+    if ($lm) { $liveToken = $lm.Matches[0].Groups[1].Value }
+  }
+  if ($liveToken -eq "") { Start-Sleep -Milliseconds 500 }
+}
+
+Write-Output "=== TOKEN PROVENANCE (A44) ==="
+Write-Output ("  source Config\DefaultGame.ini : {0} (len {1})" -f
+  $(if ($srcToken) { $srcToken.Substring(0, [Math]::Min(12, $srcToken.Length)) + "..." } else { "(absent)" }),
+  $srcToken.Length)
+Write-Output ("  ENFORCED by the staged binary : {0} (len {1})" -f $liveToken, $liveToken.Length)
+if ($liveToken -and $srcToken -and ($liveToken -ne $srcToken)) {
+  Write-Output "  !! MISMATCH - the cooked build does NOT carry the project's current token."
+}
+if ($liveToken -match 'TESTVALUE|CHANGEME|placeholder') {
+  Write-Output ""
+  Write-Output "  ############################################################"
+  Write-Output "  ## PLACEHOLDER TOKEN IS LIVE IN THE STAGED BUILD (G112).  ##"
+  Write-Output "  ## G112's guard checks the SOURCE ini, which is clean, so ##"
+  Write-Output "  ## it never sees this. Filed as a finding; the measurement##"
+  Write-Output "  ## continues because this is orthogonal to H4.            ##"
+  Write-Output "  ############################################################"
+  Write-Output ""
+}
+if ($Token -eq "") {
+  if ($liveToken -eq "") { Write-Output "FAIL: could not read the enforced token from the log.";
+    Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force; exit 1 }
+  $Token = $liveToken
+}
+
+$ct = [System.Threading.CancellationToken]::None
+$ws = [System.Net.WebSockets.ClientWebSocket]::new()
+try {
+  $ws.ConnectAsync([Uri]$Url, $ct).GetAwaiter().GetResult()
+} catch {
+  Write-Output "FAIL: could not connect to $Url - $($_.Exception.Message)"
+  Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+  exit 1
+}
+function Send($o) {
+  $b = [System.Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Compress -Depth 10))
+  [void]$ws.SendAsync([System.ArraySegment[byte]]::new($b), [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $ct).GetAwaiter().GetResult()
+}
+function Recv([int]$ms = 4000) {
+  $buf = [byte[]]::new(262144); $mem = [System.IO.MemoryStream]::new()
+  try {
+    do {
+      $cts = [System.Threading.CancellationTokenSource]::new($ms)
+      $r = $ws.ReceiveAsync([System.ArraySegment[byte]]::new($buf), $cts.Token).GetAwaiter().GetResult()
+      $mem.Write($buf, 0, $r.Count)
+    } while (-not $r.EndOfMessage)
+  } catch { return $null }
+  $by = $mem.ToArray()
+  if ($by.Length -ge 4 -and $by[0] -eq 0x41 -and $by[1] -eq 0x49 -and $by[2] -eq 0x46 -and $by[3] -eq 0x31) { return "<AIF1 frame>" }
+  return [System.Text.Encoding]::UTF8.GetString($by)
+}
+
+Send @{ type = "hello"; token = $Token }
+$auth = $null
+for ($i=0; $i -lt 6; $i++) { $m = Recv; if ($m -and $m -ne "<AIF1 frame>") { $auth = $m; break } }
+Write-Output "auth reply: $auth"
+
+Send @{ type = "subscribe"; channels = @("snapshot"); snapshotHz = 4 }
+
+$snap = $null
+for ($i=0; $i -lt 40; $i++) {
+  $m = Recv
+  if (-not $m -or $m -eq "<AIF1 frame>") { continue }
+  try { $o = $m | ConvertFrom-Json } catch { continue }
+  if ($o.session -ne $null) { $snap = $o; break }
+}
+
+if ($snap -eq $null) {
+  Write-Output "FAIL: no snapshot carrying a session block arrived."
+  Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+  exit 1
+}
+
+Write-Output ""
+Write-Output "=== A48 ECHO 2 - LIVE SUBSYSTEM READ-BACK (ControlSnapshot.session) ==="
+Write-Output ("  viewportScoping   : {0}      <- MUST be False" -f $snap.session.viewportScoping)
+Write-Output ("  pollRadius        : {0} cm   <- what admits _100 (1031.9) and culls _11 (2543.7)" -f $snap.session.pollRadius)
+Write-Output ("  minScreenCoverage : {0} %%" -f $snap.session.minScreenCoverage)
+Write-Output ("  activeCount       : {0}" -f $snap.session.activeCount)
+if ($snap.auto -ne $null -and $snap.auto.liveFires -ne $null) {
+  foreach ($lf in $snap.auto.liveFires) {
+    Write-Output ("  liveFire          : {0} on {1}" -f $lf.id, $lf.target)
+  }
+}
+
+# Echo 1 from THIS probe's own log, so the two can be compared in one place.
+Start-Sleep -Seconds 2
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 800
+Write-Output ""
+Write-Output "=== A48 ECHO 1 from this probe's log (behavioural) ==="
+if (Test-Path $log) {
+  Select-String -Path $log -Pattern "matched \d+ actor" | ForEach-Object { "  " + $_.Line.Trim() }
+} else { Write-Output "  (no log)" }
+exit 0

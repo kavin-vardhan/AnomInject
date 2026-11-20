@@ -1,0 +1,99 @@
+<#
+POST-COOK GATE - read the cooked map set back OUT OF THE ARTIFACT.
+
+WHY THIS EXISTS. MainWorld was absent from every staged build for months and
+nobody noticed, because the cook is map-restricted by a -map= argument and
+NOTHING EVER CHECKED WHAT LANDED. That absence was then explained by an invented
+mechanism ("the title actively redirects MainWorld to MainMenu") which foreclosed
+the route for ~13 days - see G87's correction and G120.
+
+This is G119's rule applied to the cook itself:
+
+    READ BACK WHAT THE ARTIFACT ENFORCES, NOT WHAT THE COOK COMMAND SAID.
+
+A -map= argument is an INPUT. The .utoc container index is the artifact.
+
+METHOD. IoStore's directory index stores package paths as UTF-16. An ASCII-only
+scan returns NOTHING and reads as "no maps were cooked" - the same false-negative
+shape G103 records for the A44 binary scan. Both encodings are scanned here and
+the tool reports which one produced the hits, so a zero result is legible as
+either a real absence or suspect tooling.
+
+ASCII ONLY, DELIBERATELY. Windows PowerShell 5.1 parses a .ps1 as ANSI unless the
+file carries a BOM, so a UTF-8-no-BOM script containing any non-ASCII character
+(an em-dash, an arrow) is a PARSE ERROR rather than a runtime one. The first
+draft of this file failed exactly that way. Keep this file 7-bit.
+
+EXIT: 0 all required maps present and no unexpected ones
+      1 a required map is MISSING            -> the cook silently omitted it
+      2 unexpected maps present, or the scan found nothing at all (suspect)
+
+Usage:
+  powershell -File verify_cooked_maps.ps1 `
+      [-Utoc <path>] [-Required CB_GateLevel,MainMenu,MainWorld,Entry]
+#>
+
+param(
+  [string]$Utoc = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Content\Paks\StackOBot-Windows.utoc",
+  [string[]]$Required = @("CB_GateLevel","MainMenu","MainWorld","Entry")
+)
+
+if (-not (Test-Path $Utoc)) { Write-Output "FAIL: no .utoc at $Utoc"; exit 2 }
+
+$b = [System.IO.File]::ReadAllBytes($Utoc)
+$ascii = [System.Text.Encoding]::ASCII.GetString($b)
+$uni   = [System.Text.Encoding]::Unicode.GetString($b)
+
+$hitsAscii = @([regex]::Matches($ascii,'[\x20-\x7E]{3,}\.umap') | ForEach-Object { $_.Value })
+$hitsUni   = @([regex]::Matches($uni,  '[\x20-\x7E]{3,}\.umap') | ForEach-Object { $_.Value })
+$found = @($hitsAscii + $hitsUni) | Sort-Object -Unique
+
+Write-Output "=== COOKED MAP SET - read from the artifact ==="
+Write-Output ("  utoc      : {0}" -f $Utoc)
+Write-Output ("  mtime     : {0}" -f (Get-Item $Utoc).LastWriteTime)
+Write-Output ("  size      : {0:N0} bytes" -f (Get-Item $Utoc).Length)
+Write-Output ("  hits ascii: {0}   hits utf16: {1}   (utf16 is the expected source)" -f $hitsAscii.Count, $hitsUni.Count)
+Write-Output ""
+if ($found.Count -eq 0) {
+  Write-Output "  (no .umap strings found in EITHER encoding)"
+  Write-Output ""
+  Write-Output "SUSPECT TOOLING, not a clean 'no maps' result. A real container"
+  Write-Output "always matches something. Confirm the encoding before believing this."
+  exit 2
+}
+foreach ($m in $found) { Write-Output "    $m" }
+
+Write-Output ""
+Write-Output "=== GATE ==="
+$missing = @()
+foreach ($r in $Required) {
+  $present = [bool]($found | Where-Object { $_ -match [regex]::Escape($r) })
+  if ($present) { $mark = "PRESENT" } else { $mark = "*** MISSING ***"; $missing += $r }
+  Write-Output ("  {0,-16} {1}" -f $r, $mark)
+}
+$unexpected = @($found | Where-Object { $n = $_; -not ($Required | Where-Object { $n -match [regex]::Escape($_) }) })
+if ($unexpected.Count -gt 0) {
+  Write-Output ""
+  Write-Output "  UNEXPECTED (report, do not act on):"
+  foreach ($u in $unexpected) { Write-Output "    $u" }
+}
+
+Write-Output ""
+if ($missing -contains "CB_GateLevel") {
+  Write-Output "HALT IMMEDIATELY - CB_GateLevel is ABSENT."
+  Write-Output "  Every m25 certification is expressed in it: the S4-1 resolution matrix,"
+  Write-Output "  B1's CALIB_BBOX calibration and the A54 oracle's certified scope are all"
+  Write-Output "  scoped to that level. This is the worse failure. Do not run any leg."
+  exit 1
+}
+if ($missing.Count -gt 0) {
+  Write-Output ("HALT - the cook silently omitted: {0}" -f ($missing -join ', '))
+  Write-Output "  Do NOT diagnose by re-cooking blind. Report first."
+  exit 1
+}
+if ($unexpected.Count -gt 0) {
+  Write-Output "PASS with unexpected entries - reported above, not acted on."
+  exit 2
+}
+Write-Output "PASS - every required map is present in the cooked container."
+exit 0

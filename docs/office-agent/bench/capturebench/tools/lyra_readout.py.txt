@@ -1,0 +1,201 @@
+"""072: read a Lyra fixture session and its run log into the brief's five readouts.
+
+REPORTING ONLY. It computes nothing the artifacts do not already carry, and it
+prints the reason whenever a number is absent rather than substituting one.
+Every section names the file the number came from, so a reader can check it.
+
+Usage: python lyra_readout.py <session-dir> [engine-log]
+"""
+
+import json
+import os
+import re
+import sys
+from collections import Counter, defaultdict
+
+
+def read_json(p):
+    with open(p, "r", encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def read_labels(p):
+    rows = []
+    if not os.path.isfile(p):
+        return rows
+    with open(p, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except Exception:
+                pass
+    return rows
+
+
+def head(t):
+    print()
+    print("=" * 78)
+    print(t)
+    print("=" * 78)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("usage: lyra_readout.py <session-dir> [engine-log]")
+        return 2
+    sess = sys.argv[1]
+    log = sys.argv[2] if len(sys.argv) > 2 else None
+
+    ann_p = os.path.join(sess, "annotation.json")
+    rs_p = os.path.join(sess, "run_summary.json")
+    lab_p = os.path.join(sess, "labels.jsonl")
+    frames_d = os.path.join(sess, "Actual_Frames")
+    mask_d = os.path.join(sess, "target_mask")
+
+    ann = read_json(ann_p) if os.path.isfile(ann_p) else None
+    rs = read_json(rs_p) if os.path.isfile(rs_p) else None
+    labels = read_labels(lab_p)
+
+    head("0. SESSION INVENTORY")
+    print("dir            :", sess)
+    for name, p in [("annotation.json", ann_p), ("run_summary.json", rs_p),
+                    ("labels.jsonl", lab_p)]:
+        print("%-16s: %s" % (name, "present" if os.path.isfile(p) else "ABSENT"))
+    nfr = len([x for x in os.listdir(frames_d)]) if os.path.isdir(frames_d) else 0
+    nmk = len([x for x in os.listdir(mask_d)]) if os.path.isdir(mask_d) else 0
+    print("%-16s: %d" % ("Actual_Frames", nfr))
+    print("%-16s: %d" % ("target_mask PNGs", nmk))
+    print("%-16s: %d rows" % ("labels rows", len(labels)))
+    alog = os.path.join(sess, "anomaly_log.txt")
+    print("%-16s: %s" % ("anomaly_log.txt", "present" if os.path.isfile(alog) else "ABSENT"))
+
+    # ---------------------------------------------------------------- 5.2 mask
+    head("2. m26 / MASK READOUT  (run_summary.json)")
+    if not rs:
+        print("run_summary.json ABSENT - nothing to report.")
+    else:
+        keys = ["vetoed_events", "translucent_vetoes", "translucency_unknown_vetoes",
+                "mask_probe_arms", "mask_residual_discards", "mask_nopass_discards",
+                "target_mask_frames_measured", "target_mask_frames_hidden_blank",
+                "target_mask_frames_unavailable", "non_manifested_events",
+                "pattern_excluded_targets"]
+        for k in keys:
+            print("  %-34s %s" % (k, rs.get(k, "<absent>")))
+    hist = Counter()
+    for r in labels:
+        hist[r.get("mask_state", "<no key>")] += 1
+    print("  mask_state histogram over %d label rows: %s" % (len(labels), dict(hist)))
+    mv = Counter()
+    for r in labels:
+        for a in (r.get("anomalies") or []):
+            mv[a.get("mask_value", "<no key>")] += 1
+    print("  mask_value histogram over anomaly entries : %s" % dict(mv))
+
+    # ---------------------------------------------------------------- 5.3 census
+    head("3. CENSUS READOUT  (run_summary.json)")
+    if rs:
+        cen = {k: v for k, v in rs.items() if k.startswith("census_")}
+        if cen:
+            for k in sorted(cen):
+                print("  %-38s %s" % (k, cen[k]))
+        else:
+            print("  NO census_* keys -> the census was NOT EFFECTIVE this run")
+            print("  (bCensusEffective = census && mask && async; the keys are emitted only when it ran)")
+
+    # ---------------------------------------------------------------- 5.5 throughput
+    head("5. THROUGHPUT / RENDER-HEALTH READOUT  (run_summary.json)")
+    if rs:
+        for k in ["total_frames", "positive_frames", "speed_ratio", "game_clock_speed_ratio",
+                  "sustained_wall_fps", "target_fps", "stamped_fps", "paced",
+                  "frames_exposure_dip", "frames_shaders_pending", "shader_prewarm_ms",
+                  "shader_prewarm_incomplete", "capture_path", "content_clock",
+                  "delivery_mode", "ticks_per_captured_frame", "capture_game_ticks",
+                  "key_ring_missed", "key_ring_corrupted", "readback_layout"]:
+            print("  %-34s %s" % (k, rs.get(k, "<absent>")))
+
+    # ---------------------------------------------------------------- 5.4 per event
+    head("4. PER-EVENT READOUT  (annotation.json + labels.jsonl)")
+    if not ann:
+        print("annotation.json ABSENT.")
+        return 0
+    evs = ann.get("anomalies") or []
+    print("events in annotation.json: %d" % len(evs))
+    if ann.get("video"):
+        print("video: %s" % json.dumps(ann["video"]))
+
+    # index label rows by session_index (G161: NEVER frame_index)
+    by_si = {}
+    for r in labels:
+        si = r.get("session_index")
+        if si is not None:
+            by_si[si] = r
+
+    for i, e in enumerate(evs):
+        print()
+        print("-" * 74)
+        idxs = e.get("affected_frames", {}).get("frame_indices") or []
+        af = e.get("affected_frames", {})
+        nodes = e.get("affected_objects", {}).get("nodes") or []
+        n0 = nodes[0] if nodes else {}
+        print("  idx=%d  type=%s  subtype=%s" % (i, e.get("anomaly_type"), e.get("anomaly_subtype")))
+        print("    node.name        : %s" % n0.get("name"))
+        print("    asset_name       : %s" % n0.get("asset_name"))
+        print("    component_class  : %s" % n0.get("component_class"))
+        print("    manifested       : %s" % e.get("manifested"))
+        print("    coverage_ratio   : %s   coverage_pct: %s" % (e.get("coverage_ratio"), e.get("coverage_pct")))
+        print("    mask             : %s" % json.dumps(e.get("mask")))
+        print("    affected_frames  : start=%s end=%s count=%s" %
+              (af.get("start_frame"), af.get("end_frame"), af.get("frame_count")))
+        print("    frame_indices    : %s" % idxs)
+        # F4 shape: did the target leave frame mid-event?
+        bad_bbox, missing_row, mstates = [], [], Counter()
+        for si in idxs:
+            r = by_si.get(si)
+            if r is None:
+                missing_row.append(si)
+                continue
+            mstates[r.get("mask_state", "<none>")] += 1
+            ents = r.get("anomalies") or []
+            for a in ents:
+                if a.get("bbox_valid") is False:
+                    bad_bbox.append(si)
+        print("    mask_state over its own labelled frames: %s" % dict(mstates))
+        print("    bbox_valid FALSE on labelled frames    : %s" % (bad_bbox if bad_bbox else "none"))
+        print("    labelled frames with NO labels.jsonl row: %s" % (missing_row if missing_row else "none"))
+
+    # ---------------------------------------------------------------- log-derived
+    if log and os.path.isfile(log):
+        head("LOG-DERIVED LINES (engine log)")
+        with open(log, "r", encoding="utf-8", errors="replace") as f:
+            txt = f.read()
+        pats = [
+            ("HOST-PP CUSTOM-DEPTH READERS", r".*HOST-PP.*"),
+            ("Capture run STARTED", r".*Capture run STARTED.*"),
+            ("VETOED-OBJECT", r".*VETOED-OBJECT.*"),
+            ("M26S1 EVENT", r".*M26S1 EVENT.*"),
+            ("census", r".*[Cc]ensus.*(fires|candidates|verdict|translucent|skipped|above|cycle).*"),
+            ("MASK-TIE", r".*MASK-TIE.*"),
+            ("TOGGLING-SUBSET", r".*TOGGLING-SUBSET.*"),
+            ("left-to-game / re-found / swept", r".*(left-to-game|re-found|swept|default-reset|unresolved).*"),
+            ("EXCLUDED-TARGET", r".*EXCLUDED-TARGET.*"),
+            ("selected / matched actors", r".*matched \d+ actor.*"),
+            ("shader prewarm", r".*[Ss]hader.*[Pp]rewarm.*"),
+            ("exposure dip", r".*exposure.?dip.*"),
+            ("TICKPIN", r".*TICKPIN.*"),
+            ("Capture(runlog)", r".*Capture\(runlog\).*"),
+            ("mask/target-mask echo", r".*IAI\.Capture\.(Mask|TargetMask).*"),
+        ]
+        for title, pat in pats:
+            hits = re.findall(pat, txt)
+            print()
+            print("  --- %s : %d hit(s) ---" % (title, len(hits)))
+            for h in hits[:25]:
+                print("    " + h.strip())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

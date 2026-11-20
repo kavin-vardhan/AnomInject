@@ -1,0 +1,249 @@
+"""
+MASK-PICTURE-PAIRING - the permanent cook-time gate (m44; census-ON baseline 069-16 P6,
+re-baselined on the m46 container at 069-22 A4).
+
+Reads the bench pairing probe out of a banked leg and answers ONE question: is the target
+mask paired with the picture of the SAME frame, or with the previous one? Verdict predicate:
+
+    NEITHER == 0 AND PREVIOUS == 0 over decidable frames.
+
+--------------------------------------------------------------------------------------
+THE FIXTURE IS PART OF THE GATE. THIS FILE REFUSES A LEG THAT CANNOT BE READ.
+--------------------------------------------------------------------------------------
+The probe is a cube wearing /AnomalyInjector/Materials/M_CorruptedTexture_Pink
+(AnomalyCaptureSubsystem.cpp:1408-1409), and picture_centroid() below FINDS THE PROBE BY
+THAT MAGENTA. The `corrupted_texture` anomaly swaps its target to THE SAME MATERIAL ASSET.
+So a probe leg that fires `corrupted_texture` puts two magenta objects in frame, the
+centroid is the average of both, and the gate reads NEITHER on every anomaly-present
+frame - a confident, detailed, entirely false "the mask is mis-paired".
+
+That is not hypothetical. It happened twice:
+  069-15  a probe on stencil 250 (inside the allocator range) AND this same magenta ->
+          "the mask is wrong on a quarter of frames" - RETRACTED at 069-16 (G226).
+  069-27  the probe leg fired `corrupted_texture` -> NEITHER 54 of 79, reported against a
+          baseline of NEITHER 0, and it read the SAME on the previous binary, so it was
+          nearly filed as "unchanged, therefore fine". Bisected at 069-28: the m46 binary
+          that PRODUCED the passing baseline reproduces NEITHER 54 exactly when given that
+          recipe. The binary and this analyser were both innocent; the LEG RECIPE moved.
+
+069-16 fixed the TAG half structurally - the probe's tag is ReservedStencilMax, which the
+allocator can never hand out. The COLOUR half was fixed only by choosing a non-magenta
+fixture anomaly, and that choice lived nowhere but in whoever typed the leg command. So it
+regressed the moment a brief picked a different anomaly. This refusal is where that choice
+now lives.
+
+A REFUSAL IS THE POINT. A gate that cannot see its subject must say so rather than return
+a number: on a cook-time gate a false NEITHER either blocks a good cook or gets waved
+through, and both are worse than stopping.
+
+The structural fix - give the probe a colour no anomaly uses - is FILED, NOT BUILT: it is
+a binary change and would retire the exe every other m48 gate ran on. See journal 069 s20.
+
+THE NAME LIST IS NOT THE ONLY GUARD. A rename or a NEW magenta anomaly would slip past
+COLLIDING_ANOMALIES silently, so the magenta pixel count is ALWAYS printed split by
+anomaly_present. On a clean fixture those two bands coincide; a second magenta object
+separates them, and that is visible whether or not the name was listed.
+
+EXIT CODES: 0 read . 2 no run.json . 3 colliding fixture . 4 no probe in the leg.
+"""
+
+import json
+import os
+import sys
+from PIL import Image
+
+PROBE_TAG = 255
+
+PROBE_MATERIAL = "/AnomalyInjector/Materials/M_CorruptedTexture_Pink"
+
+COLLIDING_ANOMALIES = {"corrupted_texture"}
+
+
+def rows(session):
+    out = []
+    with open(os.path.join(session, "labels.jsonl"), "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+
+def refuse(code, title, detail):
+    print()
+    print("*** MASK-PICTURE-PAIRING REFUSED - %s ***" % title)
+    print(detail)
+    print()
+    print("NO PAIRING NUMBER IS REPORTED. This is a refusal, not a result, and it must not")
+    print("be recorded as a pass, a fail, or a NEITHER count.")
+    print()
+    sys.exit(code)
+
+
+def check_fixture(session):
+    """Establish, from the leg's OWN artifacts, that this leg can be read at all.
+
+    Read rather than assumed (G119): the anomaly comes out of the leg's run.json and the
+    probe out of its run log, never out of the command someone believes they typed."""
+    rj = os.path.join(session, "run.json")
+    if not os.path.isfile(rj):
+        refuse(2, "the leg's fixture cannot be established",
+               "run.json is absent from %s.\n"
+               "It carries target_anomaly, which is how this gate learns whether the leg's\n"
+               "anomaly collides with the probe's own colour. Delivery mode suppresses\n"
+               "run.json, so a delivery leg can never be read by this gate. Re-run the leg\n"
+               "with delivery OFF." % session)
+    with open(rj, "r", encoding="utf-8-sig") as f:
+        manifest = json.load(f)
+    anomaly = manifest.get("target_anomaly") or "(auto-pool)"
+
+    log = os.path.join(session, "anomaly_log.txt")
+    spawned = False
+    if os.path.isfile(log):
+        with open(log, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if "MASK-PAIRING PROBE SPAWNED" in line:
+                    spawned = True
+                    break
+    if not spawned:
+        refuse(4, "there is no probe in this leg",
+               "No 'MASK-PAIRING PROBE SPAWNED' line in %s.\n"
+               "Either IAI.Bench.MaskPairingProbe 1 was not passed, or the run log was off,\n"
+               "or the probe refused to spawn. Every magenta pixel this gate would have\n"
+               "measured would then belong to something other than the probe, and any number\n"
+               "it printed would be about the wrong object." % log)
+
+    if anomaly in COLLIDING_ANOMALIES:
+        refuse(3, "the leg's anomaly shares the probe's material",
+               "This leg fired '%s', which swaps its target to\n"
+               "  %s\n"
+               "and that is the SAME asset the probe wears. Two magenta objects are in frame,\n"
+               "so picture_centroid() returns their average and every anomaly-present frame\n"
+               "reads NEITHER. Measured at 069-28: the recipe alone moves the gate from\n"
+               "NEITHER 0 to NEITHER 54, on EITHER binary.\n\n"
+               "Re-run the probe leg with a NON-MAGENTA anomaly. The baseline recipe, the one\n"
+               "069-16 P6 and 069-22 A4 both used, is:\n"
+               "  -Anomaly blinking -Target StaticMeshActor_49 -Seed 4242 -MaxFrames 40"
+               % (anomaly, PROBE_MATERIAL))
+    return anomaly
+
+
+def mask_centroid(session, idx):
+    p = os.path.join(session, "target_mask", "frame_%05d.png" % idx)
+    if not os.path.isfile(p):
+        return None, 0
+    im = Image.open(p).convert("L")
+    w, h = im.size
+    px = im.load()
+    sx = 0
+    n = 0
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            if px[x, y] == PROBE_TAG:
+                sx += x
+                n += 1
+    im.close()
+    if n == 0:
+        return None, 0
+    return sx / float(n), n
+
+
+def picture_centroid(session, idx):
+    p = os.path.join(session, "Actual_Frames", "frame_%05d.png" % idx)
+    if not os.path.isfile(p):
+        return None, 0
+    im = Image.open(p).convert("RGB")
+    w, h = im.size
+    px = im.load()
+    sx = 0
+    n = 0
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            r, g, b = px[x, y]
+            if r > 110 and b > 110 and g < r - 45 and g < b - 45:
+                sx += x
+                n += 1
+    im.close()
+    if n == 0:
+        return None, 0
+    return sx / float(n), n
+
+
+def report_magenta_bands(clean, positive):
+    """The unlisted-collision backstop. One rigid probe gives one band; a second magenta
+    object separates the anomaly-present frames from the clean ones. Reported, never
+    thresholded - it is a reading for a human, not a verdict (no constant is invented)."""
+    print("MAGENTA PIXEL COUNT, split by anomaly_present - the collision backstop.")
+    print("  A clean fixture puts BOTH bands in the same place. Bands that separate mean a")
+    print("  second magenta object is in frame and the centroid is an average of two things.")
+    for name, vals in (("clean   ", clean), ("positive", positive)):
+        if vals:
+            print("    %s n=%-3d min=%-7d max=%-7d mean=%.0f"
+                  % (name, len(vals), min(vals), max(vals), sum(vals) / float(len(vals))))
+        else:
+            print("    %s n=0" % name)
+    print()
+
+
+def main(session, label):
+    anomaly = check_fixture(session)
+    R = rows(session)
+    print("=== MASK-PICTURE-PAIRING : %s ===" % label)
+    print("fixture: anomaly=%s  probe tag=%d  (fixture checked from the leg's own run.json)"
+          % (anomaly, PROBE_TAG))
+    print("%6s %10s %8s %10s %8s %10s %s" %
+          ("si", "picCx", "picN", "maskCx", "maskN", "prevPicCx", "verdict"))
+    cur = same = prev = neither = nodata = 0
+    prev_pic = None
+    clean_n = []
+    positive_n = []
+    for r in R:
+        i = r["session_index"]
+        pic, pn = picture_centroid(session, i)
+        msk, mn = mask_centroid(session, i)
+        if pn:
+            (positive_n if r.get("anomaly_present") else clean_n).append(pn)
+        if pic is None or msk is None:
+            print("%6d %10s %8d %10s %8d %10s %s" % (
+                i, "-" if pic is None else "%.1f" % pic, pn,
+                "-" if msk is None else "%.1f" % msk, mn,
+                "-" if prev_pic is None else "%.1f" % prev_pic, "NO-DATA"))
+            nodata += 1
+            prev_pic = pic
+            continue
+        d_cur = abs(msk - pic)
+        d_prev = abs(msk - prev_pic) if prev_pic is not None else 1e9
+        if prev_pic is not None and abs(pic - prev_pic) < 50:
+            v = "SAME-POS(undecidable)"
+            same += 1
+        elif d_cur <= 40:
+            v = "CURRENT"
+            cur += 1
+        elif d_prev <= 40:
+            v = "PREVIOUS"
+            prev += 1
+        else:
+            v = "NEITHER"
+            neither += 1
+        print("%6d %10.1f %8d %10.1f %8d %10s %s" % (
+            i, pic, pn, msk, mn, "-" if prev_pic is None else "%.1f" % prev_pic, v))
+        prev_pic = pic
+    total = cur + prev + neither
+    print()
+    report_magenta_bands(clean_n, positive_n)
+    print("TOTALS decidable=%d  CURRENT=%d  PREVIOUS=%d  NEITHER=%d  (same-pos=%d no-data=%d)"
+          % (total, cur, prev, neither, same, nodata))
+    if total == 0:
+        print("VERDICT: UNDECIDABLE - no frame had both a picture and a mask centroid")
+    elif prev == total:
+        print("VERDICT: MASK IS THE PREVIOUS RENDER on every decidable frame")
+    elif cur == total:
+        print("VERDICT: MASK IS THE CURRENT RENDER on every decidable frame")
+    else:
+        print("VERDICT: MIXED - report verbatim")
+    print()
+
+
+if __name__ == "__main__":
+    main(sys.argv[1], sys.argv[2])

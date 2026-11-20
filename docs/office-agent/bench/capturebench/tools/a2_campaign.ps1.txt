@@ -1,0 +1,59 @@
+param([string]$Only = "")
+
+$ErrorActionPreference = "Continue"
+$tools = "D:\IntrusiveAnomalies\StackOBot\Plugins\CaptureBench\tools"
+$AAOFF = "r.AntiAliasingMethod 0, r.Lumen.DiffuseIndirect.Allow 0, r.DynamicGlobalIlluminationMethod 0, r.ReflectionMethod 0"
+$GECFG = "IAI.Capture.Config 2 4 8 14 0"
+$SYN   = "IAI.Bench.SynthTickOrder 1"
+
+$legs = @()
+
+# --- OBS-1 inertness + translucent counter + bbox_source: auto-pool, both orders ---
+$legs += @{ L="A2F_NAT"; P="A2F_"; A=""; T=""; S=4242; F=90; X=""; MR=$true }
+$legs += @{ L="A2F_SYN"; P="A2F_"; A=""; T=""; S=4242; F=90; X=$SYN; MR=$true }
+
+# --- G-EDGE 8 legs (also the P-C7 v3 B-side against the banked A1G_* pairs) ---
+foreach ($t in @(@("MT","missing_texture"), @("CT","corrupted_texture"), @("MO","missing_object"), @("BL","blinking"))) {
+  $legs += @{ L="$($t[0])_NAT"; P="A2G_"; A=$t[1]; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $GECFG"; MR=$true }
+  $legs += @{ L="$($t[0])_SYN"; P="A2G_"; A=$t[1]; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, $GECFG"; MR=$true }
+}
+
+# --- MASK-PICTURE-PAIRING, 100% and SP50, both orders ---
+$legs += @{ L="A2F_PAIR_NAT";      P="A2F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1"; MR=$false }
+$legs += @{ L="A2F_PAIR_SYN";      P="A2F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, $SYN"; MR=$false }
+$legs += @{ L="A2F_PAIR_NAT_SP50"; P="A2F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, r.ScreenPercentage 50"; MR=$false }
+$legs += @{ L="A2F_PAIR_SYN_SP50"; P="A2F_"; A="blinking"; T="StaticMeshActor_49"; S=4242; F=40; X="IAI.Bench.MaskPairingProbe 1, $SYN, r.ScreenPercentage 50"; MR=$false }
+
+# --- OBS-2 can-fail: teleport the target off screen mid-event 0 (labelled frames [3..10]) ---
+$legs += @{ L="A2F_OBS2_NAT"; P="A2F_"; A="missing_texture"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.TeleportTargetOffscreenAt 6, $GECFG"; MR=$true }
+$legs += @{ L="A2F_OBS2_SYN"; P="A2F_"; A="missing_texture"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, IAI.Bench.TeleportTargetOffscreenAt 6, $GECFG"; MR=$true }
+
+# --- OBS-3 can-fail: the host re-takes the material mid-event 0 ---
+$legs += @{ L="A2F_OBS3_NAT"; P="A2F_"; A="missing_texture"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Bench.RetakeMaterialAfter 6, $GECFG"; MR=$true }
+$legs += @{ L="A2F_OBS3_SYN"; P="A2F_"; A="missing_texture"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, $SYN, IAI.Bench.RetakeMaterialAfter 6, $GECFG"; MR=$true }
+
+# --- OBS-4 knob sweep. The brief's 1 / 64 / 4096 are ALL BELOW this fixture's signal
+# (target_pixels is a flat 66,837 px), so those three rungs are monotone-non-increasing VACUOUSLY.
+# 100000 is added as the rung that actually bites, so the knob is proven live (G96) rather than
+# merely proven not to break anything. Both readings are reported.
+foreach ($n in @(1, 64, 4096, 100000)) {
+  $legs += @{ L="A2F_OBS4_$n"; P="A2F_"; A="missing_texture"; T="StaticMeshActor_49"; S=777; F=90; X="$AAOFF, IAI.Capture.ObservableMinPixels $n, $GECFG"; MR=$true }
+}
+
+# --- T3 translucent probe (m41 recorded this lever REFUSES on this container; report either way) ---
+$legs += @{ L="A2F_T3PROBE"; P="A2F_"; A=""; T=""; S=4242; F=90; X="IAI.Bench.SpawnTranslucentProbe 1"; MR=$true }
+
+foreach ($leg in $legs) {
+  if ($Only -ne "" -and $leg.L -notlike $Only) { continue }
+  Write-Host ""
+  Write-Host ("##### LEG " + $leg.L + " #####")
+  Set-Location $tools
+  $args = @{
+    Label = $leg.L; BankPrefix = $leg.P; Anomaly = $leg.A; Target = $leg.T
+    Seed = $leg.S; MaxFrames = $leg.F; ExtraExecCmds = $leg.X; MaxAttempts = 4
+  }
+  if ($leg.MR) { & .\run_leg.ps1 @args -RequireModalRotZero 2>&1 | Select-Object -Last 12 }
+  else         { & .\run_leg.ps1 @args 2>&1 | Select-Object -Last 12 }
+}
+Write-Host ""
+Write-Host "##### CAMPAIGN DONE #####"

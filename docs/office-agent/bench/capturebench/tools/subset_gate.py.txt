@@ -1,0 +1,169 @@
+"""G-S3a-1: the control-pair / subset gate, with A63 enforced.
+
+THE RULE THIS IMPLEMENTS
+-----------------------
+Byte-identity between two capture sessions is impossible by construction -
+session_id is a timestamp (and appears in video.path), run_summary carries
+end_frame and wall-derived speed_ratio / sustained_wall_fps, and A47's camera
+bifurcation makes every frame image differ. So the gate is:
+
+  STEP 1  CONTROL PAIR - two runs of the SAME binary establish the RUN-UNIQUE
+          FIELD SET empirically.
+  STEP 2  SUBSET TEST  - the test pair's difference set must be a SUBSET of it.
+          Any field differing that did not differ in the control pair FAILS.
+          No case-by-case allowance.
+
+A63 PRECONDITION (checked FIRST, before any diff is read)
+---------------------------------------------------------
+Legs entering a cross-binary comparison are COMPARABLE only if run.json
+start_frame matches. A leg that rode the 30 s focus-gate timeout (start_frame in
+the thousands, ticks_msec ~30270) is INVALID and must be re-run - the comparison
+does not run at all.
+
+    A leg is discarded for HOW IT RAN, never for WHAT IT SHOWED.
+
+Invalidity is declared by a pre-fixed rule, on a condition independent of the
+outcome, decided before the comparison is read. That is what stops "invalid,
+re-run" becoming a route to launder a failing result.
+
+Usage:
+  python subset_gate.py <ctrlA> <ctrlB> <testA> <testB>
+
+  ctrlA/ctrlB  two runs of the SAME (reference) binary
+  testA/testB  reference leg vs the leg under test
+  (testA is normally the same directory as ctrlA)
+
+Exit: 0 PASS · 1 FAIL (extras present) · 2 INVALID (A63 not satisfied / unreadable)
+
+Needs compare_sessions.py beside it.
+"""
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from compare_sessions import flat, load  # noqa: E402
+
+
+def start_frame(session):
+    p = os.path.join(session, "run.json")
+    if not os.path.exists(p):
+        return None
+    return load(p).get("start_frame")
+
+
+def diffset(a, b):
+    """Set of differing field paths across the three json files + labels.jsonl."""
+    s = set()
+    for name in ("annotation.json", "run_summary.json", "run.json"):
+        pa, pb = os.path.join(a, name), os.path.join(b, name)
+        if not (os.path.exists(pa) and os.path.exists(pb)):
+            continue
+        fa, fb = flat(load(pa)), flat(load(pb))
+        for k in set(fa) | set(fb):
+            if fa.get(k, "<absent>") != fb.get(k, "<absent>"):
+                s.add(name + k)
+
+    pa, pb = os.path.join(a, "labels.jsonl"), os.path.join(b, "labels.jsonl")
+    if os.path.exists(pa) and os.path.exists(pb):
+        la = open(pa, encoding="utf-8-sig").read().splitlines()
+        lb = open(pb, encoding="utf-8-sig").read().splitlines()
+        if len(la) != len(lb):
+            s.add("labels.jsonl<linecount %d vs %d>" % (len(la), len(lb)))
+        for x, y in zip(la, lb):
+            if x == y:
+                continue
+            fx, fy = flat(json.loads(x)), flat(json.loads(y))
+            for k in set(fx) | set(fy):
+                if fx.get(k) != fy.get(k):
+                    s.add("labels.jsonl" + k)
+    return s
+
+
+def invariant_core(a, b):
+    """Fields that must be identical in the TEST pair regardless of run-uniqueness."""
+    ta, tb = load(os.path.join(a, "annotation.json")), load(os.path.join(b, "annotation.json"))
+    ra, rb = load(os.path.join(a, "run_summary.json")), load(os.path.join(b, "run_summary.json"))
+
+    def video_no_path(v):
+        return {k: v[k] for k in v if k != "path"}
+
+    checks = [
+        ("event count", len(ta["anomalies"]), len(tb["anomalies"])),
+        ("frame_indices (all events)",
+         [e["affected_frames"]["frame_indices"] for e in ta["anomalies"]],
+         [e["affected_frames"]["frame_indices"] for e in tb["anomalies"]]),
+        ("manifested (all events)",
+         [e.get("manifested") for e in ta["anomalies"]],
+         [e.get("manifested") for e in tb["anomalies"]]),
+        ("anomaly type/subtype",
+         [(e["anomaly_type"], e["anomaly_subtype"]) for e in ta["anomalies"]],
+         [(e["anomaly_type"], e["anomaly_subtype"]) for e in tb["anomalies"]]),
+        ("video block (excluding path)", video_no_path(ta["video"]), video_no_path(tb["video"])),
+    ]
+    for k in ("total_frames", "positive_frames", "bursts_done", "zero_match_bursts",
+              "end_frame", "target_fps", "stamped_fps", "paced", "delivery_mode",
+              "content_clock", "non_manifested_events"):
+        checks.append(("run_summary/" + k, ra.get(k), rb.get(k)))
+    return checks
+
+
+def main():
+    if len(sys.argv) < 5:
+        print(__doc__)
+        return 2
+    ctrl_a, ctrl_b, test_a, test_b = sys.argv[1:5]
+
+    print("A63 PRECONDITION - checked before any diff is read")
+    legs = [("control A", ctrl_a), ("control B", ctrl_b),
+            ("test A", test_a), ("test B", test_b)]
+    sfs = {}
+    for label, p in legs:
+        sf = start_frame(p)
+        sfs[label] = sf
+        note = ""
+        if sf is None:
+            note = "  <- no run.json (delivery mode?) - A63 UNDECIDABLE"
+        elif sf > 100:
+            note = "  <- rode the focus timeout: INVALID leg, re-run it"
+        print("   %-10s start_frame=%-8s %s%s" % (label, sf, os.path.basename(p), note))
+
+    values = list(sfs.values())
+    if any(v is None for v in values):
+        print("\nA63: UNDECIDABLE - run.json missing on at least one leg. Comparison not run.")
+        return 2
+    if len(set(values)) != 1:
+        print("\nA63: NOT COMPARABLE - start_frame differs. Comparison NOT RUN.")
+        print("     Re-run the invalid leg(s). A leg is discarded for HOW IT RAN,")
+        print("     never for WHAT IT SHOWED.")
+        return 2
+    print("   A63: COMPARABLE - all start_frame match\n")
+
+    ctrl = diffset(ctrl_a, ctrl_b)
+    test = diffset(test_a, test_b)
+    extras = sorted(test - ctrl)
+
+    print("STEP 1  control pair  differing fields: %d   (the RUN-UNIQUE FIELD SET)" % len(ctrl))
+    print("STEP 2  test pair     differing fields: %d" % len(test))
+    print("\nSUBSET TEST - fields differing in TEST but NOT in CONTROL: %d" % len(extras))
+    for e in extras:
+        print("   EXTRA ->", e)
+    verdict = not extras
+    print("\nVERDICT:", "PASS - test difference set is a SUBSET of the run-unique set"
+          if verdict else "FAIL - test introduced differences the control pair does not exhibit")
+
+    print("\n--- invariant core (must be identical in the TEST pair) ---")
+    ok = True
+    for label, x, y in invariant_core(test_a, test_b):
+        good = x == y
+        ok = ok and good
+        print("   %-32s %-26s %s" % (label, str(x)[:24],
+                                     "IDENTICAL" if good else "DIFFERS -> " + str(y)[:24]))
+    print("\nINVARIANT CORE:", "ALL IDENTICAL" if ok else "MISMATCH PRESENT")
+
+    return 0 if (verdict and ok) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

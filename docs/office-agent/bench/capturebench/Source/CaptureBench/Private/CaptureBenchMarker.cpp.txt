@@ -1,0 +1,116 @@
+#include "CaptureBenchMarker.h"
+
+#if CAPTURE_BENCH
+
+#include "CaptureBenchLog.h"
+
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
+#include "DrawDebugHelpers.h"
+#include "HAL/IConsoleManager.h"
+#include "CoreGlobals.h"
+
+namespace CaptureBenchMarker
+{
+	static TAutoConsoleVariable<int32> CVarMarker(
+		TEXT("CaptureBench.Marker"), 0,
+		TEXT("1 = draw the in-scene frame-identity marker (bench oracle; line-batcher scene geometry)."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<float> CVarMarkerDist(
+		TEXT("CaptureBench.Marker.Dist"), 150.0f,
+		TEXT("Distance in front of the camera at which the marker strip is drawn."),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<float> CVarMarkerTop(
+		TEXT("CaptureBench.Marker.Top"), 0.80f,
+		TEXT("Vertical placement as a fraction of the half-height (0.8 = near the top edge)."),
+		ECVF_Default);
+
+	static FDelegateHandle TickHandle;
+
+	bool IsEnabled() { return CVarMarker.GetValueOnAnyThread() != 0; }
+
+	static void DrawMarker(UWorld* World, ELevelTick TickType, float Dt)
+	{
+		if (!World || TickType != LEVELTICK_All || !IsEnabled())
+		{
+			return;
+		}
+
+		APlayerController* PC = World->GetFirstPlayerController();
+		if (!PC || !PC->PlayerCameraManager)
+		{
+			return;
+		}
+
+		FVector CamLoc;
+		FRotator CamRot;
+		PC->GetPlayerViewPoint(CamLoc, CamRot);
+		const float FovDeg = PC->PlayerCameraManager->GetFOVAngle();
+
+		int32 SizeX = 0, SizeY = 0;
+		PC->GetViewportSize(SizeX, SizeY);
+		if (SizeX <= 0 || SizeY <= 0)
+		{
+			return;
+		}
+		const float Aspect = (float)SizeX / (float)SizeY;
+
+		const float Dist = FMath::Max(10.0f, CVarMarkerDist.GetValueOnGameThread());
+		const float HalfW = Dist * FMath::Tan(FMath::DegreesToRadians(FovDeg) * 0.5f);
+		const float HalfH = HalfW / FMath::Max(0.01f, Aspect);
+
+		const FVector Fwd = CamRot.Vector();
+		const FVector Right = FRotationMatrix(CamRot).GetScaledAxis(EAxis::Y);
+		const FVector Up = FRotationMatrix(CamRot).GetScaledAxis(EAxis::Z);
+
+		const uint64 Gfc = GFrameCounter;
+		const float Span = 0.90f;
+		const float CellW = (2.0f * HalfW * Span) / (float)NumCells;
+		const float CellH = HalfH * 0.10f;
+		const float TopFrac = CVarMarkerTop.GetValueOnGameThread();
+
+		for (int32 i = 0; i < NumCells; ++i)
+		{
+			bool bWhite;
+			if (i == 0) { bWhite = true; }
+			else if (i == 1) { bWhite = false; }
+			else
+			{
+				const int32 Bit = i - NumRefCells;
+				bWhite = ((Gfc >> Bit) & 1ull) != 0ull;
+			}
+
+			const float CenterFrac = -Span + (2.0f * Span) * ((float)i + 0.5f) / (float)NumCells;
+			const FVector Center = CamLoc
+				+ Fwd * Dist
+				+ Right * (CenterFrac * HalfW)
+				+ Up * (TopFrac * HalfH);
+
+			const FVector Extent(1.0f, CellW * 0.5f * 0.85f, CellH * 0.5f);
+			DrawDebugSolidBox(World, Center, Extent, CamRot.Quaternion(),
+				bWhite ? FColor::White : FColor::Black, false, -1.0f, 0);
+		}
+	}
+
+	void Register()
+	{
+		if (!TickHandle.IsValid())
+		{
+			TickHandle = FWorldDelegates::OnWorldPostActorTick.AddStatic(&DrawMarker);
+		}
+	}
+
+	void Unregister()
+	{
+		if (TickHandle.IsValid())
+		{
+			FWorldDelegates::OnWorldPostActorTick.Remove(TickHandle);
+			TickHandle.Reset();
+		}
+	}
+}
+
+#endif

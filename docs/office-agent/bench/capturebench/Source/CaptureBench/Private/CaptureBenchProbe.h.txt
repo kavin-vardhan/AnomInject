@@ -1,0 +1,35 @@
+#pragma once
+
+#include "CoreMinimal.h"
+
+#if CAPTURE_BENCH
+
+namespace CaptureBenchProbe
+{
+	struct FRingEntry
+	{
+		uint32 FamilyFrameNumber = 0;
+		uint64 GameFrameCounter = 0;
+		uint64 Serial = 0;
+		bool bValid = false;
+	};
+
+	void Register();
+	void Unregister();
+
+	bool IsEnabled();
+
+	void PublishKey(uint32 FamilyFrameNumber, uint64 GameFrameCounter);
+	bool LookupKey(uint32 FamilyFrameNumber, FRingEntry& Out);
+
+	void NoteRenderPass();
+	void StallRenderThread();
+	void LogStallCounters();
+
+	void ResetCounters();
+	void LogCounters();
+
+	int32 GetRingCapacity();
+}
+
+#endif

@@ -1,0 +1,182 @@
+<#
+MainWorld FIRST-LAUNCH RECON - read-only. R-2, R-3, R-4.
+
+THIS IS NOT A PATH (a) TEST. It declares no hypothesis about occlusion and it
+grades nothing. There is no A54 verdict and no B1 pose gate available here: TAU,
+CALIB_BBOX and POSE_TOL_PX are scoped to CB_GateLevel / StaticMeshActor_49 /
+1280x720 (G117), and MainWorld satisfies none of that. B1 is NOT APPLICABLE and
+is declared so, not skipped.
+
+WHAT IT ANSWERS, and why over WS rather than from a capture:
+  R-2  is there a view, and what is in it   -> snapshot.view + snapshot.visible
+  R-3  are the movers LOADED at runtime     -> IAI.ListActors at startup (full
+                                               actor list) AND snapshot.visible
+                                               (the auto-pool's own enumeration)
+  R-4  do the loaded movers actually MOVE   -> the same snapshot polled over
+                                               time; an actor that translates
+                                               moves its projected rect. This is
+                                               a DIRECT runtime measurement and
+                                               needs no capture and no pixels.
+
+G-1 established that Trigger is EMPTY IN THE ASSET FILES. It did NOT establish
+that anything MOVES AT RUNTIME with no player present. Those are separate claims
+(G120) and this measures the second one.
+
+WHAT EACH INSTRUMENT CAN AND CANNOT SEE - state this with the result:
+  IAI.ListActors      runs from -ExecCmds, i.e. AT STARTUP, BEFORE World
+                      Partition has necessarily streamed anything in. It is a
+                      LOWER BOUND on what is loaded, never an upper one.
+  snapshot.visible    GetVisibleRenderableActorInfos: renderable AND poll-radius
+                      AND frustum AND unoccluded AND >= min screen coverage. It
+                      is what the AUTO-POOL CAN SELECT, which is much narrower
+                      than what is loaded.
+  CaptureBench.Probe  actors=N per tick - a COUNT of the level's actors, with no
+                      names. Good for "did streaming settle", useless for "which".
+
+ASCII ONLY - PowerShell 5.1 parses a .ps1 as ANSI without a BOM (see
+verify_cooked_maps.ps1).
+
+Usage: powershell -File mainworld_recon.ps1 [-Seconds 20] [-Hz 4]
+#>
+
+param(
+  [string]$Url = "ws://127.0.0.1:8077",
+  [int]$Seconds = 20,
+  [int]$Hz = 4,
+  [string]$Map = "/Game/StackOBot/Maps/MainWorld"
+)
+
+$ErrorActionPreference = "Stop"
+$staged = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+$log    = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Saved\Logs\StackOBot.log"
+
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 600
+
+# Shipping defaults throughout: no poll-radius lever, no scoping change.
+$cmds = "CaptureBench.Probe 1, IAI.Server.Start, IAI.ListActors, IAI.DumpVisible"
+$p = Start-Process -FilePath $staged -PassThru -ArgumentList @(
+  $Map,"-windowed","-ResX=1280","-ResY=720","-ExecCmds=`"$cmds`"","-unattended","-nosplash")
+
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class FgMwr {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static uint FgPid(){ uint x=0; GetWindowThreadProcessId(GetForegroundWindow(), out x); return x; }
+  public static void Force(IntPtr h){ ShowWindow(h,9); keybd_event(0x12,0,0,UIntPtr.Zero);
+    keybd_event(0x12,0,2,UIntPtr.Zero); SetForegroundWindow(h); }
+}
+"@
+$sh = New-Object -ComObject WScript.Shell
+$focusAt = -1.0
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
+for ($i=0; $i -lt 40; $i++) {
+  Start-Sleep -Milliseconds 400
+  try { $sh.AppActivate($p.Id) | Out-Null } catch {}
+  try { $p.Refresh(); if ($p.MainWindowHandle -ne 0) { [FgMwr]::Force($p.MainWindowHandle) } } catch {}
+  if ([FgMwr]::FgPid() -eq $p.Id) { if ($focusAt -lt 0) { $focusAt = [math]::Round($sw.Elapsed.TotalSeconds,1) }; break }
+}
+Write-Output ("A63 focus acquired at {0}s (live external measurement)" -f $focusAt)
+Start-Sleep -Seconds 6
+
+# token read-back from the process under test (A44) - never from the source ini
+$liveToken = ""
+for ($i=0; $i -lt 20 -and $liveToken -eq ""; $i++) {
+  if (Test-Path $log) {
+    $lm = Select-String -Path $log -Pattern 'Control server token:\s*(\S+)\s*\(' | Select-Object -Last 1
+    if ($lm) { $liveToken = $lm.Matches[0].Groups[1].Value }
+  }
+  if ($liveToken -eq "") { Start-Sleep -Milliseconds 500 }
+}
+if ($liveToken -eq "") { Write-Output "FAIL: no token in the log"; Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force; exit 1 }
+
+$ct = [System.Threading.CancellationToken]::None
+$ws = [System.Net.WebSockets.ClientWebSocket]::new()
+try { $ws.ConnectAsync([Uri]$Url, $ct).GetAwaiter().GetResult() }
+catch { Write-Output ("FAIL: WS connect - {0}" -f $_.Exception.Message); Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force; exit 1 }
+function Send($o) {
+  $b=[System.Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Compress -Depth 10))
+  [void]$ws.SendAsync([System.ArraySegment[byte]]::new($b),[System.Net.WebSockets.WebSocketMessageType]::Text,$true,$ct).GetAwaiter().GetResult()
+}
+function Recv([int]$ms=4000) {
+  $buf=[byte[]]::new(1048576); $mem=[System.IO.MemoryStream]::new()
+  try { do { $cts=[System.Threading.CancellationTokenSource]::new($ms)
+             $r=$ws.ReceiveAsync([System.ArraySegment[byte]]::new($buf),$cts.Token).GetAwaiter().GetResult()
+             $mem.Write($buf,0,$r.Count) } while (-not $r.EndOfMessage) } catch { return $null }
+  $by=$mem.ToArray()
+  if ($by.Length -ge 4 -and $by[0] -eq 0x41 -and $by[1] -eq 0x49 -and $by[2] -eq 0x46 -and $by[3] -eq 0x31) { return "<AIF1>" }
+  return [System.Text.Encoding]::UTF8.GetString($by)
+}
+Send @{ type="hello"; token=$liveToken }
+for ($i=0; $i -lt 6; $i++) { $m=Recv; if ($m -and $m -ne "<AIF1>") { Write-Output ("auth: {0}" -f ($m -replace '\s+',' ')); break } }
+Send @{ type="subscribe"; channels=@("snapshot"); snapshotHz=$Hz }
+
+$snaps=@()
+$deadline=(Get-Date).AddSeconds($Seconds)
+while ((Get-Date) -lt $deadline) {
+  $m=Recv 3000
+  if (-not $m -or $m -eq "<AIF1>") { continue }
+  try { $o=$m | ConvertFrom-Json } catch { continue }
+  if ($o.view -ne $null -or $o.visible -ne $null) { $snaps += ,$o }
+}
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 800
+
+Write-Output ""
+Write-Output ("=== SNAPSHOTS COLLECTED: {0} over ~{1}s ===" -f $snaps.Count, $Seconds)
+if ($snaps.Count -eq 0) { Write-Output "HALT: no snapshots arrived."; exit 1 }
+
+Write-Output ""
+Write-Output "=== R-2: IS THERE A VIEW, AND WHAT IS IN IT ==="
+$v=$snaps[0].view
+if ($v -ne $null) {
+  Write-Output ("  view.origin   : {0}" -f (($v.origin) -join ', '))
+  Write-Output ("  view.rot      : {0}" -f (($v.rot) -join ', '))
+  Write-Output ("  viewportPx    : {0}" -f (($v.viewportPx) -join ' x '))
+} else { Write-Output "  NO view block in the snapshot" }
+$vis0 = @($snaps[0].visible)
+Write-Output ("  visible renderable actors (auto-pool selectable): {0}" -f $vis0.Count)
+foreach ($a in ($vis0 | Select-Object -First 25)) {
+  Write-Output ("    {0,-42} {1,-22} d={2,8:N0}  rect={3}" -f $a.name, $a.class, $a.distance, (($a.rect | ForEach-Object { "{0:N3}" -f $_ }) -join ','))
+}
+if ($vis0.Count -gt 25) { Write-Output ("    ... and {0} more" -f ($vis0.Count-25)) }
+
+Write-Output ""
+Write-Output "=== R-4: DO ANY VISIBLE ACTORS MOVE ACROSS THE WINDOW ==="
+Write-Output "  (rect is the projected screen rect; a translating actor moves it)"
+$track=@{}
+foreach ($s in $snaps) {
+  foreach ($a in @($s.visible)) {
+    if (-not $track.ContainsKey($a.name)) { $track[$a.name]=@() }
+    $track[$a.name] += ,@($a.rect)
+  }
+}
+$movers=@()
+foreach ($k in $track.Keys) {
+  $rows=$track[$k]
+  if ($rows.Count -lt 2) { continue }
+  $maxd=0.0
+  for ($i=1; $i -lt $rows.Count; $i++) {
+    for ($j=0; $j -lt 4; $j++) {
+      $d=[math]::Abs([double]$rows[$i][$j] - [double]$rows[0][$j])
+      if ($d -gt $maxd) { $maxd=$d }
+    }
+  }
+  $movers += [pscustomobject]@{ name=$k; samples=$rows.Count; maxRectDelta=[math]::Round($maxd,5) }
+}
+$movers = $movers | Sort-Object maxRectDelta -Descending
+foreach ($m in ($movers | Select-Object -First 20)) {
+  Write-Output ("    {0,-42} samples={1,-4} max|d rect|={2}" -f $m.name, $m.samples, $m.maxRectDelta)
+}
+$moved = @($movers | Where-Object { $_.maxRectDelta -gt 0.002 })
+Write-Output ""
+Write-Output ("  actors whose rect moved by > 0.002 NDC across the window: {0} of {1}" -f $moved.Count, $movers.Count)
+if ($moved.Count -eq 0) {
+  Write-Output "  => NOTHING IN THE SELECTABLE SET TRANSLATED. Report as a finding;"
+  Write-Output "     note this covers the VISIBLE set only, not everything loaded."
+}
+exit 0

@@ -1,0 +1,223 @@
+"""
+m47b_ae_dip.py - the auto-exposure dip instrument (session 069 brief 26).
+
+Reads ONE capture session and reports, per frame:
+
+    si            session_index
+    lum           whole-frame mean luminance, 0..255, of the written PNG
+    dip_pct       100 * (mean(lum[i-8..i-1]) - lum[i]) / mean(lum[i-8..i-1])
+                  i.e. the drop against the rolling mean of the previous 8 frames.
+                  Positive = darker than recent history. This is the exact statistic
+                  the proposed labels-side `exposure_dip` key would be derived from,
+                  so the threshold it would carry is read off THIS column.
+    tgt           mean luminance inside the anomaly target region
+    reg           where tgt came from: 'mask' (m43 target mask - the exact drawn
+                  silhouette) or 'bbox' (labels.jsonl bbox_px) or '-'
+    lab           does this frame carry an anomaly row
+    phase         FIRE (first labelled frame of an event), REVERT (first CLEAN frame
+                  after an event), or '' - so the dip's PHASE can be read directly.
+
+WHY PHASE IS THE POINT. Eye adaptation is exponential with SpeedUp 3.0 / SpeedDown 1.0
+(Scene.cpp:478-479), i.e. tau = 10 frames brightening-response and 30 frames darkening-
+response at 30 fps. With IAI.Capture.Config 2 4 8 4 0 a burst is 18 frames of which 8
+are positive, so if the swap material is BRIGHTER than the scene the trough lands AFTER
+the revert - on frames the labels call CLEAN - and recovery is not complete before the
+next fire. Reporting a max dip without its phase would lose the whole finding.
+
+WHY tgt PREFERS THE MASK: the bbox of a small target is mostly background, so its mean
+barely moves; the m43 mask is the silhouette. The fallback is stated per row, never silent.
+
+Read-only. Nothing here writes to a session.
+
+    python m47b_ae_dip.py <session_dir> [--csv out.csv] [--quiet]
+    python m47b_ae_dip.py --compare <session_A> <session_B>
+"""
+
+import json
+import os
+import sys
+
+import numpy as np
+from PIL import Image
+
+WINDOW = 8
+
+
+def load_rows(session):
+    rows = []
+    path = os.path.join(session, "labels.jsonl")
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    rows.sort(key=lambda r: r["session_index"])
+    return rows
+
+
+def frame_mean(path):
+    return float(np.asarray(Image.open(path).convert("L"), dtype=np.float64).mean())
+
+
+def region_mean(frame_path, mask_path, values):
+    fr = np.asarray(Image.open(frame_path).convert("L"), dtype=np.float64)
+    mk = Image.open(mask_path).convert("L")
+    if mk.size != (fr.shape[1], fr.shape[0]):
+        mk = mk.resize((fr.shape[1], fr.shape[0]), Image.NEAREST)
+    mka = np.asarray(mk)
+    want = [int(v) for v in values if int(v) > 0]
+    sel = np.isin(mka, want) if want else (mka > 0)
+    n = int(sel.sum())
+    return (float(fr[sel].mean()), n) if n else (None, 0)
+
+
+def bbox_mean(frame_path, bbox):
+    fr = np.asarray(Image.open(frame_path).convert("L"), dtype=np.float64)
+    h, w = fr.shape
+    x0, y0, x1, y1 = [int(round(v)) for v in bbox]
+    x0 = max(0, min(w - 1, x0)); x1 = max(x0 + 1, min(w, x1))
+    y0 = max(0, min(h - 1, y0)); y1 = max(y0 + 1, min(h, y1))
+    crop = fr[y0:y1, x0:x1]
+    return (float(crop.mean()), int(crop.size)) if crop.size else (None, 0)
+
+
+def analyse(session):
+    rows = load_rows(session)
+    recs = []
+    for r in rows:
+        img = os.path.join(session, r["image"].replace("/", os.sep))
+        if not os.path.exists(img):
+            continue
+        anoms = r.get("anomalies") or []
+        lab = len(anoms) > 0
+        tgt, reg = None, "-"
+        mf = r.get("mask_file")
+        if mf:
+            mp = os.path.join(session, mf.replace("/", os.sep))
+            if os.path.exists(mp):
+                tgt, n = region_mean(img, mp, [a.get("mask_value", 0) for a in anoms])
+                if tgt is not None:
+                    reg = "mask"
+        if tgt is None and anoms:
+            bb = anoms[0].get("bbox_px")
+            if bb and anoms[0].get("bbox_valid"):
+                tgt, n = bbox_mean(img, bb)
+                if tgt is not None:
+                    reg = "bbox"
+        recs.append({
+            "si": r["session_index"],
+            "lum": frame_mean(img),
+            "tgt": tgt,
+            "reg": reg,
+            "lab": lab,
+            "pending": int(r.get("shader_jobs_pending", 0)),
+        })
+
+    for i, rec in enumerate(recs):
+        if i < WINDOW:
+            rec["dip"] = None
+        else:
+            base = sum(recs[j]["lum"] for j in range(i - WINDOW, i)) / float(WINDOW)
+            rec["dip"] = 100.0 * (base - rec["lum"]) / base if base > 0 else None
+        prev = recs[i - 1]["lab"] if i > 0 else False
+        rec["phase"] = "FIRE" if (rec["lab"] and not prev) else ("REVERT" if (prev and not rec["lab"]) else "")
+    return recs
+
+
+def report(session, recs, quiet=False):
+    print("SESSION %s   frames=%d" % (session, len(recs)))
+    if not quiet:
+        print("%-4s %-9s %-8s %-9s %-5s %-4s %s"
+              % ("si", "lum", "dip_pct", "tgt", "reg", "lab", "phase"))
+        for r in recs:
+            print("%-4d %-9.3f %-8s %-9s %-5s %-4s %s"
+                  % (r["si"], r["lum"],
+                     ("%.2f" % r["dip"]) if r["dip"] is not None else "-",
+                     ("%.3f" % r["tgt"]) if r["tgt"] is not None else "-",
+                     r["reg"], "yes" if r["lab"] else "no", r["phase"]))
+        print()
+
+    lums = [r["lum"] for r in recs]
+    print("  whole-frame lum: min=%.3f max=%.3f mean=%.3f  spread(max-min)=%.3f"
+          % (min(lums), max(lums), sum(lums) / len(lums), max(lums) - min(lums)))
+
+    fd = [r for r in recs if r["dip"] is not None]
+    if fd:
+        worst = max(fd, key=lambda r: r["dip"])
+        print("  dip_pct: max=%.2f%% (si=%d, phase='%s', lab=%s)  min=%.2f%%"
+              % (worst["dip"], worst["si"], worst["phase"], worst["lab"],
+                 min(r["dip"] for r in fd)))
+
+    lab = [r for r in recs if r["lab"] and r["tgt"] is not None]
+    if lab:
+        print("  labelled-frame target lum: min=%.3f max=%.3f mean=%.3f (n=%d)"
+              % (min(r["tgt"] for r in lab), max(r["tgt"] for r in lab),
+                 sum(r["tgt"] for r in lab) / len(lab), len(lab)))
+
+    print()
+    print("  PER-EVENT (dip is measured on the frames FOLLOWING the edge):")
+    print("    %-6s %-8s %-10s %-10s %-10s %-10s"
+          % ("fire", "1st_tgt", "evt_tgt", "dip@fire", "revert", "max_dip_post"))
+    n = len(recs)
+    for i, r in enumerate(recs):
+        if r["phase"] != "FIRE":
+            continue
+        j = i
+        while j < n and recs[j]["lab"]:
+            j += 1
+        evt = [recs[k]["tgt"] for k in range(i, j) if recs[k]["tgt"] is not None]
+        post = [recs[k] for k in range(j, min(n, j + 12)) if recs[k]["dip"] is not None]
+        mx = max(post, key=lambda q: q["dip"]) if post else None
+        print("    %-6d %-8s %-10s %-10s %-10s %-10s"
+              % (r["si"],
+                 ("%.2f" % r["tgt"]) if r["tgt"] is not None else "-",
+                 ("%.2f" % (sum(evt) / len(evt))) if evt else "-",
+                 ("%.2f%%" % r["dip"]) if r["dip"] is not None else "-",
+                 recs[j]["si"] if j < n else "-",
+                 ("%.2f%%@si%d" % (mx["dip"], mx["si"])) if mx else "-"))
+
+
+def compare(a, b):
+    ra, rb = analyse(a), analyse(b)
+    report(a, ra, quiet=True)
+    print()
+    report(b, rb, quiet=True)
+    la = [r["lum"] for r in ra]
+    lb = [r["lum"] for r in rb]
+    print()
+    print("AE-LIVE POSITIVE CONTROL (G96) - the two legs must NOT be equivalent:")
+    print("  mean lum   A=%.3f   B=%.3f   delta=%.3f" %
+          (sum(la) / len(la), sum(lb) / len(lb), sum(la) / len(la) - sum(lb) / len(lb)))
+    print("  spread     A=%.3f   B=%.3f" % (max(la) - min(la), max(lb) - min(lb)))
+    da = [r["dip"] for r in ra if r["dip"] is not None]
+    db = [r["dip"] for r in rb if r["dip"] is not None]
+    print("  max dip_pct A=%.2f%%  B=%.2f%%" % (max(da), max(db)))
+    print()
+    print("  READ IT THIS WAY: if the two legs' mean level and dip magnitude are")
+    print("  indistinguishable, eye adaptation was NOT live in leg A and its 'no dip'")
+    print("  is BLINDNESS, not a null. No dip verdict may be offered in that case.")
+
+
+def main(argv):
+    if len(argv) >= 4 and argv[1] == "--compare":
+        compare(argv[2], argv[3])
+        return 0
+    session = argv[1]
+    quiet = "--quiet" in argv
+    recs = analyse(session)
+    report(session, recs, quiet=quiet)
+    for i, a in enumerate(argv):
+        if a == "--csv" and i + 1 < len(argv):
+            with open(argv[i + 1], "w", encoding="utf-8") as fh:
+                fh.write("si,lum,dip_pct,tgt,reg,lab,phase,pending\n")
+                for r in recs:
+                    fh.write("%d,%.4f,%s,%s,%s,%d,%s,%d\n"
+                             % (r["si"], r["lum"],
+                                ("%.4f" % r["dip"]) if r["dip"] is not None else "",
+                                ("%.4f" % r["tgt"]) if r["tgt"] is not None else "",
+                                r["reg"], 1 if r["lab"] else 0, r["phase"], r["pending"]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

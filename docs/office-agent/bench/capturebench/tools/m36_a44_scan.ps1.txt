@@ -1,0 +1,29 @@
+param(
+  [string]$Exe = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+)
+$tokens = @(
+  "IAI.Capture.Census",
+  "IAI.Capture.CensusFloor",
+  "IAI.Capture.CensusMaxAge",
+  "IAI.Capture.CensusTranslucent",
+  "IAI.Capture.CensusReservation",
+  "IAI.Capture.CensusLeakProbe",
+  "IAI.Capture.CensusCoArm",
+  "IAI.Capture.CensusHostTag",
+  "CENSUS-HYGIENE",
+  "M36 STENCIL RESERVATION",
+  "M36 TAG POOL",
+  "DRAWN-COVERAGE histogram",
+  "TAG-OVERTAKEN",
+  "bSelectionCensusDefault",
+  "IsHideTypeAnomaly"
+)
+$bytes = [System.IO.File]::ReadAllBytes($Exe)
+$ascii = [System.Text.Encoding]::ASCII.GetString($bytes)
+$utf16 = [System.Text.Encoding]::Unicode.GetString($bytes)
+Write-Output ("exe: {0}  size: {1}  sha8: {2}" -f $Exe, $bytes.Length, (Get-FileHash $Exe -Algorithm SHA256).Hash.Substring(0,8))
+foreach ($t in $tokens) {
+  $a = ([regex]::Matches($ascii, [regex]::Escape($t))).Count
+  $u = ([regex]::Matches($utf16, [regex]::Escape($t))).Count
+  Write-Output ("{0,-34} ascii={1} utf16={2}" -f $t, $a, $u)
+}

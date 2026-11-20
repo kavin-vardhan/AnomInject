@@ -1,0 +1,195 @@
+﻿#!/usr/bin/env python3
+"""m49 phase B - P-C7 v3 across the cook.
+
+Declared key set (predictions 2026-09-04-m49-phase-b.md PB-6):
+  labels.jsonl anomaly entries : + target_drawn_pixels
+  labels.jsonl top level       : + exposure_dip_scope (only on rows that carry exposure_dip)
+  annotation.json              : + nothing, - nothing
+  run_summary.json             : + target_drawn_pixels_measured, frames_drawn_unexpected,
+                                   frames_exposure_dip_suppressed
+
+DECLARED VALUE MOVE, per leg, stated in the predictions file BEFORE any reading: exposure_dip
+moves on hide-class pairs and MUST. It is reported separately from the undeclared-field check so
+it cannot be mistaken for a regression, and so a move on a TEXTURE-class pair - which would be
+falsifier F4 - is not hidden inside the same number.
+"""
+
+import glob
+import json
+import os
+import sys
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+
+DECLARED_LABEL_ANOM = {"target_drawn_pixels"}
+DECLARED_LABEL_ROOT = {"exposure_dip_scope"}
+DECLARED_ANN_EVENT = set()
+DECLARED_ANN_ROOT = set()
+DECLARED_AFFECTED = set()
+DECLARED_RUNSUM = {"target_drawn_pixels_measured", "frames_drawn_unexpected",
+                   "frames_exposure_dip_suppressed"}
+DECLARED_VALUE_MOVE = {"exposure_dip", "exposure_dip_scope"}
+
+RUN_UNIQUE = {"t_wall", "session_id", "start_time_utc", "speed_ratio", "sustained_wall_fps",
+              "stamped_fps", "game_clock_speed_ratio", "end_frame", "start_frame",
+              "ticks_msec", "shader_prewarm_ms", "video"}
+
+CONST_DELTA = {"frame_index", "t"}
+CONST_DELTA_ANOM = {"start_frame"}
+BIJECTIVE_ANOM = {"mask_value"}
+
+
+def jl(p):
+    out = []
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    out.sort(key=lambda r: r["session_index"])
+    return out
+
+
+def sess(bank_name):
+    c = glob.glob(os.path.join(BANK, bank_name, "session_*"))
+    if not c:
+        raise SystemExit("no session under %s" % bank_name)
+    return sorted(c)[-1]
+
+
+def compare(a_name, b_name):
+    A, B = sess(a_name), sess(b_name)
+    print("=== P-C7 v3 : A=%s  B=%s ===" % (a_name, b_name))
+    la, lb = jl(os.path.join(A, "labels.jsonl")), jl(os.path.join(B, "labels.jsonl"))
+    print("rows A=%d B=%d" % (len(la), len(lb)))
+
+    ka = set()
+    kb = set()
+    aa = set()
+    ab = set()
+    for r in la:
+        ka |= set(r.keys())
+        for x in r.get("anomalies", []):
+            aa |= set(x.keys())
+    for r in lb:
+        kb |= set(r.keys())
+        for x in r.get("anomalies", []):
+            ab |= set(x.keys())
+    added_root = kb - ka
+    added_anom = ab - aa
+    print("labels top-level keys: added=%s removed=%s  DECLARED-ONLY=%s"
+          % (sorted(added_root), sorted(ka - kb), added_root <= DECLARED_LABEL_ROOT))
+    print("labels anomaly keys  : added=%s removed=%s  DECLARED-ONLY=%s"
+          % (sorted(added_anom), sorted(aa - ab), added_anom <= DECLARED_LABEL_ANOM))
+
+    ia = {r["session_index"]: r for r in la}
+    ib = {r["session_index"]: r for r in lb}
+    shared_si = sorted(set(ia) & set(ib))
+    diffs = {}
+    declared_moves = {}
+    deltas = {}
+    tagmap = {}
+    for si in shared_si:
+        ra, rb = ia[si], ib[si]
+        for k in (ka & kb):
+            if k in RUN_UNIQUE or k == "anomalies":
+                continue
+            if k in CONST_DELTA:
+                deltas.setdefault(k, set()).add(round(rb.get(k, 0) - ra.get(k, 0), 6))
+                continue
+            if ra.get(k) != rb.get(k):
+                tgt = declared_moves if k in DECLARED_VALUE_MOVE else diffs
+                tgt[k] = tgt.get(k, 0) + 1
+        for x, y in zip(ra.get("anomalies", []), rb.get("anomalies", [])):
+            for k in (aa & ab):
+                if k in CONST_DELTA_ANOM:
+                    deltas.setdefault("anomalies." + k, set()).add(y.get(k, 0) - x.get(k, 0))
+                    continue
+                if k in BIJECTIVE_ANOM:
+                    tagmap.setdefault(x.get(k), set()).add(y.get(k))
+                    continue
+                if x.get(k) != y.get(k):
+                    diffs["anomalies." + k] = diffs.get("anomalies." + k, 0) + 1
+    print("shared session_index count=%d" % len(shared_si))
+    print("  UNDECLARED differing shared fields : %s"
+          % (diffs if diffs else "NONE - byte-identical on every shared field"))
+    print("  DECLARED value moves (pre-declared): %s"
+          % (declared_moves if declared_moves else "none"))
+
+    # P-C7 v2: absolute counters are compared as DELTAS and must be ONE constant across every row.
+    # Comparing them for EQUALITY is what the v2 ruling explicitly forbids - two runs of the SAME
+    # binary differ here by the m41 startup variance, so an equality test is a false-failure generator.
+    delta_ok = True
+    for k in sorted(deltas):
+        vals = deltas[k]
+        good = len(vals) == 1
+        delta_ok &= good
+        print("  %-22s %s" % (k, ("CONSTANT %s" % list(vals)[0]) if good
+                              else "*** VARIES, %d distinct: %s ***" % (len(vals), sorted(vals))))
+
+    # mask_value is a stencil tag issued by the census allocator; journal 073 established the
+    # relabelling is run-to-run and BIJECTIVE. The sound criterion is bijectivity, not equality.
+    onto = all(len(v) == 1 for v in tagmap.values())
+    img = [list(v)[0] for v in tagmap.values() if len(v) == 1]
+    bij = onto and len(img) == len(set(img))
+    print("  %-22s %s" % ("anomalies.mask_value",
+                          ("BIJECTIVE %s" % dict((k, list(v)[0]) for k, v in sorted(tagmap.items())))
+                          if bij else "*** NOT BIJECTIVE: %s ***" % dict(tagmap)))
+
+    ana = json.load(open(os.path.join(A, "annotation.json"), encoding="utf-8"))
+    anb = json.load(open(os.path.join(B, "annotation.json"), encoding="utf-8"))
+    ra_added = set(anb.keys()) - set(ana.keys())
+    print("annotation root keys : added=%s removed=%s DECLARED-ONLY=%s"
+          % (sorted(ra_added), sorted(set(ana.keys()) - set(anb.keys())), ra_added <= DECLARED_ANN_ROOT))
+    ea = set()
+    eb = set()
+    fa = set()
+    fb = set()
+    for e in ana["anomalies"]:
+        ea |= set(e.keys())
+        fa |= set(e.get("affected_frames", {}).keys())
+    for e in anb["anomalies"]:
+        eb |= set(e.keys())
+        fb |= set(e.get("affected_frames", {}).keys())
+    print("annotation event keys: added=%s removed=%s DECLARED-ONLY=%s"
+          % (sorted(eb - ea), sorted(ea - eb), (eb - ea) <= DECLARED_ANN_EVENT))
+    print("affected_frames keys : added=%s removed=%s DECLARED-ONLY=%s"
+          % (sorted(fb - fa), sorted(fa - fb), (fb - fa) <= DECLARED_AFFECTED))
+    print("events A=%d B=%d" % (len(ana["anomalies"]), len(anb["anomalies"])))
+
+    fi_bad = 0
+    mv_bad = 0
+    for i, (x, y) in enumerate(zip(ana["anomalies"], anb["anomalies"])):
+        fx = x.get("affected_frames", {}).get("frame_indices")
+        fy = y.get("affected_frames", {}).get("frame_indices")
+        if fx != fy:
+            fi_bad += 1
+        print("   ev%d %-18s A=%s B=%s %s" % (i, x.get("anomaly_type"), fx, fy,
+                                              "SAME" if fx == fy else "*** DIFFERS ***"))
+    print("frame_indices identical value-for-value on %d of %d events"
+          % (len(ana["anomalies"]) - fi_bad, len(ana["anomalies"])))
+
+    print("mask_value: bijectivity is the criterion (see above); journal 073 established the relabelling is run-to-run")
+
+    sa = json.load(open(os.path.join(A, "run_summary.json"), encoding="utf-8"))
+    sb = json.load(open(os.path.join(B, "run_summary.json"), encoding="utf-8"))
+    add = set(sb) - set(sa)
+    print("run_summary keys %d -> %d : added=%s removed=%s DECLARED-ONLY=%s"
+          % (len(sa), len(sb), sorted(add), sorted(set(sa) - set(sb)), add <= DECLARED_RUNSUM))
+    print("  frames_exposure_dip A=%s B=%s ; suppressed B=%s ; drawn_unexpected B=%s"
+          % (sa.get("frames_exposure_dip"), sb.get("frames_exposure_dip"),
+             sb.get("frames_exposure_dip_suppressed"), sb.get("frames_drawn_unexpected")))
+    print()
+
+    ok = (added_root <= DECLARED_LABEL_ROOT and added_anom <= DECLARED_LABEL_ANOM
+          and not diffs and not ra_added and (eb - ea) <= DECLARED_ANN_EVENT
+          and (fb - fa) <= DECLARED_AFFECTED and add <= DECLARED_RUNSUM
+          and fi_bad == 0 and bij and delta_ok)
+    return ok
+
+
+if __name__ == "__main__":
+    all_ok = True
+    for i in range(1, len(sys.argv), 2):
+        all_ok &= compare(sys.argv[i], sys.argv[i + 1])
+    print("P-C7 v3 OVERALL: %s" % ("PASS" if all_ok else "*** FAIL ***"))

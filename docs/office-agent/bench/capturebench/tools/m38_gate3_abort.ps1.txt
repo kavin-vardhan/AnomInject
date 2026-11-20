@@ -1,0 +1,166 @@
+<#
+m38 GATE (iii) - THE HANDLE-LEAK TEST, DONE BY LITERALLY DELETING THE FOLDER.
+
+Two modes, both ending with a real Remove-Item on the run directory:
+
+  -Mode stop : start a long run, wait until frames are actually on disk, then
+               send capture_stop over the control server's WebSocket. FinishRun
+               runs, so the run log should be CLOSED with its close marker as the
+               file's last line.
+
+  -Mode kill : start a long run, wait until frames are on disk, then
+               Stop-Process -Force. FinishRun NEVER RUNS. Under the declared
+               per-line write-through flush policy every line logged before the
+               kill must still be on disk, and there must be NO close marker.
+
+THE GATE IS THE DELETE, NOT THE READ. A leaked file handle shows up as
+"The process cannot access the file because it is being used by another process".
+
+EVIDENCE FIRST: the session is copied to the bank BEFORE the delete, so proving
+the folder can be removed never destroys the artifact that proves it.
+
+TOKEN: read from the game's own DefaultGame.ini, never hardcoded (G112).
+#>
+
+param(
+  [ValidateSet("stop","kill")][string]$Mode = "stop",
+  [int]$Frames = 400,
+  [int]$RunSeconds = 6,
+  [string]$Token = "",
+  [string]$Url = "ws://127.0.0.1:8077",
+  [string]$BankPrefix = "M38_"
+)
+
+$ErrorActionPreference = "Stop"
+
+$staged  = "D:\IntrusiveAnomalies\StackOBot\Builds\BenchGate\Windows\StackOBot\Binaries\Win64\StackOBot.exe"
+$outRoot = Split-Path $staged -Parent
+$bank    = "D:\IntrusiveAnomalies\_bench_sessions_bank"
+$gameIni = "D:\IntrusiveAnomalies\StackOBot\Config\DefaultGame.ini"
+$label   = "G3_$($Mode.ToUpper())"
+
+Write-Output "=== m38 GATE (iii) mode=$Mode label=$label ==="
+Write-Output "staged exe sha8: $((Get-FileHash $staged -Algorithm SHA256).Hash.Substring(0,8))"
+
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 600
+if ((Get-Process -Name "StackOBot*" -EA SilentlyContinue | Measure-Object).Count -ne 0) { throw "A46: box not idle" }
+if (Test-Path "$outRoot\$label") { Remove-Item "$outRoot\$label" -Recurse -Force }
+
+$cmds = "r.DefaultFeature.AutoExposure 0, r.EyeAdaptationQuality 0, CaptureBench.Marker 1" +
+        ", IAI.Capture.SVE 1, IAI.Capture.Fps 30, IAI.Capture.Config 2 4 8 4 0, IAI.Capture.Mask 0"
+if ($Mode -eq "stop") { $cmds = "IAI.Server.Start, " + $cmds }
+$cmds += ", IAI.Capture.Start $label png 4242 $Frames blinking StaticMeshActor_49"
+
+$p = Start-Process -FilePath $staged -PassThru -ArgumentList @(
+  "/Game/CaptureBenchGate/CB_GateLevel","-windowed","-ResX=1280","-ResY=720",
+  "-ExecCmds=`"$cmds`"","-unattended","-nosplash")
+
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class FgM38 {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, UIntPtr e);
+  public static uint FgPid(){ uint x=0; GetWindowThreadProcessId(GetForegroundWindow(), out x); return x; }
+  public static void Force(IntPtr h){ ShowWindow(h,9); keybd_event(0x12,0,0,UIntPtr.Zero);
+    keybd_event(0x12,0,2,UIntPtr.Zero); SetForegroundWindow(h); }
+}
+"@
+$sh = New-Object -ComObject WScript.Shell
+for ($i=0; $i -lt 30; $i++) {
+  Start-Sleep -Milliseconds 400
+  try { $sh.AppActivate($p.Id) | Out-Null } catch {}
+  try { $p.Refresh(); if ($p.MainWindowHandle -ne 0) { [FgM38]::Force($p.MainWindowHandle) } } catch {}
+  if ([FgM38]::FgPid() -eq $p.Id) { break }
+}
+
+$deadline = (Get-Date).AddSeconds(90); $session = $null
+while ((Get-Date) -lt $deadline) {
+  $cand = Get-ChildItem "$outRoot\$label" -Directory -EA SilentlyContinue | Select-Object -First 1
+  if ($cand) {
+    $n = @(Get-ChildItem "$($cand.FullName)\Actual_Frames" -EA SilentlyContinue).Count
+    if ($n -ge 12) { $session = $cand; Write-Output "run IS IN PROGRESS: $($cand.Name), $n frame(s) on disk"; break }
+  }
+  Start-Sleep -Milliseconds 500
+}
+if (-not $session) { Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force; throw "run never produced frames" }
+
+Start-Sleep -Seconds $RunSeconds
+$framesBefore = @(Get-ChildItem "$($session.FullName)\Actual_Frames" -EA SilentlyContinue).Count
+Write-Output "frames on disk at abort time: $framesBefore"
+
+if ($Mode -eq "stop") {
+  if ($Token -eq "") {
+    $m = [regex]::Match((Get-Content $gameIni -Raw), '(?m)^\s*Token\s*=\s*(\S+)\s*$')
+    if (-not $m.Success) { throw "no [AnomalyControlServer] Token in $gameIni and no -Token given" }
+    $Token = $m.Groups[1].Value
+  }
+  Write-Output "token: length $($Token.Length)"
+  $ct = [System.Threading.CancellationToken]::None
+  $ws = [System.Net.WebSockets.ClientWebSocket]::new()
+  $ws.ConnectAsync([Uri]$Url, $ct).GetAwaiter().GetResult()
+  function Send($o) {
+    $b = [System.Text.Encoding]::UTF8.GetBytes(($o | ConvertTo-Json -Compress -Depth 10))
+    [void]$ws.SendAsync([System.ArraySegment[byte]]::new($b), [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $ct).GetAwaiter().GetResult()
+  }
+  function Recv([int]$ms = 4000) {
+    $buf = [byte[]]::new(262144); $mem = [System.IO.MemoryStream]::new()
+    try {
+      do {
+        $cts = [System.Threading.CancellationTokenSource]::new($ms)
+        $r = $ws.ReceiveAsync([System.ArraySegment[byte]]::new($buf), $cts.Token).GetAwaiter().GetResult()
+        $mem.Write($buf, 0, $r.Count)
+      } while (-not $r.EndOfMessage)
+    } catch { return $null }
+    $by = $mem.ToArray()
+    if ($by.Length -ge 4 -and $by[0] -eq 0x41 -and $by[1] -eq 0x49 -and $by[2] -eq 0x46 -and $by[3] -eq 0x31) { return "<AIF1 frame>" }
+    return [System.Text.Encoding]::UTF8.GetString($by)
+  }
+  Send @{ type = "hello"; token = $Token }
+  for ($i=0; $i -lt 6; $i++) { $m2 = Recv; if ($m2 -and $m2 -ne "<AIF1 frame>") { Write-Output "auth reply: $m2"; break } }
+  Send @{ type = "capture_stop" }
+  for ($i=0; $i -lt 12; $i++) { $m2 = Recv; if ($m2 -and $m2 -ne "<AIF1 frame>" -and $m2 -match "capture") { Write-Output "stop reply: $m2"; break } }
+  try { [void]$ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure, "done", $ct).GetAwaiter().GetResult() } catch {}
+  Start-Sleep -Seconds 4
+  Write-Output "ABORT: capture_stop sent over the control server (FinishRun runs)."
+} else {
+  Write-Output "ABORT: hard kill (Stop-Process -Force). FinishRun NEVER RUNS."
+}
+
+Get-Process -Name "StackOBot*" -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 2
+if ((Get-Process -Name "StackOBot*" -EA SilentlyContinue | Measure-Object).Count -ne 0) { throw "process still alive after kill" }
+
+$rl = "$($session.FullName)\anomaly_log.txt"
+$exists = Test-Path $rl
+Write-Output ""
+Write-Output "anomaly_log.txt present : $exists"
+if ($exists) {
+  $lines = Get-Content $rl -Encoding UTF8
+  $last  = if ($lines.Count -gt 0) { $lines[-1] } else { "<empty>" }
+  Write-Output "  bytes                 : $((Get-Item $rl).Length)"
+  Write-Output "  lines                 : $($lines.Count)"
+  Write-Output "  close marker present  : $(($lines | Select-String -SimpleMatch '# closed at FinishRun' | Measure-Object).Count -gt 0)"
+  Write-Output "  last line             : $last"
+  Write-Output "  run STARTED present   : $(($lines | Select-String -SimpleMatch '=== Capture run STARTED' | Measure-Object).Count -gt 0)"
+  Write-Output "  run FINISHED present  : $(($lines | Select-String -SimpleMatch '=== Capture run FINISHED' | Measure-Object).Count -gt 0)"
+}
+
+$keep = "$bank\$BankPrefix$label"
+if (Test-Path $keep) { Remove-Item $keep -Recurse -Force }
+Copy-Item $session.FullName -Destination $keep -Recurse -Force
+Write-Output "BANKED (before the delete): $keep"
+
+Write-Output ""
+Write-Output "--- THE GATE: deleting the run folder ---"
+$deleted = $false; $err = ""
+try { Remove-Item $session.FullName -Recurse -Force -ErrorAction Stop; $deleted = -not (Test-Path $session.FullName) }
+catch { $err = $_.Exception.Message }
+Write-Output "  Remove-Item succeeded : $deleted"
+if (-not $deleted) { Write-Output "  ERROR                 : $err" }
+Write-Output ""
+if ($deleted) { Write-Output "GATE (iii) $Mode : DELETE OK - no handle survived."; exit 0 }
+Write-Output "GATE (iii) $Mode : DELETE FAILED - A HANDLE SURVIVED."; exit 1

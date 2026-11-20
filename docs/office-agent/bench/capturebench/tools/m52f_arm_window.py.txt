@@ -1,0 +1,250 @@
+"""
+080-06 gate reader: does every m26 veto arm land INSIDE its event's labelled window?
+
+  M23 ARM id=<tick> ... tag=<T>           -> the arm, keyed by stencil tag
+  TAG-OWNERS si=<si> tick=<tick>          -> tick -> session_index, per captured frame
+  labels.jsonl anomalies[].mask_value/held -> the LABELLED window, per frame
+
+THE WINDOW IS READ FROM labels.jsonl, NOT FROM annotation.json, AND THAT IS NOT A CONVENIENCE.
+A VETOED event is removed from annotation.json BEFORE it is written, so its injected_frames does
+not exist in that artifact - and the vetoed event is precisely the one this gate is about. Judging
+only the survivors would exclude the interesting case by construction. labels.jsonl is written
+(delivery OFF) and the veto does not retro-edit it (L3), so it still carries the vetoed event.
+
+PRECONDITION, CHECKED BEFORE ANY VERDICT IS PRINTED: on every event the veto did NOT delete,
+{si : stuck_mip.held} must equal annotation.json's injected_frames EXACTLY. If it does not, held
+is not the window, and the route is ABANDONED rather than patched (A53 / G142).
+
+The window still comes from the LABEL path, not the arm path, so this is not the code checking
+its own predicate.
+
+PROVE-IT-CAN-FAIL: --selftest synthesises one leg whose arms sit inside the window and one whose
+arms sit in the pre-roll, and asserts PASS on the first and FAIL on the second (G96).
+
+Exit 0 = pass, 2 = fail, 3 = nothing to judge (vacuous - NOT a pass, G146).
+"""
+
+import glob
+import json
+import os
+import re
+import sys
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+
+ARM_RE = re.compile(r"M23 ARM id=(\d+) target=(\S+) tag=(\d+)")
+OWN_RE = re.compile(r"TAG-OWNERS si=(-?\d+) tick=(\d+)")
+VREAD_RE = re.compile(r"M26 VETO-READ id=(\S+) target=(\S+) startFrame=(\d+) manifested=(\d+) "
+                      r"record=(\d+) tag=(\d+) state=(\S+) arms=(\d+) resolved=(\d+) "
+                      r"contributed=(\d+) armsDeferred=(\d+) awaitLabelled=(\d+) maxCount=(-?\d+) "
+                      r"counts=\[([^\]]*)\]")
+
+
+def read_text(path):
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def parse_log(text):
+    arms, tick_to_si, vreads = [], {}, []
+    for line in text.splitlines():
+        m = ARM_RE.search(line)
+        if m:
+            arms.append((int(m.group(1)), m.group(2), int(m.group(3))))
+        m = OWN_RE.search(line)
+        if m:
+            tick_to_si[int(m.group(2))] = int(m.group(1))
+        m = VREAD_RE.search(line)
+        if m:
+            vreads.append(dict(id=m.group(1), target=m.group(2), start=int(m.group(3)),
+                               manifested=int(m.group(4)), record=int(m.group(5)),
+                               tag=int(m.group(6)), state=m.group(7), arms=int(m.group(8)),
+                               resolved=int(m.group(9)), contributed=int(m.group(10)),
+                               deferred=int(m.group(11)), await_lab=int(m.group(12)),
+                               maxcount=int(m.group(13)),
+                               counts=[int(x) for x in m.group(14).split(",") if x.strip()]))
+    return arms, tick_to_si, vreads
+
+
+def held_windows(session, anomaly_id):
+    out = {}
+    path = os.path.join(session, "labels.jsonl")
+    if not os.path.exists(path):
+        return out
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            r = json.loads(line)
+            si = r.get("session_index")
+            for a in (r.get("anomalies") or []):
+                if a.get("id") != anomaly_id:
+                    continue
+                mv = a.get("mask_value")
+                if not mv:
+                    continue
+                e = out.setdefault(mv, dict(target=a.get("target_name", ""), held=set(), tp={}))
+                if a.get("stuck_mip.held") is True or anomaly_id != "stuck_low_mip":
+                    e["held"].add(si)
+                e["tp"][si] = a.get("target_pixels")
+    return out
+
+
+def prove_window_route(session, anomaly_id, wins):
+    """held must equal injected_frames EXACTLY on every surviving annotation event."""
+    ann_path = os.path.join(session, "annotation.json")
+    with open(ann_path, "r", encoding="utf-8") as f:
+        ann = json.load(f)
+    by_target = {}
+    for e in ann.get("anomalies", []):
+        if e.get("anomaly_type") != anomaly_id:
+            continue
+        nodes = e.get("affected_objects", {}).get("nodes", [])
+        tgt = nodes[0].get("name", "") if nodes else ""
+        inj = set(e.get("injected_frames", {}).get("frame_indices", []) or [])
+        if inj:
+            by_target.setdefault(tgt, []).append(inj)
+    matched, mismatched = 0, 0
+    for mv in sorted(wins):
+        w = wins[mv]
+        cands = by_target.get(w["target"], [])
+        exact = next((i for i in cands if i == w["held"]), None)
+        if exact is not None:
+            matched += 1
+            cands.remove(exact)
+        elif any(i & w["held"] for i in cands):
+            mismatched += 1
+            print(f"    PRECONDITION MISMATCH tag={mv} held={sorted(w['held'])}")
+    print(f"    window route: held==injected on {matched} surviving event(s), "
+          f"mismatched={mismatched}")
+    if mismatched or matched == 0:
+        return False
+    return True
+
+
+def check(session, anomaly_id, label):
+    log = os.path.join(session, "anomaly_log.txt")
+    if not os.path.exists(log):
+        print(f"  {label}: MISSING anomaly_log.txt")
+        return 3, []
+    arms, tick_to_si, vreads = parse_log(read_text(log))
+    wins = held_windows(session, anomaly_id)
+    if not wins:
+        print(f"  {label}: no {anomaly_id} label rows -> VACUOUS, not a pass (G146)")
+        return 3, vreads
+    if not prove_window_route(session, anomaly_id, wins):
+        print(f"  {label}: WINDOW ROUTE NOT PROVEN - no verdict offered.")
+        return 2, vreads
+
+    inside, outside, unjoined = 0, 0, 0
+    detail = []
+    for tick, target, tag in arms:
+        if tag not in wins:
+            continue
+        si = tick_to_si.get(tick)
+        if si is None:
+            unjoined += 1
+            detail.append(f"tag={tag} tick={tick} si=UNJOINED (arm tick was not a captured frame)")
+            continue
+        if si in wins[tag]["held"]:
+            inside += 1
+        else:
+            w = sorted(wins[tag]["held"])
+            detail.append(f"tag={tag} tick={tick} si={si} OUTSIDE window "
+                          f"{w[:3]}..{w[-1:] if w else []}")
+            outside += 1
+    total = inside + outside + unjoined
+    print(f"  {label}: {anomaly_id} tags={len(wins)} arms={total} INSIDE={inside} "
+          f"OUTSIDE={outside} UNJOINED={unjoined}")
+    for d in detail[:10]:
+        print(f"      {d}")
+    if len(detail) > 10:
+        print(f"      ... and {len(detail)-10} more")
+    if total == 0:
+        print(f"  {label}: no arms for {anomaly_id} at all -> VACUOUS (G146)")
+        return 3, vreads
+    return (0 if (outside == 0 and unjoined == 0) else 2), vreads
+
+
+def veto_vs_rows(session, anomaly_id, vreads, label):
+    """Conjunct 2: no event is vetoed whose LABELLED rows carry target_pixels > 0."""
+    wins = held_windows(session, anomaly_id)
+    vetoed = [v for v in vreads if v["manifested"] and v["state"] == "MEASURED_ZERO"]
+    bad = 0
+    for v in vetoed:
+        w = wins.get(v["tag"])
+        tps = [w["tp"].get(si) for si in sorted(w["held"])] if w else []
+        pos = [t for t in tps if isinstance(t, int) and t > 0]
+        if pos:
+            bad += 1
+        print(f"  {label}: VETO tag={v['tag']} {v['id']} armCounts={v['counts']} "
+              f"labelledRow target_pixels={tps} -> "
+              f"{'CONTRADICTS m49 rows' if pos else 'CORROBORATED by m49 rows'}")
+    print(f"  {label}: manifested vetoes={len(vetoed)} contradicting m49 rows={bad}")
+    return 0 if bad == 0 else 2
+
+
+def selftest():
+    import tempfile
+    ok = True
+    for name, arm_ticks, expect in [("inside", [55, 56, 57, 58], 0),
+                                    ("preroll", [21, 22, 23, 24], 2)]:
+        d = tempfile.mkdtemp()
+        sess = os.path.join(d, "s")
+        os.makedirs(sess)
+        lines = []
+        for t in range(20, 80):
+            lines.append(f"[t]LogAnomalyCapture: Capture(mask): TAG-OWNERS si={t-20} tick={t} "
+                         f"values=1 shared=0 []")
+        for t in arm_ticks:
+            lines.append(f"[t]LogAnomalyCapture: Capture(mask): M23 ARM id={t} target=T1 tag=209 "
+                         f"taggedComponents=1 rCustomDepth_gameThread=3 armIndex=1")
+        with open(os.path.join(sess, "anomaly_log.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        held = [35, 36, 37, 38]
+        with open(os.path.join(sess, "labels.jsonl"), "w", encoding="utf-8") as f:
+            for si in range(0, 45):
+                a = dict(id="stuck_low_mip", target_name="T1", mask_value=209, target_pixels=7)
+                a["stuck_mip.held"] = si in held
+                f.write(json.dumps(dict(session_index=si, anomalies=[a])) + "\n")
+        ann = {"anomalies": [{"anomaly_type": "stuck_low_mip",
+                              "affected_objects": {"nodes": [{"name": "T1"}]},
+                              "injected_frames": {"frame_indices": held}}]}
+        with open(os.path.join(sess, "annotation.json"), "w", encoding="utf-8") as f:
+            json.dump(ann, f)
+        rc, _ = check(sess, "stuck_low_mip", f"SELFTEST-{name}")
+        good = (rc == expect)
+        print(f"  SELFTEST {name}: rc={rc} expected={expect} {'OK' if good else 'BROKEN'}")
+        ok = ok and good
+    if not ok:
+        print("SELFTEST BROKEN - the gate cannot be trusted; it may be passing a pre-roll arm set.")
+        return 2
+    print("SELFTEST OK - the gate PASSES an in-window arm set and FAILS a pre-roll one (G96).")
+    return 0
+
+
+def main():
+    if "--selftest" in sys.argv:
+        sys.exit(selftest())
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if len(args) < 2:
+        print("usage: m52f_arm_window.py <bankLabel> <anomaly_id>  |  --selftest")
+        sys.exit(3)
+    label, anomaly_id = args[0], args[1]
+    hits = glob.glob(os.path.join(BANK, label, "session_*"))
+    if not hits:
+        print(f"no banked session for {label}")
+        sys.exit(3)
+    sess = sorted(hits)[-1]
+    print(f"=== {label} ({os.path.basename(sess)}) ===")
+    rc1, vreads = check(sess, anomaly_id, label)
+    rc2 = veto_vs_rows(sess, anomaly_id, vreads, label)
+    print(f"VERDICT {label}: armWindow="
+          f"{'PASS' if rc1 == 0 else ('VACUOUS' if rc1 == 3 else 'FAIL')} "
+          f"vetoVsRows={'PASS' if rc2 == 0 else 'FAIL'}")
+    sys.exit(0 if (rc1 == 0 and rc2 == 0) else (3 if rc1 == 3 else 2))
+
+
+if __name__ == "__main__":
+    main()

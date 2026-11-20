@@ -1,0 +1,153 @@
+"""Characterise the TRACEABILITY DEGRADATION the owner observed in builds.
+
+OWNER OBSERVATION (eyeball-level, not measured): "asset_name and component_class
+obviously exist; they show properly when tested in the EDITOR, but in BUILDS it
+shows StaticMeshActor_xxx for most objects."
+
+That contradicts a MEASURED point - the H5 foliage leg ran on the PACKAGED build
+and reported asset_name SM_Bush, component_class FoliageInstancedStaticMeshComponent.
+Both can be true if the fields resolve for some types and fall back for others.
+This sweep answers WHICH, from banked packaged sessions only. NO RUNS.
+
+WHAT EACH FIELD IS, from source (AnomalyCaptureSubsystem.cpp):
+  node.name            Ev->NodeName = F.Target  -> FAutoLiveFire::TargetName
+                       -> AActor::GetName(). THE INTERNAL OBJECT NAME.
+                       NOT GetActorLabel(). NOT WITH_EDITOR-guarded.
+  node.path            FActor->GetPathName(). Same in editor and build.
+  asset_name           first VISIBLE UMeshComponent's StaticMesh/SkinnedAsset
+                       ->GetName(); EMPTY if that mesh pointer is null or if no
+                       visible mesh component exists.
+  component_class      that same component's class name; set even when the asset
+                       does not resolve.
+
+NOTHING in ResolveNodeIdentity is WITH_EDITOR-guarded, so there is NO
+editor-versus-build branch in the population code itself. Whatever the owner is
+seeing has to come from somewhere else, and this sweep is how we find out where.
+
+Classification of node.name:
+  GENERIC   matches <ClassName>_<digits>, e.g. StaticMeshActor_49 - carries no
+            information beyond the class
+  MEANINGFUL anything else, e.g. SM_Ramp2_UAID_..., BP_Stomper_C_UAID_...
+
+Usage: python traceability_sweep.py [--bank <dir>]
+"""
+
+import argparse
+import glob
+import json
+import os
+import re
+
+BANK = r"D:\IntrusiveAnomalies\_bench_sessions_bank"
+GENERIC = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*?_\d+$")
+
+
+def classify_name(name):
+    if not name:
+        return "EMPTY"
+    return "GENERIC" if GENERIC.match(name) else "MEANINGFUL"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--bank", default=BANK)
+    args = ap.parse_args()
+
+    rows = []
+    for ann_path in glob.glob(os.path.join(args.bank, "**", "annotation.json"), recursive=True):
+        try:
+            ann = json.load(open(ann_path))
+        except Exception:
+            continue
+        leg = os.path.relpath(ann_path, args.bank).split(os.sep)[0]
+        for ev in ann.get("anomalies", []):
+            for n in ev.get("affected_objects", {}).get("nodes", []):
+                path = n.get("path", "")
+                level = "MainWorld" if "MainWorld" in path else (
+                    "CB_GateLevel" if "CB_GateLevel" in path else (
+                        "MainMenu" if "MainMenu" in path else "?"))
+                rows.append({
+                    "leg": leg, "level": level,
+                    "name": n.get("name", ""),
+                    "asset": n.get("asset_name", ""),
+                    "comp": n.get("component_class", ""),
+                })
+
+    print("=" * 100)
+    print("TRACEABILITY SWEEP - banked PACKAGED sessions only, no runs")
+    print("=" * 100)
+    print("  node entries found: %d   across %d banked legs"
+          % (len(rows), len({r["leg"] for r in rows})))
+    if not rows:
+        return 1
+
+    # unique (level, name, asset, comp)
+    uniq = {}
+    for r in rows:
+        k = (r["level"], r["name"], r["asset"], r["comp"])
+        uniq[k] = uniq.get(k, 0) + 1
+
+    print()
+    print("=" * 100)
+    print("A. EVERY DISTINCT NODE IDENTITY IN THE BANK")
+    print("=" * 100)
+    print("  %-13s %-52s %-26s %s" % ("level", "node.name", "asset_name", "component_class"))
+    for (lvl, name, asset, comp), cnt in sorted(uniq.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        print("  %-13s %-52s %-26s %s"
+              % (lvl, (name or "(empty)")[:52], (asset or "(EMPTY)")[:26], comp or "(EMPTY)"))
+
+    print()
+    print("=" * 100)
+    print("B. DOES node.name CARRY INFORMATION? (the owner's 'StaticMeshActor_xxx')")
+    print("=" * 100)
+    by_level = {}
+    for (lvl, name, asset, comp), cnt in uniq.items():
+        d = by_level.setdefault(lvl, {"GENERIC": 0, "MEANINGFUL": 0, "EMPTY": 0})
+        d[classify_name(name)] += 1
+    print("  %-14s %-10s %-12s %s" % ("level", "GENERIC", "MEANINGFUL", "EMPTY"))
+    for lvl, d in sorted(by_level.items()):
+        print("  %-14s %-10d %-12d %d" % (lvl, d["GENERIC"], d["MEANINGFUL"], d["EMPTY"]))
+
+    print()
+    print("=" * 100)
+    print("C. DO asset_name / component_class DEGRADE IN BUILDS?")
+    print("=" * 100)
+    a_ok = sum(1 for k in uniq if k[2])
+    a_no = sum(1 for k in uniq if not k[2])
+    c_ok = sum(1 for k in uniq if k[3])
+    c_no = sum(1 for k in uniq if not k[3])
+    print("  asset_name       populated %d   EMPTY %d" % (a_ok, a_no))
+    print("  component_class  populated %d   EMPTY %d" % (c_ok, c_no))
+    empties = [k for k in uniq if not k[2] or not k[3]]
+    if empties:
+        print()
+        print("  entries with an EMPTY traceability field - these are CLASS-(i) CANDIDATES,")
+        print("  because an empty asset_name with a populated component_class means the")
+        print("  selected mesh component resolved NO MESH ASSET:")
+        for k in empties:
+            print("    level=%-13s name=%-46s asset=%-14s comp=%s"
+                  % (k[0], k[1][:46], k[2] or "(EMPTY)", k[3] or "(EMPTY)"))
+    else:
+        print()
+        print("  NONE. Every banked packaged node has both fields populated.")
+
+    print()
+    print("=" * 100)
+    print("D. BREAKDOWN BY component_class")
+    print("=" * 100)
+    bycomp = {}
+    for (lvl, name, asset, comp), cnt in uniq.items():
+        d = bycomp.setdefault(comp or "(EMPTY)", {"n": 0, "asset_ok": 0, "name_generic": 0})
+        d["n"] += 1
+        if asset:
+            d["asset_ok"] += 1
+        if classify_name(name) == "GENERIC":
+            d["name_generic"] += 1
+    print("  %-42s %-8s %-14s %s" % ("component_class", "distinct", "asset_name ok", "name GENERIC"))
+    for comp, d in sorted(bycomp.items()):
+        print("  %-42s %-8d %-14d %d" % (comp, d["n"], d["asset_ok"], d["name_generic"]))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

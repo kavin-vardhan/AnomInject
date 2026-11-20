@@ -1,0 +1,107 @@
+"""H4 pre-flight detail: name the occluder, name the floor-only cases, and find
+every banked selection_provenance record that reports valid:false.
+
+PF2's whole point is that a guard which has never fired is not a guard. If the
+bank already contains a valid:false, that is direct evidence the branch is
+reachable ON A REAL RUN - but it also has to be explained, because a valid:false
+on a target that is provably UNOCCLUDED would mean valid:false is not a clean
+occlusion signal at all.
+"""
+
+import glob
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import h4_recon as R
+
+BANK = R.BANK
+EYE = (-1500.0, 0.0, 260.0)
+
+
+def blocking_occluders(name, targets, cube_only=True, include_floor=True):
+    """Which actors block which of the 9 rays."""
+    t = targets[name]
+    occ = []
+    for other, o in targets.items():
+        if other == name:
+            continue
+        if cube_only and o["shape"] != "cube":
+            continue
+        occ.append((other, o["c"], o["e"]))
+    if include_floor:
+        occ.append(("CB_Floor", R.FLOOR_CENTRE, R.FLOOR_EXTENT))
+
+    per_ray = []
+    for i, s in enumerate(R.sample_points(t["c"], t["e"])):
+        hits = [nm for nm, c, e in occ if R.seg_hits_aabb(EYE, s, c, e)]
+        per_ray.append((i, hits))
+    return per_ray
+
+
+def main():
+    targets = R.build_targets()
+
+    print("=" * 74)
+    print("A. BANKED selection_provenance RECORDS THAT REPORT valid:false")
+    print("=" * 74)
+    n_false = 0
+    n_total = 0
+    for pv in sorted(glob.glob(os.path.join(BANK, "**", "selection_provenance.json"),
+                               recursive=True)):
+        d = json.load(open(pv))
+        rel = os.path.relpath(pv, BANK)
+        for ev in d.get("events", []):
+            n_total += 1
+            if ev.get("valid") is False:
+                n_false += 1
+                print("  %s" % rel)
+                print("    %s" % json.dumps(ev))
+    print("  -> %d of %d banked provenance records report valid:false"
+          % (n_false, n_total))
+
+    print()
+    print("=" * 74)
+    print("B. WHO OCCLUDES WHOM  (rigorous cube-only model, floor included)")
+    print("=" * 74)
+    cube_floor = [n for n in targets
+                  if R.occlusion_samples(EYE, n, targets, "cube", True)[0] == 0]
+    cube_nofloor = [n for n in targets
+                    if R.occlusion_samples(EYE, n, targets, "cube", False)[0] == 0]
+    floor_only = sorted(set(cube_floor) - set(cube_nofloor),
+                        key=lambda n: targets[n]["n"])
+    print("  fully occluded WITH floor    : %d" % len(cube_floor))
+    print("  fully occluded WITHOUT floor : %d" % len(cube_nofloor))
+    print("  occluded ONLY because of the floor: %s" % (floor_only or "(none)"))
+    print()
+    for n in sorted(cube_floor, key=lambda n: targets[n]["n"]):
+        t = targets[n]
+        per_ray = blocking_occluders(n, targets)
+        agg = {}
+        for _, hits in per_ray:
+            for h in hits:
+                agg[h] = agg.get(h, 0) + 1
+        rays_needing_floor = sum(
+            1 for _, hits in per_ray if hits == ["CB_Floor"])
+        print("  %-20s %-9s at %-20s" % (n, t["shape"], "(%g,%g,%g)" % t["c"]))
+        print("       blockers (rays each covers): %s"
+              % ", ".join("%s x%d" % (k, v) for k, v in
+                          sorted(agg.items(), key=lambda kv: -kv[1])))
+        print("       rays blocked ONLY by the floor: %d/9" % rays_needing_floor)
+
+    print()
+    print("=" * 74)
+    print("C. CONTROL StaticMeshActor_49 - per-ray clearance")
+    print("=" * 74)
+    per_ray = blocking_occluders("StaticMeshActor_49", targets, cube_only=False)
+    clear = sum(1 for _, hits in per_ray if not hits)
+    print("  rays with NO blocker (aabb model, every shape as occluder): %d/9" % clear)
+    for i, hits in per_ray:
+        print("    ray %d: %s" % (i, hits or "clear"))
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
