@@ -2,7 +2,7 @@
 
 Everything chat Claude (the orchestrator) ruled, planned or reviewed since session 078, plus Codex reviews, independent reviews, office cards and hand-offs. `*.brief.md` files are briefs chat wrote for Codex. `evidence-reports/` holds the reports, READMEs and frozen predictions that sat inside evidence folders (path separators became `__`). Files held back for a ruling (client text, office readings, real-name terms) are NOT here; see START-HERE.md. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
 
-Files: 739. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 746. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
@@ -99,6 +99,7 @@ Files: 739. Newest first. Date = last-modified date of the source file on the ho
 | 2026-11-05 | 094-46 | [094-46-ruling.md](094-46-ruling.md) | 094-46 — Chat ruling: GN4 is done, and D3D11's three combined sessions pass H4 and the strict texture gates. camera_clipping's spa... |
 | 2026-11-05 | 094-46 | [094-46-codex-report.md](094-46-codex-report.md) | 094-46 stopped with **NEEDS-DECISION**. GN4 is implemented and compiled. The combined D3D11 run passed H4, texture G1–G3 and G5, b... |
 | 2026-11-05 | 094-46 | [094-46-code-review.md](094-46-code-review.md) | 094-46 — Code's review: GN4's counter is ported and correct. On D3D11 the combined default-plus-camera leg passes H4, strict textu... |
+| 2026-11-04 | - | [CHAT-HANDOFF-094-europa-phaseB-paused.md](CHAT-HANDOFF-094-europa-phaseB-paused.md) | Chat handoff: Europa (UE 4.25) port. FZ2 and the Phase B textures done and pushed (`c5d0919`); camera_clipping queued (094-46); pa... |
 | 2026-11-04 | 094-46 | [094-46-europa-cameraclip-finish.QUEUED.md](094-46-europa-cameraclip-finish.QUEUED.md) | ACK-VERDICT: 094-45r NEEDS-DECISION is resolved by _reviews\094-45r-ruling.md (GN1–GN5): Stage 1 (textures) is accepted and pushed... |
 | 2026-11-04 | 094-45r | [094-45r-stage1-prepush-scan.md](094-45r-stage1-prepush-scan.md) | 094-45r Stage 1 â€” pre-push scan of `feat/europa-port`, range `8df75de..c5d0919` (Claude Code, 2026-11-04, about 18:20 IST) |
 | 2026-11-04 | 094-45r | [094-45r-ruling.md](094-45r-ruling.md) | 094-45r — Chat ruling: Stage 1 is accepted and pushed. The textures pass strict G3 on all three Paris legs, and `c5d0919` is on or... |
@@ -142,6 +143,7 @@ Files: 739. Newest first. Date = last-modified date of the source file on the ho
 | 2026-11-04 | 094-43 | [094-43-office-card-europa.md](094-43-office-card-europa.md) | Office card — Europa: check the outline leak is gone (private ID/depth pass), with one short seeded capture |
 | 2026-11-04 | 094-43 | [094-43-codex-report.md](094-43-codex-report.md) | 094-43 stopped at the mandatory full P9 entry gate. No implementation, build or runtime session started. |
 | 2026-11-04 | 094-43 | [094-43-code-review.md](094-43-code-review.md) | 094-43 — Code's review: Codex stopped at the entry gate (the first full P9 `main()` fails on four known refs); Stages A and B did ... |
+| 2026-11-03 | - | [CHAT-HANDOFF-094-europa-42c-running.md](CHAT-HANDOFF-094-europa-42c-running.md) | Chat handoff: Europa (UE 4.25) port, 094-42c running |
 | 2026-11-03 | 094-43a | [094-43a-request.md](094-43a-request.md) | 094-43a — EUROPA: PROVE THE DEPTH-ONLY ROUTE BY NAME LOOKUP (NO PRIVATE SYMBOLS) ON THE OUTLINE FIXTURE; THE KIT'S STOP-INTENT FIX... |
 | 2026-11-03 | 094-43a | [094-43a-fz9-findings.md](094-43a-fz9-findings.md) | 094-43a — FZ9: did any recorded 5.1 scanner reading show a custom-depth reader? (Claude Code, read-only, 2026-11-03) |
 | 2026-11-03 | 094-42r | [094-42r-ruling.md](094-42r-ruling.md) | 094-42r — Chat ruling: the guard, the routes and the regression smoke are accepted. The fixture stopped on a missing -nowrite, so ... |
@@ -427,16 +429,21 @@ Files: 739. Newest first. Date = last-modified date of the source file on the ho
 | 2026-10-03 | 091-02 | [091-02-ruling.md](091-02-ruling.md) | 091-02 — Ruling (ACCEPTED, pushed on the owner's decision; the §0 home game check is deferred): the first office host's 8 compile ... |
 | 2026-10-03 | 090-12 | [090-12-ruling.md](090-12-ruling.md) | 090-12 — Ruling (ACCEPTED for the owner's office check): the proxy blur is proven at home in PIE and staged; the native-MainWorld ... |
 | 2026-10-02 | - | [evidence-reports/m53-88801bd-review__evidence__predeclared.md](evidence-reports/m53-88801bd-review__evidence__predeclared.md) | 090-10c pre-declaration (written 2026-10-02 ~02:15, before any C2 build or leg; the "before" census legs had run on C1 `d38bcc4`) |
+| 2026-10-02 | 090-10x | [evidence-reports/m53-88801bd-review__evidence__090-10x-chat-ruling-compatibility.md](evidence-reports/m53-88801bd-review__evidence__090-10x-chat-ruling-compatibility.md) | Chat ruling on Codex's m53 compatibility review (`_reviews\bates-2026-10-01-diagnosis\compatibility-review.md`): accepted; A1–A4 a... |
 | 2026-10-02 | 090-10f | [evidence-reports/m53-88801bd-review__evidence__090-10f-uniform-bscope-cooked.report.md](evidence-reports/m53-88801bd-review__evidence__090-10f-uniform-bscope-cooked.report.md) | REPORT for 090-10f-uniform-bscope-cooked.md |
 | 2026-10-02 | 090-10e | [evidence-reports/m53-88801bd-review__evidence__090-10e-pie-endsettle-census-slice.report.md](evidence-reports/m53-88801bd-review__evidence__090-10e-pie-endsettle-census-slice.report.md) | REPORT for 090-10e-pie-endsettle-census-slice.md |
 | 2026-10-02 | 090-10c | [evidence-reports/m53-88801bd-review__evidence__090-10c-lodbias-office-gates.report.md](evidence-reports/m53-88801bd-review__evidence__090-10c-lodbias-office-gates.report.md) | REPORT for 090-10c-lodbias-office-gates.md |
 | 2026-10-02 | 090-10c | [evidence-reports/m53-88801bd-review__evidence__090-10c-chat-ruling-r1.md](evidence-reports/m53-88801bd-review__evidence__090-10c-chat-ruling-r1.md) | 090-10c — Chat ruling (NEEDS-DECISION): the rework is accepted; m53 `88801bd` goes to the office for readings; four follow-ups in ... |
+| 2026-10-02 | 026-10 | [bates-mip-2026-10-02-triage.md](bates-mip-2026-10-02-triage.md) | Bates mip-map corruption triage — 2026-10-02 |
+| 2026-10-02 | - | [CHAT-HANDOFF-084-delivery-week-label-sync.md](CHAT-HANDOFF-084-delivery-week-label-sync.md) | CHAT-HANDOFF 084 — Delivery week (5 Oct 2026): label sync is the product; m52 fix in proof; label-sync audit; m53 delivery cut pen... |
+| 2026-10-02 | 090-HANDOVER | [090-HANDOVER-code-desktop-orchestrator.md](090-HANDOVER-code-desktop-orchestrator.md) | HANDOVER — Claude Code Desktop becomes the GDP orchestrator and reviewer; Codex becomes the implementer through the Relay |
 | 2026-10-02 | 090-12s | [090-12s-owner-decision-codex-full-access.md](090-12s-owner-decision-codex-full-access.md) | Owner decision — 2026-10-02 ~17:10 IST: Codex implementer jobs run with full access; the sandbox's permission entries are removed |
 | 2026-10-02 | 090-12 | [090-12-owner-decision-proxy-blur.md](090-12-owner-decision-proxy-blur.md) | Owner decision — 2026-10-02 ~11:00 IST: blurry textures, option 2 |
 | 2026-10-02 | 090-10f2 | [090-10f2-ruling.md](090-10f2-ruling.md) | 090-10f2 — Ruling (ACCEPTED): every Job A criterion is met; the three decisions are ruled below; the mailbox era closes; m53 `b8cd... |
 | 2026-10-02 | 090-10c | [090-10c-chat-ruling-r1.md](090-10c-chat-ruling-r1.md) | 090-10c — Chat ruling (NEEDS-DECISION): the rework is accepted; m53 `88801bd` goes to the office for readings; four follow-ups in ... |
 | 2026-10-02 | 090-10b2 | [090-10b2-chat-ruling.md](090-10b2-chat-ruling.md) | 090-10b2 — Chat ruling (NEEDS-DECISION): accepted; m53 `d7e396d` is the morning pull for blurry textures; the PIE end+1 is mitigat... |
 | 2026-10-01 | 090-10x | [090-10x-owner-answer-B.md](090-10x-owner-answer-B.md) | Owner's answer to ruling 2 of 090-10x (product decision) — 2026-10-01 ~21:00 IST |
+| 2026-10-01 | 090-10x | [090-10x-chat-ruling-compatibility.md](090-10x-chat-ruling-compatibility.md) | Chat ruling on Codex's m53 compatibility review (`_reviews\bates-2026-10-01-diagnosis\compatibility-review.md`): accepted; A1–A4 a... |
 | 2026-10-01 | 090-09 | [090-09-chat-ruling-round-a.md](090-09-chat-ruling-round-a.md) | 090-09 — Chat ruling on round A (GREEN): all accepted, including Code's four judgement calls; R4 is fixed with the async freeze an... |
 | 2026-10-01 | 090-08 | [090-08-codex-source-recheck.md](090-08-codex-source-recheck.md) | 090-08 — Independent source re-check of 090-05 and 090-07 |
 | 2026-10-01 | 090-08 | [090-08-chat-ruling-codex-recheck.md](090-08-chat-ruling-codex-recheck.md) | 090-08 — Chat ruling on the Codex re-check (CHANGES REQUIRED): the Shipping exclusion and constructor are accepted; every HIGH is ... |

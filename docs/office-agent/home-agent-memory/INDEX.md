@@ -1,8 +1,8 @@
 # The home agent's own persistent memory files
 
-Claude Code keeps a per-project memory on the home PC. `plugin-project/` is the memory for sessions started in the plugin folder (the current one, with its own `MEMORY.md` index); `stackobot-project/` is the older memory from sessions started in the host project folder. Memory is a dated note, not the truth: verify a named file, flag or path before relying on it. Three files are held back (real-name terms). Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
+Claude Code keeps a per-project memory on the home PC. `plugin-project/` is the memory for sessions started in the plugin folder (the current one, with its own `MEMORY.md` index); `stackobot-project/` is the older memory from sessions started in the host project folder. Memory is a dated note, not the truth: verify a named file, flag or path before relying on it. Three files that carried a real-name term are included after a codename edit (096-01b). Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
 
-Files: 55. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 58. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
@@ -42,6 +42,7 @@ Files: 55. Newest first. Date = last-modified date of the source file on the hom
 | 2026-09-26 | - | [plugin-project/m55-requal-prep-boundary-locks-feature-head.md](plugin-project/m55-requal-prep-boundary-locks-feature-head.md) | name: m55-requal-prep-boundary-locks-feature-head |
 | 2026-09-26 | - | [plugin-project/brief-instructions-carry-premises-verify-them.md](plugin-project/brief-instructions-carry-premises-verify-them.md) | name: brief-instructions-carry-premises-verify-them |
 | 2026-09-03 | - | [plugin-project/brief-gate-beats-standing-shared-tree-rule.md](plugin-project/brief-gate-beats-standing-shared-tree-rule.md) | name: brief-gate-beats-standing-shared-tree-rule |
+| 2026-09-02 | - | [stackobot-project/cold-start-invisible-anomaly-arc.md](stackobot-project/cold-start-invisible-anomaly-arc.md) | name: cold-start-invisible-anomaly-arc |
 | 2026-09-02 | - | [plugin-project/verify-before-reexecuting-a-brief.md](plugin-project/verify-before-reexecuting-a-brief.md) | name: verify-before-reexecuting-a-brief |
 | 2026-08-19 | - | [stackobot-project/s4-certified-m25.md](stackobot-project/s4-certified-m25.md) | name: s4-certified-m25 |
 | 2026-08-19 | - | [stackobot-project/path-a-blocked-mainworld-not-cooked.md](stackobot-project/path-a-blocked-mainworld-not-cooked.md) | name: path-a-blocked-mainworld-not-cooked |
@@ -54,10 +55,12 @@ Files: 55. Newest first. Date = last-modified date of the source file on the hom
 | 2026-07-26 | - | [stackobot-project/dashboard-m1-m3-work-order.md](stackobot-project/dashboard-m1-m3-work-order.md) | name: dashboard-m1-m3-work-order |
 | 2026-07-22 | - | [stackobot-project/reports-in-copy-block.md](stackobot-project/reports-in-copy-block.md) | name: reports-in-copy-block |
 | 2026-07-22 | - | [stackobot-project/push-workflow-inverted.md](stackobot-project/push-workflow-inverted.md) | name: push-workflow-inverted |
+| 2026-07-17 | - | [stackobot-project/delivery-wrapper-polish.md](stackobot-project/delivery-wrapper-polish.md) | name: delivery-wrapper-polish |
 | 2026-07-15 | - | [stackobot-project/m21-frame-pairing-race.md](stackobot-project/m21-frame-pairing-race.md) | name: m21-frame-pairing-race |
 | 2026-07-15 | - | [stackobot-project/m20-annotation-labeling-investigation.md](stackobot-project/m20-annotation-labeling-investigation.md) | name: m20-annotation-labeling-investigation |
 | 2026-07-15 | - | [stackobot-project/m18-label-misalignment-investigation.md](stackobot-project/m18-label-misalignment-investigation.md) | name: m18-label-misalignment-investigation |
 | 2026-07-15 | - | [stackobot-project/concorde-smoke-bugs-investigation.md](stackobot-project/concorde-smoke-bugs-investigation.md) | name: concorde-smoke-bugs-investigation |
 | 2026-07-13 | - | [stackobot-project/anomaly-injector-state.md](stackobot-project/anomaly-injector-state.md) | name: anomaly-injector-state |
+| 2026-07-11 | - | [stackobot-project/issue2-capture-fps-2x-office.md](stackobot-project/issue2-capture-fps-2x-office.md) | name: issue2-capture-fps-2x-office |
 | 2026-07-03 | - | [stackobot-project/m9-session-capture.md](stackobot-project/m9-session-capture.md) | name: m9-session-capture |
 | 2026-06-19 | - | [stackobot-project/anomaly-collision-free-concurrency.md](stackobot-project/anomaly-collision-free-concurrency.md) | name: anomaly-collision-free-concurrency |

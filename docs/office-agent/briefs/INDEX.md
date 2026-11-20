@@ -2,7 +2,7 @@
 
 `processed/` = every brief the mailbox watcher ran (file name = arrival time + brief id). `held/` = briefs that were held, superseded or never run. Read a brief together with its report in `../reports-to-chat/`. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
 
-Files: 323. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 325. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
@@ -133,6 +133,8 @@ Files: 323. Newest first. Date = last-modified date of the source file on the ho
 | 2026-10-02 | 002-081211 | [processed/20261002-081211_090-10f-uniform-bscope-cooked.md](processed/20261002-081211_090-10f-uniform-bscope-cooked.md) | ACK-VERDICT: 090-10c NEEDS-DECISION ruled in _reviews\090-10c-chat-ruling-r1.md — items 1–3 here (uniform-texture mislabel MUST-FI... |
 | 2026-10-02 | 002-081139 | [processed/20261002-081139_090-10e-pie-endsettle-census-slice.md](processed/20261002-081139_090-10e-pie-endsettle-census-slice.md) | ACK-VERDICT: 090-10b2 NEEDS-DECISION ruled in _reviews\090-10b2-chat-ruling.md — PIE end-settle flag + census actor-list slicing h... |
 | 2026-10-02 | 090-12 | [held/090-12-m52-proxy-blur.md](held/090-12-m52-proxy-blur.md) | ACK-VERDICT: (chat fills in at release) |
+| 2026-10-01 | 002-060844 | [processed/20261002-060844_090-10c-lodbias-office-gates.md](processed/20261002-060844_090-10c-lodbias-office-gates.md) | ACK-VERDICT: runs AFTER 090-10b2 (m52 PIE + wrap-up). Spec = _reviews\090-10x-chat-ruling-compatibility.md (Codex's compatibility ... |
+| 2026-10-01 | 002-013836 | [processed/20261002-013836_090-10b2-m52-pie-wrapup-census.md](processed/20261002-013836_090-10b2-m52-pie-wrapup-census.md) | ACK-VERDICT: 090-10b ended INTERRUPTED (its watcher died ~17:38; Codex confirmed the PID absent at 20:44). Its fix is accepted on ... |
 | 2026-10-01 | 001-210654 | [processed/20261001-210654_CRASHED_090-10b-office-nothing-corrupts-diagnosis.md](processed/20261001-210654_CRASHED_090-10b-office-nothing-corrupts-diagnosis.md) | ACK-VERDICT: (chat fills in at release) |
 | 2026-10-01 | 001-122649 | [processed/20261001-122649_090-10-r4-pairing-kit.md](processed/20261001-122649_090-10-r4-pairing-kit.md) | ACK-VERDICT: 090-09 GREEN accepted (all four judgement calls accepted) — see _reviews\090-09-chat-ruling-round-a.md |
 | 2026-10-01 | 001-093950 | [processed/20261001-093950_090-09-codex-recheck-fixes-a.md](processed/20261001-093950_090-09-codex-recheck-fixes-a.md) | ACK-VERDICT: 090-08 NEEDS-DECISION (Codex CHANGES REQUIRED) ruled in _reviews\090-08-chat-ruling-codex-recheck.md — R1–R3, R5–R10,... |
