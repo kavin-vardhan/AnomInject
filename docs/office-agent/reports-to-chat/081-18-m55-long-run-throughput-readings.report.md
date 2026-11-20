@@ -6,14 +6,14 @@ context at last turn: 668495 tokens (67% of 1M) - roll the session at 70%
 live feed: D:\IntrusiveAnomalies\_mailbox\to_chat\081-18-m55-long-run-throughput-readings.live.txt
 
 ---- FINAL MESSAGE (Claude Code) ----
-VERDICT: NEEDS-DECISION: no long-run leg ran. Four HeistCrewUE editors (UE 5.7, not ours) started on this machine at 01:32 IST, the same second as our first launch, and were still running at the brief's 60-minute bound. I never touched them, and the boundary is restored and proven.
+VERDICT: NEEDS-DECISION: no long-run leg ran. Four <other-home-project> editors (UE 5.7, not ours) started on this machine at 01:32 IST, the same second as our first launch, and were still running at the brief's 60-minute bound. I never touched them, and the boundary is restored and proven.
 
 ## 2. Plain summary for the owner
-- None of the long 1800-frame tests ran. Another project's Unreal editors (four of them, HeistCrewUE) started on this machine and were still running after the 60-minute wait the brief allows, so I stopped.
+- None of the long 1800-frame tests ran. Another project's Unreal editors (four of them, <other-home-project>) started on this machine and were still running after the 60-minute wait the brief allows, so I stopped.
 - The first Lyra attempt had already been invalid before recording: the game respawned the player after placement, as happened last round.
 - Everything is ready for a rerun: the test scripts, the predictions (frozen before anything ran) and a timing method checked against known answers.
 - Re-reading last round's short 300-frame Lyra recording shows the frame writer already falling behind: 23.2 frames/s went in, 21.7 frames/s came out. The evidence stage's waiting grew in step with it; StackOBot stayed flat. This does not answer the long-run question.
-- To get the answer, the HeistCrewUE work needs to stop or be scheduled around, then this brief reruns unchanged.
+- To get the answer, the <other-home-project> work needs to stop or be scheduled around, then this brief reruns unchanged.
 
 ## 3. Leg table
 
@@ -72,7 +72,7 @@ Not measured: the OFF legs never ran, so I have no uncertainty estimate.
 - no process of ours running; the four foreign editors are listed separately.
 
 ## 9. NEEDS-DECISION items
-- **The bench.** The HeistCrewUE workload (PIDs 153756, 96312, 76640, 104420) has to be stopped or scheduled around; this is the second round in a row it has blocked. Then rerun 081-18 as written: predictions and harness are unchanged, and L1 has 2 pre-capture attempts left, or starts fresh.
+- **The bench.** The <other-home-project> workload (PIDs 153756, 96312, 76640, 104420) has to be stopped or scheduled around; this is the second round in a row it has blocked. Then rerun 081-18 as written: predictions and harness are unchanged, and L1 has 2 pre-capture attempts left, or starts fresh.
 - **Or decide without the rerun.** The alternative is to rule on a build-3 scheduling change from the 300-frame evidence alone. That evidence cannot show the ON-vs-OFF writer effect or the long-run shape.
 
 ## 10. Wall-clock per step (IST)

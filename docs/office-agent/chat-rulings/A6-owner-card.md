@@ -8,10 +8,10 @@
 - **Save your work.**
 - **Close these programs:**
   - Blender;
-  - any Kimodo or render jobs;
+  - any <other-home-project> or render jobs;
   - the **Epic Games Launcher** (right-click its tray icon → Exit);
-  - every other Unreal editor or game, including the UE 5.7 DCDemo one.
-- **Pause the DCDemo watcher** if it's running. Leave the GDP watcher alone.
+  - every other Unreal editor or game, including the UE 5.7 <other-home-project> one.
+- **Pause the <other-home-project> watcher** if it's running. Leave the GDP watcher alone.
 
 ## Steps
 1. **Double-click** `D:\IA_Europa\Launch\Europa425-Editor-OwnerLeg.bat` **once.** A black window opens. **Keep it open the whole time.**

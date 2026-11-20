@@ -4,7 +4,7 @@
 - **Build 2:** source `9c75abe`, Game **8E64FA39**, Lyra modules `m55-stage2-r17-lyra-48b9e048`; one build set, all exit 0; postflight PASS (`problems: []`), boundary back on `m51`.
 - **Stack 1080p twins 4/4 PASS on first attempt:** 20/20 required pairs each, zero `budget_exceeded`, invariants 0; null onsets 0.00004–0.00023 vs control 0.0044–0.0048; solid onsets 1.0 ×10 vs control 0.009–0.013. High-water 51.9 / 64.3 / 66.4 / 70.5 MB with closed census (0 unaccounted bytes).
 - **Lyra G270 (300 frames) PASS branch:** first fixture-valid capture (attempt 2; attempt 1 fixture-invalid on a host respawn), 5 events, 20/20 pairs, zero refusals/timeouts.
-- **Conduct:** a foreign UE 5.7 editor (Heist Crew) appeared mid-round; Code refused at its idle check, never touched it, waited 39 min. Correct. Missed predictions reported plainly as readings. Correct.
+- **Conduct:** a foreign UE 5.7 editor (<other-home-project>) appeared mid-round; Code refused at its idle check, never touched it, waited 39 min. Correct. Missed predictions reported plainly as readings. Correct.
 - **Noted for merge:** the Stage 1–2 source carries comments; the repo's comment-stripper convention must run before merge (merge checklist item). Refusal-time census (diagnostic i) is unexercised at runtime — the G10 and `ChangeMaxBytes 1` legs must show it. Legacy comparisons will see exactly one added summary key, `change_bytes_peak_census` — predeclare it.
 - **Product reading, not a gate (for the later calibration unit and the owner's stuck-mip default-on call):** Lyra `stuck_low_mip` onset target vs whole-frame control = 0.584/0.530, 0.027/0.069, 0.00009/0.0013, 0.0011/0.0042, 0.1015/0.0976 — at or below the frame's own background change in four of five events.
 

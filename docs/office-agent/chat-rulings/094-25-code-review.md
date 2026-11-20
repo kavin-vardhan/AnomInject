@@ -41,7 +41,7 @@
 | 25 | EW1–EW4 | Manifests 27/39/44, 110/110 bound files equal (start and after exit); EW3 argv/locks/aliases in my 094-22 set | OK |
 | 26 | EV1–EV7 | EV1: no EU2 pause, no edit in a pause window; EV3 D: lines unchanged; EV5 probe source 15 files identical on 3 hosts | OK |
 | 27 | EU1 command audit | `review\eu1-audit.json`: 208 commands — 207 through the wrapper, 1 direct read-only (startup `Get-Content` of the ruling and scripts), 0 direct write-capable; 28 file-edit items, all tool edits before `a8d3425`. Codex counts 205 + 1 (O5) | OK · O5 |
-| 28 | EU2 foreign dips | D: 65.2 → 43.7 GiB at 01:01:40 (a single step, the owner's two kimodo jobs starting; page file +4 GB) and back to 65 by 01:17; never below a floor; no pause | OK |
+| 28 | EU2 foreign dips | D: 65.2 → 43.7 GiB at 01:01:40 (a single step, the owner's two <other-home-project> jobs starting; page file +4 GB) and back to 65 by 01:17; never below a floor; no pause | OK |
 | 29 | EU3–EU6 | EU4 switch in the stand-in argv | OK / N/A |
 | 30 | ET1–ET7 | ET2 marker `31124` unchanged (0 B, only entry); ET3 `ProgramData\Epic` rotation; ET7 owner-slot `.tmp` unchanged | OK |
 | 31 | ER1–ER4 | Every refusal names its reason (14/14) | OK |
@@ -69,7 +69,7 @@
 - **O1:** `{**os.environ}[N]` escapes the environment-read check; no kit helper uses it.
 - **O2:** EZ1's pattern list now includes every run-folder file name (792 patterns), including generic ones (`report.md`, `summary.json`, `command.txt`, `stderr.txt`, `events.jsonl`, `exit-code.txt`). A new foreign root folder holding such a name, or any Unreal package (`*.pak`, `*.uasset`, e.g. a game or Epic download), is a STOP. Fail-safe, but a false STOP ends a night.
 - **O3:** As ruled, any new top-level `D:\` entry is port-attributed (STOP). A removed `D:\` root is FOREIGN (fixed in `2163c08`). A removed P9-protected root returns ledger `STOP` with a `RED` record, so the job verdict must be read from the record.
-- **O4:** At 01:01:40 free physical memory fell to 0.23 GiB and free commit to 0.43 GiB (the owner's two `run_kgen.py` jobs, about 4.5 GB commit each, started at 00:59:52 and 01:00:42). Commit was below the 12 GiB start line in 102 of 342 samples and physical below 6 GiB in 114.
+- **O4:** At 01:01:40 free physical memory fell to 0.23 GiB and free commit to 0.43 GiB (the owner's two `<other-home-project> job` jobs, about 4.5 GB commit each, started at 00:59:52 and 01:00:42). Commit was below the 12 GiB start line in 102 of 342 samples and physical below 6 GiB in 114.
 - **O5:** EU1 labelling differs by two (my 207 + 1 vs Codex's 205 + 1); same conclusion.
 - **O6:** `%LOCALAPPDATA%\UnrealEngine\5.5\Saved\crash-reports\pending-reports.json` was rewritten at 01:50:32 (size unchanged, 52 B). No Unreal process of ours ran; Codex's ledger classified it as foreign in the between-operations window before `10-qualified-rehearsal`.
 - **O7:** My harness bugs, all corrected with the first attempt kept: EZ1-12/13 (path inside a declared root), the integration lookup key, the re-run output folder. And the junction (D1).
@@ -80,7 +80,7 @@
 
 ## 5. Top 5 risks for the real run (094-26)
 1. **My junction (D1).** Certain STOP at the first prelaunch check until it is removed.
-2. **Memory.** Tonight free commit reached 0.43 GiB (O4). The start gate needs 12 GiB commit and 6 GiB physical on three polls (4 h limit), and in session free commit below 6 GiB stops the tree. The owner's `run_kgen.py` jobs, Blender, OBS and the second Codex job under `E:\<personal-folder>` must not run.
+2. **Memory.** Tonight free commit reached 0.43 GiB (O4). The start gate needs 12 GiB commit and 6 GiB physical on three polls (4 h limit), and in session free commit below 6 GiB stops the tree. The owner's `<other-home-project> job` jobs, Blender, OBS and the second Codex job under `E:\<personal-folder>` must not run.
 3. **EZ1 false STOPs.** A new top-level `D:\` folder, or a new C:/E: root folder holding a port-pattern name (O2), ends the run.
 4. **Disk swings.** D: dropped 22 GiB in one minute tonight (to 43.7 GiB). EZ2 now waits on a start-line miss, but a dip below the 25 GiB floor in session stops the tree.
 5. **First real clean exit and time (carried O1).** The skipped-cleanup row and one `probe_stop` have never run on the real editor; 1,800 s includes startup, DDC and shaders; real P9 admission (about 10 min per recipe), the real argv, `check_ddc` and live readings meet for the first time.

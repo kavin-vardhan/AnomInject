@@ -101,7 +101,7 @@
 - **Git:**
   - `m51` equals P9 at start, prelaunch and exit.
   - The feature branch is clean at `df5dfdc`, with W4 dates, no origin branch and no tags.
-- **Foreign activity:** a UE 5.7 DCDemo cook with its ShaderCompileWorkers, and ffmpeg. D: dipped to 12.6 and then 19.3 GiB, but not from the Europa folders; the kit waited 57.6 minutes for space.
+- **Foreign activity:** a UE 5.7 <other-home-project> cook with its ShaderCompileWorkers, and ffmpeg. D: dipped to 12.6 and then 19.3 GiB, but not from the Europa folders; the kit waited 57.6 minutes for space.
 
 ## 4. What's left before an office capture smoke on Europa's fork
 1. **A build-budget ruling,** then a rebuild with `05c55e2` and `2b9dc19` and a C5 re-run.

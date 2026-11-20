@@ -96,7 +96,7 @@ Run in a child whose environment was EL1/EM2-filtered, from my copy of the 09414
 - **D3 (decision or hygiene): `resume_self_tests.py` is stale against EL1 masking** (§3). Repair it to expect `<masked>`, or retire it, before any resume or A6 tooling relies on it.
 - **O4: Codex's own final canary scan started at 20:55:22 IST, 4.6 min after launch**, and covered D:\IA_Europa and the run folder (325 files). My scan covers the gap (from 20:50:43, 14 roots, 422 files, 0 hits). A future scan should start at the launch second.
 - **O5: my EN1 checker pins the 5.1 MSVC directory (14.38.33130) but not the 5.1 SDK.** Codex's identity check reports SDK 10.0.22621.0 for 5.1; the next review should pin it.
-- **O6 (environment):** foreign workloads during the window, none ours: a `run_kgen.py jobs-r27.json` python (about 4.6 GB commit), a `post.py` render step, Blender from about 21:15, the owner's desktop codex, MCP servers. Free physical memory ran 5.86–10.11 GiB.
+- **O6 (environment):** foreign workloads during the window, none ours: a `<other-home-project> job` python (about 4.6 GB commit), a `post.py` render step, Blender from about 21:15, the owner's desktop codex, MCP servers. Free physical memory ran 5.86–10.11 GiB.
 - **O7 (my writes):** `code-receipts-094-14\`, `resume-prompt-094-14.txt`, `_reviews\094-14-codex-report.md`, this file, `Receipts\CodeReview09414\` (230 files) and the empty `Temp\CodeReview09414\` tree. I deleted nothing, killed nothing, added no ledger row (the relay's), and ran no JsonExport (no C#/descriptor/Build.cs change made one necessary).
 
 ## 6. Top 5 risks for A6

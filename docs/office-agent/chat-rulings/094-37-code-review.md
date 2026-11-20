@@ -60,7 +60,7 @@
 - **Why it stopped:** the session's own commit footprint is large.
   - 094-36's passing session started at 12.18 GiB free and bottomed at 7.82, about 4.4 GiB of its own.
   - Admitted at the 8 GiB start line, it is bound to land near the 4 GiB floor.
-  - Foreign load came on top: another Claude session's UE 5.7 DCDemo cook/pak, DaVinci Resolve (from 19:20), wlanext 5.9 GB and vmmem 4.1 GB.
+  - Foreign load came on top: another Claude session's UE 5.7 <other-home-project> cook/pak, DaVinci Resolve (from 19:20), wlanext 5.9 GB and vmmem 4.1 GB.
   - Free commit read 0.3–1.1 GiB at times, and D: dipped 31.8 → 15.4 GiB (19:40–21:10; not ours, writer not established).
 
 ## 4. Safety

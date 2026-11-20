@@ -192,7 +192,7 @@ The Section G notice preserves the historical predeclared reading and explicitly
 
 Relative to the previous review: old F4 denominator, F5 no-signal accounting, F6 zero-boundary handling and F8 batch naming are repaired. Old F3 is repaired for RGB coverage, with mask coverage still open. Old F1's bbox scope reduction works but its mask-mode replacement is insufficient. Old F2's original refusal cases pass but cross-run ordering remains unsound. Old F7's PASS-plus-refusal case passes, while the new aggregation introduces the false PASS in this report's F3.
 
-**Chat review REQUIRED for these findings, any revised verdict boundary, and fresh evidence before merge.** The immediate next step is Chat's disposition of this report. No brief to Code was written or sent. Client/Section G acceptance, campaign/release readiness, `m51` and the separate paused SRD work are not released by these regression results.
+**Chat review REQUIRED for these findings, any revised verdict boundary, and fresh evidence before merge.** The immediate next step is Chat's disposition of this report. No brief to Code was written or sent. Client/Section G acceptance, campaign/release readiness, `m51` and the separate paused <other-home-project> work are not released by these regression results.
 
 ## Reproducibility and state
 

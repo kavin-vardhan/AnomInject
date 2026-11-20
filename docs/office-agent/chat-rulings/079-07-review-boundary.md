@@ -22,7 +22,7 @@ Codex is the independent checkpoint reviewer under the 2026-09-15 operating-cont
 No brief, implementation, build, capture, cook, checkout, merge, push or external message was issued.
 All review processes finished and this review's scratch directories/links were removed. Last watcher
 observation idle, PID 18520, 2026-09-15 15:45:46 +0530. The 079-06 mailbox wrapper remains UNDECLARED;
-its existing queue hold was not modified. Client/Section G, m51/campaign and paused SRD holds remain.
+its existing queue hold was not modified. Client/Section G, m51/campaign and paused <other-home-project> holds remain.
 No fresh Codex session or context-setting change is recommended for this coherent workstream.
 
 ---

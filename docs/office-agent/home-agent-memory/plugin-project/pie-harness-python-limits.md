@@ -27,4 +27,4 @@ frame times + `PYSTEP <file>` hooks; launched as `UnrealEditor <uproject> <map> 
   (MaterialShared.cpp:3348-3388), so "missing" states self-heal in seconds; a material compiled once lands in the job-cache DDC, so
   use a fresh material per "missing" leg.
 
-Related: [[scratch-host-build-when-checkout-is-protected]], [[foreign-heistcrew-editors-block-bench]].
+Related: [[scratch-host-build-when-checkout-is-protected]], [[foreign-editors-block-bench]].

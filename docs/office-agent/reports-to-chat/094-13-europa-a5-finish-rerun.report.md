@@ -19,7 +19,7 @@ VERDICT: NEEDS-DECISION | EM1 is done. A5 is still incomplete: Codex stopped cor
   - My launch wrapper re-checked this just before launch; I first showed the check refuses four doctored baselines (5/5).
   - It still passed after Codex exited and again at my end.
 - **Headroom:** C 18.94, D 83.76, E 242.66 GiB at the start; 18.76, 83.13, 239.19 GiB at the end.
-- **Memory:** 7.3–10.1 GiB free physical. Foreign workloads, none ours: a uv python running `run_kgen.py`, a <personal-folder> codex relay with StykAnimate node servers, Blender, and the desktop codex.
+- **Memory:** 7.3–10.1 GiB free physical. Foreign workloads, none ours: a uv python running `<other-home-project> job`, a <personal-folder> codex relay with <other-home-project> node servers, Blender, and the desktop codex.
 - **Protected state:** PASS at 17:58 and 19:18.
 - **Toolchains:** byte-equal to 094-12.
 - **EK1 pre-scan:** 35,135 files, 0 secret values, 0 makefiles.

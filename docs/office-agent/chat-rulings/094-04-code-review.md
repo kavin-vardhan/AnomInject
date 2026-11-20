@@ -196,8 +196,8 @@ C:/D:/E: root folders, and my root listings show none.
 
 ## 11. E: audit (sizes only, at start; `E:\<personal-folder>` not measured)
 - **E: free went from about 102 GiB (10-16, 094-03 exit) to 33.7 GiB this morning.** Files written on E: since then:
-  - **`E:\<personal-folder>` 66.1 GiB:** the PickAFight "svs-epic" Unreal 5.7 project 53.4 GiB, red-blue-explainer renders 6.6 GiB,
-    three other PickAFight folders 3.3 GiB, an archive 1.1 GiB;
+  - **`E:\<personal-folder>` 66.1 GiB:** the <other-home-project> "<other-home-project>" Unreal 5.7 project 53.4 GiB, <other-home-project> renders 6.6 GiB,
+    three other <other-home-project> folders 3.3 GiB, an archive 1.1 GiB;
   - **`E:\CodexData` 7.7 GiB:** the Codex desktop app's home, sessions and runtimes;
   - `E:\EpicGames` 0.08 GiB.
 - **None of it is the port.** The port's E: charge was 0 B again, and `E:\IA_BuildCache` has had no new file since 10-16.

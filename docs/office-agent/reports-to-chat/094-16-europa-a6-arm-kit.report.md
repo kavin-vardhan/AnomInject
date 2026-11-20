@@ -20,7 +20,7 @@ VERDICT: NEEDS-DECISION. The kit is armed, all three real slots are unused, the 
 - **Memory:** 10.12 GiB physical free; toolchains unchanged.
 - **EK1 pre-scan:** 37,954 files, 0 secret values. The 16 new name hits are all my own files.
 - **Kit hashes before:** `.bat` `4DB0A64A…`, json `9A595FB5…`, `owner_leg.py` `A6B62682…`. Manifests 27/39/44 all equal (`4beccca6…`, `617a9082…`, `f6e52a85…`).
-- **Something else is running on this box:** a separate UE 5.7 workload (`E:\DynamicContents\DCDemo`) with its own mailbox watcher. It ran Unreal processes at 02:38 and 03:01. Nothing of ours.
+- **Something else is running on this box:** a separate UE 5.7 workload (`E:\DynamicContents\<other-home-project>`) with its own mailbox watcher. It ran Unreal processes at 02:38 and 03:01. Nothing of ours.
 
 **The Codex job**
 - **Run folder:** `D:\IntrusiveAnomalies\_relay\runs\2026-10-16-094-01-europa-phase-a-plan`
@@ -40,7 +40,7 @@ VERDICT: NEEDS-DECISION. The kit is armed, all three real slots are unused, the 
   - A three-poll start fails about 12 % of the time.
   - A 45-minute wait almost surely (about 97 %) ends in a traceback instead of the plain give-up message.
 - **G2. The one-session lock has a narrow hole.** If anything fails between the editor starting and the "started" callback, the kit removes the launch reservation and writes no launched marker. The next double-click could then start a second editor. I reproduced this with a harmless Python child and a forced write failure.
-- **O1.** `UnrealTraceServer.exe` and `UnrealVersionSelector.exe` count as "another Unreal program", so the DCDemo workload can hold the gate.
+- **O1.** `UnrealTraceServer.exe` and `UnrealVersionSelector.exe` count as "another Unreal program", so the <other-home-project> workload can hold the gate.
 - **O2.** A UE 5.x build tool runs as `dotnet.exe`, and the kit does not see it as an Unreal program.
 - **O3.** A throwaway dry-run config could name the real slot paths. Only an operator could build one.
 - **O4–O6.** Carried from 094-15: EO1 reader budget, the 5.1 probe control-row path, EJ1/EJ3/EJ5.
@@ -99,7 +99,7 @@ Press any key to continue . . .
   - if red error text appears, screenshot it, close the window, and double-click again.
 
 **Owner actions:** none tonight. For the session itself, after chat's ruling and card:
-- close Blender and any other heavy or GPU-using programs first, and pause the DCDemo workload if it is running;
+- close Blender and any other heavy or GPU-using programs first, and pause the <other-home-project> workload if it is running;
 - double-click once and leave the window open.
 
 **NEEDS-DECISION**

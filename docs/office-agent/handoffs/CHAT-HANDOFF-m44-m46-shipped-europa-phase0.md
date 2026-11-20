@@ -68,7 +68,7 @@ the owner's four Bates observations from card Section E (target mask one frame l
 ## 7. Working with Code — what changed today
 
 - **Adaptive polling:** first check at the brief's expected finish (from past durations: reads/plans ~15 min, implement+gate ~20, docs ~12, cook ~22), then every ~5 min while `watcher_status.txt` says running, 60 min idle.
-- **Mail-signal Monitor:** public `https://raw.githubusercontent.com/mr<HOSTNAME>/mailbox-signal/main/signal.json` (`{"f2e079e1": <gdp count>, "a1c057b4": <heist count>}`); a persistent Monitor polling every 30 s wakes chat on change. It is refused under Cowork's "Automatically approve" mode (safety classifier blocks shell HTTP fetches) and works when the session's permission mode allows it — try once, never work around, fall back to adaptive polling. Keep a 30–60 min fallback wake and re-arm on any wake.
+- **Mail-signal Monitor:** public `https://raw.githubusercontent.com/mr<HOSTNAME>/mailbox-signal/main/signal.json` (`{"f2e079e1": <gdp count>, "a1c057b4": <<other-home-project> count>}`); a persistent Monitor polling every 30 s wakes chat on change. It is refused under Cowork's "Automatically approve" mode (safety classifier blocks shell HTTP fetches) and works when the session's permission mode allows it — try once, never work around, fall back to adaptive polling. Keep a 30–60 min fallback wake and re-arm on any wake.
 - Host crash mid-brief: the watcher's `ran.txt` prevented a re-run; the resume brief (same Code session) recovered cleanly. The brief file itself is archived only after completion — archive-at-launch is a pending chat-side fix.
 - Code's `git add docs` swept the untracked CHAT-HANDOFF files once; corrected; path-scoped adds only (CLAUDE.md).
 

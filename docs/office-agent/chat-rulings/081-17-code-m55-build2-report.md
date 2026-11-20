@@ -134,7 +134,7 @@ phase has `pairs_measured == pairs_required` (4/4 × 5), every window row is mea
 1. **My preflight script faulted before any bench action.** It read 081-16's bank manifest paths as
    relative to the wrong directory. I fixed it once and re-ran it: zero mismatches across 141
    binaries, 1,684 prior artifacts and 13,015 bank files.
-2. **Environment, not ours.** A UE 5.7 `UnrealEditor` for another project (HeistCrewUE,
+2. **Environment, not ours.** A UE 5.7 `UnrealEditor` for another project (<other-home-project>,
    `-unattended`, PID 17236) started at 00:02:25, after my start check had passed.
    - The build script's idle check refused at its first line: nothing was checked out and nothing
      was built.

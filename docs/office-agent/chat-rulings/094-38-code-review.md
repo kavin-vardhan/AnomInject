@@ -93,7 +93,7 @@ No kit was armed and no session ran, so there is no map, no event, no mask to op
   - My tree lists went from 138,589 to 138,800 files. 4 files are gone, all UBT outputs during authorized builds (2 PDBs, one Intermediate `.lib` and one unity `.txt`).
   - One partial `.obj` was moved into Codex's quarantine, with a receipt.
   - No directory was removed, and there are 0 reparse points.
-- **Foreign load:** UE 5.7 DCDemo games (2–3.9 GB), a UE 5.7 cl/link build at Normal priority, blender, wlanext (6.0 GB) and vmmem (4.0 GB). Free commit fell to 0.5 GiB.
+- **Foreign load:** UE 5.7 <other-home-project> games (2–3.9 GB), a UE 5.7 cl/link build at Normal priority, blender, wlanext (6.0 GB) and vmmem (4.0 GB). Free commit fell to 0.5 GiB.
 
 ## 5. Not written
 The pre-push scan and the office card: both depend on a passing smoke.

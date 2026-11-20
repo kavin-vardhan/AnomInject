@@ -29,7 +29,7 @@
 **Fix it in the next tooling job, before any measured leg.** Each refusal shows its own reason, and that job re-arms whatever it changes.
 
 ### ER2. The raw ledger STOP in operation `03-documentation` is foreign (EB1)
-- **What was flagged:** six linker temp files under `C:\ClaudeTemp\UnrealBuildTool\044a3114`, removed by the DCDemo UE 5.7 build.
+- **What was flagged:** six linker temp files under `C:\ClaudeTemp\UnrealBuildTool\044a3114`, removed by the <other-home-project> UE 5.7 build.
 - **The proof:** that build's own native UBT log, which Code checked independently.
 - **The result:** this is not one of EN5's hard STOPs. The raw STOP stays in the ledger, with its disposition.
 

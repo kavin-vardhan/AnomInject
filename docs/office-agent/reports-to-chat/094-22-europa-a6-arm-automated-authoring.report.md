@@ -93,7 +93,7 @@ VERDICT: NEEDS-DECISION — the kit is armed exactly to EW2 and both dry runs pa
 **8. Owner actions**
 - After this job, as the 094-21 ruling says: restart the PC, double-click `start_watcher.bat`, then start the Epic Games Launcher and leave it running.
 - Do not double-click `Europa425-FixtureAuthoring.bat` until chat re-arms the kit after G4. As it stands it would wait 4 hours and use a slot.
-- **For the real run, the PC should be:** idle overnight, with the launcher open and nothing else Unreal running (no editors or DCDemo builds). Pause the E:\DynamicContents watcher. Close Blender and heavy apps. Keep D: at 40 GiB or more free and at least 8–10 GiB of physical memory free.
+- **For the real run, the PC should be:** idle overnight, with the launcher open and nothing else Unreal running (no editors or <other-home-project> builds). Pause the E:\DynamicContents watcher. Close Blender and heavy apps. Keep D: at 40 GiB or more free and at least 8–10 GiB of physical memory free.
 
 **9. NEEDS-DECISION**
 - **D1 (G4):** extend the launcher exclusion so it covers the whole running `EpicGamesLauncher.exe` process tree. I recommend that over excluding the overlay by name and install path. Then re-arm, and add a live gate reading to the dry run. This needs an arming job with no launch.

@@ -32,7 +32,7 @@
 
 ## 4. Open vs locked
 **Locked:** consistency semantics; NO-TRACE as the only failure; no cap derivation; masks-or-readings; Codex may implement tool-only units under a chat spec with Claude Code reviewing (owner's call per unit); one orchestrator per mailbox (chat).
-**Open:** owner's transcribed office readings (never arrived; no longer blocking); client correction message (drafted 09-07, owner to send); Jira re-scope; whether m51's F1 candidate passes the B1 pose gate (4/4 failures unexplained); SRD video project (separate, parked at SRD-005 RED).
+**Open:** owner's transcribed office readings (never arrived; no longer blocking); client correction message (drafted 09-07, owner to send); Jira re-scope; whether m51's F1 candidate passes the B1 pose gate (4/4 failures unexplained); <other-home-project> video project (separate, parked at <other-home-project> RED).
 
 ## 5. Pointers
 Repo: `docs/sessions/2026-09-15-079-0[1-7]-*.md`, `2026-09-20-079-0[9]-…`, `-079-1[0-5]-…`; `docs/predictions/2026-09-15-verifier-field-validity.md` (+A1–5), `2026-09-20-verifier-consistency-semantics.md` (+A1–3); `docs/verifier-characterisation.md`; gotchas G259–G264+; `docs/client-readme.md` Step 6. Reviews and rulings: `D:\IntrusiveAnomalies\_reviews\079-*` (Codex reports 079-05/07/08 = the counterexample record; 079-14 = Code's independent review). Evidence bank: `_bench_sessions_bank\M079_VERIFIER_EVIDENCE\`. Project memory updated 2026-09-20.

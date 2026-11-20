@@ -65,16 +65,16 @@ Manifests:
 
 | Folder | GiB | What it is |
 |---|---:|---|
-| `E:\Pocket` | 160.9 | personal video and photos |
-| `E:\<personal-folder>` | 89.7 | the owner's YouTube projects |
+| `E:\<personal-folder>` | 160.9 | personal video and photos |
+| `E:\<personal-folder>` | 89.7 | the owner's other home projects |
 | `E:\AI` | 83.7 | ComfyUI install |
 | `E:\Saily` | 64.2 | personal media |
 | `E:\EpicGames` | 60.6 | the UE 4.25 and 5.7 installs |
-| `E:\Unreal Projects` | 57.1 | HeistCrewUE 30.8, Patreon 14.0, StackOBot 4.8 (looks like the retired 5.4 host), StylizedParisStreet 4.1 (protected) |
+| `E:\Unreal Projects` | 57.1 | <other-home-project> 30.8, Patreon 14.0, StackOBot 4.8 (looks like the retired 5.4 host), StylizedParisStreet 4.1 (protected) |
 | `E:\SailyIphone` | 40.7 | phone photos |
 | `E:\IA_Fixtures\Outline425` | 37.7 | Europa outline fixture; its `Receipts` folder is 34.4 |
 | `E:\CodexData` | 36.4 | Codex home; sessions 21.6 |
-| `E:\UnityProjects` | 31.9 | HeistCrew Unity project |
+| `E:\UnityProjects` | 31.9 | <other-home-project> Unity project |
 
 The 0944* folders still hold 41.8 GiB after this cleanup.
 

@@ -2,7 +2,7 @@
 # NAME: 079 verifier field validity
 # MODEL: claude-opus-5
 # EFFORT: xhigh
-# ACK-VERDICT: last_verdict RED came from SRD-005 (the SRD video project run through this mailbox, killed session) - unrelated to AnomalyInjector, holds nothing here. 078-17 NEEDS-DECISION acknowledged: the identity/lifecycle design (1f61196, m51) is NOT accepted and stays held; nothing in it is released by this brief. This brief opens a SEPARATE unit (verifier field validity) that touches no m51 source and no gate.
+# ACK-VERDICT: last_verdict RED came from <other-home-project> (the <other-home-project> video project run through this mailbox, killed session) - unrelated to AnomalyInjector, holds nothing here. 078-17 NEEDS-DECISION acknowledged: the identity/lifecycle design (1f61196, m51) is NOT accepted and stays held; nothing in it is released by this brief. This brief opens a SEPARATE unit (verifier field validity) that touches no m51 source and no gate.
 
 # 079-01 — label-pixel verifier: reproduce the field misfire at home, diagnose, propose the fix. NO FIX IN THIS BRIEF.
 

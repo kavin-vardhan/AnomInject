@@ -107,7 +107,7 @@ On every leg:
 ## 7. Deviations and harness faults
 1. **My preflight checker was wrong on its first run.** It resolved bank paths from the wrong directory. I fixed it once, before any bench action, and the re-run found 0 mismatches.
 2. **Another project's editor (not ours) ran mid-round.**
-   - A UE 5.7 editor for HeistCrewUE (PID 17236) started at 00:02:25.
+   - A UE 5.7 editor for <other-home-project> (PID 17236) started at 00:02:25.
    - My build script refused at its idle check before doing anything.
    - I waited, never touched it, and it closed on its own at about 00:42. Nothing ran while it was open.
 3. **Date mismatch.** The predictions header is dated 09-24, but it was committed at 23:59:53 on 09-23.

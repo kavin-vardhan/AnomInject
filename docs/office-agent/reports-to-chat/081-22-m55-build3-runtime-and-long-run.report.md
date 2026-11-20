@@ -17,13 +17,13 @@ VERDICT: NEEDS-DECISION. Build 3 finally ran in the engine and three of the four
 - Another editor from the other project started at 07:18:28, 22 seconds after the last test finished.
 
 ## 3. Waiting log
-- **04:34:27 IST, first check:** four UE 5.7 HeistCrewUE editors (PIDs 153756, 96312, 76640, 104420, started 01:32–02:31) were running. They used about 1 core each; PID 104420 used about 2 cores and had a window titled "Error".
+- **04:34:27 IST, first check:** four UE 5.7 <other-home-project> editors (PIDs 153756, 96312, 76640, 104420, started 01:32–02:31) were running. They used about 1 core each; PID 104420 used about 2 cores and had a window titled "Error".
 - **Polls 1–18** (≤ 9 min each, 60 s checks, every check logged to `environment-events.json`) were all NOT-QUIET.
   - Poll 18 crashed once: a child PowerShell failed with "Thread failed to start" while the commit charge was about 71.7 of 85 GB.
   - The check now retries and counts a failed check as not quiet; it was re-run as poll 18b.
 - **Quiet from 07:13:27** (second consecutive quiet check), after **2 h 39 min** of waiting, about 66 % of the 4-hour budget.
 - **Part 1 ran 07:13:34–07:18:06.** No foreign process appeared during any leg (runtime checks at startup, before `capture_start` and every second).
-- **New foreign editor PID 97980** (HeistCrewUE, `/Engine/Maps/Templates/OpenWorld`) started at 07:18:28 and is still running. There were no mid-leg interruptions.
+- **New foreign editor PID 97980** (<other-home-project>, `/Engine/Maps/Templates/OpenWorld`) started at 07:18:28 and is still running. There were no mid-leg interruptions.
 
 ## 4. Part 1
 

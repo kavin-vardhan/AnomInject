@@ -24,7 +24,7 @@ Files: 58. Newest first. Date = last-modified date of the source file on the hom
 | 2026-11-04 | - | [plugin-project/bench-bank-is-a-junction-to-e.md](plugin-project/bench-bank-is-a-junction-to-e.md) | name: bench-bank-is-a-junction-to-e |
 | 2026-11-02 | - | [plugin-project/europa-425-editor-runtime-facts.md](plugin-project/europa-425-editor-runtime-facts.md) | name: europa-425-editor-runtime-facts |
 | 2026-11-01 | - | [plugin-project/europa-port-51-base-is-release.md](plugin-project/europa-port-51-base-is-release.md) | name: europa-port-51-base-is-release |
-| 2026-10-26 | - | [plugin-project/foreign-heistcrew-editors-block-bench.md](plugin-project/foreign-heistcrew-editors-block-bench.md) | name: foreign-heistcrew-editors-block-bench |
+| 2026-10-26 | - | [plugin-project/foreign-editors-block-bench.md](plugin-project/foreign-editors-block-bench.md) | name: foreign-editors-block-bench |
 | 2026-10-26 | - | [plugin-project/europa-owner-kit-review-facts.md](plugin-project/europa-owner-kit-review-facts.md) | name: europa-owner-kit-review-facts |
 | 2026-10-25 | - | [plugin-project/scratch-host-build-when-checkout-is-protected.md](plugin-project/scratch-host-build-when-checkout-is-protected.md) | name: scratch-host-build-when-checkout-is-protected |
 | 2026-10-25 | - | [plugin-project/delete-guard-refuses-command-text.md](plugin-project/delete-guard-refuses-command-text.md) | name: delete-guard-refuses-command-text |

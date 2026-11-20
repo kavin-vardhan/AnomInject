@@ -69,7 +69,7 @@ A failure is NEEDS-DECISION: don't launch Codex.
   - **Carried:** narrow the generic names after the real run.
   - The owner is asked, for tonight only, not to create new top-level folders.
 - **O3:** a new top-level `D:\` entry stays port-attributed, as ruled. A removed P9-protected root returns a STOP with a RED record; the verdict reads from the record. Accepted.
-- **O4 (memory):** the owner's two `run_kgen.py` jobs at 01:00 drove free commit to 0.43 GiB and physical memory to 0.23 GiB.
+- **O4 (memory):** the owner's two `<other-home-project> job` jobs at 01:00 drove free commit to 0.43 GiB and physical memory to 0.23 GiB.
   - The start gate (12 GiB commit, 6 GiB physical) would simply wait.
   - A session already running would be stopped at 6 GiB commit.
   - **The owner's checklist names those jobs.**
@@ -155,8 +155,8 @@ A failure is NEEDS-DECISION: don't launch Codex.
 
 **Before you leave the PC (now, if you're heading out):**
 1. **Close Blender and OBS completely.**
-2. **Stop your kimodo jobs** (`run_kgen.py`) and any Codex job of yours.
-3. **Close anything Unreal or DCDemo,** including anything opened from the Epic launcher. Pause the DCDemo watcher.
+2. **Stop your <other-home-project> jobs** (`<other-home-project> job`) and any Codex job of yours.
+3. **Close anything Unreal or <other-home-project>,** including anything opened from the Epic launcher. Pause the <other-home-project> watcher.
 4. **Keep the Epic Games Launcher open.**
 5. **If you can, don't make new top-level folders** on C:, D: or E: today.
 6. **Leave the PC and the Claude app on.** No restart.

@@ -72,7 +72,7 @@ The 45-minute give-up stays.
 It will say:
 - the checks take about 10–15 minutes, and the 45-minute wait starts after them;
 - if the window shows "Stopped" or any error, take a screenshot and tell chat;
-- close Blender, heavy jobs and every other Unreal program, and pause the DCDemo watcher, before double-clicking.
+- close Blender, heavy jobs and every other Unreal program, and pause the <other-home-project> watcher, before double-clicking.
 
 ## Next
 - **094-17 is queued now:** EQ1–EQ4, dry-run only. Code reviews after Codex exits.

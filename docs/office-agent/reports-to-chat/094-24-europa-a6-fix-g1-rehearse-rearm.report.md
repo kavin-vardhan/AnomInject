@@ -71,7 +71,7 @@ live feed: D:\IntrusiveAnomalies\_mailbox\to_chat\094-24-europa-a6-fix-g1-rehear
 - **Tonight:** nothing runs, and you don't need to set the PC up for 094-25.
 - **For future unattended runs:**
   - don't create or delete top-level folders on C:, D: or E: while a job runs. `E:\OBSVideos` can stay; recordings inside it are fine;
-  - close Blender, OBS and Unreal or DCDemo windows, and pause the DCDemo watcher. Free commit was 7.9–16 GiB this evening against the new 12 GiB start line;
+  - close Blender, OBS and Unreal or <other-home-project> windows, and pause the <other-home-project> watcher. Free commit was 7.9–16 GiB this evening against the new 12 GiB start line;
   - keep the Epic Games Launcher open.
 - **Connectors:** the Google Calendar and several plugin connectors need authorizing in your connector settings, and the PDF viewer failed to connect. This job used none of them.
 

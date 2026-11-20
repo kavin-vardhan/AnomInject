@@ -197,7 +197,7 @@ D2 applies: two attempts per harness problem.
 
 **Tonight, before you leave the PC:**
 1. **Close Blender completely.** With it open today, free memory fell close to the line where the run stops itself.
-2. **Close anything Unreal or DCDemo,** including anything opened from the Epic Games Launcher. Pause the DCDemo watcher. Leave the GDP watcher running.
+2. **Close anything Unreal or <other-home-project>,** including anything opened from the Epic Games Launcher. Pause the <other-home-project> watcher. Leave the GDP watcher running.
 3. **Keep the Epic Games Launcher open.**
 4. **Check E: isn't still filling up.** It needs 15 GiB free or more.
 5. **Leave the PC and the Claude app on.** No restart is needed.

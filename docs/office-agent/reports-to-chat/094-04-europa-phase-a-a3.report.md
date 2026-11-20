@@ -11,7 +11,7 @@ VERDICT: NEEDS-DECISION — A3 is incomplete. The first 4.25 compile triggered t
 **For the owner**
 1. Codex prepared the shared code for both engines and started the first compile for the old 4.25 engine. That compile still has errors, and it also wrote a few tiny settings files in your C: user folder, which our rules don't allow, so Codex stopped as required. Nothing else was touched.
 2. Chat now has to decide how to handle that one C: folder before any more 4.25 compiles. After that, Codex fixes the compile errors.
-3. E:'s space went to your own projects: `E:\<personal-folder>` wrote about 66 GiB since 10-16 (53 GiB of it the PickAFight "svs-epic" Unreal project) and the Codex app's data grew about 8 GiB. The port wrote nothing on E:. By 15:20, E: was back to about 91 GiB free.
+3. E:'s space went to your own projects: `E:\<personal-folder>` wrote about 66 GiB since 10-16 (53 GiB of it the <other-home-project> "<other-home-project>" Unreal project) and the Codex app's data grew about 8 GiB. The port wrote nothing on E:. By 15:20, E: was back to about 91 GiB free.
 
 **Headroom and toolchain**
 - **Headroom:** GO at the first poll (12:22): C 26.33, D 129.70, E 33.73 GiB, against starts of 13, 70 and 25. No warning or floor was crossed during the job; the lowest readings were C 23.42, D 108.68 and E 28.72 GiB.

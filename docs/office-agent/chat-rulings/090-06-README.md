@@ -136,7 +136,7 @@ Declared choices:
 
 ## 6. Idle gate (before every attempt and every staging)
 Legs run only when **no UnrealEditor of any engine** (`UnrealEditor*`, `UE4Editor*`, `LyraEditor*`, editor or commandlet, ours or
-foreign — e.g. the HeistCrewUE 5.7 editor) and **no foreign GPU-heavy process** (≥ 10 % SM sustained = the minimum of two 1 s
+foreign — e.g. the <other-home-project> 5.7 editor) and **no foreign GPU-heavy process** (≥ 10 % SM sustained = the minimum of two 1 s
 `nvidia-smi pmon` samples; dwm / shell exempt; the agent host `claude.exe` that drives the harness is reported as a reading, not blocking —
 dry run 2 caught it spiking) and no game is running. **Builds may run** (UBT, cl, link, dotnet, ShaderCompileWorker, UnrealPak). Processes are classified by name, path and
 command line; **nothing is ever killed** — a blocked gate waits up to 90 min (60 s polls), then stops the window with exit 4. Plus the

@@ -111,8 +111,8 @@ The 9 name hits (no value anywhere):
 
   I added no ledger row (the relay's) and killed nothing. My canary self-test fixtures hold only a synthetic value and are kept. I wrote no memory notes this run, to stay inside the brief's write list.
 - **O6 (environment).** Foreign workloads appeared during this window, none ours:
-  - a `uv` python running `run_kgen.py jobs-r23.json` (about 4.6 GB commit);
-  - a separate <personal-folder> codex relay and its StykAnimate MCP node servers;
+  - a `uv` python running `<other-home-project> job` (about 4.6 GB commit);
+  - a separate <personal-folder> codex relay and its <other-home-project> MCP node servers;
   - Blender;
   - the owner's desktop codex.
 

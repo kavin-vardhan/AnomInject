@@ -137,7 +137,7 @@ The Europa read card (`claude/094-01-europa-read-card.md`, numbers only) can be 
   - the Claude desktop VM disk (`rootfs.vhdx`, 8.76 GiB);
   - the Epic launcher cache (8.2 GiB).
 - ~~"`.codex` (24.7 GB) is on C:"~~ → `<USERPROFILE>\.codex` is a **junction to `E:\CodexData\home`** (since 09-18).
-- ~~"Hugging Face cache = 23.5 GB"~~ → about **7.9 GB** real. TreeSize counts linked files three times. It holds the owner's **Kimodo** model (keep it) plus Whisper models (deletable).
+- ~~"Hugging Face cache = 23.5 GB"~~ → about **7.9 GB** real. TreeSize counts linked files three times. It holds the owner's **<other-home-project>** model (keep it) plus Whisper models (deletable).
 - ~~"J2 stopped with nothing half-done"~~ → J2's install step had run at 09:30, so both J2 hosts carry its candidate, unrestored. That is J2's paused state; the P9 baseline includes it.
 - ~~"Paris 5.1 copies for the re-gate"~~ (Codex's plan) → StackOBot copies (EA3).
 

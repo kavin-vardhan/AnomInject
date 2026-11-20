@@ -1,6 +1,6 @@
 # Mailbox — the chat ↔ Code bridge, at a glance
 
-One small local service that watches every mailbox folder (GDP, Heist Crew, …), shows their progress on one page,
+One small local service that watches every mailbox folder (GDP, <other-home-project>, …), shows their progress on one page,
 and pings you with a Windows toast when a brief finishes, when a report has something for you, or when a watcher dies.
 
 ```

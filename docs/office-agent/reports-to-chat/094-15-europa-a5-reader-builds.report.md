@@ -18,7 +18,7 @@ VERDICT: GREEN — A5 is complete, the canary was absent, the owner kit was buil
 - **Protected state:** PASS. P9 v2 is unchanged (`8E3ED095…`, 472,552 lines).
 - **Resources at 22:42:** free space C 18.95, D 82.41, E 232.55 GiB. Toolchains are byte-equal to 094-14's reading. The mailbox watcher was running.
 - **EK1 pre-scan:** 36,716 files, 0 secret values. The 19 new hits are name-only.
-- **Foreign writes:** E: fell to 137 GiB at 22:51–23:03 through a foreign 95 GB write to `E:\Pocket`. It stayed far above the floor.
+- **Foreign writes:** E: fell to 137 GiB at 22:51–23:03 through a foreign 95 GB write to `E:\<personal-folder>`. It stayed far above the floor.
 - **Launch inputs:** fresh canary (SHA-256 only, `26911a26…`), my before-snapshots, and 094-14's outputs preserved hash-equal. The resume prompt was built from the request verbatim plus my context and the implementer block, UTF-8 with no BOM.
 
 **The Codex job**
@@ -61,7 +61,7 @@ What I checked myself:
 - **Self-tests:** all pass when I re-run them. That includes EO6's raw-value can-fail.
 - **Launches:** none. 0 forbidden commands in 189.
 
-Foreign activity during and after the job, none of it ours: a Kimodo job, Blender, and a UE 5.7 editor for another project (DCDemo) writing to LocalAppData after Codex exited.
+Foreign activity during and after the job, none of it ours: a <other-home-project> job, Blender, and a UE 5.7 editor for another project (<other-home-project>) writing to LocalAppData after Codex exited.
 
 **Owner kit**
 - `D:\IA_Europa\Launch\Europa425-Editor-OwnerLeg.bat` with `Europa425-OwnerLeg.json`.

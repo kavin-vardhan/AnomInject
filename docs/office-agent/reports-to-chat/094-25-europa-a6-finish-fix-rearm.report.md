@@ -27,7 +27,7 @@ VERDICT: NEEDS-DECISION
 - **Run:** same run folder, thread `01a14334`, resume 23:50:10 – 05:33:16. 20,586 s, one try, no retries, exit 0. Ledger row `…-resume23`, recorded once.
 - **Pauses:** none.
 - **Foreign activity:**
-  - a transient D: drop 65.2 → 43.7 GiB at 01:01, back by 01:17, coinciding with your two `run_kgen.py` jobs starting;
+  - a transient D: drop 65.2 → 43.7 GiB at 01:01, back by 01:17, coinciding with your two `<other-home-project> job` jobs starting;
   - a UE 5.5 crash-reports file under `%LOCALAPPDATA%`, which Codex's ledger classed as foreign.
 - **Root entries:** none new or removed during the job, on any of my 35 polls.
 - **Launch-class sighting:** one `CrashReportClient.exe` at 03:12. It was Codex's harmless PING copy in owned scratch (hash verified), not Unreal.
@@ -92,8 +92,8 @@ VERDICT: NEEDS-DECISION
 ## Owner actions
 **Before 094-26** (tomorrow night, not before 23:00):
 1. Close Blender and OBS completely.
-2. **Stop your `run_kgen.py` Python jobs**, and any other Codex job, in `E:\<personal-folder>`.
-3. Close anything Unreal or DCDemo, and pause the DCDemo watcher.
+2. **Stop your `<other-home-project> job` Python jobs**, and any other Codex job, in `E:\<personal-folder>`.
+3. Close anything Unreal or <other-home-project>, and pause the <other-home-project> watcher.
 4. Keep the Epic Games Launcher open.
 5. D: needs 40 GiB free and E: 15 GiB.
 6. Don't create or download anything into new top-level folders on C:, D: or E: while the run is on.

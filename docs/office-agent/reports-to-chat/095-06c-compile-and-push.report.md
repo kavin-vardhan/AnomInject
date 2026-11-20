@@ -52,7 +52,7 @@ Two notes on the test scripts I copied from 095-06b:
 | `E:\<personal-folder>` | 89.7 | 138.99 | **+49.3** (and +1.8 during this session) |
 | `E:\Saily` | 64.2 | 88.26 | **+24.1** |
 | `E:\AI` | 83.7 | 87.31 | +3.6 |
-| `E:\Pocket` | 160.9 | 160.92 | 0 |
+| `E:\<personal-folder>` | 160.9 | 160.92 | 0 |
 | `E:\EpicGames` | 60.6 | 60.60 | 0 |
 | `E:\Unreal Projects` | 57.1 | 57.09 | 0 |
 | `E:\SailyIphone` | 40.7 | 40.69 | 0 |

@@ -19,7 +19,7 @@ VERDICT: GREEN — G1 and G2 are fixed and I proved both independently. The kit 
 - Free space C: 18.02 / D: 79.96 / E: 123.41 GiB. Memory: 10.2 GiB physical free, 28.5 GiB commit free. Toolchains unchanged from 094-16.
 - EK1 pre-scan: 38,716 files, 0 secret values.
 - The kit was still the 09416 arming, with its slots and state folder absent. Bound manifests 27/39/44 unchanged.
-- The DCDemo workload was active throughout. Its watcher started a UE 5.7 `UnrealEditor-Cmd` at 05:23, UBT builds at 05:41 and 06:11, and trace servers.
+- The <other-home-project> workload was active throughout. Its watcher started a UE 5.7 `UnrealEditor-Cmd` at 05:23, UBT builds at 05:41 and 06:11, and trace servers.
 
 **The Codex job**
 - Run folder `_relay\runs\2026-10-16-094-01-europa-phase-a-plan`, thread `01a14334`.
@@ -36,7 +36,7 @@ VERDICT: GREEN — G1 and G2 are fixed and I proved both independently. The kit 
 
 **My review: 35 OK · 8 N/A · 1 GAP · 7 OPEN · 0 STOP violations**
 - **G3 (non-blocking):** the top-level handler now catches every error. So all 28 plain refusal reasons appear only in the details file, not on screen — for example "Another kit attempt is running. Keep its console open". That goes beyond EQ1's "any **other** unexpected error". Fail-safe: no editor starts in any refusal case.
-- **Raw ledger STOP:** Codex's ledger recorded a STOP for six linker temp files removed under `C:\ClaudeTemp\UnrealBuildTool\044a3114`. I checked the native UBT log myself (sha `1D40BFA1…`, the same one Codex cited): it is DCDemo's UE 5.7 build, so this is a foreign write under EB1 and not one of EN5's hard STOPs.
+- **Raw ledger STOP:** Codex's ledger recorded a STOP for six linker temp files removed under `C:\ClaudeTemp\UnrealBuildTool\044a3114`. I checked the native UBT log myself (sha `1D40BFA1…`, the same one Codex cited): it is <other-home-project>'s UE 5.7 build, so this is a foreign write under EB1 and not one of EN5's hard STOPs.
 - **Premise correction:** the brief says the two helpers "still hold the measured gate". They never did, either at `303d02d` or now. The ruling's "the measured profile is unchanged" holds.
 - **OPEN items:**
   - a bare `UnrealBuildTool.exe` has never held the measured gate (pre-existing);
@@ -47,7 +47,7 @@ VERDICT: GREEN — G1 and G2 are fixed and I proved both independently. The kit 
   - carried: EO1's reader budget, the 5.1 probe path (A9), EJ1/EJ3/EJ5.
 - **My independent results:**
   - EQ1 injections through the real wait loop: 34/34.
-  - My live collector run: 120 calls, 0 reading errors, 0 uncaught exceptions (DCDemo was quiet during my window).
+  - My live collector run: 120 calls, 0 reading errors, 0 uncaught exceptions (<other-home-project> was quiet during my window).
   - EQ2 with a harmless child: 11/11, including a re-run of my 094-16 reproduction. The mark now survives and the next attempt is refused. A failed process creation leaves slot 2 usable.
   - EQ3/EQ4 checks: 126/130; the 4 are the premise check above.
   - Codex's suites re-run in my folders: 159/159, 62/62 and 48/48.
@@ -88,7 +88,7 @@ Press any key to continue . . .   (Windows pause prompt, localized; not after --
 - None of the specific `Stopped: <reason>` lines from 094-16 are shown any more.
 
 **Owner actions**
-- Before the leg: close Blender, heavy jobs, the Epic Games Launcher and every other Unreal program, and pause the DCDemo watcher.
+- Before the leg: close Blender, heavy jobs, the Epic Games Launcher and every other Unreal program, and pause the <other-home-project> watcher.
 - The checks take about 13–14 minutes, and the 45-minute wait starts after them.
 - Double-click once. If a second window shows "Stopped", close only that window.
 - Screenshot any "Stopped" line and tell chat.

@@ -48,7 +48,7 @@ VERDICT: NEEDS-DECISION
 - No crash and no upload sign. Paris Content (including the street map), Config, descriptor and `.uproject` are hash-equal by my own hashes.
 - `m51` equals P9 at start, prelaunch, exit and final.
 - Binaries changed only during our builds (BelowNormal, 2 actions); the manifest is 27 of 27 equal.
-- Foreign activity (a UE 5.7 DCDemo cook, ffmpeg, D: dips to 12.6 GiB) made the kit wait 57.6 minutes; recorded only.
+- Foreign activity (a UE 5.7 <other-home-project> cook, ffmpeg, D: dips to 12.6 GiB) made the kit wait 57.6 minutes; recorded only.
 
 **NEEDS-DECISION:**
 1. **A build budget** to rebuild with `05c55e2` and `2b9dc19` and re-run C5. FM1's three Editor attempts are spent.

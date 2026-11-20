@@ -2,7 +2,7 @@
 
 One `<brief id>.report.md` per run: the final message chat read. The first lines carry the run header (brief, model, effort; session ids redacted). Live transcripts are not included. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
 
-Files: 315. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 310. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
@@ -248,11 +248,6 @@ Files: 315. Newest first. Date = last-modified date of the source file on the ho
 | 2026-09-15 | 079-03 | [079-03-verifier-motion-envelope-from-mask-ground-truth.report.md](079-03-verifier-motion-envelope-from-mask-ground-truth.report.md) | REPORT for 079-03-verifier-motion-envelope-from-mask-ground-truth.md |
 | 2026-09-15 | 079-02 | [079-02-verifier-ring-normalised-gate-implement-and-gate.report.md](079-02-verifier-ring-normalised-gate-implement-and-gate.report.md) | REPORT for 079-02-verifier-ring-normalised-gate-implement-and-gate.md |
 | 2026-09-15 | 079-01 | [079-01-verifier-field-validity-reproduce-and-diagnose.report.md](079-01-verifier-field-validity-reproduce-and-diagnose.report.md) | REPORT for 079-01-verifier-field-validity-reproduce-and-diagnose.md |
-| 2026-09-07 | - | [SRD-005-final-pov-and-delivery.report.md](SRD-005-final-pov-and-delivery.report.md) | REPORT for SRD-005-final-pov-and-delivery.md |
-| 2026-09-07 | - | [SRD-004-reference-volume-and-render.report.md](SRD-004-reference-volume-and-render.report.md) | REPORT for SRD-004-reference-volume-and-render.md |
-| 2026-09-07 | - | [SRD-003-execute-main-footage.report.md](SRD-003-execute-main-footage.report.md) | REPORT for SRD-003-execute-main-footage.md |
-| 2026-09-07 | - | [SRD-002-both-ue-plan-update.report.md](SRD-002-both-ue-plan-update.report.md) | REPORT for SRD-002-both-ue-plan-update.md |
-| 2026-09-07 | - | [SRD-001-code-plan-only.report.md](SRD-001-code-plan-only.report.md) | REPORT for SRD-001-code-plan-only.md |
 | 2026-09-07 | 078-17 | [078-17-correct-prerequisites-and-accounting.report.md](078-17-correct-prerequisites-and-accounting.report.md) | REPORT for 078-17-correct-prerequisites-and-accounting.md |
 | 2026-09-07 | 078-16 | [078-16-revise-identity-lifecycle-design.report.md](078-16-revise-identity-lifecycle-design.report.md) | REPORT for 078-16-revise-identity-lifecycle-design.md |
 | 2026-09-07 | 078-15 | [078-15-identity-lifecycle-predictions.report.md](078-15-identity-lifecycle-predictions.report.md) | REPORT for 078-15-identity-lifecycle-predictions.md |

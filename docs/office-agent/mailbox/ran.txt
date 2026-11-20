@@ -67,11 +67,11 @@
 078-15-identity-lifecycle-predictions.md
 078-16-revise-identity-lifecycle-design.md
 078-17-correct-prerequisites-and-accounting.md
-SRD-001-code-plan-only.md
-SRD-002-both-ue-plan-update.md
-SRD-003-execute-main-footage.md
-SRD-004-reference-volume-and-render.md
-SRD-005-final-pov-and-delivery.md
+<other-home-project>
+<other-home-project>
+<other-home-project>
+<other-home-project>
+<other-home-project>
 079-01-verifier-field-validity-reproduce-and-diagnose.md
 079-02-verifier-ring-normalised-gate-implement-and-gate.md
 079-03-verifier-motion-envelope-from-mask-ground-truth.md

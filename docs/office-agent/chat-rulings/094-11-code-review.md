@@ -114,7 +114,7 @@ See row 23. The only C: change attributable to the job is the 4.25 `XmlConfigCac
 ## 9. Runtime readiness
 - **Self-tests, re-run by me:** attribution 12, runtime-ledger 6, idle 48, prepare-runtime 5, budget 5, compact-delta 9, tooling 31. All PASS, and the 09411 receipts were unchanged by my re-runs.
 - **Collector:** 13:32:13–13:47:34 IST. GPU 0–40 %; free physical 7.42–9.38 GiB; human idle 11,867–12,785 s. Order: WAIT ×2, CLEAR 3→15, WAIT (gpu), WAIT ×2, CLEAR 3→13.
-- **Foreign activity:** a foreign workload (`D:\Kimodo` `run_kgen.py` + `kmd-encode`) started at 13:04, and Blender briefly appeared at 13:18.
+- **Foreign activity:** a foreign workload (`D:\<other-home-project>` `<other-home-project> job` + `<other-home-project> tool`) started at 13:04, and Blender briefly appeared at 13:18.
 
 ## 10. Content admission
 **Codex's citations, each read against 4.25 source:**
@@ -152,7 +152,7 @@ See row 23. The only C: change attributable to the job is the 4.25 `XmlConfigCac
 ## 13. Top 5 risks for A6
 1. **A5 is not closed.** The probe has never compiled (4.25 C++17/NoPCHs and 5.1). Six EI2 rebuilds, the makefile proof, the clean-engine query and a passing descriptor comparison are all still ahead, and a probe compile error spends D2 attempts.
 2. **Environment completeness.** The module-object comparison is the only guard. Any other environment input UBT reads (other SDKs) is absent on this box and so unexercised. This job failed at a process boundary, so every boundary needs an explicit assertion.
-3. **The owner leg is not ready.** The card is implementer-facing (§11). Owner clicks reset idle time. Foreign workloads (Kimodo, the owner's own Codex job in `E:\<personal-folder>`, Blender) appear unannounced; free physical memory was 7.4–9.4 GiB, close to EJ5's 6 GiB.
+3. **The owner leg is not ready.** The card is implementer-facing (§11). Owner clicks reset idle time. Foreign workloads (<other-home-project>, the owner's own Codex job in `E:\<personal-folder>`, Blender) appear unannounced; free physical memory was 7.4–9.4 GiB, close to EJ5's 6 GiB.
 4. **Content admission is static.** The real 4.25 startup can still surprise (new cache paths, registry noise, unexpected loads). Isolation is a proposal only.
 5. **The secret half of the EK2 proof is synthetic** in the real environment (O6). Historical identifiers remain in older receipts, which EK1 allows.
 

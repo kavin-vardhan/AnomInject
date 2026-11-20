@@ -15,7 +15,7 @@ VERDICT: NEEDS-DECISION
 
 **Start state (12:43 IST)**
 - **Headroom:** C: 17.79 GiB, D: 84.62 GiB (above the 70 floor), E: 254.48 GiB.
-- **Memory:** 10.55 GiB physical free, 34.48 GiB commit free. At 13:04 a foreign workload started (`D:\Kimodo` `run_kgen.py` plus `kmd-encode`); I told Codex about it and left it alone.
+- **Memory:** 10.55 GiB physical free, 34.48 GiB commit free. At 13:04 a foreign workload started (`D:\<other-home-project>` `<other-home-project> job` plus `<other-home-project> tool`); I told Codex about it and left it alone.
 - **Protected-state check:** passed. Release baseline 8/8, StackOBot Content unchanged, BankOverflow nothing lost, the cache's `StackOBot\Binaries` unchanged.
 - **EK1 pre-scan:** exactly the expected 11 files held a secret value, all under one name, `CLAUDE_CODE_MESSAGING_TOKEN`: the 8 makefiles and the 3 `actions-1.json` receipts. 33,959 files read, 0 errors, all 11 byte-identical to 094-10.
 

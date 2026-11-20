@@ -115,7 +115,7 @@ D2 applies: two attempts per harness problem.
 
 **Tomorrow night, before you leave the PC:**
 1. **Close Blender and OBS completely.**
-2. **Close anything Unreal or DCDemo,** including anything opened from the Epic launcher. Pause the DCDemo watcher.
+2. **Close anything Unreal or <other-home-project>,** including anything opened from the Epic launcher. Pause the <other-home-project> watcher.
 3. **Keep the Epic Games Launcher open.**
 4. **D: needs 40 GiB free or more,** and E: 15 GiB.
 5. **Leave the PC and the Claude app on.** No restart.

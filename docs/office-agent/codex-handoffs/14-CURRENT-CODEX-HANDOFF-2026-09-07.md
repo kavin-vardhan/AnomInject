@@ -53,7 +53,7 @@ Engine **D:/UESource/UnrealEngine/Engine**, source-built **UE5.1.1, ++UE5+Releas
 
 ## Mailbox and next action
 
-One healthy **idle watcherPID22072**, started2026-09-07 07:34:56.187517+05:30; queue empty/no active brief; no Code CLI or campaign bench/build/shader job. Owner Claude desktop and unrelated HeistCrewUE editor/shader activity were recorded separately and untouched. Do not require a quiet machine for docs, stop owner apps, or claim every system process was idle.
+One healthy **idle watcherPID22072**, started2026-09-07 07:34:56.187517+05:30; queue empty/no active brief; no Code CLI or campaign bench/build/shader job. Owner Claude desktop and unrelated <other-home-project> editor/shader activity were recorded separately and untouched. Do not require a quiet machine for docs, stop owner apps, or claim every system process was idle.
 
 Completed Code session **<uuid>**, claude-opus-5/xhigh, **603035tokens /60% of1M**, below established70% rollover. Config now points there normally. Assess next scope before resume/new-default: only10percentage-points remain to70, and a full reread/rewrite may cross it; use fresh Code if needed. Never conflate that with Codex continuity. Watcher/default effort high is normally overridden by brief xhigh; preserve existing model/cadence.
 

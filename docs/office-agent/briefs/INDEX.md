@@ -2,7 +2,7 @@
 
 `processed/` = every brief the mailbox watcher ran (file name = arrival time + brief id). `held/` = briefs that were held, superseded or never run. Read a brief together with its report in `../reports-to-chat/`. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
 
-Files: 325. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 320. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
@@ -255,11 +255,6 @@ Files: 325. Newest first. Date = last-modified date of the source file on the ho
 | 2026-09-15 | 915-115817 | [processed/20260915-115817_079-03-verifier-motion-envelope-from-mask-ground-truth.md](processed/20260915-115817_079-03-verifier-motion-envelope-from-mask-ground-truth.md) | NAME: 079 verifier field validity |
 | 2026-09-15 | 915-113202 | [processed/20260915-113202_079-02-verifier-ring-normalised-gate-implement-and-gate.md](processed/20260915-113202_079-02-verifier-ring-normalised-gate-implement-and-gate.md) | NAME: 079 verifier field validity |
 | 2026-09-15 | 915-105343 | [processed/20260915-105343_079-01-verifier-field-validity-reproduce-and-diagnose.md](processed/20260915-105343_079-01-verifier-field-validity-reproduce-and-diagnose.md) | SESSION: new-default |
-| 2026-09-07 | 907-213121 | [processed/20260907-213121_SRD-005-final-pov-and-delivery.md](processed/20260907-213121_SRD-005-final-pov-and-delivery.md) | SESSION: new |
-| 2026-09-07 | 907-192437 | [processed/20260907-192437_SRD-004-reference-volume-and-render.md](processed/20260907-192437_SRD-004-reference-volume-and-render.md) | SESSION: new |
-| 2026-09-07 | 907-170648 | [processed/20260907-170648_SRD-003-execute-main-footage.md](processed/20260907-170648_SRD-003-execute-main-footage.md) | SESSION: new |
-| 2026-09-07 | 907-155930 | [processed/20260907-155930_SRD-002-both-ue-plan-update.md](processed/20260907-155930_SRD-002-both-ue-plan-update.md) | SESSION: new |
-| 2026-09-07 | 907-152531 | [processed/20260907-152531_SRD-001-code-plan-only.md](processed/20260907-152531_SRD-001-code-plan-only.md) | SESSION: new |
 | 2026-09-07 | 907-101725 | [processed/20260907-101725_078-17-correct-prerequisites-and-accounting.md](processed/20260907-101725_078-17-correct-prerequisites-and-accounting.md) | SESSION: new-default |
 | 2026-09-07 | 907-090847 | [processed/20260907-090847_078-16-revise-identity-lifecycle-design.md](processed/20260907-090847_078-16-revise-identity-lifecycle-design.md) | SESSION: new-default |
 | 2026-09-07 | 907-075948 | [processed/20260907-075948_078-15-identity-lifecycle-predictions.md](processed/20260907-075948_078-15-identity-lifecycle-predictions.md) | SESSION: new-default |

@@ -2,7 +2,7 @@
 
 Everything chat Claude (the orchestrator) ruled, planned or reviewed since session 078, plus Codex reviews, independent reviews, office cards and hand-offs. `*.brief.md` files are briefs chat wrote for Codex. `evidence-reports/` holds the reports, READMEs and frozen predictions that sat inside evidence folders (path separators became `__`). Files held back for a ruling (client text, office readings, real-name terms) are NOT here; see START-HERE.md. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
 
-Files: 749. Newest first. Date = last-modified date of the source file on the home PC.
+Files: 743. Newest first. Date = last-modified date of the source file on the home PC.
 
 | date | id | file | first line |
 |---|---|---|---|
@@ -689,12 +689,6 @@ Files: 749. Newest first. Date = last-modified date of the source file on the ho
 | 2026-09-15 | 079-05 | [079-05-codex-merge-review.md](079-05-codex-merge-review.md) | 079-05 — Independent Codex merge review |
 | 2026-09-15 | 079-05 | [079-05-chat-disposition-of-codex-review.md](079-05-chat-disposition-of-codex-review.md) | 079-05 — chat's disposition of Codex's merge review (2026-09-15) |
 | 2026-09-15 | 079-04 | [079-04-chat-request-for-codex-merge-review.md](079-04-chat-request-for-codex-merge-review.md) | Request to Codex — independent merge-gate review of `fix/verifier-field-validity` (chat Claude, orchestrator, 2026-09-15) |
-| 2026-09-07 | - | [SRD-005-final-pov-and-delivery.brief.md](SRD-005-final-pov-and-delivery.brief.md) | SESSION: new |
-| 2026-09-07 | - | [SRD-005-code-checkpoint.md](SRD-005-code-checkpoint.md) | SRD Code checkpoint for updated owner ending — 2026-09-07 19:19 IST |
-| 2026-09-07 | - | [SRD-004-reference-volume-and-render.brief.md](SRD-004-reference-volume-and-render.brief.md) | SESSION: new |
-| 2026-09-07 | - | [SRD-003-execute-main-footage.brief.md](SRD-003-execute-main-footage.brief.md) | SESSION: new |
-| 2026-09-07 | - | [SRD-002-both-ue-plan-update.brief.md](SRD-002-both-ue-plan-update.brief.md) | SESSION: new |
-| 2026-09-07 | - | [SRD-001-code-plan-only.brief.md](SRD-001-code-plan-only.brief.md) | SESSION: new |
 | 2026-09-07 | 078-17 | [078-17-draft-first-read.md](078-17-draft-first-read.md) | m51 - frame identity, lifecycle and geometry - PREDICTIONS (DRAFT) |
 | 2026-09-07 | 078-17 | [078-17-correct-prerequisites-and-accounting.brief.md](078-17-correct-prerequisites-and-accounting.brief.md) | SESSION: new-default |
 | 2026-09-07 | 078-17 | [078-17-codex-takeover.md](078-17-codex-takeover.md) | 078-17 Codex takeover and dispatch |

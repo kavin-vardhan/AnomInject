@@ -6,7 +6,7 @@ context at last turn: 748294 tokens (75% of 1M) - roll the session at 70%
 live feed: D:\IntrusiveAnomalies\_mailbox\to_chat\081-21-m55-build3-review-fixes.live.txt
 
 ---- FINAL MESSAGE (Claude Code) ----
-VERDICT: GREEN — every fix is in, the one build set is clean, and every step that doesn't need a quiet PC passed. **The four bench legs (a)–(d) were skipped** because the PC was never quiet: four UE 5.7 HeistCrewUE editors ran for the whole round. Per the brief that doesn't block GREEN, but nothing about build 3 has been checked at runtime yet.
+VERDICT: GREEN — every fix is in, the one build set is clean, and every step that doesn't need a quiet PC passed. **The four bench legs (a)–(d) were skipped** because the PC was never quiet: four UE 5.7 <other-home-project> editors ran for the whole round. Per the brief that doesn't block GREEN, but nothing about build 3 has been checked at runtime yet.
 
 ## Plain summary for the owner
 - The fixes from the review are in. The capture's normal pictures and masks no longer depend on the new change-evidence feature. If the feature can't handle a frame, it now marks that frame "unsupported" instead of dropping the picture.

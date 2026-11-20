@@ -22,7 +22,7 @@
   - ⚠ The list names the interval, the hold and the concurrency, but **not the per-hold restart**. That restart is what failed this smoke (§2).
 - **The Editor build contains 4dbcf9b.** `4dbcf9b` is an ancestor of `d25b8eb`, which is what was built. The new `UE4Editor-AnomalyCapture.dll` (`f840b2b0…`, 01:22 IST) contains `ui_paired`, `tick_source=build_constant` and `drawn_frames` (UTF-16, 1 each), and `UE4Editor-AnomalyInjector.dll` contains the `Auto.LodTarget` format.
 - **The builds (all BelowNormal, 2 parallel actions):**
-  - Editor attempts 1 and 2 hit FM1's memory stop (minimum free commit 1.2 and 2.9 GiB). A foreign UE 5.7 DCDemo `BuildCookRun` was running then.
+  - Editor attempts 1 and 2 hit FM1's memory stop (minimum free commit 1.2 and 2.9 GiB). A foreign UE 5.7 <other-home-project> `BuildCookRun` was running then.
   - Editor attempt 3 and Game attempt 1 passed, with 0 errors.
   - Both are spent for this job.
 - **`d8f6ebf` (the retry fix):** it adds `IAI.SetMinScreenCoverage 0.5` to the fallback argv only. The log echoes `-> 0.50% (cull ON)`.
@@ -82,7 +82,7 @@
 
   Codex's partial-build outputs are in `partial-build-quarantine` by receipt.
 - **Foreign load:**
-  - processes: UE 5.7 DCDemo `BuildCookRun` and its Shipping games, wlanext 6.2 GB, vmmem 4.0 GB;
+  - processes: UE 5.7 <other-home-project> `BuildCookRun` and its Shipping games, wlanext 6.2 GB, vmmem 4.0 GB;
   - minimum free commit: 0.8 GiB at 01:37;
   - the idle timer was reset by input until about 02:05.
 

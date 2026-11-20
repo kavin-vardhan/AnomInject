@@ -65,7 +65,7 @@ camera_clipping, AA off, both readings:
 - **Pacing:** `speed_ratio` stayed between 1.0000 and 1.0430 on every leg.
 - **Idle:** the PC had been idle 8,630 s at launch. The harness's person gate then waited 16 times, 8–52 s each (about 9 min in total). Each wait followed an attempt shorter than 60 s, which fits our own game launch resetting the input clock, but that is not established. No input appeared outside our launches.
 - **Prompts:** 0 Windows Security prompts were raised or closed, and the firewall-rule count stayed 16 → 16 on both Part 0 launches.
-- **Other processes seen, all untouched:** `UnrealTraceServer.exe`, and unrelated `python.exe` processes (uv-managed tools and a HeistCrewUE MCP server).
+- **Other processes seen, all untouched:** `UnrealTraceServer.exe`, and unrelated `python.exe` processes (uv-managed tools and a <other-home-project> MCP server).
 
 **5. Staging at the end**
 The M53 set is back in place, confirmed by my own hashes after the harness's restore: exe `2FCDF059`, utoc `20DA6F98`, ucas `534C5863`, pak `FD766B7B`, global.utoc `462B8AC6`, global.ucas `BB05CF99`. No game or editor is running. The harness's postflight passed, and the freeze check still read OK after evaluation.
