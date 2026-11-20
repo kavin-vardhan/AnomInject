@@ -1,6 +1,6 @@
 # Briefs delivered through the home mailbox
 
-`processed/` = every brief the mailbox watcher ran (file name = arrival time + brief id). `held/` = briefs that were held, superseded or never run. Read a brief together with its report in `../reports-to-chat/`. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
+`processed/` = every brief the mailbox watcher ran (file name = arrival time + brief id). `held/` = briefs that were held, superseded or never run. Read a brief together with its report in `../reports-to-chat/`. Copies are not byte-identical to their home sources: see [`REDACTIONS.md`](../REDACTIONS.md) for every placeholder and for what was left out. Line endings are LF.
 
 Files: 320. Newest first. Date = last-modified date of the source file on the home PC.
 

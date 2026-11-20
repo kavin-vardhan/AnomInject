@@ -1,6 +1,6 @@
 # Knowledge that exists only on local, never-pushed branches
 
-Extracted read-only with `git show`/`git diff` from four local branches whose commits are on no remote. Whole files for journals and predictions; for long shared documents (gotchas, architecture, runbook, onboarding, client readme) only the diff against the merge base with `integ/m56-m58`. `_unpushed-commits.txt` lists each branch's unpushed commits. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
+Extracted read-only with `git show`/`git diff` from four local branches whose commits are on no remote. Whole files for journals and predictions; for long shared documents (gotchas, architecture, runbook, onboarding, client readme) only the diff against the merge base with `integ/m56-m58`. `_unpushed-commits.txt` lists each branch's unpushed commits. Copies are not byte-identical to their home sources: see [`REDACTIONS.md`](../REDACTIONS.md) for every placeholder and for what was left out. Line endings are LF.
 
 Files: 57. Newest first. Date = last-modified date of the source file on the home PC.
 

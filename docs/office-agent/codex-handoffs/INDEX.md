@@ -1,6 +1,6 @@
 # Codex-era hand-offs (from the home `ToCodex` folder)
 
-Hand-offs and checkpoints written for Codex when it was implementer or reviewer (September and November 2026). Side projects unrelated to the plugin and a large code diff (already a local branch) were left out. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
+Hand-offs and checkpoints written for Codex when it was implementer or reviewer (September and November 2026). Side projects unrelated to the plugin and a large code diff (already a local branch) were left out. Copies are not byte-identical to their home sources: see [`REDACTIONS.md`](../REDACTIONS.md) for every placeholder and for what was left out. Line endings are LF.
 
 Files: 16. Newest first. Date = last-modified date of the source file on the home PC.
 

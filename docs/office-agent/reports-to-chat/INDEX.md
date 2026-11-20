@@ -1,6 +1,6 @@
 # Final reports the home agent (and Codex) sent back to chat
 
-One `<brief id>.report.md` per run: the final message chat read. The first lines carry the run header (brief, model, effort; session ids redacted). Live transcripts are not included. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
+One `<brief id>.report.md` per run: the final message chat read. The first lines carry the run header (brief, model, effort; session ids redacted). Live transcripts are not included. Copies are not byte-identical to their home sources: see [`REDACTIONS.md`](../REDACTIONS.md) for every placeholder and for what was left out. Line endings are LF.
 
 Files: 310. Newest first. Date = last-modified date of the source file on the home PC.
 

@@ -1,6 +1,6 @@
 # Run predictions, claims, run lists and reports (from the home `_relay\runs` folder)
 
-Text only. Predictions were frozen BEFORE each run; amendments are separate dated files. Each folder is one relay run (mostly Codex implementer or reviewer runs, and the Code receipts of later units); nested paths became `__`. Copies are byte-for-byte the home originals except for mechanical redactions applied to every file in this pack: the Windows profile path became `<USERPROFILE>`, the home machine name `<HOSTNAME>`, the owner's first name "the owner", personal drive folders `<personal-folder>`, the owner's account name `<owner-account>`, e-mail addresses `<email>`, and lowercase UUIDs (Claude and Codex session ids) `<uuid>`. Line endings are LF.
+Text only. Predictions were frozen BEFORE each run; amendments are separate dated files. Each folder is one relay run (mostly Codex implementer or reviewer runs, and the Code receipts of later units); nested paths became `__`. Copies are not byte-identical to their home sources: see [`REDACTIONS.md`](../REDACTIONS.md) for every placeholder and for what was left out. Line endings are LF.
 
 Files: 114. Newest first. Date = last-modified date of the source file on the home PC.
 
