@@ -1,0 +1,107 @@
+095-05 / m56 capture continuity - PREDICTIONS, frozen 2026-11-13 BEFORE any engine leg (none runs in 095-05).
+Source: _reviews\095-02-plan-A1-capture-continuity.md section 7, as changed by _reviews\095-02-ruling.md (Q6: the
+encode step's warning is dropped from can-fail G4(b) and recorded as a reading) and _reviews\095-03b-ruling.md (E3).
+Branch fix/m56-capture-continuity. Default schedule IAI.Capture.Config 2 4 8 4 0 unless a leg says otherwise.
+Session indices (si) count from 0. "onset frame" = the frame armed on the tick that calls BeginFire (labelled
+after the transition, m18). A frame armed on the BeginRevert tick is labelled after the revert (unlabelled).
+
+P1  Frames written = the frame cap on every healthy capped leg.
+P2  Sorted by session_index, consecutive rows differ by exactly 1 in tick_index on every pair; frame_index differs by
+    exactly 1 on every pair (engine cross-check).
+P3  run_summary.ticks_per_captured_frame = 1.000 (span ticks / frames written); capture_span_ticks = frames written.
+P4  run_summary.frames_dropped = 0; frames_dropped_ticks = []; every frames_dropped_by_cause value 0 ("unknown" 0).
+P5  Per complete burst cycle at K=2: 16 ticks, 16 frames: 4 post, 2 settle (after offset), [onset], 8 positive ticks of
+    which the last is the revert tick, 2 settle (after onset). 2K = 4 settle frames per complete cycle, each with
+    row-level transition_present true and row-level transition_reason containing "settle".
+P6  Per event (fire-window types: missing_texture, corrupted_texture, uv/normal_corruption): labelled frames =
+    onset si, then 2 flagged settle si, then 7 positive si = 8 unflagged + 2 flagged labelled frames. The 2 frames after
+    the revert tick carry one transition-only entry each, reason settle, no label.
+P7  Onset frames sit at si = 3 (mod 16) at defaults (lead-in 4 frames, then a 16-frame cycle). Today: 3 (mod 12).
+P8  About 18 complete events per 300-frame leg ((300 - 3) / 16 = 18.6).
+P9  blinking (half-period 3 ticks), hidden set derived in TICK space from Anomaly_Blinking.cpp, onset frame at si = n:
+      native order (injector Tick after the capture Tick): hidden si = n + {2, 3, 4, 8, 9}; si n+2 is a settle frame
+        (labelled, flagged settle). Cross-check: the same derivation with ticks n+1, n+2 uncaptured gives today's
+        banked native set n + {1, 2, 6, 7} = {4, 5, 9, 10} for n = 3.
+      synthesised order (IAI.Bench.SynthTickOrder): hidden si = n + {3, 4, 5, 9}; none is a settle frame.
+        Cross-check: today's banked synth set {4, 5, 6, 10} for n = 3.
+    Hidden-frame count per complete event: native 5 (today 4), synth 4 (today 4).
+P10 missing_object: hidden on every labelled tick from the onset frame to the tick before the revert tick:
+    n, n+1, n+2 (n+1, n+2 flagged settle), n+3 .. n+9.
+P11 Non-settle frames: every label, mask and box field equals the release build's row at the same tick offset
+    (frame_index - first frame_index), apart from tick_index, t_wall_run and the measured run-unique set (G5).
+P12 Masks: every labelled frame, after-onset settle frames included, has mask_state present (or empty where the hide
+    makes it so); MASK-TIE 0 mismatch; TARGET-PIXELS TIE 0 mismatch; target_mask_frames_unavailable 0.
+P13 Can-fail G4(a), release exe (23098fa / the 2026-10-05 release) on the G1 staged paced native leg: the continuity
+    check FAILS; ticks_per_captured_frame ~= 1.33 (16 ticks per 12 frames plus warm-up/drain ticks); 15 frame_index
+    jumps of 3 per 90 frames; no tick_index key.
+P14 Can-fail G4(b), A-1 exe: IAI.Bench.DropFrameAt 40 -> frames_dropped 1, frames_dropped_by_cause.bench_drop 1,
+    frames_dropped_ticks = [tick_index of si 40], Actual_Frames/frame_00040.png absent, si 40 absent from every
+    annotation.json frame list, nothing renumbered. IAI.Bench.SkipArmAt 40 -> frames_dropped 1,
+    frames_dropped_by_cause.not_armed 1, frames_dropped_ticks = [40], no file is missing (no index was allocated) and
+    tick_index jumps by 2 between two consecutive rows. Encode-step and dashboard behaviour on the drop leg: recorded as
+    a reading (Q6), not gated. Expected today: ffmpeg's numbered input stops at the first missing number; the dashboard
+    encoder repeats the previous frame.
+P15 Can-fail G4(c): the shifted-label and moved-flag mutants of a G2 session fail every G2 reader.
+P16 Can-fail G4(d), 6713f51: the pre-fix build drops frames in both trigger shapes (TargetMask 1 + Mask 0;
+    OutputHeight 360) - m51 measured 33 of 90 written; the fixed build writes 90 of 90, "NEVER RESOLVED" 0, rows
+    mask_state unmeasured, target_pixels -1, no hole. M-F1b (IAI.Capture.SVE 0) the same.
+P17 G6 settle exactness (reported, not gated): expected non-exact candidates stuck_low_mip and anything with temporal
+    history under TSR; at AA-off the fire-window types' after-onset settle frames are expected exact.
+P18 annotation.json label_schema 2, label_schema_minor 2; transition_frame_count >= 4 x complete cycles.
+P19 run_summary gains exactly: tick-free keys capture_span_ticks, frames_armed, frames_dropped, frames_dropped_ticks,
+    frames_dropped_ticks_truncated, frames_dropped_by_cause, settle_frames, label_transition_settle_entries,
+    label_rows_failed, writer_pending_byte_cap (the banner's in-flight bound echoed); ticks_per_captured_frame redefined.
+    No key removed or renamed.
+P20 K=0 (IAI.Capture.Config 0 4 8 4 0): 0 settle frames, 0 settle entries, tick deltas all 1, nothing skipped.
+
+AMENDMENT 1 - 2026-11-14, 095-06b, written before any engine leg of m56 has run (ruling 095-06 S6). Lines above unchanged.
+Reason: the 095-06 review found that P11 and P19 as frozen would fail correct m56 output, and 095-06b added keys.
+P11 (amended) Non-settle frames: every label, mask and box field equals the release build's row at the same tick
+    offset, apart from tick_index, t_wall_run, the measured run-unique set (G5) and exposure_dip / exposure_dip_scope.
+    exposure_dip is an intended m56 difference: its rolling window is the previous 8 session_index values, which now
+    include settle frames (plan 9 risk 8). The G5 comparator (CaptureBench m56_nonsettle_compare.py) counts and lists
+    it separately and never fails on it. Any other new difference fails. The comparator reads labels.jsonl only.
+P19 (amended) run_summary gains exactly: capture_span_ticks, frames_armed, frames_dropped, frames_dropped_ticks,
+    frames_dropped_ticks_truncated, frames_dropped_by_cause, settle_frames, label_transition_settle_entries,
+    label_rows_failed, orphan_completions, writer_pending_byte_cap, writer_pending_count_floor,
+    writer_pending_bytes_peak, writer_backpressure_waits, writer_backpressure_seconds, writer_flush_complete,
+    writer_stalled (095-06b S4), vetoed_event_ids (095-06b S1); ticks_per_captured_frame redefined. On the integration
+    build (integ/m56-m58) also m58's blink_terrain_events and terrain_unlabelable_refusals. annotation.json gains the
+    root transition_frames list (095-06b N10). No key removed or renamed.
+P21 (new) A vetoed event leaves no event in annotation.json and its id is in run_summary.vetoed_event_ids (S1).
+P22 (new) A targeted held camera_clipping capture flags no settle frame and passes verify_capture --label-rule (S3).
+P23 (new) Settle label content (N6), scripted by CaptureBench m56_settle_content_check.py: per event the labelled
+    and settle-flagged frame count equals K for fire-window types (P6) and every onset-settle frame of a masked type
+    has mask_state present or empty, never unmeasured (P12).
+
+AMENDMENT 2 - 2026-11-14, 095-14, written before any engine leg of m56 has run (ruling 095-12 D2). Lines above unchanged.
+SHA-256 of this file before the amendment: 47399F2BEF82788A2AC7AEB4C7BD3D8EFE855FE7DCD43CD1C2F03089E9B9A237 (7,548 bytes).
+Reason: the integration build (integ/m56-m58) carries m59 S3 (c5113e3). Its change to the capture's ResolveNodeIdentity is
+shared code: an event whose anomaly set a component scope now names, in annotation.json affected_objects.nodes[], a mesh
+inside the scope. Texture events set that scope when uv_corruption / normal_corruption skipped parts
+(texcorrupt.components_skipped > 0) and always on stuck_low_mip's proxy route (Anomaly_TexCorrupt.cpp: the scope is set
+when ComponentsSkipped > 0 or the fire is the stuck_low_mip proxy). The ruling keeps the change; node.bounds is not scoped.
+P11 (amended again) As AMENDMENT 1, plus: the G5 comparator (CaptureBench m57-gates tools/m56_nonsettle_compare.py) now
+    also compares the node identity of every annotation.json event both sessions hold, joined by event_id (frame number
+    as an offset from the session's first frame_index): affected_objects count, primary_index and each node's name, path,
+    global_position, asset_name, component_class and bounds must be equal, apart from fields that differ between two
+    release runs of the same recipe (the --control pair). Intended integration difference: asset_name and
+    component_class may differ on an event the newer session marks as scoped - an entry of the event carries
+    texcorrupt.components_skipped > 0 (cause texcorrupt_skipped_parts), or the
+    annotation event has stuck_mip_route "proxy" (cause stuck_mip_proxy_route). Both causes are counted and listed with
+    the event ids and never fail. Any other node difference fails, including name, path, global_position or bounds on a
+    scoped event, and asset_name / component_class on any other event (LOD events included: m59 changes their eligibility
+    and scope, and G5 legs use fire-window types). An event only one session holds is listed as a reading, never failed
+    (vetoes and refusals can differ between builds; labels.jsonl rows still cover those frames). Both sessions must carry
+    annotation.json with an event_id on every event, or the comparator cannot run (exit 2).
+P24 (new) Predicted reading on the heavy run's G5 legs: on missing_texture / corrupted_texture legs and on targeted uv /
+    normal legs at a target whose every part qualifies, 0 intended node changes and 0 node mismatches. A targeted uv /
+    normal leg at a target with a skipped part (for example the m53 bench's two-part actor) shows the
+    intended change listed under texcorrupt_skipped_parts, or no change when the first visible mesh is already a
+    corrupted one. Any node mismatch is reported as read, never re-cut.
+Proof offline (receipts code-receipts-095-14): the comparator selftest 26 cases OK (16 new: the allowance passes on skipped
+parts and on the proxy route, fails with components_skipped 0, on missing_texture, on the hold route, on a changed
+node.bounds or node.name, and with an extra label change; missing annotation.json or event_id cannot run; an extra event is a
+reading; a node field differing between two release runs is run-unique); five comparator mutants fail it; a doctored copy of
+a real banked session (081-43 f1_g270_baseline, 300 rows, 8 events, event_id added to each annotation event) reads 8 of 8
+cases as predicted (g5-doctored-proof.txt).

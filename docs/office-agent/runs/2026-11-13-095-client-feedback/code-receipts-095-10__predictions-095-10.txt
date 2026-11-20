@@ -1,0 +1,238 @@
+095-10 predictions for m57 (lod_popping spatial trigger) - FROZEN 2026-11-14 before any engine leg
+Branch feat/m57-lod-spatial-trigger (written, Editor-compiled, pure and Python tests only). No leg has run.
+Source of truth: _reviews\095-08-plan-B-lod-spatial-trigger.md section 9, AMENDED for ruling 095-08 (Q4 keep-and-mark,
+G1-G4, H3) and for the as-built defaults below. A leg that disagrees is reported as it reads; no gate is re-cut after it.
+
+0. Common recipe
+- Packaged 1280x720, 30 fps paced, native tick order, CB_LodFixture, the m57 exe by code-only swap on top of 095-07's cook
+  (which must carry the two fixture options of section 6).
+- Pixel gates at the AA-off identity arbiter (r.AntiAliasingMethod 0, Lumen/GI/reflections off). A luma premise on the
+  first fixture leg (G151, G402) before any reading.
+- -IAIBench -IAIBenchFixture; IAI.Bench.InputLock 1; IAI.Bench.CameraSchedule lod_v1 <path>; every attempt banked.
+- Pose read-back: every 'IAI-CC-SCHEDULE FRAME' line on a lod_v1 leg has err_cm < 0.5 and err_deg < 0.1, or the leg is
+  INVALID (A63 shape), never FAILED.
+- Defaults as built: armTimeout 90, holdCap 150, entryFrames 4, downPop 1, coverage_min 7.0 %, contrast ratio 4,
+  release margin 10 % on the later of (contrast switch, first positive screen size), hysteresis 0.85, closing speed
+  >= 50 cm/s within 30 deg, view-entry margin 20 deg at >= 30 deg/s, ahead <= 90 frames.
+- Targets: turn paths =CB_LodFix_N / =CB_LodFix_D (scale 4.6 at (850, -/+340)); distance paths =IAIBenchLodCopyN /
+  =IAIBenchLodCopyD (runtime scale-1 copies at (1700, -/+60)) or =CB_LodFix_N2 / =CB_LodFix_D2 (second pair, LOD1 at
+  screen size 0.3, at (1700, -/+200), once the cook carries it). Camera start x=-600 on distance paths, x=0 on turns.
+
+1. Look-first clips (G4, before any gate) - predictions for what the owner will see
+C1 turn_in, =CB_LodFix_N view_entry: one event, kind spatial_swap, lod_trigger view_entry; the blue cube enters from the
+   right edge; frames while partly in view with coverage < 7 % carry lod_subvisible; exactly 4 positive frames, then the
+   swap frame shows the orange sphere; lod_swaps = [{cause view_entry, direction up, on_screen true}].
+C2 turn_in, =CB_LodFix_D view_entry: the same; no crossfade at the snap (forced LOD disables dithering; temporal samples
+   agree at a fixed distance).
+C3 approach, =IAIBenchLodCopyN distance_threshold: armed during the first moving burst (frozen at LOD1, invisible); a
+   long lod_subvisible stretch from ~17 m to ~3 m; positives from coverage 7 % (~3 m) for ~3-5 frames (the 10 % margin
+   on the first-positive size at 7.5 cm/frame), then the swap. With =CB_LodFix_N2 (second pair): the engine switch is
+   near 3 m, so the positive span starts with the switch and the subvisible stretch is short.
+C4 approach_retreat, =IAIBenchLodCopyN distance_threshold, IAI.Capture.Config 2 4 120 14 0 (a window that spans the
+   retreat): an up-swap (distance, up), then on retreat past 0.85 of the swap screen size a down-swap (distance, down)
+   followed by positive frames until the engine coarsens back to LOD1, then an invisible release (no third swap).
+   With IAI.Anomaly.LodDownPop 0: the up-swap only.
+C5 still, =IAIBenchLodCopyN distance_threshold: no event; every burst refuses with lod_not_armable:not_approaching
+   (no fire, so lod_untriggered 0 = fires 0).
+C6 approach, =IAIBenchLodCopyN periodic 8 (bench gate open): today's timer, subtype periodic, kind periodic.
+
+2. Gates (plan section 9 table, amended)
+L0  null vs null per path: 0 frames differ at AA-off.
+L1  m57_null_pair.py on turn_in N and D, approach N (copy) and N2, approach_retreat N: labelled frames == frames where
+    anomaly != null inside the target box, ignoring lod_subvisible; onset 0, offset 0. Can-fail: the tool's selftest
+    (label shifted by one fails); and IAI.Anomaly.LodMinCoverage 100 on turn_in N gives 0 positives and 0 events
+    (untriggered, its id listed).
+L2  m57_null_pair.py: every pixel-edge swap frame is the first null-equal frame after a labelled run. Can-fail:
+    IAI.Bench.LodReleaseLag 1 fails L2 (the recorded swap is one frame before the picture changes).
+L3  m57_lod_readout.py --expect no_events on still (targeted, and auto-pool with only lod_popping enabled): 0 lod events;
+    auto-pool: every round reads lod_not_armable in the yield tally, 0 fires. Can-fail: IAI.Bench.LodForceTrigger 1 on
+    still gives >= 1 event (--expect events).
+L4  turn_away, =CB_LodFix_N view_entry: armed off screen, never enters: 0 labelled frames, no event, its id in
+    lod_untriggered_event_ids, lod_arm_timeouts 1 per armed burst. Can-fail: IAI.Bench.LodSkipOnScreen 1 gives
+    labelled off-screen frames.
+L4b m57_null_pair.py on the L4 leg and on the armed-off-screen stretch of turn_in: anomaly == null over the whole frame.
+L5  every leg: run_summary lod_render_mismatch_frames 0, lod_render_checked_frames > 0 on legs with labelled lod frames,
+    no lod_unconfirmed entry. Can-fail: IAI.Bench.LodPredictStaleView 1 on approach gives mismatches > 0.
+L6  every leg plus a destroy leg (IAI.Bench.DestroyTarget while armed): every 'lod_popping: REVERT' line reads RESTORED
+    (forced_lod_model read back equal to the saved value). Can-fail: IAI.Bench.LodSkipRestore 1 reads NOT RESTORED.
+L7  periodic 8 on CB_LodFix_N static camera, m57 exe vs integ exe, both orders: m56 non-settle comparator, every field
+    equal except the declared m57 keys (entry lod.trigger, lod.state; event anomaly_subtype periodic, lod_* event keys;
+    label_schema_minor 3; run_summary lod_* block and the two label_transition_lod_* keys).
+L8  blinking and missing_texture targeted on CB_GateLevel, m57 exe vs integ exe: the same comparator; no lod key on their
+    entries or events; run_summary differs only by label_transition_lod_subvisible_entries 0 and
+    label_transition_lod_unconfirmed_entries 0 (no lod_* block: no lod fire ran).
+L9  from L1: every labelled frame masked; MASK-TIE 0 mismatches; no mask on swap frames.
+L10 L1 legs in synthesized order (label gate only, G230): m56 continuity check passes with the extension frames; labels
+    equal native order frame for frame.
+L11 L1 legs at delivered AA (TSR): reported, not gated - frames of residue after each swap.
+
+3. Q4 (ruling 095-08) - kept and marked, never dropped
+L12a turn_in N with IAI.Anomaly.LodEntryFrames 30 and IAI.Anomaly.LodHoldCap 10: one event KEPT in annotation.json with
+     ~10 labelled frames, lod_event_kind hold_cap_only, lod_spatial_swap_visible false, lod_swaps = one hold_cap swap at
+     the frame after its last lod frame; run_summary lod_events_by_kind.hold_cap_only 1, lod_swaps_by_cause.hold_cap 1;
+     verify_capture.py --label-rule LOD-KEYS passes.
+L12b no_swap (visibly wrong, then unseen before any release): no lod_v1 path produces it (turn_away never enters);
+     covered offline only (label-rule selftest lod_kept_no_swap_event_marked_clean). Stated, not claimed.
+L12c every spatial lod event in every leg: verify_capture.py --label-rule passes LOD-KEYS and ANNOTATION-TRANSITIONS
+     (untriggered ids excused only for settle / lod_subvisible / lod_unconfirmed entries).
+
+4. Untouched (L7, L8 read-backs predicted)
+- No other anomaly's membership, telemetry, timing or events change; the Positives phase is byte-identical when no live
+  fire holds the event open (every anomaly but lod_popping returns false); the pre-roll timeout for stuck_low_mip is
+  unchanged (it returns -1); stuck_mip_hold_timeouts counts stuck_low_mip only.
+- The swap frame is never a settle frame: m56 flags only the K ticks after a burst fire or revert.
+
+5. Yield (reading, not gated)
+- StackOBot MainWorld auto-pool, 600 frames, unattended (camera settles): lod_popping fires 0 (no motion), every round
+  lod_not_armable (not_approaching or not_turning_toward); other enabled ids fill the bursts.
+
+6. Fixture options the heavy brief runs BEFORE its cook (CaptureBench m57-gates, make_lod_fixture.py, editor commandlet)
+- IAI_LODFIX_ADD=second_pair: SM_LodFix_N2 / SM_LodFix_D2 (screen sizes [1.0, 0.3]) and actors CB_LodFix_N2 /
+  CB_LodFix_D2 at (1700, -/+200, 200), scale 1, no shadow. Predicted read-back: 2 actors, names equal labels.
+- IAI_LODFIX_ADD=instanced: CB_LodFix_ISM (one InstancedStaticMeshComponent instance of SM_LodFix_N, scale 2, at
+  (1200, -700, 600)) and CB_LodFix_HISM (one HierarchicalInstancedStaticMeshComponent instance, at (1200, 700, 600)).
+  Predicted read-back: each actor one component of the named class with one instance. m59 leg L59-5: lod_corruption on
+  =CB_LodFix_HISM refuses hism_ignores_forced_lod; on =CB_LodFix_ISM it applies and the picture changes.
+- Both are additive: the content diff is exactly the new assets plus CB_LodFixture.umap.
+
+AMENDMENT 1 - 2026-11-14, brief 095-13 (ruling 095-11 B1, B2, S1, S2, S7, S8, N2, N7, N9, N11; owner answers, Part 1b).
+Written before any engine leg. SHA-256 of this file before the amendment:
+269FECF8D5400C868BA6DB300D7F7894890F28E51C363515A460DD6101CC7A0B (8,739 bytes).
+Everything above stands except where a line below replaces it. The numbers come from the pure rule (lod_trigger_selftest
+TestBenchSimulation: a C++ simulation of the burst FSM, the rules and the tracker) and code-receipts-095-13\
+m57_numbers_final.py (engine LOD model: screen size 2 x 0.889 x R / D at FOV 90 and 16:9; bounds radius 50 cm at scale
+1, 230 cm at scale 4.6; LOD i while ScreenSize[i] > s). They are predictions, not measurements.
+
+A1.0 Common recipe, replaced lines
+- Defaults as built: armTimeout 90 (the clock restarts at the first wrong frame: log 'ARM CLOCK RESTART', run_summary
+  lod_arm_clock_restarts), holdCap 150, entryFrames 30 (range 1..90, owner Part 1b), downPop 1, coverage_min 7.0 %,
+  contrast ratio 4 (a positive needs the contrast test too, N11), release margin 10 % on the later of (contrast switch,
+  the screen size at which coverage reaches 7 %), hysteresis 0.85, closing speed >= 50 cm/s within 30 deg, view-entry
+  margin time-based: clamp(yaw rate x frame time x look-ahead frames, 20, 120) deg at >= 30 deg/s, ahead <= 90 frames.
+- Capture config pinned: IAI.Capture.Config 2 4 8 4 0 (the compiled default: BeginFire at session index 3, 19, 35, 51,
+  then every 16 frames while no event holds the burst open) on every leg except C4 (2 60 120 14 0). MaxFrames = the
+  path length: approach 200, approach_retreat 330, turn_in 230, turn_away 200, still 200.
+- Paths (095-13, AnomalyBenchModule lod_v1): approach x 600 -> 1450 at 7.5 cm/frame from frame 20 (still before), then
+  hold; approach_retreat = approach to frame 144, then back at 7.5 cm/frame from frame 145 to x 600; turn_in yaw -160 to
+  frame 29, then +2 deg/frame to +10 (frame 115), hold; turn_away yaw -170, +2 deg/frame on frames 30..67 (to -94),
+  pause to frame 71, then -2 deg/frame back to -160 (frame 105), hold. Eye z 200; x 0 on the turn paths.
+- Targets: turn paths =CB_LodFix_N / =CB_LodFix_D (scale 4.6 at (850, -/+340)). Distance paths =CB_LodFix_N2 /
+  =CB_LodFix_D2 only (second pair, LOD1 at screen size 0.3, now at (1700, -/+60, 200), section A1.3); the path end
+  (x 1450) is 257 cm from them, past the release size. The runtime copies IAIBenchLodCopyN/D move to (1700, -/+180) and
+  can never give an event (C3c).
+- S1: a hold on a mesh whose LOD material uses a dithered transition (the D variants) keeps the event open for
+  lod.TemporalLag (0.5 s default) + 0.05 s after the swap; the render probe covers the swap frame and that window; a
+  crossfade there (render temporal samples differ while released) flags the frame lod_unconfirmed.
+- S2: a held wrong frame in the frustum but trace-blocked reads state occluded with lod_subvisible, never a negative.
+- N9: spatial fires need the SVE path (async capture and SVE on); on the backbuffer path every spatial fire refuses
+  render_record_unavailable.
+
+A1.1 Clips (replace C1-C6)
+C1 turn_in, =CB_LodFix_N view_entry, entryFrames 30: armable at the BeginFire chances on frames 36..70 (35 frames: more
+   than one 16-frame cycle plus the 10-frame motion lag, and at least two cycles); armed at frame 51 (ahead 20,
+   915.5 cm); first wrong frame 67, frames 67-68 lod_subvisible (coverage < 7 %), labelled 69..98 (30 frames), swap
+   frame 99 (view_entry, up, on screen), revert 100; kind spatial_swap. Variants: entryFrames 15 -> labelled 69..83,
+   swap 84; entryFrames 60 -> labelled 69..128, swap 129.
+C2 turn_in, =CB_LodFix_D: armable frames 37..92; armed 51 (ahead 42); first wrong 91, 91-92 lod_subvisible, labelled
+   93..122, swap 123. entryFrames 15 -> 93..107, swap 108; 60 -> 93..152, swap 153. The event stays open about 0.55 s
+   (~17 frames) after the swap (S1). Predicted lod_unconfirmed 0 on those frames (forced LOD at a fixed distance:
+   the temporal samples agree); if the render reads a crossfade, those frames read lod_unconfirmed and L5 reports it.
+C3 approach, =CB_LodFix_N2 distance_threshold: armable frames 43..128 (86 frames); armed at frame 51 (ahead 82,
+   877.1 cm, frozen at LOD1, invisible); no subvisible stretch: coverage passes 7 % at frame 127 (7.46 %) and the engine
+   switch (s 0.3) comes at frame 128 (296 cm, 7.94 %), so the first wrong frame is the first positive: labelled 128..132
+   (5 frames), swap frame 133 (s 0.3425 >= 1.1 x 0.3; distance, up, on screen), revert 136. =CB_LodFix_D2: the same
+   frames; its event stays open ~0.55 s after the swap (S1), so its revert is later.
+C3c approach, =IAIBenchLodCopyN: every burst refuses lod_not_armable:at_finest_lod (13 bursts, 0 events). A scale-1 copy
+   (radius 50 cm) is at LOD0 on the whole path (screen size 0.08-0.35, above its 0.05 switch); that switch lies beyond
+   17.8 m, about 1,970 frames before the 7 % coverage size at 7.5 cm/frame, far past the 90-frame look-ahead. A refusal
+   reading only; it replaces the old C3 copy prediction.
+C4 approach_retreat, =CB_LodFix_N2, IAI.Capture.Config 2 60 120 14 0: one fire at frame 59 (ahead 74, 817.2 cm);
+   labelled 128..132, swap 133 (distance, up); NO down-swap: on the retreat no frame has a screen size below 0.85 x the
+   swap size while the engine is finer than the held LOD with coverage >= 7 % (computed band: empty), so the re-hold
+   never fires. The up-swap only, with IAI.Anomaly.LodDownPop 1 or 0. Revert 248.
+C5 still, =CB_LodFix_N2: no event; every burst refuses lod_not_armable:not_approaching (no fire; lod_untriggered 0).
+C6 approach, =CB_LodFix_N2 periodic 8 (bench gate open): today's timer, subtype periodic, kind periodic.
+
+A1.2 Gates (replaced or added lines)
+L1  m57_null_pair.py (095-13: box read as [x, y, w, h]; both legs must hold the same session indices; every common frame
+    is judged, frames with no lod entry over the whole frame (L6 of the tool); FAILS with no labelled frame or no up
+    swap) on C1 N and D, C3 N2 and D2, C4 N2: labelled == differing inside the box, ignoring lod_subvisible and
+    lod_unconfirmed; onset 0, offset 0. Can-fail unchanged.
+L2  m57_null_pair.py: every labelled run ends at a recorded swap (or an invisible release, or the session end); every
+    pixel-edge swap frame is the first null-equal frame after its run. Can-fail unchanged.
+L3  m57_lod_readout.py --expect no_events --refusal not_approaching on C5 (targeted, and auto-pool with only lod_popping
+    enabled). Can-fail: IAI.Bench.LodForceTrigger 1 on still with =CB_LodFix_N (at the still pose 422 cm, s 0.969,
+    coverage 38.5 %, LOD0, forced to its coarsest), --expect events.
+L4  turn_away, =CB_LodFix_N view_entry: armable frames 36..73 (it turns to within 12.65 deg of the view edge and never
+    enters); armed at frame 51 (ahead 25); 0 labelled frames, no event, its id in lod_untriggered_event_ids; the arm clock
+    expires at frame 143, lod_arm_timeouts 1. Can-fail unchanged.
+L4b m57_null_pair.py on C1 N (its armed off-screen stretch before frame 67) and on L4: anomaly == null over the whole
+    frame; a leg with no held off-screen frame reads NOT EXERCISED, never PASS.
+L5  m57_lod_readout.py --expect-mismatch 0 on every leg: lod_render_mismatch_frames 0 and
+    label_transition_lod_unconfirmed_entries 0; lod_render_checked_frames > 0 on legs with labelled frames. Can-fail:
+    IAI.Bench.LodPredictStaleView 1 on C3 N2 with --expect-mismatch any (mismatch > 0 and lod_unconfirmed entries > 0).
+L6  m57_lod_readout.py --expect-restored yes on every leg plus a destroy leg (IAI.Bench.DestroyTarget while armed): every
+    ARMED line pairs with one REVERT line for the same mesh; the destroy leg's pair reads NOTHING TO RESTORE (mesh
+    destroyed). Can-fail unchanged (--expect-restored no).
+L7  the declared m57 key list adds the 095-13 keys: entry lod.in_frustum, lod.probe, lod.dithered, lod.min_lod,
+    lod.temporal0/1, lod.engine_lod_render, lod.min_lod_render, lod.temporal_render0/1, lod.unconfirmed_why; run_summary
+    lod_arm_clock_restarts and lod_predict_calls / _candidates / _ms_mean / _ms_max.
+L12a turn_in N with IAI.Anomaly.LodHoldCap 10 (entryFrames at its default 30): one event KEPT with ~10 labelled frames,
+     lod_event_kind hold_cap_only, one hold_cap swap at the frame after its last lod frame.
+L13 (new, N2) a held LOD finer than the engine's after the engine coarsens: the one frame where the engine is past the
+    held LOD reads past_held (lod_subvisible) and the release is invisible (no swap). No lod_v1 path shows it on screen
+    (C4's band is empty); offline only (lod_trigger_selftest TestPastHeld). Stated, not claimed.
+L14 (new, N7) a hold cap reached on the last captured frame records no swap and the kind reads no_swap. Offline only.
+
+A1.3 Section 6 replaced
+- IAI_LODFIX_ADD=second_pair: CB_LodFix_N2 / CB_LodFix_D2 at (1700, -/+60, 200) (was -/+200, which never crossed its
+  switch on these paths). The script now refuses before creating anything if any part already exists, refuses while the
+  editor holds unsaved map or asset changes, and reads back only the actors of its own run, so second_pair and instanced
+  may run as two runs. Predicted read-back: 2 actors, names equal labels.
+- IAI_LODFIX_ADD=instanced: unchanged.
+- No distance clip or distance gate is possible before the cook carries the second pair (C3c).
+
+A1.4 Yield (reading, not gated) - added
+- On real content a distance pop needs a mesh whose LOD switch lies near the size at which it covers 7 % of the frame.
+  A mesh that switches while small is refused (at_finest_lod or too_far_ahead) unless the camera closes fast enough to
+  bring its 7 % size within 90 frames.
+
+AMENDMENT 2 - 2026-11-14, brief 095-14 (ruling 095-13 D1 and D2). Written before any engine leg.
+SHA-256 of this file before the amendment:
+1EEEE432ED628F1BAE796350187BF20CEA5C3196C3D6502714A15F7A1F44303E (18,470 bytes).
+Everything above stands except where a line below replaces it. Built on feat/m57-lod-spatial-trigger 33978b9 (D1) and
+100e287 (D2 docs); the pure numbers come from lod_trigger_selftest TestBenchSimulation (169 checks), which now also
+simulates approach_retreat at IAI.Capture.Config 2 60 120 14 0 with the switch off and on.
+
+A2.0 Common recipe, replaced line
+- Defaults as built: as A1.0, except downPop 0 (IAI.Anomaly.LodDownPop / [AnomalyInjector] LodPoppingDownPop, compiled
+  default 0 since 095-14; experimental). The run-config line and run_summary lod_trigger_settings read
+  "... downPop=0(compiled)" on every leg that does not set it; a leg that sets it reads downPop=1(console) or (ini).
+
+A2.1 Clips, replaced lines
+C4 approach_retreat, =CB_LodFix_N2, IAI.Capture.Config 2 60 120 14 0, defaults (downPop 0): one fire at frame 59 (ahead
+   74, 817.2 cm); labelled 128..132, one up-pop at 133 (cause distance, direction up, on screen); no re-hold; no labelled
+   frame on the retreat (frames 145 onward carry no positive lod entry); lod_swaps has exactly one entry;
+   run_summary lod_swaps_by_cause.distance 1; lod_events_by_kind.spatial_swap 1; revert 248.
+C4-dp1 (optional variant, the same leg with IAI.Anomaly.LodDownPop 1): predicted IDENTICAL labels, swaps, frame lists and
+   lod_* counts to C4 (simulation: armed 59, first positive 128, 5 labelled, one swap at 133, 0 re-holds, 0 labelled after
+   the swap, with the switch on or off). On this path a re-hold needs a frame below 0.85 x the swap size (s < 0.291) while
+   the engine is still finer than the held LOD with coverage >= 7 %; the engine switch is at s 0.3, so that band is empty.
+   The two runs can therefore be told apart only by the settings echo (downPop=1(console) on the run-config line and in
+   run_summary lod_trigger_settings), not by any picture, label or swap. A run with downPop 1 that shows a second swap
+   (direction down), a lod_swaps_by_cause.distance of 2, or positive frames on the retreat contradicts this prediction and
+   is reported as read.
+
+A2.2 Gates, replaced or added lines
+L1  unchanged, with C4 read at its A2.1 prediction: one labelled run (128..132) ending at the up-pop; frames after the
+    swap judged as "no lod entry => whole frame equals the null" (tool L6), none labelled.
+L13 unchanged (offline only), and now also covered by the default: with downPop 0 no lod_v1 path can re-hold.
+L15 (new, D1 can-fail, offline) lod_trigger_selftest checks that FSettings defaults to bDownPop false; the mutant
+    downpop_default_on fails it. The runtime default reads downPop=0(compiled) on the first engine leg's run-config line.
+
+A2.3 Yield (reading, not gated) - ruling 095-13 D2 restated
+- A mesh whose LOD switch lies under the size at which it covers 7 % of the frame gives no distance_threshold event at
+  walking speed: it is refused lod_not_armable:at_finest_lod or :too_far_ahead (Auto.Yield line), and only view_entry
+  events or no lod event come from it. run_summary lod_swaps_by_cause (distance, view_entry) and the events'
+  anomaly_subtype give the per-trigger yield; run_summary has no per-trigger event count. The bench copies
+  (IAIBenchLodCopyN/D) are that case (C3c).

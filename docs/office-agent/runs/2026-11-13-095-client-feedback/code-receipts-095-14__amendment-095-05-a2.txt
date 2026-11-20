@@ -1,0 +1,33 @@
+
+
+AMENDMENT 2 - 2026-11-14, 095-14, written before any engine leg of m56 has run (ruling 095-12 D2). Lines above unchanged.
+SHA-256 of this file before the amendment: 47399F2BEF82788A2AC7AEB4C7BD3D8EFE855FE7DCD43CD1C2F03089E9B9A237 (7,548 bytes).
+Reason: the integration build (integ/m56-m58) carries m59 S3 (c5113e3). Its change to the capture's ResolveNodeIdentity is
+shared code: an event whose anomaly set a component scope now names, in annotation.json affected_objects.nodes[], a mesh
+inside the scope. Texture events set that scope when uv_corruption / normal_corruption skipped parts
+(texcorrupt.components_skipped > 0) and always on stuck_low_mip's proxy route (Anomaly_TexCorrupt.cpp: the scope is set
+when ComponentsSkipped > 0 or the fire is the stuck_low_mip proxy). The ruling keeps the change; node.bounds is not scoped.
+P11 (amended again) As AMENDMENT 1, plus: the G5 comparator (CaptureBench m57-gates tools/m56_nonsettle_compare.py) now
+    also compares the node identity of every annotation.json event both sessions hold, joined by event_id (frame number
+    as an offset from the session's first frame_index): affected_objects count, primary_index and each node's name, path,
+    global_position, asset_name, component_class and bounds must be equal, apart from fields that differ between two
+    release runs of the same recipe (the --control pair). Intended integration difference: asset_name and
+    component_class may differ on an event the newer session marks as scoped - an entry of the event carries
+    texcorrupt.components_skipped > 0 (cause texcorrupt_skipped_parts), or the
+    annotation event has stuck_mip_route "proxy" (cause stuck_mip_proxy_route). Both causes are counted and listed with
+    the event ids and never fail. Any other node difference fails, including name, path, global_position or bounds on a
+    scoped event, and asset_name / component_class on any other event (LOD events included: m59 changes their eligibility
+    and scope, and G5 legs use fire-window types). An event only one session holds is listed as a reading, never failed
+    (vetoes and refusals can differ between builds; labels.jsonl rows still cover those frames). Both sessions must carry
+    annotation.json with an event_id on every event, or the comparator cannot run (exit 2).
+P24 (new) Predicted reading on the heavy run's G5 legs: on missing_texture / corrupted_texture legs and on targeted uv /
+    normal legs at a target whose every part qualifies, 0 intended node changes and 0 node mismatches. A targeted uv /
+    normal leg at a target with a skipped part (for example the m53 bench's two-part actor) shows the
+    intended change listed under texcorrupt_skipped_parts, or no change when the first visible mesh is already a
+    corrupted one. Any node mismatch is reported as read, never re-cut.
+Proof offline (receipts code-receipts-095-14): the comparator selftest 26 cases OK (16 new: the allowance passes on skipped
+parts and on the proxy route, fails with components_skipped 0, on missing_texture, on the hold route, on a changed
+node.bounds or node.name, and with an extra label change; missing annotation.json or event_id cannot run; an extra event is a
+reading; a node field differing between two release runs is run-unique); five comparator mutants fail it; a doctored copy of
+a real banked session (081-43 f1_g270_baseline, 300 rows, 8 events, event_id added to each annotation event) reads 8 of 8
+cases as predicted (g5-doctored-proof.txt).

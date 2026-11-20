@@ -1,0 +1,44 @@
+{
+  "utc": "2026-11-06T04:53:14.223934+00:00",
+  "result": "PREDICTION_AND_HELPER_REVIEW_PASS_RUNTIME_PENDING",
+  "helper_pins_verified": 24,
+  "old_control_receipts_bound": 4,
+  "capture_reader_observer_exit_semantics_identical_to_x": true,
+  "reviewed_change": "Only explicit owner idle waiver, new job roots/parent charges/deadline. Severe commit floor, storage, owned-process, capture and pixel/observer gates preserved.",
+  "idle_checks": 0,
+  "idle_waits": 0,
+  "spec": {
+    "rhi": "D3D12",
+    "size": [
+      1279,
+      719
+    ],
+    "frames": 2352,
+    "seed": 4242,
+    "camera": false
+  },
+  "pins": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447y\\helper-provenance.json",
+      "sha256": "b54ac357ccf05af2f59ccb8762a7a08568e91042db57e5c3a8ee21797d57ad71"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447y\\changed-surface-controls.json",
+      "sha256": "35f87372a9c1547e8489a984bd7faa9b8ce85f2ecd53446bc30b5953898196fc"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447y\\go3-prediction.json",
+      "sha256": "1becab4eba60bc0dd2e7c0633b1ebacb9df70140a7ffbb85b3b352e628039449"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447y\\fj1-entry.json",
+      "sha256": "9293c275e01f463209d7f2e216ab6311e9bd1aeb67c418303743c4f26166f729"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447y\\capture-go3-d3d12-1279-default-r4\\prediction.json",
+      "sha256": "f3ea9aa2375362a277127ea43c8b8dd062ae94038b0a6578ec344bf44e59aef9"
+    }
+  ],
+  "publication": "Pending actual GO3 and final proof/closure",
+  "chat_review": "NOT REQUIRED for explicit operational waiver and GR3/GR4 scope; no correctness tolerance changed."
+}

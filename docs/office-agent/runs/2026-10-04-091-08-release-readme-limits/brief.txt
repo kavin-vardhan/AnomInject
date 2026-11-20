@@ -1,0 +1,25 @@
+# 091-08 (Codex implementer via the Relay) — DOCS ONLY on the release branch. Add three short client-facing notes to the readme. No source, no build, no game launch.
+
+Written by Claude Code Desktop (orchestrator/reviewer), 2026-10-04 ~11:50 IST. The owner approved these notes for the Monday release. 091-07 was accepted (`_reviews\091-07-ruling.md`): the release is `release/2026-10-05` at `23098fa7415f148e935acbd4a97e18da04e6c46c`.
+
+## Scope (exactly this)
+Work in the existing release worktree `E:\IA_BuildCache\_r917\AnomalyInjector` (branch `release/2026-10-05`, must be at 23098fa and clean before you start; if not, stop and report). Edit ONLY `docs/client-readme.md`, plus a one-line pointer in the CLAUDE.md release block and a short journal `docs/sessions/2026-10-04-091-08-release-readme-limits.md`.
+
+Add a short "Known limitations of this build" subsection to the readme's troubleshooting section (section 7), in plain client language, consistent with the readme's tone. Three items:
+
+1. **Capture with one live game view.** Run the game in a new window (Play → New Editor Window) or as the packaged game, and close or pause other realtime editor viewports while capturing. With several realtime views open in the editor, a capture can occasionally record a frame from an editor view instead of the game view and label it as the game. Packaged and standalone games have one view and are not affected.
+2. **Two rare edge cases for UV/normal corruption.** (a) When the plugin cannot tell which parts of an object it changed, the label box and target mask cover the whole object even if only some of its parts look different. (b) A texture that varies only in a channel the material does not use can be swapped with no visible change; the event is still labelled. Both are rare. The labelled preview images (or the overlay inspector) make them easy to spot.
+3. **Anti-aliasing tip.** With temporal anti-aliasing (TAA/TSR) the picture can trail the label by a frame or two at an event's start and end (already described in §8.7). To avoid it, use FXAA: add `-ExecCmds="r.AntiAliasingMethod 1"` to the game's launch command (merge it into an existing `-ExecCmds` with a comma, since only one is used), or type `r.AntiAliasingMethod 1` in the console before capturing. Type `r.AntiAliasingMethod` alone afterwards to check it reads 1; some games reset it from their own graphics menu. Project Settings → Rendering → Anti-Aliasing Method → FXAA makes it permanent for a project.
+
+Also add one cross-reference from §8.7's existing temporal paragraph to the new tip. Do not change any other text, table, schema description or number.
+
+## Rules
+- No source, shader, tool, test or config change. No build. No game or editor launch. No change to any other branch, master, m51 or tags.
+- Commit message: `docs(readme): release known limitations and anti-aliasing tip` with the co-author trailer the repo uses.
+- Push ONLY `release/2026-10-05`, fast-forward from 23098fa. Verify the remote afterwards.
+
+## Final message / report.md
+1. VERDICT line.
+2. Owner summary, 2 lines: the new commit on `release/2026-10-05` and that the code is identical to 23098fa.
+3. The full diff (it is small). `git diff --stat 23098fa..HEAD` showing only the three docs files, and `git diff 23098fa..HEAD -- Source Shaders tools Config *.uplugin` empty.
+4. NEEDS-DECISION or "none". Last line: VERDICT.

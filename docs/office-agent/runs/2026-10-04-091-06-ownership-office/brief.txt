@@ -1,0 +1,31 @@
+# 091-06 (Codex implementer via the Relay) — URGENT, delivery-blocking: on the second office host, `feat/m52-proxy-blur` 5d6352b captures NO frames at all. The 091-05 F1 ownership guard is failing closed on a legitimate office setup. Make the guard robust without reopening F1, and make every refusal self-explaining. Delivery is Monday; the owner is testing at the office today.
+
+Written by Claude Code Desktop (orchestrator/reviewer), 2026-10-04 ~09:00 IST. Read first: D:\IntrusiveAnomalies\_reviews\091-05-ruling.md, 091-04-ruling.md, the 091-04 review (F1) and your own 091-05 report (D:\IntrusiveAnomalies\_relay\runs\2026-10-04-091-05-review-fixes\report.md).
+
+## Facts
+- Office, owner (numbers to follow, if any, in this run folder's office-reads.txt — check it at start and before finishing): with 5d6352b, "no frames are getting captured". With d660b5d (the pre-guard build) the same host captured blurry/uv/normal fine yesterday.
+- The guard: `EnsureCapturer` (AnomalyCaptureSubsystem.cpp ~4576) sets owner = (World->Scene, World->GetGameViewport()->Viewport). `AnomalyCaptureOwnership::IsOwner` requires BOTH non-null and both equal to the family's Scene and RenderTarget. It is applied in `IsActiveThisFrame` (via Context.GetWorld()->Scene and Context.Viewport), in `BeginRenderViewFamily`, in `AfterPass`, and in the mask extension.
+- Home proof covered PIE in a new editor window (net mode standalone) and the staged game. NOT covered: PIE "Play in Selected Viewport" (in-editor); PIE net modes (Play As Listen Server, Play As Client with a server world, 2+ players); "Simulate"; a GameViewport that is not ready or changes after capture start; a project-specific UGameViewportClient; HDR/separate-render-target viewports; FSceneViewExtensionContext built without a world in some engine call sites. The office projects appear to be multiplayer games (client/server launch files seen on screen).
+
+## The work
+1. **Reproduce at home first** (predictions before legs; the usual gate; NO foreign UnrealEditor during legs): capture on 5d6352b's build (exe 3ADC2EA4 and its DLLs; archived) in every PIE mode above that StackOBot supports, plus standalone. Find every mode that yields 0 frames, or a ~100 % rejection rate.
+2. **Instrument** (counts and booleans only, never names): split the rejections by reason: owner scene unknown, owner target unknown, scene mismatch, target mismatch, context world null, not a game view. Put them in run_summary and in a one-line capture-start log line (owner scene known / target known / net mode / world type). The office can then read numbers that explain any future zero.
+3. **Fix**, keeping F1 closed (an editor viewport of a different world must never serve the game's capture; the 091-05 multi-viewport proof must still pass):
+   - Resolve the owner robustly per capture start AND when the game viewport changes or appears after start; per PIE instance / net mode, use the viewport that actually displays the capture world.
+   - Don't reject on a null context world in `IsActiveThisFrame` if the later per-family check (Scene + RenderTarget from the family itself) can decide.
+   - If the owner target is legitimately unknowable for a family, decide by the scene plus game-view identity (for example the family's game show flag / view state) rather than refusing everything. Justify from UE 5.1 source.
+   - If no owner can be established at all, fail **loudly**: an on-screen warning and a run_summary flag that says capture is unpaired by design, with the reason. Never fail silently.
+4. **Proof:**
+   - Every PIE mode and net mode tried plus standalone and staged now capture frames (uv and shared proxy, ≥ 3 fires each where the mode allows; E1 t50 0 unflagged; 0 missing masks; annotation == labels).
+   - The 091-05 multi-viewport F1 test still shows 0 wrong pictures, and the old-build can-fail still mislabels.
+   - Can-fail for this bug: 3ADC2EA4 yields 0 frames in at least one of the reproduced modes.
+5. Gates (builds 0/0, strict 0/0, lever audit, string scan, archive) and a fast-forward push of all three branches (fix → m53 → proxy, as before) ONLY after the proof passes. Docs: status, gotchas, journal docs/sessions/2026-10-04-091-06-ownership-office.md, readme (what the counters mean; how to read them at the office).
+
+Work folders: E:\IA_BuildCache\_r916\. Bases: fix 1eaf205, m53 4c93e5f, proxy 5d6352b (all pushed). Aim to finish by ~14:00 IST.
+
+## Final message / report.md structure
+1. VERDICT: GREEN | NEEDS-DECISION | RED (also the last line).
+2. Plain owner summary, 3 lines: what broke at the office (as reproduced), what changed, the exact branch and commit to pull, and which run_summary numbers to read at the office.
+3. The reproduction table (mode × old build × new build: frames, rejections by reason).
+4. The fix (file:line), tests both ways, the F1 re-proof, gates, pushes.
+5. NEEDS-DECISION items, or "none".

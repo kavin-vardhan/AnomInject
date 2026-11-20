@@ -1,0 +1,46 @@
+# 091-03 (Codex implementer via the Relay) — RELEASE FIX: the client's annotation.json must say which frames are "picture still settling" (transition) frames; and temporal-history detection must never silently miss. Plus the deferred §0 home confirmation of 091-02.
+
+Written by Claude Code Desktop (orchestrator/reviewer), 2026-10-03 ~14:00 IST. Delivery is Monday 5 Oct; the owner's priority is tightening the current items for release.
+
+## The owner's observation (the second office host, PIE, feat/m52-proxy-blur e09fa9c, blurry textures)
+The blur works. But right after an event's labels end, about 2 frames still show the texture reverting to its proper mip, and **nothing in annotation.json marks those frames**. (This is the same class as the owner's original 09-28 finding: blur visible after the label ends.)
+
+## What the orchestrator established from source (verify)
+- Transition flags (`transition: 1`, `transition_reason`, `transition_present`) are written only to the per-frame labels (labels.jsonl / label JSON), and their counts to run_summary.json (`label_transition_*`). **annotation.json's per-event objects** (AnomalyLabelWriter.cpp, the session writer: anomaly_type, anomaly_subtype, stuck_mip_route, affected_frames, injected_frames, frame_indices, observable_frame_count, …) **carry no transition information.** A client using annotation.json alone treats tail frames as clean negatives: a label/picture disagreement (rule 1).
+- The flags exist only when `ResolveLabelSyncForRun` decides the run is temporal (`GetDefaultAntiAliasingMethod` → `AnomalyLabelSync::IsTemporalMethod`); otherwise every transition count is 0. Unknown: whether the second office host's run was detected as temporal. (The owner is asked for run_summary `label_transition_entries` / `label_transition_off_frames` and the "EFFECTIVE FOR THIS RUN - anti-aliasing method" log line; if they arrive, the orchestrator will append them to this run folder as `office-reads.txt` — check for it before you finish.)
+- 090-12 measured, at home, a proxy-blur tail of +7..8 frames under TSR (flagged by the 3/16 policy), 0 with AA off.
+
+## The work
+1. **annotation.json, per event (additive schema; bump the schema minor version):**
+   - `transition_frames`: the sorted frame indices on which THIS event has an entry with `transition = 1`. That covers onset and offset temporal frames, partial-onset frames, hide_return, pie_end_settle, effect_interrupted, nanite_unmaskable, capture_unpaired, and any other existing transition reason; detached post-label tail entries count.
+   - `transition_reasons`: a map from reason to count.
+   - **Also a session-level** `transition_frame_count`.
+   - It must agree exactly with labels.jsonl. A tool test reads both files and fails on any difference, and it must fail on a doctored file.
+   - Readme: §8.7's training recipe says to drop `transition_frames` ("never use as negatives, never as positives"); add the field semantics row.
+2. **Detection must fail safe.**
+   - Establish, from engine 5.1.1 source, every way a run can have temporal history: TAA, TSR, a registered third-party temporal upscaler, forward/mobile paths, per-view overrides, and a game that sets AA through scalability or user settings at runtime after our run-start read.
+   - Make `bLabelTemporalAa` true whenever any of them is active at capture time, and **re-evaluate during the run** if the method can change mid-run (or document precisely why it can't).
+   - If the method cannot be determined, treat the run as temporal: flags are additive, and dropping a few frames is cheaper than a mislabel.
+   - Log the evidence in the EFFECTIVE line and run_summary (`label_temporal_source`).
+   - Under an explicit AA-off run, nothing changes: 0 transition frames.
+3. **The proxy route's offset tail.** Confirm on home content that, with temporal AA, every frame between the last labelled frame and the frame where the target's pixels return to the clean reference (within null) carries `transition` for that event, in both labels.jsonl and annotation.json. If the declared off-window (the stuck_low_mip 16, or the proxy route's value) is shorter than the measured tail on any home leg, fix the value from the measurement. Do the same for the hold route and UV/normal.
+4. **Proof (in-engine; predictions first; the idle gate as always):**
+   - shared-fixture proxy blur under TSR (method 4) and under TAA (method 2), PIE and staged, ≥ 7 fires: every post-label frame whose target pixels differ from the clean reference by more than the null is listed in that event's `transition_frames`; 0 unflagged tail frames. Can-fail: the current e09fa9c annotation.json lists none.
+   - AA-off: `transition_frames` is empty, and the edges stay 0/0 as before.
+   - One uv and one normal leg under TSR showing their tails are listed too.
+   - **The deferred 091-02 §0 confirmation on your final build:** uv, normal and shared stuck_low_mip (proxy), PIE and staged, ≥ 3 fires each, visibly changed, 0 labelled frames without a measured mask (folded into the legs above where they overlap).
+   - The office check kit and `tools/verify_capture.py`: still pass on the new schema (they read labels.jsonl). Add a check that annotation.json `transition_frames` equals labels.jsonl.
+5. **Branches:** implement where the label writer lives (`fix/m52-label-timing`, local head `8b86f43` = origin), then merge forward into `feat/m53-uv-normal-corruption` (`cf16766`) and `feat/m52-proxy-blur` (`e09fa9c`), as 091-02 did. The proxy branch is the office pull.
+6. **Gates:** builds 0/0, strict include 0/0, lever audit, string scan (new strings are the new fields and the log line only), archive and re-hash. Keep the 091-02 include discipline: include every engine type's defining header directly, guarded with `__has_include` where 5.1 lacks it.
+7. **Push all three branches (fast-forward)** only after the in-engine proof passes. Docs: CLAUDE.md status, gotchas, journal `docs/sessions/2026-10-03-091-03-annotation-transitions.md`, readme.
+
+## Work folders
+New work under E:\IA_BuildCache\_r913\ (E: has ~360 GB free). Reuse/copy the 090-12 harness (D:\IA_BankOverflow\_r912) and 091-02's copies (E:\IA_BuildCache\_r912b); never edit originals.
+
+## Final message / report.md structure
+1. VERDICT: GREEN | NEEDS-DECISION | RED (also the last line).
+2. Plain summary for the owner, 3 lines: what annotation.json now says about settling frames; whether the office's 2-frame tail would now be listed; the exact branch and commit to pull.
+3. The detection analysis (every temporal source, how each is now detected, fail-safe rule).
+4. Proof tables (TSR/TAA/AA-off × PIE/staged; tails measured vs listed; can-fail), plus the 091-02 §0 table.
+5. Gates, commits pushed, archives.
+6. NEEDS-DECISION items, or "none".

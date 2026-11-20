@@ -1,0 +1,22 @@
+
+
+AMENDMENT 3 - 095-14, 2026-11-14, written before any leg ran (ruling 095-12 D3). Lines above unchanged.
+SHA-256 of this file before the amendment: see code-receipts-095-14\predictions-amendment-hashes.txt.
+The two fixtures L59-8 and L59-10 named as NOT built are now options of CaptureBench m57-gates tools/make_lod_fixture.py
+(commit 4ca8524), run by the heavy brief in the editor before its cook. As built:
+- IAI_LODFIX_ADD=pair_cube: actor CB_LodPair (a plain actor) with two StaticMeshComponents, MeshLod = SM_LodFix_N (2 LODs,
+  not Nanite) at (1000, -150, 600) and MeshOne = /Engine/BasicShapes/Cube (1 LOD) at (1000, 150, 600), scale 1, no shadow,
+  static. MeshLod is the actor's root, so the actor reads back at MeshLod's position. At the bench pose (player start
+  (0, 0, 200), yaw 0) MeshLod's screen size is ~0.082 (LOD 0 drawn; forced LOD 1 = the blue cube); both meshes are fully
+  in view; nothing else stands between them and the camera.
+- IAI_LODFIX_ADD=minlod1: CB_LodFix_MinLod1 = SM_LodFix_N at (1100, 0, 390), scale 1.5 (not 4.6: a full-size copy would
+  block the second pair and stand on the distance paths), bOverrideMinLOD true, MinLOD 1, no shadow, static. The engine
+  always draws LOD 1 (the cube). L59-10's REFUSED line reads "[2 LOD(s), min LOD 1 (component-override), first usable
+  LOD 1, 1 usable]" as predicted.
+- Neither option adds an asset: the content diff of each is CB_LodFixture.umap only.
+- Placement checked offline (code-receipts-095-14\fixture_placement_check.py, conservative bounding spheres): no new
+  actor blocks CB_LodFix_N / _D / _N2 / _D2, the runtime copies or the ISM / HISM actors from the bench pose or any lod_v1
+  path pose, and no camera path passes through a new actor. On the lod_v1 still pose MinLod1 is partly in view and both
+  new actors are lod_popping candidates for the m57 auto-pool (MeshOne and MinLod1 refuse single_lod, MeshLod and MinLod1
+  are not approached); the L3 auto-pool reading (every round lod_not_armable, 0 fires) is unchanged.
+- Fixture command lines for the heavy brief: code-receipts-095-14\tips.txt.

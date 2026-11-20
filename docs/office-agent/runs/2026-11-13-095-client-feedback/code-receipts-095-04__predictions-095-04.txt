@@ -1,0 +1,95 @@
+095-04 m58 terrain blink subtype - FROZEN PREDICTIONS for the engine legs that remain (C-G2 .. C-G6)
+Written 2026-11-13 by Claude Code (Opus 5.5, xhigh) BEFORE any engine leg exists. No leg has run. Nothing below is a result.
+Binding plan: _reviews\095-02-plan-C-terrain-blink-subtype.md section 7, as amended by _reviews\095-02-ruling.md (Unit C) and
+_reviews\095-03b-ruling.md (all engine legs wait for the owner's free-PC window, brief 095-07).
+
+Exact strings the code under test emits (from the branch source, so a leg can grep them):
+  banner     : "Capture(m58): TERRAIN RULES class=<state> | patterns=<list> source=<source> | refusal=<state> | subtype=terrain_disappear_reappear on a terrain blink, disappear_reappear otherwise"
+               <state> class : ACTIVE[actor IsA LandscapeProxy | component IsA LandscapeComponent]
+                               INERT[forced by IAI.Bench.TerrainClassRuleInert - BENCH DEVICE]
+                               INERT[/Script/Landscape.LandscapeProxy <found|NOT FOUND>, /Script/Landscape.LandscapeComponent <found|NOT FOUND> - ...]
+               <list>        : none(COMPILED DEFAULT; no ini key) | none(console) | N(ini)[p1|p2] | N(console)[p1|p2]
+               refusal       : ON(blinking on engine landscape is refused terrain_unlabelable) | OFF(IAI.Bench.TerrainRefusalOff - ...)
+  refusal    : "REFUSED-TERRAIN actor='<name>' rule=<rule> reason=terrain_unlabelable"
+  per event  : "TERRAIN-SUBTYPE event=<id> target=<name> rule=<rule> -> anomaly_subtype terrain_disappear_reappear"
+  run end    : "Capture(m58): TERRAIN SUMMARY blink_terrain_events=<n> terrain_unlabelable_refusals=<n> (rules: ...)"
+  rule text  : class:<ActorOwnClass>                    (actor IsA LandscapeProxy)
+               class:<CompOwnClass>@component=<CompName> (a component IsA LandscapeComponent)
+               pattern:<p>@<field>=<value>              field in actor | actor_class | component | component_class | asset
+  run_summary: blink_terrain_events (int, always written), terrain_unlabelable_refusals (int, always written)
+  selection_provenance.json (delivery OFF only): terrain_rule string, written ONLY on a record whose event is terrain
+  annotation.json: anomaly_type blink, anomaly_subtype terrain_disappear_reappear on a terrain blink event; no new key; label_schema unchanged
+
+Common recipe: the ONE cook of brief 095-07 (must contain CB_GateLevel and MainWorld); delivery OFF; bench levers need -IAIBench
+(the gate masks every IAI.Bench.* lever otherwise); B1 pose gate where the target is StaticMeshActor_49, declared NOT APPLICABLE
+elsewhere (G117); every attempt banked (A63).
+
+---------------------------------------------------------------------------------------------------------------------------
+C-G2 class rule and refusal - MainWorld, targeted blinking on ONE LandscapeStreamingProxy tile (pick the tile from IAI.ListActors
+     at the settled pose; record its exact name before the leg). PIE legs a/b/c, then the same three staged.
+
+ C-G2a defaults (refusal ON, class rule ACTIVE, no patterns)
+   P1  banner: class=ACTIVE[...] | patterns=none(COMPILED DEFAULT; no ini key) | refusal=ON(...)
+   P2  every targeted attempt logs REFUSED-TERRAIN actor='<tile>' rule=class:LandscapeStreamingProxy reason=terrain_unlabelable,
+       then "Auto.FireSpecific: 'blinking' on '<tile>' -> not applied"
+   P3  annotation.json anomalies = [] (0 events); no TERRAIN-SUBTYPE line
+   P4  run_summary.terrain_unlabelable_refusals >= 1 and == the count of REFUSED-TERRAIN lines; blink_terrain_events 0
+   P5  run_summary.zero_match_bursts == terrain_unlabelable_refusals (each refused attempt is a burst that applied nothing)
+       - if they differ, that is a FINDING about burst accounting, not a pass/fail of the refusal
+   P6  the tile is never hidden: no frame differs from the run's own first settled frame inside the tile's area beyond noise
+
+ C-G2b refusal OFF (IAI.Bench.TerrainRefusalOff 1) - shows what an engine-landscape blink carries
+   P1  banner: refusal=OFF(IAI.Bench.TerrainRefusalOff - ...); the lever's own WARNING line reads "refusal OFF"
+   P2  events fire; every blink event: anomaly_type blink, anomaly_subtype terrain_disappear_reappear
+   P3  one TERRAIN-SUBTYPE line per event with rule=class:LandscapeStreamingProxy; selection_provenance terrain_rule identical
+   P4  run_summary.blink_terrain_events == the number of blink events in annotation.json; terrain_unlabelable_refusals 0
+   P5  RECORDED HONESTLY, not graded: target_pixels -1 on the event's rows and mask.provided false (NOT_MEASURED - no component
+       of the tile passes IsRenderableComponent, so nothing is tagged); bbox is the grass bounds, a point, or invalid - never
+       the terrain. These are the reasons the refusal exists.
+
+ C-G2c CAN-FAIL: class rule forced INERT (IAI.Bench.TerrainClassRuleInert 1), refusal lever untouched (ON)
+   P1  banner: class=INERT[forced by IAI.Bench.TerrainClassRuleInert - BENCH DEVICE]
+   P2  no REFUSED-TERRAIN line; events fire
+   P3  every blink event reads anomaly_subtype disappear_reappear; no TERRAIN-SUBTYPE line
+   P4  blink_terrain_events 0, terrain_unlabelable_refusals 0
+   => removing the detection removes BOTH the subtype and the refusal; if P3 reads terrain_disappear_reappear the class rule
+      is not the only detector and the gate FAILS.
+
+---------------------------------------------------------------------------------------------------------------------------
+C-G3 pattern rule - CB_GateLevel, targeted blinking on StaticMeshActor_49 (mesh /Engine/BasicShapes/Cube), IAI.SetTerrainPatterns Cube.
+     Staged native order, staged IAI.Bench.SynthTickOrder, and PIE.
+   P1  banner: patterns=1(console)[Cube] source=IAI.SetTerrainPatterns (console override, beats the ini)
+   P2  every blink event: anomaly_subtype terrain_disappear_reappear; rule=pattern:Cube@asset=Cube (actor name, actor class,
+       component name and component class do not contain "cube"; the mesh asset is named Cube)
+   P3  NOT refused (pattern match is never refused): no REFUSED-TERRAIN line; terrain_unlabelable_refusals 0
+   P4  blink_terrain_events == number of blink events; selection_provenance terrain_rule = pattern:Cube@asset=Cube
+   P5  labels as any blink leg on this fixture: m44_gates ONSET delta 0 on every event, MASK-TIE 0 MISMATCH, G7 stray 0,
+       frame_indices the gapped {n,n+1,n+5,n+6} shape (native) - identical to the same leg without the pattern except the subtype
+ C-G3 CAN-FAIL: same leg, IAI.SetTerrainPatterns clear
+   P6  banner patterns=none(console); every blink event reads disappear_reappear; no TERRAIN-SUBTYPE line; blink_terrain_events 0
+
+---------------------------------------------------------------------------------------------------------------------------
+C-G4 non-terrain unchanged - CB_GateLevel, StaticMeshActor_49, no patterns, pose-matched pair against the release binary
+     (master's own build of d7eee97 lineage, or the 24 Sep release exe if master's build is not yet made - state which).
+   P1  every blink event: disappear_reappear; no TERRAIN-SUBTYPE line
+   P2  annotation.json: no field differs outside the run-unique set established by a same-binary control pair (P-C7 v2 method)
+   P3  labels.jsonl: no field differs outside that run-unique set (labels.jsonl carries no subtype)
+   P4  run_summary.json: added keys EXACTLY {blink_terrain_events: 0, terrain_unlabelable_refusals: 0}; removed none
+   P5  selection_provenance.json: no terrain_rule key on any record; otherwise identical outside the run-unique set
+
+---------------------------------------------------------------------------------------------------------------------------
+C-G5 no eligibility change - MainWorld auto-pool, 300 frames, patterns empty, same seed and recipe as a release-build leg
+   P1  the event set (anomaly id, target, start frame) is identical to the release-build leg's
+   P2  census counters identical where the census runs; selection candidate counts identical
+   P3  blink_terrain_events 0 and terrain_unlabelable_refusals 0 (the auto pool cannot pick engine landscape: the landscape
+       component is not a mesh component, and non-Nanite grass reports 0 instances - G574). A non-zero refusal count here is a
+       FINDING (the pool reached engine landscape), not a pass.
+
+---------------------------------------------------------------------------------------------------------------------------
+C-G6 echo and docs
+   P1  the TERRAIN RULES banner line is present on every leg above, and its patterns/source match what the leg set
+   P2  docs/client-readme.md subtype row carries terrain_disappear_reappear and a changelog row; architecture catalog note
+   P3  no schema bump: annotation.json label_schema and run.json/run_summary schema_version equal master's
+
+Also owed by 095-07 (not gates of m58 itself): lever audit --binary on the Development exe and the Editor DLLs must list
+IAI.Bench.TerrainRefusalOff and IAI.Bench.TerrainClassRuleInert as registered and present; the Game target must build clean.

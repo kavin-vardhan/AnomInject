@@ -1,0 +1,123 @@
+{
+  "utc": "2026-11-06T04:31:08.008047+00:00",
+  "result": "PREDICTION_AND_HELPER_REVIEW_PASS_RUNTIME_PENDING",
+  "pins": [
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447x\\go3-prediction.json",
+      "sha256": "868cf2c3164925067227bd8ed5d77af4e49bb5a51659dc7f05ecf80bedb1eb28"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447x\\fj1-entry.json",
+      "sha256": "6bbde829d1425b898235da2a705a1fa32c11cf192b5904dee31ddf9a6600039f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447x\\capture-go3-d3d12-1279-default-r4\\prediction.json",
+      "sha256": "62252dc89290dbf63abc20c130f60c2bb26fa590c87b8cc4441d747dfef7fd6d"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447x\\prelaunch-controls.json",
+      "sha256": "7d1eac8a54db36c0c62ad7e68af4b01767a6a4fb4cc0c36c0d161a4d50b37444"
+    },
+    {
+      "path": "D:\\IA_Europa\\Receipts\\09447x\\helper-provenance.json",
+      "sha256": "58eef11ad3b05fa05085ed5ab01b0e2422f56a21d9b417f0acc78dc77c3f07c8"
+    }
+  ],
+  "final_helper_pins": [
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\allocation09447x.py",
+      "sha256": "b90c1b555c0791d816732712018584898cc9a2d39ccd09d37fdbb37e7dccb1d2"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\binding09447x.py",
+      "sha256": "b00a82d043f8919c90e4f645691a4f312f022770586dd46c0ed73ef099846822"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\c5_log_reader09447x.py",
+      "sha256": "44d53ed0035e649b7267cb638271cbf27540c49bf71194f8fee94a18c6bc7d7a"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\c5_log_reader_r4_u.py",
+      "sha256": "6aa9dc532ae1fe8fecaf34bd3a83f1daa98679998feffacadce83b0cbc53b872"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\capture_console09447x_v2.py",
+      "sha256": "97e061310d3416f170039a81598116c4ca6814c5ff2d911fbd1a58f2c3af687b"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\capture_readers09447x.py",
+      "sha256": "0ffe4c80368481837190662d9a165b9d82e81333ea9dd25c21d8f090e7c68abb"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\exit09447x.py",
+      "sha256": "8e2ef9c5007019191d6c131f1600e5c486b89c0fbe65e49e4e35e295981e9536"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\fj1_09447x.py",
+      "sha256": "4504af0e1246ad6a914f4fbdf63f483e7256db56fe241d987c8bdbee435fe5c0"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\live_probe09447x.py",
+      "sha256": "cd0146666fecd4a5d1ca62db6fb330b7c9ccd4bb49ddbc48d20eb7d6f8ff9d13"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\memory09447x.py",
+      "sha256": "93e432c66f9f0a57a38005b66773fe2c0963e3a414a488863ec31b0c6a8c7d29"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\observer_qualification09447x.py",
+      "sha256": "c4394ca68c7ab2d12653d2676fa08f8133aa04791cb1f84557b173d3d46d9989"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\owned_closure_v2_r4_u.py",
+      "sha256": "93cb79f9c0fa27d1aaf4bb12ce4c44b4b844eccba3173c874f23b852d5102312"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\prepare09447x.py",
+      "sha256": "bc8448844b8e0c11745a4c822afbd7b9a7334645c0dc7de4364cd5eef0ff4438"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\probe_integration_controls09447x.py",
+      "sha256": "096cd94e88a5a78d1119a47ab405873b1e06c6b03d4132b45ff5cd63de65a799"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\resource09447x.py",
+      "sha256": "8a829897e8ca3b73909a9cdf02bb93e1c541fd923585f9c45adb3a523a27d19f"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\runtime_scope09447x.py",
+      "sha256": "436a16cdb18c6de59a75d164b3f8e47c39d3ea4581db2be183a520a87e349f40"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\scope09447x.py",
+      "sha256": "1ab3c1813e2c62ceb67e6cc769d477f4a67a2f4cd95fcfad8f967170c357ad48"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\stage_budget09447x.py",
+      "sha256": "5cb18a3048704be10027d775eeaeec50173f5da61dd7f8c7906ec17922c65c91"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\time_admission09447x.py",
+      "sha256": "0375fdabd3d265a6fce54a36d84794a1352841e86f161a087f7b70f9efb3bf39"
+    },
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\upload_scan09447x.py",
+      "sha256": "2be763833f1e04dceb3aa787145bbdee1e1f8c23e4dff8b718cb85a7bc5aa5d6"
+    }
+  ],
+  "initial_copy_changes": [
+    {
+      "path": "D:\\IA_Europa\\Temp\\09447x\\capture_console09447x_v2.py",
+      "initial_copy_sha256": "d38e258f6a5980858679507d1501aea55955365d3949a5a9723f8f0f5bfb6f72",
+      "final_prelaunch_sha256": "97e061310d3416f170039a81598116c4ca6814c5ff2d911fbd1a58f2c3af687b"
+    }
+  ],
+  "review": [
+    "All 17 preserved source helper hashes verified; all 20 final prelaunch helper pins match current files. The initial copy receipt predates final helper adaptation; final controls, not initial copy hashes, seal execution.",
+    "Full capture helper diff against prior w source read: job names, sole GO3 D3D12 1279x719 leg, fresh FJ1 and GR1 parent, GR5 sealed package bindings, full preparation forecast strengthened to1620s. Capture predicates unchanged.",
+    "Read retained observer equality and capture reader change limited to1279x719 dimensions. Strict defaults IoU1 zero spill remains; no camera enabled.",
+    "Baseline14 JSON inputs and established keys46 reader are pinned by worker prediction. JSON numeric representation positive and removed-key/type-change negatives pass. No new baseline launch or auxiliary experiment.",
+    "Physical result, GO3 compatibility, final protection and owned closure remain pending. No publication authority inferred from prediction alone."
+  ],
+  "chat_review": "NOT REQUIRED for authorized GR3/GR4 gate. A new correctness failure is the next mandatory checkpoint."
+}

@@ -1,0 +1,37 @@
+# 091-02 (Codex implementer via the Relay) — URGENT, small: the plugin fails to compile on the first office host (8 errors, all "missing explicit include" class). Fix them on feat/m53-uv-normal-corruption, bring the fix into feat/m52-proxy-blur, audit the whole plugin for the same class, prove no behaviour change, push. The owner is waiting at the office to compile.
+
+Written by Claude Code Desktop (orchestrator/reviewer), 2026-10-03.
+
+## The office readings (owner's photo of the error list; numbers and our own file names only)
+The first office host, building feat/m52-proxy-blur at 51e2fdb (line numbers match that commit exactly):
+- C2065 'MD_Surface': undeclared identifier: Anomaly_TexCorrupt.cpp:525, Anomaly_TexCorrupt.cpp:1330, TexCorruptTree.cpp:278
+- C2027 use of undefined type 'FSkeletalMaterial': TexCorruptTree.cpp:1244
+- C2027 use of undefined type 'FSkeletalMeshLODInfo': TexCorruptTree.cpp:221 (twice), TexCorruptTree.cpp:223
+- MSB3073: the build command exited with code 6 (a consequence of the above)
+The first office host's engine is a UE5 source build whose exact version is not yet known (asked of the owner). The second office host compiled m53 88801bd cleanly on 10-02. Earlier precedent: 090-04 (strict-include fix for the second office host) and tools/strict_include_build.py, which passes at home and therefore does not see this class.
+
+## What the orchestrator already established (verify, don't trust)
+- Home engine D:\UESource\UnrealEngine is 5.1.1. There, EMaterialDomain (MD_Surface) is defined in Runtime/Engine/Public/MaterialShared.h:285; FSkeletalMeshLODInfo and FSkeletalMaterial are defined in Runtime/Engine/Classes/Engine/SkinnedAssetCommon.h (:92, :228); Engine/SkinnedAsset.h and Rendering/SkeletalMeshRenderData.h only forward-declare them.
+- TexCorruptTree.cpp ALREADY includes MaterialShared.h and Engine/SkeletalMesh.h and still failed at the office, so the office engine's header layout differs from 5.1.
+- A newer engine is installed locally at E:\EpicGames\UE_5.7 (headers present): there EMaterialDomain lives in Runtime/Engine/Public/MaterialDomain.h (not in 5.1), and SkinnedAssetCommon.h exists. Use it as the reference for the newer layout. (E:\EpicGames\UE_5.8 appears to have no source headers.) READ ONLY: never build against, modify, or launch anything in E:\EpicGames.
+
+## The work
+1. Fix the 8 errors at their cause: include the DEFINING header directly in every plugin source file that uses these types, written so it compiles on BOTH layouts. For a header that doesn't exist in 5.1 (MaterialDomain.h), use `#if __has_include("MaterialDomain.h")` / `#include "MaterialDomain.h"` / `#endif` (keep the 5.1 header too). Engine/SkinnedAssetCommon.h exists in both; include it directly.
+2. Audit the WHOLE plugin (all modules under Source/, both branches' code) for the same class: every engine type, enum value, macro or free function a .cpp/.h uses whose defining header is not directly included, where 5.1 and the 5.7 reference place it in different headers, or where a 5.7 header only forward-declares it. Use the two local engines as ground truth (grep the defining headers; don't guess). Add direct includes (guarded with __has_include where a header is missing in 5.1). Report the full list: file, type, header added, why. No behaviour changes, no refactors, no API changes.
+3. Branches: commit on feat/m53-uv-normal-corruption (worktree E:\IA_BuildCache\_r53_src\AnomalyInjector, head b8cd3cd), then bring it into feat/m52-proxy-blur (worktree E:\IA_BuildCache\_r52p_src\AnomalyInjector, head 51e2fdb) by merging m53 into it (resolve any conflict; no rebase, no force). Check whether fix/m52-label-timing has any instance of the class; if it does, fix it there too and merge it forward as earlier rounds did.
+4. Verify:
+   - normal builds 0 errors / 0 warnings on the 5.1 host (editor + game) for the proxy-branch head, using the build host E:\IA_BuildCache\_r53_host (detached checkout, as before);
+   - tools/strict_include_build.py 0/0;
+   - the lever audit;
+   - the string scan versus CFFD276F: no new strings beyond build artefacts;
+   - a source diff that contains only #include lines and their __has_include guards (show `git diff --stat` and confirm no other line changed).
+5. PRE-DELIVERY-CHECKLIST §0 (no build goes to an office host until it has visibly worked at home): a SHORT confirmation on the final proxy-branch build. One targeted uv_corruption, one normal_corruption and one stuck_low_mip (shared fixture, proxy route) leg, each in PIE and in the staged game, each ≥ 3 fires: visibly changed (the existing pixel readers) and 0 labelled frames without a measured mask. Reuse the 090-12 harness under D:\IA_BankOverflow\_r912 (copy, don't edit). E: now has about 363 GB free, so put new work folders under E:\IA_BuildCache\_r912b\.
+6. Push both branches. Update the CLAUDE.md status block, gotchas (one new G-number: "the strict-include gate is engine-version-blind; office engine layouts differ") and a short journal docs/sessions/2026-10-03-091-02-include-compat.md.
+
+## Final message / report.md structure
+1. VERDICT: GREEN | NEEDS-DECISION | RED (also the last line).
+2. Plain summary for the owner, 2 lines: the exact branch and commit to pull on the first office host; what changed (includes only).
+3. The audit table (file, type, header added, evidence from both engines).
+4. Builds, strict, lever audit, string scan, diff-is-includes-only proof, the short §0 PIE/staged table.
+5. Commits pushed (both branches), archive path and hash.
+6. NEEDS-DECISION items, or "none".

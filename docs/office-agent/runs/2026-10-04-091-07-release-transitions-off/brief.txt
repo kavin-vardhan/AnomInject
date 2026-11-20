@@ -1,0 +1,30 @@
+# 091-07 (Codex implementer via the Relay) — RELEASE FREEZE. The owner's decision (2026-10-04 ~10:45 IST): the Monday delivery is `d660b5d` plus ONE change, the temporal-AA transition windows default to 0. Nothing else may change. Small, exact, fast.
+
+Written by Claude Code Desktop (orchestrator/reviewer). The owner's words: the 40-frame temporal transition list is not useful to the ML team (visibly only 1–2 frames lag); remove the temporal AA transition; keep d660b5d as final; stop everything else.
+
+## Scope (exactly this)
+1. Create the branch `release/2026-10-05` at `d660b5d6e67c7af8b0f264e59cf66ed02f433968` (feat/m52-proxy-blur at 091-03). Use a new worktree E:\IA_BuildCache\_r917\AnomalyInjector, created from an existing worktree (`git -C E:\IA_BuildCache\_r53_src\AnomalyInjector worktree add ...`). Never work in the main checkout.
+2. In `Source/AnomalyInjector/Public/AnomalyLabelSync.h` set `DefaultOnFramesTemporal`, `DefaultOffFramesTemporal` and `DefaultHideFramesTemporal` to **0**. Keep the CVars `IAI.Label.TransitionOnFrames/OffFrames/HideFrames` working: an explicit value ≥ 0 still applies, so a user can turn them back on. Update their help strings to say the default is 0 and that it's the owner's choice.
+3. Leave every other source line exactly as it is in d660b5d. Do NOT bring in anything from 091-05 or 091-06 (no ownership guard, no scope or alpha changes). Do not touch the capture path, the anomalies, the tools logic or the schema. Non-temporal transition reasons (pie_end_settle, partial, effect_interrupted, nanite_unmaskable, capture_unpaired) stay exactly as they are.
+4. Update any pure test or tool expectation that hard-codes 3/40/1 so it expects 0/0/0, and add one test that an explicit CVar value still applies.
+5. Readme (docs/client-readme.md §8.7 and the field table): "Under temporal anti-aliasing (TAA/TSR) the picture can trail the label by a few frames at an event's start and end; those frames are NOT flagged by default. Optional: set IAI.Label.TransitionOffFrames / OnFrames / HideFrames to flag them." Remove the claim that the tails are excluded by default.
+6. CLAUDE.md status: one block saying this is the release freeze, its base, and this single change. Journal: docs/sessions/2026-10-04-091-07-release-transitions-off.md.
+
+## Verify (keep it short; the usual idle gate; NO foreign UnrealEditor during legs)
+- Editor and game builds 0 errors / 0 warnings on the build host E:\IA_BuildCache\_r53_host (detached checkout of the release commit); strict include 0/0; lever audit; string scan versus d660b5d's exe (C7FB5212): only the help-string changes.
+- Diff check: the source diff d660b5d..HEAD is only the three constants, the help strings, and the test expectations.
+- ONE PIE leg (shared proxy blur, TSR, ≥ 3 fires) and ONE staged leg of the same:
+  - every annotation.json `transition_frames` contains NO `temporal_aa` reason (PIE may still list its one pie_end_settle frame per event);
+  - `run_summary.label_transition_off_frames` = 0 and `label_transition_on_frames` = 0;
+  - the labelled frame sets equal what d660b5d produces for the same events (labels unchanged; only the flags removed);
+  - 0 labelled frames without a measured mask; annotation == labels.
+- Archive the binaries with a re-hash.
+- Push ONLY the new branch `release/2026-10-05` (fast-forward / new ref). Do not touch any other branch, master, m51 or tags.
+
+Work folder E:\IA_BuildCache\_r917\. Target: done within ~1.5 h.
+
+## Final message / report.md
+1. VERDICT line.
+2. Owner summary, 2 lines: the exact branch and commit to pull; what changed.
+3. The diff (full, it's tiny), builds, the two-leg table, the push.
+4. NEEDS-DECISION, or "none". Last line: VERDICT.

@@ -1,0 +1,72 @@
+# 091-05 (Codex implementer via the Relay) — fix the independent review's findings F1, F2, F6 and part of F3 before Monday's merge. Read the ruling first: D:\IntrusiveAnomalies\_reviews\091-04-ruling.md, and the review itself: D:\IntrusiveAnomalies\_relay\runs\2026-10-04-091-04-independent-review\review.md (with its counterexamples.json, event_id_control.json and file:line evidence at d660b5d).
+
+Written by Claude Code Desktop (orchestrator/reviewer), 2026-10-04 ~03:50 IST. Delivery is Monday 5 Oct; aim to finish by ~11:00 IST Sunday. Keep the changes minimal and surgical: no redesigns.
+
+## Bases (all pushed)
+- `fix/m52-label-timing` `8badc23`
+- `feat/m53-uv-normal-corruption` `783a768`
+- `feat/m52-proxy-blur` `d660b5d` (the office pull)
+
+Implement where the code lives:
+- F1 (AnomalyCapture) and F6 (tools): on fix.
+- F2 and F3 (TexCorrupt): on m53.
+Then merge forward fix → m53 → proxy, as 091-02 and 091-03 did. Worktrees: E:\IA_BuildCache\_r53_src (m53) and E:\IA_BuildCache\_r52p_src (proxy); for fix, use a temporary worktree under E:\IA_BuildCache\_r915\ (and remove it by receipt afterwards). Build host E:\IA_BuildCache\_r53_host. Work and evidence: E:\IA_BuildCache\_r915\.
+
+## The work (per ruling 091-04)
+**F1. A minimal capture-ownership guard (colour SVE path and mask arms).**
+- Before any dequeue or service, reject view families whose scene/world is not the capture world's scene. Also reject families whose render target or viewport is not the capture's viewport, where that is cleanly identifiable in UE 5.1 (verify in engine source; don't guess).
+- Remove the fail-open: a family without a bound must not serve an arm.
+- A request whose owner render was skipped must end as `capture_unpaired` (unlabelled, dropped, counted). It must never be served by a later family from a stale snapshot.
+- Log and count rejections (`run_summary`, count only). No other behaviour change.
+- Pure tests both ways, including the review's predicate counterexample as a failing mutant.
+
+**F2. Always install the positively enumerated changed-component scope for UV/normal, as proxy already does.**
+- Keep it in step with successful slot installation and exact revert.
+
+**F3 (part). For the UV-family uniformity rule, alpha variation counts only when the slot's material actually uses alpha** (masked or translucent blend, or an opacity / opacity-mask input connected). Otherwise judge RGB only.
+- Tests both ways.
+- Readme §8.8 limitations, plain: variation only in a channel the material never samples (packed maps), or a normal map into a zero-strength normal input, can still give a labelled event with no visible change; a measured visible-change gate is the follow-up.
+
+**F6. `tools/annotation_transition_check.py` (and its verify_capture hook) cross-checks EVERY labels-side event identity, including transition-free events.**
+- Add the review's wrong-ID-without-transitions control as a failing test.
+
+**F4 / F5: no code.**
+- Readme wording: size/ratio refusals are "selection heuristics".
+- Document the copy-snapshot robustness limit.
+
+## Proof (predictions first; idle gate; NO foreign UnrealEditor may be open during any leg: this PC's 8 GB GPU cannot host two editors)
+**F1:**
+- PIE launched so that the level editor's own viewport keeps rendering in realtime while the game plays: PIE in a new editor window, plus a second realtime editor viewport rendering the editor world. Use automation or editor Python as earlier harnesses did.
+- Capture uv_corruption and shared stuck_low_mip (proxy), ≥ 3 fires each.
+- Show:
+  - non-owner families are rejected (counts > 0);
+  - every labelled frame's picture is the game view;
+  - E1 t50 edges 0 unflagged;
+  - 0 labelled frames without a measured mask.
+- Can-fail: the same setup on d660b5d (exe C7FB5212). If the old build cannot be made to mislabel in any setup you try, say so plainly with what you tried. The guard then stays as defence.
+
+**F2:**
+- New fixture: a static actor with C1 (eligible) and C2 (a static mesh whose material slot is null, rendering the engine default material, no override), side by side in view.
+- uv and normal ≥ 3 fires each, PIE and staged: mask, m26 and bbox cover C1 only; C2's pixels unchanged.
+- Can-fail: d660b5d masks C2.
+
+**F3:**
+- New fixture texture: RGB constant, alpha checker.
+- On an opaque material it is refused `texture_uniform` (0 events). On a masked material it is admitted and visibly changes.
+- Can-fail: d660b5d labels the opaque case with no visible change.
+
+**Short regression on the final proxy-branch build:** shared proxy TSR, PIE and staged; uv and normal TSR, PIE and staged; proxy AA-off PIE; each ≥ 3 fires.
+- E1 t50 0 unflagged, t10 inside the 40 window, annotation == labels (the strengthened F6 checker), 0 missing masks, co-users unchanged.
+- The office kit on one TSR PIE capture.
+
+## Gates and push
+- Builds 0/0 (editor and game) on all three, strict include 0/0, lever audit, string scan, archive with re-hash.
+- Push all three branches fast-forward ONLY after the proof passes.
+- Docs: CLAUDE.md status, gotchas, journal docs/sessions/2026-10-04-091-05-review-fixes.md, readme.
+
+## Final message / report.md structure
+1. VERDICT: GREEN | NEEDS-DECISION | RED (also the last line).
+2. Plain owner summary, 3 lines, with the exact branch and commit to pull.
+3. Per finding: what changed (file:line), tests both ways, the engine proof table, can-fail.
+4. The regression table; gates; commits pushed; archives.
+5. NEEDS-DECISION items, or "none".

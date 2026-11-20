@@ -1,0 +1,22 @@
+predictions-095-03b (written before any leg launched, 2026-11-13 ~13:30 IST; copied from the 095-01 brief Part 5)
+
+B1 (frame cap 600, native output height):
+  If the settle skip (C1) behaves as read, run_summary.ticks_per_captured_frame lands in 1.30-1.36,
+  and the written frame count is about three quarters of the engine ticks (capture_game_ticks).
+
+B2 (frame cap 300, output height non-zero, set by the per-run argument oh=540 - the same StartRun
+  parameter the dashboard Setup panel's outputHeight reaches):
+  If the mask-wait defect (C2) is reachable through the output-height setting, frames written fall
+  well short of frames requested, and the "did not resolve by run end" line appears.
+
+These are readings, not gates. A miss is reported, not investigated.
+
+Leg design (fixed before launch):
+  host D:\IntrusiveAnomalies\StackOBot on master ebc34ed after this brief's rebuild
+  UnrealEditor.exe StackOBot.uproject /Game/CaptureBenchGate/CB_GateLevel -game (standalone editor -game;
+    no packaged bench build exists - Builds\BenchGate is empty and this brief allows no cook)
+  -windowed -ResX=1280 -ResY=720, release defaults (no capture cvar changed), default auto pool, paced
+    (IAI.Capture.Pace default 1), no dashboard attached, no -IAIBench
+  B1: IAI.Capture.Start <abs dir> png 9503 600
+  B2: IAI.Capture.Start <abs dir> png 9503 300 oh=540
+  Process ended by PID once run_summary.json exists and the frame count is stable for 15 s.

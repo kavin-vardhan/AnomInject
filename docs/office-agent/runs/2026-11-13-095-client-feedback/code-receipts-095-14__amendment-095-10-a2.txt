@@ -1,0 +1,40 @@
+
+AMENDMENT 2 - 2026-11-14, brief 095-14 (ruling 095-13 D1 and D2). Written before any engine leg.
+SHA-256 of this file before the amendment:
+1EEEE432ED628F1BAE796350187BF20CEA5C3196C3D6502714A15F7A1F44303E (18,470 bytes).
+Everything above stands except where a line below replaces it. Built on feat/m57-lod-spatial-trigger 33978b9 (D1) and
+100e287 (D2 docs); the pure numbers come from lod_trigger_selftest TestBenchSimulation (169 checks), which now also
+simulates approach_retreat at IAI.Capture.Config 2 60 120 14 0 with the switch off and on.
+
+A2.0 Common recipe, replaced line
+- Defaults as built: as A1.0, except downPop 0 (IAI.Anomaly.LodDownPop / [AnomalyInjector] LodPoppingDownPop, compiled
+  default 0 since 095-14; experimental). The run-config line and run_summary lod_trigger_settings read
+  "... downPop=0(compiled)" on every leg that does not set it; a leg that sets it reads downPop=1(console) or (ini).
+
+A2.1 Clips, replaced lines
+C4 approach_retreat, =CB_LodFix_N2, IAI.Capture.Config 2 60 120 14 0, defaults (downPop 0): one fire at frame 59 (ahead
+   74, 817.2 cm); labelled 128..132, one up-pop at 133 (cause distance, direction up, on screen); no re-hold; no labelled
+   frame on the retreat (frames 145 onward carry no positive lod entry); lod_swaps has exactly one entry;
+   run_summary lod_swaps_by_cause.distance 1; lod_events_by_kind.spatial_swap 1; revert 248.
+C4-dp1 (optional variant, the same leg with IAI.Anomaly.LodDownPop 1): predicted IDENTICAL labels, swaps, frame lists and
+   lod_* counts to C4 (simulation: armed 59, first positive 128, 5 labelled, one swap at 133, 0 re-holds, 0 labelled after
+   the swap, with the switch on or off). On this path a re-hold needs a frame below 0.85 x the swap size (s < 0.291) while
+   the engine is still finer than the held LOD with coverage >= 7 %; the engine switch is at s 0.3, so that band is empty.
+   The two runs can therefore be told apart only by the settings echo (downPop=1(console) on the run-config line and in
+   run_summary lod_trigger_settings), not by any picture, label or swap. A run with downPop 1 that shows a second swap
+   (direction down), a lod_swaps_by_cause.distance of 2, or positive frames on the retreat contradicts this prediction and
+   is reported as read.
+
+A2.2 Gates, replaced or added lines
+L1  unchanged, with C4 read at its A2.1 prediction: one labelled run (128..132) ending at the up-pop; frames after the
+    swap judged as "no lod entry => whole frame equals the null" (tool L6), none labelled.
+L13 unchanged (offline only), and now also covered by the default: with downPop 0 no lod_v1 path can re-hold.
+L15 (new, D1 can-fail, offline) lod_trigger_selftest checks that FSettings defaults to bDownPop false; the mutant
+    downpop_default_on fails it. The runtime default reads downPop=0(compiled) on the first engine leg's run-config line.
+
+A2.3 Yield (reading, not gated) - ruling 095-13 D2 restated
+- A mesh whose LOD switch lies under the size at which it covers 7 % of the frame gives no distance_threshold event at
+  walking speed: it is refused lod_not_armable:at_finest_lod or :too_far_ahead (Auto.Yield line), and only view_entry
+  events or no lod event come from it. run_summary lod_swaps_by_cause (distance, view_entry) and the events'
+  anomaly_subtype give the per-trigger yield; run_summary has no per-trigger event count. The bench copies
+  (IAIBenchLodCopyN/D) are that case (C3c).

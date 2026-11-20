@@ -1,0 +1,79 @@
+095-09 - m59 forced-LOD refusals - predictions for the heavy gate brief (095-07). FROZEN 2026-11-14 before any leg.
+Written by Claude Code from source reading only (part1-claims-095-09.md). No leg has run.
+
+Exes
+- RELEASE: the delivered 2026-10-05 release exe from the archive (source release/2026-10-05 = d7eee97). Can-fail side.
+- M59: the integ/m56-m58 tip that carries the m59 merge (built in 095-07 with the rest). New side.
+- One cook serves both (code-only swaps, G103). Map set unchanged: CB_GateLevel, MainMenu, MainWorld, Entry
+  (CB_LodFixture as already cooked since 084-08b).
+
+Common recipe
+- Targeted capture (IAI.Capture.Start <dir> png <seed> 90 <anomaly> <actor>), delivery OFF (labels.jsonl needed),
+  VideoFps 30, IAI.Capture.Config default 2 4 8 4 0, native tick order unless stated.
+- Pixel judgement only at the AA-off arbiter recipe (r.AntiAliasingMethod 0 + Lumen/GI/reflections off, the banked
+  B19 recipe). On MainWorld and CB_LodFixture B1 is NOT APPLICABLE (G117), declared in advance.
+- Readers: verify_capture.py --label-rule and --label-pixel-gate on every leg; the m59 log lines read from the leg's
+  own run log; annotation.json event count.
+
+L59-1 lod_corruption on a single-LOD static mesh. CB_GateLevel, target StaticMeshActor_49 (engine Cube, 1 LOD).
+  RELEASE: log "lod_corruption: '<component>' forced LOD 1 of 1 [was 0]" every burst; Auto.FireSpecific applied;
+    annotation.json holds >= 3 events with non-empty frame lists; --label-pixel-gate reads NO-TRACE on every complete
+    event (exit 2): the forced LOD is the only LOD, so nothing changes in the target region.
+  M59: every burst logs "lod_corruption: REFUSED '<component>' (single_lod)" and "REFUSED ALL - 0 hierarchical-instanced,
+    1 single-LOD"; Auto.FireSpecific "not applied"; an "Auto.Yield lod_corruption ... single_lod <n>" line (at most one
+    per 10 s); annotation.json "anomalies": []; no lod_corruption entry in labels.jsonl; 90 frames written; exit 0.
+
+L59-2 lod_corruption on a foliage HISM. MainWorld, target InstancedFoliageActor_0_0_0 (SM_Bush, 2 LODs per 084-08,
+  non-Nanite per the 2026-08-20 T-1 read; foliage owner is excluded from auto-pool selection, so targeted only).
+  RELEASE: applied ("forced LOD 2 of 2" on each foliage component whose mesh has 2 LODs); events labelled on
+    on-screen frames. Pixel reading REPORTED, not pre-declared as decisive: no LOD change is predicted, but foliage
+    motion or the whole-frame box (H5 class ii) may keep the verifier from reading NO-TRACE.
+  M59: "REFUSED '<component>' (hism_ignores_forced_lod)" for every FoliageInstancedStaticMeshComponent; REFUSED ALL;
+    no event; Auto.Yield reason hism_ignores_forced_lod.
+
+L59-3 lod_popping on the same foliage HISM, targeted.
+  RELEASE: SM_Bush passes the single-LOD guard, the targeted fire bypasses the other gates, applied; popped frames
+    labelled (about 3 per burst at half-period 8); pixel reading as L59-2.
+  M59: "lod_popping: REFUSED '<component>' (hism_ignores_forced_lod)"; "REFUSED ALL [targeted ...] - <n>
+    hierarchical-instanced, ..."; no event; Auto.Yield reason hism_ignores_forced_lod.
+
+L59-4 regression control, plain multi-LOD static. CB_LodFixture, CB_LodFix_N (sphere LOD0 / cube LOD1, not Nanite).
+  M59, lod_popping targeted, AA off, both tick orders: applied, no REFUSED line; onsets and offsets +0/+0 at t50 as in
+    089-03 (23/23); RELEASE reads the same.
+  M59, lod_corruption targeted: applied ("forced LOD 2 of 2"); the target turns from orange to blue on the first
+    labelled frame; --label-pixel-gate not NO-TRACE.
+
+L59-5 OPTIONAL, needs fixture work not built in 095-09: an HISM and a plain ISM carrying CB_LodFix_N's mesh, three
+  instances each, in front of the bench camera. Cheapest: an option in the fixture script, riding on 095-07's cook
+  (same route as ruling G2's second mesh pair); otherwise a new AnomalyBench spawn lever (code, lever audit).
+  RELEASE lod_popping on the HISM: popped frames labelled, the instances stay orange: NO-TRACE (decisive can-fail).
+  RELEASE and M59 lod_popping on the ISM: every instance flips to blue on the labelled frames: CONSISTENT.
+  M59 on the HISM: refused hism_ignores_forced_lod, no event. Auto-pool variant (pool = lod_popping only,
+  IAI.Anomaly.LodMaxDistance 50000): RELEASE fires on the HISM; M59 logs the refusal and Auto.Yield names it.
+
+L59-6 ONLY IF chat picks skeletal option (a): a multi-LOD skeletal target (none known on the bench; SKM_Bot is
+  single-LOD). Predictions from source: lod_popping native order, every pop and unpop edge: label leads pixels by 1
+  frame; SynthTickOrder: 0; revert while popped: 1 unlabelled frame still popped, both orders. lod_corruption, both
+  orders: the BeginFire-tick frame labelled with the old LOD on screen, the BeginRevert-tick frame unlabelled with the
+  forced LOD on screen.
+
+AMENDMENT 1 - 095-09b, 2026-11-14T09:36:44.0818465+05:30, written before any leg ran (chat ruling 095-08 addendum H2). Lines above unchanged.
+L59-7 lod_corruption on a skeletal target, targeted, switch at its default (IAI.Anomaly.LodAllowSkeletal unset, ini
+  key absent). Bench target: the player Bot in MainWorld, actor BP_Bot_C_0 (use the name IAI.ListActors prints for the
+  BP_Bot_C actor). It carries CharacterMesh0 (skinned, SKM_Bot, single-LOD, G20), Jetpack (skinned, SKM_Backpack, LOD
+  count not established) and StaticMeshComponent_0 (static; BP_Bot references no static mesh asset, so by an offline
+  read of the asset it has no mesh and counts as one LOD - inferred, not observed).
+  M59b, switch 0: banner "lodSkeletal=refused(compiled)"; per component "REFUSED 'CharacterMesh0'
+    (skeletal_unmeasured)", "REFUSED 'Jetpack' (skeletal_unmeasured)", "REFUSED 'StaticMeshComponent_0' (single_lod)";
+    "REFUSED ALL - 0 hierarchical-instanced, 1 single-LOD, 2 skeletal"; no fire, no event in annotation.json;
+    Auto.Yield reason skeletal_unmeasured. If StaticMeshComponent_0 turns out to hold a multi-LOD non-Nanite mesh, it
+    is applied and an event IS written on it alone; that refutes the inference above, not the skeletal refusal, which
+    the two skeletal REFUSED lines still show.
+  M59b, switch 1 (IAI.Anomaly.LodAllowSkeletal 1 before the capture): banner "lodSkeletal=allowed(console)";
+    CharacterMesh0 refused single_lod (the 095-09 behaviour); Jetpack refused single_lod if SKM_Backpack is single-LOD
+    (then no event, Auto.Yield single_lod), otherwise applied with the "skeletal mesh, allowed ... UNMEASURED" warning
+    and an event written.
+  What the leg can prove: the default refusal and the switch both reach the run (reason names flip from
+  skeletal_unmeasured to single_lod), and the switch-on run reads SKM_Backpack's LOD count. What it cannot prove: the
+  one-frame lag, or its absence. That needs a multi-LOD skeletal fixture (the real-fix unit). The same holds for
+  lod_popping on this target (same reasons, "REFUSED ALL [targeted ...]").

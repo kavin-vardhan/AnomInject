@@ -1,0 +1,64 @@
+{
+ "case": "unexpected_after_claim",
+ "at": "2026-10-26T07:05:00.334349",
+ "exit": 2,
+ "escaped": null,
+ "seconds": 1.4,
+ "console": [
+  "Europa owner preview: checking authorization.",
+  "Attempt 1 of 3: checking protected files, binaries and routing. This can take several minutes.",
+  "Stopped: unexpected error; details saved to D:\\IA_Europa\\Receipts\\CodeReview09417\\main-cases\\unexpected_after_claim\\attempt-01\\unexpected-error-55a4ac7a9d18453bba180ad7ab005671.txt. No editor was started."
+ ],
+ "stderr": "",
+ "details_files": [
+  "D:\\IA_Europa\\Receipts\\CodeReview09417\\main-cases\\unexpected_after_claim\\attempt-01\\unexpected-error-55a4ac7a9d18453bba180ad7ab005671.txt"
+ ],
+ "details_last_line": [
+  "KeyError: 'synthetic unexpected error carrying <redacted>'"
+ ],
+ "details_contain_traceback": [
+  true
+ ],
+ "secret_redacted": [
+  true
+ ],
+ "console_contains_secret": false,
+ "slots": [
+  {
+   "n": 1,
+   "exists": true,
+   "files": [
+    "attempt-result.json",
+    "claim.json",
+    "job-config.json",
+    "owner-leg-dry-run",
+    "unexpected-error-55a4ac7a9d18453bba180ad7ab005671.txt"
+   ]
+  },
+  {
+   "n": 2,
+   "exists": false,
+   "files": null
+  },
+  {
+   "n": 3,
+   "exists": false,
+   "files": null
+  }
+ ],
+ "state_files": [
+  "active.lock"
+ ],
+ "pre": {},
+ "real_09417_paths_exist": {
+  "D:\\IA_Europa\\Receipts\\09417\\owner-attempts": false,
+  "D:\\IA_Europa\\Temp\\09417\\owner-attempts": false,
+  "D:\\IA_Europa\\Receipts\\09417\\owner-state": false,
+  "D:\\IA_Europa\\Receipts\\09417\\refused-attempts": false
+ },
+ "real_09416_paths_exist": {
+  "D:\\IA_Europa\\Receipts\\09416\\owner-attempts": false,
+  "D:\\IA_Europa\\Temp\\09416\\owner-attempts": false,
+  "D:\\IA_Europa\\Receipts\\09416\\owner-state": false
+ }
+}

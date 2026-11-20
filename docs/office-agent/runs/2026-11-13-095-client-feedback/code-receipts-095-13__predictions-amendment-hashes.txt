@@ -1,0 +1,9 @@
+095-13 predictions AMENDMENT 1 (appended 2026-11-14, before any engine leg)
+
+code-receipts-095-10\predictions-095-10.txt (LF, no BOM)
+  before  SHA-256 269FECF8D5400C868BA6DB300D7F7894890F28E51C363515A460DD6101CC7A0B   8,739 bytes
+  after   SHA-256 1EEEE432ED628F1BAE796350187BF20CEA5C3196C3D6502714A15F7A1F44303E  18,470 bytes
+  The first 8,739 bytes are unchanged; the amendment text is code-receipts-095-13\amendment-095-13.txt.
+
+CaptureBench m57-gates tools\m57_gate_predictions.md (the same text; the working copy is CRLF, so its hash differs)
+  after (working copy, CRLF) SHA-256 31FCAA64E12FEAFFEFEEB407AE38C4ED57CD5F8CBD159E64C20E5C474F4CA5E6  18,668 bytes
