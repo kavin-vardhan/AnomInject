@@ -23,7 +23,7 @@ If you need the home original of a file, ask in a report; the home agent maps it
 | a real game title, studio or engine-fork name | the host's codename (Concorde, Bates), or a neutral sentence where no codename exists (the packaged executable's name) | 12 files, ruling 096-01 D2a |
 | a home folder name that carried such a term (`_reviews\<term>-2026-10-01-diagnosis\`) | the same path with the codename (`_reviews\bates-2026-10-01-diagnosis\`); the folder on the home PC has a different name | 6 files, D2a |
 | a file name that carried such a term | `chat-rulings/bates-mip-2026-10-02-triage.md` | 1 file, D2a |
-| the client's own wording, quoted | our own plain paraphrase, marked `[client wording paraphrased]` | `chat-rulings/095-00-ruling.md` section 0 and its input list, D2b; one quoted sentence in brief `095-08` (`briefs/processed/`), found by the 096-01b rescan |
+| the client's own wording, quoted | our own plain paraphrase, marked `[client wording paraphrased]` | `chat-rulings/095-00-ruling.md` section 0 and its input list, D2b; one quoted sentence in brief `095-08` (`briefs/processed/`), found by the 096-01b rescan; a six-word fragment in brief `095-10`, 096-01c |
 | names of the owner's other home projects, and of their tools and jobs | `<other-home-project>` (`<other-home-project> job`, `<other-home-project> tool`) | throughout the pack, D4 |
 | a memory file name that carried such a project name | `home-agent-memory/plugin-project/foreign-editors-block-bench.md` | 1 file, D4 |
 | another name an older document used for an office host | the host's codename (Concorde or Bates) | throughout the pack, 096-01c; four file names changed with it |

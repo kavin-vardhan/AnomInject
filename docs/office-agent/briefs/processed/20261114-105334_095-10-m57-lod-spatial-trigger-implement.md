@@ -7,7 +7,7 @@
 
 You are Claude Code, running **headless** from the GDP mailbox in a **fresh session**. Nobody answers questions during the run. **Your final message is the only thing anyone reads**; it goes to chat Claude (the orchestrator).
 
-**What this is:** the client's annotation review said a LOD pop must correspond to a distance threshold or to turning toward a newly visible area, not to a timer. An earlier session of yours wrote the plan; chat accepted it with one change. You implement it now.
+**What this is:** the client's annotation review said, in our words [client wording paraphrased], that a LOD pop should be caused by the camera crossing a set distance or by the player turning to face a part of the scene that was out of view before, and not by a timer. An earlier session of yours wrote the plan; chat accepted it with one change. You implement it now.
 
 **The machine is shared** and the owner's work comes first. This brief is **light**: code, throttled Editor compiles, pure selftests, Python tests. **No Game build, no editor or game launch, no capture leg, no cook, no content authoring.**
 
