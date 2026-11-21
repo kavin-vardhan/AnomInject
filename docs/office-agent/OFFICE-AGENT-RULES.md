@@ -71,6 +71,10 @@ with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the 
    control server; no upload; no paste to any web service; no e-mail; no sync to a shared drive — for
    plugin code, host code, notes and data alike. Everything you make stays on this PC. Pulling the
    plugin repo (both worktrees) is the only network use of version control.
+   - **Downloading is not pushing** (ruling 096-02, 2026-11-22). Where the office PC allows installing
+     software, you may download and install what a brief needs, such as Python packages (Pillow) and
+     ffmpeg. This rule forbids sending, not receiving. The readers' requirements are named once, in
+     `office-tools/README.md`; say in the report what you installed and its version.
 
 6. **Nothing leaves this PC except what the owner photographs.** Write every report so that it is safe
    to photograph:

@@ -5,6 +5,9 @@ and m57 bench gates and copied here (from the bench repository, branch `m57-gate
 them at the office. Each runs from this folder with no home paths and needs no other file from this folder.
 
 ## What you need
+This list is the one place the readers' requirements are named. Rule 5 allows downloading and installing them where
+the office PC allows installing software (it forbids sending, not receiving); say in the report what you installed and
+its version.
 - **Python 3.7 or newer** (tested at home with Python 3.13.1). The four checks marked "standard library" need nothing
   else.
 - **Pillow** for `m57_null_pair.py` and `m57_make_clip.py` (tested with Pillow 12.2.0): `python -m pip install Pillow`.
