@@ -16,3 +16,10 @@ tells the agent which brief to do.
   not do it, and say so on a card.
 - Your longer notes, the host change log and anything that may not leave the office go into the office
   journal folder, never into this folder.
+
+## The briefs, in order
+
+| Brief | What it asks | Runs |
+| --- | --- | --- |
+| `O-001-first-groundwork.md` | Groundwork on the delivered release build: what the ground is made of, how much scenery can pop a LOD, the texture-corruption stall, the reviewed session. | First. Its release-build readings are the baseline O-002 compares against. |
+| `O-002-first-engine-test.md` | First engine test of m56, m57, m58 and m59 on the real hosts, at the pushed commit `d8d3a7e`. Uses the readers in `../office-tools/`. | After O-001. |
