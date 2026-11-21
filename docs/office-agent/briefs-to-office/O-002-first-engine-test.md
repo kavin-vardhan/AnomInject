@@ -101,8 +101,10 @@ level with plenty of scenery, on **both** this build and the release build, same
 - Encode the turn-in with `IAI.Anomaly.LodEntryFrames` at 15, 30 and 60 (set it before each capture), using
   `m57_make_clip.py` without `--null` (a played path has no clean twin, so the capture is encoded alone):
   `python m57_make_clip.py --verify <plugin checkout>\tools\verify_capture.py --anomaly <session> --out <folder> --name <name>`,
-  with `<folder>` beside the sessions in the same captures folder, never in the context worktree or a plugin folder
-  (rule 10). **The owner watches them at the office.** Put his verdict on the card in his words: does the pop look like
+  with `<folder>` in the office captures area beside the sessions: never inside a session folder, and never in a repo
+  or worktree (the context worktree, a plugin checkout), a synced folder, a network share or removable media
+  (rule 10). The clip tool's `<name>_overlay\` and `<name>_frames\` are working frame copies: delete them once the
+  owner has watched the clips; the clips may stay. **The owner watches them at the office.** Put his verdict on the card in his words: does the pop look like
   the client's reference clip, and which length looks most like a real game?
 - How many objects in view could pop at all, and how many did? (The run log names every mesh tried:
   `lod_popping: ARMED '<mesh>' ...` or `lod_popping: NOT ARMABLE '<mesh>' (<reason>) ...`.)

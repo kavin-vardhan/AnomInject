@@ -19,6 +19,13 @@ Take every session these checks read with **delivery mode off**: type `IAI.Captu
 then `m56_continuity_check.py` cannot judge settle placement, `m56_settle_content_check.py` cannot run and
 `m57_lod_readout.py` cannot run.
 
+## Where the tools write (rule 10)
+Everything these tools write about an office session (a `--json` reading, the clip tool's working frame copies, a
+clip) goes in the office captures area on this PC: the captures folder that holds the session folders, beside the
+sessions and never inside a session folder. Delete the working frame copies once the owner has watched the clips; the
+clips may stay. Never write any of it into a repo or a worktree (the context worktree, a plugin checkout), a synced
+folder, a network share or removable media.
+
 ## First, prove each check can fail
 Run each one with `--selftest` from this folder. It builds small fake sessions in a temporary folder, deletes them
 afterwards, and must end with `OK`:
@@ -101,7 +108,9 @@ m56 checks) writes the full reading to a file you name.
   is inside a session folder, a session has no frames or gaps in its frame numbers, the two sessions' frames differ,
   or `--verify` does not name a file. Prints `M57-CLIP WROTE <path> (<n> frames ...)` (exit 0). `--dry-run` prints
   the steps only.
-- `python m57_make_clip.py --verify <plugin checkout>\tools\verify_capture.py --anomaly <session> --out <folder outside the session> --name <name> [--null <twin session>] [--ffmpeg <path>]`
+- `--out` is a folder in the office captures area, beside the session folders (rule 10). `<name>_overlay\` and
+  `<name>_frames\` are working frame copies: delete them once the owner has watched the clip. `<name>.mp4` may stay.
+- `python m57_make_clip.py --verify <plugin checkout>\tools\verify_capture.py --anomaly <session> --out <folder in the captures area, beside the sessions> --name <name> [--null <twin session>] [--ffmpeg <path>]`
 
 ## The plugin's own readers, from the plugin checkout
 - `python <plugin checkout>\tools\verify_capture.py --dir <session> --label-rule` - are the labels consistent with

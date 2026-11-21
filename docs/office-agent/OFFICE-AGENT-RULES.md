@@ -93,7 +93,14 @@ with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the 
    rule a route out on an explanation you have not verified.
 
 10. **Never copy an office capture session, frame, log or client file anywhere outside its place on
-    this PC.**
+    this PC.** This rule is about where office data lives, not about processing it (ruling 096-02,
+    2026-11-22):
+    - The readers and the clip tool may write working copies of frames, readings and clips inside the
+      office captures area on this PC: the captures folder that holds the session folders, beside the
+      sessions and never inside a session folder.
+    - Delete the working frame copies once the owner has watched the clips. The clips may stay.
+    - Never write office data into a repo or a worktree (the context worktree, any plugin checkout), a
+      synced folder (OneDrive, Dropbox), a network share or removable media.
 
 ---
 
