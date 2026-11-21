@@ -4,6 +4,8 @@
 
 **Why:** three changes are written at home and not yet proven anywhere: every captured frame is kept (m56), LOD pops get a spatial cause (m57), terrain blinks get their own subtype (m58). Four facts about the real hosts decide how we finish them. Answer for **every host you can run**, one set of cards per host. The plugin on the hosts is the delivered release; none of the new units is in it, and you do not need them for this brief. Scratch scripts are fine.
 
+**Setup:** capture with delivery mode off: type `IAI.Capture.Delivery 0` in the game console before each `IAI.Capture.Start` (ruling 096-02 R3). The readers of O-002 need each session's `run.json` and run log (`anomaly_log.txt`), which delivery mode does not write; this makes O-001's sessions comparable with O-002's. Delivery mode does not change the labels.
+
 **Q1. What is the ground made of?** In two or three typical playable levels:
 - (a) Is the ground the player stands on the engine's landscape system, ordinary static meshes, or both? Rough share of each.
 - (b) For mesh ground: is there a naming or class pattern that picks out the ground pieces? **Do not report the pattern.** Report how many tokens it needs, how many ground pieces it matches out of how many, and how many non-ground objects it wrongly matches.
@@ -17,7 +19,7 @@
 - (e) how you counted: editor script, runtime walk, or reading assets.
 
 **Q3. Does the game stall when a corrupted texture appears?** The client saw a frame jump only after the two texture-corruption anomalies (the one that turns a surface pink and the one that turns it checkered), never after other anomalies. Their games advance on the wall clock, so one long frame shows as a jump even when no frame is dropped.
-- (a) With the delivered build, run one capture per anomaly with at least ten events of it, and one with a blink as the control, same level, same path, default settings.
+- (a) With the delivered build, run one capture per anomaly with at least ten events of it, and one with a blink as the control, same level, same path, default settings (delivery mode off, as in Setup).
 - (b) From `labels.jsonl`: the wall-time length of the frame where each event starts, of the two frames after it, and of the frame where it ends, against the run's median frame. First event of the process against later ones.
 - (c) `MEASURED:` does applying either texture corruption stall the frame? By how many milliseconds? Only the first time, or every time? Does the blink do the same?
 - (d) `INFERRED:` from our plugin's code, what causes it (our `file:line`).
