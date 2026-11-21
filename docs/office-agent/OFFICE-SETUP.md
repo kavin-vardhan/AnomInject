@@ -18,10 +18,14 @@ quotes. Nothing here changes the plugin your host games use, and nothing here se
    `git -C "<PLUGIN>" status`
    Write down the first line (for example `On branch master`).
 
-2. **Fetch from home:**
+2. **Sign in to GitHub on this PC (once).** Once the repository is private, this PC needs a GitHub
+   sign-in, or a read-only deploy key, before `fetch` works. If the fetch in the next step asks you to
+   log in, that is why.
+
+3. **Fetch from home:**
    `git -C "<PLUGIN>" fetch origin`
 
-3. **Make the context folder** (a second, separate checkout that holds the agent's instructions):
+4. **Make the context folder** (a second, separate checkout that holds the agent's instructions):
    `git -C "<PLUGIN>" worktree add --track -b docs/office-pack "<BASE>\anomaly-office-pack" origin/docs/office-pack`
    - If it says a branch named `docs/office-pack` already exists, run instead:
      `git -C "<PLUGIN>" worktree add "<BASE>\anomaly-office-pack" docs/office-pack`
@@ -29,17 +33,17 @@ quotes. Nothing here changes the plugin your host games use, and nothing here se
      `nothing to commit`.
    - Check: `git -C "<PLUGIN>" status` shows the same first line you wrote down in step 1.
 
-4. **Create the marker file** that tells the agent it is on the office PC. In PowerShell:
+5. **Create the marker file** that tells the agent it is on the office PC. In PowerShell:
    `New-Item -ItemType File "<BASE>\OFFICE_HOST"`
    (In Command Prompt: `type nul > "<BASE>\OFFICE_HOST"`.) The file is empty and has no extension. Do not
    make it with Notepad, which adds `.txt`.
 
-5. **Create the office journal folder** (the agent's own notes and the host change log; they never
+6. **Create the office journal folder** (the agent's own notes and the host change log; they never
    leave the office):
    `mkdir "<BASE>\office-journal"`
    You now have, side by side in `<BASE>`: `anomaly-office-pack`, `OFFICE_HOST`, `office-journal`.
 
-6. **Start the agent in the context folder:**
+7. **Start the agent in the context folder:**
    `cd "<BASE>\anomaly-office-pack"` then `claude`
    Paste this as the first message, exactly:
 
