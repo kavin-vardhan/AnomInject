@@ -304,7 +304,7 @@ Files: 320. Newest first. Date = last-modified date of the source file on the ho
 | 2026-09-03 | 903-121944 | [processed/20260903-121944_069-14R-resume-m44-after-host-crash.md](processed/20260903-121944_069-14R-resume-m44-after-host-crash.md) | EFFORT: medium |
 | 2026-09-03 | 903-114432 | [processed/20260903-114432_CRASHED_069-14-m44-approved-implement-and-gate.md](processed/20260903-114432_CRASHED_069-14-m44-approved-implement-and-gate.md) | EFFORT: medium |
 | 2026-09-03 | 903-112546 | [processed/20260903-112546_069-13-bates-mask-onset-defects-read-and-plan.md](processed/20260903-112546_069-13-bates-mask-onset-defects-read-and-plan.md) | EFFORT: xhigh |
-| 2026-09-03 | 903-104003 | [processed/20260903-104003_069-12-retire-deimos-codename.md](processed/20260903-104003_069-12-retire-deimos-codename.md) | EFFORT: medium |
+| 2026-09-03 | 903-104003 | [processed/20260903-104003_069-12-retire-duplicate-codename.md](processed/20260903-104003_069-12-retire-duplicate-codename.md) | EFFORT: medium |
 | 2026-09-03 | 903-102452 | [processed/20260903-102452_069-11-fix-loganomaly-export-editor-build-gate.md](processed/20260903-102452_069-11-fix-loganomaly-export-editor-build-gate.md) | EFFORT: medium |
 | 2026-09-03 | 903-030805 | [processed/20260903-030805_069-10-m43-gate-d-ruling-and-close.md](processed/20260903-030805_069-10-m43-gate-d-ruling-and-close.md) | EFFORT: medium |
 | 2026-09-03 | 903-024534 | [processed/20260903-024534_069-09-m43-liveness-from-fires-and-unavailable.md](processed/20260903-024534_069-09-m43-liveness-from-fires-and-unavailable.md) | EFFORT: xhigh |

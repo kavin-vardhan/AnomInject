@@ -33,12 +33,12 @@ Date: 2026-10-06 ~02:05 IST. Author: Claude Code Desktop (orchestrator).
 0. **Measure before building the UV/normal producer.**
    - The office readings already ruled: the 092-01 refusal counts and the 092-03c census counts.
    - New VT diagnostics: stack-size histogram, components blocked only by `stack_layout`, and the cooked VT normal-format mix by component.
-   - These decide whether the BC5 normal route and the producer family are worth 5–10 weeks on Deimos.
+   - These decide whether the BC5 normal route and the producer family are worth 5–10 weeks on Bates.
 1. **Multi-layer stack support for blurry `proxy_vt`.** This lifts the main limit of the proof we just accepted.
 2. **The BC5 normal producer proof** (identity, then green_flip, then invert, with a mixed-producer stack), only after the owner's go-ahead on the new subtypes and the office numbers.
 3. **Tile, then scramble,** on the same producer.
 4. **Proof C** (unnamed bindings) separately, if the counts justify it.
 
-Items 0 (diagnostics only) and 1 continue Proof A inside the owner's standing instruction to fix the Deimos problem. They add no new subtype and change no shipped behaviour, so I am briefing them as 092-05 tonight on a new branch. Items 2–4 wait for the owner.
+Items 0 (diagnostics only) and 1 continue Proof A inside the owner's standing instruction to fix the Bates problem. They add no new subtype and change no shipped behaviour, so I am briefing them as 092-05 tonight on a new branch. Items 2–4 wait for the owner.
 
 Chat review status: per AGENTS.md this is Codex's convention. Chat review NOT REQUIRED for this read-only report or for 092-05 (a bounded branch proof that extends an accepted route; nothing merged). REQUIRED (owner or chat) before any UV/normal VT implementation (new subtypes) and before any merge into a delivery line.

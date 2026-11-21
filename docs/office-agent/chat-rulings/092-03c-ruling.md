@@ -41,13 +41,13 @@ Date: 2026-10-06 ~01:15 IST. Author: Claude Code Desktop (orchestrator).
 The first `RunUAT.bat` cook ran BuildUAT. That wrote one generated `AutomationTool.csproj.AssemblyReference.cache` and five empty `BuildWithSkipAnalyzers` markers under `D:\UESource\UnrealEngine`. These are generated build intermediates, not engine source or binaries (`AutomationTool.dll` hash unchanged). There was no "before" backup, so leaving them is right. Later cooks used `-nocompile`. No action.
 
 ## Scope limits (carry forward; not defects of this proof)
-1. **Single-layer VT stacks only.** A material whose VT samples merge into one multi-layer stack (for example base colour + normal + ORM on the same UVs, which is common) refuses as `virtual_texture:stack_layout`. This is likely the main yield limit on Deimos. It is folded into 092-04, question 5.
+1. **Single-layer VT stacks only.** A material whose VT samples merge into one multi-layer stack (for example base colour + normal + ORM on the same UVs, which is common) refuses as `virtual_texture:stack_layout`. This is likely the main yield limit on Bates. It is folded into 092-04, question 5.
 2. **Unnamed VT samples refuse** (`texture_not_parameter`), as before. Proof C territory.
 3. **The coarsest blur is one 128 px tile.** Under the unchanged 8× Auto rule, the target needs about 1,024 px or more on screen. All six measured Auto picks were 1280/128 = 10× with obvious blur. This is the owner item flagged in the 092-03b ruling; no threshold was changed or proposed.
 4. **`Initialize` and release each wait on a render fence** on the game thread: a small per-event stall. Watch it in the first office capture's frame timing; no action now.
 
 ## Owner items
-- **Office reading on Deimos with this branch** (numbers only): `IAI.TexCorrupt.Census all`, giving the blurry route counts `proxy_vt_eligible` / `auto_proxy_vt` and the `virtual_texture:stack_layout` and `prefetch_incomplete` refusal counts. These numbers size the real gain before any delivery decision.
+- **Office reading on Bates with this branch** (numbers only): `IAI.TexCorrupt.Census all`, giving the blurry route counts `proxy_vt_eligible` / `auto_proxy_vt` and the `virtual_texture:stack_layout` and `prefetch_incomplete` refusal counts. These numbers size the real gain before any delivery decision.
 - The 128 px / 8× yield question (above).
 - Whether and when to ship it as a follow-up drop. That needs a merge plan onto a delivery line, an extended smoke test and office validation; nothing is merged now.
 

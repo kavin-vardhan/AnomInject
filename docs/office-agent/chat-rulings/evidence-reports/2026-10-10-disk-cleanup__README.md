@@ -1,6 +1,6 @@
 # Disk cleanup after M3 shipped (2026-10-10)
 
-Done at the owner's request ("go ahead, delete the safe list and Deimos too") by a Claude Code Desktop session. M3 shipped as `release/2026-10-05` @ `d7eee97` (exe `218BA4C7`). The owner says Deimos M3 will not ship.
+Done at the owner's request (the owner: delete the safe list and the Bates VT work too) by a Claude Code Desktop session. M3 shipped as `release/2026-10-05` @ `d7eee97` (exe `218BA4C7`). The owner says Bates M3 will not ship.
 
 ## Deleted permanently (not to the Recycle Bin)
 
@@ -16,7 +16,7 @@ Done at the owner's request ("go ahead, delete the safe list and Deimos too") by
 | `E:\IA_BuildCache\_r915` | job 091-05 (review fixes, not shipped; code on `fix/m52-label-timing` `1eaf205`) |
 | `E:\IA_BuildCache\_r916` | job 091-06 (stopped); its uncommitted work is saved here |
 | `E:\IA_BuildCache\_dash` | Dashboard v2 test labs |
-| `E:\IA_BuildCache\_r921` | **Deimos** VT jobs 092-03, 092-03b, 092-03c and 092-05 (code on origin `feat/vt-proxy-blur` `af79520`, `feat/vt-blur-stacks` `5dc8717`) |
+| `E:\IA_BuildCache\_r921` | **Bates** VT jobs 092-03, 092-03b, 092-03c and 092-05 (code on origin `feat/vt-proxy-blur` `af79520`, `feat/vt-blur-stacks` `5dc8717`) |
 
 Their rulings, reports, run folders (`_relay\runs\...`) and all `_binary_baselines` are KEPT. Any path in older notes that points into the folders above no longer exists; read the matching `_reviews\*-ruling.md` and report instead.
 

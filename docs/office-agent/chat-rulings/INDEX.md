@@ -423,8 +423,8 @@ Files: 744. Newest first. Date = last-modified date of the source file on the ho
 | 2026-10-05 | 092-03b | [092-03b-ruling.md](092-03b-ruling.md) | 092-03b ruling: Proof A stopped on a Drop 0 onset transient |
 | 2026-10-05 | 092-02 | [092-02-ruling.md](092-02-ruling.md) | 092-02 ruling: Codex port study, AnomalyInjector to Europa (UE 4.25 fork) |
 | 2026-10-05 | 092-02 | [092-02-codex-europa-port-study.md](092-02-codex-europa-port-study.md) | 092-02 — AnomalyInjector portability to Europa’s fork |
-| 2026-10-05 | 092-01 | [092-01-ruling.md](092-01-ruling.md) | 092-01 ruling: Codex research on virtual textures on Deimos (first office host) |
-| 2026-10-05 | 092-01 | [092-01-codex-deimos-vt-research.md](092-01-codex-deimos-vt-research.md) | 092-01 — Independent read-only review: virtual textures on Deimos |
+| 2026-10-05 | 092-01 | [092-01-ruling.md](092-01-ruling.md) | 092-01 ruling: Codex research on virtual textures on Bates (first office host) |
+| 2026-10-05 | 092-01 | [092-01-codex-bates-vt-research.md](092-01-codex-bates-vt-research.md) | 092-01 — Independent read-only review: virtual textures on Bates |
 | 2026-10-04 | 091-07 | [091-07-ruling.md](091-07-ruling.md) | 091-07 — Ruling (ACCEPTED): the Monday release is `release/2026-10-05` `23098fa` |
 | 2026-10-04 | 091-05 | [091-05-ruling.md](091-05-ruling.md) | 091-05 — Ruling (ACCEPTED): the independent review's F1, F2 and F6 are fixed and F3 is part-fixed, all proven in-engine with can-f... |
 | 2026-10-04 | 091-04 | [091-04-ruling.md](091-04-ruling.md) | 091-04 — Ruling on Codex's independent review (Job E): F1, F2 and F6 are fixed before merge; F3 is part-fixed now, with a residual... |

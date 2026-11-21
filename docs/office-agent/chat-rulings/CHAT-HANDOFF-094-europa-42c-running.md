@@ -2,7 +2,7 @@
 
 **Written:** 2026-11-03, about 17:10 IST, by chat Claude (orchestrator).
 **Supersedes:** `CHAT-HANDOFF-094-europa-A6-done-A7-running.md`.
-**Codenames only:** Europa, Europa's fork, Concorde, Bates, Deimos. Never write a real title.
+**Codenames only:** Europa, Europa's fork, Concorde, Bates. Never write a real title.
 
 > 🔴 **Don't save this file into the plugin's `docs\` folder while a mailbox job runs.** The watcher runs Code inside the protected `m51` checkout, and a new untracked file there trips the P9 check. Keep it in the project and in `_reviews\`.
 

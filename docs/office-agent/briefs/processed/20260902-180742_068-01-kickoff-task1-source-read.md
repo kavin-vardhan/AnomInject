@@ -5,7 +5,7 @@ NEW SESSION KICKOFF — session 068. Bootstrap cold, then TASK 1 only.
 
 HOW THIS SESSION IS DRIVEN (new): you are running headless. Briefs arrive as files; your FINAL MESSAGE is the report chat Claude reads — nobody sees anything else. So: put everything that matters in the final message, in the structure requested at the end of this brief. There is no one to answer questions mid-task; if a verification fails or you hit a genuine fork, do NOT guess — stop, and make the final message a REPORT of what you found and what decision is needed. Never wait for input.
 
-CONFIDENTIALITY (unchanged, absolute): office hosts are Concorde / Bates / Deimos by codename ONLY. Never a real title, studio, product, packaged-exe or fork name anywhere — code, docs, journal, commit messages, replies. AnomalyCapture.Build.cs is the single unalterable exception. Never paste raw scrub-verifier output; quote only SELFTEST ok / VERDICT lines (G202).
+CONFIDENTIALITY (unchanged, absolute): office hosts are Concorde / Bates by codename ONLY. Never a real title, studio, product, packaged-exe or fork name anywhere — code, docs, journal, commit messages, replies. AnomalyCapture.Build.cs is the single unalterable exception. Never paste raw scrub-verifier output; quote only SELFTEST ok / VERDICT lines (G202).
 
 STEP 0 — BOOTSTRAP (read, in this order, before touching anything):
   1. CLAUDE.md (status block + stop block + milestone map).

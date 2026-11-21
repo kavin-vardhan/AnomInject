@@ -8,7 +8,7 @@ live feed: D:\IntrusiveAnomalies\_mailbox\to_chat\084-11-m52-yield-plan.live.txt
 ---- FINAL MESSAGE (Claude Code) ----
 VERDICT: NEEDS-DECISION
 
-**Plain summary for the owner.** `stuck_low_mip` fires nothing on the office host (Deimos) because a texture is held only if exactly one object in the whole loaded level uses it. When the picked object fails that test, the whole burst is wasted. Option A lets a small group of objects that share a texture (up to 8) blur together, each with its own mask and label, and adds a picker filter so bursts aren't wasted. On our own level it barely changes the count. Your office log's refusal counts will tell us whether it helps there.
+**Plain summary for the owner.** `stuck_low_mip` fires nothing on the office host (Bates) because a texture is held only if exactly one object in the whole loaded level uses it. When the picked object fails that test, the whole burst is wasted. Option A lets a small group of objects that share a texture (up to 8) blur together, each with its own mask and label, and adds a picker filter so bursts aren't wasted. On our own level it barely changes the count. Your office log's refusal counts will tell us whether it helps there.
 
 **1. Sharing and yield today, under A (K = 4/8/16) and under B**
 
@@ -93,5 +93,5 @@ Targets that pass (A = admit shared textures up to K users and refuse any textur
 4. **Accept the picker filter as part of A.**
 5. **The ratio wall (≥ 512 px on screen) is reported, not tuned.** If the office's `too small for the ratio` count dominates, neither A nor B helps.
 
-Note: the project's `CLAUDE.md` codename rule lists "Deimos" as retired (G222). I used it as the brief gives it.
+Note: the project's `CLAUDE.md` codename rule lists the host name in the brief as retired (G222). I used it as the brief gives it.
 api-equivalent cost (not billed on Max): $17.46 | turns: 85 | running total across all briefs: $3,673.66

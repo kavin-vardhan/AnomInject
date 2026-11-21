@@ -37,7 +37,7 @@ Codex's estimates, INFERRED; office latency and fork surprises excluded:
 - 5.1 must re-prove everything the shared shim and descriptor touch. "The 5 path is in `#else`" is not evidence.
 
 ## Orchestrator assessment for the owner's decision
-- The Europa pivot is **not a shortcut** for the three texture anomalies: Europa needs A through E (6–10+ weeks) before they work there. The Deimos VT routes from 092-01 are the smaller path for those three: blurry Proof A takes 2–4 days and 1–3 weeks to harden; UV/normal producer work is estimated at 3–8 weeks.
+- The Europa pivot is **not a shortcut** for the three texture anomalies: Europa needs A through E (6–10+ weeks) before they work there. The Bates VT routes from 092-01 are the smaller path for those three: blurry Proof A takes 2–4 days and 1–3 weeks to harden; UV/normal producer work is estimated at 3–8 weeks.
 - A Europa port makes sense if Europa itself is wanted (another client title, VT off, no Nanite). It is not cheaper.
 - If the port goes ahead:
   - work in a dedicated worktree/branch, not a junction into the frozen release or the main checkout;

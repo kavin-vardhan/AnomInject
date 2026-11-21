@@ -132,7 +132,7 @@ Numbers only, as always.
 
 ## 5. Open owner items (ask only when they become real)
 - **Default-on decisions per anomaly**, after his Saturday office test.
-- The codename question (the repo lists "Deimos" as retired, G222; he still uses Deimos/Bates for the two office hosts in chat. In files, write "the first/second office host").
+- The codename question (the repo lists a host name the owner still used in chat as retired, G222. In files, write "the first/second office host"). Settled 2026-11-21: the hosts are Concorde, Bates and Europa only (`START-HERE.md` §4).
 - README Step 1 (the only placeholder left).
 - `dbghelp.dll` (Windows Security → Protection history).
 - Restart the MailBox tray app (the GitHub signal has been stuck since 09-30).

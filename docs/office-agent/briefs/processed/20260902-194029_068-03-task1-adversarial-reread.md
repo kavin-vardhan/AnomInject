@@ -2,7 +2,7 @@
 # EFFORT: xhigh
 # NAME: 068 adversarial re-read
 
-FRESH SESSION — one task: try to BREAK journal 068 §1 (the transition-driver + toggle-line-anchor source read). Headless: your FINAL MESSAGE is the report; never wait for input. Codename discipline absolute (office hosts = Concorde / Bates / Deimos only; AnomalyCapture.Build.cs is never edited; never paste raw scrub-verifier output).
+FRESH SESSION — one task: try to BREAK journal 068 §1 (the transition-driver + toggle-line-anchor source read). Headless: your FINAL MESSAGE is the report; never wait for input. Codename discipline absolute (office hosts = Concorde / Bates only; AnomalyCapture.Build.cs is never edited; never paste raw scrub-verifier output).
 
 Bootstrap: CLAUDE.md, then docs/sessions/2026-09-02-068-p9-transition-drivers-and-toggle-anchor.md §1 ONLY (do not read §4/§5 first — form your own view of §1 before anything else), then docs/invisible-anomaly-mechanisms.md §8.6a. Verify `git rev-parse HEAD` == origin/master (expected 970bf1d or later; report the SHA).
 

@@ -20,7 +20,7 @@ Last updated: 2026-10-03 00:25 IST by the Claude Code Desktop orchestrator sessi
 - **091-02 (10-03):** the first office host failed to compile `51e2fdb` (8 missing-include errors). The include-only fix plus a whole-plugin audit were pushed on the owner's "push now, check later": the **office pull is now `feat/m52-proxy-blur` `e09fa9c`** (m53 `cf16766`, fix `8b86f43`). Ruling `_reviews\091-02-ruling.md`. The deferred §0 home game check waits in a detached idle waiter (run folder `_relay\runs\2026-10-03-091-02-include-compat\`). **Create `CANCEL-WAITER` there before launching any other implementer job.**
 - **Cleanup (10-03):** the owner deleted the non-essential parts of `E:\IA_BuildCache` (E: 18 → 363 GB free). Real-size lesson: folder sizes double-count hard links. D: post-Monday cleanup list is in chat (the legs and `_reviews\089-03/089-04/090-06-evidence` go together; `_r912` / `_r910f2` after delivery).
 
-- **First office host (10-03):** the census reads eligible uv 59 / normal 59 / blur 48 of 2,110 objects (virtual textures dominate: uv refusals 1,385 `virtual_texture`). 5 auto runs, 0 fires. Readings are in `_bates_reads\2026-10-03-first-office-host-proxy-census-owner-reads.md`. **Owner: deprioritised; "Deimos can be tackled later"** (virtual-texture support = follow-up).
+- **First office host (10-03):** the census reads eligible uv 59 / normal 59 / blur 48 of 2,110 objects (virtual textures dominate: uv refusals 1,385 `virtual_texture`). 5 auto runs, 0 fires. Readings are in `_bates_reads\2026-10-03-first-office-host-proxy-census-owner-reads.md`. **Owner: deprioritised; "Bates can be tackled later"** (virtual-texture support = follow-up).
 - **091-03 RUNNING (started 14:00 IST, Codex Astra/max, full access):** the owner saw on the second office host a ~2-frame blur tail after the labels end, with nothing in annotation.json. annotation.json gets per-event `transition_frames` / `transition_reasons`; temporal detection made fail-safe; tails measured vs flagged; plus the deferred 091-02 §0 legs. Run folder `_relay\runs\2026-10-03-091-03-annotation-transitions\`. The 091-02 idle waiter was CANCELLED (13:59) because 091-03's proof covers it. If the owner sends run_summary transition numbers, append them to that run folder as `office-reads.txt`.
 
 - **091-03 first session ended 20:45 IST, NEEDS-DECISION:** the code is done locally and NOT pushed (fix `9c2c770`, m53 `2b68d18`, proxy `6a2dd9a`; built source proxy `58386be` / exe `C7FB5212`). Schema 2.1 `transition_frames`; fail-safe temporal detection; window 3/40/1 (measured t10 36 + 4); the long tail is temporal history, not re-streaming (residency observer). Final-source pixel proof, §0 and static hold are NOT RUN: the gate closed (D: 38.9 GB from page-file growth, headroom 0.9 GB while the owner used UE 5.7). **A resume with priorities waits in an idle waiter** (`idle-waiter-pid.txt` in the run folder; it now also requires D:/E: ≥ 50 GB). Create `CANCEL-WAITER` before any other implementer job.
@@ -59,7 +59,7 @@ Last updated: 2026-10-03 00:25 IST by the Claude Code Desktop orchestrator sessi
   - **Not yet tested:** the editor/PIE connection against a real UnrealEditor (fakes plus real editor-log parsing only), any office PC, and Windows N / no-WebView2 machines.
 
 - **10-05: explainer videos delivered** (`Claude outputs\Explainer-Videos\`): dashboard 64 s plus blurry, UV and normal at 60 s each. Motion graphics only, with no game footage (owner's instruction), captions only.
-- **092-01 RUNNING (10-05, Codex Astra/max, read-only reviewer relay):** research on Deimos (first office host) virtual-texture support for the three new anomalies. Run folder `_relay\runs\2026-10-05-092-01-deimos-vt-research\`; collect `review.md` to `_reviews\092-01-codex-deimos-vt-research.md`.
+- **092-01 RUNNING (10-05, Codex Astra/max, read-only reviewer relay):** research on Bates (first office host) virtual-texture support for the three new anomalies. Run folder `_relay\runs\<run 2026-10-05-092-01>\`; collect `review.md` to `_reviews\092-01-codex-bates-vt-research.md`.
   - Orchestrator's own source checks:
     - A VT sampler slot must be given a virtual texture (`MaterialInstance.cpp:1280`), and the renderer casts the bound texture's resource to `FVirtualTexture2DResource` (`MaterialUniformExpressions.cpp:1263`). The texture-side copy route is therefore invalid on VT slots.
     - `VirtualTextureDataBuilder` is `WITH_EDITOR` only, so a packaged game cannot build a new VT.
@@ -68,12 +68,12 @@ Last updated: 2026-10-03 00:25 IST by the Claude Code Desktop orchestrator sessi
     - a custom VT producer;
     - blur on VT is the hardest.
   - The office's 5 zero-fire PIE auto runs are unexplained (capture-log refusal counts never read).
-- **092-01 ACCEPTED as research (07:52 IST 10-05):** ruling `_reviews\092-01-ruling.md`; report `_reviews\092-01-codex-deimos-vt-research.md`.
+- **092-01 ACCEPTED as research (07:52 IST 10-05):** ruling `_reviews\092-01-ruling.md`; report `_reviews\092-01-codex-bates-vt-research.md`.
   - Blurry on VT: a private coarse VT via the exported `FVirtualTexture2DResource(owner, VTData, FirstMipToUse)` is the strongest proof candidate.
   - Mesh routes are restricted and need new subtypes.
   - My brief's tangent recipe was wrong (Codex corrected it).
   - Next: the owner's go-ahead. The order is office readings, then Proof A (blurry VT), then design round B (page-remap/block-transform producer), then Proof C (constants).
-- **Europa pivot question (owner, 10-05):** port the plugin to Europa (a 4.25 office title) instead of Deimos?
+- **Europa pivot question (owner, 10-05):** port the plugin to Europa (a 4.25 office title) instead of Bates?
   - Owner reads: Europa's VT is OFF, and it runs a MODIFIED 4.25 fork. Refer to it only as "Europa's fork"; never write the studio or title.
   - Stock UE 4.25.4 (CL 14469661) was re-downloaded to `E:\EpicGames\UE_4.25`.
   - The 4.25 bench project was re-added by the owner (12:25 IST 10-05): `E:\Unreal Projects\StylizedParisStreet`. It is blueprint-only, 2 maps, about 880 assets, and has `r.VirtualTextures=False` (matches Europa). It is untouched: no code module, no `Plugins\` junction yet.
@@ -87,7 +87,7 @@ Last updated: 2026-10-03 00:25 IST by the Claude Code Desktop orchestrator sessi
 - **092-02 ACCEPTED as research (14:20 IST 10-05):** ruling `_reviews\092-02-ruling.md`; report `_reviews\092-02-codex-europa-port-study.md`.
   - Verdict: feasible in stages, not easy. Estimates: about 3–5 engineer-weeks for a six-anomaly subset with capture, 6–10+ for parity.
   - Confirmed: no post-process SVE hook in 4.25 (new capture backend); no public WebSocket API (control server/dashboard needs a new transport); 4.25 reads legacy descriptor keys, so our Shipping exclusion would be ignored.
-  - Assessment given to the owner: the Europa pivot is NOT a shortcut for the three texture anomalies (they need phases A–E there). The Deimos VT routes are smaller for those.
+  - Assessment given to the owner: the Europa pivot is NOT a shortcut for the three texture anomalies (they need phases A–E there). The Bates VT routes are smaller for those.
   - Owner's decision (10-05 ~14:40): **fix the first office host's VT problem** (no Europa port now).
 - **092-03 RUNNING (since 14:56 IST 10-05; Codex Astra/max, full access, detached runner PID 37200):** Proof A, blurry on VT through a private coarse VT (route `proxy_vt`).
   - Branch `feat/vt-proxy-blur` from `release/2026-10-05` `d7eee97`; worktree `E:\IA_BuildCache\_r921\AnomalyInjector`; host `_r53_host` (its plugin worktree is to be restored to `23098fa`).
@@ -133,7 +133,7 @@ Last updated: 2026-10-03 00:25 IST by the Claude Code Desktop orchestrator sessi
   - positive edges 120..167 exact in staged + PIE auto;
   - visual frames 100/140/170;
   - code read of `AnomalyPrivateVT.cpp`.
-- Scope limits carried forward: single-layer VT stacks only (multi-layer refuses `stack_layout`, likely the main Deimos yield limit); unnamed samples refuse; 128 px tile floor plus 8x means about 1,024 px on screen; render-fence stall per event.
+- Scope limits carried forward: single-layer VT stacks only (multi-layer refuses `stack_layout`, likely the main Bates yield limit); unnamed samples refuse; 128 px tile floor plus 8x means about 1,024 px on screen; render-fence stall per event.
 - Owner items: office census on this branch (proxy_vt_eligible, auto_proxy_vt, stack_layout and prefetch_incomplete counts); the 8x yield question; the follow-up drop decision (Chat/owner REQUIRED before any merge).
 - Ledger rows 092-03/03b/03c are already present (the runner appends them).
 - 092-04 design round B (READ-ONLY reviewer, Astra max, workspace-write in its run folder) STARTED 01:18:24. Run `_relay\runs\2026-10-06-092-04-vt-transform-design\`. Covers the transforming VT producer (tile remap at same or Nx virtual size, scramble page/block permutation, BC5 invert/green_flip block transform), stacks (including blurry multi-layer), mesh route comparison, and the first proof. Waiter task btkeb1qtx (115 min).
@@ -150,7 +150,7 @@ Last updated: 2026-10-03 00:25 IST by the Claude Code Desktop orchestrator sessi
 - 092-05 implementer STARTED 02:08:05 (Astra max, full access per the 090-12s standing decision). Run `_relay\runs\2026-10-06-092-05-vt-blur-stacks\`; branch `feat/vt-blur-stacks` off `af79520`; evidence `E:\IA_BuildCache\_r921\09205\`.
   - Part A: census VT diagnostics, numbers only, pushed once its gates pass.
   - Part B: multi-layer stack support for blurry proxy_vt (one private VT per layer, readiness proven on the combined allocation).
-  - Waiter task launched (115 min). Mandate: the owner's "fix Deimos" plus "Continue overnight"; no new subtypes and no shipped behaviour change.
+  - Waiter task launched (115 min). Mandate: the owner's "fix Bates" plus "Continue overnight"; no new subtypes and no shipped behaviour change.
 
 ## 2026-10-06 06:20 IST: 092-05 RULED GREEN; af79520 crash finding
 - 092-05 ACCEPTED: `_reviews\092-05-ruling.md`; report at `_reviews\092-05-codex-vt-blur-stacks-report.md`; the ledger row was appended by the runner.
@@ -160,8 +160,8 @@ Last updated: 2026-10-03 00:25 IST by the Claude Code Desktop orchestrator sessi
 - **Office command now:** pull `5dc8717`; run `IAI.TexCorrupt.Census vt`, then `IAI.TexCorrupt.Census all vt`; type back the `IAI-VT-CENSUS v1` lines (family 0=UV, 1=normal, 2=blurry). Only then a test capture with blurry on.
 - **Overnight work complete. Nothing is running. Waiting on the owner** for: the office reading; the 8x question; the follow-up drop; and a go/no-go on the UV/normal VT producer (092-04, new subtypes, 5-10 engineer-weeks).
 
-## 2026-10-10: M3 shipped; Deimos M3 dropped; post-delivery disk cleanup done
-- Owner: M3 has shipped (`release/2026-10-05` @ `d7eee97`), and **Deimos M3 will not ship**.
-- At the owner's go, these were deleted permanently: `D:\IA_BankOverflow\_r912`, `_r910f2`, `090-10b2-evidence`, all `M52S09_*`/`M52S10_*`/`M53DC*` sessions, `_reviews\089-03/089-04/090-06-evidence`, and `E:\IA_BuildCache\_r912b`, `_r913`, `_r915`, `_r916`, `_dash`, `_r921` (Deimos VT 092-03..05).
+## 2026-10-10: M3 shipped; Bates M3 dropped; post-delivery disk cleanup done
+- Owner: M3 has shipped (`release/2026-10-05` @ `d7eee97`), and **Bates M3 will not ship**.
+- At the owner's go, these were deleted permanently: `D:\IA_BankOverflow\_r912`, `_r910f2`, `090-10b2-evidence`, all `M52S09_*`/`M52S10_*`/`M53DC*` sessions, `_reviews\089-03/089-04/090-06-evidence`, and `E:\IA_BuildCache\_r912b`, `_r913`, `_r915`, `_r916`, `_dash`, `_r921` (Bates VT 092-03..05).
 - Free space now: D: 207 GiB, E: 282 GiB. Paths above that pointed into those folders are gone; use the rulings and reports instead.
 - The 091-06 uncommitted F1 office-robust WIP is saved as a patch. Receipt: `_reviews\2026-10-10-disk-cleanup\README.md`.

@@ -34,7 +34,7 @@ Date: 2026-09-29 ~17:50 IST · Author: chat Claude · Branch `fix/m52-label-timi
 5. **The ratio wall:** reported; no tuning this week.
 
 ## Codename note
-Code reports the repo's codename rule lists "Deimos" as **retired (G222)**. The owner used it today. Chat asks the owner which codename to use; until he answers, docs use "the office host".
+Code reports that the repo's codename rule lists the host name in the brief as **retired (G222)**. The owner used that name today. Chat asks the owner which codename to use; until he answers, docs use "the office host".
 
 ## Next
 - **088-01 (the delivery rehearsal), released now:** merge the kit branch into the fix branch, then fix into m53, then rehearse both paths. Useful whatever the yield decision is; re-run after any later change.

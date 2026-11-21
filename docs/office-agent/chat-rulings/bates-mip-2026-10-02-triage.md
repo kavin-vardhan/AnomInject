@@ -1,6 +1,6 @@
 # Bates mip-map corruption triage — 2026-10-02
 
-Owner update: UV and normal targets are now getting picked up on Bates; Deimos has not been tested. This establishes reported selection success, not new pixel/label certification. Office commit is confirmed as the same88801bd. **The mip failure's dominant admission blocker is now confirmed: shared-texture purity.**
+Owner update: UV and normal targets are now getting picked up on one Bates build; another Bates workspace has not been tested (2026-10-02). This establishes reported selection success, not new pixel/label certification. Office commit is confirmed as the same88801bd. **The mip failure's dominant admission blocker is now confirmed: shared-texture purity.**
 
 Typed office readings: purity enumeration7; HOLDING1; HELD NONE6; failed-attempt buckets not streamable4, excluded4, shared164; shared_world196; user-count bins2–8:32,9+:164; minimum/maximum users2/6155. Unreported buckets are not invented as zero.
 

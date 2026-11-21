@@ -2,7 +2,7 @@
 
 **Written:** 2026-11-04, about 19:35 IST, by chat Claude (orchestrator), before the owner shut the laptop down at 20:45 to travel.
 **Supersedes:** `CHAT-HANDOFF-094-europa-42c-running.md`.
-**Codenames only:** Europa, Concorde, Bates, Deimos. Never write a real title.
+**Codenames only:** Europa, Concorde, Bates. Never write a real title.
 
 > 🔴 **Don't save this file into the plugin's `docs\` folder while a mailbox job runs.** The watcher runs Code inside the protected `m51` checkout, and a new untracked file there trips the P9 check. Keep it in the project and in `_reviews\`.
 

@@ -32,7 +32,7 @@ Files: 58. Newest first. Date = last-modified date of the source file on the hom
 | 2026-10-15 | - | [stackobot-project/MEMORY.md](stackobot-project/MEMORY.md) | Memory index |
 | 2026-10-14 | - | [plugin-project/env-refuses-dbghelp-dll.md](plugin-project/env-refuses-dbghelp-dll.md) | name: env-refuses-dbghelp-dll |
 | 2026-10-14 | - | [plugin-project/buildcookrun-cookoutputdir-needs-platform.md](plugin-project/buildcookrun-cookoutputdir-needs-platform.md) | name: buildcookrun-cookoutputdir-needs-platform |
-| 2026-10-10 | - | [stackobot-project/m3-shipped-deimos-dropped.md](stackobot-project/m3-shipped-deimos-dropped.md) | name: m3-shipped-deimos-dropped |
+| 2026-10-10 | - | [stackobot-project/m3-shipped-bates-dropped.md](stackobot-project/m3-shipped-bates-dropped.md) | name: m3-shipped-bates-dropped |
 | 2026-10-05 | - | [stackobot-project/ue425-build-on-this-pc.md](stackobot-project/ue425-build-on-this-pc.md) | name: ue425-build-on-this-pc |
 | 2026-10-02 | - | [plugin-project/pie-harness-python-limits.md](plugin-project/pie-harness-python-limits.md) | name: pie-harness-python-limits |
 | 2026-10-01 | - | [plugin-project/gdp-relay-codex-delta-timing.md](plugin-project/gdp-relay-codex-delta-timing.md) | name: gdp-relay-codex-delta-timing |

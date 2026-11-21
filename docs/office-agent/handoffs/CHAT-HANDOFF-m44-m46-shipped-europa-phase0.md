@@ -10,7 +10,7 @@ the owner's four Bates observations from card Section E (target mask one frame l
 
 ## 1. Current state (verified at close)
 
-- **master == origin, tip `324ebad`** `docs(europa): phase 0 port-surface audit`. Feat commits today: m44 `fafb81f` (merge `c5b3d27`) · m45 `4eab312` (merge; feat on branch `m45-hidden-class-masks`) · m46 `866aa0e` (merge `80b382d`). Docs commits: `d48e1ba` (m44), `d204598` (m45), `7284c6e` (m46). Earlier today: export fix `f40fee4` / `cdd0c4b`; Deimos retirement `b752934`.
+- **master == origin, tip `324ebad`** `docs(europa): phase 0 port-surface audit`. Feat commits today: m44 `fafb81f` (merge `c5b3d27`) · m45 `4eab312` (merge; feat on branch `m45-hidden-class-masks`) · m46 `866aa0e` (merge `80b382d`). Docs commits: `d48e1ba` (m44), `d204598` (m45), `7284c6e` (m46). Earlier today: export fix `f40fee4` / `cdd0c4b`; duplicate-codename retirement `b752934`.
 - **Container quartet (m46, live):** exe `60AE8C61` · utoc `EF8EB23C` · ucas `A8BFFF88` · pak `3C026A8D`. Two cooks were run today (m45 post-cook quartet `38A55169/4621F571/513F4D35/2163A13A`, then m46); pre-cook quartet `2A66CA57/A7EF9B12/D8009AD7` archived. A4 re-baseline proved the cook changed no behaviour (G103); those legs are master's P-C7 controls.
 - **NO TAGS** (highest m30). Office batch tag sequence: **m31→m33→m34→m35→m36→m37→m38→m40→m41→m43→m44→m45→m46** (m39, m42 slot in when they ship).
 - Compiled defaults ON: census, mask, target mask. Masks correct at any screen percentage (m46). Hidden-class masks (m45) on every labelled hidden frame; Nanite targets excluded (G134).
@@ -33,7 +33,7 @@ the owner's four Bates observations from card Section E (target mask one frame l
 ## 3. Decisions made today (owner and chat), with the why
 
 - **Owner:** Bates ships THIS WEEK with the target mask included; first-frame gap (now fixed anyway) would simply have been told to the client. Owner's ML ruling: mask frames == labelled frames, would-be silhouette on hidden frames, never inverted/bracketed (a bracketed scheme contradicts the frame label and inverts semantics for two types only).
-- **Owner:** "Deimos" retired (was a second name for Bates); office codenames never appear here; new target codename **Europa** (owner's pick, knowingly the same word as the office uses — flagged once).
+- **Owner:** a duplicate codename for Bates retired; office codenames never appear here; new target codename **Europa** (owner's pick, knowingly the same word as the office uses — flagged once).
 - **Owner:** important updates lead with a one-line status banner (🟢/🔴/🟡/⛔). Adaptive polling replaced fixed 25–45 min checks; the mail-signal Monitor route now works when the session's permission mode allows shell fetches (see §7).
 - **Chat:** identity/pixel arbiters run native-order at the AA-off configuration; alignment gates run both orders (G228/G230: SynthTickOrder is nondeterministic even at AA-off, by its own control; cross-run comparison at the delivered configuration has a ~9% floor). Not an exemption — the rule's scope.
 - **Chat:** editing the frozen gate level for a can-fail lever refused (G99 — would move every baseline); depth-pass omission chosen because it changes pixels in any fixture.
@@ -57,7 +57,7 @@ the owner's four Bates observations from card Section E (target mask one frame l
 
 ## 6. Corrections to discard
 
-- "Deimos" as a host name → retired; two office hosts only (Concorde, Bates). Historical journals saying Deimos mean Bates (G222).
+- A duplicate host codename → retired; two office hosts only (Concorde, Bates). Historical journals that use it mean Bates (G222).
 - "The +1 is tick order / thread lag / resolution mapping" → all refuted by measurement; it was tag ownership (G227).
 - "A quarter of masks are wrong in content" (069-15) → retracted; fixture collision (G226).
 - "A blank PNG means measured and nothing visible" → no blank PNGs exist any more; `mask_state` carries the meaning; the in-game help/echo strings were corrected too (G139).

@@ -2,7 +2,7 @@
 
 - [Non-intrusive platform Relay Room (2026-10-15)](nonintrusive-platform-relay-room.md) — UE4SS-hosted inject+label design is a PROPOSAL; 5 open questions await the owner; Chat review before P0; doc in `StackOBot\_relay_room\2026-10-15-ue4ss-platform\`
 
-- [M3 shipped; Deimos M3 dropped (2026-10-10)](m3-shipped-deimos-dropped.md) — M3 = `release/2026-10-05` `d7eee97` / exe `218BA4C7`; owner: Deimos M3 won't ship, so don't retain stuff for it
+- [M3 shipped; Bates M3 dropped (2026-10-10)](m3-shipped-bates-dropped.md) — M3 = `release/2026-10-05` `d7eee97` / exe `218BA4C7`; owner: Bates M3 won't ship, so don't retain stuff for it
 
 - [UE 4.25 builds on this PC (2026-10-05)](ue425-build-on-this-pc.md) — Target.cs pins VS2017 14.16.27051 (cl.exe product version) + `bOverrideBuildEnvironment = true`; never touch the global 14.38 pin; Documents/env overrides fail
 

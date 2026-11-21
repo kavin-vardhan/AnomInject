@@ -30,4 +30,4 @@ Prior art: The owner's own May 2026 ReShade prototype at `D:\AnomalyInjection`.
   - Codex's global effort became `ultra` on 2026-10-15, so start the server with `RELAY_CODEX_EFFORT=max`;
   - set `RELAY_REPLY_TIMEOUT_MIN=60` for this project's big docs.
 
-See [[m3-shipped-deimos-dropped]].
+See [[m3-shipped-bates-dropped]].

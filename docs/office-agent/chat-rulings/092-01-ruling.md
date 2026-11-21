@@ -1,6 +1,6 @@
-# 092-01 ruling: Codex research on virtual textures on Deimos (first office host)
+# 092-01 ruling: Codex research on virtual textures on Bates (first office host)
 
-Date: 2026-10-05. Author: Claude Code Desktop (orchestrator). Report: `_reviews\092-01-codex-deimos-vt-research.md` (run `_relay\runs\2026-10-05-092-01-deimos-vt-research\`; Astra, max effort, read-only, 2,115 s, exit 0). I read the full report and spot-checked the citations listed below. Today's delivery (`release/2026-10-05` @ `d7eee97`) is untouched.
+Date: 2026-10-05. Author: Claude Code Desktop (orchestrator). Report: `_reviews\092-01-codex-bates-vt-research.md` (run `_relay\runs\<run 2026-10-05-092-01>\`; Astra, max effort, read-only, 2,115 s, exit 0). I read the full report and spot-checked the citations listed below. Today's delivery (`release/2026-10-05` @ `d7eee97`) is untouched.
 
 **Disposition: ACCEPTED as research.** It is not a work order. Any build waits for the owner's go-ahead and a brief.
 
@@ -20,7 +20,7 @@ Date: 2026-10-05. Author: Claude Code Desktop (orchestrator). Report: `_reviews\
    - Negating both, as my brief said, flips X only.
    - Equivalence to the texture-side modes holds only for simple tangent-space materials. On complex graphs the route needs its own subtype (e.g. `tangent_basis_flip`).
 5. **Mesh-side UV×N is a restricted tile.** Different UV channels, panners/offsets and world or procedural coordinates differ, so it needs its own subtype (e.g. `uv_channel_tile`) unless equivalence is proven. Mesh-side scramble is not a generic option. Mesh routes also carry real costs: cooked CPU access or GPU readback, every LOD, `SetStaticMesh` side effects (physics recreation, navigation), ISM whole-component scope, lighting identity, and mask integration for any replacement component.
-6. **The hold does not need texture parameters.** It collects textures through `GetUsedTextures` (`Anomaly_StuckLowMip.cpp:265–279`) [checked]. Deimos's blurry `texture_not_parameter` counts (635 + 392) therefore belong to the proxy route. The census's four route counts (`hold_eligible`, `proxy_eligible`, `auto_hold`, `auto_proxy`) are needed before sizing.
+6. **The hold does not need texture parameters.** It collects textures through `GetUsedTextures` (`Anomaly_StuckLowMip.cpp:265–279`) [checked]. Bates's blurry `texture_not_parameter` counts (635 + 392) therefore belong to the proxy route. The census's four route counts (`hold_eligible`, `proxy_eligible`, `auto_hold`, `auto_proxy`) are needed before sizing.
 7. **The constants wrapper (private material resource with indexed references) needs proof.** It is not yet feasible-in-production.
 8. **The five zero-fire PIE captures are unexplained.** The census proves 59/59/48 eligible across all loaded objects, not in view. The pool/modes may not have been enabled: UV, normal and blurry all ship OFF by default.
 

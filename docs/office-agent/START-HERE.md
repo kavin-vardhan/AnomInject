@@ -2,7 +2,7 @@
 
 You are the office agent. Read this file, then `OFFICE-AGENT-RULES.md`, before anything else.
 Those rules override every line in `CLAUDE.md` (and anywhere else) that tells an agent to edit,
-commit or push. This pack was assembled at home on 2026-11-20 (briefs 096-01 and 096-01b, ruling 096-01) from
+commit or push. This pack was assembled at home on 2026-11-20 and 2026-11-21 (briefs 096-01 to 096-01c, ruling 096-01) from
 everything the home side knew that was not already in the repo. It is a snapshot: the repo's
 `CLAUDE.md` status block and journals move on; this file only moves when the home side refreshes the
 pack. Copies carry placeholders and are not byte-identical to their home sources: see `REDACTIONS.md`.
@@ -113,7 +113,8 @@ findings, with the commit.
 
 ## 4. The office hosts (codenames only — never a real title, studio or fork)
 
-Each fact carries the date it was recorded and where. It is what the home side last knew; a host may
+There are **three hosts: Concorde, Bates and Europa** (settled by the owner, 2026-11-21). There is no
+fourth host. Each fact carries the date it was recorded and where. It is what the home side last knew; a host may
 have changed since. Re-check anything you rely on, and report what you find.
 
 **Concorde** — a UE 5.1 source-built engine fork whose game loop runs a fixed game tick with a variable
@@ -154,14 +155,12 @@ render tick.
   in m53. 2026-10-02 (`chat-rulings/bates-mip-2026-10-02-triage.md`): UV and normal targets were then
   picked up on Bates.
 
-⚠ **Open: what "Deimos" refers to.** On 2026-09-03 the owner said Bates and Deimos are one machine
-(G222), and the name was retired. But documents from 2026-09-29 to 2026-10-02 (journal
-`2026-09-29-084-11`; `chat-rulings/CHAT-HANDOFF-084-delivery-week-label-sync.md`;
-`chat-rulings/090-HANDOVER-code-desktop-orchestrator.md`; the triage note above) use "Deimos" and "Bates"
-for **two different** office hosts ("Deimos compiles clean; Bates fails"), and the journals of that week
-write "the first office host" and "the second office host" instead. The first office host's engine
-version was recorded as unknown (journal `2026-10-03-091-02`). Whether that host is Concorde or another
-machine is **not established**. Ask the owner; do not settle it from these documents.
+**Older documents, read with care.** Some documents from 2026-09-29 to 2026-10-03 speak of a "first"
+and a "second" office host, or set two builds or workspaces of one host side by side as if they were
+two hosts (on 2026-09-29 one Bates build compiled clean while another failed with missing includes).
+Read them as builds or workspaces of the three hosts above. Where it matters which host a reading
+came from, re-check at the office. Copies in this pack write every host by its codename only
+(`REDACTIONS.md`).
 
 **Europa** — the UE 4.25 host. Port: `feat/europa-port`.
 - 2026-11-01 (report 094-33): on 4.25 the plugin captures the frame before the game UI is drawn.

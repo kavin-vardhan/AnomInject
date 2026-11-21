@@ -193,8 +193,8 @@ His readings are in `_bates_reads\2026-09-28-m52-label-timing-owner-observation.
   - **The owner was told.** Thursday's office census gives the real yield, and that drives default-on.
 - **The m53 night runs TONIGHT after 084-09:** one brief, `_held\084-09-085-04-night-bench.md`, ~4–4.5 h. It is released at ~22:30 IST by a scheduled self-reminder (`trig_01AaB71BPFL1AL7NUkGfadWC`), with its own idle gate.
 
-## 3a-12. 🔴 Office finding (owner, ~14:30 IST 09-29): m52 fires ZERO events on Deimos
-- The owner pulled `fix/m52-label-timing` onto the office host **Deimos** (the owner's codename). Auto-capture with only `stuck_low_mip`: 0 annotated events in several 400-frame captures.
+## 3a-12. 🔴 Office finding (owner, ~14:30 IST 09-29): m52 fires ZERO events on Bates
+- The owner pulled `fix/m52-label-timing` onto the office host **Bates** (the owner's codename). Auto-capture with only `stuck_low_mip`: 0 annotated events in several 400-frame captures.
 - **Chat's diagnosis, from source:** the 084-02 purity rule holds a texture **only if it has exactly ONE user component in all loaded levels.** Real content shares nearly every texture, so every fire is refused. The bench never measured yield, only timing on unique-texture targets. **Chat owns that gap.**
 - **Asked the owner** for log counts (numbers only): `HOLDING`, `HELD NONE` reason numbers, `shared_world`, `baseline_pending`, `not_restored`.
 - **Owner's product call pending:**
@@ -226,7 +226,7 @@ His readings are in `_bates_reads\2026-09-28-m52-label-timing-owner-observation.
   - **B** (the picker filter with K = 1, about 3 h) if the picker is wasting bursts;
   - **otherwise fallback 2:** `stuck_low_mip` ships available-but-off, with a readme limitation, and the proxy-texture approach goes to the follow-up.
 - **Nanite co-users are refused;** no labels without masks.
-- **Codename:** the repo's rules list "Deimos" as retired (G222). The owner has been asked which name to use; until then docs say "the office host".
+- **Codename:** the repo's rules list the host name used here as retired (G222). The owner has been asked which name to use; until then docs say "the office host".
 
 ## 3a-15. 088-01 result (NEEDS-DECISION; ruled in `_reviews\088-01-chat-ruling-rehearsal.md`, 18:25 IST)
 - **The merges:** kit → fix `df63a8a`; fix → m53 `9bd7316` / `c2d11f5`. The fix branch is now at `5c2bc83`.
@@ -324,7 +324,7 @@ All 24 legs were accepted first try, on E1 (frozen) + KIT-GT with a covering 1,8
   - **skip Nanite targets**, implemented as a setting that defaults to skip;
   - default-on decided **after** his office test;
   - "pull" (removing an anomaly) is only needed if the office test finds a sync failure.
-- **Office hosts (the owner's codenames):** Deimos compiles `da902d6` clean. **Bates fails** with 8 compile errors: missing explicit includes (`ELevelTick` in the injector subsystem header, `UMaterial` in the capture subsystem). Bates builds with fewer transitive includes. The fix is 090-04, a strict-include build.
+- **Bates, two builds (2026-09-29):** one Bates build compiles `da902d6` clean. **Another Bates build fails** with 8 compile errors: missing explicit includes (`ELevelTick` in the injector subsystem header, `UMaterial` in the capture subsystem). The failing build has fewer transitive includes. The fix is 090-04, a strict-include build.
 - **090-02, Codex evidence review: CHANGES REQUIRED** (ruled in `_reviews\090-02-chat-ruling-codex-evidence.md`):
   - **F1 (HIGH):** a FireWindow label outlives the effect on an early revert or when the host replaces the material. **Fix in source:** the label requires the effect to be installed; otherwise unlabelled + `effect_interrupted`.
   - **F2–F5 and LOW:** readme overclaims; corrections queued.

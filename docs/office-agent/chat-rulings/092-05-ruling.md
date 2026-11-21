@@ -51,7 +51,7 @@ Date: 2026-10-06 ~06:20 IST. Author: Claude Code Desktop (orchestrator).
 - Unchanged from before: the 128 px tile floor plus the 8× rule (about 1,024 px on screen), blurry OFF by default, and UV/normal still refusing VT.
 
 ## Owner items (updated)
-1. **Office reading on Deimos** (numbers only):
+1. **Office reading on Bates** (numbers only):
    - Pull `feat/vt-blur-stacks` @ `5dc8717`.
    - Run `IAI.TexCorrupt.Census vt` at the usual capture view, then `IAI.TexCorrupt.Census all vt`.
    - Type back every `IAI-VT-CENSUS v1` line.

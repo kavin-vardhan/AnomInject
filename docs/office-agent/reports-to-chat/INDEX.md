@@ -296,7 +296,7 @@ Files: 310. Newest first. Date = last-modified date of the source file on the ho
 | 2026-09-03 | 069-15 | [069-15-m44-g1-mask-render-pairing-hypothesis-test-and-fix.report.md](069-15-m44-g1-mask-render-pairing-hypothesis-test-and-fix.report.md) | REPORT for 069-15-m44-g1-mask-render-pairing-hypothesis-test-and-fix.md |
 | 2026-09-03 | 069-14 | [069-14R-resume-m44-after-host-crash.report.md](069-14R-resume-m44-after-host-crash.report.md) | REPORT for 069-14R-resume-m44-after-host-crash.md |
 | 2026-09-03 | 069-13 | [069-13-bates-mask-onset-defects-read-and-plan.report.md](069-13-bates-mask-onset-defects-read-and-plan.report.md) | REPORT for 069-13-bates-mask-onset-defects-read-and-plan.md |
-| 2026-09-03 | 069-12 | [069-12-retire-deimos-codename.report.md](069-12-retire-deimos-codename.report.md) | REPORT for 069-12-retire-deimos-codename.md |
+| 2026-09-03 | 069-12 | [069-12-retire-duplicate-codename.report.md](069-12-retire-duplicate-codename.report.md) | REPORT for 069-12-retire-duplicate-codename.md |
 | 2026-09-03 | 069-11 | [069-11-fix-loganomaly-export-editor-build-gate.report.md](069-11-fix-loganomaly-export-editor-build-gate.report.md) | REPORT for 069-11-fix-loganomaly-export-editor-build-gate.md |
 | 2026-09-03 | 069-10 | [069-10-m43-gate-d-ruling-and-close.report.md](069-10-m43-gate-d-ruling-and-close.report.md) | REPORT for 069-10-m43-gate-d-ruling-and-close.md |
 | 2026-09-03 | 069-09 | [069-09-m43-liveness-from-fires-and-unavailable.report.md](069-09-m43-liveness-from-fires-and-unavailable.report.md) | REPORT for 069-09-m43-liveness-from-fires-and-unavailable.md |

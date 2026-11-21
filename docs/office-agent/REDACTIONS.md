@@ -26,10 +26,11 @@ If you need the home original of a file, ask in a report; the home agent maps it
 | the client's own wording, quoted | our own plain paraphrase, marked `[client wording paraphrased]` | `chat-rulings/095-00-ruling.md` section 0 and its input list, D2b; one quoted sentence in brief `095-08` (`briefs/processed/`), found by the 096-01b rescan |
 | names of the owner's other home projects, and of their tools and jobs | `<other-home-project>` (`<other-home-project> job`, `<other-home-project> tool`) | throughout the pack, D4 |
 | a memory file name that carried such a project name | `home-agent-memory/plugin-project/foreign-editors-block-bench.md` | 1 file, D4 |
+| another name an older document used for an office host | the host's codename (Concorde or Bates) | throughout the pack, 096-01c; four file names changed with it |
 
 The codename edits use the home codename checker's own term-to-codename mapping, applied only to the
-lines that carried a term. Hosts are written only by codename. "Deimos" appears in some older files; what
-it refers to is an open question (see `START-HERE.md` §4).
+lines that carried a term. Hosts are written only by codename: Concorde, Bates and Europa. Where an older
+document used another name for one of these hosts, the copy carries the codename instead (096-01c).
 
 ## Left out of the pack
 

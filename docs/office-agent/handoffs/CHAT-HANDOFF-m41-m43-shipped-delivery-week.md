@@ -49,7 +49,7 @@ Two milestones shipped overnight without the owner present, through the file mai
 
 ## 6. Corrections to discard
 
-- **"Deimos" is retired** — it was a second codename for Bates (owner: "Bates and Deimos are one and the same"). Two office hosts only: Concorde, Bates. Historical journals/predictions saying Deimos mean Bates (G222; brief 069-12 scrubs the living docs). Never store any name↔codename mapping.
+- **A duplicate codename for Bates is retired** (owner, 2026-09-03). Two office hosts only: Concorde, Bates. Historical journals and predictions that use it mean Bates (G222; brief 069-12 scrubs the living docs). Never store any name↔codename mapping.
 - "Bates is sealed" → the EDITOR build updates over RDP; the packaged build is what stays sealed.
 - "The fog card slipped through the custom-depth opt-in loophole" → its material has NO custom-depth writes; cause unknown; the loophole fix is right for the class but not this card.
 - Chat's "TSR shimmer from proxy recreates" → refuted from source; unmeasured concern only.
