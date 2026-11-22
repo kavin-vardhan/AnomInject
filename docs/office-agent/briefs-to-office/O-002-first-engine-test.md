@@ -13,12 +13,17 @@ readings are the "before" side of every comparison here. Answer as report cards 
 - **m58, terrain blink subtype** (client topic 3): a blink on terrain is labelled subtype `terrain_disappear_reappear`.
 - **m59, forced-LOD refusals:** no LOD label where forcing the LOD changes nothing on screen.
 
-**Setup**
-- Switch the host's plugin checkout to the pushed commit **`d8d3a7e`** (branch `feat/m57-lod-spatial-trigger`):
-  `git fetch`, then `git checkout --detach d8d3a7e`. This is checking out a pushed commit, not changing plugin code.
-  Write down the commit it was on before, so it can go back.
-- Build the host the way it is normally built for captures. Use the same levels, paths and settings as O-001 so that
-  every reading has a before and an after.
+**Setup** (`<game>` below is the game project folder you were started in)
+- **The owner puts the test version in, not you.** He checks out the pushed commit **`d8d3a7e`** (branch
+  `feat/m57-lod-spatial-trigger`) in his clone, moves the game's old plugin copy out to a backup, copies `d8d3a7e`
+  into `<game>\Plugins\AnomalyInjector` and writes `d8d3a7e` into its `COPIED_COMMIT.txt` (`OFFICE-SETUP.md`, part B).
+  You do not run git. Confirm that `COPIED_COMMIT.txt` reads `d8d3a7e` and that the game's `Plugins` folder holds
+  exactly one `AnomalyInjector.uplugin`; if either is wrong, stop and ask. Then build.
+- Build the host the way it is normally built for captures (the new copy has no build files, so the plugin compiles
+  from scratch). Use the same levels, paths and settings as O-001 so that every reading has a before and an after.
+- Q5 and Q7 also need release-build captures on the same path. Take them while the game still holds the delivered
+  build (before the owner copies `d8d3a7e` in), or ask the owner to put the delivered build back for them (he keeps
+  it as his backup). Never switch versions yourself. Say on the card which version each reading came from.
 - Set the terrain name pattern for this host as described in the plugin readme (`docs/client-readme.md` §8.4.2): in
   the game's console type `IAI.SetTerrainPatterns <word> [word...]` before the first capture (a packaged build ignores
   an edited loose ini file; in the editor, or in a build cooked with it, `[AnomalyInjector] +TerrainNamePatterns=<word>`
@@ -27,15 +32,16 @@ readings are the "before" side of every comparison here. Answer as report cards 
 - **Capture with delivery mode off:** type `IAI.Capture.Delivery 0` before each `IAI.Capture.Start`. With delivery
   mode on the plugin writes no `run.json` and no run log (`anomaly_log.txt`), and the readers below cannot judge.
   Delivery mode does not change the labels.
-- **The readers** are in `docs/office-agent/office-tools/` of the context worktree; read its `README.md` first and
-  run each reader's `--selftest` before using it. `verify_capture.py` is run from the plugin under test:
-  `<plugin checkout>\tools\verify_capture.py`. Readers only read the session folders.
+- **The readers** are in `C:\OfficeAgent\pack\office-tools\`; read its `README.md` first and run each reader's
+  `--selftest` before using it. `verify_capture.py` is in the game's plugin copy:
+  `<game>\Plugins\AnomalyInjector\tools\verify_capture.py`; run it with `python -B` so Python writes no `__pycache__`
+  into the copy. Readers only read the session folders.
 - Capture commands (game console): an automatic-pool capture of N frames is `IAI.Capture.Start "" png "" N`; limit the
   pool first with `IAI.Auto.Pool all 0` and then `IAI.Auto.Pool <id> 1` for each anomaly wanted (the default pool is
   `blinking`, `missing_texture`, `corrupted_texture`, `lod_popping`). A capture of one anomaly on one named object is
   `IAI.Capture.Start "" png "" N <anomaly> <object name>`, where `<object name>` is the actor name as
   `IAI.ListActors` prints it (editor labels do not exist in a cooked build).
-- Leave the test build in place at the end and say so; chat will say when to switch back.
+- Leave the test version in place at the end and say so; chat will say when the owner switches back.
 
 **Q1. Build.** Does the plugin compile on this host, with how many warnings in plugin files? If it does not, give our
 `file:line` and the error in your own words; you may prove a fix with a throwaway experiment (rule 3).
@@ -48,8 +54,8 @@ frames each, default settings (delivery mode off, as above).
   (**expected 2 at default settings**).
 - Readers: `python m56_continuity_check.py <session>` (expected PASS; run it on an O-001 release session too: expected
   FAIL), `python m56_settle_content_check.py <session>`, and
-  `python <plugin checkout>\tools\verify_capture.py --dir <session> --label-rule`. PASS or FAIL each, and the count of
-  findings.
+  `python -B <game>\Plugins\AnomalyInjector\tools\verify_capture.py --dir <session> --label-rule`. PASS or FAIL each,
+  and the count of findings.
 - Does the assembled video now last as long as the capture took?
 
 **Q3. The texture stall, again.** Repeat O-001 Q3 exactly on this build: the wall time of the frame where each pink
@@ -82,7 +88,8 @@ level with plenty of scenery, on **both** this build and the release build, same
   `lod_corruption: REFUSED '<mesh>' (<reason>)` per refused mesh; for `lod_popping`, `lod_popping: NOT ARMABLE '<mesh>'
   (<reason>)` per mesh and `lod_not_armable:<reason>` on the `Auto.Yield` line (the spatial trigger adds reasons of its
   own, such as `not_approaching`; count those separately).
-- `python <plugin checkout>\tools\verify_capture.py --dir <session> --label-pixel-gate --report-only` on both: how many
+- `python -B <game>\Plugins\AnomalyInjector\tools\verify_capture.py --dir <session> --label-pixel-gate --report-only`
+  on both (on the release build, its copy's own `verify_capture.py`): how many
   complete events read NO-TRACE (a label with no visible change)? **Expected: 0 on this build;** some on the release
   build if this host has instanced foliage or single-LOD meshes.
 
@@ -100,9 +107,9 @@ level with plenty of scenery, on **both** this build and the release build, same
   `--expect no_events --expect-mismatch 0` for (c)). (c) should give no LOD event.
 - Encode the turn-in with `IAI.Anomaly.LodEntryFrames` at 15, 30 and 60 (set it before each capture), using
   `m57_make_clip.py` without `--null` (a played path has no clean twin, so the capture is encoded alone):
-  `python m57_make_clip.py --verify <plugin checkout>\tools\verify_capture.py --anomaly <session> --out <folder> --name <name>`,
-  with `<folder>` in the office captures area beside the sessions: never inside a session folder, and never in a repo
-  or worktree (the context worktree, a plugin checkout), a synced folder, a network share or removable media
+  `python m57_make_clip.py --verify <game>\Plugins\AnomalyInjector\tools\verify_capture.py --anomaly <session> --out <folder> --name <name>`,
+  with `<folder>` in the office captures area beside the sessions: never inside a session folder, and never in the
+  pack (`C:\OfficeAgent\pack`), the game's plugin copy, a repo, a synced folder, a network share or removable media
   (rule 10). The clip tool's `<name>_overlay\` and `<name>_frames\` are working frame copies: delete them once the
   owner has watched the clips; the clips may stay. **The owner watches them at the office.** Put his verdict on the card in his words: does the pop look like
   the client's reference clip, and which length looks most like a real game?
