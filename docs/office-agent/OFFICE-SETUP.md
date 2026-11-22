@@ -1,59 +1,97 @@
-# Office setup — once, at the office PC
+# Office setup — for the owner, at the office PC
 
-For the owner. About 10 minutes. You type commands into a terminal (PowerShell or Command Prompt); you
-do not need to understand them. Replace the words in angle brackets with your real paths, keep the
-quotes. Nothing here changes the plugin your host games use, and nothing here sends anything anywhere.
+You type commands into a terminal (PowerShell or Command Prompt); you do not need to understand them.
+Replace the words in angle brackets with your real values and keep the quotes. The `git` and `robocopy`
+lines are the same in both terminals; where the two differ, both are given. Nothing here sends anything
+anywhere.
 
-**Two paths you need first:**
-- `<PLUGIN>` — the plugin folder inside one host game project, the one you already pull, for example
-  `X:\Games\HostA\Plugins\AnomalyInjector`.
-- `<BASE>` — an ordinary folder next to your host projects, for example `X:\Games\OfficeAgent`. It must
-  **not** be inside any game project, inside any `Plugins` folder, inside a Perforce, Plastic or git
-  workspace, or inside a synced folder (OneDrive, Dropbox, a network share). If you are not sure, use
-  `C:\OfficeAgent`.
+**How it fits together.** You keep one clone of the plugin repo on this PC and you are the only one who
+uses git. The agent never uses git. You copy two things out of your clone:
+- the **pack** (the agent's instructions and briefs) into `C:\OfficeAgent\pack`;
+- the **plugin version a brief names** into a game's `Plugins\AnomalyInjector`.
 
-## Steps
+The agent runs inside a game project folder. It keeps its notes in `C:\OfficeAgent\office-journal`.
 
-1. **Note what the host's plugin is on now**, so you can check it did not move:
-   `git -C "<PLUGIN>" status`
-   Write down the first line (for example `On branch master`).
+**Values you need:**
+- `<CLONE>` — your clone of the plugin repo, for example `D:\src\AnomInject`. It must not be inside any
+  game project or any `Plugins` folder, nor in a synced folder (OneDrive, Dropbox, a network share).
+  Never open it in an editor or build it: you only pull and copy from it.
+- `<GAME>` — a game project folder, the one that holds the game's `.uproject` file.
+- `<CODENAME>` — Concorde, Bates or Europa: the game you are working on.
+- `<COMMIT>` — the commit a brief names, for example `d8d3a7e`.
 
-2. **Sign in to GitHub on this PC (once).** Once the repository is private, this PC needs a GitHub
-   sign-in, or a read-only deploy key, before `fetch` works. If the fetch in the next step asks you to
-   log in, that is why.
+Write every path without a backslash at the end (`"D:\src\AnomInject"`, not `"D:\src\AnomInject\"`):
+robocopy misreads a backslash just before a closing quote.
 
-3. **Fetch from home:**
-   `git -C "<PLUGIN>" fetch origin`
+## Once
 
-4. **Make the context folder** (a second, separate checkout that holds the agent's instructions):
-   `git -C "<PLUGIN>" worktree add --track -b docs/office-pack "<BASE>\anomaly-office-pack" origin/docs/office-pack`
-   - If it says a branch named `docs/office-pack` already exists, run instead:
-     `git -C "<PLUGIN>" worktree add "<BASE>\anomaly-office-pack" docs/office-pack`
-   - Check: `git -C "<BASE>\anomaly-office-pack" status` says `On branch docs/office-pack` and
-     `nothing to commit`.
-   - Check: `git -C "<PLUGIN>" status` shows the same first line you wrote down in step 1.
+1. **Make the two folders.**
+   - PowerShell: `New-Item -ItemType Directory -Force "C:\OfficeAgent\pack", "C:\OfficeAgent\office-journal"`
+   - Command Prompt: `mkdir "C:\OfficeAgent\pack"` and then `mkdir "C:\OfficeAgent\office-journal"`
+   Never put your own files in `C:\OfficeAgent\pack`: refreshing the pack replaces that whole folder.
+2. **Sign in to GitHub on this PC.** The repository is private, so `git fetch` needs a GitHub sign-in
+   (or a read-only deploy key). If the first fetch asks you to log in, that is why.
+3. **Get the pack** (A below).
 
-5. **Create the marker file** that tells the agent it is on the office PC. In PowerShell:
-   `New-Item -ItemType File "<BASE>\OFFICE_HOST"`
-   (In Command Prompt: `type nul > "<BASE>\OFFICE_HOST"`.) The file is empty and has no extension. Do not
-   make it with Notepad, which adds `.txt`.
+## A. Get or refresh the pack
 
-6. **Create the office journal folder** (the agent's own notes and the host change log; they never
-   leave the office):
-   `mkdir "<BASE>\office-journal"`
-   You now have, side by side in `<BASE>`: `anomaly-office-pack`, `OFFICE_HOST`, `office-journal`.
+Do this once now, and again whenever chat says the pack changed (for example, a new brief).
 
-7. **Start the agent in the context folder:**
-   `cd "<BASE>\anomaly-office-pack"` then `claude`
-   Paste this as the first message, exactly:
+1. `git -C "<CLONE>" fetch origin`
+2. `git -C "<CLONE>" checkout --detach origin/docs/office-pack`
+3. `robocopy "<CLONE>\docs\office-agent" "C:\OfficeAgent\pack" /MIR /R:2 /W:5 /NFL /NDL /NP`
 
-   > You are the office agent. Read docs/office-agent/START-HERE.md and
-   > docs/office-agent/OFFICE-AGENT-RULES.md. Confirm the rules back to me in five lines. Then do brief
-   > O-001 in docs/office-agent/briefs-to-office/. Your office journal folder is office-journal, beside
-   > this folder: your host notes and the host change log go there. Never push anything anywhere.
+robocopy ends with a small table. The `FAILED` column must read 0 on every line. If step 2 refuses
+because files in your clone were changed, do not force it: tell chat.
 
-   If its five lines leave out "never push" or "nothing leaves this PC except your photos", stop it and
-   say so.
+## B. Put a plugin version into a game (only when a brief says so)
+
+1. **Close** the game's editor and any running copy of the game.
+2. **Check out the version:**
+   `git -C "<CLONE>" fetch origin`
+   `git -C "<CLONE>" checkout --detach <COMMIT>`
+   Check: `git -C "<CLONE>" log -1 --oneline` starts with `<COMMIT>`.
+3. **Move the old copy out of the game** into a backup folder, so nothing is lost. Use a folder name you
+   have not used before, for example `Concorde-2026-11-24`:
+   `robocopy "<GAME>\Plugins\AnomalyInjector" "C:\OfficeAgent\plugin-backups\<CODENAME>-<DATE>" /E /MOVE /R:2 /W:5 /NFL /NDL /NP`
+   Afterwards `<GAME>\Plugins\AnomalyInjector` is gone or empty. If the game has no copy yet, skip this
+   step.
+4. **Copy the new version in,** without `.git` and without `docs\office-agent`:
+   `robocopy "<CLONE>" "<GAME>\Plugins\AnomalyInjector" /MIR /XD "<CLONE>\.git" "<CLONE>\docs\office-agent" /XF .git /R:2 /W:5 /NFL /NDL /NP`
+   The `FAILED` column must read 0 on every line.
+5. **Write the commit into the copy:**
+   - PowerShell: `git -C "<CLONE>" rev-parse --short HEAD | Set-Content -Encoding ascii "<GAME>\Plugins\AnomalyInjector\COPIED_COMMIT.txt"`
+   - Command Prompt: `git -C "<CLONE>" rev-parse --short HEAD > "<GAME>\Plugins\AnomalyInjector\COPIED_COMMIT.txt"`
+   Check: `type "<GAME>\Plugins\AnomalyInjector\COPIED_COMMIT.txt"` shows `<COMMIT>`.
+6. **Check there is exactly one copy of the plugin** under the game's `Plugins` folder (two copies stop
+   the game project from starting):
+   - PowerShell: `Get-ChildItem -Recurse -Filter AnomalyInjector.uplugin "<GAME>\Plugins" | Select-Object FullName`
+   - Command Prompt: `dir /s /b "<GAME>\Plugins\AnomalyInjector.uplugin"`
+   It must list one line only: `<GAME>\Plugins\AnomalyInjector\AnomalyInjector.uplugin`. If it lists
+   more, do not start the game; tell chat.
+
+The new copy has no build files, so the game builds the plugin again; the agent does that build when the
+brief says so. The copy you moved out in step 3 is your safety copy: keep it until chat says it is not
+needed.
+
+## C. Start the agent
+
+1. Go to the game project folder and start Claude Code:
+   - PowerShell: `Set-Location "<GAME>"` then `claude`
+   - Command Prompt: `cd /d "<GAME>"` then `claude`
+2. Paste the first message from `C:\OfficeAgent\pack\FIRST-MESSAGE.md`, with its two values filled in.
+3. The agent answers with its rules in five lines and what it found in the game, then waits. If the five
+   lines leave out "never push", "never use git" or "nothing leaves this PC except your photos", stop it
+   and say so.
+4. Then tell it which brief to do, for example: `Go: do brief O-001 in C:\OfficeAgent\pack\briefs-to-office.`
+
+One session works in one game. For another game, start a separate session in that game's folder.
+
+## Getting the next brief
+
+1. Refresh the pack (A).
+2. If the brief needs a different plugin version, put it in first (B).
+3. Tell the agent: `Do brief O-002 in C:\OfficeAgent\pack\briefs-to-office.` (use the id chat gives you)
 
 ## Bringing an answer home
 
@@ -64,17 +102,18 @@ quotes. Nothing here changes the plugin your host games use, and nothing here se
 - Photograph nothing else: no code, no game screens, no file lists. If a card shows a real game name or a
   line of the game's code, do not photograph it; ask the agent to rewrite the card.
 
-## Getting the next brief
+## If you followed the earlier setup
 
-1. `git -C "<BASE>\anomaly-office-pack" pull --ff-only`
-2. Tell the agent: "Do brief O-002 in docs/office-agent/briefs-to-office/." (use the id chat gives you)
-
-If the pull refuses, something was changed inside the context folder. Do not force it; tell chat. The
-plugin your host games use changes only when a brief says so, and that brief gives the steps.
+The earlier steps (a second checkout called `anomaly-office-pack` made with `git worktree`, and a file
+called `OFFICE_HOST`) are no longer used. Leave them alone; they do no harm as long as they are not inside
+a game's `Plugins` folder. A game's `Plugins\AnomalyInjector` must now be a copy made as in B, with no
+`.git` inside.
 
 ## Never
 
-- Never push, commit or upload from either folder.
-- Never copy `anomaly-office-pack` into a game's `Plugins` folder (a second copy of the plugin there stops
-  the game project from starting).
-- Never move `office-journal` into a repo or a synced folder.
+- Never push, commit or upload anything from this PC.
+- Never put your own files in `C:\OfficeAgent\pack`.
+- Never copy `C:\OfficeAgent\pack` or your clone itself into a game's `Plugins` folder; only a copy made
+  as in B goes there.
+- Never move `C:\OfficeAgent\office-journal` or `C:\OfficeAgent\plugin-backups` into a repo or a synced
+  folder.
