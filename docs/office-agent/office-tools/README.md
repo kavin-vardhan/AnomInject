@@ -2,7 +2,14 @@
 
 Six read-only checks that read a capture session folder and print a verdict. They were written at home for the m56
 and m57 bench gates and copied here (from the bench repository, branch `m57-gates`, commit `4ca8524`) so you can run
-them at the office. Each runs from this folder with no home paths and needs no other file from this folder.
+them at the office. On the office PC this folder is `C:\OfficeAgent\pack\office-tools\`. Each runs from this folder
+with no home paths and needs no other file from this folder.
+
+`<game>` below is the game project folder; the plugin under test is its copy, `<game>\Plugins\AnomalyInjector`, at
+the commit in its `COPIED_COMMIT.txt`. Keep Python from writing `__pycache__` into this folder or into the plugin copy:
+set `PYTHONDONTWRITEBYTECODE=1` in the terminal first (PowerShell `$env:PYTHONDONTWRITEBYTECODE = "1"`, Command
+Prompt `set PYTHONDONTWRITEBYTECODE=1`), or run each command as `python -B ...`. The variable is the safer of the two:
+`m57_make_clip.py` starts `verify_capture.py` itself, and `-B` does not pass on to it.
 
 ## What you need
 This list is the one place the readers' requirements are named. Rule 5 allows downloading and installing them where
@@ -13,8 +20,9 @@ its version.
 - **Pillow** for `m57_null_pair.py` and `m57_make_clip.py` (tested with Pillow 12.2.0): `python -m pip install Pillow`.
   The plugin's `verify_capture.py` also needs Pillow.
 - **ffmpeg** for `m57_make_clip.py`, on the PATH or named with `--ffmpeg <path to ffmpeg.exe>`.
-- **The plugin's `verify_capture.py`**: use the copy in the plugin checkout at the commit under test,
-  `<plugin checkout>\tools\verify_capture.py`. It is not copied here; keep it beside its `measure_label_offset.py`.
+- **The plugin's `verify_capture.py`**: use the one in the game's plugin copy,
+  `<game>\Plugins\AnomalyInjector\tools\verify_capture.py`. It is not copied here; it needs its
+  `measure_label_offset.py` beside it, as it is in the copy.
 
 ## Before you capture
 Take every session these checks read with **delivery mode off**: type `IAI.Capture.Delivery 0` in the console before
@@ -26,8 +34,8 @@ then `m56_continuity_check.py` cannot judge settle placement, `m56_settle_conten
 Everything these tools write about an office session (a `--json` reading, the clip tool's working frame copies, a
 clip) goes in the office captures area on this PC: the captures folder that holds the session folders, beside the
 sessions and never inside a session folder. Delete the working frame copies once the owner has watched the clips; the
-clips may stay. Never write any of it into a repo or a worktree (the context worktree, a plugin checkout), a synced
-folder, a network share or removable media.
+clips may stay. Never write any of it into the pack (`C:\OfficeAgent\pack`, this folder included), the game's plugin
+copy, a repo, a synced folder, a network share or removable media.
 
 ## First, prove each check can fail
 Run each one with `--selftest` from this folder. It builds small fake sessions in a temporary folder, deletes them
@@ -40,7 +48,7 @@ afterwards, and must end with `OK`:
 | `python m56_nonsettle_compare.py --selftest` | `M56 NON-SETTLE SELFTEST: OK - 26 case(s)` |
 | `python m57_lod_readout.py --selftest` | `M57-LOD-READOUT SELFTEST: OK - 22 cases` |
 | `python m57_null_pair.py --selftest` | `M57-NULL-PAIR SELFTEST: OK - 14 cases` |
-| `python m57_make_clip.py --selftest --verify <plugin checkout>\tools\verify_capture.py` | `M57-CLIP SELFTEST: OK - 15 cases` (13 if ffmpeg is not found; it says so) |
+| `python m57_make_clip.py --selftest --verify <game>\Plugins\AnomalyInjector\tools\verify_capture.py` | `M57-CLIP SELFTEST: OK - 15 cases` (13 if ffmpeg is not found; it says so) |
 
 ## The checks
 `<session>` is one `session_<date-time>` folder. None of these writes inside a session folder. `--json <file>` (the
@@ -113,11 +121,12 @@ m56 checks) writes the full reading to a file you name.
   the steps only.
 - `--out` is a folder in the office captures area, beside the session folders (rule 10). `<name>_overlay\` and
   `<name>_frames\` are working frame copies: delete them once the owner has watched the clip. `<name>.mp4` may stay.
-- `python m57_make_clip.py --verify <plugin checkout>\tools\verify_capture.py --anomaly <session> --out <folder in the captures area, beside the sessions> --name <name> [--null <twin session>] [--ffmpeg <path>]`
+- `python m57_make_clip.py --verify <game>\Plugins\AnomalyInjector\tools\verify_capture.py --anomaly <session> --out <folder in the captures area, beside the sessions> --name <name> [--null <twin session>] [--ffmpeg <path>]`
 
-## The plugin's own readers, from the plugin checkout
-- `python <plugin checkout>\tools\verify_capture.py --dir <session> --label-rule` - are the labels consistent with
-  the rule they were written under, settle frames included. Exit 0 no mismatch, 1 mismatch, 3 cannot run.
-- `python <plugin checkout>\tools\verify_capture.py --dir <session> --label-pixel-gate` - does every complete event
+## The plugin's own readers, from the game's plugin copy
+- `python -B <game>\Plugins\AnomalyInjector\tools\verify_capture.py --dir <session> --label-rule` - are the labels
+  consistent with the rule they were written under, settle frames included. Exit 0 no mismatch, 1 mismatch, 3 cannot
+  run.
+- `python -B <game>\Plugins\AnomalyInjector\tools\verify_capture.py --dir <session> --label-pixel-gate` - does every complete event
   change the pixels where it says. Exit 2 = at least one `NO-TRACE` (a label with no visible change); add
   `--report-only` to get exit 0 with the same report.

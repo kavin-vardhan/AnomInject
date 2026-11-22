@@ -34,8 +34,8 @@ readings are the "before" side of every comparison here. Answer as report cards 
   Delivery mode does not change the labels.
 - **The readers** are in `C:\OfficeAgent\pack\office-tools\`; read its `README.md` first and run each reader's
   `--selftest` before using it. `verify_capture.py` is in the game's plugin copy:
-  `<game>\Plugins\AnomalyInjector\tools\verify_capture.py`; run it with `python -B` so Python writes no `__pycache__`
-  into the copy. Readers only read the session folders.
+  `<game>\Plugins\AnomalyInjector\tools\verify_capture.py`. Set `PYTHONDONTWRITEBYTECODE=1` first (or run Python with
+  `-B`; see the README) so Python writes no `__pycache__` into the copy. Readers only read the session folders.
 - Capture commands (game console): an automatic-pool capture of N frames is `IAI.Capture.Start "" png "" N`; limit the
   pool first with `IAI.Auto.Pool all 0` and then `IAI.Auto.Pool <id> 1` for each anomaly wanted (the default pool is
   `blinking`, `missing_texture`, `corrupted_texture`, `lod_popping`). A capture of one anomaly on one named object is
