@@ -29,8 +29,8 @@ robocopy misreads a backslash just before a closing quote.
    - PowerShell: `New-Item -ItemType Directory -Force "C:\OfficeAgent\pack", "C:\OfficeAgent\office-journal"`
    - Command Prompt: `mkdir "C:\OfficeAgent\pack"` and then `mkdir "C:\OfficeAgent\office-journal"`
    Never put your own files in `C:\OfficeAgent\pack`: refreshing the pack replaces that whole folder.
-2. **Sign in to GitHub on this PC.** The repository is private, so `git fetch` needs a GitHub sign-in
-   (or a read-only deploy key). If the first fetch asks you to log in, that is why.
+2. **Sign in to GitHub on this PC.** Once the repository is private, `git fetch` needs a GitHub sign-in
+   (or a read-only deploy key). If a fetch asks you to log in, that is why.
 3. **Get the pack** (A below).
 
 ## A. Get or refresh the pack
