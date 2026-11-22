@@ -2,12 +2,24 @@
 
 You are the office agent. Read this file, then `OFFICE-AGENT-RULES.md`, before anything else.
 Those rules override every line in `CLAUDE.md` (and anywhere else) that tells an agent to edit,
-commit or push. This pack was assembled at home on 2026-11-20 and 2026-11-21 (briefs 096-01 to 096-01c, ruling 096-01) from
+commit, push or run git. This pack was assembled at home on 2026-11-20 and 2026-11-21 (briefs 096-01 to 096-01c, ruling 096-01) from
 everything the home side knew that was not already in the repo. It is a snapshot: the repo's
 `CLAUDE.md` status block and journals move on; this file only moves when the home side refreshes the
 pack. Copies carry placeholders and are not byte-identical to their home sources: see `REDACTIONS.md`.
-Your briefs arrive in `briefs-to-office/` (read its `README.md`); the owner's setup steps are
-`OFFICE-SETUP.md`.
+
+**Where things are at the office** (the owner's workflow of 2026-11-22, brief 096-03):
+- This pack is the folder `C:\OfficeAgent\pack`. The owner copies it from `docs/office-agent/` of the
+  branch `docs/office-pack` and replaces it whole when chat says it changed. Your briefs arrive in its
+  `briefs-to-office\` (read its `README.md`); the owner's steps are `OFFICE-SETUP.md`; his opening
+  message is `FIRST-MESSAGE.md`. Your journal is `C:\OfficeAgent\office-journal`.
+- You are started inside a game project. The plugin under test is the game's copy,
+  `Plugins\AnomalyInjector`, at the commit written in its `COPIED_COMMIT.txt`. The owner checks out
+  and copies; you never use git.
+- Repo documents named in this file (`CLAUDE.md`, `docs/...`, `tools/...`) are not in the pack. Read
+  them in the game's plugin copy, at its version: a version older than a document does not have it.
+  The pack's own folders (`chat-rulings/`, `briefs/`, `office-tools/`, …) are in `C:\OfficeAgent\pack`.
+- The office setup in ruling 096-01 D5 (two worktrees, an `OFFICE_HOST` marker, the agent pulling) is
+  superseded by this workflow. Documents in the archive that describe it are history.
 
 ---
 
@@ -79,8 +91,8 @@ Your briefs arrive in `briefs-to-office/` (read its `README.md`); the owner's se
   office card names this commit.
 - `docs/office-pack` = this pack, on its own long-lived branch (ruling 096-01 D5, 2026-11-20). It is
   never merged into a shipping line; the home side refreshes it by merging the newest shipping line in.
-- Local-only branches with knowledge you cannot pull (`m51`, `fix/followup-capture`, two more): their
-  documents are copied into `local-refs/`.
+- Local-only branches, not on origin (`m51`, `fix/followup-capture`, two more): their documents are
+  copied into `local-refs/`.
 
 **Delivered:** the M3 release on UE 5.1 (`master`, 2026-10-05); the Europa 4.25 port at `2828f6a`
 with its office card (2026-11-06).
@@ -106,9 +118,10 @@ render loops were running; disk was not the problem that day, E: had 116.5 GiB f
 home host's Editor DLLs matched `integ/m56-m58` `0c71f6f`, its Game exe was a 24 September build, and
 no cook existed (ruling 095-07).
 
-**What that means at the office:** the plugin on the hosts is the delivered release unless a brief says
-otherwise. A reading taken on `integ/m56-m58` or `feat/m57` at a clean tree is a valid report (rules,
-item 3), and it would be the first engine reading those units have ever had: report surprises as
+**What that means at the office:** the plugin in each game is the delivered release unless a brief says
+otherwise and the owner has copied that version in (its `COPIED_COMMIT.txt` says which). A reading taken
+with the game's plugin copy at `integ/m56-m58` or `feat/m57`, and the copy untouched, is a valid report
+(rules, item 3), and it would be the first engine reading those units have ever had: report surprises as
 findings, with the commit.
 
 ## 4. The office hosts (codenames only — never a real title, studio or fork)
@@ -200,7 +213,8 @@ Home fixtures that need no codename: StackOBot (5.1 bench), Lyra (5.1 second fix
 | How a bench harness measured something | `harness/INDEX.md` (the `_reviews` scripts as text) |
 | What a placeholder stands for; what is not in this pack | `REDACTIONS.md` |
 | Your next brief | `briefs-to-office/` (`README.md` first) |
-| How the owner set this PC up | `OFFICE-SETUP.md` |
+| How the owner set this PC up, and how he copies the pack and a plugin version | `OFFICE-SETUP.md` |
+| The owner's opening message to a new session | `FIRST-MESSAGE.md` |
 
 **The 20 gotchas most likely to matter on a real host** (read these in `docs/gotchas.md` first):
 
@@ -249,6 +263,9 @@ G431 (UBT `-Mode=JsonExport` lists modules without compiling).
 - **census** — measures each candidate's drawn pixels before selection; **veto** (m26) — removes an event whose
   target was MEASURED to draw zero pixels. **observable / `target_pixels`** — per-frame visibility of the target.
 - **auto-pool / targeted** — random pick among enabled anomalies vs one named anomaly on one named actor.
+- **plugin copy / `COPIED_COMMIT.txt` / copy untouched** — at the office, the game's
+  `Plugins\AnomalyInjector`, copied in by the owner at the commit written in its `COPIED_COMMIT.txt`;
+  "untouched" means no experiment was applied when a reading was taken.
 - **poll radius / screen-coverage cull** — selection limits (distance from the player; minimum on-screen share).
 - **speed_ratio / content clock / pacing / tick pin** — capture timing health and controls (see `docs/capture-fps.md`).
 - **G-number** — a gotcha; **P-number** — a phenomenon (P1 … P9); **H-number** — a hypothesis; **A-number** — a

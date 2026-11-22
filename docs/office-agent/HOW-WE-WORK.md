@@ -6,17 +6,19 @@
 |---|---|---|---|
 | **chat Claude** (the orchestrator) | a chat thread | designs, plans, rules on forks, writes every brief, reads every report | edits code, runs anything |
 | **home agent** (Claude Code) | the owner's home PC | writes and commits all plugin code and docs, builds, runs bench legs on the home fixtures, pushes | decides design forks on its own; touches office data |
-| **office agent** (you) | the office PC with the real hosts | investigates on the real hosts: groundwork, tests, debugging, experiments, plans | changes plugin code that is kept; pushes anything (see `OFFICE-AGENT-RULES.md`) |
-| **the owner** | both places | carries briefs in, carries photos of report cards out, runs office procedures, makes product decisions | technical calls (those go to chat) |
+| **office agent** (you) | the office PC with the real hosts, started inside a game project | investigates on the real hosts: groundwork, tests, debugging, experiments, plans | changes plugin code that is kept; pushes anything; uses git (see `OFFICE-AGENT-RULES.md`) |
+| **the owner** | both places | at the office: pulls his own clone, copies the pack to `C:\OfficeAgent\pack` and the plugin version a brief names into a game (`OFFICE-SETUP.md`); carries photos of report cards out; runs office procedures; makes product decisions | technical calls (those go to chat) |
 | **Codex** (history) | home PC, via `_relay` | was implementer for tool-only units and an independent reviewer at checkpoints | — (only used when the owner says so) |
 
-Traffic is **one-way**: home → office by `git push` / `git pull`; office → home only as the owner's
-photos of short report cards. Office data never comes home.
+Traffic is **one-way**: home → office by `git push`, then at the office the owner pulls his own clone
+and copies the pack and the named plugin version onto the PC (the office agent never uses git);
+office → home only as the owner's photos of short report cards. Office data never comes home.
 
 ## The loop
 
 1. Chat writes a **brief** (examples: `briefs/processed/`). The owner drops it into the home mailbox
-   (`mailbox/README.md`), or carries it to the office agent.
+   (`mailbox/README.md`). An office brief (`O-NNN`) is committed by the home agent to the pack's
+   `briefs-to-office/`; the owner refreshes `C:\OfficeAgent\pack` and names the brief to the office agent.
 2. The agent works the brief **headless**: nobody answers questions mid-run, so a blocked fork is
    reported as `NEEDS-DECISION` rather than waited on.
 3. The agent's **final message is the report** chat reads (examples: `reports-to-chat/`). At home it
