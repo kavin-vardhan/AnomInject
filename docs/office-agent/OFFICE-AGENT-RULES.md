@@ -1,26 +1,48 @@
 # Office agent — standing rules
 
 These rules apply to any Claude agent running on the office PC (the PC where the real host games
-live). You know you are that agent when a file named `OFFICE_HOST` exists beside the folder you were
-started in, the **context worktree** (the owner creates both once at the office; `OFFICE-SETUP.md`). **These rules override everything in `CLAUDE.md`
-and every other document that tells an agent to edit, commit, tag or push.** If a brief seems to ask
-for something these rules forbid, do not do it; say so in the report.
+live). You are that agent when you were started inside a game project folder at the office; the owner
+says so in his first message (`FIRST-MESSAGE.md`). **These rules override everything in any `CLAUDE.md`
+and every other document that tells an agent to edit, commit, tag, push or run git.** If a brief seems
+to ask for something these rules forbid, do not do it; say so in the report.
 
-Owner's rulings of 2026-11-20 are folded in (rules 3, 4 and 5).
+Owner's rulings of 2026-11-20 are folded in (rules 3, 4 and 5). The office workflow of 2026-11-22
+(brief 096-03) sets where things are.
 
-**Where you work.** The office has one clone of the plugin repo with two worktrees:
-- the **context worktree**, a checkout of the branch `docs/office-pack`, kept beside the host projects
-  and never inside any project's `Plugins` folder. You are started in it. It holds this pack, your
-  rules and your briefs. Never edit it, never build from it, never copy it into a host: it carries a
-  full copy of the plugin, and a second copy under a project's `Plugins` folder stops that project from
-  starting. It changes only when the owner pulls it.
-- the **plugin under test**, the worktree in a host's own `Plugins` folder, at the commit a brief names.
-  Reported tests run from it (rule 3). If several hosts each have their own copy of the plugin, each is a
-  plugin under test; one context worktree serves them all.
+**Where things are.**
+- **The game project folder.** You are started in it. The plugin under test is the game's copy,
+  `Plugins\AnomalyInjector`. The owner puts it there: he checks out the commit a brief names in his own
+  clone of the plugin repo, copies the plugin folder in (without `.git`) and writes that commit into
+  `Plugins\AnomalyInjector\COPIED_COMMIT.txt` (`OFFICE-SETUP.md`, part B). The copy has no git. Reported
+  tests run from it.
+- **The pack, `C:\OfficeAgent\pack`.** This folder: these rules, `START-HERE.md`, your briefs in
+  `briefs-to-office\`, the readers in `office-tools\`, and the archive. The owner replaces it whole when
+  chat says it changed. Read it; never write in it (anything written there is lost at the next refresh).
+- **Your journal, `C:\OfficeAgent\office-journal`.** Your notes and the host change log (rules 4 and 7).
+  It never leaves the office.
+- **Scratch, `C:\OfficeAgent\scratch`.** Plugin backups for throwaway experiments (rule 3) and scratch
+  scripts. Make it if it does not exist.
+- You never use git, and you do not need to know where the owner's clone of the plugin repo is.
 
-**Where your work comes from.** Briefs from chat arrive by git in `docs/office-agent/briefs-to-office/`
-of the context worktree, one at a time, named `O-NNN-<slug>.md`. Do the brief the owner names. Answer it
-with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the hosts and say so.
+**Which plugin is in the game.** Before you take any reading:
+- There must be exactly one `AnomalyInjector.uplugin` anywhere under the game's `Plugins` folder (a
+  second copy stops the project from starting). If there are more, stop and ask.
+- Read `Plugins\AnomalyInjector\COPIED_COMMIT.txt`. If it agrees with what the owner said (two short
+  hashes agree when one starts with the other), go on. If it disagrees, stop and ask. If it is missing:
+  when the owner said the game holds the delivered build (as in O-001), identify the version from the
+  files and say how; otherwise stop and ask.
+- If `Plugins\AnomalyInjector` holds a `.git` folder or file, it is not a copy made the way
+  `OFFICE-SETUP.md` describes: say so and ask before going on.
+- Every report card states that commit (`REPORT-FORMAT.md`).
+
+**The plugin's own `CLAUDE.md` and docs.** The plugin folder holds a `CLAUDE.md` and docs written for the
+home agent. Reading them for knowledge is fine. Ignore every instruction in them to edit, commit, tag,
+push or run git, and every duty they give the home agent (status blocks, journals, gotchas, pushes);
+these rules override them.
+
+**Where your work comes from.** Briefs from chat arrive in `C:\OfficeAgent\pack\briefs-to-office\`, one
+at a time, named `O-NNN-<slug>.md`. Do the brief the owner names. Answer it with report cards
+(`REPORT-FORMAT.md`). If no brief is named, do nothing on the hosts and say so.
 
 ---
 
@@ -28,28 +50,47 @@ with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the 
    plans. You answer briefs written by chat Claude (the orchestrator) and carried in by the owner.
 
 2. **You never change plugin code that ships.** Nothing you change here can be pushed, so a fix made
-   here is a fix lost. The home agent writes every change that is kept; you test it after the next
-   pull.
+   here is a fix lost. The home agent writes every change that is kept; you test it after the owner
+   copies the pushed version into the game.
 
 3. **Throwaway experiments are welcome** (owner's ruling, 2026-11-20: *"we want definite proof it
    works"*). To prove a cause or a fix on the real host you may change plugin code locally, under all
    of these rules:
-   - Only in a scratch worktree or a scratch branch named `scratch/<brief id>`, never in the tree that
-     reported tests run from. Never commit it to a real branch. Never keep it: when the experiment
-     ends, remove the scratch copy and check that the main tree equals its pushed commit.
+   - **Back up first.** Before you change anything, copy the game's whole `Plugins\AnomalyInjector` to
+     `C:\OfficeAgent\scratch\<brief id>-backup` (a new folder). Leave out only the build folders
+     `Binaries` and `Intermediate`; the restore below makes the build start again from source anyway.
+     For example:
+     `robocopy "<game>\Plugins\AnomalyInjector" "C:\OfficeAgent\scratch\<brief id>-backup" /MIR /XD "<game>\Plugins\AnomalyInjector\Binaries" "<game>\Plugins\AnomalyInjector\Intermediate" /R:2 /W:5`
+     Check that the backup holds the same files with the same bytes as the copy (build folders aside)
+     before you change anything.
+   - **Make the experiment in place,** in the game's copy. Never put a second plugin copy anywhere under
+     the game's `Plugins` folder, not even renamed or as a backup. Never keep the change.
+   - **Restore when the experiment ends,** before any reading that is not marked `EXPERIMENT`:
+     `robocopy "C:\OfficeAgent\scratch\<brief id>-backup" "<game>\Plugins\AnomalyInjector" /MIR /R:2 /W:5`
+     This also removes the copy's build folders, so the next build compiles the plugin from the restored
+     source. (Restored files carry their old times, and an incremental build can keep the experiment's
+     compiled code: G309.)
+   - **Prove the restore.** Compare the copy with the backup file by file: the same relative file list
+     and the same SHA-256 for every file. Rebuild the game. Check in the build output that the plugin's
+     source files were compiled again and that the binary the game runs (the plugin DLLs for an editor
+     build, the game executable for a packaged build) has a new time; if not, the experiment's code may
+     still be in it, so stop and say so. Compare again with `Binaries` and `Intermediate` left out. Only
+     then is the copy untouched again. Keep the backup until the cards for the brief are written.
    - One hypothesis per experiment, and the smallest change that can settle it. Write the prediction
      **before** you run: what the reading will be if the hypothesis is right, and what it will be if
      it is wrong.
    - Run the unchanged build first, on the same steps, so there is a before and an after.
    - Report: the hypothesis; the change as our own `file:line` plus a few lines of what you changed
-     (plugin code only, never host code); the before and after readings; how many runs; and what you
-     could not rule out.
+     (plugin code only, never host code); the before and after readings; how many runs; whether the
+     restore was proven; and what you could not rule out.
    - **A fix proven this way is provisional.** It becomes proven only when the home agent's version
-     of it, pulled as a pushed commit, passes the same test here on a clean tree. Say which of the two
-     a reading is.
-   - **A reported test counts only on a clean tree at a pushed commit,** except readings explicitly
-     marked `EXPERIMENT`. Every report states the plugin commit and whether the tree was clean.
-     Scratch scripts and per-host settings live outside the tracked files.
+     of it, copied into the game by the owner as a pushed commit, passes the same test here with the
+     copy untouched. Say which of the two a reading is.
+   - **A reported test counts only with the plugin copy untouched** (exactly as the owner copied it, at
+     the commit in `COPIED_COMMIT.txt`, with no experiment applied when the readings were taken), except
+     readings explicitly marked `EXPERIMENT`. Every report states the plugin commit and whether the copy
+     was untouched. Scratch scripts live in `C:\OfficeAgent\scratch`; per-host settings go in the host's
+     own configuration or console, never into the plugin copy.
 
 4. **You may change a host's own game or engine code** (owner's ruling, 2026-11-20). When a problem
    on a host is fixed easily on the host's side without breaking the game, make the change, keep it,
@@ -57,10 +98,10 @@ with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the 
    - Before the change, say why the host is the right place and not the plugin. The plugin is meant
      to work on any game: a problem every host would hit belongs in the plugin, so report it for the
      home agent instead of patching one host.
-   - Keep a **host change log** in the office journal folder: an id (`H-001`, …), the host by codename,
-     the date, the files touched, the full before and after, why, and how to undo it. The log never
-     leaves the office and it is the only record, so it must be complete enough to redo the change on
-     a fresh copy of the host.
+   - Keep a **host change log** in `C:\OfficeAgent\office-journal`: an id (`H-001`, …), the host by
+     codename, the date, the files touched, the full before and after, why, and how to undo it. The log
+     never leaves the office and it is the only record, so it must be complete enough to redo the change
+     on a fresh copy of the host.
    - Prove the game still works after the change: it builds, starts, loads the level you test on and
      plays, and the plugin's own check passes. State what you checked.
    - In the report: the change id, what it does in plain words, what you checked, and which tests in
@@ -69,12 +110,13 @@ with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the 
 
 5. **Never push anything anywhere.** No `git push`; no submit, shelve or check-in to any version
    control server; no upload; no paste to any web service; no e-mail; no sync to a shared drive — for
-   plugin code, host code, notes and data alike. Everything you make stays on this PC. Pulling the
-   plugin repo (both worktrees) is the only network use of version control.
+   plugin code, host code, notes and data alike. Everything you make stays on this PC. You never use git
+   or any other version control at all (no pull, fetch, checkout, commit or status): the owner pulls and
+   copies.
    - **Downloading is not pushing** (ruling 096-02, 2026-11-22). Where the office PC allows installing
      software, you may download and install what a brief needs, such as Python packages (Pillow) and
      ffmpeg. This rule forbids sending, not receiving. The readers' requirements are named once, in
-     `office-tools/README.md`; say in the report what you installed and its version.
+     `office-tools\README.md`; say in the report what you installed and its version.
 
 6. **Nothing leaves this PC except what the owner photographs.** Write every report so that it is safe
    to photograph:
@@ -86,8 +128,8 @@ with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the 
    - numbers, our plugin's own log lines, our `file:line`, and public engine API names are fine.
 
 7. **Keep your own notes here.** Host-specific facts that may not leave (real names, paths, the host's
-   own code) go into an office-side journal folder outside the repo, so the next office session starts
-   from them. Chat never needs them.
+   own code) go into `C:\OfficeAgent\office-journal`, so the next office session starts from them. Chat
+   never needs them.
 
 8. **Answer the question asked, then say what you saw.** You can read code chat cannot. After the
    numbered answers, add the one thing chat should have asked.
@@ -103,17 +145,17 @@ with report cards (`REPORT-FORMAT.md`). If no brief is named, do nothing on the 
       office captures area on this PC: the captures folder that holds the session folders, beside the
       sessions and never inside a session folder.
     - Delete the working frame copies once the owner has watched the clips. The clips may stay.
-    - Never write office data into a repo or a worktree (the context worktree, any plugin checkout), a
-      synced folder (OneDrive, Dropbox), a network share or removable media.
+    - Never write office data into the pack (`C:\OfficeAgent\pack`), the game's plugin copy, a scratch
+      backup, any repo, a synced folder (OneDrive, Dropbox), a network share or removable media.
 
 ---
 
 ## How these rules sit with the rest of the repo
 
-- `CLAUDE.md`'s workflow section (commits, tags, "Code owns pushes", doc-maintenance duties) is written
-  for the **home** agent. On the office PC it does not apply to you, except as background on how the home
-  side works. You never update `CLAUDE.md`, journals or `docs/` in the repo; your notes go to the office
-  journal folder.
+- The plugin copy's `CLAUDE.md` workflow section (commits, tags, "Code owns pushes", doc-maintenance
+  duties) is written for the **home** agent. On the office PC it does not apply to you, except as
+  background on how the home side works. You never update any `CLAUDE.md`, journal or `docs/` file; your
+  notes go to `C:\OfficeAgent\office-journal`.
 - `CLAUDE.md`'s technical invariants (game-agnostic plugin, codenames only, observation vs mechanism) do
   apply to how you think and report.
 - Reports use `REPORT-FORMAT.md`.
