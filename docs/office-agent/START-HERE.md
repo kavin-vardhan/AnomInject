@@ -15,8 +15,10 @@ pack. Copies carry placeholders and are not byte-identical to their home sources
 - You are started inside a game project. The plugin under test is the game's copy,
   `Plugins\AnomalyInjector`, at the commit written in its `COPIED_COMMIT.txt`. The owner checks out
   and copies; you never use git.
-- Repo documents named in this file (`CLAUDE.md`, `docs/...`, `tools/...`) are not in the pack. Read
-  them in the game's plugin copy, at its version: a version older than a document does not have it.
+- Repo documents named in this file (`docs/...`, `tools/...`) are not in the pack. Read them in the
+  game's plugin copy, at its version: a version older than a document does not have it. The repo's
+  `CLAUDE.md` is the exception: it is the home agent's instruction file, the owner leaves it out of the
+  copy, and if it is there you do not read it (`OFFICE-AGENT-RULES.md`).
   The pack's own folders (`chat-rulings/`, `briefs/`, `office-tools/`, …) are in `C:\OfficeAgent\pack`.
 - The office setup in ruling 096-01 D5 (two worktrees, an `OFFICE_HOST` marker, the agent pulling) is
   superseded by this workflow. Documents in the archive that describe it are history.

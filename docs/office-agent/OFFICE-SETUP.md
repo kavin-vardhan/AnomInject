@@ -56,9 +56,12 @@ because files in your clone were changed, do not force it: tell chat.
    `robocopy "<GAME>\Plugins\AnomalyInjector" "C:\OfficeAgent\plugin-backups\<CODENAME>-<DATE>" /E /MOVE /R:2 /W:5 /NFL /NDL /NP`
    Afterwards `<GAME>\Plugins\AnomalyInjector` is gone or empty. If the game has no copy yet, skip this
    step.
-4. **Copy the new version in,** without `.git` and without `docs\office-agent`:
-   `robocopy "<CLONE>" "<GAME>\Plugins\AnomalyInjector" /MIR /XD "<CLONE>\.git" "<CLONE>\docs\office-agent" /XF .git /R:2 /W:5 /NFL /NDL /NP`
-   The `FAILED` column must read 0 on every line.
+4. **Copy the new version in,** without `.git`, without `docs\office-agent` and without the plugin's own
+   `CLAUDE.md`:
+   `robocopy "<CLONE>" "<GAME>\Plugins\AnomalyInjector" /MIR /XD "<CLONE>\.git" "<CLONE>\docs\office-agent" /XF .git "<CLONE>\CLAUDE.md" /R:2 /W:5 /NFL /NDL /NP`
+   The `FAILED` column must read 0 on every line (a number under `Skipped` is fine).
+   `CLAUDE.md` stays out because it is the home agent's instructions: in a game it would fill the office
+   agent's memory.
 5. **Write the commit into the copy:**
    - PowerShell: `git -C "<CLONE>" rev-parse --short HEAD | Set-Content -Encoding ascii "<GAME>\Plugins\AnomalyInjector\COPIED_COMMIT.txt"`
    - Command Prompt: `git -C "<CLONE>" rev-parse --short HEAD > "<GAME>\Plugins\AnomalyInjector\COPIED_COMMIT.txt"`
@@ -69,6 +72,11 @@ because files in your clone were changed, do not force it: tell chat.
    - Command Prompt: `dir /s /b "<GAME>\Plugins\AnomalyInjector.uplugin"`
    It must list one line only: `<GAME>\Plugins\AnomalyInjector\AnomalyInjector.uplugin`. If it lists
    more, do not start the game; tell chat.
+7. **Check the home agent's `CLAUDE.md` is not in the copy:**
+   - PowerShell: `Test-Path "<GAME>\Plugins\AnomalyInjector\CLAUDE.md"` must print `False`.
+   - Command Prompt: `if exist "<GAME>\Plugins\AnomalyInjector\CLAUDE.md" (echo PRESENT) else (echo absent)`
+     must print `absent`.
+   If the file is there, move it out as in C1 and tell chat.
 
 The new copy has no build files, so the game builds the plugin again; the agent does that build when the
 brief says so. The copy you moved out in step 3 is your safety copy: keep it until chat says it is not
@@ -76,14 +84,24 @@ needed.
 
 ## C. Start the agent
 
-1. Go to the game project folder and start Claude Code:
+1. **Before the first session in a game, move the home agent's `CLAUDE.md` out of the game's copy, if it
+   is there.** A copy put in as in B never has it; a copy that was already in the game (for example the
+   delivered build) may. The game's build does not use this file, so moving it out does not change the
+   plugin version. If the file is not there, these lines do nothing.
+   - PowerShell: `New-Item -ItemType Directory -Force "C:\OfficeAgent\plugin-backups"` then
+     `if (Test-Path "<GAME>\Plugins\AnomalyInjector\CLAUDE.md") { Move-Item "<GAME>\Plugins\AnomalyInjector\CLAUDE.md" "C:\OfficeAgent\plugin-backups\<CODENAME>-CLAUDE.md" }`
+   - Command Prompt: `if not exist "C:\OfficeAgent\plugin-backups" mkdir "C:\OfficeAgent\plugin-backups"` then
+     `if exist "<GAME>\Plugins\AnomalyInjector\CLAUDE.md" move "<GAME>\Plugins\AnomalyInjector\CLAUDE.md" "C:\OfficeAgent\plugin-backups\<CODENAME>-CLAUDE.md"`
+   Then check as in B7. If the move says the file already exists, or asks whether to overwrite, answer
+   No and tell chat.
+2. Go to the game project folder and start Claude Code:
    - PowerShell: `Set-Location "<GAME>"` then `claude`
    - Command Prompt: `cd /d "<GAME>"` then `claude`
-2. Paste the first message from `C:\OfficeAgent\pack\FIRST-MESSAGE.md`, with its two values filled in.
-3. The agent answers with its rules in five lines and what it found in the game, then waits. If the five
+3. Paste the first message from `C:\OfficeAgent\pack\FIRST-MESSAGE.md`, with its two values filled in.
+4. The agent answers with its rules in five lines and what it found in the game, then waits. If the five
    lines leave out "never push", "never use git" or "nothing leaves this PC except your photos", stop it
    and say so.
-4. Then tell it which brief to do, for example: `Go: do brief O-001 in C:\OfficeAgent\pack\briefs-to-office.`
+5. Then tell it which brief to do, for example: `Go: do brief O-001 in C:\OfficeAgent\pack\briefs-to-office.`
 
 One session works in one game. For another game, start a separate session in that game's folder.
 
@@ -107,7 +125,7 @@ One session works in one game. For another game, start a separate session in tha
 The earlier steps (a second checkout called `anomaly-office-pack` made with `git worktree`, and a file
 called `OFFICE_HOST`) are no longer used. Leave them alone; they do no harm as long as they are not inside
 a game's `Plugins` folder. A game's `Plugins\AnomalyInjector` must now be a copy made as in B, with no
-`.git` inside.
+`.git` and no `CLAUDE.md` inside.
 
 ## Never
 
