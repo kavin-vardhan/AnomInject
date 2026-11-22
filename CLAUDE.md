@@ -1,6 +1,6 @@
-> **OFFICE PC? READ THIS FIRST.** If a file named `OFFICE_HOST` exists beside this repo's folder (the owner creates it once at the office), you are the office agent.
-> Read `docs/office-agent/START-HERE.md` and `docs/office-agent/OFFICE-AGENT-RULES.md` before anything else.
-> Those rules override everything below that tells an agent to edit, commit, tag or push: on the office PC you never push, and you never keep a change to plugin code.
+> **OFFICE PC? READ THIS FIRST.** If you are running inside a game project at the office (this plugin is then a copy under the game's `Plugins` folder), you are the office agent.
+> Follow `C:\OfficeAgent\pack\OFFICE-AGENT-RULES.md` (start with `C:\OfficeAgent\pack\START-HERE.md`) before anything else.
+> Those rules override everything below that tells an agent to edit, commit, tag, push or run git: at the office you never push, never use git, and never keep a change to plugin code.
 
 # AnomalyInjector — canonical context
 
