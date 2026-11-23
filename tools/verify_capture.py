@@ -3309,8 +3309,10 @@ def annotation_transition_check(directory, require_schema=True):
     carrying settle is refused. 2.2 also carries the root transition_frames list (the sorted union whose size is
     transition_frame_count; it names the row-only settle frames that no event lists). Transition entries of an event missing from annotation.json fail, except on 2.2 when the
     event id is listed in run_summary vetoed_event_ids and every one of its transition reasons is settle (the m26 veto
-    removes the event; labels.jsonl keeps its after-offset settle rows). A 2.1 session is judged as before m56: every
-    unlisted transition event fails."""
+    removes the event; labels.jsonl keeps its after-offset settle rows), or, in a Play-In-Editor capture (run_summary
+    pie_end_settle_active true), settle or pie_end_settle (096-06: a vetoed fire-window event in PIE also keeps the
+    pie_end_settle entry after its label run). A 2.1 session is judged as before m56: every unlisted transition event
+    fails."""
     from collections import Counter, defaultdict
     from pathlib import Path
     root = Path(directory)
@@ -3376,8 +3378,11 @@ def annotation_transition_check(directory, require_schema=True):
                 errors.append('transition_reasons mismatch: %s' % key)
         unlisted = sorted(k for k in expected_frames.keys() - seen if expected_frames[k])
         excused = 0
+        vetoed_may_carry = {LABEL_RULE_SETTLE}
+        if isinstance(summary, dict) and summary.get('pie_end_settle_active') is True:
+            vetoed_may_carry.add(LABEL_RULE_PIE_SETTLE)
         for key in unlisted:
-            if minor == 2 and key in vetoed_ids and set(expected_reasons[key]) == {LABEL_RULE_SETTLE}:
+            if minor == 2 and key in vetoed_ids and expected_reasons[key] and set(expected_reasons[key]) <= vetoed_may_carry:
                 excused += 1
                 continue
             errors.append('transition event missing from annotation: %s' % key)
@@ -3407,8 +3412,12 @@ def _lr_settle_placement(rows, run_json, rs):
     K comes from run.json settle_frames, else from the data. stuck_low_mip events (deferred onset, restore trail) are
     judged after their onset only; session globals (camera_clipping, time_dilation) anchor nothing. A settle row in no
     window is a stray. Strays are excused only for zero-match bursts (a burst that fired nothing still has its settle
-    frames, with no event to anchor them), at their schedule positions and at most 2K per burst (_lr_zero_match_strays)."""
+    frames, with no event to anchor them), at their schedule positions and at most 2K per burst (_lr_zero_match_strays).
+    In a Play-In-Editor capture (run_summary pie_end_settle_active true) an unlabelled entry whose only transition reason
+    is pie_end_settle (the first frame after a fire-window label run, which under m56 is the revert tick) is not a live
+    tick of its event (096-06: counting it put the revert one tick late); outside PIE, or labelled, it still counts."""
     out = {"fails": [], "summary": "not judged (no settle and no tick_index)", "k": None}
+    pie_active = isinstance(rs, dict) and rs.get("pie_end_settle_active") is True
     have_settle = any(isinstance(r.get("transition_reason"), list) and LABEL_RULE_SETTLE in r["transition_reason"]
                       for r in rows)
     if not rows or not all(_lr_int(r.get("tick_index")) for r in rows):
@@ -3460,7 +3469,10 @@ def _lr_settle_placement(rows, run_json, rs):
         on = ev["on"]
         off = sorted(t for t, a in ev["ents"].items()
                      if LABEL_RULE_SETTLE in (a.get("transition_reason") or []) and (on is None or t > on + k))
-        live = [t for t, a in ev["ents"].items() if t not in off]
+        live = [t for t, a in ev["ents"].items() if t not in off and not (
+            pie_active and a.get("labelled") is not True
+            and LABEL_RULE_PIE_SETTLE in (a.get("transition_reason") or [])
+            and LABEL_RULE_SETTLE not in (a.get("transition_reason") or []))]
         if key[0] in LABEL_RULE_DEFERRED_TYPES:
             deferred_skipped += 1
             covered.update(off)
@@ -4770,6 +4782,32 @@ def _label_rule_selftest():
         case56("S56_l_row_without_tick_index_FAILS", _m56_write(root, "s56l", r56), 1, "TICK-CONTINUITY")
         case56("S56_m_no_run_json_infers_k_clean", _m56_write(root, "s56m", _m56_rows(), run_json=False), 0,
                extra=lambda d, _l: d["settle_k"] == 2 and "inferred" in d["settle_placement"])
+
+        def pie_m56_rows(labelled=False):
+            rows_ = _m56_rows()
+            for t_rv, t_on in ((13, 3), (29, 19)):
+                r = rows_[t_rv]
+                r["anomalies"].append({"id": "missing_texture", "target_name": "Rock", "start_frame": 100 + t_on,
+                                       "event_id": "missing_texture@%d|Rock" % (100 + t_on), "bbox_valid": True,
+                                       "labelled": labelled, "transition": 1, "transition_reason": [LABEL_RULE_PIE_SETTLE]})
+                r["transition_present"] = True
+            return rows_
+        pie_rs = {"pie_end_settle_active": True, "pie_end_settle_frames": 2, "label_transition_pie_end_settle_entries": 2}
+        case56("S56_p_pie_end_settle_on_each_revert_tick_clean", _m56_write(root, "s56p", pie_m56_rows(), rs_extra=pie_rs), 0,
+               extra=lambda d, _l: d["settle_rows"] == 10 and d["reasons"].get("missing_texture/pie_end_settle") == 2)
+        case56("S56_p2_same_entries_in_a_session_not_marked_pie_FAILS",
+               _m56_write(root, "s56p2", pie_m56_rows(), rs_extra=dict(pie_rs, pie_end_settle_active=False)), 1,
+               "SETTLE-MISPLACED", extra=lambda d, _l: "PIE-SETTLE-OUTSIDE-PIE" in d["fails"])
+        moved_pie = moved(pie_m56_rows(), 15, 16)
+        case56("S56_p3_pie_with_an_offset_settle_moved_one_tick_later_FAILS",
+               _m56_write(root, "s56p3", moved_pie, rs_extra=pie_rs), 1, "SETTLE-MISPLACED")
+        case56("S56_p4_vetoed_pie_event_with_settle_and_pie_reasons_clean",
+               _m56_write(root, "s56p4", pie_m56_rows(), ann_post=drop_event,
+                          rs_extra=dict(pie_rs, vetoed_events=1, vetoed_event_ids=[veto_id])), 0)
+        case56("S56_p5_vetoed_pie_reasons_in_a_session_not_marked_pie_FAILS",
+               _m56_write(root, "s56p5", pie_m56_rows(), ann_post=drop_event,
+                          rs_extra=dict(pie_rs, pie_end_settle_active=False, vetoed_events=1, vetoed_event_ids=[veto_id])), 1,
+               "ANNOTATION-TRANSITIONS")
     finally:
         shutil.rmtree(root, ignore_errors=True)
     if all(results):
