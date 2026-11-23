@@ -29,6 +29,7 @@ namespace AnomalyHiddenClass
 		};
 
 		TMap<TWeakObjectPtr<AActor>, FSavedActor> GHidden;
+		TSet<TWeakObjectPtr<AActor>> GLegacyHidden;
 		int32 GHideMode = 1;
 		bool GOmitShadowSilencing = false;
 		bool GOmitDepthPassSilencing = false;
@@ -80,6 +81,7 @@ namespace AnomalyHiddenClass
 
 		if (GHideMode == 0)
 		{
+			GLegacyHidden.Add(Actor);
 			Actor->SetActorHiddenInGame(true);
 			return;
 		}
@@ -140,6 +142,7 @@ namespace AnomalyHiddenClass
 			return;
 		}
 
+		GLegacyHidden.Remove(Actor);
 		if (GHideMode == 0 && !GHidden.Contains(Actor))
 		{
 			Actor->SetActorHiddenInGame(false);
@@ -185,6 +188,12 @@ namespace AnomalyHiddenClass
 		return GHidden.Contains(const_cast<AActor*>(Actor));
 	}
 
+	bool IsHiddenByPlugin(const AActor* Actor)
+	{
+		AActor* Key = const_cast<AActor*>(Actor);
+		return Actor && (GHidden.Contains(Key) || GLegacyHidden.Contains(Key));
+	}
+
 	bool IsAnyLogicallyHidden()
 	{
 		return GHidden.Num() > 0;
@@ -202,5 +211,14 @@ namespace AnomalyHiddenClass
 			}
 		}
 		GHidden.Reset();
+		TArray<TWeakObjectPtr<AActor>> Legacy = GLegacyHidden.Array();
+		for (const TWeakObjectPtr<AActor>& Weak : Legacy)
+		{
+			if (AActor* Actor = Weak.Get())
+			{
+				Show(Actor);
+			}
+		}
+		GLegacyHidden.Reset();
 	}
 }

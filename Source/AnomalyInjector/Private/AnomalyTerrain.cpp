@@ -241,7 +241,7 @@ namespace AnomalyTerrain
 	FString DescribeRules()
 	{
 		return FString::Printf(
-			TEXT("class=%s | patterns=%s source=%s | refusal=%s | subtype=%s on a terrain blink, %s otherwise"),
+			TEXT("class=%s | patterns=%s source=%s | refusal=%s | subtype=%s on a terrain blink, %s otherwise | terrain_ceiling=%s"),
 			*DescribeClassRule(),
 			*AnomalyDefaults::DescribeTerrainPatterns(),
 			*AnomalyDefaults::TerrainPatternsSource(),
@@ -249,7 +249,8 @@ namespace AnomalyTerrain
 				? TEXT("ON(blinking on engine landscape is refused terrain_unlabelable)")
 				: TEXT("OFF(IAI.Bench.TerrainRefusalOff - BENCH DEVICE; engine-landscape blinks fire with no mask and a wrong box)"),
 			ANSI_TO_TCHAR(AnomalyTerrainRule::TerrainBlinkSubtype()),
-			ANSI_TO_TCHAR(AnomalyTerrainRule::DefaultBlinkSubtype()));
+			ANSI_TO_TCHAR(AnomalyTerrainRule::DefaultBlinkSubtype()),
+			*AnomalyDefaults::DescribeBlinkTerrainCeiling());
 	}
 
 	bool IsBlinkRefusalEnabled()

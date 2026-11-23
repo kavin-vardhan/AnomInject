@@ -18,6 +18,8 @@
 #include "Anomalies/TexCorruptPure.h"
 #include "AnomalyTargetPolicy.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyTerrain.h"
+#include "AnomalyTerrainRule.h"
 
 #include "Misc/Crc.h"
 #include "Engine/Engine.h"
@@ -255,6 +257,34 @@ void UAnomalyAutoInjectorSubsystem::AdvanceTime(float DeltaSeconds)
 	}
 }
 
+namespace
+{
+	bool ReadmitTerrainAboveCeiling(const AActor* Actor, float DrawnPct)
+	{
+		const float Ceiling = AnomalyDefaults::GetBlinkTerrainCeilingPct();
+		if (!Actor || DrawnPct < 0.0f || DrawnPct > Ceiling)
+		{
+			return false;
+		}
+		const AnomalyTerrain::FTerrainVerdict Terrain = AnomalyTerrain::Classify(Actor);
+		if (!AnomalyTerrainRule::ReadmitAboveCeiling(true, true, Terrain.bTerrain, DrawnPct, Ceiling))
+		{
+			return false;
+		}
+		static TSet<FString> Seen;
+		bool bAlready = false;
+		Seen.Add(Actor->GetPathName(), &bAlready);
+		if (!bAlready)
+		{
+			UE_LOG(LogAnomaly, Log,
+				TEXT("TERRAIN-CEILING actor='%s' path='%s' drawn=%.2f%% rule=%s - above the census ceiling but at or below the ")
+				TEXT("terrain ceiling %s, so it is re-admitted as a BLINKING candidate only."),
+				*Actor->GetName(), *Actor->GetPathName(), DrawnPct, *Terrain.Rule, *AnomalyDefaults::DescribeBlinkTerrainCeiling());
+		}
+		return true;
+	}
+}
+
 bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 {
 
@@ -407,7 +437,9 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		const AActor* BB = B.Get();
 		if (!AA) { return false; }
 		if (!BB) { return true; }
-		return AA->GetName() < BB->GetName();
+		const FString NameA = AA->GetName();
+		const FString NameB = BB->GetName();
+		return NameA != NameB ? NameA < NameB : AA->GetPathName() < BB->GetPathName();
 	});
 
 	TArray<AActor*> Candidates;
@@ -453,10 +485,13 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 						*Actor->GetName(), LexToStringAnomalyCensusDecision(Opinion.Decision),
 						Opinion.Reason, Opinion.AgeTicks, Opinion.DrawnPct);
 
-					if (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
+					static const FName GTerrainCeilingBlinkId(TEXT("blinking"));
+					const bool bTerrainReadmitted = Opinion.Decision == EAnomalyCensusDecision::ExcludedAboveCeiling
+						&& DrawnId == GTerrainCeilingBlinkId && ReadmitTerrainAboveCeiling(Actor, Opinion.DrawnPct);
+					if (!bTerrainReadmitted && (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
 						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedBelowFloor
 						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedAboveCeiling
-						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent)
+						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent))
 					{
 						++CensusExcluded;
 						continue;
@@ -594,7 +629,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	const float Hold = Draw.Hold;
 
 	const FString TargetName = Target->GetName();
-	const FString Token = FString(TEXT("=")) + TargetName;
+	const FString Token = AnomalyTargeting::MakePathToken(Target);
 	TArray<FString> ApplyArgs;
 	ApplyArgs.Add(Token);
 	FString ModeLog = Dash;
@@ -760,7 +795,23 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	}
 
 	AActor* Target = nullptr;
-	const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(World, FString(TEXT("=")) + ActorName);
+	const AnomalyTargetPolicy::ETargetToken Kind = AnomalyTargetPolicy::ClassifyTargetToken((int)ActorName[0]);
+	const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(World,
+		Kind == AnomalyTargetPolicy::ETargetToken::Substring ? FString(TEXT("=")) + ActorName : ActorName);
+	if (AnomalyTargetPolicy::IsTargetedNameAmbiguous(Kind, Matches.Num()))
+	{
+		const FString Reason = FString::Printf(TEXT("%s:%d"), UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeAmbiguousReason()), Matches.Num());
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("Auto.FireSpecific: '%s' on '%s' -> REFUSED %s - %d actors match this name (first: %s). A targeted capture changes one ")
+			TEXT("actor and its label names one, so it never picks among namesakes. Nothing is applied. Target one actor with ")
+			TEXT("@<path>, for example @%s."),
+			*Id.ToString(), *ActorName, *Reason, Matches.Num(),
+			*AnomalyTargeting::DescribeFirstPaths(Matches, AnomalyTargetPolicy::AmbiguousPathsLogged),
+			Matches[0].IsValid() ? *Matches[0]->GetPathName() : TEXT("<path>"));
+		NoteYieldRound(Id, TEXT("targeted"), false, TMap<FString, int32>{ { Reason, 1 } });
+		LastFireResult = FString::Printf(TEXT("target %s: refused (%s)"), *ActorName, *Reason);
+		return false;
+	}
 	for (const TWeakObjectPtr<AActor>& Weak : Matches)
 	{
 		AActor* Actor = Weak.Get();
@@ -776,6 +827,21 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		NoteYieldRound(Id, TEXT("targeted"), false, TMap<FString, int32>{ { TEXT("no_match"), 1 } });
 		LastFireResult = FString::Printf(TEXT("target %s: 0 matched (skipped)"), *ActorName);
 		return false;
+	}
+
+	if (!IsSessionGlobalId(Injector, Id))
+	{
+		const FString Refusal = AnomalyViewport::GetTargetRefusal(Target);
+		if (!Refusal.IsEmpty())
+		{
+			LastFireResult = FString::Printf(TEXT("target %s: refused (%s)"), *ActorName, *Refusal);
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("Auto.FireSpecific: '%s' on '%s' (%s) -> REFUSED %s - this target can never show a labelled change, so ")
+				TEXT("nothing is applied and no fire is recorded."),
+				*Id.ToString(), *ActorName, *Target->GetPathName(), *Refusal);
+			NoteYieldRound(Id, TEXT("targeted"), false, TMap<FString, int32>{ { Refusal, 1 } });
+			return false;
+		}
 	}
 
 	if (!IsSessionGlobalId(Injector, Id) && AnomalyViewport::RefuseNaniteTarget(Target, TEXT("targeted")))
@@ -804,7 +870,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		bModeGiven, bTexCorrupt ? Modes.Num() : -1, ModeCounter, !BenchLever.IsEmpty());
 	const float Hold = Targeted.Hold;
 	const FString TargetName = Target->GetName();
-	const FString Token = FString(TEXT("=")) + TargetName;
+	const FString Token = AnomalyTargeting::MakePathToken(Target);
 	TArray<FString> ApplyArgs;
 	ApplyArgs.Reserve(1 + ExtraArgs.Num());
 	ApplyArgs.Add(Token);

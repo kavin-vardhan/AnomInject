@@ -817,6 +817,7 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 		return false;
 	}
 
+	ApplyLevelRefusals.Remove(Id);
 	if (const FString* Refusal = RefusedIds.Find(Id))
 	{
 		UE_LOG(LogAnomaly, Warning,
@@ -829,6 +830,53 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 		EAnomalyScope Scope = EAnomalyScope::Object;
 		TArray<FAnomalyArgSpec> Spec;
 		GetAuthoredSpec(Id, Scope, Spec);
+		if (Scope == EAnomalyScope::Object && Args.Num() > 0 && !Args[0].IsEmpty())
+		{
+			const AnomalyTargetPolicy::ETargetToken Kind = AnomalyTargetPolicy::ClassifyTargetToken((int)Args[0][0]);
+			if (Kind != AnomalyTargetPolicy::ETargetToken::Path)
+			{
+				const FString Name = Kind == AnomalyTargetPolicy::ETargetToken::ExactName ? Args[0].RightChop(1) : Args[0];
+				TArray<FString> Paths;
+				const int32 Named = AnomalyTargeting::CountActorsNamed(GetWorld(), Name, &Paths, AnomalyTargetPolicy::AmbiguousPathsLogged);
+				if (AnomalyTargetPolicy::IsApplyTokenAmbiguous(Kind, Named))
+				{
+					const FString Reason = FString::Printf(TEXT("%s:%d"), UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeAmbiguousReason()), Named);
+					ApplyLevelRefusals.Add(Id, Reason);
+					UE_LOG(LogAnomaly, Warning,
+						TEXT("IAI.Apply '%s' '%s' REFUSED %s - %d actors in this world are named '%s' (first: %s), and a name is unique ")
+						TEXT("only per level, so the anomaly would change every one of them while its label names one. Nothing is ")
+						TEXT("applied and no fire is recorded. Target one actor with @<path>, the path above."),
+						*Id.ToString(), *Args[0], *Reason, Named, *Name, *FString::Join(Paths, TEXT(" | ")));
+					return false;
+				}
+			}
+			const TArray<TWeakObjectPtr<AActor>> Targets = AnomalyTargeting::FindActorsMatching(GetWorld(), Args[0]);
+			int32 RefusedTargets = 0;
+			FString FirstRefusal;
+			FString FirstPath;
+			for (const TWeakObjectPtr<AActor>& Weak : Targets)
+			{
+				const FString Why = AnomalyViewport::GetTargetRefusal(Weak.Get());
+				if (!Why.IsEmpty())
+				{
+					++RefusedTargets;
+					if (FirstRefusal.IsEmpty())
+					{
+						FirstRefusal = Why;
+						FirstPath = GetPathNameSafe(Weak.Get());
+					}
+				}
+			}
+			if (Targets.Num() > 0 && RefusedTargets == Targets.Num())
+			{
+				ApplyLevelRefusals.Add(Id, FirstRefusal);
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("IAI.Apply '%s' '%s' REFUSED %s - every matched actor (%d, first %s) can never show a labelled change. ")
+					TEXT("Nothing is applied and no fire is recorded."),
+					*Id.ToString(), *Args[0], *FirstRefusal, Targets.Num(), *FirstPath);
+				return false;
+			}
+		}
 		if (Scope == EAnomalyScope::Object && Args.Num() > 0 && !Args[0].IsEmpty() && !AnomalyDefaults::GetAllowNaniteTargets())
 		{
 			const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(GetWorld(), Args[0]);
@@ -1163,6 +1211,10 @@ bool UAnomalyInjectorSubsystem::GetAnomalyTelemetry(const FName& Id, FAnomalyTel
 
 FString UAnomalyInjectorSubsystem::GetAnomalyLastRefusalReason(const FName& Id) const
 {
+	if (const FString* ApplyLevel = ApplyLevelRefusals.Find(Id))
+	{
+		return *ApplyLevel;
+	}
 	const TUniquePtr<IAnomaly>* Found = Anomalies.Find(Id);
 	if (!Found || !Found->IsValid())
 	{

@@ -6,6 +6,7 @@
 #include "AnomalyInjectorLog.h"
 #include "AnomalyDefaults.h"
 #include "AnomalyTargetPolicy.h"
+#include "AnomalyHiddenClass.h"
 
 #include "Engine/StaticMesh.h"
 #include "Engine/SkinnedAsset.h"
@@ -71,6 +72,53 @@ namespace
 	{
 		static TSet<FString> Seen;
 		return Seen;
+	}
+
+	TSet<FString>& HostHiddenActorsSeen()
+	{
+		static TSet<FString> Seen;
+		return Seen;
+	}
+
+	TSet<FString>& HlodProxyActorsSeen()
+	{
+		static TSet<FString> Seen;
+		return Seen;
+	}
+
+	struct FHlodClasses
+	{
+		const UClass* Legacy = nullptr;
+		const UClass* Partition = nullptr;
+		bool bResolved = false;
+	};
+
+	const FHlodClasses& HlodClasses()
+	{
+		static FHlodClasses Classes;
+		if (!Classes.bResolved)
+		{
+			Classes.Legacy = FindObject<UClass>(nullptr, UTF8_TO_TCHAR(AnomalyTargetPolicy::LegacyHlodActorClassPath()));
+			Classes.Partition = FindObject<UClass>(nullptr, UTF8_TO_TCHAR(AnomalyTargetPolicy::PartitionHlodActorClassPath()));
+			Classes.bResolved = true;
+		}
+		return Classes;
+	}
+
+	bool IsHlodProxyOwner(const AActor* Owner)
+	{
+		if (!Owner)
+		{
+			return false;
+		}
+		const FHlodClasses& Classes = HlodClasses();
+		return (Classes.Legacy && Owner->IsA(Classes.Legacy)) || (Classes.Partition && Owner->IsA(Classes.Partition));
+	}
+
+	bool IsOwnerHostHidden(const AActor* Owner)
+	{
+		return Owner && Owner->IsHidden()
+			&& AnomalyTargetPolicy::IsHostHidden(true, AnomalyHiddenClass::IsHiddenByPlugin(Owner), 0, 0);
 	}
 
 	int32 GNaniteRefusalAttempts = 0;
@@ -546,10 +594,90 @@ namespace
 		return true;
 	}
 
+	bool AnyGeometryInView(const FConvexVolume& Frustum, const FVector& PollOrigin, float PollRadius, const AActor* Actor)
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (!Prim || !Prim->IsVisible() || !AnomalyViewport::IsRenderableGeometryComponent(Prim))
+			{
+				continue;
+			}
+			if (PollRadius > 0.0f)
+			{
+				const FBoxSphereBounds& B = Prim->Bounds;
+				if ((float)FVector::Dist(PollOrigin, B.Origin) - (float)B.SphereRadius > PollRadius)
+				{
+					continue;
+				}
+			}
+			if (IsInFrustum(Frustum, Prim))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool RefusedAsHostHidden(const FConvexVolume& Frustum, const FVector& PollOrigin, float PollRadius, const AActor* Actor)
+	{
+		if (!IsOwnerHostHidden(Actor))
+		{
+			return false;
+		}
+		if (AnomalyViewport::IsReadOnlyEnumeration() || !AnyGeometryInView(Frustum, PollOrigin, PollRadius, Actor))
+		{
+			return true;
+		}
+		bool bAlready = false;
+		HostHiddenActorsSeen().Add(Actor->GetPathName(), &bAlready);
+		if (!bAlready)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("EXCLUDED-HIDDEN actor='%s' path='%s' class=%s reason=%s - the game keeps this actor hidden (its hidden flag ")
+				TEXT("is set and the plugin did not set it), so it can never show a change: refused as an injection candidate ")
+				TEXT("and as a target. Counted in run_summary.hidden_excluded_targets."),
+				*Actor->GetName(), *Actor->GetPathName(), *Actor->GetClass()->GetName(),
+				UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeTargetHiddenReason()));
+		}
+		return true;
+	}
+
+	bool RefusedAsHlodProxy(const FConvexVolume& Frustum, const FVector& PollOrigin, float PollRadius, const AActor* Actor)
+	{
+		if (!IsHlodProxyOwner(Actor))
+		{
+			return false;
+		}
+		if (AnomalyViewport::IsReadOnlyEnumeration() || !AnyGeometryInView(Frustum, PollOrigin, PollRadius, Actor))
+		{
+			return true;
+		}
+		bool bAlready = false;
+		HlodProxyActorsSeen().Add(Actor->GetPathName(), &bAlready);
+		if (!bAlready)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("EXCLUDED-HLOD-PROXY actor='%s' path='%s' class=%s reason=%s - an engine-made stand-in for a whole cell of ")
+				TEXT("distant objects, not an object a tester would name; it draws no target-mask pixels, so every event on it ")
+				TEXT("was vetoed. Refused as an injection candidate and as a target. Counted in ")
+				TEXT("run_summary.hlod_proxy_excluded_targets."),
+				*Actor->GetName(), *Actor->GetPathName(), *Actor->GetClass()->GetName(),
+				UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeHlodProxyReason()));
+		}
+		return true;
+	}
+
 	bool ClassifyRenderableVisibleLive(const FConvexVolume& Frustum, const FMatrix& ViewProj, const FVector& ViewOrigin,
 		const FVector& PollOrigin, float PollRadius, float MinCoveragePct, UWorld* World, const AActor* Actor,
 		UPrimitiveComponent*& OutFirstMatch)
 	{
+		if (RefusedAsHostHidden(Frustum, PollOrigin, PollRadius, Actor) || RefusedAsHlodProxy(Frustum, PollOrigin, PollRadius, Actor))
+		{
+			OutFirstMatch = nullptr;
+			return false;
+		}
 		if (MinCoveragePct <= 0.0f)
 		{
 			OutFirstMatch = FirstRenderableVisibleComponent(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor);
@@ -800,6 +928,10 @@ namespace AnomalyViewport
 
 		if (const AActor* Owner = Component->GetOwner())
 		{
+			if (IsOwnerHostHidden(Owner) || IsHlodProxyOwner(Owner))
+			{
+				return false;
+			}
 			if (Owner->IsA<AInstancedFoliageActor>())
 			{
 				return false;
@@ -1355,6 +1487,8 @@ namespace AnomalyViewport
 		ExcludedActorsSeen().Reset();
 		TranslucentOnlyActorsSeen().Reset();
 		NaniteRefusedActorsSeen().Reset();
+		HostHiddenActorsSeen().Reset();
+		HlodProxyActorsSeen().Reset();
 		GNaniteRefusalAttempts = 0;
 		GNaniteProbeMissingRefusals = 0;
 	}
@@ -1367,6 +1501,62 @@ namespace AnomalyViewport
 	int32 GetTranslucentOnlyExclusionCount()
 	{
 		return TranslucentOnlyActorsSeen().Num();
+	}
+
+	int32 GetHiddenExclusionCount()
+	{
+		return HostHiddenActorsSeen().Num();
+	}
+
+	bool IsActorHostHidden(const AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		int32 Geometry = 0;
+		int32 Visible = 0;
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (Prim && IsRenderableGeometryComponent(Prim))
+			{
+				++Geometry;
+				if (Prim->IsVisible())
+				{
+					++Visible;
+				}
+			}
+		}
+		return AnomalyTargetPolicy::IsHostHidden(Actor->IsHidden(), AnomalyHiddenClass::IsHiddenByPlugin(Actor), Geometry, Visible);
+	}
+
+	int32 GetHlodProxyExclusionCount()
+	{
+		return HlodProxyActorsSeen().Num();
+	}
+
+	bool IsActorHlodProxy(const AActor* Actor)
+	{
+		return IsHlodProxyOwner(Actor);
+	}
+
+	FString DescribeHlodRule()
+	{
+		const FHlodClasses& Classes = HlodClasses();
+		return FString::Printf(TEXT("%s[actor IsA %s (%s) | actor IsA %s (%s)] reason=%s"),
+			(Classes.Legacy || Classes.Partition) ? TEXT("ACTIVE") : TEXT("INERT - neither class path resolved, the rule matches NOTHING this run"),
+			UTF8_TO_TCHAR(AnomalyTargetPolicy::LegacyHlodActorClassPath()), Classes.Legacy ? TEXT("found") : TEXT("NOT FOUND"),
+			UTF8_TO_TCHAR(AnomalyTargetPolicy::PartitionHlodActorClassPath()), Classes.Partition ? TEXT("found") : TEXT("NOT FOUND"),
+			UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeHlodProxyReason()));
+	}
+
+	FString GetTargetRefusal(const AActor* Actor)
+	{
+		const AnomalyTargetPolicy::ETargetEligibility Eligibility =
+			AnomalyTargetPolicy::DecideTargetEligibility(IsActorHostHidden(Actor), IsHlodProxyOwner(Actor));
+		return FString(UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeEligibility(Eligibility)));
 	}
 
 	FReadOnlyEnumerationScope::FReadOnlyEnumerationScope()

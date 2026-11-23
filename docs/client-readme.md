@@ -429,6 +429,31 @@ Console equivalents of the dashboard sliders, in case you ever need them: `IAI.S
 
 Everything else (starting/stopping capture, choosing anomalies) is easier from the dashboard, so those commands are the whole list.
 
+### Naming the target of a targeted capture: names, classes and `@<path>`
+
+In many games an object **name** is unique only inside one level, so several objects can share it (one test map had
+402 names shared by 1055 objects). A targeted capture changes one object and its label names one object, so it never
+picks among namesakes:
+
+* **A name or class name that matches exactly one object** works as before (for example `StaticMeshActor_49`).
+* **A name that matches more than one object is refused** with the reason `target_ambiguous:<count>`. The log line lists
+  the first three matching objects by their **full path** and nothing is applied.
+* **`@<path>`** targets exactly one object by its full path, for example
+  `@/Game/Maps/Level1.Level1:PersistentLevel.Rock_12`. Copy the path from the refusal line, or from `annotation.json` →
+  `affected_objects.nodes[].path` of an earlier session. The same form works in `IAI.Apply`.
+* `IAI.Apply <anomaly> <text>`: a text that is exactly the name of more than one object is refused the same way. A text
+  that is only part of names (for example `SM_Ramp`) still means "every object whose name or class contains it".
+
+The automatic pool always applies by full path, so an anomaly changes exactly the one object its label, box and mask
+name, even where names repeat.
+
+**Objects that can never show a change are refused up front, for every anomaly:** an object the game keeps hidden
+(`target_hidden`; also an object whose meshes are all invisible) and an engine-made HLOD proxy, the merged stand-in a
+game draws for a group of distant objects (`hlod_proxy`). They are never picked by the pool, and a targeted capture or
+`IAI.Apply` on one is refused by name. `run_summary.json` counts the distinct ones met in view:
+`hidden_excluded_targets` and `hlod_proxy_excluded_targets`; the capture log names each one once
+(`EXCLUDED-HIDDEN`, `EXCLUDED-HLOD-PROXY`) and prints an `HLOD RULE` line at the start of each run.
+
 **Unsupported while a capture runs:** applying or reverting an anomaly by hand (`IAI.Apply` / `IAI.Revert`) for an anomaly type the capture is already firing. The capture's labels for that type follow whichever object the anomaly is currently on, so a manual re-apply to another object can make the capture's running event read as installed on the wrong object. Use `IAI.RevertAll` or the dashboard's Revert all button, which end the capture's events cleanly.
 
 ## 6. Capture rate & video speed
@@ -884,6 +909,16 @@ picks engine landscape anyway, so in practice this affects only a capture target
 `run_summary.json` counts both: `blink_terrain_events` (blink events labelled as terrain) and
 `terrain_unlabelable_refusals` (blink fires refused on engine landscape).
 
+**Terrain blinks have their own coverage ceiling.** The automatic pool leaves out objects that cover more than 25 % of
+the frame (the census ceiling; such scenery-scale objects made unusable labels). The ground under the player often
+covers more than that, so terrain blinks could never happen. `IAI.Blink.TerrainCeilingPct <pct|default>` (or
+`[AnomalyInjector] BlinkTerrainCeilingPct` in `DefaultGame.ini`) sets a separate ceiling that applies **only** to
+blinking on terrain; every other anomaly and every other object keeps the census ceiling. The default is **25**, the same
+as the census ceiling, so nothing changes until you raise it; the `TERRAIN RULES` line shows the value in use, and the
+log names each terrain object re-admitted (`TERRAIN-CEILING`). ⚠ **Not yet a recommended setting:** a terrain blink at
+40 % can remove a large part of the picture, and we test 40 % on a real game, looking for black or empty frames, before
+choosing a default. The mask shows the opening exactly; the box overstates it.
+
 ### 8.5 v1 → v2 changelog
 
 | Key | v1 meaning | v2 meaning | Additive? |
@@ -945,6 +980,11 @@ jumped exactly where the label changed. Schema 2.2 saves every frame and flags t
 | `run_summary.json` → `capture_span_ticks`, `frames_armed`, `frames_dropped`, `frames_dropped_ticks`, `frames_dropped_ticks_truncated`, `frames_dropped_by_cause`, `orphan_completions`, `label_rows_failed`, `settle_frames`, `label_transition_settle_entries`, `writer_pending_byte_cap`, `writer_pending_count_floor`, `writer_pending_bytes_peak`, `writer_backpressure_waits`, `writer_backpressure_seconds`, `writer_flush_complete`, `writer_stalled`, `vetoed_event_ids` | *absent* | see §8.6c | **Added** |
 | `run_summary.json` → `target_mask_frames_measured` / `_unavailable` | a mask whose PNG failed to save counted as measured | counted as unavailable, so on a healthy capture the three mask counts still add up to the frame count (on a capture that lost frames they can add up to more) | behaviour |
 | `video.fps` / `run_summary.json` → `stamped_fps` | the target rate, or the sustained wall rate when the machine fell behind | the same on a capture that lost no frame; when frames were lost, the stamp follows the frames actually written | behaviour (lossy runs only) |
+| which object an event changes (ships with 2.2) | the anomaly re-found its target by name and changed **every** object of that name, while the label named one | exactly the labelled object (applied by full path, see "Naming the target" in §5). No field changes; `affected_objects.nodes[].path` already named the object | behaviour (fix) |
+| targeted capture / `IAI.Apply` on a repeated name (ships with 2.2) | took one of the namesakes (targeted) or all of them (`IAI.Apply`) | refused `target_ambiguous:<n>`; `@<path>` names one object | behaviour |
+| hidden objects and HLOD proxies (ships with 2.2) | could be picked; a blink on a hidden object was labelled with no visible change, and every event on an HLOD proxy was vetoed | never picked, refused as targets (`target_hidden`, `hlod_proxy`) | behaviour (fix) |
+| `run_summary.json` → `hidden_excluded_targets`, `hlod_proxy_excluded_targets` (ships with 2.2) | *absent* | distinct objects of each kind met in view and refused (§5) | **Added** |
+| terrain blink ceiling (ships with 2.2) | terrain was held to the 25 % census ceiling | `IAI.Blink.TerrainCeilingPct`, default 25, so unchanged until raised (§8.4.2) | setting |
 
 🔑 **The one-line migration:** keep dropping every frame that carries a transition flag (it already covers
 `settle`), and read time with `t_wall_run` instead of `t_wall`. Nothing was removed and nothing was renamed.
