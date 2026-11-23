@@ -1797,6 +1797,7 @@ namespace AnomalyLabel
 					SO->SetNumberField(TEXT("distance_cm"), W.DistanceCm);
 					SO->SetNumberField(TEXT("coverage_pct"), W.CoveragePct);
 					SO->SetBoolField(TEXT("on_screen"), W.bOnScreen);
+					SO->SetBoolField(TEXT("lod_spatial_swap_visible"), IsSpatialSwapVisible(W));
 					Swaps.Add(MakeShared<FJsonValueObject>(SO));
 				}
 				O->SetArrayField(TEXT("lod_swap_frames"), SwapFrames);

@@ -959,6 +959,7 @@ only on `lod_popping`.
 | `annotation.json` → `label_schema_minor` | `2` | `3` | value change |
 | `anomaly_subtype` on a `lod_popping` event | the type | `distance_threshold` or `view_entry` (`periodic` on the test bench only) | **Added values** |
 | `annotation.json` event keys `lod_trigger`, `lod_held_lod`, `lod_swaps`, `lod_swap_frames`, `lod_spatial_swap_visible`, `lod_event_kind`, `lod_trigger_screen_size`, `lod_trigger_distance_cm` | *absent* | on every `lod_popping` event (§8.7a) | **Added** |
+| `lod_spatial_swap_visible` on each entry of `lod_swaps` | *absent* | `true` or `false` on every swap (§8.7a) | **Added** |
 | `labels.jsonl` entry keys `lod.trigger`, `lod.state` (`armed`, `labelled`, `subvisible`, `occluded`, `past_held`, `swapped`), `lod.held`, `lod.held_lod`, `lod.engine_lod`, `lod.screen_size`, `lod.distance_cm`, `lod.coverage_pct`, `lod.on_screen`, `lod.in_frustum`, `lod.subvisible`, `lod.swap` (with `lod.swap_from_lod`, `lod.swap_to_lod`, `lod.swap_cause`, `lod.swap_direction` on a swap frame), `lod.cap_reached`, `lod.component`, `lod.probe`, `lod.dithered`, `lod.min_lod`, `lod.temporal0`, `lod.temporal1`, `lod.engine_lod_render`, `lod.min_lod_render`, `lod.temporal_render0`, `lod.temporal_render1`, `lod.unconfirmed_why` | *absent* | on `lod_popping` entries only | **Added** |
 | reasons `lod_subvisible`, `lod_unconfirmed` (entry `transition_reason`) | *absent* | §8.6a | **Added** values |
 | `run_summary.json` → `lod_events_by_kind`, `lod_swaps_by_cause`, `lod_untriggered`, `lod_untriggered_event_ids`, `lod_arm_timeouts`, `lod_arm_clock_restarts`, `lod_window_extension_frames`, `lod_render_checked_frames`, `lod_render_mismatch_frames`, `lod_trigger_settings`, `lod_predict_calls`, `lod_predict_candidates`, `lod_predict_ms_mean`, `lod_predict_ms_max` | *absent* | written when a `lod_popping` fire ran or the auto pool looked for one | **Added** |
@@ -1503,8 +1504,11 @@ What each row leaves open, stated rather than implied:
     measured at zero drawn pixels (the standard veto; its id is in `run_summary.json` `vetoed_event_ids`). Kept
     events are marked: `lod_trigger`, `lod_held_lod`, `lod_swaps` (each with `frame`, `tick_index`, `cause` =
     `distance`, `view_entry` or `hold_cap`, `direction`, `from_lod`, `to_lod`, `screen_size`, `distance_cm`,
-    `coverage_pct`, `on_screen`), `lod_swap_frames`, `lod_spatial_swap_visible`, `lod_event_kind` (`spatial_swap`,
-    `hold_cap_only`, `no_swap`, `periodic`), `lod_trigger_screen_size` and `lod_trigger_distance_cm`.
+    `coverage_pct`, `on_screen`, and `lod_spatial_swap_visible`: `true` when the swap's `cause` is `distance` or
+    `view_entry` and `on_screen` is `true`, else `false`), `lod_swap_frames`, `lod_spatial_swap_visible` (`true` when
+    any of the event's swaps says `true`), `lod_event_kind` (`spatial_swap`, `hold_cap_only`, `no_swap`, `periodic`),
+    `lod_trigger_screen_size` and `lod_trigger_distance_cm`. Earlier 2.3 sessions carry `lod_spatial_swap_visible` on
+    the event only.
     **To keep only events with a visible spatial pop, keep those whose `lod_spatial_swap_visible` is `true`.**
     `hold_cap` is the one pop the schedule can cause: a target that stays visibly wrong for 150 frames is released by
     the capture, rarely, and always marked; if the capture ends on that frame, no swap is recorded and the event reads

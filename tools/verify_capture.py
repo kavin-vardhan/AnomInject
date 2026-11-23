@@ -3428,7 +3428,10 @@ def lod_annotation_check(directory):
     | no_swap | periodic). A spatial fire that never showed a labelled frame writes NO event and is listed in run_summary
     lod_untriggered_event_ids. This checks the keys against each other, against run_summary's lod_events_by_kind /
     lod_swaps_by_cause / lod_untriggered, and that no untriggered id has an event or a labelled entry. A session with no
-    lod key is not judged."""
+    lod key is not judged. Since 096-06 every swap also carries its own lod_spatial_swap_visible (a bool: cause distance
+    or view_entry and on_screen true) and the event's value is true exactly when one of its swaps says true; when any swap
+    of the session carries the key, every swap must carry it as a bool with that value (sessions written before 096-06
+    carry it on no swap and are read as before)."""
     from collections import Counter
     errors = []
     try:
@@ -3447,6 +3450,8 @@ def lod_annotation_check(directory):
         return [], {"judged": False}
     kinds, causes = Counter(), Counter()
     ids = set()
+    per_swap = any(isinstance(s, dict) and "lod_spatial_swap_visible" in s
+                   for e in events if isinstance(e.get("lod_swaps"), list) for s in e["lod_swaps"])
     for e in events:
         eid = e.get("event_id")
         ids.add(eid)
@@ -3461,6 +3466,11 @@ def lod_annotation_check(directory):
             if s.get("cause") not in LABEL_RULE_LOD_CAUSES or s.get("direction") not in ("up", "down"):
                 errors.append("lod event %s: swap at %r has cause %r direction %r" % (eid, s.get("frame"), s.get("cause"), s.get("direction")))
             causes[s.get("cause")] += 1
+            if per_swap:
+                want_s = s.get("cause") in ("distance", "view_entry") and s.get("on_screen") is True
+                if s.get("lod_spatial_swap_visible") is not want_s:
+                    errors.append("lod event %s: swap at %r has lod_spatial_swap_visible %r, its cause and on_screen say %r"
+                                  % (eid, s.get("frame"), s.get("lod_spatial_swap_visible"), want_s))
         visible = any(s.get("cause") in ("distance", "view_entry") and s.get("on_screen") is True for s in swaps)
         trigger = e.get("lod_trigger")
         want = ("periodic" if trigger == "periodic" else "spatial_swap" if visible
@@ -4989,8 +4999,14 @@ def _label_rule_selftest():
             return out
 
         def lod_post(kind="view_entry", swaps=None, ev_kind=None, visible=None, summary_kinds=None, untriggered=None,
-                     subtype=None, frames=(6, 7)):
-            swaps = [] if swaps is None else swaps
+                     subtype=None, frames=(6, 7), swap_keys=None):
+            swaps = [dict(w) for w in ([] if swaps is None else swaps)]
+            for i, w in enumerate(swaps):
+                key = swap_keys[i] if swap_keys is not None else "absent"
+                if key == "rule":
+                    w["lod_spatial_swap_visible"] = w["cause"] in ("distance", "view_entry") and w["on_screen"] is True
+                elif key != "absent":
+                    w["lod_spatial_swap_visible"] = key
 
             def _post(d):
                 path = os.path.join(d, "annotation.json")
@@ -5044,6 +5060,18 @@ def _label_rule_selftest():
              post=lod_post(swaps=swap_ve, untriggered=[lod_id]))
         case("lod_spatial_event_without_labelled_frames_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
              post=lod_post(swaps=[], frames=()))
+        swap_two = swap_ve + [{"frame": 9, "cause": "hold_cap", "direction": "up", "on_screen": True}]
+        swap_off = [{"frame": 8, "cause": "view_entry", "direction": "up", "on_screen": False}]
+        case("lod_per_swap_visible_bool_on_every_swap_clean", lod_rows(), lod_ev, 0, RULE_NEW,
+             post=lod_post(swaps=swap_two, swap_keys=["rule", "rule"]))
+        case("lod_per_swap_visible_false_on_an_off_screen_entry_clean", lod_rows(), lod_ev, 0, RULE_NEW,
+             post=lod_post(swaps=swap_off, swap_keys=["rule"]))
+        case("lod_per_swap_visible_missing_on_one_swap_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_two, swap_keys=["rule", "absent"]))
+        case("lod_per_swap_visible_null_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_two, swap_keys=["rule", None]))
+        case("lod_per_swap_visible_wrong_FAILS", lod_rows(), lod_ev, 1, RULE_NEW, "LOD-KEYS",
+             post=lod_post(swaps=swap_two, swap_keys=[False, "rule"]))
 
         def pie_m56_rows(labelled=False):
             rows_ = _m56_rows()

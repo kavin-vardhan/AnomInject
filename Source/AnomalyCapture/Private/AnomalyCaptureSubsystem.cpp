@@ -11033,7 +11033,7 @@ void UAnomalyCaptureSubsystem::WriteSessionAnnotationFile()
 				const int32* Tick = ArmedTickBySession.Find(W.Frame);
 				W.Tick = Tick ? *Tick : -1;
 				LodSwapsByCause.FindOrAdd(W.Cause) += 1;
-				if ((W.Cause == TEXT("distance") || W.Cause == TEXT("view_entry")) && W.bOnScreen)
+				if (AnomalyLabel::IsSpatialSwapVisible(W))
 				{
 					Out.bLodSpatialSwapVisible = true;
 				}

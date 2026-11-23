@@ -565,6 +565,11 @@ namespace AnomalyLabel
 		bool bOnScreen = false;
 	};
 
+	inline bool IsSpatialSwapVisible(const FLodSwapRecord& W)
+	{
+		return (W.Cause == TEXT("distance") || W.Cause == TEXT("view_entry")) && W.bOnScreen;
+	}
+
 	struct FSessionEvent
 	{
 		FString EventId;
