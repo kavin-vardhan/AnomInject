@@ -45,12 +45,14 @@ namespace AnomalyLodTriggerRule
 		int TriangleRatio = 4;
 		float ReleaseMargin = 0.10f;
 		float Hysteresis = 0.85f;
-		float MinClosingSpeedCmPerS = 50.0f;
+		float MinClosingSpeedCmPerS = 20.0f;
+		float RetreatSpeedCmPerS = 50.0f;
 		float MaxApproachAngleDeg = 30.0f;
 		int AheadFrames = 90;
+		int DistanceAheadFrames = 300;
 		float ViewEntryMarginDeg = 20.0f;
 		float ViewEntryMarginMaxDeg = 120.0f;
-		float MinYawRateDegPerS = 30.0f;
+		float MinYawRateDegPerS = 5.0f;
 		int EntryFrames = 30;
 		int HoldCapFrames = 150;
 		bool bDownPop = false;
@@ -220,7 +222,7 @@ namespace AnomalyLodTriggerRule
 		const float TargetDistanceCm = In.DistanceCm * In.BoundsScreenSize / Target;
 		const float Frames = (In.DistanceCm - TargetDistanceCm) / (In.ClosingSpeedCmPerS * In.FrameSeconds);
 		OutFramesAhead = (int)(Frames + 0.999f);
-		if (OutFramesAhead > Settings.AheadFrames)
+		if (OutFramesAhead > Settings.DistanceAheadFrames)
 		{
 			return "too_far_ahead";
 		}
@@ -279,6 +281,16 @@ namespace AnomalyLodTriggerRule
 			return "too_far_ahead";
 		}
 		return nullptr;
+	}
+
+	inline int ArmTimeoutFramesFor(EMode Mode, int SettingFrames, int FramesAhead, int EntryFrames)
+	{
+		if (Mode != EMode::DistanceThreshold || FramesAhead < 0)
+		{
+			return SettingFrames;
+		}
+		const int Needed = FramesAhead + (EntryFrames > 0 ? EntryFrames : 0);
+		return Needed > SettingFrames ? Needed : SettingFrames;
 	}
 
 	struct FFrameInput

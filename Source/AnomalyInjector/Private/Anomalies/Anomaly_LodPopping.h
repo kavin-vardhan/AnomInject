@@ -76,6 +76,7 @@ private:
 	TWeakObjectPtr<UStaticMeshComponent> SpatialMesh;
 	FString SpatialMeshName;
 	int32 SavedForcedLod = 0;
+	int32 ArmedFramesAhead = -1;
 	uint64 AppliedFrame = 0;
 	uint64 LastCommittedFrame = 0;
 	AnomalyLodTriggerRule::FSettings Settings;

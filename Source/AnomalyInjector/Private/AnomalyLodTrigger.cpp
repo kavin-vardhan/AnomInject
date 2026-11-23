@@ -91,6 +91,7 @@ AnomalyLodTriggerRule::FSettings AnomalyLodTrigger::GetSettings()
 	S.EntryFrames = AnomalyDefaults::GetLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::EntryFrames);
 	S.HoldCapFrames = AnomalyDefaults::GetLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::HoldCapFrames);
 	S.bDownPop = AnomalyDefaults::GetLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::DownPop) != 0;
+	S.MinYawRateDegPerS = (float)AnomalyDefaults::GetLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::MinYawRate);
 	return S;
 }
 
@@ -463,7 +464,12 @@ TArray<TWeakObjectPtr<AActor>> AnomalyLodTrigger::CollectArmableActors(UWorld* W
 			OutRefusals.FindOrAdd(E.Refusal.IsEmpty() ? FString(TEXT("refused")) : E.Refusal) += 1;
 		}
 	}
-	Actors.Sort([](const AActor& A, const AActor& B) { return A.GetName() < B.GetName(); });
+	Actors.Sort([](const AActor& A, const AActor& B)
+	{
+		const FString NameA = A.GetName();
+		const FString NameB = B.GetName();
+		return NameA != NameB ? NameA < NameB : A.GetPathName() < B.GetPathName();
+	});
 	for (AActor* A : Actors)
 	{
 		Out.Add(A);

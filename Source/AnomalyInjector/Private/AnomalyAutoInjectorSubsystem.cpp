@@ -357,7 +357,16 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 						Best = KV.Value;
 					}
 				}
-				NoteYieldRound(Id, TEXT("auto-pool"), false, TMap<FString, int32>{ { FString(TEXT("lod_not_armable:")) + Dominant, 1 } });
+				TMap<FString, int32> AllReasons;
+				for (const TPair<FString, int32>& KV : LodRefusals)
+				{
+					AllReasons.Add(FString(TEXT("lod_not_armable:")) + KV.Key, KV.Value);
+				}
+				if (AllReasons.Num() == 0)
+				{
+					AllReasons.Add(FString(TEXT("lod_not_armable:")) + Dominant, 1);
+				}
+				NoteYieldRound(Id, TEXT("auto-pool"), false, AllReasons);
 				UE_LOG(LogAnomaly, Verbose, TEXT("Auto.Fire: lod_popping left out of this round (lod_not_armable:%s) - nothing the camera is approaching or turning toward can be armed now."), *Dominant);
 				continue;
 			}

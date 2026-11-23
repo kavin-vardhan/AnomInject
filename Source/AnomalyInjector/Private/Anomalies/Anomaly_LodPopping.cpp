@@ -479,6 +479,7 @@ bool FAnomaly_LodPopping::ApplySpatial(UWorld* World, const FString& Substring, 
 	Tracker = FTracker();
 	Tracker.Mode = Mode;
 	Tracker.HeldLod = BestEval.HeldLod;
+	ArmedFramesAhead = BestEval.FramesAhead;
 	Tracker.ReleaseScreenSize = BestEval.ReleaseScreenSize;
 	Tracker.bHeld = true;
 	HistoryCount = 0;
@@ -572,7 +573,7 @@ const FAnomaly_LodPopping::FTickEndEval& FAnomaly_LodPopping::EvaluateNow() cons
 		if (Seconds > 0.0)
 		{
 			const float Speed = (float)((E.DistanceCm - DistanceHistory[Oldest]) / Seconds);
-			E.Input.bRetreating = Speed >= Settings.MinClosingSpeedCmPerS;
+			E.Input.bRetreating = Speed >= Settings.RetreatSpeedCmPerS;
 		}
 	}
 	FTracker Copy = Tracker;
@@ -745,7 +746,8 @@ void FAnomaly_LodPopping::Revert()
 int32 FAnomaly_LodPopping::GetDeferredOnsetTimeoutFrames() const
 {
 	return Mode == AnomalyLodTriggerRule::EMode::Periodic ? -1
-		: AnomalyDefaults::GetLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::ArmTimeoutFrames);
+		: AnomalyLodTriggerRule::ArmTimeoutFramesFor(Mode,
+			AnomalyDefaults::GetLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::ArmTimeoutFrames), ArmedFramesAhead, Settings.EntryFrames);
 }
 
 bool FAnomaly_LodPopping::IsHoldingEventOpen() const

@@ -78,7 +78,7 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API void LatchLodAllowSkeletalForRun();
 	ANOMALYINJECTOR_API void ReleaseLodAllowSkeletalLatch();
 
-	enum class ELodTriggerSetting : uint8 { ArmTimeoutFrames = 0, HoldCapFrames = 1, EntryFrames = 2, DownPop = 3, Num = 4 };
+	enum class ELodTriggerSetting : uint8 { ArmTimeoutFrames = 0, HoldCapFrames = 1, EntryFrames = 2, DownPop = 3, MinYawRate = 4, Num = 5 };
 
 	ANOMALYINJECTOR_API const TCHAR* LodTriggerSettingKey(ELodTriggerSetting Setting);
 	ANOMALYINJECTOR_API const TCHAR* LodTriggerSettingConsole(ELodTriggerSetting Setting);

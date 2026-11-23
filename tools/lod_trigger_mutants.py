@@ -29,6 +29,10 @@ MUTATIONS = {
     "downpop_default_on": ("bool bDownPop = false;", "bool bDownPop = true;"),
     "view_margin_fixed": ("if (In.AngleOutsideFrustumDeg > ViewEntryMarginForRate(Settings, In.YawRateDegPerS, In.FrameSeconds))",
                           "if (In.AngleOutsideFrustumDeg > Settings.ViewEntryMarginDeg)"),
+    "distance_uses_view_lookahead": ("if (OutFramesAhead > Settings.DistanceAheadFrames)", "if (OutFramesAhead > Settings.AheadFrames)"),
+    "arm_timeout_ignores_ahead": ("const int Needed = FramesAhead + (EntryFrames > 0 ? EntryFrames : 0);", "const int Needed = 0;"),
+    "closing_floor_50": ("float MinClosingSpeedCmPerS = 20.0f;", "float MinClosingSpeedCmPerS = 50.0f;"),
+    "yaw_floor_30": ("float MinYawRateDegPerS = 5.0f;", "float MinYawRateDegPerS = 30.0f;"),
 }
 
 

@@ -128,20 +128,33 @@ static void TestArmRules()
 	Check(DistanceArmRefusal(D, S, Ahead, &LookAhead) == nullptr && Ahead == 61,
 		"approach arms 61 frames ahead (1000 cm to 545 cm at 7.5 cm/frame), got " + std::to_string(Ahead));
 	Check(LookAhead > 0.0549f && LookAhead < 0.0551f, "covered target: the look-ahead is the contrast release size");
-	FDistanceArmInput Slow = D; Slow.ClosingSpeedCmPerS = 20.0f;
-	Check(Is(DistanceArmRefusal(Slow, S, Ahead), "not_approaching"), "slow approach refused");
+	FDistanceArmInput Slow = D; Slow.ClosingSpeedCmPerS = 10.0f;
+	Check(Is(DistanceArmRefusal(Slow, S, Ahead), "not_approaching"), "approach below the 20 cm/s floor refused");
+	FDistanceArmInput Walk = D; Walk.ClosingSpeedCmPerS = 20.0f;
+	Check(Is(DistanceArmRefusal(Walk, S, Ahead), "too_far_ahead") && Ahead == 682,
+		"20 cm/s passes the floor; the release is 682 frames ahead, past the 300-frame distance look-ahead, got " + std::to_string(Ahead));
 	FDistanceArmInput Away = D; Away.ClosingSpeedCmPerS = -100.0f;
 	Check(Is(DistanceArmRefusal(Away, S, Ahead), "not_approaching"), "retreating camera refused");
 	FDistanceArmInput Side = D; Side.ApproachAngleDeg = 45.0f;
 	Check(Is(DistanceArmRefusal(Side, S, Ahead), "off_motion_axis"), "target off the motion axis refused");
 	FDistanceArmInput Far = D; Far.ClosingSpeedCmPerS = 50.0f;
-	Check(Is(DistanceArmRefusal(Far, S, Ahead), "too_far_ahead"), "release 273 frames ahead at 50 cm/s refused");
+	Check(DistanceArmRefusal(Far, S, Ahead) == nullptr && Ahead == 273,
+		"release 273 frames ahead at 50 cm/s arms under the 300-frame distance look-ahead (096-07), got " + std::to_string(Ahead));
+	FDistanceArmInput Farther = D; Farther.ClosingSpeedCmPerS = 40.0f;
+	Check(Is(DistanceArmRefusal(Farther, S, Ahead), "too_far_ahead") && Ahead == 341,
+		"release 341 frames ahead at 40 cm/s refused, got " + std::to_string(Ahead));
+	FSettings S095 = S; S095.MinClosingSpeedCmPerS = 50.0f; S095.DistanceAheadFrames = 90;
+	Check(Is(DistanceArmRefusal(Far, S095, Ahead), "too_far_ahead"), "095-era settings: release 273 frames ahead at 50 cm/s refused (90-frame look-ahead)");
 	FDistanceArmInput CovSmall = D; CovSmall.CoveragePct = 1.0f;
 	Check(DistanceArmRefusal(CovSmall, S, Ahead, &LookAhead) == nullptr && Ahead == 83,
 		"coverage-limited target arms 83 frames ahead (looks ahead to the 7 % size), got " + std::to_string(Ahead));
 	Check(LookAhead > 0.0793f && LookAhead < 0.0795f, "look-ahead = the size at which coverage reaches 7 % (0.03 x sqrt 7), got " + std::to_string(LookAhead));
 	FDistanceArmInput Tiny = D; Tiny.CoveragePct = 0.1f;
-	Check(Is(DistanceArmRefusal(Tiny, S, Ahead), "too_far_ahead"), "coverage 0.1 %: the 7 % size is out of reach, refused at the arm");
+	Check(DistanceArmRefusal(Tiny, S, Ahead) == nullptr && Ahead == 118,
+		"coverage 0.1 % at 225 cm/s: the 7 % size is 118 frames ahead, inside the 300-frame look-ahead, got " + std::to_string(Ahead));
+	FDistanceArmInput TinySlow = Tiny; TinySlow.ClosingSpeedCmPerS = 75.0f;
+	Check(Is(DistanceArmRefusal(TinySlow, S, Ahead), "too_far_ahead"),
+		"coverage 0.1 % at 75 cm/s: the 7 % size is out of reach (353 frames), refused at the arm");
 	FDistanceArmInput NoCov = D; NoCov.CoveragePct = 0.0f;
 	Check(Is(DistanceArmRefusal(NoCov, S, Ahead), "no_coverage"), "no coverage refused");
 	Check(CoverageScreenSize(0.1f, 7.0f, 7.0f) == 0.1f, "coverage already at the minimum: the current size");
@@ -151,8 +164,12 @@ static void TestArmRules()
 	FDistanceArmInput C3;
 	C3.EngineLod = 1; C3.TemporalLod0 = 1; C3.TemporalLod1 = 1; C3.BoundsScreenSize = 0.0428f; C3.ReleaseScreenSize = 0.055f;
 	C3.CoveragePct = 0.1083f; C3.DistanceCm = 2075.9f; C3.FrameSeconds = 1.0f / 30.0f; C3.ClosingSpeedCmPerS = 224.7f; C3.ApproachAngleDeg = 1.7f;
-	Check(Is(DistanceArmRefusal(C3, S, Ahead), "too_far_ahead") && Ahead > 230,
-		"review C3 at si 51 (copy 2076 cm away, 0.11 % coverage): refused at the arm instead of arming and timing out, " + std::to_string(Ahead) + " frames ahead");
+	Check(Is(DistanceArmRefusal(C3, S095, Ahead), "too_far_ahead") && Ahead > 230,
+		"095-era settings, review C3 at si 51 (copy 2076 cm away, 0.11 % coverage): refused at the arm, " + std::to_string(Ahead) + " frames ahead");
+	Check(DistanceArmRefusal(C3, S, Ahead) == nullptr && Ahead > 230 && Ahead <= S.DistanceAheadFrames,
+		"096-07 settings, review C3: arms " + std::to_string(Ahead) + " frames ahead");
+	Check(ArmTimeoutFramesFor(EMode::DistanceThreshold, 150, Ahead, S.EntryFrames) == Ahead + S.EntryFrames,
+		"review C3: its arm timeout covers the predicted release plus the entry frames, so it cannot time out before the object refines");
 	FDistanceArmInput Fine = D; Fine.EngineLod = 0; Fine.TemporalLod0 = 0; Fine.TemporalLod1 = 0;
 	Check(Is(DistanceArmRefusal(Fine, S, Ahead), "at_finest_lod"), "target at LOD0 refused");
 	FDistanceArmInput Dither = D; Dither.TemporalLod1 = 0;
@@ -179,8 +196,16 @@ static void TestArmRules()
 	Check(ViewEntryArmRefusal(SlowIn, S, Ahead) == nullptr && Ahead == 60, "60 degrees outside at 30 deg/s arms 60 frames ahead");
 	FViewEntryArmInput Wrong = V; Wrong.bYawTowardTarget = false;
 	Check(Is(ViewEntryArmRefusal(Wrong, S, Ahead), "not_turning_toward"), "turning away refused");
-	FViewEntryArmInput Lazy = V; Lazy.YawRateDegPerS = 10.0f;
-	Check(Is(ViewEntryArmRefusal(Lazy, S, Ahead), "not_turning_toward"), "slow turn refused");
+	FViewEntryArmInput Lazy = V; Lazy.YawRateDegPerS = 3.0f;
+	Check(Is(ViewEntryArmRefusal(Lazy, S, Ahead), "not_turning_toward"), "turn below the 5 deg/s floor refused");
+	FViewEntryArmInput Seven = V; Seven.YawRateDegPerS = 7.0f;
+	Check(ViewEntryArmRefusal(Seven, S, Ahead) == nullptr && Ahead == 43,
+		"a standing player's 7 deg/s turn arms 10 degrees outside, 43 frames ahead (O-002 read 0 at the old 30 deg/s floor), got " + std::to_string(Ahead));
+	FSettings S30 = S; S30.MinYawRateDegPerS = 30.0f;
+	Check(Is(ViewEntryArmRefusal(Seven, S30, Ahead), "not_turning_toward"), "the same turn at the old 30 deg/s floor is refused");
+	FViewEntryArmInput SevenFar = Seven; SevenFar.AngleOutsideFrustumDeg = 25.0f;
+	Check(Is(ViewEntryArmRefusal(SevenFar, S, Ahead), "too_far_outside_view"),
+		"at 7 deg/s the window is 21 degrees (90 frames of turn), so 25 degrees outside is refused");
 	FViewEntryArmInput Shadow = V; Shadow.bShadowInView = true;
 	Check(Is(ViewEntryArmRefusal(Shadow, S, Ahead), "lod_shadow_in_view"), "shadow in view refused");
 	FViewEntryArmInput Small = V; Small.CoverageAsIfInViewPct = 2.0f;
@@ -467,7 +492,7 @@ struct FSimResult
 	std::string Refusals;
 };
 
-static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const FSettings& S, int Frames, int TimeoutFrames = 90,
+static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const FSettings& S, int Frames, int TimeoutSetting = 90,
 	bool bRestart = true, int LeadFrames = 4, int PositiveFrames = 8, int PostFrames = 4)
 {
 	const float Dt = 1.0f / 30.0f;
@@ -484,6 +509,7 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 	bool bHaveEval = false;
 	FFrameInput PrevInput;
 	double DistHistory[64] = { 0 };
+	int TimeoutFrames = TimeoutSetting;
 	auto BeginFire = [&](int Tick)
 	{
 		++R.BeginFires;
@@ -541,6 +567,7 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 			Tr.HeldLod = Held;
 			Tr.ReleaseScreenSize = Release;
 			Clock = FArmClock();
+			TimeoutFrames = TimeoutSetting >= 0 ? TimeoutSetting : ArmTimeoutFramesFor(Mode, -TimeoutSetting, Ahead, S.EntryFrames);
 			bHaveEval = false;
 		}
 		Phase = SFire;
@@ -615,7 +642,7 @@ static FSimResult Simulate(FSimPath Path, const FSimTarget& T, EMode Mode, const
 			In.bOnScreen = F.bOn; In.bInFrustum = F.bOn; In.EngineLod = F.Eng; In.TemporalLod0 = F.Eng; In.TemporalLod1 = F.Eng;
 			In.BoundsScreenSize = F.S; In.CoveragePct = F.Cov;
 			In.bContrast = ContrastPasses(T.Tris, T.NumLods, Tr.HeldLod, F.Eng, S.TriangleRatio);
-			In.bRetreating = Tick >= 8 && (F.D - DistHistory[(Tick - 8) % 64]) / (8.0 * Dt) >= S.MinClosingSpeedCmPerS;
+			In.bRetreating = Tick >= 8 && (F.D - DistHistory[(Tick - 8) % 64]) / (8.0 * Dt) >= S.RetreatSpeedCmPerS;
 			FTracker Copy = Tr;
 			const FObservation O = ObserveFrame(Copy, In, S);
 			if (O.Class == EFrameClass::Positive)
@@ -682,8 +709,12 @@ static FSimPose PathReviewTurnIn(int K)
 
 static void TestBenchSimulation()
 {
-	FSettings S;
-	S.EntryFrames = 30;
+	FSettings S095;
+	S095.EntryFrames = 30;
+	S095.MinClosingSpeedCmPerS = 50.0f;
+	S095.DistanceAheadFrames = 90;
+	S095.MinYawRateDegPerS = 30.0f;
+	const FSettings& S = S095;
 	const FSimTarget Copy = { 1700.0, -60.0, 200.0, 50.0, { 1.0f, 0.05f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
 	const FSimTarget Second = { 1700.0, -60.0, 200.0, 50.0, { 1.0f, 0.3f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
 	const FSimTarget FixN = { 850.0, -340.0, 200.0, 230.0, { 1.0f, 0.05f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
@@ -724,6 +755,68 @@ static void TestBenchSimulation()
 	Check(Turn.ArmedAt == 51 && Turn.FirstPositive == 69 && Turn.Labelled == 30 && Turn.Swap == 99,
 		"bench turn_in (start -160, 2 deg/frame): armed 51, first positive 69, 30 labelled, swap 99; got " + std::to_string(Turn.ArmedAt) + " / "
 		+ std::to_string(Turn.FirstPositive) + " / " + std::to_string(Turn.Labelled) + " / " + std::to_string(Turn.Swap));
+}
+
+static FSimPose PathSlowTurn(int K)
+{
+	double Yaw = -120.0 + (7.0 / 30.0) * (K > 30 ? K - 30 : 0);
+	Yaw = Yaw < 10.0 ? Yaw : 10.0;
+	return FSimPose{ 0.0, 0.0, 200.0, Yaw };
+}
+
+static FSimPose PathSlowWalk(int K)
+{
+	double X = 1150.0 + (28.0 / 30.0) * (K > 20 ? K - 20 : 0);
+	X = X < 1550.0 ? X : 1550.0;
+	return FSimPose{ X, 0.0, 200.0, 0.0 };
+}
+
+static void TestDefaults096_07()
+{
+	const FSettings D;
+	Check(D.MinYawRateDegPerS == 5.0f && D.MinClosingSpeedCmPerS == 20.0f && D.RetreatSpeedCmPerS == 50.0f && D.AheadFrames == 90
+		&& D.DistanceAheadFrames == 300, "096-07 defaults: 5 deg/s, 20 cm/s, retreat 50 cm/s, view entry 90 frames, distance 300 frames");
+	Check(ArmTimeoutFramesFor(EMode::DistanceThreshold, 150, 243, 30) == 273, "distance fire armed 243 frames ahead waits 273");
+	Check(ArmTimeoutFramesFor(EMode::DistanceThreshold, 150, 61, 30) == 150, "distance fire armed close keeps the 150 setting");
+	Check(ArmTimeoutFramesFor(EMode::ViewEntry, 150, 200, 30) == 150, "view entry keeps the setting");
+	Check(ArmTimeoutFramesFor(EMode::DistanceThreshold, 150, -1, 30) == 150, "unknown frames ahead keeps the setting");
+	Check(ArmTimeoutFramesFor(EMode::Periodic, 90, 300, 30) == 90, "periodic keeps the setting");
+	FSettings S;
+	S.EntryFrames = 30;
+	FSettings S095 = S;
+	S095.MinClosingSpeedCmPerS = 50.0f;
+	S095.DistanceAheadFrames = 90;
+	S095.MinYawRateDegPerS = 30.0f;
+	const FSimTarget FixN = { 850.0, -340.0, 200.0, 230.0, { 1.0f, 0.05f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
+	const FSimTarget Second = { 1700.0, -60.0, 200.0, 50.0, { 1.0f, 0.3f, 0, 0, 0, 0, 0, 0 }, { 960, 48, 0, 0, 0, 0, 0, 0 }, 2 };
+	const FSimResult Turn7 = Simulate(PathSlowTurn, FixN, EMode::ViewEntry, S, 600, -150);
+	Check(Turn7.ArmedAt > 0 && Turn7.FirstPositive > Turn7.ArmedAt && Turn7.Labelled == S.EntryFrames && Turn7.Swap > 0 && Turn7.TimeoutAt < 0,
+		"7 deg/s turn-in: arms, labels the entry frames and swaps with no timeout; got armed " + std::to_string(Turn7.ArmedAt) + ", first positive "
+		+ std::to_string(Turn7.FirstPositive) + ", labelled " + std::to_string(Turn7.Labelled) + ", swap " + std::to_string(Turn7.Swap)
+		+ ", timeout " + std::to_string(Turn7.TimeoutAt) + " (refusals " + Turn7.Refusals + ")");
+	const FSimResult Turn7Old = Simulate(PathSlowTurn, FixN, EMode::ViewEntry, S095, 600, 90);
+	Check(Turn7Old.ArmedAt < 0 && Turn7Old.Refusals.find("not_turning_toward") != std::string::npos,
+		"the same 7 deg/s turn under the 095-era 30 deg/s floor never arms (not_turning_toward), the O-002 reading");
+	const FSimResult Walk = Simulate(PathSlowWalk, Second, EMode::DistanceThreshold, S, 600, -150);
+	Check(Walk.ArmedAt > 0 && Walk.FirstPositive > Walk.ArmedAt && Walk.Labelled > 0 && Walk.Swap > 0 && Walk.TimeoutAt < 0,
+		"28 cm/s walk toward scenery: a distance fire arms, labels and swaps with no timeout; got armed " + std::to_string(Walk.ArmedAt)
+		+ ", first positive " + std::to_string(Walk.FirstPositive) + ", labelled " + std::to_string(Walk.Labelled) + ", swap "
+		+ std::to_string(Walk.Swap) + ", timeout " + std::to_string(Walk.TimeoutAt) + " (refusals " + Walk.Refusals + ")");
+	const FSimResult WalkOld = Simulate(PathSlowWalk, Second, EMode::DistanceThreshold, S095, 600, 90);
+	Check(WalkOld.ArmedAt < 0 && WalkOld.Refusals.find("not_approaching") != std::string::npos,
+		"the same walk under the 095-era 50 cm/s floor never arms (not_approaching), the O-002 reading");
+	const FSimResult WalkFixed = Simulate(PathSlowWalk, Second, EMode::DistanceThreshold, S, 600, 150);
+	Check(WalkFixed.ArmedAt == Walk.ArmedAt,
+		"the walk arms at the same frame with a fixed 150-frame timeout; the rule only lengthens the wait (timeout "
+		+ std::to_string(WalkFixed.TimeoutAt) + ", first positive " + std::to_string(WalkFixed.FirstPositive) + ")");
+	const FSimResult Approach = Simulate(PathBenchApproach, Second, EMode::DistanceThreshold, S, 200, -150);
+	Check(Approach.ArmedAt > 0 && Approach.ArmedAt < 51 && Approach.FirstPositive == 128 && Approach.Labelled == 5 && Approach.Swap == 133
+		&& Approach.TimeoutAt < 0, "bench approach under 096-07 settings: arms earlier than 51 and still labels 128..132 and swaps at 133; got armed "
+		+ std::to_string(Approach.ArmedAt) + ", first positive " + std::to_string(Approach.FirstPositive) + ", labelled "
+		+ std::to_string(Approach.Labelled) + ", swap " + std::to_string(Approach.Swap) + ", timeout " + std::to_string(Approach.TimeoutAt));
+	const FSimResult ApproachShort = Simulate(PathBenchApproach, Second, EMode::DistanceThreshold, S, 200, 90);
+	Check(ApproachShort.TimeoutAt > 0,
+		"the same early arm with the old fixed 90-frame timeout times out before the release, which is why the timeout follows the look-ahead");
 }
 
 static void TestArmClock()
@@ -777,6 +870,7 @@ int main()
 	TestTurnAwayAndCap();
 	TestArmClock();
 	TestBenchSimulation();
+	TestDefaults096_07();
 	TestDescribe();
 	std::printf("lod_trigger_selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;

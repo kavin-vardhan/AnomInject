@@ -2117,30 +2117,31 @@ namespace AnomalyDefaults
 
 		const FLodTriggerSettingSpec& LodTriggerSpec(ELodTriggerSetting Setting)
 		{
-			static const FLodTriggerSettingSpec Specs[4] = {
-				{ TEXT("LodPoppingArmTimeoutFrames"), TEXT("IAI.Anomaly.LodArmTimeout"), 90, 1, 600 },
+			static const FLodTriggerSettingSpec Specs[(int32)ELodTriggerSetting::Num] = {
+				{ TEXT("LodPoppingArmTimeoutFrames"), TEXT("IAI.Anomaly.LodArmTimeout"), 150, 1, 600 },
 				{ TEXT("LodPoppingHoldCapFrames"), TEXT("IAI.Anomaly.LodHoldCap"), 150, 1, 3000 },
 				{ TEXT("LodPoppingEntryFrames"), TEXT("IAI.Anomaly.LodEntryFrames"), 30, 1, 90 },
-				{ TEXT("LodPoppingDownPop"), TEXT("IAI.Anomaly.LodDownPop"), 0, 0, 1 }
+				{ TEXT("LodPoppingDownPop"), TEXT("IAI.Anomaly.LodDownPop"), 0, 0, 1 },
+				{ TEXT("LodPoppingMinYawRateDegPerS"), TEXT("IAI.Anomaly.LodMinYawRate"), 5, 1, 180 }
 			};
-			return Specs[FMath::Clamp((int32)Setting, 0, 3)];
+			return Specs[FMath::Clamp((int32)Setting, 0, (int32)ELodTriggerSetting::Num - 1)];
 		}
 
 		int32* LodTriggerOverrideValues()
 		{
-			static int32 Values[4] = { 0, 0, 0, 0 };
+			static int32 Values[(int32)ELodTriggerSetting::Num] = {};
 			return Values;
 		}
 
 		bool* LodTriggerOverrideFlags()
 		{
-			static bool Flags[4] = { false, false, false, false };
+			static bool Flags[(int32)ELodTriggerSetting::Num] = {};
 			return Flags;
 		}
 
 		int32 ResolveLodTriggerSetting(ELodTriggerSetting Setting, const TCHAR*& OutSource)
 		{
-			const int32 Index = FMath::Clamp((int32)Setting, 0, 3);
+			const int32 Index = FMath::Clamp((int32)Setting, 0, (int32)ELodTriggerSetting::Num - 1);
 			const FLodTriggerSettingSpec& Spec = LodTriggerSpec(Setting);
 			if (LodTriggerOverrideFlags()[Index])
 			{
@@ -2197,9 +2198,9 @@ namespace AnomalyDefaults
 
 	FString DescribeLodTriggerSettings()
 	{
-		static const TCHAR* Names[4] = { TEXT("armTimeout"), TEXT("holdCap"), TEXT("entryFrames"), TEXT("downPop") };
+		static const TCHAR* Names[(int32)ELodTriggerSetting::Num] = { TEXT("armTimeout"), TEXT("holdCap"), TEXT("entryFrames"), TEXT("downPop"), TEXT("minYawRate") };
 		FString Out;
-		for (int32 i = 0; i < 4; ++i)
+		for (int32 i = 0; i < (int32)ELodTriggerSetting::Num; ++i)
 		{
 			const TCHAR* Source = TEXT("compiled");
 			const int32 Value = ResolveLodTriggerSetting((ELodTriggerSetting)i, Source);
@@ -2210,7 +2211,7 @@ namespace AnomalyDefaults
 
 	bool SetLodTriggerSettingOverride(ELodTriggerSetting Setting, int32 Value)
 	{
-		const int32 Index = FMath::Clamp((int32)Setting, 0, 3);
+		const int32 Index = FMath::Clamp((int32)Setting, 0, (int32)ELodTriggerSetting::Num - 1);
 		const FLodTriggerSettingSpec& Spec = LodTriggerSpec(Setting);
 		if (Value < Spec.Min || Value > Spec.Max)
 		{
@@ -2227,7 +2228,7 @@ namespace AnomalyDefaults
 
 	void ClearLodTriggerSettingOverride(ELodTriggerSetting Setting)
 	{
-		const int32 Index = FMath::Clamp((int32)Setting, 0, 3);
+		const int32 Index = FMath::Clamp((int32)Setting, 0, (int32)ELodTriggerSetting::Num - 1);
 		LodTriggerOverrideFlags()[Index] = false;
 		UE_LOG(LogAnomaly, Log, TEXT("%s console override cleared; the ini value or the compiled default %d takes over."),
 			LodTriggerSpec(Setting).Console, LodTriggerSpec(Setting).Compiled);
@@ -2265,7 +2266,7 @@ static FAutoConsoleCommand GLodArmTimeoutCmd(
 	TEXT("IAI.Anomaly.LodArmTimeout"),
 	TEXT("m57: frames lod_popping's spatial modes wait for the held target to become visibly wrong (the camera must approach ")
 	TEXT("or turn toward it) before the burst gives up with no event. Console beats DefaultGame.ini [AnomalyInjector] ")
-	TEXT("LodPoppingArmTimeoutFrames, which beats the compiled default 90. Range [1..600], refused not clamped. ")
+	TEXT("LodPoppingArmTimeoutFrames, which beats the compiled default 150. Range [1..600], refused not clamped. ")
 	TEXT("Usage: IAI.Anomaly.LodArmTimeout <frames|default>"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
@@ -2281,6 +2282,20 @@ static FAutoConsoleCommand GLodHoldCapCmd(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::HoldCapFrames, Args);
+	}));
+
+static FAutoConsoleCommand GLodMinYawRateCmd(
+	TEXT("IAI.Anomaly.LodMinYawRate"),
+	TEXT("Set the slowest camera turn, in DEGREES PER SECOND, at which lod_popping's view-entry trigger arms on an object about to ")
+	TEXT("enter the view. Below it every candidate reads not_turning_toward. A standing player turning around is about 7 deg/s, ")
+	TEXT("so the default 5 covers it with margin while a still camera's jitter stays out. The look-ahead window shrinks with ")
+	TEXT("the rate (90 frames of turn), so slow turns arm only objects close to the view edge. Labelling is unchanged: a frame ")
+	TEXT("is positive only when the object is visibly wrong on screen. Console beats DefaultGame.ini [AnomalyInjector] ")
+	TEXT("LodPoppingMinYawRateDegPerS, which beats the compiled default 5. Range [1..180], refused not clamped. ")
+	TEXT("Usage: IAI.Anomaly.LodMinYawRate <deg/s|default>"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		HandleLodTriggerSetting(AnomalyDefaults::ELodTriggerSetting::MinYawRate, Args);
 	}));
 
 static FAutoConsoleCommand GLodEntryFramesCmd(
