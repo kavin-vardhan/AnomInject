@@ -2100,3 +2100,121 @@ static FAutoConsoleCommand GLodHalfPeriodCmd(
 	     "default is 8. Pass 'default' to clear the override. "
 	     "Usage: IAI.Anomaly.LodHalfPeriod <frames|default>"),
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleLodHalfPeriod));
+
+namespace AnomalyDefaults
+{
+	namespace
+	{
+		float GBlinkTerrainCeilingOverride = AnomalyTerrainRule::TerrainCeilingCompiledPct;
+		bool GBlinkTerrainCeilingOverrideSet = false;
+
+		float ResolveBlinkTerrainCeilingIni(const TCHAR*& OutSource)
+		{
+			static bool bResolved = false;
+			static float Value = AnomalyTerrainRule::TerrainCeilingCompiledPct;
+			static const TCHAR* Source = TEXT("compiled");
+			if (!bResolved)
+			{
+				bResolved = true;
+				float FromIni = 0.0f;
+				if (GConfig && GConfig->GetFloat(SectionName(), BlinkTerrainCeilingKey(), FromIni, GGameIni))
+				{
+					if (AnomalyTerrainRule::IsTerrainCeilingInRange(FromIni))
+					{
+						Value = FromIni;
+						Source = TEXT("ini");
+					}
+					else
+					{
+						UE_LOG(LogAnomaly, Warning,
+							TEXT("blinking: DefaultGame.ini [%s] %s = %.2f is out of range [%.0f..%.0f]; using the COMPILED default ")
+							TEXT("%.2f%%. Refused, not clamped."),
+							SectionName(), BlinkTerrainCeilingKey(), FromIni, AnomalyTerrainRule::TerrainCeilingMinPct,
+							AnomalyTerrainRule::TerrainCeilingMaxPct, AnomalyTerrainRule::TerrainCeilingCompiledPct);
+					}
+				}
+			}
+			OutSource = Source;
+			return Value;
+		}
+	}
+
+	const TCHAR* BlinkTerrainCeilingKey()
+	{
+		return TEXT("BlinkTerrainCeilingPct");
+	}
+
+	float GetBlinkTerrainCeilingPct()
+	{
+		if (GBlinkTerrainCeilingOverrideSet)
+		{
+			return GBlinkTerrainCeilingOverride;
+		}
+		const TCHAR* Source = nullptr;
+		return ResolveBlinkTerrainCeilingIni(Source);
+	}
+
+	FString DescribeBlinkTerrainCeiling()
+	{
+		const TCHAR* Source = TEXT("console");
+		const float Value = GBlinkTerrainCeilingOverrideSet ? GBlinkTerrainCeilingOverride : ResolveBlinkTerrainCeilingIni(Source);
+		return FString::Printf(TEXT("%.2f%%(%s; blinking on terrain only, every other id and actor keeps the census ceiling)"),
+			Value, Source);
+	}
+
+	bool SetBlinkTerrainCeilingOverride(float Pct)
+	{
+		if (!AnomalyTerrainRule::IsTerrainCeilingInRange(Pct))
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("IAI.Blink.TerrainCeilingPct: %.2f is out of range [%.0f..%.0f]; REFUSED, the previous value still stands."),
+				Pct, AnomalyTerrainRule::TerrainCeilingMinPct, AnomalyTerrainRule::TerrainCeilingMaxPct);
+			return false;
+		}
+		GBlinkTerrainCeilingOverride = Pct;
+		GBlinkTerrainCeilingOverrideSet = true;
+		return true;
+	}
+
+	void ClearBlinkTerrainCeilingOverride()
+	{
+		GBlinkTerrainCeilingOverrideSet = false;
+	}
+}
+
+namespace
+{
+	void HandleBlinkTerrainCeiling(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("Usage: IAI.Blink.TerrainCeilingPct <pct|default>  (current: %s)"),
+				*AnomalyDefaults::DescribeBlinkTerrainCeiling());
+			return;
+		}
+		if (Args[0].Equals(TEXT("default"), ESearchCase::IgnoreCase))
+		{
+			AnomalyDefaults::ClearBlinkTerrainCeilingOverride();
+		}
+		else if (Args[0].IsNumeric())
+		{
+			AnomalyDefaults::SetBlinkTerrainCeilingOverride(FCString::Atof(*Args[0]));
+		}
+		else
+		{
+			UE_LOG(LogAnomaly, Warning, TEXT("IAI.Blink.TerrainCeilingPct: '%s' is not a percentage (or 'default')."), *Args[0]);
+		}
+		UE_LOG(LogAnomaly, Log, TEXT("IAI.Blink.TerrainCeilingPct: EFFECTIVE READ-BACK = %s."),
+			*AnomalyDefaults::DescribeBlinkTerrainCeiling());
+	}
+}
+
+static FAutoConsoleCommand GBlinkTerrainCeilingCmd(
+	TEXT("IAI.Blink.TerrainCeilingPct"),
+	TEXT("Set the census coverage ceiling for TERRAIN BLINKS only, in percent of the frame. In the auto pool a census ")
+	TEXT("verdict above_ceiling is re-admitted when the drawn anomaly is blinking, the actor is terrain by the m58 rule and ")
+	TEXT("its measured drawn coverage is at or below this value. Every other anomaly and actor keeps the census ceiling ")
+	TEXT("(IAI.Capture.CensusCeiling). PRECEDENCE: console beats DefaultGame.ini [AnomalyInjector] BlinkTerrainCeilingPct, ")
+	TEXT("which beats the compiled default 25 (equal to the census default, so nothing changes until it is raised). Range ")
+	TEXT("[0..100], refused not clamped. Shown on the run's TERRAIN RULES line. Usage: IAI.Blink.TerrainCeilingPct <pct|default>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleBlinkTerrainCeiling));

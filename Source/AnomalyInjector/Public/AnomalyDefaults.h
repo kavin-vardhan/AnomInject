@@ -145,4 +145,9 @@ namespace AnomalyDefaults
 	ANOMALYINJECTOR_API FString DescribeCameraClippingTriggerRadius();
 	ANOMALYINJECTOR_API bool SetCameraClippingTriggerRadiusOverride(float Cm);
 	ANOMALYINJECTOR_API void ClearCameraClippingTriggerRadiusOverride();
+	ANOMALYINJECTOR_API const TCHAR* BlinkTerrainCeilingKey();
+	ANOMALYINJECTOR_API float GetBlinkTerrainCeilingPct();
+	ANOMALYINJECTOR_API FString DescribeBlinkTerrainCeiling();
+	ANOMALYINJECTOR_API bool SetBlinkTerrainCeilingOverride(float Pct);
+	ANOMALYINJECTOR_API void ClearBlinkTerrainCeilingOverride();
 }

@@ -222,6 +222,8 @@ private:
 
 	TMap<FName, FString> RefusedIds;
 
+	TMap<FName, FString> ApplyLevelRefusals;
+
 	TArray<TWeakObjectPtr<AActor>> ReservedActors;
 
 	float HeartbeatAccumulator = 0.0f;

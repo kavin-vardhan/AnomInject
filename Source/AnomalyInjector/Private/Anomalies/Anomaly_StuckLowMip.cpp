@@ -282,6 +282,7 @@ namespace
 	void BuildVisibleTextureUserCounts(UWorld* World, const TSet<const AActor*>& IgnoreActors,
 		TMap<UTexture2D*, int32>& Out)
 	{
+		const AnomalyViewport::FCoUserCountScope CoUsers;
 		for (const TWeakObjectPtr<AActor>& Weak : AnomalyViewport::GetVisibleRenderableActors(World))
 		{
 			AActor* Other = Weak.Get();

@@ -318,6 +318,20 @@ int main()
 			"exact ASCII class equality");
 	}
 
+	{
+		Check(TerrainCeilingCompiledPct == 25.0f, "terrain ceiling compiled default is 25, equal to the census ceiling (no behaviour change)");
+		Check(IsTerrainCeilingInRange(0.0f) && IsTerrainCeilingInRange(40.0f) && IsTerrainCeilingInRange(100.0f), "terrain ceiling range includes 0, 40, 100");
+		Check(!IsTerrainCeilingInRange(-0.5f) && !IsTerrainCeilingInRange(100.5f), "terrain ceiling out of range is refused");
+		Check(ReadmitAboveCeiling(true, true, true, 33.3f, 40.0f), "terrain blink at 33.3 % re-admitted under a 40 % terrain ceiling");
+		Check(ReadmitAboveCeiling(true, true, true, 40.0f, 40.0f), "terrain blink exactly at the terrain ceiling is re-admitted");
+		Check(!ReadmitAboveCeiling(true, true, true, 40.1f, 40.0f), "terrain blink above the terrain ceiling stays excluded");
+		Check(!ReadmitAboveCeiling(true, true, true, 37.5f, 25.0f), "at the default 25 the ground at 37.5 % stays excluded (no change)");
+		Check(!ReadmitAboveCeiling(true, false, true, 33.3f, 40.0f), "only blinking is re-admitted, other ids keep the census ceiling");
+		Check(!ReadmitAboveCeiling(true, true, false, 33.3f, 40.0f), "only terrain is re-admitted, other actors keep the census ceiling");
+		Check(!ReadmitAboveCeiling(false, true, true, 10.0f, 40.0f), "a verdict that is not above_ceiling is never touched");
+		Check(!ReadmitAboveCeiling(true, true, true, -1.0f, 40.0f), "an unmeasured coverage is never re-admitted");
+	}
+
 	std::printf("terrain_rule_selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

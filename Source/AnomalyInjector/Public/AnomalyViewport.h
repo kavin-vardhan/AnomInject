@@ -192,12 +192,32 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API int32 GetTranslucentOnlyExclusionCount();
 
+	ANOMALYINJECTOR_API int32 GetHiddenExclusionCount();
+
+	ANOMALYINJECTOR_API bool IsActorHostHidden(const AActor* Actor);
+
+	ANOMALYINJECTOR_API FString GetTargetRefusal(const AActor* Actor);
+
+	ANOMALYINJECTOR_API int32 GetHlodProxyExclusionCount();
+
+	ANOMALYINJECTOR_API bool IsActorHlodProxy(const AActor* Actor);
+
+	ANOMALYINJECTOR_API FString DescribeHlodRule();
+
 	struct ANOMALYINJECTOR_API FReadOnlyEnumerationScope
 	{
 		FReadOnlyEnumerationScope();
 		~FReadOnlyEnumerationScope();
 		FReadOnlyEnumerationScope(const FReadOnlyEnumerationScope&) = delete;
 		FReadOnlyEnumerationScope& operator=(const FReadOnlyEnumerationScope&) = delete;
+	};
+
+	struct ANOMALYINJECTOR_API FCoUserCountScope
+	{
+		FCoUserCountScope();
+		~FCoUserCountScope();
+		FCoUserCountScope(const FCoUserCountScope&) = delete;
+		FCoUserCountScope& operator=(const FCoUserCountScope&) = delete;
 	};
 
 	ANOMALYINJECTOR_API bool IsReadOnlyEnumeration();

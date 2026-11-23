@@ -1,0 +1,101 @@
+#ifdef TARGET_POLICY_HEADER
+#include TARGET_POLICY_HEADER
+#else
+#include "../Source/AnomalyInjector/Public/AnomalyTargetPolicy.h"
+#endif
+
+#include <cstdio>
+#include <cstring>
+#include <string>
+
+using namespace AnomalyTargetPolicy;
+
+static int GFailures = 0;
+static int GChecks = 0;
+
+static void Check(bool bOk, const std::string& What)
+{
+	++GChecks;
+	if (!bOk)
+	{
+		++GFailures;
+		std::printf("FAIL %s\n", What.c_str());
+	}
+}
+
+static void TokenCases()
+{
+	Check(ClassifyTargetToken('@') == ETargetToken::Path, "@ is a path token");
+	Check(ClassifyTargetToken('=') == ETargetToken::ExactName, "= is an exact-name token");
+	Check(ClassifyTargetToken('S') == ETargetToken::Substring, "a bare token is a substring query");
+	Check(ClassifyTargetToken('/') == ETargetToken::Substring, "a bare path without @ is a substring query");
+	Check(ClassifyTargetToken(0) == ETargetToken::Substring, "an empty token is a substring query");
+	Check(std::strcmp(DescribeTargetToken(ETargetToken::Path), "path") == 0, "path described");
+	Check(std::strcmp(DescribeTargetToken(ETargetToken::ExactName), "exact_name") == 0, "exact name described");
+	Check(std::strcmp(DescribeTargetToken(ETargetToken::Substring), "substring") == 0, "substring described");
+	Check(std::strcmp(DescribeAmbiguousReason(), "target_ambiguous") == 0, "ambiguous reason name");
+	Check(AmbiguousPathsLogged == 3, "three paths are logged");
+}
+
+static void ApplyAmbiguityCases()
+{
+	Check(!IsApplyTokenAmbiguous(ETargetToken::ExactName, 0), "apply: no actor of that name is not ambiguous");
+	Check(!IsApplyTokenAmbiguous(ETargetToken::ExactName, 1), "apply: one actor of that name is not ambiguous");
+	Check(IsApplyTokenAmbiguous(ETargetToken::ExactName, 2), "apply: two actors of that name are ambiguous");
+	Check(IsApplyTokenAmbiguous(ETargetToken::ExactName, 402), "apply: many namesakes are ambiguous");
+	Check(IsApplyTokenAmbiguous(ETargetToken::Substring, 2), "apply: a bare token equal to two names is ambiguous");
+	Check(!IsApplyTokenAmbiguous(ETargetToken::Substring, 0), "apply: a substring that is no actor's exact name keeps its multi-actor meaning");
+	Check(!IsApplyTokenAmbiguous(ETargetToken::Substring, 1), "apply: a bare unique name is not ambiguous");
+	Check(!IsApplyTokenAmbiguous(ETargetToken::Path, 2), "apply: a path token is never ambiguous");
+	Check(!IsApplyTokenAmbiguous(ETargetToken::Path, 1000), "apply: a path token is never ambiguous, whatever the name count");
+}
+
+static void TargetedAmbiguityCases()
+{
+	Check(!IsTargetedNameAmbiguous(ETargetToken::Substring, 0), "targeted: no match is not ambiguous (0 matched)");
+	Check(!IsTargetedNameAmbiguous(ETargetToken::Substring, 1), "targeted: a unique name keeps working");
+	Check(IsTargetedNameAmbiguous(ETargetToken::Substring, 2), "targeted: two matches are refused");
+	Check(IsTargetedNameAmbiguous(ETargetToken::Substring, 7), "targeted: a class name with seven actors is refused");
+	Check(IsTargetedNameAmbiguous(ETargetToken::ExactName, 3), "targeted: an =name with three matches is refused");
+	Check(!IsTargetedNameAmbiguous(ETargetToken::ExactName, 1), "targeted: an =name with one match keeps working");
+	Check(!IsTargetedNameAmbiguous(ETargetToken::Path, 1), "targeted: a path is never ambiguous");
+	Check(!IsTargetedNameAmbiguous(ETargetToken::Path, 2), "targeted: a path is never ambiguous even if two were reported");
+}
+
+static void HiddenCases()
+{
+	Check(IsHostHidden(true, false, 1, 1), "hidden: the host's hidden flag hides a visible mesh actor");
+	Check(IsHostHidden(true, false, 0, 0), "hidden: the host's hidden flag hides an actor with no mesh");
+	Check(!IsHostHidden(true, true, 1, 1), "hidden: an actor the plugin itself hid (pre-m45 bench hide) is not host-hidden");
+	Check(IsHostHidden(false, false, 2, 0), "hidden: meshes that are all invisible count as hidden");
+	Check(!IsHostHidden(false, false, 2, 1), "hidden: one visible mesh is enough");
+	Check(!IsHostHidden(false, false, 0, 0), "hidden: an actor with no mesh (a light) is not hidden");
+	Check(!IsHostHidden(false, true, 1, 1), "hidden: plugin bookkeeping alone does not hide");
+	Check(IsHostHidden(false, true, 1, 0), "hidden: invisible meshes hide whatever the plugin did");
+	Check(std::strcmp(DescribeTargetHiddenReason(), "target_hidden") == 0, "hidden reason name");
+}
+
+static void EligibilityCases()
+{
+	Check(DecideTargetEligibility(false, false) == ETargetEligibility::Eligible, "eligibility: a visible ordinary actor is eligible");
+	Check(DecideTargetEligibility(true, false) == ETargetEligibility::Hidden, "eligibility: a hidden actor is refused target_hidden");
+	Check(DecideTargetEligibility(false, true) == ETargetEligibility::HlodProxy, "eligibility: an HLOD proxy is refused hlod_proxy");
+	Check(DecideTargetEligibility(true, true) == ETargetEligibility::Hidden, "eligibility: hidden is reported before HLOD");
+	Check(std::strcmp(DescribeEligibility(ETargetEligibility::Eligible), "") == 0, "eligibility: eligible has no reason");
+	Check(std::strcmp(DescribeEligibility(ETargetEligibility::Hidden), "target_hidden") == 0, "eligibility: hidden reason");
+	Check(std::strcmp(DescribeEligibility(ETargetEligibility::HlodProxy), "hlod_proxy") == 0, "eligibility: hlod reason");
+	Check(std::strcmp(DescribeHlodProxyReason(), "hlod_proxy") == 0, "hlod reason name");
+	Check(std::strcmp(LegacyHlodActorClassPath(), "/Script/Engine.LODActor") == 0, "legacy HLOD class path");
+	Check(std::strcmp(PartitionHlodActorClassPath(), "/Script/Engine.WorldPartitionHLOD") == 0, "World Partition HLOD class path");
+}
+
+int main()
+{
+	TokenCases();
+	ApplyAmbiguityCases();
+	TargetedAmbiguityCases();
+	HiddenCases();
+	EligibilityCases();
+	std::printf("target_identity_selftest: %d checks, %d failures\n", GChecks, GFailures);
+	return GFailures == 0 ? 0 : 1;
+}

@@ -4259,6 +4259,8 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	AnomalyTerrain::ResetRunStats();
 	PatternExcludedTargets = 0;
 	TranslucentOnlyExcludedTargets = 0;
+	HiddenExcludedTargets = 0;
+	HlodProxyExcludedTargets = 0;
 
 	FramesShadersPending = 0;
 	PrewarmAnomalyShaders();
@@ -4421,6 +4423,12 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 		TEXT("its primitive components matches a rule, and the rule text in TERRAIN-SUBTYPE and selection_provenance.json ")
 		TEXT("says which. Selection and eligibility are unchanged by these rules."),
 		*AnomalyTerrain::DescribeRules());
+
+	UE_LOG(LogAnomalyCapture, Log,
+		TEXT("Capture(096-07): HLOD RULE %s. An HLOD proxy is an engine-made stand-in for a cell of distant objects: it is ")
+		TEXT("never a candidate or a target, for every anomaly. Matched by class path, so the plugin needs no HLOD module or ")
+		TEXT("header; a class that does not resolve on this engine simply matches nothing and says so here."),
+		*AnomalyViewport::DescribeHlodRule());
 
 	UE_LOG(LogAnomalyCapture, Log,
 		TEXT("Capture(m52): DEFERRED-ONSET TIMEOUT = %d captured pre-roll frame(s); stuck_low_mip RESTORE TIMEOUT = ")
@@ -6000,7 +6008,7 @@ void UAnomalyCaptureSubsystem::ApplySessionGlobals()
 
 		TArray<FString> Args;
 		Args.Reserve(1 + TargetAnomalyArgs.Num());
-		Args.Add(FString(TEXT("=")) + TargetActorName);
+		Args.Add((TargetActorName.StartsWith(TEXT("@")) || TargetActorName.StartsWith(TEXT("="))) ? TargetActorName : FString(TEXT("=")) + TargetActorName);
 		Args.Append(TargetAnomalyArgs);
 
 		if (Injector->ApplyAnomaly(TargetAnomalyId, Args))
@@ -9459,6 +9467,19 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TEXT("changes which targets a given seed picks, so an auto-pool run is non-comparable across it."),
 			TranslucentOnlyExcludedTargets, *AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
 
+		HiddenExcludedTargets = AnomalyViewport::GetHiddenExclusionCount();
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(096-07): HIDDEN EXCLUSION = %d distinct actor(s) in view that the game keeps hidden were refused as ")
+			TEXT("candidates (reason target_hidden; see the EXCLUDED-HIDDEN lines). A targeted fire on such an actor is refused ")
+			TEXT("the same way. A zero is a reading only if the run met such an actor."),
+			HiddenExcludedTargets);
+
+		HlodProxyExcludedTargets = AnomalyViewport::GetHlodProxyExclusionCount();
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(096-07): HLOD PROXY EXCLUSION = %d distinct proxy actor(s) in view refused as candidates (reason ")
+			TEXT("hlod_proxy; see the EXCLUDED-HLOD-PROXY lines). Rule: %s."),
+			HlodProxyExcludedTargets, *AnomalyViewport::DescribeHlodRule());
+
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(090-05): NANITE TARGETS REFUSED = %d distinct actor(s) (%d refusal(s)) as nanite_unmaskable ")
 			TEXT("this run, setting %s. A refused target draws at least one Nanite primitive, which on UE 5.1 writes no ")
@@ -10118,6 +10139,8 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			FramesExposureDip,
 			&ObservabilityReport,
 			TranslucentOnlyExcludedTargets,
+			HiddenExcludedTargets,
+			HlodProxyExcludedTargets,
 			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
 			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport,
 			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr, TexCorruptSummary,

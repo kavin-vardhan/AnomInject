@@ -283,6 +283,8 @@ namespace AnomalyLabel
 		int32 FramesExposureDip = 0,
 		const struct FObservabilityTelemetry* Observability = nullptr,
 		int32 TranslucentOnlyExcludedTargets = 0,
+		int32 HiddenExcludedTargets = 0,
+		int32 HlodProxyExcludedTargets = 0,
 		int32 UnmeasurableTargetsAdmitted = 0,
 		int32 TargetDrawnPixelsMeasured = 0, int32 FramesDrawnUnexpected = 0,
 		int32 FramesExposureDipSuppressed = 0,

@@ -622,6 +622,8 @@ private:
 	bool bLabelsInDeliveryFromConsole = false;
 	int32 PatternExcludedTargets = 0;
 	int32 TranslucentOnlyExcludedTargets = 0;
+	int32 HiddenExcludedTargets = 0;
+	int32 HlodProxyExcludedTargets = 0;
 	int32 BlinkTerrainEvents = 0;
 	int32 BlinkEventsInRun = 0;
 	EContentClock ContentClock = EContentClock::Wall;

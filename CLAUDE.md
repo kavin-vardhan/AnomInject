@@ -15,6 +15,36 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **096-07, 2026-11-24 - THE SIX O-002 DECISIONS ARE IN CODE (RULING 096-06 ADDENDUM) AND OFFICE BRIEF O-003 IS WRITTEN.
+> EDITOR-COMPILED (STRICT + NORMAL, BOTH TIPS), PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
+> - **integ** (merged into m57):
+>   - **D1 `8d4732b`:** every fire applies by the actor's full path (`@<path>`), so an anomaly changes exactly the labelled
+>     actor (G588 closed in code). A targeted capture or `IAI.Apply` on a repeated name is refused `target_ambiguous:<n>`
+>     with the first three paths; unique names work as before; a partial name keeps its multi-actor meaning.
+>   - **D2 `4f940be`:** host-hidden actors are never candidates or targets (`target_hidden`; G589);
+>     `run_summary.hidden_excluded_targets`.
+>   - **D5 `b67dfba`:** HLOD proxies refused by class path (`hlod_proxy`), `HLOD RULE` line,
+>     `run_summary.hlod_proxy_excluded_targets`; texture search not widened.
+>   - **D6 `37d61ce`:** `IAI.Blink.TerrainCeilingPct` / `BlinkTerrainCeilingPct`, default 25 (no change), terrain blinks only.
+>   - Readme `440a2ef`; docs commit `8abe2a3`; this status commit.
+> - **m57:** merge `150fa1a` (one append-append conflict in `AnomalyDefaults.cpp`).
+>   - **D3 `b2d7f2c`:** `lod_corruption` takes the engine-exact shown LOD and refuses `no_contrast_lod` (< 4x fewer
+>     triangles) and `below_min_coverage` (< 7 %).
+>   - **D4 `9f70d22`:** `IAI.Anomaly.LodMinYawRate` default 5 deg/s; arm timeout 150; walk floor 20 cm/s; distance
+>     look-ahead 300 frames with a covering arm timeout (G590); retreat test keeps 50 cm/s (G591); every refusal reason on
+>     `Auto.Yield`.
+>   - CaptureBench `m57-gates` `e191a65` (local): predictions AMENDMENT 3, before any leg.
+> - **Follow-up `8eaaac5` (integ):** `stuck_low_mip` still counts hidden actors and HLOD proxies as visible texture
+>   co-users (`FCoUserCountScope`): that count asks what draws a texture, not what may be a target.
+> - **Tips:** `integ/m56-m58` = this docs commit (code `8eaaac5`); `feat/m57-lod-spatial-trigger` = its merge (code =
+>   `2460c2a`'s tree), **the commit O-003 installs**;
+>   `docs/office-pack` = the merge of this integ tip plus O-003 (O-003 `briefs-to-office/O-003-bates-clean-retest.md`).
+>   - Journal `docs/sessions/2026-11-24-096-07-o002-decisions-in-code.md`; plan `_reviews\096-07-plan.md`.
+>   - Receipts `_relay\runs\2026-11-20-096-office-agent\code-receipts-096-07`.
+>   - Checkout left on `integ/m56-m58`; host plugin Editor DLLs from the m57 tree. Next free gotcha **G593**.
+
+> ---
+
 > **096-06, 2026-11-23 - AFTER O-002 ON BATES: THE 5.3 BUILD FIX IS IN THE REPO, THE PIE m56 READERS AND TWO SMALL BUGS ARE
 > FIXED, SIX REAL-HOST FINDINGS ANALYSED. EDITOR-COMPILED (STRICT + NORMAL, BOTH TIPS), PURE TESTS GREEN. NO GAME BUILD, NO
 > LEG, NO COOK, NO CODEX.**

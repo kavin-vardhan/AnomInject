@@ -274,4 +274,18 @@ namespace AnomalyTerrainRule
 	{
 		return bTerrain ? TerrainBlinkSubtype() : DefaultBlinkSubtype();
 	}
+
+	static constexpr float TerrainCeilingCompiledPct = 25.0f;
+	static constexpr float TerrainCeilingMinPct = 0.0f;
+	static constexpr float TerrainCeilingMaxPct = 100.0f;
+
+	inline bool IsTerrainCeilingInRange(float Pct)
+	{
+		return Pct >= TerrainCeilingMinPct && Pct <= TerrainCeilingMaxPct;
+	}
+
+	inline bool ReadmitAboveCeiling(bool bAboveCeiling, bool bBlinking, bool bTerrain, float DrawnPct, float TerrainCeilingPct)
+	{
+		return bAboveCeiling && bBlinking && bTerrain && DrawnPct >= 0.0f && DrawnPct <= TerrainCeilingPct;
+	}
 }
