@@ -212,6 +212,14 @@ namespace AnomalyViewport
 		FReadOnlyEnumerationScope& operator=(const FReadOnlyEnumerationScope&) = delete;
 	};
 
+	struct ANOMALYINJECTOR_API FCoUserCountScope
+	{
+		FCoUserCountScope();
+		~FCoUserCountScope();
+		FCoUserCountScope(const FCoUserCountScope&) = delete;
+		FCoUserCountScope& operator=(const FCoUserCountScope&) = delete;
+	};
+
 	ANOMALYINJECTOR_API bool IsReadOnlyEnumeration();
 
 	ANOMALYINJECTOR_API bool IsRenderableComponentReadOnly(const UPrimitiveComponent* Component);

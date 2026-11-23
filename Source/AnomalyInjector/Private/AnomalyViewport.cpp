@@ -56,6 +56,8 @@ namespace
 
 	thread_local int32 GReadOnlyEnumerationDepth = 0;
 
+	thread_local int32 GCoUserCountDepth = 0;
+
 	TSet<FString>& ExcludedActorsSeen()
 	{
 		static TSet<FString> Seen;
@@ -673,7 +675,8 @@ namespace
 		const FVector& PollOrigin, float PollRadius, float MinCoveragePct, UWorld* World, const AActor* Actor,
 		UPrimitiveComponent*& OutFirstMatch)
 	{
-		if (RefusedAsHostHidden(Frustum, PollOrigin, PollRadius, Actor) || RefusedAsHlodProxy(Frustum, PollOrigin, PollRadius, Actor))
+		if (GCoUserCountDepth == 0
+			&& (RefusedAsHostHidden(Frustum, PollOrigin, PollRadius, Actor) || RefusedAsHlodProxy(Frustum, PollOrigin, PollRadius, Actor)))
 		{
 			OutFirstMatch = nullptr;
 			return false;
@@ -928,7 +931,7 @@ namespace AnomalyViewport
 
 		if (const AActor* Owner = Component->GetOwner())
 		{
-			if (IsOwnerHostHidden(Owner) || IsHlodProxyOwner(Owner))
+			if (GCoUserCountDepth == 0 && (IsOwnerHostHidden(Owner) || IsHlodProxyOwner(Owner)))
 			{
 				return false;
 			}
@@ -1572,6 +1575,16 @@ namespace AnomalyViewport
 	bool IsReadOnlyEnumeration()
 	{
 		return GReadOnlyEnumerationDepth > 0;
+	}
+
+	FCoUserCountScope::FCoUserCountScope()
+	{
+		++GCoUserCountDepth;
+	}
+
+	FCoUserCountScope::~FCoUserCountScope()
+	{
+		--GCoUserCountDepth;
 	}
 
 	bool IsRenderableComponentReadOnly(const UPrimitiveComponent* Component)
