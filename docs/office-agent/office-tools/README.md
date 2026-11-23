@@ -30,6 +30,15 @@ Take every session these checks read with **delivery mode off**: type `IAI.Captu
 then `m56_continuity_check.py` cannot judge settle placement, `m56_settle_content_check.py` cannot run and
 `m57_lod_readout.py` cannot run.
 
+## Sorted or unsorted `labels.jsonl`: both are fine
+The build O-002 tests rewrites `labels.jsonl` in frame order (`session_index` ascending) at the end of a capture and
+says so in `run_summary.json` (`labels_sorted: true`). The delivered build, a capture whose writer stalled and a capture
+that was killed leave the rows in the order the writer finished them. Every check here keys or sorts the rows by
+`session_index` itself, so it gives the same verdict on either. Checked at home on 2026-11-23 (brief 096-05): each check
+that reads `labels.jsonl` was run on the same synthetic sessions with their rows sorted and with them shuffled, and gave
+the same exit code and the same readings (6 of 6 comparisons, including a session with a dropped tick that must fail).
+`m57_lod_readout.py` does not read `labels.jsonl`; `m57_make_clip.py` draws through the plugin's `verify_capture.py`.
+
 ## Where the tools write (rule 10)
 Everything these tools write about an office session (a `--json` reading, the clip tool's working frame copies, a
 clip) goes in the office captures area on this PC: the captures folder that holds the session folders, beside the
