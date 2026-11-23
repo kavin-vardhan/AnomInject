@@ -18,12 +18,16 @@
 #include "AnomalyStuckMipStats.h"
 #include "AnomalyViewport.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyEngineCompat.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SkinnedMeshComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#if __has_include("StaticMeshComponentLODInfo.h")
+#include "StaticMeshComponentLODInfo.h"
+#endif
 #include "Containers/Ticker.h"
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -908,7 +912,7 @@ namespace AnomalyTexCorrupt
 		{
 			return Out;
 		}
-		FMaterialResource* Res = Material->GetMaterialResource(World->FeatureLevel);
+		FMaterialResource* Res = Material->GetMaterialResource(AnomalyEngineCompat::WorldFeatureLevel(World));
 		const FMaterialShaderMap* Map = Res ? Res->GetGameThreadShaderMap() : nullptr;
 		if (!Map)
 		{
@@ -923,12 +927,12 @@ namespace AnomalyTexCorrupt
 		const FVertexFactoryType* Types[3] = { nullptr, nullptr, nullptr };
 		if (Cast<UInstancedStaticMeshComponent>(Comp))
 		{
-			Types[0] = &FInstancedStaticMeshVertexFactory::StaticType;
+			Types[0] = FVertexFactoryType::GetVFByName(FHashedName(TEXT("FInstancedStaticMeshVertexFactory")));
 		}
 		else if (Cast<USkinnedMeshComponent>(Comp))
 		{
-			Types[0] = &TGPUSkinVertexFactory<GPUSkinBoneInfluenceType::DefaultBoneInfluence>::StaticType;
-			Types[1] = &TGPUSkinVertexFactory<GPUSkinBoneInfluenceType::UnlimitedBoneInfluence>::StaticType;
+			Types[0] = FVertexFactoryType::GetVFByName(FHashedName(TEXT("TGPUSkinVertexFactoryDefault")));
+			Types[1] = FVertexFactoryType::GetVFByName(FHashedName(TEXT("TGPUSkinVertexFactoryUnlimited")));
 			Types[2] = FVertexFactoryType::GetVFByName(FHashedName(TEXT("FGPUSkinPassthroughVertexFactory")));
 		}
 		else if (Cast<USplineMeshComponent>(Comp))
@@ -938,6 +942,10 @@ namespace AnomalyTexCorrupt
 		else
 		{
 			Types[0] = &FLocalVertexFactory::StaticType;
+		}
+		if (!Types[0] && !Types[1] && !Types[2])
+		{
+			Out.VertexFactory = TEXT("vf_unresolved");
 		}
 		int64 BestScore = -1;
 		for (const FVertexFactoryType* Type : Types)
@@ -1015,7 +1023,7 @@ namespace AnomalyTexCorrupt
 		}
 		auto Complete = [Corruptor, World]()
 		{
-			FMaterialResource* Res = Corruptor->GetMaterialResource(World->FeatureLevel);
+			FMaterialResource* Res = Corruptor->GetMaterialResource(AnomalyEngineCompat::WorldFeatureLevel(World));
 			return Res && Res->GetGameThreadShaderMap() && Res->IsGameThreadShaderMapComplete();
 		};
 		if (Complete())
@@ -1041,7 +1049,7 @@ namespace AnomalyTexCorrupt
 		{
 			return;
 		}
-		FMaterialResource* Res = Resolved->GetMaterialResource(World->FeatureLevel);
+		FMaterialResource* Res = Resolved->GetMaterialResource(AnomalyEngineCompat::WorldFeatureLevel(World));
 		if (!Res)
 		{
 			return;
@@ -1154,7 +1162,7 @@ namespace AnomalyTexCorrupt
 				if (!bAll) { return; }
 			}
 			UMaterialInterface* Needed = (In.Family == EFamily::UV) ? UvCorruptor : NormalCorruptor;
-			FMaterialResource* Res = Needed->GetMaterialResource(World->FeatureLevel);
+			FMaterialResource* Res = Needed->GetMaterialResource(AnomalyEngineCompat::WorldFeatureLevel(World));
 			if (!Res || !CorruptorShadersReady(Needed, World))
 			{
 				RefuseEvent(Why::CorruptorNotReady, GetNameSafe(Needed), TEXT("E2"));

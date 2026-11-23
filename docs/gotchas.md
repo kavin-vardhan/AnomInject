@@ -10290,3 +10290,51 @@ engine-clamped forced LOD with the engine-clamped LOD shown now (`AnomalyLodPoli
 `EffectiveShownLod` / `DecideContrast`). If the current LOD cannot be read, refuse: a label that cannot be shown
 to be true is the defect, not a missed yield. **Residual:** the static current-LOD prediction ignores
 `r.StaticMeshLODDistanceScale` (default 1) and dithered transitions, so near a switch distance it can still be one LOD off.
+
+## G584 — A host's engine version in our own docs was wrong for months: read `Engine/Build/Build.version` on the host
+
+**096-05, 2026-11-23 (owner correction, ruling 096-04).** `CLAUDE.md` and the office pack called Bates a UE 5.1 game from
+2026-08-26 (m35) until O-001 read `Build.version` 5.3.2 on the host and the owner confirmed it. Concorde is UE 5.1 and Europa
+UE 4.25. A 5.3 claim had existed earlier under the retired duplicate codename and was withdrawn with it (G222), which made the
+5.1 entry look settled. Two observations fit 5.2 or later and were not read as a version clue: the m35 crash (a staging layout
+that changed at 5.2) and both office include failures. **Rule:** a host's engine version is a reading with a date and a source
+(`Engine/Build/Build.version` on that host), never an inference from lineage. Code that depends on version-specific engine
+behaviour (staging layouts, include sets, instanced-mesh LOD rendering) is proven on that host. At home, a strict-include build
+on 5.1 plus a header-presence check against the 5.7.4 tree is necessary, not sufficient, for a 5.3 build.
+
+## G585 — `IFileManager::Move` with replace is delete-then-rename, not one atomic replace
+
+**096-05, 2026-11-23 (UE 5.1.1 source).** `FFileManagerGeneric::Move(Dest, Src, bReplace = true)` deletes `Dest` and then
+renames `Src` (`FileManagerGeneric.cpp:299-323`); the Windows low-level `MoveFile` is `MoveFileW`, which refuses an existing
+target (`WindowsPlatformFile.cpp:1042-1045`). Between the two calls the target does not exist, and if the rename fails after the
+delete only the temporary file is left. **Rule:** a run-end rewrite (the `labels.jsonl` sort) writes the complete temporary file
+first, checks its size, replaces, and finishes before the readers' done signal (`run_summary.json`) exists; a failed replace
+says where the complete copy is (`labels.jsonl.tmp`) and never claims the file was sorted.
+﻿
+## G586 — UE 5.1's `UWorld` has no `GetFeatureLevel()`; 5.3 deprecates the member and adds the accessor (096-06)
+A brief asked to replace `World->FeatureLevel` with "the accessor that exists in 5.1 and 5.3 (`GetFeatureLevel()`)". In 5.1
+`World.h` has only `TEnumAsByte<ERHIFeatureLevel::Type> FeatureLevel` (line 1204). The accessor and the
+`UE_DEPRECATED(5.3, ...)` on the member come together in 5.3. Calling the accessor would have broken the 5.1 build. Using
+`World->Scene->GetFeatureLevel()` instead would have changed the 5.1 path, because `Scene` can be null.
+**Rule:** for an engine API that changed between our hosts' versions, check the oldest engine we build for, not only the
+newest. A version gate (`UE_VERSION_OLDER_THAN(5, 3, 0)` from `Misc/EngineVersionComparison.h`) keeps the old engine
+byte-identical: `AnomalyEngineCompat::WorldFeatureLevel`.
+
+## G587 — Under m56 the PIE `pie_end_settle` entry sits on the revert tick; a reader that anchors the revert on the event's last entry is one tick late (096-06)
+In PIE the plugin writes an unlabelled transition-only `pie_end_settle` entry on the first frame after each fire-window
+label run (090-10e). Before m56 nothing anchored on that frame. Under m56 it is the revert tick, and both m56 readers took
+"the last tick the event has a non-settle entry, plus one" as the revert. They put it one tick late, called both
+after-offset settle rows misplaced, and the continuity reader then skipped the next onset. That is 29 unflagged and 133
+outside on Bates. Blink never writes the entry, so blink passed and pointed at the wrong suspects.
+**Rule:** a transition-only entry is not evidence the event is still running. Readers anchor on labelled or live entries,
+and set aside a reason they know is a precaution (`pie_end_settle` in a session marked PIE), saying so in a note.
+
+## G588 — The exact-name token is world-wide: every fire hits every actor with that name, and the label names one (096-06)
+The auto pool and targeted capture both apply with `"=" + Target->GetName()` (`AnomalyAutoInjectorSubsystem.cpp:594-595,
+806-811`). `AnomalyTargeting::FindActorsMatching` returns every actor in the world whose name (or class name) equals the token
+(`AnomalyTargeting.cpp:24-47`), and the anomalies act on all of them (blinking toggles every match). Names are unique only
+per level (engine `LevelActor.cpp:567`). Bates' L1 has 402 names shared by 1055 actors.
+G28 said "document, don't solve" for targeted names. The pool case means one fire can change several objects while the
+label, box and mask name one, and a namesake in view is an unlabelled change. Not fixed in 096-06 (analysis item 10).
+The blink line `blinking: matched N actor(s)` already counts it: N > 1 is a multi-hit.
+**Rule:** never hand an anomaly an identity that can match more than the object you will label. Use the path name.

@@ -15,6 +15,57 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **096-06, 2026-11-23 - AFTER O-002 ON BATES: THE 5.3 BUILD FIX IS IN THE REPO, THE PIE m56 READERS AND TWO SMALL BUGS ARE
+> FIXED, SIX REAL-HOST FINDINGS ANALYSED. EDITOR-COMPILED (STRICT + NORMAL, BOTH TIPS), PURE TESTS GREEN. NO GAME BUILD, NO
+> LEG, NO COOK, NO CODEX.**
+> - **5.3 build (`9062cf1`):**
+>   - `TexCorruptTree.cpp` includes `StaticMeshComponentLODInfo.h` (an empty placeholder in 5.1) and looks three vertex
+>     factory types up by name, exactly the office's E1b.
+>   - Nine `UWorld::FeatureLevel` reads go through `AnomalyEngineCompat::WorldFeatureLevel`. 5.1 has no
+>     `UWorld::GetFeatureLevel()` (G586), so the helper reads the member before 5.3.
+>   - Strict-include Editor build: 0/0 on both tips (74 / 77 header TUs). Normal Editor build: 0/0 on both tips.
+> - **Readers:**
+>   - In PIE the `pie_end_settle` entry sits on the m56 revert tick. It made `m56_continuity_check` C7 and
+>     `verify_capture --label-rule` fail pink and checker; the labels are right (090-10e), the readers were wrong (G587).
+>     Fixed in `verify_capture` (`75af026`), the office tools and CaptureBench `m57-gates` (`c235fe9`, local).
+>   - `m56_settle_content_check` lists never-labelled events instead of failing them.
+>   - `m57_lod_readout` L3 reads the pool's `Auto.Yield ... lod_not_armable` line.
+> - **`lod_spatial_swap_visible` on every swap (`6b29ca7`, m57).** One rule, `AnomalyLabel::IsSpatialSwapVisible`, sets both
+>   the swap's value and the event's.
+> - **⚠ Found, not fixed — analysis `_reviews\096-06-analysis.md`, chat rules:**
+>   - **Every fire re-resolves its target by exact name and hits every same-named actor while the label names one (G588;
+>     Bates: 402 names on 1055 actors; pool and targeted).**
+>   - `lod_corruption` has no visible-contrast test (NO-TRACE 3 of 19).
+>   - A host-hidden actor is selectable: on it, blink is labelled with an unmeasured mask and admitted (a candidate; one
+>     office log read settles it).
+>   - HLOD proxies are vetoed; the terrain ceiling; the view-entry yaw floor and the walk floor.
+> - **Tips:** `integ/m56-m58` = this docs commit (code `75af026`); `feat/m57-lod-spatial-trigger` = its merge (code
+>   `6b29ca7`), **the commit the office installs next**; `docs/office-pack` = the merge of this integ tip.
+>   - Journal `docs/sessions/2026-11-23-096-06-o002-53build-readers-analysis.md`.
+>   - Receipts `_relay\runs\2026-11-20-096-office-agent\code-receipts-096-06`.
+>   - Checkout left on `integ/m56-m58`; host plugin Editor DLLs from the m57 tree. Next free gotcha **G589**.
+
+> ---
+
+> **096-05, 2026-11-23 - PREP FOR THE FIRST NEW-BUILD TEST AT THE OFFICE (O-002, ruling 096-04): STRICT-INCLUDE BUILD
+> CLEAN, `labels.jsonl` SORTED AT RUN END, OFFICE PACK AMENDED. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG,
+> NO COOK, NO CODEX.**
+> - **Engines (owner, 2026-11-23): Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25** (G584; the m35 entry below said 5.1
+>   and is corrected in place). The home side has no 5.3 headers: the Bates build in O-002 is the first 5.3 test.
+> - **Strict include (D5):** `tools/strict_include_build.py` on `feat/m57` `d8d3a7e`, Editor target, `-MaxParallelActions=2`
+>   (no unity, no PCH, include order Latest, `bEnforceIWYU`, 75 header self-containment TUs): **0 errors, 0 warnings,
+>   nothing to fix.** All 194 engine includes exist in the 5.1 and 5.7.4 trees or sit behind `__has_include`.
+> - **Run-end sort (D3) `df5a595`:** `labels.jsonl` is rewritten in `session_index` order after the writer flush and
+>   before `run_summary.json`; skipped when the writer stalled or the flush was incomplete; `run_summary.labels_sorted`
+>   and `labels_sorted_reason`; readme updated; no schema bump. Pure rule `AnomalyLabelsOrder.h`, selftest 41/0, five
+>   mutants fail; real banked sessions sort byte-identically to a JSON sort. G585.
+> - `feat/m57-lod-spatial-trigger` merges this tip; O-002 names that merge commit. Office pack `docs/office-pack`: engine
+>   facts, O-002 (Step 0, attended PIE on Bates, Q4 counts and host change H-001, `labels_sorted`), office-tools note.
+>   Journal `docs/sessions/2026-11-23-096-05-strict-includes-labels-sort-office-prep.md`; receipts
+>   `_relay\runs\2026-11-20-096-office-agent\code-receipts-096-05`. Next free gotcha **G586**.
+
+> ---
+
 > **095-12, 2026-11-14 - m59 REVIEW FOLLOW-UPS (ruling 095-11 S3, S9, S10, S11, N14) ON `fix/m59-forced-lod-refusals`,
 > MERGED INTO `integ/m56-m58`. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
 > - **S10 `d8077fc`:** `single_lod` counts USABLE LODs (MinLOD or the component override, LODs without vertices excluded;
@@ -4576,7 +4627,8 @@ and is the single source of truth for the project.
   traps).** Then `docs/predictions/2026-08-26-m35-build-b-gates.md` (pre-declared gates **and** the
   full results ledger, §12) and `docs/predictions/2026-08-26-m35-readback-layout-build-a.md`.
   🎯 **`m35` = a hotfix for a capture-readback crash observed on a SECOND HOST** ("Bates", a
-  Bates-lineage UE 5.1 game): an access violation reading past a mapped readback buffer at a **non-zero
+  **UE 5.3.2** game — 🔻 *corrected 2026-11-23 by the owner (ruling 096-04); this line said "a Bates-lineage UE 5.1
+  game", which was wrong. Engines: Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25.*): an access violation reading past a mapped readback buffer at a **non-zero
   view-rect origin** (letterboxed, `Rect.Min.Y = 104`, view rect 1389×581, `fmt = PF_A2B10G10R10`).
   🛑 **THE FIRST DESIGN IS DEAD AND ITS STOP CONDITION FIRED — do not resurrect it.** Measured on this
   box, both legs: `bufferHeight 869 == sourceExtent.y 869` ⇒ **stock UE 5.1 allocates FULL-SOURCE-SIZE

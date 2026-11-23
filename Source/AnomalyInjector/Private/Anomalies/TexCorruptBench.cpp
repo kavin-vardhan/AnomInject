@@ -2,6 +2,7 @@
 #include "Engine/Texture.h"
 #include "Materials/MaterialInterface.h"
 
+#include "AnomalyEngineCompat.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyTargeting.h"
@@ -357,7 +358,7 @@ namespace AnomalyTexCorrupt
 								continue;
 							}
 							TArray<UTexture*> Used;
-							M->GetUsedTextures(Used, EMaterialQualityLevel::Num, true, World->FeatureLevel, true);
+							M->GetUsedTextures(Used, EMaterialQualityLevel::Num, true, AnomalyEngineCompat::WorldFeatureLevel(World), true);
 							for (UTexture* T : Used)
 							{
 								UTexture2D* T2 = Cast<UTexture2D>(T);

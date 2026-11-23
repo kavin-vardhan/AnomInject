@@ -13,6 +13,7 @@
 #include "Anomalies/TexCorruptPure.h"
 #include "AnomalyInstallState.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyEngineCompat.h"
 
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyInjectorLog.h"
@@ -1047,7 +1048,7 @@ bool FAnomaly_TexCorrupt::Apply(UWorld* World, const TArray<FString>& Args)
 		else if (!Corruptor) { Why4 = TEXT("corruptor_null"); }
 		else
 		{
-			FMaterialResource* Res = Corruptor->GetMaterialResource(World->FeatureLevel);
+			FMaterialResource* Res = Corruptor->GetMaterialResource(AnomalyEngineCompat::WorldFeatureLevel(World));
 			if (!Res || !CorruptorShadersReady(Corruptor, World))
 			{
 				Why4 = TEXT("corruptor_shader_map_incomplete");

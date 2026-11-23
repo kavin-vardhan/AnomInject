@@ -45,6 +45,7 @@
 #include "AnomalyPreviewTee.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyEngineCompat.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyHiddenClass.h"
@@ -7934,7 +7935,7 @@ void UAnomalyCaptureSubsystem::ResolveLabelSyncForRun()
 	{
 		CvarValue = AaVar->GetInt();
 	}
-	Async->LabelAaMethod = World ? (int32)GetDefaultAntiAliasingMethod(World->FeatureLevel.GetValue()) : CvarValue;
+	Async->LabelAaMethod = World ? (int32)GetDefaultAntiAliasingMethod(AnomalyEngineCompat::WorldFeatureLevel(World)) : CvarValue;
 	Async->bLabelTemporalAa = AnomalyLabelSync::IsTemporalMethod(Async->LabelAaMethod);
 	Async->LabelOnCvar = GLabelTransitionOnFrames.GetValueOnGameThread();
 	Async->LabelOffCvar = GLabelTransitionOffFrames.GetValueOnGameThread();
@@ -7963,7 +7964,7 @@ void UAnomalyCaptureSubsystem::RefreshLabelTemporalState(const FAnomalyCapturedF
 {
 	if (!Async.IsValid()) { return; }
 	UWorld* World = GetWorld();
-	const int32 DefaultMethod = World ? (int32)GetDefaultAntiAliasingMethod(World->FeatureLevel.GetValue()) : -1;
+	const int32 DefaultMethod = World ? (int32)GetDefaultAntiAliasingMethod(AnomalyEngineCompat::WorldFeatureLevel(World)) : -1;
 	Async->bLabelTemporalAa |= AnomalyLabelSync::IsTemporalMethod(DefaultMethod);
 	if (Frame)
 	{
@@ -7986,7 +7987,7 @@ void UAnomalyCaptureSubsystem::RefreshLabelTemporalState(const FAnomalyCapturedF
 		AnomalyLabelSync::DefaultHideFramesTemporal, Async->bLabelTemporalAa);
 	const FString Source = FString::Printf(TEXT("capture_view_methods=0x%x third_party_upscaler=%d unknown=%d default_method=%d feature_level=%d retained_temporal=%d"),
 		Async->LabelViewMethods, Async->bLabelUpscaler ? 1 : 0, Async->bLabelViewUnknown ? 1 : 0,
-		DefaultMethod, World ? (int32)World->FeatureLevel.GetValue() : -1, Async->bLabelTemporalAa ? 1 : 0);
+		DefaultMethod, World ? (int32)AnomalyEngineCompat::WorldFeatureLevel(World) : -1, Async->bLabelTemporalAa ? 1 : 0);
 	if (Source != Async->LabelTemporalSource)
 	{
 		Async->LabelTemporalSource = Source;
@@ -10075,6 +10076,32 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					TEXT("attributed. A frame was counted written that the accounting thinks was lost, or the reverse; read the ")
 					TEXT("causes above before trusting frames_dropped."),
 					Span, FramesWritten, Span - FramesWritten, ContinuityReport.FramesDropped);
+			}
+		}
+		{
+			const bool bLabelsWritten = !bDeliveryMode || bLabelsInDelivery;
+			const AnomalyLabel::FLabelsSortResult Sort = AnomalyLabel::SortLabelsFile(RunDir, bLabelsWritten, bWriterStalled, bWriterFlushComplete);
+			ContinuityReport.bLabelsSorted = Sort.bInFrameOrder;
+			ContinuityReport.LabelsSortedReason = Sort.Reason;
+			const bool bQuietSkip = Sort.bInFrameOrder || Sort.Reason == TEXT("not_written");
+			if (bQuietSkip)
+			{
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(m56): LABELS ORDER labels_sorted=%s result=%s rows=%d moved=%d rewritten=%d ms=%.1f - labels.jsonl rows ")
+					TEXT("are put in session_index order at run end, after the writer finished and before run_summary.json; each row ")
+					TEXT("is kept byte for byte."),
+					Sort.bInFrameOrder ? TEXT("true") : TEXT("false"), *Sort.Reason, Sort.Rows, Sort.RowsMoved, Sort.bRewritten ? 1 : 0,
+					Sort.Milliseconds);
+			}
+			else
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m56): LABELS ORDER labels_sorted=false reason=%s rows=%d ms=%.1f - labels.jsonl is left in the order ")
+					TEXT("the writer finished its rows; sort it by session_index. %s"),
+					*Sort.Reason, Sort.Rows, Sort.Milliseconds,
+					Sort.bTempKept
+						? TEXT("The original was removed and the sorted copy could not be renamed: the complete rows are in labels.jsonl.tmp.")
+						: TEXT("The file on disk is the one the writer produced."));
 			}
 		}
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,

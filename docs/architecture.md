@@ -92,7 +92,9 @@ labels, annotation schema, observable predicate, auto pool and veto remain uncha
 > pre-2026-08-22 minimal set with `IAI.Capture.DeliveryLabels 0` or
 > `[AnomalyCapture] bWriteLabelsInDeliveryDefault=False`. ⚠ **`labels.jsonl`'s ROW ORDER is not
 > deterministic (`G162`) and it is now a CLIENT-PARSED file — consumers must key or sort by
-> `session_index` and must never join on `frame_index`;** `client-readme.md` states this. run_summary.json is kept because the host encode_watcher keys off it (its
+> `session_index` and must never join on `frame_index`;** `client-readme.md` states this. 🆕 **(096-05) The file
+> is rewritten in `session_index` order at run end unless the writer stalled; `run_summary.labels_sorted` says
+> whether it was** (see the m56 section below); the key-or-sort advice stays for older and stalled sessions. run_summary.json is kept because the host encode_watcher keys off it (its
 > done-signal); annotation.json is the client's primary artifact. Because `run.json` holds the seed,
 > delivery mode also withholds the seed → a delivered session is intentionally NOT client-reproducible
 > (repro metadata stays owner-side; G68). Toggle: `IAI.Capture.Delivery <0|1>` (mid-run guarded like the
@@ -246,6 +248,14 @@ labels, annotation schema, observable predicate, auto pool and veto remain uncha
   use `BuildSettingsVersion.V2` / `EngineIncludeOrderVersion.Unreal5_1`.
 - **Canonical engine + host:** source-built UE 5.1 at `D:\UESource\UnrealEngine`; host project
   `D:\IntrusiveAnomalies\StackOBot` (natively-5.1 StackOBot). The old 5.4 host is retired.
+- **Host engines (owner, 2026-11-23): Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25 (port branch).** The 5.1 code also
+  builds on 5.3 since 096-06:
+  - `TexCorruptTree.cpp` includes `StaticMeshComponentLODInfo.h`, an empty placeholder in 5.1 and the definition in 5.3+.
+  - It looks the instanced static mesh and GPU skin vertex factory types up by name (`FVertexFactoryType::GetVFByName`),
+    because 5.3 does not export their `StaticType`.
+  - `UWorld::FeatureLevel` is read only through `Public/AnomalyEngineCompat.h` (`WorldFeatureLevel`): the member before
+    5.3, `GetFeatureLevel()` from 5.3 on (5.1 has no accessor, G586).
+  - No 5.3 headers exist at home: a Bates build is the 5.3 test.
 
 ## Purpose
 AnomalyInjector injects labeled visual anomalies (graphics bugs) into a running UE5 game to
@@ -1680,7 +1690,16 @@ stamp follows written frames on a lossy run (unchanged when continuous). The wri
 and blocks, never drops, above 1 GiB of pending pixels; every wait (back-pressure, end-of-run and teardown flush) is
 bounded by progress, not time: no job completing for 120 s marks the writer stalled (`writer_stalled`), stops the run
 and counts every unwritten frame `writer_timeout`. Writer jobs carry a run generation, so a late job of an earlier run
-touches none of the next run's counts (095-06b S4/N2). Sync-fallback frames count as written (N1). A vetoed event
+touches none of the next run's counts (095-06b S4/N2). **Run-end row order (096-05, ruling 096-04 D3):** in `FinishRun`,
+after the writer flush and immediately before `run_summary.json`, `AnomalyLabel::SortLabelsFile` rewrites `labels.jsonl`
+in `session_index` order: it reads the file as bytes, splits it on newlines, takes each row's top-level `session_index`
+(pure rule `AnomalyLabelsOrder.h`, stable merge sort, every row kept byte for byte), writes `labels.jsonl.tmp` and replaces
+the file with `IFileManager::Move` (UE's replace deletes the old file, then renames; `run_summary.json`, the readers' done
+signal, is written after). It skips, leaving the file as written, when no labels file was written (`not_written`), the
+writer stalled (`writer_stalled`) or the flush was incomplete (`writer_flush_incomplete`), and when any row has no
+parseable `session_index` (`row_without_session_index`); a file already in order is not rewritten. `run_summary` gains
+`labels_sorted` and, only when `false`, `labels_sorted_reason`; the log line is `Capture(m56): LABELS ORDER ...`. Pure
+test `tools/labels_order_selftest.cpp` (41 checks; five mutants fail). Sync-fallback frames count as written (N1). A vetoed event
 leaves no event in `annotation.json`; `run_summary.vetoed_event_ids` names it (S1); the root `transition_frames` lists
 every transition frame (N10). A held session-global anomaly flags no `settle` frame (S3). The optional temporal
 windows skip `settle` frames when they count (`FEventTransitionTrack` settle-aware distance; S5). Readers (commit 5,
