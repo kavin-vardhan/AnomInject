@@ -52,10 +52,10 @@ afterwards, and must end with `OK`:
 
 | Command | Must end with |
 | --- | --- |
-| `python m56_continuity_check.py --selftest` | `M56 CONTINUITY SELFTEST: OK - 10 case(s)` |
-| `python m56_settle_content_check.py --selftest` | `M56 SETTLE CONTENT SELFTEST: OK - 8 case(s)` |
+| `python m56_continuity_check.py --selftest` | `M56 CONTINUITY SELFTEST: OK - 15 case(s)` |
+| `python m56_settle_content_check.py --selftest` | `M56 SETTLE CONTENT SELFTEST: OK - 11 case(s)` |
 | `python m56_nonsettle_compare.py --selftest` | `M56 NON-SETTLE SELFTEST: OK - 26 case(s)` |
-| `python m57_lod_readout.py --selftest` | `M57-LOD-READOUT SELFTEST: OK - 22 cases` |
+| `python m57_lod_readout.py --selftest` | `M57-LOD-READOUT SELFTEST: OK - 27 cases` |
 | `python m57_null_pair.py --selftest` | `M57-NULL-PAIR SELFTEST: OK - 14 cases` |
 | `python m57_make_clip.py --selftest --verify <game>\Plugins\AnomalyInjector\tools\verify_capture.py` | `M57-CLIP SELFTEST: OK - 15 cases` (13 if ffmpeg is not found; it says so) |
 
@@ -71,6 +71,10 @@ m56 checks) writes the full reading to a file you name.
 - PASS: `M56 CONTINUITY: PASS (exit 0)`. FAIL: `M56 CONTINUITY: FAIL (<clauses>) (exit 1)`. A session from the
   release build always fails (it has no `tick_index` and skipped two ticks after every anomaly edge). Exit 3 = no
   failure but a part was not judged (for example no `run.json`); exit 2 = cannot run.
+- Play In Editor: pink and checkered texture corruption write an unlabelled `pie_end_settle` entry on the frame after
+  each label run (the revert frame). In a session whose `run_summary.json` says `pie_end_settle_active` true, C7 does
+  not count that entry as the event still running (before 096-06 it did, and failed C7 on every PIE pink/checker
+  capture). A note line says how many such entries it set aside.
 - `python m56_continuity_check.py <session> [--json <file>]`
 
 **`m56_settle_content_check.py`** (standard library) - what the settle frames say.
@@ -81,6 +85,11 @@ m56 checks) writes the full reading to a file you name.
   file must exist and not be empty.
 - PASS: `M56 SETTLE CONTENT: PASS (exit 0)`. FAIL: `M56 SETTLE CONTENT: FAIL: <event>: <n> labelled settle frame(s),
   want 2 ...` (exit 1). Exit 3 = nothing judged; exit 2 = cannot run (no `labels.jsonl` or no `run.json`).
+- An event with no labelled frame at all (its effect never rendered, for example on an actor the game itself hides)
+  is listed as `not judged (never labelled: <reasons>)` instead of failing. An event whose every labelled frame has
+  `mask_state` `unmeasured` still fails, with a note: look in `anomaly_log.txt` for `TARGET MASK NOT ARMED ...
+  withRecord=1 visible=0` on those frames; if it is there, the game hides that actor and its labels show no change.
+  Report that target.
 - `python m56_settle_content_check.py <session> [--json <file>]`
 
 **`m56_nonsettle_compare.py`** (standard library) - is every frame the release build wrote unchanged in the new build?
@@ -97,8 +106,13 @@ m56 checks) writes the full reading to a file you name.
 - Reads `annotation.json`, `run_summary.json` and the run log `anomaly_log.txt` (or `--log <file>`).
 - It refuses to run unless you say what you expect:
   - `--expect no_events`: no `lod_popping` event, and the run either armed fires that were all listed in
-    `lod_untriggered_event_ids` or logged `NONE CAN BE ARMED NOW [lod_not_armable:<reason>]` refusals. Use it for a
-    capture where the player stood still. `--refusal <reason>` also requires every refusal to name that reason.
+    `lod_untriggered_event_ids` or logged `lod_not_armable` refusals: a targeted capture's `NONE CAN BE ARMED NOW
+    [lod_not_armable:<reason>]` lines, or an auto-pool capture's `Auto.Yield lod_popping: 0 of N candidates eligible -
+    lod_not_armable:<reason> <rounds>` lines (each round counts once). Use it for a capture where the player stood
+    still. `--refusal <reason>` also requires every refusal to name that reason.
+  - The pool notes only the most common reason of each round, so a reason held by fewer candidates (for example
+    `not_approaching` on objects in view during a slow walk) does not appear. Do not read "distance mode never tried"
+    from its absence.
   - `--expect events`: at least one `lod_popping` event.
   - `--expect-mismatch 0`: `lod_render_mismatch_frames` and `label_transition_lod_unconfirmed_entries` are present
     and 0.

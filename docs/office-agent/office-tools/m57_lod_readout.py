@@ -5,8 +5,11 @@ nothing must never print PASS.
 
 L3  --expect no_events: annotation.json holds no lod_popping event, run_summary carries lod_untriggered, and the leg tried:
     either it armed at least one fire and every armed fire is listed untriggered (count of 'lod_popping: ARMED' lines ==
-    lod_untriggered == len(lod_untriggered_event_ids)), or it armed none and the log holds at least one 'NONE CAN BE ARMED
-    NOW [lod_not_armable:<reason>]' refusal (and lod_untriggered is 0). A leg that neither armed nor was refused fails.
+    lod_untriggered == len(lod_untriggered_event_ids)), or it armed none and the log holds at least one lod_not_armable
+    refusal (and lod_untriggered is 0). A refusal is either a targeted fire's 'NONE CAN BE ARMED NOW
+    [lod_not_armable:<reason>]' line or, for the auto pool, an 'Auto.Yield lod_popping: 0 of N candidates eligible -
+    lod_not_armable:<reason> <rounds>' line (096-06: the pool refuses before any fire, so it never prints the first form;
+    each round counts once). A leg that neither armed nor was refused fails.
     --refusal <reason> additionally requires every refusal to name that reason.
     --expect events: at least one lod_popping event (the lever leg that shows a no-event reading is not blindness).
 L5  --expect-mismatch 0: run_summary lod_render_mismatch_frames and label_transition_lod_unconfirmed_entries are both
@@ -31,6 +34,16 @@ import tempfile
 ARMED = re.compile(r"lod_popping: ARMED '([^']*)' mode=(\S+)")
 REFUSED = re.compile(r"lod_popping: matched \d+ component\(s\) for '[^']*' but NONE CAN BE ARMED NOW \[lod_not_armable:([^\]]+)\]")
 REVERT = re.compile(r"lod_popping: REVERT '([^']*)' mode=(\S+) (?:.*?(NOT RESTORED|RESTORED)|(NOTHING TO RESTORE))")
+YIELD = re.compile(r"Auto\.Yield lod_popping: 0 of \d+ candidates eligible - (.*?) \(")
+YIELD_REASON = re.compile(r"lod_not_armable:([^\s,]+) (\d+)")
+
+
+def pool_refusals(text):
+    out = []
+    for body in YIELD.findall(text):
+        for reason, n in YIELD_REASON.findall(body):
+            out.extend([reason] * int(n))
+    return out
 
 
 def load(session, log):
@@ -80,7 +93,9 @@ def check(session, log=None, expect=None, mismatch=None, restored=None, refusal=
     events = [e for e in ann.get("anomalies") or [] if e.get("anomaly_type") == "lod_popping"]
     labelled = sum(len(((e.get("injected_frames") or {}).get("frame_indices")) or []) for e in events)
     armed = len(ARMED.findall(text))
-    refused = REFUSED.findall(text)
+    fire_refused = REFUSED.findall(text)
+    pool_refused = pool_refusals(text)
+    refused = fire_refused + pool_refused
     untriggered = rs.get("lod_untriggered")
     ids = rs.get("lod_untriggered_event_ids")
     mm, ck = rs.get("lod_render_mismatch_frames"), rs.get("lod_render_checked_frames")
@@ -103,8 +118,9 @@ def check(session, log=None, expect=None, mismatch=None, restored=None, refusal=
             fails.append("L3")
             lines.append("L3 FAIL " + "; ".join(why))
         else:
-            lines.append("L3 PASS no lod event; %d armed fire(s), all listed untriggered; %d refusal(s) %s"
-                         % (armed, len(refused), sorted(set(refused))))
+            lines.append("L3 PASS no lod event; %d armed fire(s), all listed untriggered; %d refusal(s) %s (%d from a targeted "
+                         "fire, %d auto-pool round(s))" % (armed, len(refused), sorted(set(refused)), len(fire_refused),
+                                                          len(pool_refused)))
     elif expect == "events":
         if not events:
             fails.append("L3")
@@ -157,7 +173,7 @@ def check(session, log=None, expect=None, mismatch=None, restored=None, refusal=
 
 
 def _session(root, name, events=0, armed=1, untriggered=1, ids=None, mismatch=0, checked=12, unconfirmed=0, restored=True,
-             reverts=None, drop_keys=(), destroyed=False, refusals=()):
+             reverts=None, drop_keys=(), destroyed=False, refusals=(), yields=(), yield_id="lod_popping"):
     d = os.path.join(root, name)
     os.makedirs(d)
     ann = {"anomalies": [{"anomaly_type": "lod_popping", "injected_frames": {"frame_indices": [5, 6]}}] * events}
@@ -169,6 +185,12 @@ def _session(root, name, events=0, armed=1, untriggered=1, ids=None, mismatch=0,
         rs.pop(k, None)
     log = "".join("LogAnomaly: Warning: lod_popping: matched 2 component(s) for '=CB_LodFix_N2' but NONE CAN BE ARMED NOW "
                   "[lod_not_armable:%s] - a spatial pop needs ...\n" % r for r in refusals)
+    for line_reasons in yields:
+        body = ", ".join("%s %d" % (q, n) for q, n in line_reasons)
+        total = sum(n for _q, n in line_reasons)
+        log += ("LogAnomaly: Warning: Auto.Yield %s: 0 of %d candidates eligible - %s (auto-pool, %d round(s) since the last "
+                "line). Nothing of this type was applied; the line repeats at most every 10 s while it stays at zero.\n"
+                % (yield_id, total, body, total))
     for i in range(armed):
         log += "LogAnomaly: lod_popping: ARMED 'SM_LodFix_N_%d' mode=distance_threshold held_lod=3\n" % i
     for i in range(armed if reverts is None else reverts):
@@ -201,6 +223,23 @@ def selftest():
             ("refused_for_another_reason_FAILS", _session(root, "c5", armed=0, untriggered=0, refusals=("at_finest_lod",)),
              dict(expect="no_events", refusal="not_approaching"), 1, "L3"),
             ("untriggered_key_missing_FAILS", _session(root, "c3", drop_keys=("lod_untriggered",)), dict(expect="no_events"), 1, "L3"),
+            ("pool_yield_refusal_clean", _session(root, "y1", armed=0, untriggered=0,
+                                                  yields=([("lod_not_armable:already_in_view", 32)], [("lod_not_armable:already_in_view", 23)])),
+             dict(expect="no_events", refusal="already_in_view"), 0, None),
+            ("pool_yield_two_reasons_one_wanted_FAILS", _session(root, "y2", armed=0, untriggered=0,
+                                                                 yields=([("lod_not_armable:already_in_view", 45),
+                                                                          ("lod_not_armable:not_turning_toward", 6)],)),
+             dict(expect="no_events", refusal="already_in_view"), 1, "L3"),
+            ("pool_yield_two_reasons_no_refusal_named_clean", _session(root, "y3", armed=0, untriggered=0,
+                                                                       yields=([("lod_not_armable:already_in_view", 45),
+                                                                                ("lod_not_armable:not_turning_toward", 6)],)),
+             dict(expect="no_events"), 0, None),
+            ("yield_line_of_another_anomaly_FAILS", _session(root, "y4", armed=0, untriggered=0,
+                                                              yields=([("lod_not_armable:already_in_view", 5)],), yield_id="missing_texture"),
+             dict(expect="no_events"), 1, "L3"),
+            ("yield_line_without_lod_not_armable_FAILS", _session(root, "y5", armed=0, untriggered=0,
+                                                                   yields=([("single_lod", 4)],)),
+             dict(expect="no_events"), 1, "L3"),
             ("lever_events_clean", _session(root, "d", events=1, untriggered=0), dict(expect="events"), 0, None),
             ("lever_without_events_FAILS", _session(root, "e"), dict(expect="events"), 1, "L3"),
             ("render_mismatch_FAILS", _session(root, "f", events=1, mismatch=2), dict(mismatch="0"), 1, "L5"),

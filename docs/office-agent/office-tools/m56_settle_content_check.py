@@ -7,6 +7,10 @@ Reads labels.jsonl (sorted by session_index), run.json (settle_frames K) and the
   S1 per event, the count of frames whose entry is labelled AND flagged settle (an onset-settle frame):
      fire-window types and missing_object must have exactly K (P6, P10); blinking and others are reported only;
      stuck_low_mip (deferred onset) and session globals are not judged. An event cut by the session's end is not judged.
+     An event with no labelled entry at all is not judged either (096-06): a fire-window frame is labelled only while
+     the effect is installed and on screen, so an event whose effect never rendered (every entry effect_interrupted,
+     for example on an actor the host hides) has no labelled frame and therefore no labelled settle frame; it is
+     listed with the reasons its entries carry.
   S2 every onset-settle frame of a judged event has row mask_state present or empty, never unmeasured or absent (P12),
      and a present mask names a file that exists and is not empty.
 Exit 0 PASS, 1 FAIL, 2 cannot run, 3 nothing judged.
@@ -58,7 +62,15 @@ def check(d):
             if not isinstance(a, dict) or not is_int(a.get("start_frame")):
                 continue
             key = "%s@%d|%s" % (a.get("id"), a["start_frame"], a.get("target_name"))
-            ev = events.setdefault(key, {"id": a.get("id"), "start": a["start_frame"], "labelled_settle": [], "mask_bad": []})
+            ev = events.setdefault(key, {"id": a.get("id"), "start": a["start_frame"], "labelled_settle": [], "mask_bad": [],
+                                         "labelled": 0, "labelled_unmeasured": 0, "why": {}})
+            if a.get("labelled") is True:
+                ev["labelled"] += 1
+                if r.get("mask_state") not in ("present", "empty"):
+                    ev["labelled_unmeasured"] += 1
+            else:
+                for q in reasons(a):
+                    ev["why"][q] = ev["why"].get(q, 0) + 1
             if a.get("labelled") is True and (SETTLE in reasons(a) or SETTLE in reasons(r)):
                 ev["labelled_settle"].append(r.get("session_index"))
                 state = r.get("mask_state")
@@ -76,6 +88,10 @@ def check(d):
         rule = "not judged"
         if ev["id"] in NOT_JUDGED or cut:
             rule = "not judged (%s)" % ("session end" if cut else ev["id"])
+        elif ev["labelled"] == 0:
+            why = ", ".join("%s %d" % kv for kv in sorted(ev["why"].items(), key=lambda kv: (-kv[1], kv[0]))) or "no reason given"
+            rule = "not judged (never labelled: %s)" % why
+            out["notes"].append("%s: never labelled (%s); no labelled frame, so no labelled settle frame" % (key, why))
         else:
             judged += 1
             if ev["id"] in EXACT_K_TYPES:
@@ -86,6 +102,11 @@ def check(d):
                 rule = "reported"
             for si, why in ev["mask_bad"]:
                 out["fails"].append("%s si %s: %s" % (key, si, why))
+            if ev["mask_bad"] and ev["labelled_unmeasured"] == ev["labelled"]:
+                out["notes"].append("%s: every one of its %d labelled frame(s) is unmeasured, not only the settle frames; the "
+                                    "target was never measured. If the run log shows 'TARGET MASK NOT ARMED ... withRecord=1 "
+                                    "visible=0' on those frames, the host hides that actor, and the labels on it describe "
+                                    "no visible change" % (key, ev["labelled"]))
         out["events"][key] = {"labelled_settle": n, "rule": rule, "mask_bad": len(ev["mask_bad"])}
     if not judged:
         out["verdict"] = "NOTHING JUDGED"
@@ -98,6 +119,8 @@ def render(code, out):
     lines = ["M56 SETTLE CONTENT  %s" % out.get("session")]
     for key, e in sorted(out.get("events", {}).items()):
         lines.append("  %-60s labelled+settle %d  rule %s  mask problems %d" % (key, e["labelled_settle"], e["rule"], e["mask_bad"]))
+    for n in out.get("notes") or []:
+        lines.append("  note: %s" % n)
     lines.append("M56 SETTLE CONTENT: %s (exit %d)" % (out.get("verdict"), code))
     return "\n".join(lines)
 
@@ -137,9 +160,10 @@ def selftest():
     root = tempfile.mkdtemp(prefix="m56settle_")
     results = []
 
-    def case(name, d, want, must=None):
+    def case(name, d, want, must=None, note=None):
         code, out = check(d)
         ok = code == want and (must is None or must in out.get("verdict", ""))
+        ok = ok and (note is None or any(note in n for n in out.get("notes") or []))
         results.append(ok)
         print("SELFTEST %-60s exit %d (want %d) %s" % (name, code, want, "ok" if ok else "*** WRONG ***"))
         if not ok:
@@ -175,6 +199,28 @@ def selftest():
         case("K = 0: no labelled settle frame expected", _synth(root, "k0", k=0), 0)
         case("blinking is reported, not judged on the count", _synth(root, "blink", aid="blinking", tweak=unflag), 0)
         case("stuck_low_mip only: nothing judged", _synth(root, "slm", aid="stuck_low_mip"), 3)
+
+        def never_installed(first, last, start):
+            def tw(t, r, d):
+                if first <= t <= last:
+                    for e in r["anomalies"]:
+                        if e["start_frame"] == start:
+                            e["labelled"] = False
+                            e["transition"] = 1
+                            e["transition_reason"] = list(e.get("transition_reason") or []) + ["effect_interrupted"]
+            return tw
+        case("an event whose effect never rendered is not judged; the other passes",
+             _synth(root, "neverlab", tweak=never_installed(19, 28, 119)), 0, note="never labelled (effect_interrupted 10, settle 2)")
+        case("only never-labelled events: nothing judged",
+             _synth(root, "neverlab1", cycles=1, ticks=18, tweak=never_installed(3, 12, 103)), 3)
+
+        def never_measured(t, r, d):
+            if 3 <= t <= 12:
+                r["mask_state"] = "unmeasured"
+                r.pop("mask_file", None)
+        case("blinking labelled but never measured fails, with the hidden-actor note",
+             _synth(root, "blinkunmeasured", aid="blinking", tweak=never_measured), 1, "unmeasured",
+             note="every one of its 10 labelled frame(s) is unmeasured")
     finally:
         shutil.rmtree(root, ignore_errors=True)
     ok = all(results)

@@ -17,6 +17,10 @@ Clauses (plan 095-02 section 7 G1):
                  are anchored on the data (the row whose frame_index equals an event's start_frame), the revert on
                  the last tick the burst's events are live (+1). A burst with a stuck_low_mip fire (deferred onset,
                  restore trail) is judged after its onset only; its after-offset window is reported NOT JUDGED.
+                 In a Play-In-Editor capture (run_summary pie_end_settle_active true) the first frame after each
+                 fire-window label run carries an unlabelled transition-only entry with the reason pie_end_settle;
+                 that entry is not a live tick of its event (096-06: counting it put the revert one tick late). The
+                 same entry in a session not marked PIE, or a labelled one, is still counted live.
   C8 files       every row's image exists and is not empty (judged only when the Actual_Frames folder exists)
 
 A session written before m56 has no tick_index; C7 then reads ticks as frame_index minus the first frame_index.
@@ -33,6 +37,7 @@ import tempfile
 import zlib
 
 SETTLE = "settle"
+PIE_SETTLE = "pie_end_settle"
 GLOBAL_TYPES = ("camera_clipping", "time_dilation")
 DEFERRED_TYPES = ("stuck_low_mip",)
 TPCF_TOL = 0.0005
@@ -89,9 +94,11 @@ def ticks_of(rows):
     return None, None
 
 
-def expected_settle(rows, ticks, run):
+def expected_settle(rows, ticks, run, pie_active=False):
     """Return (expected tick set, judged tick ranges, notes, ok-to-judge)."""
     notes = []
+    pie_skipped = 0
+    pie_counted = 0
     if not isinstance(run, dict):
         return None, [], ["no run.json: the burst schedule is unknown"], False
     try:
@@ -116,8 +123,19 @@ def expected_settle(rows, ticks, run):
             key = (a.get("id"), a.get("target_name"), a["start_frame"])
             ev = events.setdefault(key, {"on": tick_of_frame.get(a["start_frame"]), "live": set()})
             rs = entry_reasons(a)
+            if PIE_SETTLE in rs and SETTLE not in rs:
+                if pie_active and a.get("labelled") is not True:
+                    pie_skipped += 1
+                    continue
+                pie_counted += 1
             if SETTLE not in rs or (ev["on"] is not None and t <= ev["on"] + K):
                 ev["live"].add(t)
+    if pie_skipped:
+        notes.append("PIE capture: %d pie_end_settle entr(ies) (unlabelled, the first frame after a fire-window label run) "
+                     "are not live ticks of their event" % pie_skipped)
+    if pie_counted:
+        notes.append("%d pie_end_settle entr(ies) counted as live: %s" % (
+            pie_counted, "labelled" if pie_active else "run_summary does not say pie_end_settle_active true"))
     onsets = {}
     for key, ev in events.items():
         if ev["on"] is None:
@@ -286,7 +304,9 @@ def check(d):
     if ticks is None:
         C["C7 settle"] = "NOT JUDGED: no tick_index and no frame_index"
     else:
-        exp, judged, notes, ok = expected_settle(rows, ticks, run)
+        pie_active = isinstance(rs, dict) and rs.get("pie_end_settle_active") is True
+        R["pie_end_settle_active"] = pie_active
+        exp, judged, notes, ok = expected_settle(rows, ticks, run, pie_active)
         R["settle_notes"] = notes[:24]
         actual = set(t for r, t in zip(rows, ticks) if row_settle(r))
         R["settle_rows"] = len(actual)
@@ -375,12 +395,15 @@ def _png1(path):
 
 
 def synth_session(root, name, K=2, pre=4, P=8, Q=4, ticks=40, frame0=100, drop_ticks=(), move_settle=None,
-                  summary_override=None, with_images=True):
-    """A synthetic m56 session: one targeted fire-window event per burst, every tick written."""
+                  summary_override=None, with_images=True, pie=False, pie_labelled=False, pie_rs=True):
+    """A synthetic m56 session: one targeted fire-window event per burst, every tick written. pie=True writes what a
+    Play-In-Editor capture writes on each revert tick (the first frame after the label run): an unlabelled
+    transition-only entry with the reason pie_end_settle, and run_summary pie_end_settle_active true (pie_rs)."""
     d = os.path.join(root, name)
     os.makedirs(os.path.join(d, "Actual_Frames"))
     settle = set()
     live = {}
+    reverts = {}
     t_on = pre - 1
     while t_on < ticks:
         for t in range(t_on + 1, t_on + K + 1):
@@ -388,6 +411,7 @@ def synth_session(root, name, K=2, pre=4, P=8, Q=4, ticks=40, frame0=100, drop_t
         for t in range(t_on, t_on + K + P):
             live[t] = t_on
         t_rv = t_on + K + P
+        reverts[t_rv] = t_on
         for t in range(t_rv + 1, t_rv + K + 1):
             settle.add(t)
         t_on = t_rv + K + Q
@@ -413,6 +437,10 @@ def synth_session(root, name, K=2, pre=4, P=8, Q=4, ticks=40, frame0=100, drop_t
         elif t in settle and last_on is not None:
             r["anomalies"].append({"id": "missing_texture", "target_name": "Rock", "start_frame": frame0 + last_on,
                                    "labelled": False, "transition": 1, "transition_reason": [SETTLE]})
+        elif pie and t in reverts:
+            r["anomalies"].append({"id": "missing_texture", "target_name": "Rock", "start_frame": frame0 + reverts[t],
+                                   "labelled": bool(pie_labelled), "transition": 1, "transition_reason": [PIE_SETTLE]})
+            r["transition_present"] = True
         if t in settle:
             r["transition_present"] = True
             r["transition_reason"] = [SETTLE]
@@ -427,6 +455,8 @@ def synth_session(root, name, K=2, pre=4, P=8, Q=4, ticks=40, frame0=100, drop_t
     rs = {"total_frames": n, "capture_span_ticks": ticks, "frames_dropped": ticks - n,
           "frames_dropped_ticks": sorted(drop_ticks), "frames_dropped_by_cause": {"unknown": 0, "bench_drop": ticks - n},
           "ticks_per_captured_frame": round(ticks / float(n), 6)}
+    if pie and pie_rs:
+        rs["pie_end_settle_active"] = True
     if summary_override:
         rs.update(summary_override)
     with open(os.path.join(d, "run_summary.json"), "w", encoding="utf-8") as fh:
@@ -470,6 +500,14 @@ def selftest():
         case("no run.json: settle placement not judged (exit 3)", d, 3, "NOT JUDGED")
         d = synth_session(root, "tpcf", summary_override={"ticks_per_captured_frame": 1.344})
         case("ticks_per_captured_frame 1.344 fails C6", d, 1, "ticks_per_captured_frame")
+        case("PIE: pie_end_settle on every revert tick passes", synth_session(root, "pie", pie=True), 0)
+        case("PIE: a 60-burst-shaped run with pie_end_settle passes", synth_session(root, "pie_long", pie=True, ticks=400), 0)
+        case("pie_end_settle in a session not marked PIE fails C7", synth_session(root, "pie_norun", pie=True, pie_rs=False), 1,
+             "C7 settle")
+        case("a labelled pie_end_settle entry stays live and fails C7", synth_session(root, "pie_lab", pie=True, pie_labelled=True),
+             1, "C7 settle")
+        case("PIE: an after-offset settle flag moved one tick later fails C7",
+             synth_session(root, "pie_moved", pie=True, move_settle=(15, 16)), 1, "C7 settle")
     finally:
         shutil.rmtree(root, ignore_errors=True)
     ok = all(results)
