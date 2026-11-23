@@ -27,7 +27,8 @@ pack. Copies carry placeholders and are not byte-identical to their home sources
 
 ## 1. What the plugin is, in ten lines
 
-1. `AnomalyInjector` is an Unreal Engine plugin (UE 5.1 canonical; a UE 4.25 port exists).
+1. `AnomalyInjector` is an Unreal Engine plugin, written and tested at home on UE 5.1; a UE 4.25 port exists. The
+   hosts' engines (owner, 2026-11-23): **Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25.**
 2. It injects **labelled visual anomalies** — graphics bugs on purpose — into a running game.
 3. Anomaly types (the catalog in `docs/architecture.md` is authoritative): `blinking`, `missing_object`,
    `missing_texture`, `corrupted_texture`, `lod_corruption`, `lod_popping`, `lighting_mismatch`,
@@ -96,7 +97,7 @@ pack. Copies carry placeholders and are not byte-identical to their home sources
 - Local-only branches, not on origin (`m51`, `fix/followup-capture`, two more): their documents are
   copied into `local-refs/`.
 
-**Delivered:** the M3 release on UE 5.1 (`master`, 2026-10-05); the Europa 4.25 port at `2828f6a`
+**Delivered:** the M3 release, written and tested at home on UE 5.1 (`master`, 2026-10-05); the Europa 4.25 port at `2828f6a`
 with its office card (2026-11-06).
 
 **Written, reviewed and compiled, but NOT run in any engine** (no Game build, no cook, no capture leg)
@@ -152,7 +153,9 @@ render tick.
   clock, so the old `speed_ratio` read about 1.000 by construction; m33 re-keyed it to the plugin's own
   tick span. Read capture health there from wall-clock arithmetic.
 
-**Bates** — a UE 5.1-lineage game.
+**Bates** — a **UE 5.3.2** game (owner, 2026-11-23; O-001 read `Build.version` 5.3.2). Documents written before
+2026-11-23, the repo's `CLAUDE.md` included, call it UE 5.1; that was wrong. The home side has no 5.3 headers, so
+building the plugin on Bates is the only test of it against 5.3.
 - 2026-08-26 (m35, journal `2026-08-26-061`): a letterboxed view (non-zero view-rect origin) crashed
   the capture readback; fixed by m35 and validated on Bates on 2026-09-02 (journal `2026-09-02-066`,
   rect origins 69 and 138).
@@ -174,7 +177,8 @@ render tick.
 and a "second" office host, or set two builds or workspaces of one host side by side as if they were
 two hosts (on 2026-09-29 one Bates build compiled clean while another failed with missing includes).
 Read them as builds or workspaces of the three hosts above. Where it matters which host a reading
-came from, re-check at the office. Copies in this pack write every host by its codename only
+came from, re-check at the office. Older documents that put Bates on UE 5.1 are wrong on that point: Bates is
+UE 5.3.2 (owner, 2026-11-23). Copies in this pack write every host by its codename only
 (`REDACTIONS.md`).
 
 **Europa** — the UE 4.25 host. Port: `feat/europa-port`.

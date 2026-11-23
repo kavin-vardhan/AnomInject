@@ -3,7 +3,9 @@
 **From:** chat Claude (orchestrator), 2026-11-22. **To:** the office agent. **Runs after O-001,** whose release-build
 readings are the "before" side of every comparison here. Answer as report cards (`REPORT-FORMAT.md`), one set per host.
 
-**Hosts: Concorde and Bates** (UE 5.1). **Not Europa:** these units are not yet ported to 4.25.
+**Hosts: Concorde (UE 5.1) and Bates (UE 5.3.2).** **Not Europa (UE 4.25):** these units are not yet ported to 4.25.
+The home side builds and tests on UE 5.1 only and has no 5.3 headers, so on Bates the build in Q1 is the first test of
+this code against 5.3.
 
 **What is being tested.** Four units, written at home, reviewed, never run in an engine:
 - **m56, capture continuity** (client topic 1): every rendered frame is written; the frames at each anomaly edge carry
