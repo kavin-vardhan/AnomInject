@@ -4259,6 +4259,7 @@ void UAnomalyCaptureSubsystem::BeginActualRun()
 	AnomalyTerrain::ResetRunStats();
 	PatternExcludedTargets = 0;
 	TranslucentOnlyExcludedTargets = 0;
+	HiddenExcludedTargets = 0;
 
 	FramesShadersPending = 0;
 	PrewarmAnomalyShaders();
@@ -9459,6 +9460,13 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			TEXT("changes which targets a given seed picks, so an auto-pool run is non-comparable across it."),
 			TranslucentOnlyExcludedTargets, *AnomalyDefaults::DescribeAllowTranslucentOnlyTargets());
 
+		HiddenExcludedTargets = AnomalyViewport::GetHiddenExclusionCount();
+		UE_LOG(LogAnomalyCapture, Log,
+			TEXT("Capture(096-07): HIDDEN EXCLUSION = %d distinct actor(s) in view that the game keeps hidden were refused as ")
+			TEXT("candidates (reason target_hidden; see the EXCLUDED-HIDDEN lines). A targeted fire on such an actor is refused ")
+			TEXT("the same way. A zero is a reading only if the run met such an actor."),
+			HiddenExcludedTargets);
+
 		UE_LOG(LogAnomalyCapture, Log,
 			TEXT("Capture(090-05): NANITE TARGETS REFUSED = %d distinct actor(s) (%d refusal(s)) as nanite_unmaskable ")
 			TEXT("this run, setting %s. A refused target draws at least one Nanite primitive, which on UE 5.1 writes no ")
@@ -10118,6 +10126,7 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 			FramesExposureDip,
 			&ObservabilityReport,
 			TranslucentOnlyExcludedTargets,
+			HiddenExcludedTargets,
 			Async.IsValid() ? Async->MaskMeasure.NumKnownUnmeasurable() : 0,
 			TargetDrawnMeasuredRows, FramesDrawnUnexpected, FramesExposureDipSuppressed, &StuckMipReport,
 			Async.IsValid() && Async->ChangeStage.IsValid() ? Async->ChangeStage->Summary() : nullptr, TexCorruptSummary,

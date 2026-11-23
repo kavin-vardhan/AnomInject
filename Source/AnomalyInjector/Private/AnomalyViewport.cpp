@@ -6,6 +6,7 @@
 #include "AnomalyInjectorLog.h"
 #include "AnomalyDefaults.h"
 #include "AnomalyTargetPolicy.h"
+#include "AnomalyHiddenClass.h"
 
 #include "Engine/StaticMesh.h"
 #include "Engine/SkinnedAsset.h"
@@ -71,6 +72,18 @@ namespace
 	{
 		static TSet<FString> Seen;
 		return Seen;
+	}
+
+	TSet<FString>& HostHiddenActorsSeen()
+	{
+		static TSet<FString> Seen;
+		return Seen;
+	}
+
+	bool IsOwnerHostHidden(const AActor* Owner)
+	{
+		return Owner && Owner->IsHidden()
+			&& AnomalyTargetPolicy::IsHostHidden(true, AnomalyHiddenClass::IsHiddenByPlugin(Owner), 0, 0);
 	}
 
 	int32 GNaniteRefusalAttempts = 0;
@@ -546,10 +559,65 @@ namespace
 		return true;
 	}
 
+	bool AnyGeometryInView(const FConvexVolume& Frustum, const FVector& PollOrigin, float PollRadius, const AActor* Actor)
+	{
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (!Prim || !Prim->IsVisible() || !AnomalyViewport::IsRenderableGeometryComponent(Prim))
+			{
+				continue;
+			}
+			if (PollRadius > 0.0f)
+			{
+				const FBoxSphereBounds& B = Prim->Bounds;
+				if ((float)FVector::Dist(PollOrigin, B.Origin) - (float)B.SphereRadius > PollRadius)
+				{
+					continue;
+				}
+			}
+			if (IsInFrustum(Frustum, Prim))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool RefusedAsHostHidden(const FConvexVolume& Frustum, const FVector& PollOrigin, float PollRadius, const AActor* Actor)
+	{
+		if (!IsOwnerHostHidden(Actor))
+		{
+			return false;
+		}
+		if (AnomalyViewport::IsReadOnlyEnumeration() || !AnyGeometryInView(Frustum, PollOrigin, PollRadius, Actor))
+		{
+			return true;
+		}
+		bool bAlready = false;
+		HostHiddenActorsSeen().Add(Actor->GetPathName(), &bAlready);
+		if (!bAlready)
+		{
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("EXCLUDED-HIDDEN actor='%s' path='%s' class=%s reason=%s - the game keeps this actor hidden (its hidden flag ")
+				TEXT("is set and the plugin did not set it), so it can never show a change: refused as an injection candidate ")
+				TEXT("and as a target. Counted in run_summary.hidden_excluded_targets."),
+				*Actor->GetName(), *Actor->GetPathName(), *Actor->GetClass()->GetName(),
+				UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeTargetHiddenReason()));
+		}
+		return true;
+	}
+
 	bool ClassifyRenderableVisibleLive(const FConvexVolume& Frustum, const FMatrix& ViewProj, const FVector& ViewOrigin,
 		const FVector& PollOrigin, float PollRadius, float MinCoveragePct, UWorld* World, const AActor* Actor,
 		UPrimitiveComponent*& OutFirstMatch)
 	{
+		if (RefusedAsHostHidden(Frustum, PollOrigin, PollRadius, Actor))
+		{
+			OutFirstMatch = nullptr;
+			return false;
+		}
 		if (MinCoveragePct <= 0.0f)
 		{
 			OutFirstMatch = FirstRenderableVisibleComponent(Frustum, ViewOrigin, PollOrigin, PollRadius, World, Actor);
@@ -800,6 +868,10 @@ namespace AnomalyViewport
 
 		if (const AActor* Owner = Component->GetOwner())
 		{
+			if (IsOwnerHostHidden(Owner))
+			{
+				return false;
+			}
 			if (Owner->IsA<AInstancedFoliageActor>())
 			{
 				return false;
@@ -1355,6 +1427,7 @@ namespace AnomalyViewport
 		ExcludedActorsSeen().Reset();
 		TranslucentOnlyActorsSeen().Reset();
 		NaniteRefusedActorsSeen().Reset();
+		HostHiddenActorsSeen().Reset();
 		GNaniteRefusalAttempts = 0;
 		GNaniteProbeMissingRefusals = 0;
 	}
@@ -1367,6 +1440,44 @@ namespace AnomalyViewport
 	int32 GetTranslucentOnlyExclusionCount()
 	{
 		return TranslucentOnlyActorsSeen().Num();
+	}
+
+	int32 GetHiddenExclusionCount()
+	{
+		return HostHiddenActorsSeen().Num();
+	}
+
+	bool IsActorHostHidden(const AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		int32 Geometry = 0;
+		int32 Visible = 0;
+		TArray<UPrimitiveComponent*> Prims;
+		Actor->GetComponents<UPrimitiveComponent>(Prims);
+		for (const UPrimitiveComponent* Prim : Prims)
+		{
+			if (Prim && IsRenderableGeometryComponent(Prim))
+			{
+				++Geometry;
+				if (Prim->IsVisible())
+				{
+					++Visible;
+				}
+			}
+		}
+		return AnomalyTargetPolicy::IsHostHidden(Actor->IsHidden(), AnomalyHiddenClass::IsHiddenByPlugin(Actor), Geometry, Visible);
+	}
+
+	FString GetTargetRefusal(const AActor* Actor)
+	{
+		if (IsActorHostHidden(Actor))
+		{
+			return FString(UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeTargetHiddenReason()));
+		}
+		return FString();
 	}
 
 	FReadOnlyEnumerationScope::FReadOnlyEnumerationScope()

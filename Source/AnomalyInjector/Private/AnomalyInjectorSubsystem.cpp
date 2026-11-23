@@ -844,6 +844,32 @@ bool UAnomalyInjectorSubsystem::ApplyAnomaly(const FName& Id, const TArray<FStri
 					return false;
 				}
 			}
+			const TArray<TWeakObjectPtr<AActor>> Targets = AnomalyTargeting::FindActorsMatching(GetWorld(), Args[0]);
+			int32 RefusedTargets = 0;
+			FString FirstRefusal;
+			FString FirstPath;
+			for (const TWeakObjectPtr<AActor>& Weak : Targets)
+			{
+				const FString Why = AnomalyViewport::GetTargetRefusal(Weak.Get());
+				if (!Why.IsEmpty())
+				{
+					++RefusedTargets;
+					if (FirstRefusal.IsEmpty())
+					{
+						FirstRefusal = Why;
+						FirstPath = GetPathNameSafe(Weak.Get());
+					}
+				}
+			}
+			if (Targets.Num() > 0 && RefusedTargets == Targets.Num())
+			{
+				ApplyLevelRefusals.Add(Id, FirstRefusal);
+				UE_LOG(LogAnomaly, Warning,
+					TEXT("IAI.Apply '%s' '%s' REFUSED %s - every matched actor (%d, first %s) can never show a labelled change. ")
+					TEXT("Nothing is applied and no fire is recorded."),
+					*Id.ToString(), *Args[0], *FirstRefusal, Targets.Num(), *FirstPath);
+				return false;
+			}
 		}
 		if (Scope == EAnomalyScope::Object && Args.Num() > 0 && !Args[0].IsEmpty() && !AnomalyDefaults::GetAllowNaniteTargets())
 		{

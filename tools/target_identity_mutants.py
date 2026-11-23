@@ -9,6 +9,9 @@ MUTATIONS = {
     "apply_ambiguity_ignored": ("return Kind != ETargetToken::Path && NumActorsNamed > 1;", "return Kind != ETargetToken::Path && NumActorsNamed > 100000;"),
     "targeted_ambiguity_ignored": ("return Kind != ETargetToken::Path && NumMatches > 1;", "return Kind != ETargetToken::Path && NumMatches > 100000;"),
     "path_token_ambiguous": ("return Kind != ETargetToken::Path && NumMatches > 1;", "return NumMatches > 1;"),
+    "hidden_flag_ignored": ("return (bActorHidden && !bHiddenByPlugin) || ", "return false || "),
+    "plugin_hide_counts_as_host": ("(bActorHidden && !bHiddenByPlugin)", "(bActorHidden)"),
+    "meshless_counts_as_hidden": ("(NumGeometry > 0 && NumVisibleGeometry == 0)", "(NumVisibleGeometry == 0)"),
 }
 
 

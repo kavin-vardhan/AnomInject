@@ -62,11 +62,25 @@ static void TargetedAmbiguityCases()
 	Check(!IsTargetedNameAmbiguous(ETargetToken::Path, 2), "targeted: a path is never ambiguous even if two were reported");
 }
 
+static void HiddenCases()
+{
+	Check(IsHostHidden(true, false, 1, 1), "hidden: the host's hidden flag hides a visible mesh actor");
+	Check(IsHostHidden(true, false, 0, 0), "hidden: the host's hidden flag hides an actor with no mesh");
+	Check(!IsHostHidden(true, true, 1, 1), "hidden: an actor the plugin itself hid (pre-m45 bench hide) is not host-hidden");
+	Check(IsHostHidden(false, false, 2, 0), "hidden: meshes that are all invisible count as hidden");
+	Check(!IsHostHidden(false, false, 2, 1), "hidden: one visible mesh is enough");
+	Check(!IsHostHidden(false, false, 0, 0), "hidden: an actor with no mesh (a light) is not hidden");
+	Check(!IsHostHidden(false, true, 1, 1), "hidden: plugin bookkeeping alone does not hide");
+	Check(IsHostHidden(false, true, 1, 0), "hidden: invisible meshes hide whatever the plugin did");
+	Check(std::strcmp(DescribeTargetHiddenReason(), "target_hidden") == 0, "hidden reason name");
+}
+
 int main()
 {
 	TokenCases();
 	ApplyAmbiguityCases();
 	TargetedAmbiguityCases();
+	HiddenCases();
 	std::printf("target_identity_selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

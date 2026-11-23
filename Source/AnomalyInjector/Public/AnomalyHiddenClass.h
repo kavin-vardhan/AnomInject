@@ -20,6 +20,7 @@ namespace AnomalyHiddenClass
 	ANOMALYINJECTOR_API void Show(AActor* Actor);
 
 	ANOMALYINJECTOR_API bool IsLogicallyHidden(const AActor* Actor);
+	ANOMALYINJECTOR_API bool IsHiddenByPlugin(const AActor* Actor);
 	ANOMALYINJECTOR_API bool IsAnyLogicallyHidden();
 	ANOMALYINJECTOR_API void RestoreAll();
 }

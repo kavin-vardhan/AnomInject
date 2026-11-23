@@ -772,6 +772,21 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		return false;
 	}
 
+	if (!IsSessionGlobalId(Injector, Id))
+	{
+		const FString Refusal = AnomalyViewport::GetTargetRefusal(Target);
+		if (!Refusal.IsEmpty())
+		{
+			LastFireResult = FString::Printf(TEXT("target %s: refused (%s)"), *ActorName, *Refusal);
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("Auto.FireSpecific: '%s' on '%s' (%s) -> REFUSED %s - this target can never show a labelled change, so ")
+				TEXT("nothing is applied and no fire is recorded."),
+				*Id.ToString(), *ActorName, *Target->GetPathName(), *Refusal);
+			NoteYieldRound(Id, TEXT("targeted"), false, TMap<FString, int32>{ { Refusal, 1 } });
+			return false;
+		}
+	}
+
 	if (!IsSessionGlobalId(Injector, Id) && AnomalyViewport::RefuseNaniteTarget(Target, TEXT("targeted")))
 	{
 		LastFireResult = FString::Printf(TEXT("target %s: refused (%s)"), *ActorName,

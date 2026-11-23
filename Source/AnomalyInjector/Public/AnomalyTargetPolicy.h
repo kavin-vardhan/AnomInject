@@ -111,6 +111,16 @@ namespace AnomalyTargetPolicy
 		return Kind != ETargetToken::Path && NumMatches > 1;
 	}
 
+	inline const char* DescribeTargetHiddenReason()
+	{
+		return "target_hidden";
+	}
+
+	inline bool IsHostHidden(bool bActorHidden, bool bHiddenByPlugin, int NumGeometry, int NumVisibleGeometry)
+	{
+		return (bActorHidden && !bHiddenByPlugin) || (NumGeometry > 0 && NumVisibleGeometry == 0);
+	}
+
 	template <typename TCandidate, typename TIsNanite>
 	int FilterNaniteCandidates(TCandidate* Candidates, int Num, bool bAllowNanite, TIsNanite&& IsNanite)
 	{
