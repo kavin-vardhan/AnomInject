@@ -1873,24 +1873,31 @@ render already agree, nothing is held and nothing changes; the final build's sta
   engine is past the held LOD, or matches it after a re-hold; re-hold on retreat past 0.85, only with `bDownPop`,
   default off since 095-14; hold cap).
   - **View-entry arm:** margin = clamp(yaw rate x 90 frames, 20 deg, 120 deg); the arming window at the minimum yaw
-    rate (30 deg/s) is 90 frames, longer than a burst cycle plus the motion lag (selftest).
+    rate (5 deg/s since 096-07, the setting `LodPoppingMinYawRateDegPerS`; it was a constant 30) is 90 frames, longer
+    than a burst cycle plus the motion lag (selftest).
   - **Distance arm:** looks ahead to max(contrast release size, the size at which coverage reaches the minimum;
     square law from the current coverage); frames ahead from the closing speed in distance (S is proportional to
-    1 / distance to the bounds centre).
+    1 / distance to the bounds centre). Since 096-07: closing-speed floor 20 cm/s (was 50) and its own look-ahead
+    `DistanceAheadFrames` 300 (view entry keeps `AheadFrames` 90); a distance fire's arm timeout is
+    `ArmTimeoutFramesFor` = max(setting, frames ahead at the arm + entry frames) (G590). The down-pop's retreat test keeps
+    its own 50 cm/s (`RetreatSpeedCmPerS`, G591).
   - **Arm clock** (`StepArmClock`): the pre-roll timeout restarts once at the first wrong frame.
 - **Engine-exact prediction `AnomalyLod::PredictEngineLod`**: `ULocalPlayer::CalcSceneView` + `ComputeStaticMeshLOD`
   and both temporal samples, factor `r.StaticMeshLODDistanceScale`, MinLOD with the first-resident clamp
   (`FLodViewScope` builds the view once for many targets).
 - **`AnomalyLodTrigger`**: a 16-sample camera ring fed once per tick from `UAnomalyInjectorSubsystem::DispatchAnomalyTicks`,
   the arm evaluation, and `CollectArmableActors` (static mesh components within 100 m that pass `IsRenderableComponent`
-  (foliage and name-pattern exclusions) and the translucent-only exclusion, sorted by actor name), which the auto pool
-  uses as lod_popping's candidate list and eligibility pre-check; each scan is timed (`lod_predict_*`).
+  (foliage and name-pattern exclusions; since 096-07 also host-hidden actors and HLOD proxies) and the translucent-only
+  exclusion, sorted by actor name, ties by path), which the auto pool uses as lod_popping's candidate list and
+  eligibility pre-check; each scan is timed (`lod_predict_*`). When nothing is armable the pool's `Auto.Yield` line
+  lists every refusal reason with its candidate count (096-07; it was the most common reason only).
 - **Labels.** `IsCurrentlyAnomalous()` = the positive class for the camera at the time of the call (cached on camera
   pose, hold state and commit). The capture's tick-end call (`NoteCapturedFrame`) stores the evaluation, and the next
   `Tick` commits that stored evaluation to the tracker unconditionally (falls back to evaluating when no capture
   sampled the frame). Telemetry `lod.*` on every entry; `lod.swap` (+ cause, direction, from, to) on the swap frame.
 - **Three additive `IAnomaly` hooks** (defaults keep every other anomaly unchanged): `GetDeferredOnsetTimeoutFrames()`
-  (-1 = the global timeout; lod = `LodPoppingArmTimeoutFrames`), `IsHoldingEventOpen()` (false; lod = visibly wrong at
+  (-1 = the global timeout; lod = `LodPoppingArmTimeoutFrames`, compiled 150 since 096-07, or a distance fire's frames
+  ahead plus entry frames when longer), `IsHoldingEventOpen()` (false; lod = visibly wrong at
   the last tick end below `LodPoppingHoldCapFrames`, or a dithered mesh within `lod.TemporalLag` after the release) and
   `HasDeferredOnsetBegun()` (false; lod = a positive or subvisible frame has been seen; restarts the arm clock). The
   capture keeps the Positives phase open while any live fire holds it (`lod_window_extension_frames`).
@@ -1919,6 +1926,15 @@ render already agree, nothing is held and nothing changes; the final build's sta
   bench paths; 095-13 journal, and the selftest's approach_retreat simulation with the switch on). A mesh whose switch
   lies under the 7 % size gives no distance event at walking speed (refused `at_finest_lod` / `too_far_ahead`); the
   yield depends on the host's LOD settings (ruling 095-13 D2; `lod_swaps_by_cause` and the `Auto.Yield` refusals).
+
+### `lod_corruption` contrast and coverage (096-07, m57 only)
+After the m59 refusals, `AnomalyLod::GetForcedLodContrast` takes the shown LOD from `PredictEngineLod` for a static
+mesh (the coarsest of the engine LOD and both temporal samples; unavailable = `current_lod_undetermined`), refuses
+`not_coarser_than_current`, then `no_contrast_lod` unless the forced LOD has at least 4 times fewer triangles
+(`AnomalyLodPolicy::DecideTriangleContrast`, `ContrastTriangleRatio` 4, `lod_popping`'s ratio), then `below_min_coverage`
+when the component's bounds-projected screen coverage is under `LodPoppingMinCoveragePct` (7 %). It runs on every fire
+(lod_corruption is targeted-only). Skinned meshes keep their component prediction (refused by default). Lives on m57
+because it needs m57's predictor and triangle table. Selftest `lod_refusal_selftest` (164 checks).
 
 ## Per-target / global state-capture convention
 The generalization of M1's AMB-3 capture-baseline rule, followed by **every** state-mutating anomaly:

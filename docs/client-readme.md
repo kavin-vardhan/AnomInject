@@ -1006,6 +1006,9 @@ only on `lod_popping`.
 | `run_summary.json` → `label_transition_lod_subvisible_entries`, `label_transition_lod_unconfirmed_entries` | *absent* | always (0 when no `lod_popping` ran) | **Added** |
 | Positive window of a burst | fixed length | a `lod_popping` burst stays open while the object is visibly wrong, up to the hold cap (§8.7a) | behaviour (`lod_popping` only) |
 | Events in `annotation.json` | one per fire | a spatial fire that never showed a labelled frame writes **no event** (its id is in `lod_untriggered_event_ids`); every other event is kept except zero-pixel vetoed events (`vetoed_event_ids`) | behaviour (`lod_popping` only) |
+| `lod_popping` arming (ships with 2.3) | turn floor 30 deg/s, walk floor 50 cm/s, distance look-ahead 3 s, arm timeout 90 frames | turn floor **5 deg/s** (`IAI.Anomaly.LodMinYawRate`), walk floor **20 cm/s**, distance look-ahead **10 s** (300 frames), arm timeout **150** frames and never shorter than a distance fire's prediction plus the entry frames | behaviour (more events on slow turns and walks) |
+| `run_summary.json` → `lod_trigger_settings` (ships with 2.3) | four settings | also `minYawRate=<n>(<source>)` | value change |
+| `lod_corruption` refusals (ships with 2.3) | `not_coarser_than_current` from the plugin's own screen-size guess | the engine's own shown LOD, plus `no_contrast_lod` (fewer than 4 times fewer triangles) and `below_min_coverage` (under 7 % of the screen) | behaviour (fewer events, none without a visible change) |
 
 🔑 **The one-line migration:** keep dropping every frame that carries a transition flag (it now also covers
 `lod_subvisible` and `lod_unconfirmed`), and filter `lod_popping` events on `lod_spatial_swap_visible` if you want only
@@ -1480,7 +1483,11 @@ What each row leaves open, stated rather than implied:
   if it is the same or finer (for example `lod_corruption <object> 1`, which names the finest level, on an object already
   at its finest level, or the coarsest level on an object already at its coarsest), forcing it changes nothing and the mesh is refused as
   `not_coarser_than_current`. If the current level cannot be read (no camera view, no render data), the mesh is refused
-  as `current_lod_undetermined` rather than guessed.
+  as `current_lod_undetermined` rather than guessed. **Since this build** the level on screen is the engine's own
+  prediction (the one `lod_popping` uses: the LOD distance scale and both dither samples, the coarser one while dithering),
+  and two more checks apply to every fire: the forced level must have **at least 4 times fewer triangles** than the level
+  on screen (`no_contrast_lod`), and the object must cover **at least 7 %** of the screen (`LodPoppingMinCoveragePct`;
+  `below_min_coverage`). Without them, 3 of 19 events on one rock in a real game showed no visible change.
 - **When only some meshes of an object are forced** (the others refused), the label box, the target mask, the measured
   pixels and the event's `asset_name` / `component_class` cover only the forced meshes, as for texture corruption
   below. `node.bounds` still describes the whole object.
@@ -1510,16 +1517,21 @@ What each row leaves open, stated rather than implied:
   - `view_entry` (the main case, as in your reference clip): you turn toward an object just outside the view; it is
     prepared at a low-detail version while unseen, enters the view showing it, and snaps to full detail after
     **30 frames on screen (about one second at 30 fps)**. An object qualifies when, at the current turning speed, it
-    would enter the view within 3 seconds (it may be 20 to 120 degrees outside the view edge).
+    would enter the view within 3 seconds (it may be 20 to 120 degrees outside the view edge). The turn must be at least
+    **5 degrees per second** (`IAI.Anomaly.LodMinYawRate`; it was 30, which a standing player turning around, about
+    7 degrees per second, never reached); at slow turns only objects close to the view edge qualify.
   - `distance_threshold`: the object is frozen at the detail level it already shows (nothing changes), keeps it while
     you walk toward it, and snaps to full detail once it is clearly past both the point where the engine would have
     switched and the point where it covers 7 % of the frame. It is armed only when, at your walking speed, it will
-    reach that size within 3 seconds. **A mesh whose detail switch happens while it is still under the 7 %
+    reach that size within 10 seconds (300 frames at 30 fps; it was 3 seconds), walking toward it at **20 cm/s or faster**
+    (a slow walk; it was 50). Such a fire waits at least as long as predicted, plus the 30 entry frames, before giving up.
+    **A mesh whose detail switch happens while it is still under the 7 %
     minimum gives no `distance_threshold` event at walking speed:** the low-detail version would have to be held far
     longer than the 150-frame cap before anyone could see it. That is deliberate (no label for a change nobody can
     see), and it means the number of distance events depends on your game's LOD settings. `run_summary.json`
     `lod_swaps_by_cause` counts the pops per trigger (`distance`, `view_entry`), each event's `anomaly_subtype` names
-    its trigger, and the capture log's `Auto.Yield` line counts the refused bursts by reason (`lod_not_armable:...`).
+    its trigger, and the capture log's `Auto.Yield` line lists every refusal reason with the number of candidates it
+    refused (`lod_not_armable:already_in_view 30, lod_not_armable:not_approaching 12`), not only the most common one.
     **Pop back down on walking away (experimental, off by default):** `IAI.Anomaly.LodDownPop 1` lets a
     `distance_threshold` object that already snapped to full detail be held at the low-detail version again when you
     walk away past 0.85 of the size at which it snapped (a second swap, direction `down`). It has never been seen to
@@ -1570,7 +1582,8 @@ What each row leaves open, stated rather than implied:
     skip translucent-only and name-excluded objects like every other anomaly, but not the census, the coverage cull or
     the poll radius (the trigger tests coverage itself, and a view-entry object is outside the view).
   - Settings (console beats `[AnomalyInjector]` in DefaultGame.ini, which beats the default): `IAI.Anomaly.LodArmTimeout`
-    / `LodPoppingArmTimeoutFrames` (90), `IAI.Anomaly.LodHoldCap` / `LodPoppingHoldCapFrames` (150),
+    / `LodPoppingArmTimeoutFrames` (**150**, was 90), `IAI.Anomaly.LodMinYawRate` / `LodPoppingMinYawRateDegPerS`
+    (**5** degrees per second, allowed 1 to 180), `IAI.Anomaly.LodHoldCap` / `LodPoppingHoldCapFrames` (150),
     `IAI.Anomaly.LodEntryFrames` / `LodPoppingEntryFrames` (**30**, allowed 1 to 90), `IAI.Anomaly.LodDownPop` /
     `LodPoppingDownPop` (**0**, experimental, see above). The 7 % minimum is the existing `IAI.Anomaly.LodMinCoverage` / `LodPoppingMinCoveragePct`.
     New keys are listed in §8.5b.
