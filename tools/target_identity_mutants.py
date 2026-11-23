@@ -12,6 +12,8 @@ MUTATIONS = {
     "hidden_flag_ignored": ("return (bActorHidden && !bHiddenByPlugin) || ", "return false || "),
     "plugin_hide_counts_as_host": ("(bActorHidden && !bHiddenByPlugin)", "(bActorHidden)"),
     "meshless_counts_as_hidden": ("(NumGeometry > 0 && NumVisibleGeometry == 0)", "(NumVisibleGeometry == 0)"),
+    "hlod_ignored": ("bHlodProxy ? ETargetEligibility::HlodProxy", "false ? ETargetEligibility::HlodProxy"),
+    "hlod_class_path_wrong": ("return \"/Script/Engine.WorldPartitionHLOD\";", "return \"/Script/Engine.HLODActor\";"),
 }
 
 

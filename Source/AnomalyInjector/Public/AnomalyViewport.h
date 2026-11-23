@@ -198,6 +198,12 @@ namespace AnomalyViewport
 
 	ANOMALYINJECTOR_API FString GetTargetRefusal(const AActor* Actor);
 
+	ANOMALYINJECTOR_API int32 GetHlodProxyExclusionCount();
+
+	ANOMALYINJECTOR_API bool IsActorHlodProxy(const AActor* Actor);
+
+	ANOMALYINJECTOR_API FString DescribeHlodRule();
+
 	struct ANOMALYINJECTOR_API FReadOnlyEnumerationScope
 	{
 		FReadOnlyEnumerationScope();

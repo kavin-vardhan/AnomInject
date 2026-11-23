@@ -121,6 +121,34 @@ namespace AnomalyTargetPolicy
 		return (bActorHidden && !bHiddenByPlugin) || (NumGeometry > 0 && NumVisibleGeometry == 0);
 	}
 
+	inline const char* DescribeHlodProxyReason()
+	{
+		return "hlod_proxy";
+	}
+
+	inline const char* LegacyHlodActorClassPath()
+	{
+		return "/Script/Engine.LODActor";
+	}
+
+	inline const char* PartitionHlodActorClassPath()
+	{
+		return "/Script/Engine.WorldPartitionHLOD";
+	}
+
+	enum class ETargetEligibility : unsigned char { Eligible = 0, Hidden = 1, HlodProxy = 2 };
+
+	inline ETargetEligibility DecideTargetEligibility(bool bHostHidden, bool bHlodProxy)
+	{
+		return bHostHidden ? ETargetEligibility::Hidden : bHlodProxy ? ETargetEligibility::HlodProxy : ETargetEligibility::Eligible;
+	}
+
+	inline const char* DescribeEligibility(ETargetEligibility Eligibility)
+	{
+		return Eligibility == ETargetEligibility::Hidden ? DescribeTargetHiddenReason()
+			: Eligibility == ETargetEligibility::HlodProxy ? DescribeHlodProxyReason() : "";
+	}
+
 	template <typename TCandidate, typename TIsNanite>
 	int FilterNaniteCandidates(TCandidate* Candidates, int Num, bool bAllowNanite, TIsNanite&& IsNanite)
 	{

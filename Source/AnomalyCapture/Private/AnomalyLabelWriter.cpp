@@ -1116,7 +1116,7 @@ namespace AnomalyLabel
 		const FTargetMaskTelemetry* TargetMask,
 		const FShaderReadinessTelemetry* ShaderReadiness,
 		int32 FramesExposureDip, const FObservabilityTelemetry* Observability,
-		int32 TranslucentOnlyExcludedTargets, int32 HiddenExcludedTargets, int32 UnmeasurableTargetsAdmitted,
+		int32 TranslucentOnlyExcludedTargets, int32 HiddenExcludedTargets, int32 HlodProxyExcludedTargets, int32 UnmeasurableTargetsAdmitted,
 		int32 TargetDrawnPixelsMeasured, int32 FramesDrawnUnexpected, int32 FramesExposureDipSuppressed,
 		const FStuckMipTelemetry* StuckMip, const TSharedPtr<FJsonObject>& ChangeSummary,
 		const TSharedPtr<FJsonObject>& TexCorruptSummary, const FLabelSyncTelemetry* LabelSync, const ::FCameraClipRunAccum* CameraClip,
@@ -1184,6 +1184,7 @@ namespace AnomalyLabel
 		Root->SetNumberField(TEXT("pattern_excluded_targets"), PatternExcludedTargets);
 		Root->SetNumberField(TEXT("translucent_only_excluded_targets"), TranslucentOnlyExcludedTargets);
 		Root->SetNumberField(TEXT("hidden_excluded_targets"), HiddenExcludedTargets);
+		Root->SetNumberField(TEXT("hlod_proxy_excluded_targets"), HlodProxyExcludedTargets);
 		Root->SetNumberField(TEXT("refused_nanite"), RefusedNaniteTargets);
 		if (!NaniteTargetPolicy.IsEmpty())
 		{

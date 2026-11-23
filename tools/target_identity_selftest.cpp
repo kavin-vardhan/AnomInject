@@ -75,12 +75,27 @@ static void HiddenCases()
 	Check(std::strcmp(DescribeTargetHiddenReason(), "target_hidden") == 0, "hidden reason name");
 }
 
+static void EligibilityCases()
+{
+	Check(DecideTargetEligibility(false, false) == ETargetEligibility::Eligible, "eligibility: a visible ordinary actor is eligible");
+	Check(DecideTargetEligibility(true, false) == ETargetEligibility::Hidden, "eligibility: a hidden actor is refused target_hidden");
+	Check(DecideTargetEligibility(false, true) == ETargetEligibility::HlodProxy, "eligibility: an HLOD proxy is refused hlod_proxy");
+	Check(DecideTargetEligibility(true, true) == ETargetEligibility::Hidden, "eligibility: hidden is reported before HLOD");
+	Check(std::strcmp(DescribeEligibility(ETargetEligibility::Eligible), "") == 0, "eligibility: eligible has no reason");
+	Check(std::strcmp(DescribeEligibility(ETargetEligibility::Hidden), "target_hidden") == 0, "eligibility: hidden reason");
+	Check(std::strcmp(DescribeEligibility(ETargetEligibility::HlodProxy), "hlod_proxy") == 0, "eligibility: hlod reason");
+	Check(std::strcmp(DescribeHlodProxyReason(), "hlod_proxy") == 0, "hlod reason name");
+	Check(std::strcmp(LegacyHlodActorClassPath(), "/Script/Engine.LODActor") == 0, "legacy HLOD class path");
+	Check(std::strcmp(PartitionHlodActorClassPath(), "/Script/Engine.WorldPartitionHLOD") == 0, "World Partition HLOD class path");
+}
+
 int main()
 {
 	TokenCases();
 	ApplyAmbiguityCases();
 	TargetedAmbiguityCases();
 	HiddenCases();
+	EligibilityCases();
 	std::printf("target_identity_selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }
