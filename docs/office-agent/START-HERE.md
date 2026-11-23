@@ -88,6 +88,9 @@ pack. Copies carry placeholders and are not byte-identical to their home sources
   2026-11-14) and the prep for the first engine run is applied (095-14, 2026-11-14:
   `IAI.Anomaly.LodDownPop` default 0, marked experimental). It contains `integ/m56-m58` `0c71f6f`;
   it is **not** merged into `integ/m56-m58`.
+- **2026-11-23 (brief 096-05):** `integ/m56-m58` = `3d62019` (adds the run-end sort of `labels.jsonl`, with
+  `run_summary.labels_sorted`, and docs); `feat/m57-lod-spatial-trigger` = `d2f6873`, a merge of that tip. **O-002
+  tests `d2f6873`.** A strict-include build of `d8d3a7e` at home (UE 5.1 headers) found nothing to fix.
 - Unit branches: `fix/m56-capture-continuity` `e12180c`, `feat/m58-terrain-blink-subtype` `5e1bc03`,
   `fix/m59-forced-lod-refusals` `d23ab16` (all 2026-11-14).
 - `feat/europa-port` = `2828f6a` (2026-11-06, 094-48d) = the UE 4.25 port for Europa; the last Europa
@@ -156,6 +159,9 @@ render tick.
 **Bates** — a **UE 5.3.2** game (owner, 2026-11-23; O-001 read `Build.version` 5.3.2). Documents written before
 2026-11-23, the repo's `CLAUDE.md` included, call it UE 5.1; that was wrong. The home side has no 5.3 headers, so
 building the plugin on Bates is the only test of it against 5.3.
+- 2026-11-23 (O-001): standalone game mode dies at about 60 s on every launch and headless editor map loads crash
+  often, both also with our plugin disabled; host warning boxes halt PIE until OK is pressed. So captures on Bates
+  run in PIE in the editor with the owner attending (O-002, Setup).
 - 2026-08-26 (m35, journal `2026-08-26-061`): a letterboxed view (non-zero view-rect origin) crashed
   the capture readback; fixed by m35 and validated on Bates on 2026-09-02 (journal `2026-09-02-066`,
   rect origins 69 and 138).
@@ -200,7 +206,7 @@ Home fixtures that need no codename: StackOBot (5.1 bench), Lyra (5.1 second fix
 | question | read |
 |---|---|
 | What is in the code now, every anomaly, every module? | `docs/architecture.md` (anomaly catalog included) |
-| Why does X behave strangely? | `docs/gotchas.md` (G1 … G581 on `integ/m56-m58`; G582 and G583 are on `feat/m57-lod-spatial-trigger`; append-only; search the number) |
+| Why does X behave strangely? | `docs/gotchas.md` (G1 … G585 on `feat/m57-lod-spatial-trigger`; `integ/m56-m58` has all but G582 and G583; append-only; search the number) |
 | How do I build, cook, stage, run a leg? | `docs/setup-runbook.md` (§8 packaged legs, §8.6 full cook) |
 | How does capture timing / fps / pacing work? | `docs/capture-fps.md` |
 | What does each label field mean? Schema versions? | `docs/client-readme.md` (§8 field tables, changelog) |

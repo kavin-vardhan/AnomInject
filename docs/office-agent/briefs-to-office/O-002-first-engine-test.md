@@ -1,7 +1,9 @@
 # O-002 — first engine test of the four client-feedback units, on the real hosts
 
-**From:** chat Claude (orchestrator), 2026-11-22. **To:** the office agent. **Runs after O-001,** whose release-build
-readings are the "before" side of every comparison here. Answer as report cards (`REPORT-FORMAT.md`), one set per host.
+**From:** chat Claude (orchestrator), 2026-11-22; amended 2026-11-23 after O-001 (ruling 096-04, brief 096-05: the
+commit under test, Step 0, the Bates way of running, the Q4 terrain counts and host change H-001, `labels_sorted` in
+Q2). **To:** the office agent. **Runs after O-001,** whose release-build readings are the "before" side of every
+comparison here. Answer as report cards (`REPORT-FORMAT.md`), one set per host.
 
 **Hosts: Concorde (UE 5.1) and Bates (UE 5.3.2).** **Not Europa (UE 4.25):** these units are not yet ported to 4.25.
 The home side builds and tests on UE 5.1 only and has no 5.3 headers, so on Bates the build in Q1 is the first test of
@@ -16,21 +18,43 @@ this code against 5.3.
 - **m59, forced-LOD refusals:** no LOD label where forcing the LOD changes nothing on screen.
 
 **Setup** (`<game>` below is the game project folder you were started in)
-- **The owner puts the test version in, not you.** He checks out the pushed commit **`d8d3a7e`** (branch
-  `feat/m57-lod-spatial-trigger`) in his clone, moves the game's old plugin copy out to a backup, copies `d8d3a7e`
-  into `<game>\Plugins\AnomalyInjector` and writes `d8d3a7e` into its `COPIED_COMMIT.txt` (`OFFICE-SETUP.md`, part B).
-  You do not run git. Confirm that `COPIED_COMMIT.txt` reads `d8d3a7e` and that the game's `Plugins` folder holds
-  exactly one `AnomalyInjector.uplugin`; if either is wrong, stop and ask. Then build.
+- **Order of work on each host:** Step 0 and the release-build captures first, on the copy the game holds now; then
+  the owner switches the plugin version; then Q1, Q2, Q3, Q5, Q6 and Q7 on the new version; Q4 last (on Bates it ends
+  with host change H-001 in place, so nothing before it runs with H-001).
+- **The owner puts the test version in, not you.** He checks out the pushed commit **`d2f6873`** (branch
+  `feat/m57-lod-spatial-trigger`) in his clone, moves the game's old plugin copy out to a backup, copies `d2f6873`
+  into `<game>\Plugins\AnomalyInjector` and writes `d2f6873` into its `COPIED_COMMIT.txt` (`OFFICE-SETUP.md`, part B).
+  You do not run git. Confirm that `COPIED_COMMIT.txt` reads `d2f6873` and that the game's `Plugins` folder holds
+  exactly one `AnomalyInjector.uplugin`; if either is wrong, stop and ask. Then build. (`d2f6873` replaces
+  `d8d3a7e`, which this brief named before 2026-11-23; it adds the run-end sort of `labels.jsonl` and docs. A
+  strict-include build of `d8d3a7e` at home, on UE 5.1 headers, found no include to fix. A copy reading `d8d3a7e` is
+  the old commit: stop and ask.)
 - Build the host the way it is normally built for captures (the new copy has no build files, so the plugin compiles
-  from scratch). Use the same levels, paths and settings as O-001 so that every reading has a before and an after.
+  from scratch; on Bates that is the editor target, for PIE). Use the same levels, paths and settings as O-001 so that
+  every reading has a before and an after.
 - Q5 and Q7 also need release-build captures on the same path. Take them while the game still holds the delivered
-  build (before the owner copies `d8d3a7e` in), or ask the owner to put the delivered build back for them (he keeps
+  build (before the owner copies `d2f6873` in), or ask the owner to put the delivered build back for them (he keeps
   it as his backup). Never switch versions yourself. Say on the card which version each reading came from.
-- Set the terrain name pattern for this host as described in the plugin readme (`docs/client-readme.md` §8.4.2): in
-  the game's console type `IAI.SetTerrainPatterns <word> [word...]` before the first capture (a packaged build ignores
-  an edited loose ini file; in the editor, or in a build cooked with it, `[AnomalyInjector] +TerrainNamePatterns=<word>`
-  in `DefaultGame.ini` does the same). Each capture's log prints a `Capture(m58): TERRAIN RULES ...` line with the list
-  in effect and where it came from: check it, do not copy it onto a card. **Never report the pattern.**
+- **Running on Bates: PIE in the editor, with the owner attending.** O-001 found that on Bates standalone game mode
+  dies at about 60 s on every launch and headless editor map loads crash often, both also with our plugin disabled,
+  and that host warning boxes halt PIE until someone presses OK. So on Bates every capture runs in PIE in the editor.
+  The owner starts the editor and PIE, presses OK on warning boxes, and plays when a question needs a played path. You
+  automate everything else inside that session: the console commands of this brief, issued into the PIE world by
+  whatever the editor offers you (for example the editor's Python running a console command in the PIE world, if the
+  host has editor Python enabled), and the control server (`IAI.Server.Start` in the PIE world, then its WebSocket
+  `capture_start`, `capture_stop`, `capture_status` and `auto_config` messages). Ask the owner only to start PIE, press
+  OK, or play; if you find no way to issue a command yourself, give him the exact line to type. A warning box that
+  halts PIE during a capture leaves one long frame in `t_wall_run`: say on the card which capture and which frame, so
+  it is not read as a stall of ours. You may try a host-side fix for the warning boxes or the standalone crash if it is
+  small and safe; it is then a logged host change (rule 4, the next `H-` id) and never required. On Concorde, run as in
+  O-001.
+- **Terrain name pattern.** On Bates, Q4 sets it as host change H-001 (below); every other question runs with the
+  host's own exclusion and terrain settings, as in O-001. On Concorde, set it for this host as described in the plugin
+  readme (`docs/client-readme.md` §8.4.2): in the game's console type `IAI.SetTerrainPatterns <word> [word...]` before
+  the first capture (a packaged build ignores an edited loose ini file; in the editor, or in a build cooked with it,
+  `[AnomalyInjector] +TerrainNamePatterns=<word>` in `DefaultGame.ini` does the same). Each capture's log prints a
+  `Capture(m58): TERRAIN RULES ...` line with the list in effect and where it came from: check it, do not copy it onto
+  a card. **Never report the pattern.**
 - **Capture with delivery mode off:** type `IAI.Capture.Delivery 0` before each `IAI.Capture.Start`. With delivery
   mode on the plugin writes no `run.json` and no run log (`anomaly_log.txt`), and the readers below cannot judge.
   Delivery mode does not change the labels.
@@ -44,6 +68,30 @@ this code against 5.3.
   `IAI.Capture.Start "" png "" N <anomaly> <object name>`, where `<object name>` is the actor name as
   `IAI.ListActors` prints it (editor labels do not exist in a cooked build).
 - Leave the test version in place at the end and say so; chat will say when the owner switches back.
+
+**Step 0. Where the texture-anomaly start stall goes (ruling 096-04 D4), on the copy the game holds now, before the
+switch.** O-001 found a stall on the first frame of every `stuck_low_mip` event (median about 380 ms on Bates),
+`uv_corruption` (71 to 95 ms) and `normal_corruption` (40 to 54 ms). These numbers decide the fix; no code is changed
+for them.
+- One **targeted** capture each of `stuck_low_mip`, `uv_corruption` and `normal_corruption`, on a level where they find
+  targets (O-001's automatic pool found none for them). Same capture settings as Q3, delivery mode off, at least five
+  events each where the target allows. Say how you found the targets: for `uv_corruption` and `normal_corruption`
+  `IAI.TexCorrupt.Census allreasons` lists the objects the decision tree admits; for `stuck_low_mip` any method (its
+  refusal reasons are in the run log and in `run_summary` as `stuck_mip_refused_*`). Describe the targets without
+  names (rule 6).
+- From the run log (`anomaly_log.txt`), per event: `stuck_low_mip: PURITY ENUMERATION ...` (components scanned,
+  candidate textures, the time in ms); `stuck_low_mip: HOLD MONITOR ON - <n> existing component(s) ...`;
+  `stuck_low_mip: STREAMER FENCE ... ms=<ms>`; for `uv_corruption` and `normal_corruption`,
+  `<id>: G-COLL set taken at Apply - <n> collateral texture(s) of <m>, from <p> primitive(s) ...` and
+  `<id>: APPLIED ... apply_ms=<ms>` (its timer starts after the decision tree, so it under-reads the whole start).
+- From `run_summary.json`: `stuck_mip_purity_enumeration_ms_max`, `stuck_mip_hold_monitor_ms_mean`, `_p95` and `_max`,
+  `stuck_mip_hold_monitor_components_walked_max`, `stuck_mip_streamer_fence_ms_max`, `stuck_mip_refused_shared` and
+  `stuck_mip_refused_shared_world` (shared textures), and `texcorrupt_fires_applied`. The texture corruptions have no
+  timing key in `run_summary`; their time is the `apply_ms` above.
+- From `labels.jsonl` (sort the rows by `session_index`; this copy writes them out of order): the wall time of each
+  event's first frame and of the frame after it, against the run's median frame (`t_wall` differences on this copy).
+- Name the gap: do purity scan, monitor seed and `apply_ms` add up to the onset frame's extra time? Numbers only.
+- **The same three captures again on the new version, in Q3.**
 
 **Q1. Build.** Does the plugin compile on this host, with how many warnings in plugin files? If it does not, give our
 `file:line` and the error in your own words; you may prove a fix with a throwaway experiment (rule 3).
@@ -59,16 +107,40 @@ frames each, default settings (delivery mode off, as above).
   `python -B <game>\Plugins\AnomalyInjector\tools\verify_capture.py --dir <session> --label-rule`. PASS or FAIL each,
   and the count of findings.
 - Does the assembled video now last as long as the capture took?
+- `labels.jsonl` row order: `run_summary.json` `labels_sorted` (**expected `true`**; if `false`, its
+  `labels_sorted_reason`), and are the lines of `labels.jsonl` in `session_index` order as written (**expected yes on
+  this build**; O-001's release sessions were not)? This build rewrites the file in frame order at the end of the
+  capture, before `run_summary.json` is written, unless the writer stalled.
 
 **Q3. The texture stall, again.** Repeat O-001 Q3 exactly on this build: the wall time of the frame where each pink
 (`corrupted_texture`) and each checkered (`missing_texture`) texture corruption starts, the two frames after it and the
 frame where it ends, against the run's median frame (from `labels.jsonl`: this build's rows carry `t_wall_run`, seconds
 since the capture's first frame; the release rows carry only `t_wall`); first event against later ones; blink as the
 control. Same, better or worse than the release build?
+- Then Step 0's three targeted captures (`stuck_low_mip`, `uv_corruption`, `normal_corruption`) again on this build, on
+  the same targets, with the same readings. The start stall is not fixed in this build (the fix is a later unit), so
+  expect about the same numbers as Step 0; say if they differ.
 
 **Q4. Terrain blinks (m58).** Captures with blink enabled on two levels with a lot of ground (`IAI.Auto.Pool all 0`,
 `IAI.Auto.Pool blinking 1`, then `IAI.Capture.Start "" png "" 600`; the pool id is `blinking`, the event type in
 `annotation.json` is `blink`).
+- **On Bates, first count, then change (ruling 096-04 D1).** O-001 found that Bates's ini excludes ground pieces from
+  targeting by two name patterns in `[AnomalyInjector] ExcludedTargetNamePatterns`, so no ground piece can blink.
+  - **Before any change**, in the same two levels: for each of the two ground patterns, how many actors it removes and
+    how many of those are not ground. Count from the run log's `EXCLUDED-TARGET actor='...' matched_field=...
+    pattern='...'` lines (one line per actor, the first time it is refused; take a capture on the Q4 path first), or by
+    an editor read that matches every actor the same way (case-insensitive substring of the actor name, component name
+    or mesh asset name; class names are not matched). Say which method, and per pattern: removed, of which not ground.
+  - **Then host change H-001**, logged in your host change log (rule 4) with the full before and after and how to undo
+    it: remove the two ground patterns from `ExcludedTargetNamePatterns` and set `[AnomalyInjector] TerrainNamePatterns`
+    to the terrain class word (the host's ground component class, O-001 Q1) in the host's ini, then restart the editor
+    so it reads them. Check the effect in a capture's own log lines (`excludePatterns=<n>(ini)[...]` on the
+    `=== Capture run STARTED` line, and `Capture(m58): TERRAIN RULES 1(ini)[...]`): check them, do not copy them onto a
+    card.
+  - Run Q4 with H-001 in effect and put `H H-001` on every Q4 card. Leave H-001 in place at the end and say so; chat
+    decides the permanent setting from your counts. **Never report the patterns or the class word.**
+- **On Concorde:** set the terrain pattern by console as in Setup. If Concorde's ini also excludes ground, count the
+  same way and ask before changing anything.
 - `run_summary`: `blink_terrain_events`, `terrain_unlabelable_refusals`, total blink events.
 - `annotation.json`: how many blink events carry `anomaly_subtype` `terrain_disappear_reappear`. Check 10 of them by
   eye: is each really ground? Check 10 ordinary blinks: is any of them ground that was missed?

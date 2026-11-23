@@ -24,4 +24,4 @@ names one (part B), and tells the agent which brief to do. The agent never uses 
 | Brief | What it asks | Runs |
 | --- | --- | --- |
 | `O-001-first-groundwork.md` | Groundwork on the delivered release build: what the ground is made of, how much scenery can pop a LOD, the texture-corruption stall, the reviewed session. The game keeps the plugin it already has. | First. Its release-build readings are the baseline O-002 compares against. |
-| `O-002-first-engine-test.md` | First engine test of m56, m57, m58 and m59 on the real hosts. The owner copies the pushed commit `d8d3a7e` into each game. Uses the readers in `../office-tools/`. | After O-001. |
+| `O-002-first-engine-test.md` | First engine test of m56, m57, m58 and m59 on the real hosts. Step 0 first, on the copy the game holds; then the owner copies the pushed commit `d2f6873` (branch `feat/m57-lod-spatial-trigger`; amended 2026-11-23, it replaced `d8d3a7e`) into each game. On Bates every capture runs in PIE with the owner attending. Uses the readers in `../office-tools/`. | After O-001. |

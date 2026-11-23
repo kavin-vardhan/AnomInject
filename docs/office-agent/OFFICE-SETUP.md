@@ -18,7 +18,7 @@ The agent runs inside a game project folder. It keeps its notes in `C:\OfficeAge
   Never open it in an editor or build it: you only pull and copy from it.
 - `<GAME>` — a game project folder, the one that holds the game's `.uproject` file.
 - `<CODENAME>` — Concorde, Bates or Europa: the game you are working on.
-- `<COMMIT>` — the commit a brief names, for example `d8d3a7e`.
+- `<COMMIT>` — the commit a brief names, for example `d2f6873`.
 
 Write every path without a backslash at the end (`"D:\src\AnomInject"`, not `"D:\src\AnomInject\"`):
 robocopy misreads a backslash just before a closing quote.
