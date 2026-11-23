@@ -105,6 +105,18 @@ pack. Copies carry placeholders and are not byte-identical to their home sources
 
   The office tools in this pack were fixed the same day (PIE continuity, never-labelled events, the pool's `Auto.Yield`
   refusal).
+- **2026-11-24 (brief 096-07, the six decisions of ruling 096-06 after O-002):** `integ/m56-m58` = `0083c62`;
+  `feat/m57-lod-spatial-trigger` = `895133c`, a merge of that tip. **Install `895133c` next (O-003); it supersedes
+  `069c62e`.** Compared with `069c62e` it adds:
+  - every fire applies by the object's full path, so it changes exactly the object its label names; a targeted capture
+    or `IAI.Apply` on a name shared by several objects is refused `target_ambiguous:<n>`; `@<path>` targets one object;
+  - objects the game keeps hidden (`target_hidden`) and HLOD proxies (`hlod_proxy`) are never targets;
+  - `lod_corruption` uses the engine's shown LOD and refuses `no_contrast_lod` and `below_min_coverage`;
+  - the LOD trigger arms on turns of 5 deg/s (`IAI.Anomaly.LodMinYawRate`) and walks of 20 cm/s, arm timeout 150,
+    and `Auto.Yield` lists every refusal reason;
+  - `IAI.Blink.TerrainCeilingPct` (default 25), a coverage ceiling for terrain blinks only.
+
+  Built (strict and normal Editor targets) and unit-tested at home on UE 5.1; nothing ran in an engine.
 - Unit branches: `fix/m56-capture-continuity` `e12180c`, `feat/m58-terrain-blink-subtype` `5e1bc03`,
   `fix/m59-forced-lod-refusals` `d23ab16` (all 2026-11-14).
 - `feat/europa-port` = `2828f6a` (2026-11-06, 094-48d) = the UE 4.25 port for Europa; the last Europa
@@ -220,7 +232,7 @@ Home fixtures that need no codename: StackOBot (5.1 bench), Lyra (5.1 second fix
 | question | read |
 |---|---|
 | What is in the code now, every anomaly, every module? | `docs/architecture.md` (anomaly catalog included) |
-| Why does X behave strangely? | `docs/gotchas.md` (G1 … G588 on `feat/m57-lod-spatial-trigger`; `integ/m56-m58` has all but G582 and G583; append-only; search the number) |
+| Why does X behave strangely? | `docs/gotchas.md` (G1 … G592 on `feat/m57-lod-spatial-trigger`; `integ/m56-m58` has all but G582 and G583; append-only; search the number) |
 | How do I build, cook, stage, run a leg? | `docs/setup-runbook.md` (§8 packaged legs, §8.6 full cook) |
 | How does capture timing / fps / pacing work? | `docs/capture-fps.md` |
 | What does each label field mean? Schema versions? | `docs/client-readme.md` (§8 field tables, changelog) |
