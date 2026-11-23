@@ -17,6 +17,7 @@
 #include "AnomalyCensus.h"
 #include "AnomalyLabelSync.h"
 #include "AnomalyInstallState.h"
+#include "AnomalyLabelsOrder.h"
 #include "AnomalyCaptureSubsystem.h"
 
 #include "Engine/World.h"
@@ -1145,6 +1146,11 @@ namespace AnomalyLabel
 			Root->SetNumberField(TEXT("writer_backpressure_seconds"), Continuity->WriterBackpressureSeconds);
 			Root->SetBoolField(TEXT("writer_flush_complete"), Continuity->bWriterFlushComplete);
 			Root->SetBoolField(TEXT("writer_stalled"), Continuity->bWriterStalled);
+			Root->SetBoolField(TEXT("labels_sorted"), Continuity->bLabelsSorted);
+			if (!Continuity->bLabelsSorted)
+			{
+				Root->SetStringField(TEXT("labels_sorted_reason"), Continuity->LabelsSortedReason);
+			}
 			TArray<FString> VetoedIds = Continuity->VetoedEventIds;
 			VetoedIds.Sort();
 			TArray<TSharedPtr<FJsonValue>> VetoedIdValues;
@@ -1507,6 +1513,82 @@ namespace AnomalyLabel
 		}
 		return FFileHelper::SaveStringToFile(Out, *FPaths::Combine(RunDir, TEXT("run_summary.json")),
 			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	}
+
+	FLabelsSortResult SortLabelsFile(const FString& RunDir, bool bLabelsWritten, bool bWriterStalled, bool bWriterFlushComplete)
+	{
+		namespace LO = AnomalyLabelsOrder;
+		FLabelsSortResult Result;
+		const double StartSeconds = FPlatformTime::Seconds();
+		auto Finish = [&Result, StartSeconds](LO::EOutcome Outcome)
+		{
+			Result.bInFrameOrder = LO::IsInFrameOrder(Outcome);
+			Result.Reason = FString(UTF8_TO_TCHAR(LO::Describe(Outcome)));
+			Result.Milliseconds = (FPlatformTime::Seconds() - StartSeconds) * 1000.0;
+			return Result;
+		};
+
+		LO::EOutcome Skip = LO::EOutcome::Sorted;
+		if (!LO::ShouldAttempt(bLabelsWritten, bWriterStalled, bWriterFlushComplete, Skip))
+		{
+			return Finish(Skip);
+		}
+		IFileManager& FileManager = IFileManager::Get();
+		const FString Path = FPaths::Combine(RunDir, TEXT("labels.jsonl"));
+		if (!FileManager.FileExists(*Path))
+		{
+			return Finish(LO::EOutcome::NoFile);
+		}
+		TArray<uint8> Bytes;
+		if (!FFileHelper::LoadFileToArray(Bytes, *Path))
+		{
+			return Finish(LO::EOutcome::ReadFailed);
+		}
+		const long long Length = static_cast<long long>(Bytes.Num());
+		const long long RowCount = LO::CountRows(Bytes.GetData(), Length);
+		TArray<LO::FRow> Rows;
+		Rows.SetNum(static_cast<int32>(RowCount));
+		if (LO::SplitRows(Bytes.GetData(), Length, Rows.GetData(), RowCount) != RowCount)
+		{
+			return Finish(LO::EOutcome::ReadFailed);
+		}
+		Result.Rows = static_cast<int32>(RowCount);
+		if (LO::CountWithoutKey(Rows.GetData(), RowCount) > 0)
+		{
+			return Finish(LO::EOutcome::RowWithoutSessionIndex);
+		}
+		if (LO::InFrameOrder(Rows.GetData(), RowCount))
+		{
+			return Finish(LO::EOutcome::AlreadyInOrder);
+		}
+		TArray<LO::FRow> Scratch;
+		Scratch.SetNum(static_cast<int32>(RowCount));
+		LO::StableSort(Rows.GetData(), RowCount, Scratch.GetData());
+		Result.RowsMoved = static_cast<int32>(LO::CountMoved(Rows.GetData(), RowCount));
+		TArray<uint8> Sorted;
+		Sorted.SetNumUninitialized(static_cast<int32>(LO::OutputSize(Rows.GetData(), RowCount)));
+		LO::Assemble(Bytes.GetData(), Rows.GetData(), RowCount, Sorted.GetData());
+
+		const FString TempPath = Path + TEXT(".tmp");
+		if (!FFileHelper::SaveArrayToFile(Sorted, *TempPath) || FileManager.FileSize(*TempPath) != static_cast<int64>(Sorted.Num()))
+		{
+			FileManager.Delete(*TempPath, false, true, true);
+			return Finish(LO::EOutcome::WriteFailed);
+		}
+		if (!FileManager.Move(*Path, *TempPath, true, false, false, false))
+		{
+			if (FileManager.FileExists(*Path))
+			{
+				FileManager.Delete(*TempPath, false, true, true);
+			}
+			else
+			{
+				Result.bTempKept = true;
+			}
+			return Finish(LO::EOutcome::ReplaceFailed);
+		}
+		Result.bRewritten = true;
+		return Finish(LO::EOutcome::Sorted);
 	}
 
 	bool WriteSessionAnnotation(const FString& RunDir, const FSessionAnnotation& A)
