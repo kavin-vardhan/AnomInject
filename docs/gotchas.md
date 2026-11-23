@@ -10290,3 +10290,23 @@ engine-clamped forced LOD with the engine-clamped LOD shown now (`AnomalyLodPoli
 `EffectiveShownLod` / `DecideContrast`). If the current LOD cannot be read, refuse: a label that cannot be shown
 to be true is the defect, not a missed yield. **Residual:** the static current-LOD prediction ignores
 `r.StaticMeshLODDistanceScale` (default 1) and dithered transitions, so near a switch distance it can still be one LOD off.
+
+## G584 — A host's engine version in our own docs was wrong for months: read `Engine/Build/Build.version` on the host
+
+**096-05, 2026-11-23 (owner correction, ruling 096-04).** `CLAUDE.md` and the office pack called Bates a UE 5.1 game from
+2026-08-26 (m35) until O-001 read `Build.version` 5.3.2 on the host and the owner confirmed it. Concorde is UE 5.1 and Europa
+UE 4.25. A 5.3 claim had existed earlier under the retired duplicate codename and was withdrawn with it (G222), which made the
+5.1 entry look settled. Two observations fit 5.2 or later and were not read as a version clue: the m35 crash (a staging layout
+that changed at 5.2) and both office include failures. **Rule:** a host's engine version is a reading with a date and a source
+(`Engine/Build/Build.version` on that host), never an inference from lineage. Code that depends on version-specific engine
+behaviour (staging layouts, include sets, instanced-mesh LOD rendering) is proven on that host. At home, a strict-include build
+on 5.1 plus a header-presence check against the 5.7.4 tree is necessary, not sufficient, for a 5.3 build.
+
+## G585 — `IFileManager::Move` with replace is delete-then-rename, not one atomic replace
+
+**096-05, 2026-11-23 (UE 5.1.1 source).** `FFileManagerGeneric::Move(Dest, Src, bReplace = true)` deletes `Dest` and then
+renames `Src` (`FileManagerGeneric.cpp:299-323`); the Windows low-level `MoveFile` is `MoveFileW`, which refuses an existing
+target (`WindowsPlatformFile.cpp:1042-1045`). Between the two calls the target does not exist, and if the rename fails after the
+delete only the temporary file is left. **Rule:** a run-end rewrite (the `labels.jsonl` sort) writes the complete temporary file
+first, checks its size, replaces, and finishes before the readers' done signal (`run_summary.json`) exists; a failed replace
+says where the complete copy is (`labels.jsonl.tmp`) and never claims the file was sorted.

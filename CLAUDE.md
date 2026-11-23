@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **096-05, 2026-11-23 - PREP FOR THE FIRST NEW-BUILD TEST AT THE OFFICE (O-002, ruling 096-04): STRICT-INCLUDE BUILD
+> CLEAN, `labels.jsonl` SORTED AT RUN END, OFFICE PACK AMENDED. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG,
+> NO COOK, NO CODEX.**
+> - **Engines (owner, 2026-11-23): Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25** (G584; the m35 entry below said 5.1
+>   and is corrected in place). The home side has no 5.3 headers: the Bates build in O-002 is the first 5.3 test.
+> - **Strict include (D5):** `tools/strict_include_build.py` on `feat/m57` `d8d3a7e`, Editor target, `-MaxParallelActions=2`
+>   (no unity, no PCH, include order Latest, `bEnforceIWYU`, 75 header self-containment TUs): **0 errors, 0 warnings,
+>   nothing to fix.** All 194 engine includes exist in the 5.1 and 5.7.4 trees or sit behind `__has_include`.
+> - **Run-end sort (D3) `df5a595`:** `labels.jsonl` is rewritten in `session_index` order after the writer flush and
+>   before `run_summary.json`; skipped when the writer stalled or the flush was incomplete; `run_summary.labels_sorted`
+>   and `labels_sorted_reason`; readme updated; no schema bump. Pure rule `AnomalyLabelsOrder.h`, selftest 41/0, five
+>   mutants fail; real banked sessions sort byte-identically to a JSON sort. G585.
+> - `feat/m57-lod-spatial-trigger` merges this tip; O-002 names that merge commit. Office pack `docs/office-pack`: engine
+>   facts, O-002 (Step 0, attended PIE on Bates, Q4 counts and host change H-001, `labels_sorted`), office-tools note.
+>   Journal `docs/sessions/2026-11-23-096-05-strict-includes-labels-sort-office-prep.md`; receipts
+>   `_relay\runs\2026-11-20-096-office-agent\code-receipts-096-05`. Next free gotcha **G586**.
+
+> ---
+
 > **095-12, 2026-11-14 - m59 REVIEW FOLLOW-UPS (ruling 095-11 S3, S9, S10, S11, N14) ON `fix/m59-forced-lod-refusals`,
 > MERGED INTO `integ/m56-m58`. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
 > - **S10 `d8077fc`:** `single_lod` counts USABLE LODs (MinLOD or the component override, LODs without vertices excluded;
