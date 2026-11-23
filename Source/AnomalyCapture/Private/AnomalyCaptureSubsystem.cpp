@@ -45,6 +45,7 @@
 #include "AnomalyPreviewTee.h"
 #include "AnomalyAutoInjectorSubsystem.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyEngineCompat.h"
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyHiddenClass.h"
@@ -7934,7 +7935,7 @@ void UAnomalyCaptureSubsystem::ResolveLabelSyncForRun()
 	{
 		CvarValue = AaVar->GetInt();
 	}
-	Async->LabelAaMethod = World ? (int32)GetDefaultAntiAliasingMethod(World->FeatureLevel.GetValue()) : CvarValue;
+	Async->LabelAaMethod = World ? (int32)GetDefaultAntiAliasingMethod(AnomalyEngineCompat::WorldFeatureLevel(World)) : CvarValue;
 	Async->bLabelTemporalAa = AnomalyLabelSync::IsTemporalMethod(Async->LabelAaMethod);
 	Async->LabelOnCvar = GLabelTransitionOnFrames.GetValueOnGameThread();
 	Async->LabelOffCvar = GLabelTransitionOffFrames.GetValueOnGameThread();
@@ -7963,7 +7964,7 @@ void UAnomalyCaptureSubsystem::RefreshLabelTemporalState(const FAnomalyCapturedF
 {
 	if (!Async.IsValid()) { return; }
 	UWorld* World = GetWorld();
-	const int32 DefaultMethod = World ? (int32)GetDefaultAntiAliasingMethod(World->FeatureLevel.GetValue()) : -1;
+	const int32 DefaultMethod = World ? (int32)GetDefaultAntiAliasingMethod(AnomalyEngineCompat::WorldFeatureLevel(World)) : -1;
 	Async->bLabelTemporalAa |= AnomalyLabelSync::IsTemporalMethod(DefaultMethod);
 	if (Frame)
 	{
@@ -7986,7 +7987,7 @@ void UAnomalyCaptureSubsystem::RefreshLabelTemporalState(const FAnomalyCapturedF
 		AnomalyLabelSync::DefaultHideFramesTemporal, Async->bLabelTemporalAa);
 	const FString Source = FString::Printf(TEXT("capture_view_methods=0x%x third_party_upscaler=%d unknown=%d default_method=%d feature_level=%d retained_temporal=%d"),
 		Async->LabelViewMethods, Async->bLabelUpscaler ? 1 : 0, Async->bLabelViewUnknown ? 1 : 0,
-		DefaultMethod, World ? (int32)World->FeatureLevel.GetValue() : -1, Async->bLabelTemporalAa ? 1 : 0);
+		DefaultMethod, World ? (int32)AnomalyEngineCompat::WorldFeatureLevel(World) : -1, Async->bLabelTemporalAa ? 1 : 0);
 	if (Source != Async->LabelTemporalSource)
 	{
 		Async->LabelTemporalSource = Source;
