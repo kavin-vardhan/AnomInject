@@ -248,6 +248,14 @@ labels, annotation schema, observable predicate, auto pool and veto remain uncha
   use `BuildSettingsVersion.V2` / `EngineIncludeOrderVersion.Unreal5_1`.
 - **Canonical engine + host:** source-built UE 5.1 at `D:\UESource\UnrealEngine`; host project
   `D:\IntrusiveAnomalies\StackOBot` (natively-5.1 StackOBot). The old 5.4 host is retired.
+- **Host engines (owner, 2026-11-23): Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25 (port branch).** The 5.1 code also
+  builds on 5.3 since 096-06:
+  - `TexCorruptTree.cpp` includes `StaticMeshComponentLODInfo.h`, an empty placeholder in 5.1 and the definition in 5.3+.
+  - It looks the instanced static mesh and GPU skin vertex factory types up by name (`FVertexFactoryType::GetVFByName`),
+    because 5.3 does not export their `StaticType`.
+  - `UWorld::FeatureLevel` is read only through `Public/AnomalyEngineCompat.h` (`WorldFeatureLevel`): the member before
+    5.3, `GetFeatureLevel()` from 5.3 on (5.1 has no accessor, G586).
+  - No 5.3 headers exist at home: a Bates build is the 5.3 test.
 
 ## Purpose
 AnomalyInjector injects labeled visual anomalies (graphics bugs) into a running UE5 game to
