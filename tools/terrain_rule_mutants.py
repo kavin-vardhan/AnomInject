@@ -9,6 +9,9 @@ MUTATIONS = {
     "case_sensitive_match": ("return (C >= 'A' && C <= 'Z') ? C + ('a' - 'A') : C;", "return C;"),
     "clear_means_no_patterns": ("EqualsIgnoreAsciiCase(FirstArg, \"clear\")) { return EPatternCommand::BackToIni; }", "EqualsIgnoreAsciiCase(FirstArg, \"clear\")) { return EPatternCommand::None; }"),
     "all_terrain_warning_off": ("return BlinkEvents >= AllTerrainWarnMinBlinkEvents && TerrainBlinkEvents == BlinkEvents;", "return false;"),
+    "readmit_any_id": ("return bAboveCeiling && bBlinking && bTerrain &&", "return bAboveCeiling && bTerrain &&"),
+    "readmit_any_actor": ("return bAboveCeiling && bBlinking && bTerrain &&", "return bAboveCeiling && bBlinking &&"),
+    "terrain_ceiling_ignored": ("DrawnPct >= 0.0f && DrawnPct <= TerrainCeilingPct;", "DrawnPct >= 0.0f;"),
 }
 
 

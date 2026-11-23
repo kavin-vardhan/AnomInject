@@ -17,6 +17,8 @@
 #include "Anomalies/TexCorruptPure.h"
 #include "AnomalyTargetPolicy.h"
 #include "AnomalyDefaults.h"
+#include "AnomalyTerrain.h"
+#include "AnomalyTerrainRule.h"
 
 #include "Misc/Crc.h"
 #include "Engine/Engine.h"
@@ -254,6 +256,34 @@ void UAnomalyAutoInjectorSubsystem::AdvanceTime(float DeltaSeconds)
 	}
 }
 
+namespace
+{
+	bool ReadmitTerrainAboveCeiling(const AActor* Actor, float DrawnPct)
+	{
+		const float Ceiling = AnomalyDefaults::GetBlinkTerrainCeilingPct();
+		if (!Actor || DrawnPct < 0.0f || DrawnPct > Ceiling)
+		{
+			return false;
+		}
+		const AnomalyTerrain::FTerrainVerdict Terrain = AnomalyTerrain::Classify(Actor);
+		if (!AnomalyTerrainRule::ReadmitAboveCeiling(true, true, Terrain.bTerrain, DrawnPct, Ceiling))
+		{
+			return false;
+		}
+		static TSet<FString> Seen;
+		bool bAlready = false;
+		Seen.Add(Actor->GetPathName(), &bAlready);
+		if (!bAlready)
+		{
+			UE_LOG(LogAnomaly, Log,
+				TEXT("TERRAIN-CEILING actor='%s' path='%s' drawn=%.2f%% rule=%s - above the census ceiling but at or below the ")
+				TEXT("terrain ceiling %s, so it is re-admitted as a BLINKING candidate only."),
+				*Actor->GetName(), *Actor->GetPathName(), DrawnPct, *Terrain.Rule, *AnomalyDefaults::DescribeBlinkTerrainCeiling());
+		}
+		return true;
+	}
+}
+
 bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 {
 
@@ -431,10 +461,13 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 						*Actor->GetName(), LexToStringAnomalyCensusDecision(Opinion.Decision),
 						Opinion.Reason, Opinion.AgeTicks, Opinion.DrawnPct);
 
-					if (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
+					static const FName GTerrainCeilingBlinkId(TEXT("blinking"));
+					const bool bTerrainReadmitted = Opinion.Decision == EAnomalyCensusDecision::ExcludedAboveCeiling
+						&& DrawnId == GTerrainCeilingBlinkId && ReadmitTerrainAboveCeiling(Actor, Opinion.DrawnPct);
+					if (!bTerrainReadmitted && (Opinion.Decision == EAnomalyCensusDecision::ExcludedZero
 						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedBelowFloor
 						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedAboveCeiling
-						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent)
+						|| Opinion.Decision == EAnomalyCensusDecision::ExcludedTranslucent))
 					{
 						++CensusExcluded;
 						continue;
