@@ -10314,6 +10314,32 @@ void UAnomalyCaptureSubsystem::FinishRun(bool bLogLine)
 					Span, FramesWritten, Span - FramesWritten, ContinuityReport.FramesDropped);
 			}
 		}
+		{
+			const bool bLabelsWritten = !bDeliveryMode || bLabelsInDelivery;
+			const AnomalyLabel::FLabelsSortResult Sort = AnomalyLabel::SortLabelsFile(RunDir, bLabelsWritten, bWriterStalled, bWriterFlushComplete);
+			ContinuityReport.bLabelsSorted = Sort.bInFrameOrder;
+			ContinuityReport.LabelsSortedReason = Sort.Reason;
+			const bool bQuietSkip = Sort.bInFrameOrder || Sort.Reason == TEXT("not_written");
+			if (bQuietSkip)
+			{
+				UE_LOG(LogAnomalyCapture, Log,
+					TEXT("Capture(m56): LABELS ORDER labels_sorted=%s result=%s rows=%d moved=%d rewritten=%d ms=%.1f - labels.jsonl rows ")
+					TEXT("are put in session_index order at run end, after the writer finished and before run_summary.json; each row ")
+					TEXT("is kept byte for byte."),
+					Sort.bInFrameOrder ? TEXT("true") : TEXT("false"), *Sort.Reason, Sort.Rows, Sort.RowsMoved, Sort.bRewritten ? 1 : 0,
+					Sort.Milliseconds);
+			}
+			else
+			{
+				UE_LOG(LogAnomalyCapture, Warning,
+					TEXT("Capture(m56): LABELS ORDER labels_sorted=false reason=%s rows=%d ms=%.1f - labels.jsonl is left in the order ")
+					TEXT("the writer finished its rows; sort it by session_index. %s"),
+					*Sort.Reason, Sort.Rows, Sort.Milliseconds,
+					Sort.bTempKept
+						? TEXT("The original was removed and the sorted copy could not be renamed: the complete rows are in labels.jsonl.tmp.")
+						: TEXT("The file on disk is the one the writer produced."));
+			}
+		}
 		AnomalyLabel::WriteRunSummary(RunDir, FramesWritten, PositiveFramesWritten, BurstsDone, ZeroMatchBursts, GFrameCounter,
 			VideoFps, LastRunPacing.SustainedWallFps, LastRunPacing.SpeedRatio, LastRunPacing.StampedFps, GameClockSpeedRatio, bPaceCapture, bDeliveryMode,
 			ContentClock == EContentClock::Game ? TEXT("game") : TEXT("wall"), NonManifestedEvents,

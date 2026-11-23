@@ -11,6 +11,25 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **096-05, 2026-11-23 - PREP FOR THE FIRST NEW-BUILD TEST AT THE OFFICE (O-002, ruling 096-04): STRICT-INCLUDE BUILD
+> CLEAN, `labels.jsonl` SORTED AT RUN END, OFFICE PACK AMENDED. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG,
+> NO COOK, NO CODEX.**
+> - **Engines (owner, 2026-11-23): Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25** (G584; the m35 entry below said 5.1
+>   and is corrected in place). The home side has no 5.3 headers: the Bates build in O-002 is the first 5.3 test.
+> - **Strict include (D5):** `tools/strict_include_build.py` on `feat/m57` `d8d3a7e`, Editor target, `-MaxParallelActions=2`
+>   (no unity, no PCH, include order Latest, `bEnforceIWYU`, 75 header self-containment TUs): **0 errors, 0 warnings,
+>   nothing to fix.** All 194 engine includes exist in the 5.1 and 5.7.4 trees or sit behind `__has_include`.
+> - **Run-end sort (D3) `df5a595`:** `labels.jsonl` is rewritten in `session_index` order after the writer flush and
+>   before `run_summary.json`; skipped when the writer stalled or the flush was incomplete; `run_summary.labels_sorted`
+>   and `labels_sorted_reason`; readme updated; no schema bump. Pure rule `AnomalyLabelsOrder.h`, selftest 41/0, five
+>   mutants fail; real banked sessions sort byte-identically to a JSON sort. G585.
+> - `feat/m57-lod-spatial-trigger` merges this tip; O-002 names that merge commit. Office pack `docs/office-pack`: engine
+>   facts, O-002 (Step 0, attended PIE on Bates, Q4 counts and host change H-001, `labels_sorted`), office-tools note.
+>   Journal `docs/sessions/2026-11-23-096-05-strict-includes-labels-sort-office-prep.md`; receipts
+>   `_relay\runs\2026-11-20-096-office-agent\code-receipts-096-05`. Next free gotcha **G586**.
+
+> ---
+
 > **095-14, 2026-11-14 - SHORT PREP BEFORE THE HEAVY RUN (rulings 095-13 D1/D2, 095-12 D2/D3). EDITOR-COMPILED 0/0,
 > OFFLINE TESTS GREEN. NO GAME BUILD, NO LEG, NO COOK, NO CODEX.**
 > - `integ/m56-m58` `0c71f6f`: readme 2.1 -> 2.2 row (a texture event that changed only some meshes names a changed
@@ -4622,7 +4641,8 @@ and is the single source of truth for the project.
   traps).** Then `docs/predictions/2026-08-26-m35-build-b-gates.md` (pre-declared gates **and** the
   full results ledger, §12) and `docs/predictions/2026-08-26-m35-readback-layout-build-a.md`.
   🎯 **`m35` = a hotfix for a capture-readback crash observed on a SECOND HOST** ("Bates", a
-  Bates-lineage UE 5.1 game): an access violation reading past a mapped readback buffer at a **non-zero
+  **UE 5.3.2** game — 🔻 *corrected 2026-11-23 by the owner (ruling 096-04); this line said "a Bates-lineage UE 5.1
+  game", which was wrong. Engines: Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25.*): an access violation reading past a mapped readback buffer at a **non-zero
   view-rect origin** (letterboxed, `Rect.Min.Y = 104`, view rect 1389×581, `fmt = PF_A2B10G10R10`).
   🛑 **THE FIRST DESIGN IS DEAD AND ITS STOP CONDITION FIRED — do not resurrect it.** Measured on this
   box, both legs: `bufferHeight 869 == sourceExtent.y 869` ⇒ **stock UE 5.1 allocates FULL-SOURCE-SIZE

@@ -934,6 +934,8 @@ jumped exactly where the label changed. Schema 2.2 saves every frame and flags t
 | `labels.jsonl` → `tick_index` | *absent* | engine ticks since the capture's first frame; 0 on the first row, +1 on every row | **Added** |
 | `labels.jsonl` → `t_wall_run` | *absent* | wall-clock seconds since the capture's first frame | **Added** |
 | `labels.jsonl` → `t_wall` | documented as "seconds since the run started" | unchanged value; **the documentation was wrong**: it is an absolute wall clock. Use `t_wall_run` for run-relative time | doc fix |
+| `labels.jsonl` line order (ships with 2.2) | the order the background writer finished the rows | **frame order** (`session_index` ascending) when `run_summary.json` → `labels_sorted` is `true`: the file is rewritten at the end of the capture, every line unchanged. See "Reading `labels.jsonl` — line order" | behaviour |
+| `run_summary.json` → `labels_sorted`, `labels_sorted_reason` (ships with 2.2) | *absent* | whether `labels.jsonl` is in frame order, and why not when it is not (§8.6c) | **Added** |
 | reason `settle` (row-level `transition_reason` and entry `transition_reason`) | *absent* | the K frames after every anomaly onset and offset (§8.6c) | **Added** value |
 | `labels.jsonl` → `transition_present` / row-level `transition_reason` | only on rows with a flagged entry / only `capture_unpaired` | also on every `settle` frame, even one with no entry | widened |
 | `annotation.json` → `transition_frames`, `transition_reasons`, `transition_frame_count` | transition entries | also the `settle` frames (a `settle` count appears in `transition_reasons`) | widened |
@@ -1257,6 +1259,8 @@ row's plus 1, `run_summary.json` reads `frames_dropped: 0` and `ticks_per_captur
 | `writer_backpressure_waits`, `writer_backpressure_seconds` | How often, and for how long in total, the capture waited for the writer. Waiting costs real time only, never a frame and never game time. |
 | `writer_flush_complete` | `true` = every image finished saving before this summary was written. At the end of a capture the writer waits as long as images keep completing; if none completes for 120 s it gives up, and anything still unsaved is counted as `writer_timeout`. |
 | `writer_stalled` | `true` = the writer stopped making progress (no image completed for 120 s, during the capture or at its end). The capture stopped there; every frame not saved is counted as `writer_timeout`. A file that appears on disk after this summary was written is **not** part of the capture. |
+| `labels_sorted` | `true` = the lines of `labels.jsonl` are in frame order (`session_index` ascending): the file was rewritten in that order at the end of the capture, after the writer finished and before this summary was written, or it was already in that order. Every line is unchanged. `false` = the lines are in the order the writer finished them; sort them by `session_index` yourself. |
+| `labels_sorted_reason` | Present only when `labels_sorted` is `false`. `writer_stalled` (late rows could still arrive, so the file is left as written), `writer_flush_incomplete` (`writer_flush_complete` is `false`; same reason), `not_written` (this session has no `labels.jsonl`: delivery mode with labels off), `no_file`, `read_failed`, `row_without_session_index` (a line the sort could not place; the file is left as written), `write_failed` (the sorted copy could not be saved; the file is left as written), `replace_failed` (the sorted copy could not replace the file; if `labels.jsonl` is then missing, the complete sorted rows are in `labels.jsonl.tmp`). |
 | `vetoed_event_ids` | The ids (`event_id`) of the events removed because their object was measured to draw no pixels (`vetoed_events` counts them). Such an event is absent from `annotation.json`; its rows in `labels.jsonl` remain, and its `settle` frames stay in the session transition list. |
 
 The causes in `frames_dropped_by_cause`:
@@ -1561,15 +1565,18 @@ What each row leaves open, stated rather than implied:
   swap has been run on this version yet).
   Step 7's label-sync check (section 3) measures the same thing on your own sessions.
 
-### Reading `labels.jsonl` — the rows are not in order
+### Reading `labels.jsonl` — line order
 
-**If you parse `labels.jsonl`, read this first.** The file has one JSON object per line, one line per captured frame. Every frame is present exactly once — **but the lines are not written in frame order.** They are written in the order the capture's background writer finished them, which varies from run to run, and neighbouring frames routinely swap places.
+**If you parse `labels.jsonl`, read this first.** The file has one JSON object per line, one line per captured frame. Every frame is present exactly once.
 
-What to do:
+* **From this build on, the lines are in frame order** (`session_index` ascending) whenever `run_summary.json` says `labels_sorted: true`. The capture's background writer finishes rows out of order; at the end of the capture, after the writer has finished and before `run_summary.json` is written, the plugin rewrites the file in frame order (a temporary file, then a replace). Every line is unchanged, byte for byte; only the order changes.
+* **When `labels_sorted` is `false`, or absent, the lines are in the order the writer finished them.** That covers every session from an older build, a capture whose writer stalled (`labels_sorted_reason` says why), and a capture that was killed before it ended. In those, neighbouring frames routinely swap places.
 
-* **Key or sort by `session_index`.** That is the frame number: `session_index` N is `Actual_Frames/frame_000NN.png`, frame N of the video, and frame N of `annotation.json`'s frame indices. It is the only field that ties the three together.
+What to do, for every session, old or new:
+
+* **Key or sort by `session_index`.** That is the frame number: `session_index` N is `Actual_Frames/frame_000NN.png`, frame N of the video, and frame N of `annotation.json`'s frame indices. It is the only field that ties the three together. Sorting a file that is already in order changes nothing, so code that always sorts works on every session.
 * **Do not sort or join on `frame_index`.** That field is the game engine's own internal frame counter. It counts different things and starts from a different place, so it is **not** interchangeable with `session_index` — joining on it will silently mismatch rows. It is kept for engine-side diagnostics; a data consumer should ignore it.
-* **Do not assume line N is frame N**, and do not assume the file is sorted even if a particular run happens to come out that way.
+* **Do not assume line N is frame N** unless `run_summary.json` says `labels_sorted: true`.
 
 Nothing is missing and nothing is duplicated — it is purely an ordering property. `annotation.json` is unaffected: its frame indices are always in order.
 

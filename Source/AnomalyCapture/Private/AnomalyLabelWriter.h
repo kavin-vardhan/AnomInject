@@ -335,9 +335,24 @@ namespace AnomalyLabel
 		bool bWriterFlushComplete = true;
 		bool bWriterStalled = false;
 		TArray<FString> VetoedEventIds;
+		bool bLabelsSorted = false;
+		FString LabelsSortedReason;
 	};
 
 	static constexpr int32 GDroppedTicksCap = 4096;
+
+	struct FLabelsSortResult
+	{
+		bool bInFrameOrder = false;
+		bool bRewritten = false;
+		bool bTempKept = false;
+		FString Reason;
+		int32 Rows = 0;
+		int32 RowsMoved = 0;
+		double Milliseconds = 0.0;
+	};
+
+	FLabelsSortResult SortLabelsFile(const FString& RunDir, bool bLabelsWritten, bool bWriterStalled, bool bWriterFlushComplete);
 
 	struct FLabelSyncTelemetry
 	{
