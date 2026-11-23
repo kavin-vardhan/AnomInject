@@ -235,6 +235,34 @@ int main()
 	CheckDominant(0, 0, 2, 2, "");
 	CheckDominant(0, 0, 2, 1, "skeletal_unmeasured");
 
+	Check(NumRefusalKinds == 8, "eight refusal kinds");
+	Check(ContrastTriangleRatio == 4, "lod_corruption uses lod_popping's triangle ratio 4");
+	Check(std::strcmp(DescribeRefusal(EForcedLodRefusal::NoContrastLod), "no_contrast_lod") == 0, "name no contrast");
+	Check(std::strcmp(DescribeRefusal(EForcedLodRefusal::BelowMinCoverage), "below_min_coverage") == 0, "name below coverage");
+	Check(DecideTriangleContrast(4000, 1000, 4) == EForcedLodRefusal::None, "contrast: exactly 4x fewer triangles is admitted");
+	Check(DecideTriangleContrast(4000, 400, 4) == EForcedLodRefusal::None, "contrast: 10x fewer triangles is admitted");
+	Check(DecideTriangleContrast(3000, 1000, 4) == EForcedLodRefusal::NoContrastLod, "contrast: 3x fewer triangles is refused");
+	Check(DecideTriangleContrast(4001, 1001, 4) == EForcedLodRefusal::NoContrastLod, "contrast: just under 4x is refused");
+	Check(DecideTriangleContrast(1000, 1000, 4) == EForcedLodRefusal::NoContrastLod, "contrast: same triangle count is refused");
+	Check(DecideTriangleContrast(0, 0, 4) == EForcedLodRefusal::NoContrastLod, "contrast: unknown triangle counts are refused");
+	Check(DecideTriangleContrast(2000000000, 400000000, 4) == EForcedLodRefusal::None, "contrast: large counts do not overflow");
+	Check(DecideTriangleContrast(4000, 1000, 0) == EForcedLodRefusal::NoContrastLod, "contrast: a ratio below 1 refuses");
+	Check(DecideCoverage(7.0f, 7.0f) == EForcedLodRefusal::None, "coverage: at the floor is admitted");
+	Check(DecideCoverage(12.5f, 7.0f) == EForcedLodRefusal::None, "coverage: above the floor is admitted");
+	Check(DecideCoverage(6.99f, 7.0f) == EForcedLodRefusal::BelowMinCoverage, "coverage: below the floor is refused");
+	Check(DecideCoverage(0.0f, 7.0f) == EForcedLodRefusal::BelowMinCoverage, "coverage: off screen is refused");
+	Check(DecideCoverage(0.5f, 0.0f) == EForcedLodRefusal::None, "coverage: a floor of 0 disables the check");
+	Check(CoarsestShownLod(2, 2, 2) == 2, "shown: steady LOD");
+	Check(CoarsestShownLod(2, 2, 3) == 3, "shown: mid dither reads the coarser sample");
+	Check(CoarsestShownLod(1, 2, 1) == 2, "shown: any coarser temporal sample wins");
+	Check(DecideContrast(true, CoarsestShownLod(3, 3, 4), 4) == EForcedLodRefusal::NotCoarser, "shown: forcing the LOD a dither already shows is not coarser");
+	{
+		const int Counts[NumRefusalKinds] = { 0, 0, 0, 0, 1, 0, 3, 0 };
+		Check(std::strcmp(DominantRefusalOf(Counts, NumRefusalKinds, 0), "no_contrast_lod") == 0, "dominant: no contrast LOD");
+		const int Counts2[NumRefusalKinds] = { 0, 0, 0, 0, 0, 0, 1, 2 };
+		Check(std::strcmp(DominantRefusalOf(Counts2, NumRefusalKinds, 0), "below_min_coverage") == 0, "dominant: below coverage");
+	}
+
 	std::printf("lod_refusal_selftest: %d checks, %d failures\n", GChecks, GFailures);
 	return GFailures == 0 ? 0 : 1;
 }

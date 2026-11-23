@@ -2,9 +2,11 @@
 
 namespace AnomalyLodPolicy
 {
-	enum class EForcedLodRefusal : unsigned char { None = 0, HierarchicalInstanced = 1, SingleLod = 2, SkeletalUnmeasured = 3, NotCoarser = 4, CurrentLodUndetermined = 5 };
+	enum class EForcedLodRefusal : unsigned char { None = 0, HierarchicalInstanced = 1, SingleLod = 2, SkeletalUnmeasured = 3, NotCoarser = 4, CurrentLodUndetermined = 5, NoContrastLod = 6, BelowMinCoverage = 7 };
 
-	static constexpr int NumRefusalKinds = 6;
+	static constexpr int NumRefusalKinds = 8;
+
+	static constexpr int ContrastTriangleRatio = 4;
 
 	inline const char* DescribeRefusal(EForcedLodRefusal Refusal)
 	{
@@ -12,7 +14,9 @@ namespace AnomalyLodPolicy
 			: Refusal == EForcedLodRefusal::SingleLod ? "single_lod"
 			: Refusal == EForcedLodRefusal::SkeletalUnmeasured ? "skeletal_unmeasured"
 			: Refusal == EForcedLodRefusal::NotCoarser ? "not_coarser_than_current"
-			: Refusal == EForcedLodRefusal::CurrentLodUndetermined ? "current_lod_undetermined" : "";
+			: Refusal == EForcedLodRefusal::CurrentLodUndetermined ? "current_lod_undetermined"
+			: Refusal == EForcedLodRefusal::NoContrastLod ? "no_contrast_lod"
+			: Refusal == EForcedLodRefusal::BelowMinCoverage ? "below_min_coverage" : "";
 	}
 
 	inline int FirstUsableLod(int NumLods, int EffectiveMinLod, unsigned int LodsWithVertices)
@@ -57,6 +61,23 @@ namespace AnomalyLodPolicy
 	{
 		return !bCurrentKnown ? EForcedLodRefusal::CurrentLodUndetermined
 			: ForcedLod <= ShownLod ? EForcedLodRefusal::NotCoarser : EForcedLodRefusal::None;
+	}
+
+	inline int CoarsestShownLod(int EngineLod, int TemporalLod0, int TemporalLod1)
+	{
+		const int A = EngineLod > TemporalLod0 ? EngineLod : TemporalLod0;
+		return A > TemporalLod1 ? A : TemporalLod1;
+	}
+
+	inline EForcedLodRefusal DecideTriangleContrast(int TrianglesShown, int TrianglesForced, int Ratio)
+	{
+		return (Ratio >= 1 && TrianglesShown > 0 && TrianglesForced >= 0
+			&& (long long)TrianglesForced * Ratio <= (long long)TrianglesShown) ? EForcedLodRefusal::None : EForcedLodRefusal::NoContrastLod;
+	}
+
+	inline EForcedLodRefusal DecideCoverage(float CoveragePct, float MinCoveragePct)
+	{
+		return (MinCoveragePct <= 0.0f || CoveragePct >= MinCoveragePct) ? EForcedLodRefusal::None : EForcedLodRefusal::BelowMinCoverage;
 	}
 
 	inline bool ShouldScopeToForced(int NumForced, int NumRenderableNotForced)

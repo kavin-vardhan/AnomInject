@@ -110,6 +110,10 @@ namespace AnomalyLod
 		int32 ForcedLod = -1;
 		float ScreenSize = -1.0f;
 		const TCHAR* Source = TEXT("undetermined");
+		int32 TrianglesShown = -1;
+		int32 TrianglesForced = -1;
+		float CoveragePct = -1.0f;
+		float MinCoveragePct = -1.0f;
 	};
 
 	ANOMALYINJECTOR_API FForcedLodContrast GetForcedLodContrast(UWorld* World, const UMeshComponent* Component, int32 ForcedLodModel);

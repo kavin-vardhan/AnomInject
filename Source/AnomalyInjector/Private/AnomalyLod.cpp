@@ -3,6 +3,7 @@
 
 #include "AnomalyTargeting.h"
 #include "AnomalyViewport.h"
+#include "AnomalyLodTrigger.h"
 #include "AnomalyInjectorLog.h"
 #include "GameFramework/Actor.h"
 #include "Components/MeshComponent.h"
@@ -371,11 +372,52 @@ AnomalyLod::FCurrentLod AnomalyLod::GetCurrentLod(UWorld* World, const UMeshComp
 	return Out;
 }
 
+namespace
+{
+	int32 LodTriangleCountAny(const UMeshComponent* Component, int32 LodIndex)
+	{
+		if (const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component))
+		{
+			return AnomalyLod::GetLodTriangleCount(Static, LodIndex);
+		}
+		if (const USkinnedMeshComponent* Skinned = Cast<USkinnedMeshComponent>(Component))
+		{
+			FSkeletalMeshRenderData* Data = Skinned->GetSkinnedAsset() ? Skinned->GetSkeletalMeshRenderData() : nullptr;
+			if (Data && Data->LODRenderData.IsValidIndex(LodIndex))
+			{
+				return (int32)Data->LODRenderData[LodIndex].GetTotalFaces();
+			}
+		}
+		return 0;
+	}
+
+	AnomalyLod::FCurrentLod EngineExactShownLod(UWorld* World, const UMeshComponent* Component)
+	{
+		const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component);
+		if (!Static || Static->ForcedLodModel > 0)
+		{
+			return AnomalyLod::GetCurrentLod(World, Component);
+		}
+		AnomalyLod::FCurrentLod Out;
+		const AnomalyLod::FEngineLodPrediction Pred = AnomalyLod::PredictEngineLod(World, Static);
+		if (!Pred.bValid)
+		{
+			Out.Source = Pred.Refusal;
+			return Out;
+		}
+		Out.Level = AnomalyLodPolicy::CoarsestShownLod(Pred.EngineLod, Pred.TemporalLod0, Pred.TemporalLod1);
+		Out.ScreenSize = Pred.BoundsScreenSize;
+		Out.Source = TEXT("engine-exact");
+		Out.bKnown = true;
+		return Out;
+	}
+}
+
 AnomalyLod::FForcedLodContrast AnomalyLod::GetForcedLodContrast(UWorld* World, const UMeshComponent* Component, int32 ForcedLodModel)
 {
 	FForcedLodContrast Out;
 	const FLodFacts Facts = GetLodFacts(Component);
-	const FCurrentLod Current = GetCurrentLod(World, Component);
+	const FCurrentLod Current = EngineExactShownLod(World, Component);
 	Out.Source = Current.Source;
 	Out.ScreenSize = Current.ScreenSize;
 	if (Facts.NumLods > 0)
@@ -392,6 +434,27 @@ AnomalyLod::FForcedLodContrast AnomalyLod::GetForcedLodContrast(UWorld* World, c
 		Out.Source = TEXT("resident-lod-unknown");
 	}
 	Out.Refusal = AnomalyLodPolicy::DecideContrast(Out.bCurrentKnown, Out.ShownLod, Out.ForcedLod);
+	if (Out.Refusal != AnomalyLodPolicy::EForcedLodRefusal::None)
+	{
+		return Out;
+	}
+	Out.TrianglesShown = LodTriangleCountAny(Component, Out.ShownLod);
+	Out.TrianglesForced = LodTriangleCountAny(Component, Out.ForcedLod);
+	Out.Refusal = AnomalyLodPolicy::DecideTriangleContrast(Out.TrianglesShown, Out.TrianglesForced, AnomalyLodPolicy::ContrastTriangleRatio);
+	if (Out.Refusal != AnomalyLodPolicy::EForcedLodRefusal::None)
+	{
+		return Out;
+	}
+	Out.MinCoveragePct = AnomalyDefaults::GetLodPoppingMinCoveragePct();
+	if (const UStaticMeshComponent* Static = Cast<UStaticMeshComponent>(Component))
+	{
+		Out.CoveragePct = AnomalyLodTrigger::GetComponentCoveragePct(World, Static, nullptr);
+	}
+	else
+	{
+		Out.CoveragePct = AnomalyViewport::GetActorScreenCoveragePct(World, Component ? Component->GetOwner() : nullptr);
+	}
+	Out.Refusal = AnomalyLodPolicy::DecideCoverage(Out.CoveragePct, Out.MinCoveragePct);
 	return Out;
 }
 

@@ -53,6 +53,8 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 	int32 RefusedSkeletal = 0;
 	int32 RefusedNotCoarser = 0;
 	int32 RefusedUndetermined = 0;
+	int32 RefusedNoContrast = 0;
+	int32 RefusedBelowCoverage = 0;
 	for (const TWeakObjectPtr<UMeshComponent>& Weak : Meshes)
 	{
 		UMeshComponent* Mesh = Weak.Get();
@@ -81,6 +83,20 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 		const int32 Target = AnomalyLod::ResolveTargetLod(Mesh, RequestedIndex);
 
 		const AnomalyLod::FForcedLodContrast Contrast = AnomalyLod::GetForcedLodContrast(World, Mesh, Target);
+		if (Contrast.Refusal == AnomalyLodPolicy::EForcedLodRefusal::NoContrastLod || Contrast.Refusal == AnomalyLodPolicy::EForcedLodRefusal::BelowMinCoverage)
+		{
+			const bool bNoContrast = Contrast.Refusal == AnomalyLodPolicy::EForcedLodRefusal::NoContrastLod;
+			++(bNoContrast ? RefusedNoContrast : RefusedBelowCoverage);
+			UE_LOG(LogAnomaly, Warning,
+				TEXT("lod_corruption: REFUSED '%s' (%s) - forced_lod_model=%d resolves to LOD %d (%d triangles); the engine shows LOD %d now (source %s, %d triangles); screen coverage %.2f%% against the floor %.2f%% [%s]. %s This applies to every fire, auto-pool or targeted, with or without a lod-index."),
+				*Mesh->GetName(), UTF8_TO_TCHAR(AnomalyLodPolicy::DescribeRefusal(Contrast.Refusal)), Target, Contrast.ForcedLod, Contrast.TrianglesForced,
+				Contrast.ShownLod, Contrast.Source, Contrast.TrianglesShown, Contrast.CoveragePct, Contrast.MinCoveragePct,
+				*AnomalyLod::DescribeLodFacts(AnomalyLod::GetLodFacts(Mesh)),
+				bNoContrast
+					? TEXT("The forced LOD does not have at least 4 times fewer triangles than the one on screen, the contrast lod_popping requires, so forcing it may change nothing visible: a positive label with no visible change.")
+					: TEXT("The object covers less of the screen than lod_popping requires (LodPoppingMinCoveragePct), so a LOD change on it is too small to see: a positive label with no visible change."));
+			continue;
+		}
 		if (Contrast.Refusal != AnomalyLodPolicy::EForcedLodRefusal::None)
 		{
 			const bool bUndetermined = Contrast.Refusal == AnomalyLodPolicy::EForcedLodRefusal::CurrentLodUndetermined;
@@ -103,8 +119,9 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 				*Mesh->GetName());
 		}
 		UE_LOG(LogAnomaly, Log,
-			TEXT("lod_corruption: CONTRAST '%s' shows LOD %d now (source %s, screen_size %.6f); forced_lod_model=%d resolves to LOD %d, which is coarser [%s]."),
-			*Mesh->GetName(), Contrast.ShownLod, Contrast.Source, Contrast.ScreenSize, Target, Contrast.ForcedLod,
+			TEXT("lod_corruption: CONTRAST '%s' shows LOD %d now (source %s, screen_size %.6f, %d triangles); forced_lod_model=%d resolves to LOD %d, which is coarser (%d triangles), screen coverage %.2f%% [%s]."),
+			*Mesh->GetName(), Contrast.ShownLod, Contrast.Source, Contrast.ScreenSize, Contrast.TrianglesShown, Target, Contrast.ForcedLod,
+			Contrast.TrianglesForced, Contrast.CoveragePct,
 			*AnomalyLod::DescribeLodFacts(AnomalyLod::GetLodFacts(Mesh)));
 
 		FCapturedLod Record;
@@ -126,10 +143,12 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 		ByKind[(int32)AnomalyLodPolicy::EForcedLodRefusal::SkeletalUnmeasured] = RefusedSkeletal;
 		ByKind[(int32)AnomalyLodPolicy::EForcedLodRefusal::NotCoarser] = RefusedNotCoarser;
 		ByKind[(int32)AnomalyLodPolicy::EForcedLodRefusal::CurrentLodUndetermined] = RefusedUndetermined;
+		ByKind[(int32)AnomalyLodPolicy::EForcedLodRefusal::NoContrastLod] = RefusedNoContrast;
+		ByKind[(int32)AnomalyLodPolicy::EForcedLodRefusal::BelowMinCoverage] = RefusedBelowCoverage;
 		LastRefusal = UTF8_TO_TCHAR(AnomalyLodPolicy::DominantRefusalOf(ByKind, AnomalyLodPolicy::NumRefusalKinds, 0));
 		UE_LOG(LogAnomaly, Warning,
-			TEXT("lod_corruption: matched %d component(s) for '%s' but REFUSED ALL — %d hierarchical-instanced, %d single-LOD, %d skeletal, %d not coarser than the current LOD, %d current LOD undetermined. Applying nothing, so no fire is recorded and no label is written."),
-			Meshes.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal, RefusedNotCoarser, RefusedUndetermined);
+			TEXT("lod_corruption: matched %d component(s) for '%s' but REFUSED ALL — %d hierarchical-instanced, %d single-LOD, %d skeletal, %d not coarser than the current LOD, %d current LOD undetermined, %d no contrast LOD, %d below the coverage floor. Applying nothing, so no fire is recorded and no label is written."),
+			Meshes.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal, RefusedNotCoarser, RefusedUndetermined, RefusedNoContrast, RefusedBelowCoverage);
 		return false;
 	}
 	TArray<UMeshComponent*> Forced;
@@ -141,8 +160,8 @@ bool FAnomaly_LodCorruption::Apply(UWorld* World, const TArray<FString>& Args)
 		}
 	}
 	AnomalyLod::ScopeEventToForcedComponents(Forced, ScopedOwners, TEXT("lod_corruption"));
-	UE_LOG(LogAnomaly, Log, TEXT("lod_corruption: forced LOD on %d component(s) for '%s' (%d refused hierarchical instanced, %d refused single LOD, %d refused skeletal, %d refused not coarser than current, %d refused current LOD undetermined)."),
-		Captured.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal, RefusedNotCoarser, RefusedUndetermined);
+	UE_LOG(LogAnomaly, Log, TEXT("lod_corruption: forced LOD on %d component(s) for '%s' (%d refused hierarchical instanced, %d refused single LOD, %d refused skeletal, %d refused not coarser than current, %d refused current LOD undetermined, %d refused no contrast LOD, %d refused below the coverage floor)."),
+		Captured.Num(), *Substring, RefusedHism, RefusedSingleLod, RefusedSkeletal, RefusedNotCoarser, RefusedUndetermined, RefusedNoContrast, RefusedBelowCoverage);
 	return bActive;
 }
 
