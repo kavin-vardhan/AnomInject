@@ -4572,7 +4572,8 @@ and is the single source of truth for the project.
   traps).** Then `docs/predictions/2026-08-26-m35-build-b-gates.md` (pre-declared gates **and** the
   full results ledger, §12) and `docs/predictions/2026-08-26-m35-readback-layout-build-a.md`.
   🎯 **`m35` = a hotfix for a capture-readback crash observed on a SECOND HOST** ("Bates", a
-  Bates-lineage UE 5.1 game): an access violation reading past a mapped readback buffer at a **non-zero
+  **UE 5.3.2** game — 🔻 *corrected 2026-11-23 by the owner (ruling 096-04); this line said "a Bates-lineage UE 5.1
+  game", which was wrong. Engines: Concorde UE 5.1, Bates UE 5.3.2, Europa UE 4.25.*): an access violation reading past a mapped readback buffer at a **non-zero
   view-rect origin** (letterboxed, `Rect.Min.Y = 104`, view rect 1389×581, `fmt = PF_A2B10G10R10`).
   🛑 **THE FIRST DESIGN IS DEAD AND ITS STOP CONDITION FIRED — do not resurrect it.** Measured on this
   box, both legs: `bufferHeight 869 == sourceExtent.y 869` ⇒ **stock UE 5.1 allocates FULL-SOURCE-SIZE
