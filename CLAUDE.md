@@ -11,6 +11,38 @@ and is the single source of truth for the project.
 
 ## Current status — keep this current; it is the cold-start "you are here"
 
+> **096-06, 2026-11-23 - AFTER O-002 ON BATES: THE 5.3 BUILD FIX IS IN THE REPO, THE PIE m56 READERS AND TWO SMALL BUGS ARE
+> FIXED, SIX REAL-HOST FINDINGS ANALYSED. EDITOR-COMPILED (STRICT + NORMAL, BOTH TIPS), PURE TESTS GREEN. NO GAME BUILD, NO
+> LEG, NO COOK, NO CODEX.**
+> - **5.3 build (`9062cf1`):**
+>   - `TexCorruptTree.cpp` includes `StaticMeshComponentLODInfo.h` (an empty placeholder in 5.1) and looks three vertex
+>     factory types up by name, exactly the office's E1b.
+>   - Nine `UWorld::FeatureLevel` reads go through `AnomalyEngineCompat::WorldFeatureLevel`. 5.1 has no
+>     `UWorld::GetFeatureLevel()` (G586), so the helper reads the member before 5.3.
+>   - Strict-include Editor build: 0/0 on both tips (74 / 77 header TUs). Normal Editor build: 0/0 on both tips.
+> - **Readers:**
+>   - In PIE the `pie_end_settle` entry sits on the m56 revert tick. It made `m56_continuity_check` C7 and
+>     `verify_capture --label-rule` fail pink and checker; the labels are right (090-10e), the readers were wrong (G587).
+>     Fixed in `verify_capture` (`75af026`), the office tools and CaptureBench `m57-gates` (`c235fe9`, local).
+>   - `m56_settle_content_check` lists never-labelled events instead of failing them.
+>   - `m57_lod_readout` L3 reads the pool's `Auto.Yield ... lod_not_armable` line.
+> - **`lod_spatial_swap_visible` on every swap (`6b29ca7`, m57).** One rule, `AnomalyLabel::IsSpatialSwapVisible`, sets both
+>   the swap's value and the event's.
+> - **⚠ Found, not fixed — analysis `_reviews\096-06-analysis.md`, chat rules:**
+>   - **Every fire re-resolves its target by exact name and hits every same-named actor while the label names one (G588;
+>     Bates: 402 names on 1055 actors; pool and targeted).**
+>   - `lod_corruption` has no visible-contrast test (NO-TRACE 3 of 19).
+>   - A host-hidden actor is selectable: on it, blink is labelled with an unmeasured mask and admitted (a candidate; one
+>     office log read settles it).
+>   - HLOD proxies are vetoed; the terrain ceiling; the view-entry yaw floor and the walk floor.
+> - **Tips:** `integ/m56-m58` = this docs commit (code `75af026`); `feat/m57-lod-spatial-trigger` = its merge (code
+>   `6b29ca7`), **the commit the office installs next**; `docs/office-pack` = the merge of this integ tip.
+>   - Journal `docs/sessions/2026-11-23-096-06-o002-53build-readers-analysis.md`.
+>   - Receipts `_relay\runs\2026-11-20-096-office-agent\code-receipts-096-06`.
+>   - Checkout left on `integ/m56-m58`; host plugin Editor DLLs from the m57 tree. Next free gotcha **G589**.
+
+> ---
+
 > **096-05, 2026-11-23 - PREP FOR THE FIRST NEW-BUILD TEST AT THE OFFICE (O-002, ruling 096-04): STRICT-INCLUDE BUILD
 > CLEAN, `labels.jsonl` SORTED AT RUN END, OFFICE PACK AMENDED. EDITOR-COMPILED, PURE TESTS GREEN. NO GAME BUILD, NO LEG,
 > NO COOK, NO CODEX.**
