@@ -383,7 +383,9 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 		const AActor* BB = B.Get();
 		if (!AA) { return false; }
 		if (!BB) { return true; }
-		return AA->GetName() < BB->GetName();
+		const FString NameA = AA->GetName();
+		const FString NameB = BB->GetName();
+		return NameA != NameB ? NameA < NameB : AA->GetPathName() < BB->GetPathName();
 	});
 
 	TArray<AActor*> Candidates;
@@ -570,7 +572,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireOnce()
 	const float Hold = Draw.Hold;
 
 	const FString TargetName = Target->GetName();
-	const FString Token = FString(TEXT("=")) + TargetName;
+	const FString Token = AnomalyTargeting::MakePathToken(Target);
 	TArray<FString> ApplyArgs;
 	ApplyArgs.Add(Token);
 	FString ModeLog = Dash;
@@ -736,7 +738,23 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 	}
 
 	AActor* Target = nullptr;
-	const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(World, FString(TEXT("=")) + ActorName);
+	const AnomalyTargetPolicy::ETargetToken Kind = AnomalyTargetPolicy::ClassifyTargetToken((int)ActorName[0]);
+	const TArray<TWeakObjectPtr<AActor>> Matches = AnomalyTargeting::FindActorsMatching(World,
+		Kind == AnomalyTargetPolicy::ETargetToken::Substring ? FString(TEXT("=")) + ActorName : ActorName);
+	if (AnomalyTargetPolicy::IsTargetedNameAmbiguous(Kind, Matches.Num()))
+	{
+		const FString Reason = FString::Printf(TEXT("%s:%d"), UTF8_TO_TCHAR(AnomalyTargetPolicy::DescribeAmbiguousReason()), Matches.Num());
+		UE_LOG(LogAnomaly, Warning,
+			TEXT("Auto.FireSpecific: '%s' on '%s' -> REFUSED %s - %d actors match this name (first: %s). A targeted capture changes one ")
+			TEXT("actor and its label names one, so it never picks among namesakes. Nothing is applied. Target one actor with ")
+			TEXT("@<path>, for example @%s."),
+			*Id.ToString(), *ActorName, *Reason, Matches.Num(),
+			*AnomalyTargeting::DescribeFirstPaths(Matches, AnomalyTargetPolicy::AmbiguousPathsLogged),
+			Matches[0].IsValid() ? *Matches[0]->GetPathName() : TEXT("<path>"));
+		NoteYieldRound(Id, TEXT("targeted"), false, TMap<FString, int32>{ { Reason, 1 } });
+		LastFireResult = FString::Printf(TEXT("target %s: refused (%s)"), *ActorName, *Reason);
+		return false;
+	}
 	for (const TWeakObjectPtr<AActor>& Weak : Matches)
 	{
 		AActor* Actor = Weak.Get();
@@ -780,7 +798,7 @@ bool UAnomalyAutoInjectorSubsystem::TryFireSpecific(FName Id, const FString& Act
 		bModeGiven, bTexCorrupt ? Modes.Num() : -1, ModeCounter, !BenchLever.IsEmpty());
 	const float Hold = Targeted.Hold;
 	const FString TargetName = Target->GetName();
-	const FString Token = FString(TEXT("=")) + TargetName;
+	const FString Token = AnomalyTargeting::MakePathToken(Target);
 	TArray<FString> ApplyArgs;
 	ApplyArgs.Reserve(1 + ExtraArgs.Num());
 	ApplyArgs.Add(Token);

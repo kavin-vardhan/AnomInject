@@ -10,6 +10,7 @@
 #include "AnomalyInjectorLog.h"
 #include "AnomalyInjectorSubsystem.h"
 #include "AnomalyViewport.h"
+#include "AnomalyTargeting.h"
 
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
@@ -187,7 +188,7 @@ bool UAnomalySelectorSubsystem::InjectSelected()
 	}
 
 	const FName Id = GetAnomalyChoice();
-	const FString Token = FString(TEXT("=")) + Actor->GetName();
+	const FString Token = AnomalyTargeting::MakePathToken(Actor);
 	const bool bApplied = Injector->ApplyAnomaly(Id, TArray<FString>{ Token });
 	if (bApplied)
 	{

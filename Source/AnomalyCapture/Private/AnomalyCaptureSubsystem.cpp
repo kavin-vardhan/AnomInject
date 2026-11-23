@@ -6000,7 +6000,7 @@ void UAnomalyCaptureSubsystem::ApplySessionGlobals()
 
 		TArray<FString> Args;
 		Args.Reserve(1 + TargetAnomalyArgs.Num());
-		Args.Add(FString(TEXT("=")) + TargetActorName);
+		Args.Add((TargetActorName.StartsWith(TEXT("@")) || TargetActorName.StartsWith(TEXT("="))) ? TargetActorName : FString(TEXT("=")) + TargetActorName);
 		Args.Append(TargetAnomalyArgs);
 
 		if (Injector->ApplyAnomaly(TargetAnomalyId, Args))

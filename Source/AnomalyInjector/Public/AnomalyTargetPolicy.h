@@ -82,6 +82,35 @@ namespace AnomalyTargetPolicy
 		return bStaticMeshClass && !bSplineMesh && !bDisallowNanite && !bFallbackDisplayed && bHasNaniteData && bPlatformNanite;
 	}
 
+	enum class ETargetToken : unsigned char { Substring = 0, ExactName = 1, Path = 2 };
+
+	static constexpr int AmbiguousPathsLogged = 3;
+
+	inline ETargetToken ClassifyTargetToken(int FirstChar)
+	{
+		return FirstChar == '@' ? ETargetToken::Path : FirstChar == '=' ? ETargetToken::ExactName : ETargetToken::Substring;
+	}
+
+	inline const char* DescribeTargetToken(ETargetToken Kind)
+	{
+		return Kind == ETargetToken::Path ? "path" : Kind == ETargetToken::ExactName ? "exact_name" : "substring";
+	}
+
+	inline const char* DescribeAmbiguousReason()
+	{
+		return "target_ambiguous";
+	}
+
+	inline bool IsApplyTokenAmbiguous(ETargetToken Kind, int NumActorsNamed)
+	{
+		return Kind != ETargetToken::Path && NumActorsNamed > 1;
+	}
+
+	inline bool IsTargetedNameAmbiguous(ETargetToken Kind, int NumMatches)
+	{
+		return Kind != ETargetToken::Path && NumMatches > 1;
+	}
+
 	template <typename TCandidate, typename TIsNanite>
 	int FilterNaniteCandidates(TCandidate* Candidates, int Num, bool bAllowNanite, TIsNanite&& IsNanite)
 	{

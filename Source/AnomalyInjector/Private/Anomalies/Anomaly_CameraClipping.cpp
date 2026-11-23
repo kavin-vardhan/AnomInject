@@ -35,7 +35,7 @@ bool FAnomaly_CameraClipping::Apply(UWorld* World, const TArray<FString>& Args)
 		Revert();
 	}
 
-	const bool bTargeted = Args.Num() > 0 && Args[0].StartsWith(TEXT("="));
+	const bool bTargeted = Args.Num() > 0 && (Args[0].StartsWith(TEXT("=")) || Args[0].StartsWith(TEXT("@")));
 
 	WorldWeak = World;
 	PreviousNearClip = GNearClippingPlane;

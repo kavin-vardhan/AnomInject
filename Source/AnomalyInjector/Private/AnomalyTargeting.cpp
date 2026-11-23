@@ -1,8 +1,23 @@
 #include "AnomalyTargeting.h"
 
+#include "AnomalyTargetPolicy.h"
+
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+
+namespace
+{
+	FString ShortNameOfPath(const FString& Path)
+	{
+		int32 Dot = INDEX_NONE;
+		int32 Colon = INDEX_NONE;
+		Path.FindLastChar(TEXT('.'), Dot);
+		Path.FindLastChar(TEXT(':'), Colon);
+		const int32 Cut = FMath::Max(Dot, Colon);
+		return Cut == INDEX_NONE ? Path : Path.RightChop(Cut + 1);
+	}
+}
 
 namespace AnomalyTargeting
 {
@@ -14,10 +29,28 @@ namespace AnomalyTargeting
 			return Result;
 		}
 
-		const bool bExact = Query.StartsWith(TEXT("="));
-		const FString Needle = bExact ? Query.RightChop(1) : Query;
+		const AnomalyTargetPolicy::ETargetToken Kind = AnomalyTargetPolicy::ClassifyTargetToken((int)Query[0]);
+		const bool bPath = Kind == AnomalyTargetPolicy::ETargetToken::Path;
+		const bool bExact = Kind == AnomalyTargetPolicy::ETargetToken::ExactName;
+		const FString Needle = (bPath || bExact) ? Query.RightChop(1) : Query;
 		if (Needle.IsEmpty())
 		{
+			return Result;
+		}
+
+		if (bPath)
+		{
+			const FString ShortName = ShortNameOfPath(Needle);
+			for (TActorIterator<AActor> It(World); It; ++It)
+			{
+				AActor* Actor = *It;
+				if (Actor && Actor->GetName().Equals(ShortName, ESearchCase::IgnoreCase)
+					&& Actor->GetPathName().Equals(Needle, ESearchCase::IgnoreCase))
+				{
+					Result.Add(Actor);
+					break;
+				}
+			}
 			return Result;
 		}
 
@@ -47,5 +80,49 @@ namespace AnomalyTargeting
 			}
 		}
 		return Result;
+	}
+
+	int32 CountActorsNamed(UWorld* World, const FString& Name, TArray<FString>* OutPaths, int32 MaxPaths)
+	{
+		int32 Count = 0;
+		if (!World || Name.IsEmpty())
+		{
+			return 0;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (Actor && Actor->GetName().Equals(Name, ESearchCase::IgnoreCase))
+			{
+				++Count;
+				if (OutPaths && OutPaths->Num() < MaxPaths)
+				{
+					OutPaths->Add(Actor->GetPathName());
+				}
+			}
+		}
+		return Count;
+	}
+
+	FString MakePathToken(const AActor* Actor)
+	{
+		return Actor ? FString(TEXT("@")) + Actor->GetPathName() : FString();
+	}
+
+	FString DescribeFirstPaths(const TArray<TWeakObjectPtr<AActor>>& Actors, int32 MaxPaths)
+	{
+		TArray<FString> Paths;
+		for (const TWeakObjectPtr<AActor>& Weak : Actors)
+		{
+			if (Paths.Num() >= MaxPaths)
+			{
+				break;
+			}
+			if (const AActor* Actor = Weak.Get())
+			{
+				Paths.Add(Actor->GetPathName());
+			}
+		}
+		return FString::Join(Paths, TEXT(" | "));
 	}
 }

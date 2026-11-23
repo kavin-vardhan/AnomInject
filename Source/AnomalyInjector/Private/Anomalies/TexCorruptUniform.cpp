@@ -537,7 +537,7 @@ namespace AnomalyTexCorrupt
 		int32 Added = 0;
 		const TArray<TWeakObjectPtr<AActor>> Actors = TargetName.IsEmpty()
 			? AnomalyViewport::GetVisibleRenderableActorsReadOnly(World)
-			: AnomalyTargeting::FindActorsMatching(World, TargetName.StartsWith(TEXT("=")) ? TargetName : (TEXT("=") + TargetName));
+			: AnomalyTargeting::FindActorsMatching(World, (TargetName.StartsWith(TEXT("=")) || TargetName.StartsWith(TEXT("@"))) ? TargetName : (TEXT("=") + TargetName));
 		for (const TWeakObjectPtr<AActor>& Weak : Actors)
 		{
 			Added += Uniform::KickForActor(Weak.Get());
