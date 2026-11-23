@@ -335,6 +335,11 @@ target set** (one apply spanning static + skeletal components, dispatched per ty
 - Consumers: the capture module's `FreezeEventAnchor` (blinking only) and `FAnomaly_Blinking::Apply`
   (the refusal). Bench levers `IAI.Bench.TerrainRefusalOff` and `IAI.Bench.TerrainClassRuleInert`
   (non-Shipping, swept by the bench gate).
+- **Terrain blink ceiling (096-07).** In the auto pool a census `above_ceiling` verdict is re-admitted only for
+  `blinking` on terrain whose measured drawn coverage is at or below `IAI.Blink.TerrainCeilingPct` / ini
+  `BlinkTerrainCeilingPct` (compiled 25 = the census default, so no change until raised; pure rule
+  `AnomalyTerrainRule::ReadmitAboveCeiling`). Logged `TERRAIN-CEILING` once per actor; the value is on the `TERRAIN RULES`
+  line. Every other id and actor keeps the census ceiling.
 
 ### Targeting — `AnomalyTargeting`  (`Public/AnomalyTargeting.h`)
 Free functions (deliberately not a base class). Single source of truth for the label-free match rule.
@@ -350,6 +355,16 @@ Free functions (deliberately not a base class). Single source of truth for the l
   exact targeting with **no anomaly edits and no `IAnomaly` change**. This is also the primitive the future
   auto-injection path will use. Exact-*name* is the v1 identity ceiling (streamed-sublevel duplicate names would need
   pointer identity = an `IAnomaly` change — accepted limit; gotcha G28).
+  🔻 **Superseded by 096-07 (G588): every fire now carries the actor's full path.** A leading `@` (`@<path>`) matches the
+  one actor whose `GetPathName()` equals the text; the comparison runs only on actors whose short name equals the path's
+  last segment. The auto pool, the targeted capture (`TryFireSpecific`) and the selector apply with
+  `AnomalyTargeting::MakePathToken(Target)`, so every anomaly re-resolves exactly the labelled actor; `IAnomaly` is unchanged.
+  `CountActorsNamed` and the pure rule `AnomalyTargetPolicy::{ClassifyTargetToken, IsApplyTokenAmbiguous,
+  IsTargetedNameAmbiguous}` (selftest `tools/target_identity_selftest.cpp`, mutants `tools/target_identity_mutants.py`) refuse
+  `target_ambiguous:<n>`: in `TryFireSpecific` when a bare or `=` name matches more than one actor (name or class), in
+  `ApplyAnomaly` (object scope) when the text is exactly the name of more than one actor. A substring that is no actor's
+  exact name keeps its multi-actor meaning. The apply-level reason is held in `ApplyLevelRefusals` and returned first by
+  `GetAnomalyLastRefusalReason`. Pool candidates sort by name, ties by path.
 - `FindComponentsMatching<T>(World, Substring)` (**A1**, header-only template) — resolves matching
   actors via `FindActorsMatching` (same rule), then gathers each actor's components of type `T`
   (`AActor::GetComponents<T>`). Returns `TArray<TWeakObjectPtr<T>>`. Handles standalone light/mesh
@@ -430,6 +445,16 @@ boxes, editor billboards, landscape, debug/streaming actors), which must never b
   (`GetInstanceCount() > 0` required for ISMs) — this drops 0-instance landscape-grass ISMs (which would otherwise leak a
   `LandscapeStreamingProxy` in) while keeping real foliage and populated ISMs. So **renderable = a visible SM/SK
   component that actually draws something (instanced ⇒ instance count > 0)**.
+  **096-07 — two owner tests in the same predicate (so picker, census, target mask, texture census and the m57 lod
+  candidates all agree):** a component whose owner the host keeps hidden (`AActor::IsHidden()` and not hidden by the plugin;
+  `AnomalyHiddenClass::IsHiddenByPlugin` covers the pre-m45 bench hide, the m45 hide never sets the flag) and a component
+  whose owner IsA an HLOD proxy class (`/Script/Engine.LODActor`, `/Script/Engine.WorldPartitionHLOD`, resolved once by
+  path, no header or module) are not renderable. The picker's `ClassifyRenderableVisibleLive` names each such actor in view
+  once (`EXCLUDED-HIDDEN`, `EXCLUDED-HLOD-PROXY`) and counts distinct actors (`run_summary.hidden_excluded_targets`,
+  `hlod_proxy_excluded_targets`). `GetTargetRefusal(Actor)` = `AnomalyTargetPolicy::DecideTargetEligibility` (hidden =
+  flag, or at least one mesh and none visible; then HLOD) refuses `target_hidden` / `hlod_proxy` in `TryFireSpecific` and
+  `ApplyAnomaly`. `DescribeHlodRule()` feeds the capture's `HLOD RULE` line. `FCoUserCountScope` turns both refusals off for
+  `stuck_low_mip`'s visible co-user count, which asks what draws a shared texture, not what may be a target (G589).
 - `IsActorRenderableVisible(View, World, Actor)` (any component passes), `FilterRenderableVisibleActors(View, World, In)`,
   and `GetVisibleRenderableActors(World)` (resolve view → enumerate all actors → filter; the selector/auto-injection
   entry point). The renderability check runs **first** in the per-component test, before the occlusion traces (perf win).

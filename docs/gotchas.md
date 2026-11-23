@@ -10376,3 +10376,32 @@ G28 said "document, don't solve" for targeted names. The pool case means one fir
 label, box and mask name one, and a namesake in view is an unlabelled change. Not fixed in 096-06 (analysis item 10).
 The blink line `blinking: matched N actor(s)` already counts it: N > 1 is a multi-hit.
 **Rule:** never hand an anomaly an identity that can match more than the object you will label. Use the path name.
+
+## G589 — A component can be visible while its actor is hidden: a renderable test built on `IsVisible()` keeps host-hidden actors selectable (096-07)
+`USceneComponent::IsVisible()` reads the component's own flags (`bVisible`, `bHiddenInGame`, the level collection) and not
+the owner actor's hidden flag (`AActor::IsHidden()`, set by `SetActorHiddenInGame`). Our shared renderable test used
+`IsVisible()` (G29: not `ShouldRender()`), so an actor the host keeps hidden stayed a candidate and a target. A blink on it
+is labelled from our own hidden state while the picture never changes, and its target mask is never armed (O-002's marker
+actor).
+**Rule:** test the owner's hidden flag in the renderable predicate, and exclude what the plugin itself hid: the pre-m45
+bench hide sets the same flag (`AnomalyHiddenClass::IsHiddenByPlugin`).
+
+## G590 — A longer trigger look-ahead needs a longer arm timeout, or the new fires time out before they can show anything (096-07)
+Raising m57's distance look-ahead to 300 frames arms fires up to 10 s before the object can refine, while the arm timeout
+was a fixed 90 (now 150) frames. In the selftest the bench approach then arms at an earlier frame and times out at 127,
+before its first positive frame at 128: an untriggered fire with an invisible coarse LOD held for nothing.
+**Rule:** a fire's timeout follows its own prediction: `ArmTimeoutFramesFor` = max(setting, frames ahead + entry frames)
+for distance fires.
+
+## G591 — Two thresholds shared one constant: lowering the arm floor would have changed the retreat test (096-07)
+`MinClosingSpeedCmPerS` gated distance arming and also decided `bRetreating` for the down-pop (`Anomaly_LodPopping.cpp`,
+and the selftest's simulation). Lowering it to 20 cm/s for slow walks would have made retreat detection 2.5 times more
+sensitive with no one asking for it.
+**Rule:** before changing a constant, list every reader. Split it when the readers mean different things
+(`RetreatSpeedCmPerS = 50`).
+
+## G592 — A selftest's failure message can print a stale value: the order of evaluating function arguments is unspecified (096-07)
+`Check(Is(DistanceArmRefusal(D, S, Ahead), "too_far_ahead") && Ahead == 682, "... got " + std::to_string(Ahead))` may build
+the message before the call that sets `Ahead`, so a failing line printed -1 or the previous case's value while the real
+value was different.
+**Rule:** when a failure message quotes an out-parameter, compute the result in a statement of its own first.
