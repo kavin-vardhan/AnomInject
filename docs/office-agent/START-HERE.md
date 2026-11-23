@@ -15,6 +15,12 @@ pack. Copies carry placeholders and are not byte-identical to their home sources
 - You are started inside a game project. The plugin under test is the game's copy,
   `Plugins\AnomalyInjector`, at the commit written in its `COPIED_COMMIT.txt`. The owner checks out
   and copies; you never use git.
+- **Every office edit to plugin code must come home; an office-only fix is lost on the next install.** If an
+  experiment or a fix changes any file in the game's `Plugins\AnomalyInjector`, report the file, the lines and why,
+  so the home side can commit it. Example: Bates needed a UE 5.3 build fix in `TexCorruptTree.cpp` (an include and
+  three vertex-factory lookups by name). It was made at the office on 2026-10-03 and never reached the repo, so the
+  copy installed for O-002 (`d2f6873`) did not build there until the agent re-made it as experiment E1b. The fix is in
+  the repo from brief 096-06.
 - Repo documents named in this file (`docs/...`, `tools/...`) are not in the pack. Read them in the
   game's plugin copy, at its version: a version older than a document does not have it. The repo's
   `CLAUDE.md` is the exception: it is the home agent's instruction file, the owner leaves it out of the
